@@ -30,7 +30,7 @@ class PauseOverlay(Sprite):
 
         # Create the paused text
         font = pygame.font.Font(None, 72)
-        text_surface = font.render("PAUSED", True, WHITE)
+        text_surface = font.render("PAUSED", True, WHITE)  # noqa: FBT003
 
         # Center the text on screen
         text_rect = text_surface.get_rect()

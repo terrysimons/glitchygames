@@ -1950,7 +1950,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f.write("\n")
 
     @staticmethod
-    def _write_toml_alpha(f: IO[str], data: dict, preserve_trailing_newline: bool = False) -> None:
+    def _write_toml_alpha(f: IO[str], data: dict, *, preserve_trailing_newline: bool = False) -> None:
         """Write TOML alpha section if needed."""
         if "alpha" in data:
             f.write("[alpha]\n")

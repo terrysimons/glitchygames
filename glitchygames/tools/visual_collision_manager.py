@@ -467,7 +467,7 @@ class VisualCollisionManager:
         """
         return [indicator for indicator in self.indicators.values() if indicator.is_visible]
 
-    def set_indicator_visibility(self, controller_id: int, visible: bool) -> None:
+    def set_indicator_visibility(self, controller_id: int, *, visible: bool) -> None:
         """Set visibility of a controller indicator.
 
         Args:

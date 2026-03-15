@@ -28,7 +28,7 @@ class MultiBallTestBase:
     """Base class for multi-ball collision tests."""
 
     def __init__(
-        self, test_name, num_balls=5, enable_ball_collisions=False, enable_ball_bouncing=False
+        self, test_name, num_balls=5, *, enable_ball_collisions=False, enable_ball_bouncing=False
     ):
         """Initialize multi-ball test base with configuration parameters."""
         self.test_name = test_name

@@ -846,6 +846,7 @@ class BitmappySprite(Sprite):
         height: int = 32,
         name: str | None = None,
         filename: str | None = None,
+        *,
         focusable: bool = False,
         parent: object = None,
         groups: pygame.sprite.LayeredDirty | None = None,

@@ -321,7 +321,7 @@ class AnimatedCanvasInterface:
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
     def set_pixel_at(
-        self, x: int, y: int, color: tuple[int, int, int], skip_drag_ops: bool = False
+        self, x: int, y: int, color: tuple[int, int, int], *, skip_drag_ops: bool = False
     ) -> None:
         """Set the color of a pixel at the given coordinates.
 

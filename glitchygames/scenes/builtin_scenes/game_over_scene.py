@@ -144,7 +144,7 @@ class TextSprite(Sprite):
         font = pygame.font.Font(None, font_size)
 
         # Render the text
-        text_surface = font.render(text, True, color)
+        text_surface = font.render(text, True, color)  # noqa: FBT003
 
         # Initialize the sprite with the text surface
         super().__init__(

@@ -494,6 +494,7 @@ class MockFactory:
         pixels_across: int = 32,
         pixels_tall: int = 32,
         pixel_size: int = 16,
+        *,
         use_cache: bool = True,  # noqa: ARG004
     ) -> Mock:
         """Create an optimized scene mock with caching for performance.
@@ -540,6 +541,7 @@ class MockFactory:
     def create_event_test_scene_mock(
         options: dict | None = None,
         event_handlers: dict | None = None,
+        *,
         use_cache: bool = True,  # noqa: ARG004
     ) -> Mock:
         """Create a scene mock for event testing.
@@ -913,7 +915,7 @@ class MockFactory:
         return mock_event
 
     @staticmethod
-    def create_pygame_key_mock(shift_pressed=False):
+    def create_pygame_key_mock(*, shift_pressed=False):
         """Create a mock pygame key state for testing.
 
         Args:

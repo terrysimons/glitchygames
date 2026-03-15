@@ -1490,7 +1490,7 @@ class FilmStripWidget:
 
             # Render frame number text in format "current+1/total"
             frame_text = f"{frame_index + 1}/{total_frames}"
-            text_surface = font.render(frame_text, True, (255, 255, 255))  # White text
+            text_surface = font.render(frame_text, True, (255, 255, 255))  # White text  # noqa: FBT003
             text_rect = text_surface.get_rect()
 
             # Position at bottom center of the frame (like animation preview)
@@ -2314,7 +2314,7 @@ class FilmStripWidget:
 
             # Render frame index text in format "current+1/total"
             frame_text = f"{current_frame_idx + 1}/{total_frames}"
-            text_surface = font.render(frame_text, True, (255, 255, 255))  # White text
+            text_surface = font.render(frame_text, True, (255, 255, 255))  # White text  # noqa: FBT003
             text_rect = text_surface.get_rect()
 
             # Position at bottom center of the preview

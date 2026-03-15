@@ -92,7 +92,7 @@ class FastTimer:
     """perf_counter_ns-based timer with sleep+spin pacing."""
 
     def __init__(
-        self, sleep_granularity_ns: int = 1_000_000, windows_timer_1ms: bool = False
+        self, sleep_granularity_ns: int = 1_000_000, *, windows_timer_1ms: bool = False
     ) -> None:
         """Initialize the FastTimer with sleep granularity and Windows timer options."""
         self.sleep_granularity_ns = max(0, int(sleep_granularity_ns))

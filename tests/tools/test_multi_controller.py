@@ -376,7 +376,7 @@ class TestVisualCollisionManager:
         assert self.manager.indicators[0].is_visible is True
 
         # Hide indicator
-        self.manager.set_indicator_visibility(0, False)
+        self.manager.set_indicator_visibility(0, visible=False)
         assert self.manager.indicators[0].is_visible is False
 
     def test_color_customization(self):

@@ -208,7 +208,7 @@ class TestVisualCollisionEdgeCases:
         )
 
         # Test all customization options
-        self.manager.set_indicator_visibility(0, False)
+        self.manager.set_indicator_visibility(0, visible=False)
         self.manager.set_indicator_color(0, (0, 255, 0))
         self.manager.set_indicator_shape(0, IndicatorShape.CIRCLE)
         self.manager.set_indicator_size(0, 20)

@@ -984,22 +984,22 @@ class TextSprite(BitmappySprite):
                 # Fall back to pygame.font style (returns surface)
                 if is_transparent:
                     # For transparent backgrounds, don't pass background color to pygame.font
-                    text_surface = font.render(str(text), True, current_text_color)
+                    text_surface = font.render(str(text), True, current_text_color)  # noqa: FBT003
                 else:
                     # For solid backgrounds, pass the background color
                     text_surface = font.render(
                         str(text),
-                        True,
+                        True,  # noqa: FBT003
                         current_text_color,
                         self.background_color,
                     )
         elif is_transparent:
             # This is a pygame.font.Font with transparent background
             # For transparent backgrounds, don't pass background color to pygame.font
-            text_surface = font.render(str(text), True, current_text_color)
+            text_surface = font.render(str(text), True, current_text_color)  # noqa: FBT003
         else:
             # For solid backgrounds, render without background parameter for pygame.font
-            text_surface = font.render(str(text), True, current_text_color)
+            text_surface = font.render(str(text), True, current_text_color)  # noqa: FBT003
 
         # Position the text in the center of our surface
         if text_rect is None:
@@ -1324,7 +1324,7 @@ class InputBox(Sprite):
         self.color = color
         self.font = pygame.font.SysFont("Times", 14)
         self.text = text
-        self.text_image = self.font.render(self.text, True, self.color)
+        self.text_image = self.font.render(self.text, True, self.color)  # noqa: FBT003
         self.active = False
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
@@ -1396,7 +1396,7 @@ class InputBox(Sprite):
             None
 
         """
-        self.text_image = self.font.render(self.text, True, (255, 255, 255))
+        self.text_image = self.font.render(self.text, True, (255, 255, 255))  # noqa: FBT003
 
     def on_mouse_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse up events.
@@ -2359,7 +2359,7 @@ class TabControlSprite(BitmappySprite):
                 # Draw tab text
                 try:
                     font = pygame.font.Font(None, 16)
-                    text_surface = font.render(tab_text, True, self.text_color)
+                    text_surface = font.render(tab_text, True, self.text_color)  # noqa: FBT003
                     text_rect = text_surface.get_rect(center=tab_rect.center)
                     self.image.blit(text_surface, text_rect)
                 except (pygame.error, AttributeError):
@@ -3174,7 +3174,7 @@ class MultiLineTextBox(BitmappySprite):
                         text_surface, _ = self.font.render(line, current_text_color)
                     else:
                         # pygame.font.Font - render returns surface
-                        text_surface = self.font.render(line, True, current_text_color)
+                        text_surface = self.font.render(line, True, current_text_color)  # noqa: FBT003
                     self.image.blit(text_surface, (5, y_offset))
                 y_offset += line_height
 

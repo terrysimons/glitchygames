@@ -5827,7 +5827,7 @@ class BitmapEditorScene(Scene):
                 self.canvas.dirty = 1
                 self.canvas.force_redraw()
 
-    def _delete_animation(self, animation_name: str, confirmed: bool = False) -> None:
+    def _delete_animation(self, animation_name: str, *, confirmed: bool = False) -> None:
         """Delete an animation (film strip).
 
         Args:
@@ -9465,7 +9465,7 @@ class BitmapEditorScene(Scene):
             return None
 
     def _generate_frame_toml_content(
-        self, pixels: list, force_single_char_glyphs: bool = False
+        self, pixels: list, *, force_single_char_glyphs: bool = False
     ) -> str:
         """Generate TOML content for the current frame.
 
@@ -12552,7 +12552,7 @@ pixels = \"\"\"
                             )
 
     # Canvas Mode Implementation Methods
-    def _canvas_paint_at_controller_position(self, controller_id: int, force: bool = False) -> None:
+    def _canvas_paint_at_controller_position(self, controller_id: int, *, force: bool = False) -> None:
         """Paint at the controller's current canvas position.
 
         Args:

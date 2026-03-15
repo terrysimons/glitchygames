@@ -110,7 +110,7 @@ class RendererService:
         LOG.info("Pygame initialized in headless mode")
 
     def render_from_toml(
-        self, toml_content: str, scale: int = 1, render_all_frames: bool = False
+        self, toml_content: str, scale: int = 1, *, render_all_frames: bool = False
     ) -> RenderResult:
         """Render a sprite from TOML content to PNG.
 
@@ -337,7 +337,7 @@ class RendererService:
         return frames_base64, rendered_frames
 
     def render_from_file(
-        self, file_path: str, scale: int = 1, render_all_frames: bool = False
+        self, file_path: str, scale: int = 1, *, render_all_frames: bool = False
     ) -> RenderResult:
         """Render a sprite from a file to PNG.
 
@@ -352,7 +352,7 @@ class RendererService:
         """
         try:
             toml_content = Path(file_path).read_text(encoding="utf-8")
-            return self.render_from_toml(toml_content, scale, render_all_frames)
+            return self.render_from_toml(toml_content, scale, render_all_frames=render_all_frames)
         except FileNotFoundError:
             return RenderResult(
                 success=False,

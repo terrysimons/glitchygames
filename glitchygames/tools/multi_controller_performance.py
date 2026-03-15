@@ -374,6 +374,7 @@ class OptimizedVisualCollisionManager:
 
     def set_performance_options(
         self,
+        *,
         enable_caching: bool = True,
         enable_optimization: bool = True,
         update_throttle: float = 0.016,

@@ -169,6 +169,7 @@ class BallSprite(Sprite):
         height: int = 20,
         groups: pygame.sprite.LayeredDirty | None = None,
         collision_sound: str | None = None,
+        *,
         bounce_top_bottom: bool = True,
         bounce_left_right: bool = False,
         speed_up_mode: int = SpeedUpMode.NONE,

@@ -171,11 +171,6 @@ lint.ignore = [
   # --- Game engine specifics ---
   "E501", # line-too-long (ruff format handles what it can)
   "E712", # true-false-comparison (pygame uses == True/False)
-
-  # --- Boolean arguments (common in game APIs) ---
-  "FBT001", # boolean-type-hint-positional-argument
-  "FBT002", # boolean-default-value-positional-argument
-  "FBT003", # boolean-positional-value-in-call
 ]
 lint.exclude = []
 lint.fixable = [
