@@ -5,6 +5,7 @@ import logging
 import math
 
 import pytest
+
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
 
@@ -51,8 +52,8 @@ class TestBallCollisionPhysics:
         collision_distance = 20.0  # 10px radius each ball
         if distance > collision_distance or distance < 0.001:
             LOG.debug(
-                f"DEBUG: No collision - distance={distance:.2f},"
-                f" collision_distance={collision_distance}"
+                f'DEBUG: No collision - distance={distance:.2f},'
+                f' collision_distance={collision_distance}'
             )
             return None
 
@@ -260,12 +261,12 @@ class TestBallCollisionPhysics:
         """Test that energy is conserved in all collision scenarios."""
         scenarios = [
             # (ball1_speed, ball2_speed, description)
-            ((100.0, 0.0), (0.0, 0.0), "horizontal vs stationary"),
-            ((0.0, 100.0), (0.0, 0.0), "vertical vs stationary"),
-            ((50.0, 50.0), (0.0, 0.0), "diagonal vs stationary"),
-            ((100.0, 0.0), (50.0, 0.0), "horizontal vs horizontal"),
-            ((0.0, 100.0), (0.0, 50.0), "vertical vs vertical"),
-            ((50.0, 50.0), (25.0, 25.0), "diagonal vs diagonal"),
+            ((100.0, 0.0), (0.0, 0.0), 'horizontal vs stationary'),
+            ((0.0, 100.0), (0.0, 0.0), 'vertical vs stationary'),
+            ((50.0, 50.0), (0.0, 0.0), 'diagonal vs stationary'),
+            ((100.0, 0.0), (50.0, 0.0), 'horizontal vs horizontal'),
+            ((0.0, 100.0), (0.0, 50.0), 'vertical vs vertical'),
+            ((50.0, 50.0), (25.0, 25.0), 'diagonal vs diagonal'),
         ]
 
         for ball1_speed, ball2_speed, description in scenarios:
@@ -286,16 +287,16 @@ class TestBallCollisionPhysics:
             final_energy = ball1.speed.x**2 + ball1.speed.y**2 + ball2.speed.x**2 + ball2.speed.y**2
 
             assert initial_energy == pytest.approx(final_energy, abs=1e-5), (
-                f"Energy not conserved in {description}"
+                f'Energy not conserved in {description}'
             )
 
     def test_momentum_conservation(self):
         """Test that momentum is conserved in all collision scenarios."""
         scenarios = [
             # (ball1_speed, ball2_speed, description)
-            ((100.0, 0.0), (0.0, 0.0), "horizontal vs stationary"),
-            ((0.0, 100.0), (0.0, 0.0), "vertical vs stationary"),
-            ((50.0, 50.0), (0.0, 0.0), "diagonal vs stationary"),
+            ((100.0, 0.0), (0.0, 0.0), 'horizontal vs stationary'),
+            ((0.0, 100.0), (0.0, 0.0), 'vertical vs stationary'),
+            ((50.0, 50.0), (0.0, 0.0), 'diagonal vs stationary'),
         ]
 
         for ball1_speed, ball2_speed, description in scenarios:
@@ -313,10 +314,10 @@ class TestBallCollisionPhysics:
             final_momentum_y = ball1.speed.y + ball2.speed.y
 
             assert initial_momentum_x == pytest.approx(final_momentum_x, abs=1e-5), (
-                f"X momentum not conserved in {description}"
+                f'X momentum not conserved in {description}'
             )
             assert initial_momentum_y == pytest.approx(final_momentum_y, abs=1e-5), (
-                f"Y momentum not conserved in {description}"
+                f'Y momentum not conserved in {description}'
             )
 
     def test_same_direction_collision_slower_ball_should_speed_up(self):
@@ -331,16 +332,16 @@ class TestBallCollisionPhysics:
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
-        assert collision_occurred, "Collision should have occurred"
+        assert collision_occurred, 'Collision should have occurred'
 
         # The slower ball (ball1) should have gained speed
         assert ball1.speed.x > ball1_initial_speed, (
-            f"Slower ball should have gained speed: {ball1.speed.x} > {ball1_initial_speed}"
+            f'Slower ball should have gained speed: {ball1.speed.x} > {ball1_initial_speed}'
         )
 
         # The faster ball (ball2) should have lost speed
         assert ball2.speed.x < ball2_initial_speed, (
-            f"Faster ball should have lost speed: {ball2.speed.x} < {ball2_initial_speed}"
+            f'Faster ball should have lost speed: {ball2.speed.x} < {ball2_initial_speed}'
         )
 
     def test_same_direction_collision_energy_transfer(self):
@@ -354,14 +355,14 @@ class TestBallCollisionPhysics:
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
-        assert collision_occurred, "Collision should have occurred"
+        assert collision_occurred, 'Collision should have occurred'
 
         # Calculate final total energy
         final_energy = ball1.speed.x**2 + ball1.speed.y**2 + ball2.speed.x**2 + ball2.speed.y**2
 
         # Energy should be conserved (within floating point precision)
         assert final_energy == pytest.approx(initial_energy, abs=1e-5), (
-            f"Energy should be conserved: {final_energy} ~= {initial_energy}"
+            f'Energy should be conserved: {final_energy} ~= {initial_energy}'
         )
 
     def test_zero_x_velocity_ball_should_get_horizontal_momentum(self):
@@ -376,11 +377,11 @@ class TestBallCollisionPhysics:
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
-        assert collision_occurred, "Collision should have occurred"
+        assert collision_occurred, 'Collision should have occurred'
 
         # Ball1 should have gained horizontal velocity
         assert ball1.speed.x != pytest.approx(0.0, abs=0.1), (
-            f"Ball with zero X velocity should gain horizontal momentum: {ball1.speed.x}"
+            f'Ball with zero X velocity should gain horizontal momentum: {ball1.speed.x}'
         )
 
         # Ball1's Y velocity should remain unchanged for horizontal collision
@@ -400,19 +401,19 @@ class TestBallCollisionPhysics:
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
-        assert collision_occurred, "Collision should have occurred"
+        assert collision_occurred, 'Collision should have occurred'
 
         # Calculate final total energy
         final_energy = ball1.speed.x**2 + ball1.speed.y**2 + ball2.speed.x**2 + ball2.speed.y**2
 
         # Energy should be conserved
         assert final_energy == pytest.approx(initial_energy, abs=1e-5), (
-            f"Energy should be conserved: {final_energy} ~= {initial_energy}"
+            f'Energy should be conserved: {final_energy} ~= {initial_energy}'
         )
 
         # Ball1 should now have horizontal velocity
         assert ball1.speed.x != pytest.approx(0.0, abs=0.1), (
-            f"Ball should have gained horizontal velocity: {ball1.speed.x}"
+            f'Ball should have gained horizontal velocity: {ball1.speed.x}'
         )
 
     def test_diagonal_to_horizontal_energy_transfer(self):
@@ -427,12 +428,12 @@ class TestBallCollisionPhysics:
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
-        assert collision_occurred, "Collision should have occurred"
+        assert collision_occurred, 'Collision should have occurred'
 
         # For horizontal collision, Y velocity should remain unchanged
         assert ball1.speed.y == ball1_initial_y, (
-            f"Horizontal collision should not change Y velocity:"
-            f" {ball1.speed.y} = {ball1_initial_y}"
+            f'Horizontal collision should not change Y velocity:'
+            f' {ball1.speed.y} = {ball1_initial_y}'
         )
 
         # Ball1's X velocity should change due to collision
@@ -453,16 +454,16 @@ class TestBallCollisionPhysics:
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
-        assert collision_occurred, "Collision should have occurred"
+        assert collision_occurred, 'Collision should have occurred'
 
         # Ball1 should have gained X velocity from the diagonal ball
         assert ball1.speed.x != ball1_initial_x, (
-            f"Vertical ball should gain X velocity from diagonal:"
-            f" {ball1.speed.x} != {ball1_initial_x}"
+            f'Vertical ball should gain X velocity from diagonal:'
+            f' {ball1.speed.x} != {ball1_initial_x}'
         )
 
         # For horizontal collision, Y velocity should remain unchanged
         assert ball1.speed.y == ball1_initial_y, (
-            f"Horizontal collision should not change Y velocity:"
-            f" {ball1.speed.y} = {ball1_initial_y}"
+            f'Horizontal collision should not change Y velocity:'
+            f' {ball1.speed.y} = {ball1_initial_y}'
         )

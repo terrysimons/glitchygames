@@ -2,8 +2,8 @@
 
 import pygame
 import pytest
-from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
+from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -45,14 +45,14 @@ class TestAnimatedSpriteFrameAddition:
 
         # Create animated sprite with single frame
         sprite = AnimatedSprite()
-        sprite._animations = {"idle": [frame1]}
-        sprite.frame_manager.current_animation = "idle"
+        sprite._animations = {'idle': [frame1]}
+        sprite.frame_manager.current_animation = 'idle'
         sprite.frame_manager.current_frame = 0
         sprite._is_playing = False
         sprite._is_looping = False
 
         # Verify initial state
-        assert len(sprite._animations["idle"]) == 1
+        assert len(sprite._animations['idle']) == 1
         assert not sprite._is_playing
         assert not sprite._is_looping
 
@@ -69,22 +69,22 @@ class TestAnimatedSpriteFrameAddition:
 
         # Create animated sprite with single frame
         sprite = AnimatedSprite()
-        sprite._animations = {"idle": [frame1]}
-        sprite.frame_manager.current_animation = "idle"
+        sprite._animations = {'idle': [frame1]}
+        sprite.frame_manager.current_animation = 'idle'
         sprite.frame_manager.current_frame = 0
         sprite._is_playing = False
         sprite._is_looping = False
 
         # Verify initial state
-        assert len(sprite._animations["idle"]) == 1
+        assert len(sprite._animations['idle']) == 1
         assert not sprite._is_playing
         assert not sprite._is_looping
 
         # Add second frame
-        sprite.add_frame("idle", frame2)
+        sprite.add_frame('idle', frame2)
 
         # Verify animation started
-        assert len(sprite._animations["idle"]) == TEST_SIZE_2
+        assert len(sprite._animations['idle']) == TEST_SIZE_2
         assert sprite._is_playing
         assert sprite._is_looping
 
@@ -96,16 +96,16 @@ class TestAnimatedSpriteFrameAddition:
 
         # Create animated sprite with single frame
         sprite = AnimatedSprite()
-        sprite._animations = {"idle": [frame1]}
-        sprite.frame_manager.current_animation = "idle"
+        sprite._animations = {'idle': [frame1]}
+        sprite.frame_manager.current_animation = 'idle'
         sprite._is_playing = False
         sprite._is_looping = False
 
         # Add second frame at index 0 (before first frame)
-        sprite.add_frame("idle", frame2, index=0)
+        sprite.add_frame('idle', frame2, index=0)
 
         # Verify animation started
-        assert len(sprite._animations["idle"]) == TEST_SIZE_2
+        assert len(sprite._animations['idle']) == TEST_SIZE_2
         assert sprite._is_playing
         assert sprite._is_looping
 
@@ -118,16 +118,16 @@ class TestAnimatedSpriteFrameAddition:
 
         # Create animated sprite with two frames
         sprite = AnimatedSprite()
-        sprite._animations = {"idle": [frame1, frame2]}
-        sprite.frame_manager.current_animation = "idle"
+        sprite._animations = {'idle': [frame1, frame2]}
+        sprite.frame_manager.current_animation = 'idle'
         sprite._is_playing = True
         sprite._is_looping = True
 
         # Add third frame
-        sprite.add_frame("idle", frame3)
+        sprite.add_frame('idle', frame3)
 
         # Verify state unchanged
-        assert len(sprite._animations["idle"]) == TEST_SIZE_3
+        assert len(sprite._animations['idle']) == TEST_SIZE_3
         assert sprite._is_playing
         assert sprite._is_looping
 
@@ -140,16 +140,16 @@ class TestAnimatedSpriteFrameAddition:
 
         # Create animated sprite with two frames, but stopped
         sprite = AnimatedSprite()
-        sprite._animations = {"idle": [frame1, frame2]}
-        sprite.frame_manager.current_animation = "idle"
+        sprite._animations = {'idle': [frame1, frame2]}
+        sprite.frame_manager.current_animation = 'idle'
         sprite._is_playing = False
         sprite._is_looping = False
 
         # Add third frame
-        sprite.add_frame("idle", frame3)
+        sprite.add_frame('idle', frame3)
 
         # Verify state unchanged (should not restart)
-        assert len(sprite._animations["idle"]) == TEST_SIZE_3
+        assert len(sprite._animations['idle']) == TEST_SIZE_3
         assert not sprite._is_playing
         assert not sprite._is_looping
 
@@ -161,14 +161,14 @@ class TestAnimatedSpriteFrameAddition:
 
         # Create animated sprite with single frame
         sprite = AnimatedSprite()
-        sprite._animations = {"idle": [frame1]}
-        sprite.frame_manager.current_animation = "idle"
+        sprite._animations = {'idle': [frame1]}
+        sprite.frame_manager.current_animation = 'idle'
         sprite.frame_manager.current_frame = 0
         sprite._is_playing = False
         sprite._is_looping = False
 
         # Add second frame
-        sprite.add_frame("idle", frame2)
+        sprite.add_frame('idle', frame2)
 
         # Verify animation started
         assert sprite._is_playing
@@ -193,20 +193,20 @@ class TestAnimatedSpriteFrameAddition:
         # Create animated sprite with multiple animations
         sprite = AnimatedSprite()
         sprite._animations = {
-            "idle": [frame1],
-            "walk": [frame1, frame2],  # Already multi-frame
+            'idle': [frame1],
+            'walk': [frame1, frame2],  # Already multi-frame
         }
-        sprite.frame_manager.current_animation = "idle"
+        sprite.frame_manager.current_animation = 'idle'
         sprite._is_playing = False
         sprite._is_looping = False
 
         # Add frame to single-frame animation
-        sprite.add_frame("idle", frame2)
+        sprite.add_frame('idle', frame2)
 
         # Verify only idle animation started
-        assert len(sprite._animations["idle"]) == TEST_SIZE_2
+        assert len(sprite._animations['idle']) == TEST_SIZE_2
         assert sprite._is_playing
         assert sprite._is_looping
 
         # Verify walk animation unchanged
-        assert len(sprite._animations["walk"]) == TEST_SIZE_2
+        assert len(sprite._animations['walk']) == TEST_SIZE_2

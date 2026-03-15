@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
-
 from tests.mocks import MockFactory
 
 # Constants for magic values
@@ -21,8 +20,8 @@ TEST_JOYSTICK_COUNT_2 = 2
 class MockGame(Scene):
     """Simple mock game scene for testing."""
 
-    NAME = "MockGame"
-    VERSION = "1.0"
+    NAME = 'MockGame'
+    VERSION = '1.0'
 
     def __init__(self, options=None, groups=None):
         """Initialize mock game scene."""
@@ -43,7 +42,7 @@ class MockGame(Scene):
             object: The result.
 
         """
-        parser.add_argument("--test-flag", action="store_true", help="Test flag")
+        parser.add_argument('--test-flag', action='store_true', help='Test flag')
         return parser
 
     def update(self):
@@ -61,7 +60,7 @@ class MockGameWithArgs(MockGame):
             object: The result.
 
         """
-        parser.add_argument("--test-flag", action="store_true", help="Test flag")
+        parser.add_argument('--test-flag', action='store_true', help='Test flag')
         return parser
 
 
@@ -80,7 +79,7 @@ class TestEngineProperties:
     def test_game_engine_game_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine game property."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = mock_game_args
 
         # Create GameEngine instance with mock game
@@ -95,7 +94,7 @@ class TestEngineProperties:
     def test_game_engine_scene_manager_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine scene_manager property."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = mock_game_args
 
         # Create GameEngine instance with mock game
@@ -109,7 +108,7 @@ class TestEngineProperties:
     def test_game_engine_joystick_count_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine joystick_count property."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = mock_game_args
 
         # Create GameEngine instance with mock game
@@ -131,7 +130,7 @@ class TestEngineProperties:
     def test_game_engine_joysticks_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine joysticks property."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = mock_game_args
 
         # Create GameEngine instance with mock game

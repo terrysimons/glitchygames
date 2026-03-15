@@ -16,7 +16,7 @@ import pygame
 import pytest
 
 # Add the project root to the path
-sys.path.insert(0, str(Path(__file__).parent / ".." / ".."))
+sys.path.insert(0, str(Path(__file__).parent / '..' / '..'))
 
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.film_strip import (
@@ -25,7 +25,6 @@ from glitchygames.tools.film_strip import (
     FilmStripWidget,
     FilmTabWidget,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -41,7 +40,7 @@ class TestFilmStripButtonHover:
         # Create a mock animated sprite with frames
         self.mock_animated_sprite = mocker.Mock(spec=AnimatedSprite)
         self.mock_animated_sprite._animations = {
-            "test_animation": [
+            'test_animation': [
                 mocker.Mock(spec=SpriteFrame),
                 mocker.Mock(spec=SpriteFrame),
                 mocker.Mock(spec=SpriteFrame),
@@ -51,25 +50,25 @@ class TestFilmStripButtonHover:
         # Create film strip widget
         self.film_strip_widget = FilmStripWidget(0, 0, 400, 100)
         self.film_strip_widget.animated_sprite = self.mock_animated_sprite
-        self.film_strip_widget.current_animation = "test_animation"
+        self.film_strip_widget.current_animation = 'test_animation'
 
     def test_removal_button_hover_tracking(self):
         """Test that removal button hover is properly tracked."""
         # Setup removal button layouts
         self.film_strip_widget.removal_button_layouts = {
-            ("test_animation", 0): pygame.Rect(10, 20, 11, 30),
-            ("test_animation", 1): pygame.Rect(50, 20, 11, 30),
+            ('test_animation', 0): pygame.Rect(10, 20, 11, 30),
+            ('test_animation', 1): pygame.Rect(50, 20, 11, 30),
         }
 
         # Test hovering over first removal button
         pos = (15, 35)  # Inside first button
         result = self.film_strip_widget.get_removal_button_at_position(pos)
-        assert result == ("test_animation", 0)
+        assert result == ('test_animation', 0)
 
         # Test hovering over second removal button
         pos = (55, 35)  # Inside second button
         result = self.film_strip_widget.get_removal_button_at_position(pos)
-        assert result == ("test_animation", 1)
+        assert result == ('test_animation', 1)
 
         # Test hovering outside any button
         pos = (100, 35)  # Outside any button
@@ -80,7 +79,7 @@ class TestFilmStripButtonHover:
         """Test that removal button renders with inverted colors on hover."""
         # Setup removal button layouts
         self.film_strip_widget.removal_button_layouts = {
-            ("test_animation", 0): pygame.Rect(10, 20, 11, 30),
+            ('test_animation', 0): pygame.Rect(10, 20, 11, 30),
         }
 
         # Create a surface to render on
@@ -88,11 +87,11 @@ class TestFilmStripButtonHover:
 
         # Test normal state (not hovered)
         self.film_strip_widget.hovered_removal_button = None
-        self.film_strip_widget._render_removal_button(surface, "test_animation", 0)
+        self.film_strip_widget._render_removal_button(surface, 'test_animation', 0)
 
         # Test hovered state
-        self.film_strip_widget.hovered_removal_button = ("test_animation", 0)
-        self.film_strip_widget._render_removal_button(surface, "test_animation", 0)
+        self.film_strip_widget.hovered_removal_button = ('test_animation', 0)
+        self.film_strip_widget._render_removal_button(surface, 'test_animation', 0)
 
         # The method should complete without errors
         assert True
@@ -200,7 +199,7 @@ class TestFilmStripButtonHover:
         """Test that FilmStripWidget.handle_hover processes all hover effects."""
         # Setup removal button layouts
         self.film_strip_widget.removal_button_layouts = {
-            ("test_animation", 0): pygame.Rect(10, 20, 11, 30),
+            ('test_animation', 0): pygame.Rect(10, 20, 11, 30),
         }
 
         # Setup film tabs
@@ -211,7 +210,7 @@ class TestFilmStripButtonHover:
         # Test hover over removal button
         pos = (15, 35)  # Inside removal button
         self.film_strip_widget.handle_hover(pos)
-        assert self.film_strip_widget.hovered_removal_button == ("test_animation", 0)
+        assert self.film_strip_widget.hovered_removal_button == ('test_animation', 0)
 
         # Test hover over tab
         pos = (15, 25)  # Inside tab1
@@ -230,7 +229,7 @@ class TestFilmStripButtonHover:
     def test_removal_button_no_attributes(self):
         """Test that removal button detection works when layouts attribute doesn't exist."""
         # Remove the layouts attribute
-        if hasattr(self.film_strip_widget, "removal_button_layouts"):
+        if hasattr(self.film_strip_widget, 'removal_button_layouts'):
             del self.film_strip_widget.removal_button_layouts
 
         pos = (15, 35)

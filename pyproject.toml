@@ -19,9 +19,8 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 dependencies = [
-    "toml",
+    "tomli-w",
     "pygame-ce",
-    "future",
     "cookiecutter",
     "pyperclip",
     "aisuite[all]",
@@ -32,8 +31,9 @@ dependencies = [
 
 [project.urls]
 "Bug Tracker" = "https://github.com/terrysimons/glitchygames/issues/"
-"homepage" = "https://glitchygames.ai/"
+"Homepage" = "https://glitchygames.ai/"
 "Documentation" = "https://glitchygames.ai/documentation/"
+"Repository" = "https://github.com/terrysimons/glitchygames"
 
 [project.scripts]
 bitmappy = "glitchygames.tools.bitmappy:main"
@@ -102,6 +102,8 @@ omit = [
 ]
 
 [tool.coverage.report]
+show_missing = true
+
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -115,14 +117,15 @@ exclude_lines = [
     "@(abc\\.)?abstractmethod"
 ]
 
+[tool.coverage.html]
+directory = "htmlcov"
+
 [tool.ruff]
 preview = true
 line-length = 100
 output-format = "grouped"
 src = ["glitchygames", "tests", "scripts"]
 lint.task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
-include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
-extend-include = []
 lint.select = ["ALL"]
 lint.ignore = [
   # --- Previously ignored ---
@@ -154,7 +157,6 @@ lint.ignore = [
   "PLR6301", # Method could be a function/staticmethod
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
 ]
-lint.exclude = []
 lint.fixable = [
   "I001",   # import-sort
   "Q000",   # quote style
@@ -188,7 +190,7 @@ lint.fixable = [
   "PLR1711", # useless-return
   "SIM103", # needless-bool
 ]
-lint.unfixable = []
+include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
 target-version = "py313"
 
 [tool.ruff.lint.per-file-ignores]
@@ -202,24 +204,26 @@ target-version = "py313"
 [tool.ruff.format]
 docstring-code-format = true
 
-[tool.lint.flake8-annotations]
+[tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true
 ignore-fully-untyped = false
 
-[tool.lint.flake8-quotes]
+[tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
 inline-quotes = "single"
 multiline-quotes = "double"
 
-[tool.lint.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["glitchygames"]
 
 [tool.pyright]
 include = ["glitchygames", "tests", "scripts"]
 exclude = [
     "**/__pycache__",
 ]
-ignore = []
 defineConstant = { DEBUG = true }
 # stubPath = "src/stubs"
 
@@ -232,8 +236,13 @@ executionEnvironments = [
   # { root = "src/tests", extraPaths = ["src/tests/e2e", "src/sdk" ]},
   { root = "glitchygames", extraPaths = [ "scripts", "tests" ]}
 ]
-reportMissingImports = false
+# Re-enable these incrementally as type issues are fixed
+reportMissingImports = "warning"
 reportMissingTypeStubs = false
+reportPossiblyUnboundVariable = "warning"
+reportPrivateImportUsage = "warning"
+reportRedeclaration = "warning"
+# These remain disabled until targeted cleanup is done
 reportAttributeAccessIssue = false
 reportIncompatibleMethodOverride = false
 reportReturnType = false
@@ -249,9 +258,6 @@ reportIndexIssue = false
 reportAssignmentType = false
 reportOperatorIssue = false
 reportFunctionMemberAccess = false
-reportPossiblyUnboundVariable = false
-reportRedeclaration = false
-reportPrivateImportUsage = false
 
 [build-system]
 requires = ["hatchling"]

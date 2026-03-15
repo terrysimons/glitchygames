@@ -4,6 +4,7 @@
 import time
 
 import pytest
+
 from glitchygames.timing import FastTimer, PygameTimer
 
 
@@ -18,7 +19,7 @@ def test_fast_timer_compute_deadline_monotonic():
 
 
 @pytest.mark.skip(
-    reason="Pygame may not be initialized in CI; ns_now() still callable if available"
+    reason='Pygame may not be initialized in CI; ns_now() still callable if available'
 )
 def test_pygame_timer_ns_now_monotonic():
     """Test that PygameTimer ns_now returns monotonically increasing values."""

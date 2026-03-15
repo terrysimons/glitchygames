@@ -9,7 +9,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import build
-
 from tests.mocks.test_mock_factory import create_template_path_mock, create_template_repo_file_mock
 
 
@@ -18,9 +17,9 @@ class TestTemplateBuilding:
 
     def test_build_local_template(self, mocker):
         """Test build with local template (no .repo file)."""
-        template_name = "test_template"
+        template_name = 'test_template'
 
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -30,22 +29,22 @@ class TestTemplateBuilding:
         mock_repo_path.open.side_effect = FileNotFoundError()
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
+        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
         build(template_name)
 
         # Verify cookiecutter was called
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith("MagicMock/path/")
+        assert call_args[0].startswith('MagicMock/path/')
         assert template_name in call_args[0]
 
     def test_build_remote_template(self, mocker):
         """Test build with remote template (.repo file exists)."""
-        template_name = "remote_template"
-        repo_url = "https://github.com/user/repo.git"
+        template_name = 'remote_template'
+        repo_url = 'https://github.com/user/repo.git'
 
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -56,72 +55,72 @@ class TestTemplateBuilding:
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
+        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
         build(template_name)
 
         # Verify cookiecutter was called with repo URL
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith("MagicMock/path/")
+        assert call_args[0].startswith('MagicMock/path/')
         assert template_name in call_args[0]
 
     def test_build_template_with_empty_repo_file(self, mocker):
         """Test build with empty .repo file."""
-        template_name = "empty_repo_template"
+        template_name = 'empty_repo_template'
 
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
 
         # Mock .repo file exists but is empty
         mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock("")  # Empty string
+        mock_repo_file = create_template_repo_file_mock('')  # Empty string
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
+        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
         build(template_name)
 
         # Should still call cookiecutter with empty string
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith("MagicMock/path/")
+        assert call_args[0].startswith('MagicMock/path/')
         assert template_name in call_args[0]
 
     def test_build_template_with_whitespace_repo_file(self, mocker):
         """Test build with whitespace-only .repo file."""
-        template_name = "whitespace_repo_template"
+        template_name = 'whitespace_repo_template'
 
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
 
         # Mock .repo file with whitespace
         mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock("   \n")  # Whitespace
+        mock_repo_file = create_template_repo_file_mock('   \n')  # Whitespace
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
+        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
         build(template_name)
 
         # Should call cookiecutter with whitespace string
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith("MagicMock/path/")
+        assert call_args[0].startswith('MagicMock/path/')
         assert template_name in call_args[0]
 
     def test_build_template_with_multiple_lines_in_repo(self, mocker):
         """Test build with .repo file containing multiple lines."""
-        template_name = "multi_line_repo_template"
-        repo_url = "https://github.com/user/repo.git"
+        template_name = 'multi_line_repo_template'
+        repo_url = 'https://github.com/user/repo.git'
 
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -132,47 +131,47 @@ class TestTemplateBuilding:
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
+        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
         build(template_name)
 
         # Should use first line only
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith("MagicMock/path/")
+        assert call_args[0].startswith('MagicMock/path/')
         assert template_name in call_args[0]
 
     def test_build_template_with_stripped_whitespace(self, mocker):
         """Test build with .repo file containing whitespace that gets stripped."""
-        template_name = "stripped_whitespace_template"
-        repo_url = "https://github.com/user/repo.git"
+        template_name = 'stripped_whitespace_template'
+        repo_url = 'https://github.com/user/repo.git'
 
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
 
         # Mock .repo file with leading/trailing whitespace
         mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock(f"  {repo_url}  \n")  # Whitespace
+        mock_repo_file = create_template_repo_file_mock(f'  {repo_url}  \n')  # Whitespace
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
+        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
         build(template_name)
 
         # Should use the string as-is (no automatic stripping)
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith("MagicMock/path/")
+        assert call_args[0].startswith('MagicMock/path/')
         assert template_name in call_args[0]
 
     def test_build_template_path_operations(self, mocker):
         """Test build template path operations."""
-        template_name = "path_test_template"
+        template_name = 'path_test_template'
 
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -182,7 +181,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.side_effect = FileNotFoundError()
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
+        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
         build(template_name)
 
         # Verify that the build function completed successfully
@@ -190,34 +189,34 @@ class TestTemplateBuilding:
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith("MagicMock/path/")
+        assert call_args[0].startswith('MagicMock/path/')
         assert template_name in call_args[0]
 
     def test_build_empty_repo_file(self, mocker):
         """Test build with empty .repo file."""
-        template_name = "empty_repo_template"
+        template_name = 'empty_repo_template'
 
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
 
         # Mock .repo file exists but is empty
         mock_repo_path = mocker.Mock(spec=Path)
-        mock_repo_file = create_template_repo_file_mock("")  # Empty string
+        mock_repo_file = create_template_repo_file_mock('')  # Empty string
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
+        mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
         build(template_name)
 
         # Should call cookiecutter with empty string
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith("MagicMock/path/")
+        assert call_args[0].startswith('MagicMock/path/')
         assert template_name in call_args[0]
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

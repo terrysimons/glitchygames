@@ -13,7 +13,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import MenuBar, MenuItem
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Test constants to avoid magic values
@@ -39,7 +38,7 @@ class TestMenuBarFunctionality:
     def test_menubar_initialization(self, mocker):
         """Test MenuBar initialization."""
         groups = mocker.Mock()
-        menubar = MenuBar(x=0, y=0, width=800, height=50, name="test_menubar", groups=groups)
+        menubar = MenuBar(x=0, y=0, width=800, height=50, name='test_menubar', groups=groups)
 
         # Verify MenuBar-specific attributes
         assert menubar.all_sprites == groups
@@ -60,13 +59,13 @@ class TestMenuBarFunctionality:
             y=0,
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
-            name="test_menubar",
+            name='test_menubar',
             groups=groups,
         )
 
         # Create a mock MenuItem
         mock_menu_item = mocker.Mock(spec=MenuItem)
-        mock_menu_item.name = "File"
+        mock_menu_item.name = 'File'
         mock_menu_item.rect = mocker.Mock()
         mock_menu_item.rect.x = 0
         mock_menu_item.rect.y = 0
@@ -76,16 +75,16 @@ class TestMenuBarFunctionality:
 
         # Test adding menu items
         menubar.add_menu_item(mock_menu_item)
-        assert "File" in menubar.menu_items
-        assert menubar.menu_items["File"] == mock_menu_item
+        assert 'File' in menubar.menu_items
+        assert menubar.menu_items['File'] == mock_menu_item
 
         # Test that menu_items is a dictionary that can be accessed directly
         assert len(menubar.menu_items) == 1
-        assert "File" in menubar.menu_items
+        assert 'File' in menubar.menu_items
 
         # Test adding another menu item
         mock_menu_item2 = mocker.Mock(spec=MenuItem)
-        mock_menu_item2.name = "Edit"
+        mock_menu_item2.name = 'Edit'
         mock_menu_item2.rect = mocker.Mock()
         mock_menu_item2.rect.x = 0
         mock_menu_item2.rect.y = 0
@@ -95,7 +94,7 @@ class TestMenuBarFunctionality:
 
         menubar.add_menu_item(mock_menu_item2)
         assert len(menubar.menu_items) == TEST_EXPECTED_MENU_COUNT
-        assert "Edit" in menubar.menu_items
+        assert 'Edit' in menubar.menu_items
 
     def test_menubar_add_menu(self, mocker):
         """Test adding MenuItem objects to MenuBar."""
@@ -105,13 +104,13 @@ class TestMenuBarFunctionality:
             y=0,
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
-            name="test_menubar",
+            name='test_menubar',
             groups=groups,
         )
 
         # Create a mock MenuItem with proper attributes
         mock_menu = mocker.Mock(spec=MenuItem)
-        mock_menu.name = "TestMenu"
+        mock_menu.name = 'TestMenu'
         mock_menu.rect = mocker.Mock()
         mock_menu.rect.x = 0
         mock_menu.rect.y = 0
@@ -123,8 +122,8 @@ class TestMenuBarFunctionality:
         menubar.add_menu(mock_menu)
 
         # Verify menu was added
-        assert "TestMenu" in menubar.menu_items
-        assert menubar.menu_items["TestMenu"] == mock_menu
+        assert 'TestMenu' in menubar.menu_items
+        assert menubar.menu_items['TestMenu'] == mock_menu
 
         # Verify menu was added to groups
         mock_menu.add.assert_called_once()
@@ -137,7 +136,7 @@ class TestMenuBarFunctionality:
             y=0,
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
-            name="test_menubar",
+            name='test_menubar',
             groups=groups,
         )
 
@@ -162,7 +161,7 @@ class TestMenuBarFunctionality:
             y=0,
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
-            name="test_menubar",
+            name='test_menubar',
             groups=groups,
         )
 
@@ -182,7 +181,7 @@ class TestMenuBarFunctionality:
             y=0,
             width=TEST_MENUBAR_WIDTH,
             height=TEST_MENUBAR_HEIGHT,
-            name="test_menubar",
+            name='test_menubar',
             groups=groups,
         )
 

@@ -6,6 +6,7 @@ import os
 import time
 
 import pytest
+
 from glitchygames.timing import FastTimer, PygameTimer
 
 LOG = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ def test_fast_timer_compute_deadline_monotonic():
 def test_pygame_timer_ns_now_monotonic():
     """Test that PygameTimer ns_now returns monotonically increasing values."""
     # Ensure headless-friendly init; respect existing setting if provided
-    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
     try:
         import pygame
 
@@ -35,9 +36,9 @@ def test_pygame_timer_ns_now_monotonic():
             if not pygame.display.get_init():
                 pygame.display.init()
         except pygame.error:
-            LOG.debug("Display init failed with dummy driver, continuing without display")
+            LOG.debug('Display init failed with dummy driver, continuing without display')
     except (ImportError, pygame.error):
-        pytest.skip("Pygame could not initialize even with dummy driver")
+        pytest.skip('Pygame could not initialize even with dummy driver')
 
     p = PygameTimer()
     a = p.ns_now()

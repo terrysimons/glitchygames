@@ -18,16 +18,16 @@ from .core import (
 )
 
 __all__ = [
-    "DEFAULT_FILE_FORMAT",
-    "SPRITE_GLYPHS",
-    "AnimatedSprite",
-    "AnimatedSpriteInterface",
-    "BitmappySprite",
-    "FocusableSingletonBitmappySprite",
-    "RootSprite",
-    "Singleton",
-    "SingletonBitmappySprite",
-    "Sprite",
-    "SpriteFactory",
-    "SpriteFrame",
+    'DEFAULT_FILE_FORMAT',
+    'SPRITE_GLYPHS',
+    'AnimatedSprite',
+    'AnimatedSpriteInterface',
+    'BitmappySprite',
+    'FocusableSingletonBitmappySprite',
+    'RootSprite',
+    'Singleton',
+    'SingletonBitmappySprite',
+    'Sprite',
+    'SpriteFactory',
+    'SpriteFrame',
 ]

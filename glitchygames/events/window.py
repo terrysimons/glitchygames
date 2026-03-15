@@ -12,9 +12,10 @@ if TYPE_CHECKING:  # pragma: no cover
     import pygame  # pragma: no cover
 
 import pygame
+
 from glitchygames.events import WINDOW_EVENTS, ResourceManager, WindowEvents
 
-LOG = logging.getLogger("game.window")
+LOG = logging.getLogger('game.window')
 LOG.addHandler(logging.NullHandler())
 
 
@@ -191,7 +192,7 @@ class WindowEventManager(ResourceManager):
         try:
             pygame.event.set_allowed(WINDOW_EVENTS)
         except pygame.error:
-            LOG.debug("Failed to set allowed window events: pygame not fully initialized")
+            LOG.debug('Failed to set allowed window events: pygame not fully initialized')
         self.proxies = [WindowEventManager.WindowEventProxy(game=game)]
 
     @classmethod
@@ -205,6 +206,6 @@ class WindowEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        _group = parser.add_argument_group("Window Options")
+        _group = parser.add_argument_group('Window Options')
 
         return parser

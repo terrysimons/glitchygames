@@ -8,6 +8,7 @@ import time
 
 import pygame
 import pytest
+
 from glitchygames.tools.controller_mode_system import ControllerMode, ModeSwitcher
 
 
@@ -56,7 +57,7 @@ class TestBitmappyPlanCIntegration:
         mock_event.value = 1.0  # Fully pressed
 
         # Mock the trigger handling method
-        mock_handle = self._mocker.patch.object(self.mock_scene, "_handle_trigger_axis_motion")
+        mock_handle = self._mocker.patch.object(self.mock_scene, '_handle_trigger_axis_motion')
         self.mock_scene._handle_trigger_axis_motion(mock_event)
         mock_handle.assert_called_once_with(mock_event)
 
@@ -72,7 +73,7 @@ class TestBitmappyPlanCIntegration:
         assert self.controller_id not in self.mode_switcher.controller_modes
 
         # Simulate trigger handling
-        self._mocker.patch.object(self.mock_scene, "_handle_trigger_axis_motion")
+        self._mocker.patch.object(self.mock_scene, '_handle_trigger_axis_motion')
         # Mock the registration logic
         self.mode_switcher.register_controller(self.controller_id, ControllerMode.FILM_STRIP)
 
@@ -298,10 +299,10 @@ class TestBitmappyPlanCIntegration:
 
         # For now, just verify the mode switcher is properly initialized
         assert self.mode_switcher is not None
-        assert hasattr(self.mode_switcher, "controller_modes")
-        assert hasattr(self.mode_switcher, "trigger_detector")
-        assert hasattr(self.mode_switcher, "l2_cycle")
-        assert hasattr(self.mode_switcher, "r2_cycle")
+        assert hasattr(self.mode_switcher, 'controller_modes')
+        assert hasattr(self.mode_switcher, 'trigger_detector')
+        assert hasattr(self.mode_switcher, 'l2_cycle')
+        assert hasattr(self.mode_switcher, 'r2_cycle')
 
     def test_performance_under_load(self):
         """Test Plan C performance under load."""

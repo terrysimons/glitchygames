@@ -19,7 +19,6 @@ from glitchygames.ui.dialogs import (
     NewCanvasDialogScene,
     SaveDialogScene,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -36,8 +35,8 @@ class TestInputConfirmationDialogScene:
     def test_input_confirmation_dialog_scene_init(self, mocker):
         """Test InputConfirmationDialogScene initialization."""
         # Mock the screen and groups
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_input_dialog = mocker.patch("glitchygames.ui.dialogs.InputDialog")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_input_dialog = mocker.patch('glitchygames.ui.dialogs.InputDialog')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -56,8 +55,8 @@ class TestInputConfirmationDialogScene:
 
     def test_input_confirmation_dialog_text_submission(self, mocker):
         """Test InputConfirmationDialogScene text submission."""
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_input_dialog = mocker.patch("glitchygames.ui.dialogs.InputDialog")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_input_dialog = mocker.patch('glitchygames.ui.dialogs.InputDialog')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -70,15 +69,15 @@ class TestInputConfirmationDialogScene:
         scene = InputConfirmationDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate text submission
-        scene.on_text_submit_event("Submitted Text")
+        scene.on_text_submit_event('Submitted Text')
 
         # Assert: should handle text submission
         assert scene is not None
 
     def test_input_confirmation_dialog_cancellation(self, mocker):
         """Test InputConfirmationDialogScene cancellation."""
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_input_dialog = mocker.patch("glitchygames.ui.dialogs.InputDialog")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_input_dialog = mocker.patch('glitchygames.ui.dialogs.InputDialog')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -111,7 +110,7 @@ class TestLoadDialogScene:
 
     def test_load_dialog_scene_init(self, mocker):
         """Test LoadDialogScene initialization."""
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -136,7 +135,7 @@ class TestLoadDialogScene:
 
         # Act: simulate file selection via confirm event
         event = mocker.Mock()
-        scene.dialog.input_box.text = "test_file.toml"
+        scene.dialog.input_box.text = 'test_file.toml'
         scene.on_confirm_event(event, mocker.Mock())
 
         # Assert: should handle file selection
@@ -157,7 +156,7 @@ class TestLoadDialogScene:
         # Act: simulate cancellation via key down event
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
-        event.unicode = ""  # Add unicode attribute
+        event.unicode = ''  # Add unicode attribute
         scene.on_key_down_event(event)
 
         # Assert: should handle cancellation
@@ -176,7 +175,7 @@ class TestSaveDialogScene:
 
     def test_save_dialog_scene_init(self, mocker):
         """Test SaveDialogScene initialization."""
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -189,7 +188,7 @@ class TestSaveDialogScene:
 
     def test_save_dialog_filename_input(self, mocker):
         """Test SaveDialogScene filename input."""
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -197,14 +196,14 @@ class TestSaveDialogScene:
         scene = SaveDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate filename input
-        scene.on_text_input_event("n")
-        scene.on_text_input_event("e")
-        scene.on_text_input_event("w")
-        scene.on_text_input_event("_")
-        scene.on_text_input_event("f")
-        scene.on_text_input_event("i")
-        scene.on_text_input_event("l")
-        scene.on_text_input_event("e")
+        scene.on_text_input_event('n')
+        scene.on_text_input_event('e')
+        scene.on_text_input_event('w')
+        scene.on_text_input_event('_')
+        scene.on_text_input_event('f')
+        scene.on_text_input_event('i')
+        scene.on_text_input_event('l')
+        scene.on_text_input_event('e')
 
         # Assert: should handle filename input
         assert scene is not None
@@ -223,7 +222,7 @@ class TestSaveDialogScene:
 
         # Act: simulate save confirmation via confirm event
         event = mocker.Mock()
-        scene.dialog.input_box.text = "test_file.toml"
+        scene.dialog.input_box.text = 'test_file.toml'
         scene.on_confirm_event(event, mocker.Mock())
 
         # Assert: should handle save confirmation
@@ -242,7 +241,7 @@ class TestNewCanvasDialogScene:
 
     def test_new_canvas_dialog_scene_init(self, mocker):
         """Test NewCanvasDialogScene initialization."""
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -255,7 +254,7 @@ class TestNewCanvasDialogScene:
 
     def test_new_canvas_dialog_dimension_input(self, mocker):
         """Test NewCanvasDialogScene dimension input."""
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -263,10 +262,10 @@ class TestNewCanvasDialogScene:
         scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate dimension input
-        scene.on_text_input_event("1")
-        scene.on_text_input_event("0")
-        scene.on_text_input_event("2")
-        scene.on_text_input_event("4")
+        scene.on_text_input_event('1')
+        scene.on_text_input_event('0')
+        scene.on_text_input_event('2')
+        scene.on_text_input_event('4')
 
         # Assert: should handle dimension input
         assert scene is not None
@@ -285,7 +284,7 @@ class TestNewCanvasDialogScene:
 
         # Act: simulate creation confirmation via confirm event
         event = mocker.Mock()
-        scene.dialog.input_box.text = "1024x768"
+        scene.dialog.input_box.text = '1024x768'
         scene.on_confirm_event(event, mocker.Mock())
 
         # Assert: should handle creation confirmation
@@ -293,7 +292,7 @@ class TestNewCanvasDialogScene:
 
     def test_new_canvas_dialog_dimension_validation(self, mocker):
         """Test NewCanvasDialogScene dimension validation."""
-        mock_layered_dirty = mocker.patch("pygame.sprite.LayeredDirty")
+        mock_layered_dirty = mocker.patch('pygame.sprite.LayeredDirty')
         # Create mock groups
         mock_groups = mocker.Mock()
         mock_layered_dirty.return_value = mock_groups
@@ -301,13 +300,13 @@ class TestNewCanvasDialogScene:
         scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: test valid dimensions by setting input box text
-        scene.dialog.input_box.text = "1024x768"
+        scene.dialog.input_box.text = '1024x768'
 
         # Assert: should accept valid dimensions
-        assert scene.dialog.input_box.text == "1024x768"
+        assert scene.dialog.input_box.text == '1024x768'
 
         # Act: test invalid dimensions (should be handled by input validation)
-        scene.dialog.input_box.text = "invalid"
+        scene.dialog.input_box.text = 'invalid'
 
         # Assert: should handle invalid input
-        assert scene.dialog.input_box.text == "invalid"
+        assert scene.dialog.input_box.text == 'invalid'

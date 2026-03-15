@@ -667,20 +667,20 @@ class TestSaveLoadPixelPreservation:
         """Test that loading, saving, and reloading a candle sprite preserves all pixels."""
         # Create temporary file with candle sprite
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_input = f.name
             f.write(CANDLE_SPRITE_CONTENT)
 
         # Create temporary file for save output
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_output = f.name
 
         try:
             # Read original file content
-            original_content = Path(temp_input).read_text(encoding="utf-8")
+            original_content = Path(temp_input).read_text(encoding='utf-8')
 
             # Load using existing AnimatedSprite load method
             from glitchygames.sprites import AnimatedSprite
@@ -688,20 +688,20 @@ class TestSaveLoadPixelPreservation:
             sprite = AnimatedSprite(filename=temp_input)
 
             # Save using existing AnimatedSprite save method
-            sprite.save(temp_output, "toml")
+            sprite.save(temp_output, 'toml')
 
             # Read saved file content
-            saved_content = Path(temp_output).read_text(encoding="utf-8")
+            saved_content = Path(temp_output).read_text(encoding='utf-8')
 
             # Files should be byte-for-byte identical (normalize trailing newlines)
-            original_normalized = original_content.rstrip("\n")
-            saved_normalized = saved_content.rstrip("\n")
+            original_normalized = original_content.rstrip('\n')
+            saved_normalized = saved_content.rstrip('\n')
             assert original_normalized == saved_normalized, (
-                "Saved file should match original file.\n"
-                f"Original length: {len(original_content)} "
-                f"(normalized: {len(original_normalized)})\n"
-                f"Saved length: {len(saved_content)} "
-                f"(normalized: {len(saved_normalized)})"
+                'Saved file should match original file.\n'
+                f'Original length: {len(original_content)} '
+                f'(normalized: {len(original_normalized)})\n'
+                f'Saved length: {len(saved_content)} '
+                f'(normalized: {len(saved_normalized)})'
             )
 
         finally:
@@ -716,14 +716,14 @@ class TestSaveLoadPixelPreservation:
         # Create temporary file with candle sprite that has
         # color 'd' with alpha=200 (per-pixel alpha)
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_input = f.name
             f.write(CANDLE_SPRITE_WITH_ALPHA_CONTENT)
 
         # Create temporary file for save output
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_output = f.name
 
@@ -734,10 +734,10 @@ class TestSaveLoadPixelPreservation:
             sprite = AnimatedSprite(filename=temp_input)
 
             # Save using existing AnimatedSprite save method
-            sprite.save(temp_output, "toml")
+            sprite.save(temp_output, 'toml')
 
             # Read saved file content
-            saved_content = Path(temp_output).read_text(encoding="utf-8")
+            saved_content = Path(temp_output).read_text(encoding='utf-8')
 
             # Color 'd' should have alpha field with value 200 (per-pixel alpha preserved)
             import re
@@ -745,13 +745,13 @@ class TestSaveLoadPixelPreservation:
             d_color_match = re.search(r'\[colors\."d"\][\s\S]*?(?=\[|$)', saved_content)
             assert d_color_match is not None, "Color 'd' should be present in saved file"
             d_section = d_color_match.group(0)
-            assert "alpha = 200" in d_section, (
+            assert 'alpha = 200' in d_section, (
                 f"Color 'd' should have alpha=200 preserved. Section:\n{d_section}"
             )
 
             # Should NOT have [alpha] section (that format is deprecated)
-            assert "[alpha]" not in saved_content, (
-                "Should not have [alpha] section - use per-color alpha fields instead"
+            assert '[alpha]' not in saved_content, (
+                'Should not have [alpha] section - use per-color alpha fields instead'
             )
 
         finally:

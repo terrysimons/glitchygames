@@ -65,14 +65,14 @@ class TestMultiControllerEdgeCases:
         for _ in range(10):
             for i in range(3):
                 self.controller_selections[i].activate()
-                self.controller_selections[i].set_selection(f"animation_{i}", i)
+                self.controller_selections[i].set_selection(f'animation_{i}', i)
                 time.sleep(0.001)  # Small delay to simulate rapid switching
 
         # Verify all controllers maintain their state
         for i in range(3):
             assert self.controller_selections[i].is_active()
             animation, frame = self.controller_selections[i].get_selection()
-            assert animation == f"animation_{i}"
+            assert animation == f'animation_{i}'
             assert frame == i
 
     def test_controller_disconnection_reconnection(self):
@@ -248,7 +248,7 @@ class TestControllerSelectionEdgeCases:
         """Test navigation history with many entries."""
         # Add many navigation entries
         for i in range(100):
-            self.controller_selection.set_selection(f"animation_{i}", i)
+            self.controller_selection.set_selection(f'animation_{i}', i)
 
         # Get navigation history
         history = self.controller_selection.get_navigation_history()
@@ -259,17 +259,17 @@ class TestControllerSelectionEdgeCases:
 
         # Should maintain chronological order
         for i in range(len(history) - 1):
-            assert history[i]["timestamp"] <= history[i + 1]["timestamp"]
+            assert history[i]['timestamp'] <= history[i + 1]['timestamp']
 
     def test_state_cloning_edge_cases(self):
         """Test state cloning with various scenarios."""
         # Set up complex state
         self.controller_selection.activate()
-        self.controller_selection.set_selection("complex_animation", 42)
+        self.controller_selection.set_selection('complex_animation', 42)
 
         # Add navigation history
         for i in range(5):
-            self.controller_selection.set_selection(f"history_{i}", i)
+            self.controller_selection.set_selection(f'history_{i}', i)
 
         # Clone to another controller
         other_selection = ControllerSelection(1, 1)
@@ -278,7 +278,7 @@ class TestControllerSelectionEdgeCases:
         # Verify cloned state — current selection is the last set_selection call
         assert other_selection.is_active()
         animation, frame = other_selection.get_selection()
-        assert animation == "history_4"
+        assert animation == 'history_4'
         assert frame == 4
 
         # clone_state_to only clones current selection, not navigation history
@@ -297,7 +297,7 @@ class TestControllerSelectionEdgeCases:
 
         # Simulate activity
         time.sleep(0.01)
-        self.controller_selection.set_selection("test", 0)
+        self.controller_selection.set_selection('test', 0)
 
         # Verify activity was tracked
         assert self.controller_selection.state.last_update_time > initial_time
@@ -309,16 +309,16 @@ class TestControllerSelectionEdgeCases:
     def test_frame_preservation_complex_scenarios(self):
         """Test frame preservation in complex navigation scenarios."""
         # Set up complex navigation
-        self.controller_selection.set_selection("animation1", 5)
-        self.controller_selection.set_selection("animation2", 3)
-        self.controller_selection.set_selection("animation3", 7)
+        self.controller_selection.set_selection('animation1', 5)
+        self.controller_selection.set_selection('animation2', 3)
+        self.controller_selection.set_selection('animation3', 7)
 
         # Switch back to first animation
-        self.controller_selection.set_selection("animation1", 2)
+        self.controller_selection.set_selection('animation1', 2)
 
         # Verify current state
         animation, frame = self.controller_selection.get_selection()
-        assert animation == "animation1"
+        assert animation == 'animation1'
         assert frame == 2
 
         # Verify navigation history
@@ -356,7 +356,7 @@ class TestMultiControllerIntegration:
         for i in range(4):
             self.manager.activate_controller(i)
             self.controller_selections[i].activate()
-            self.controller_selections[i].set_selection(f"animation_{i}", i)
+            self.controller_selections[i].set_selection(f'animation_{i}', i)
 
             # Add visual indicators
             self.visual_manager.add_controller_indicator(
@@ -375,7 +375,7 @@ class TestMultiControllerIntegration:
             # Selection state
             assert self.controller_selections[i].is_active()
             animation, frame = self.controller_selections[i].get_selection()
-            assert animation == f"animation_{i}"
+            assert animation == f'animation_{i}'
             assert frame == i
 
             # Visual state
@@ -458,7 +458,7 @@ class TestMultiControllerIntegration:
         for _ in range(10):
             for i in range(4):
                 # Concurrent navigation
-                self.controller_selections[i].set_selection(f"animation_{i}", i)
+                self.controller_selections[i].set_selection(f'animation_{i}', i)
 
                 # Concurrent visual updates
                 self.visual_manager.add_controller_indicator(
@@ -470,7 +470,7 @@ class TestMultiControllerIntegration:
 
         # All controllers should have valid state
         for i in range(4):
-            assert self.controller_selections[i].get_selection()[0] == f"animation_{i}"
+            assert self.controller_selections[i].get_selection()[0] == f'animation_{i}'
             assert i in self.visual_manager.indicators
 
 

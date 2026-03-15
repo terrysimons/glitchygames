@@ -4,6 +4,7 @@
 import time
 
 import pytest
+
 from glitchygames.tools.operation_history import CanvasOperationTracker, FilmStripOperationTracker
 from glitchygames.tools.undo_redo_manager import UndoRedoManager
 
@@ -47,7 +48,7 @@ class TestControllerDragContinuousMovement:
         # Mock mode switcher
         scene.mode_switcher = mocker.Mock()
         scene.mode_switcher.get_controller_mode = mocker.Mock(
-            return_value=mocker.Mock(value="canvas")
+            return_value=mocker.Mock(value='canvas')
         )
         scene.mode_switcher.get_controller_position = mocker.Mock(
             return_value=mocker.Mock(is_valid=True, position=(5, 5))
@@ -68,21 +69,21 @@ class TestControllerDragContinuousMovement:
 
         # Start a controller drag
         mock_scene.controller_drags[controller_id] = {
-            "active": True,
-            "start_time": time.time(),
-            "start_position": (5, 5),
-            "pixels_drawn": [],
-            "end_time": None,
-            "end_position": None,
+            'active': True,
+            'start_time': time.time(),
+            'start_position': (5, 5),
+            'pixels_drawn': [],
+            'end_time': None,
+            'end_position': None,
         }
 
         # Set up continuous movement
         mock_scene.canvas_continuous_movements[controller_id] = {
-            "start_time": time.time(),
-            "last_movement": time.time() - 0.2,  # Ready for next movement
-            "dx": 1,
-            "dy": 0,
-            "acceleration_level": 0,
+            'start_time': time.time(),
+            'last_movement': time.time() - 0.2,  # Ready for next movement
+            'dx': 1,
+            'dy': 0,
+            'acceleration_level': 0,
         }
 
         # Mock different positions for continuous movement
@@ -128,12 +129,12 @@ class TestControllerDragContinuousMovement:
 
         # Start a controller drag
         mock_scene.controller_drags[controller_id] = {
-            "active": True,
-            "start_time": time.time(),
-            "start_position": (5, 5),
-            "pixels_drawn": [],
-            "end_time": None,
-            "end_position": None,
+            'active': True,
+            'start_time': time.time(),
+            'start_position': (5, 5),
+            'pixels_drawn': [],
+            'end_time': None,
+            'end_position': None,
         }
 
         # Don't set up continuous movement
@@ -152,11 +153,11 @@ class TestControllerDragContinuousMovement:
 
         # Set up continuous movement
         mock_scene.canvas_continuous_movements[controller_id] = {
-            "start_time": time.time(),
-            "last_movement": time.time() - 0.2,  # Ready for next movement
-            "dx": 1,
-            "dy": 0,
-            "acceleration_level": 0,
+            'start_time': time.time(),
+            'last_movement': time.time() - 0.2,  # Ready for next movement
+            'dx': 1,
+            'dy': 0,
+            'acceleration_level': 0,
         }
 
         # Don't start a controller drag (no controller_drags entry)
@@ -186,21 +187,21 @@ class TestControllerDragContinuousMovement:
 
         # Start a controller drag but mark it as inactive
         mock_scene.controller_drags[controller_id] = {
-            "active": False,  # Inactive drag
-            "start_time": time.time(),
-            "start_position": (5, 5),
-            "pixels_drawn": [],
-            "end_time": time.time(),
-            "end_position": (8, 5),
+            'active': False,  # Inactive drag
+            'start_time': time.time(),
+            'start_position': (5, 5),
+            'pixels_drawn': [],
+            'end_time': time.time(),
+            'end_position': (8, 5),
         }
 
         # Set up continuous movement
         mock_scene.canvas_continuous_movements[controller_id] = {
-            "start_time": time.time(),
-            "last_movement": time.time() - 0.2,  # Ready for next movement
-            "dx": 1,
-            "dy": 0,
-            "acceleration_level": 0,
+            'start_time': time.time(),
+            'last_movement': time.time() - 0.2,  # Ready for next movement
+            'dx': 1,
+            'dy': 0,
+            'acceleration_level': 0,
         }
 
         # Use the real method from BitmapEditorScene bound to a real instance

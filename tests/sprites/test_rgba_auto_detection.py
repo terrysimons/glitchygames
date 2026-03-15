@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pygame
 import pytest
+
 from glitchygames.sprites.animated import (
     AnimatedSprite,
     _convert_pixels_to_rgb_if_possible,
     _convert_pixels_to_rgba_if_needed,
     _needs_alpha_channel,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -124,7 +124,7 @@ class TestAnimatedSpriteRGBRGBA:
         frame = mocker.Mock()
         frame.get_pixel_data.return_value = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
 
-        sprite._animations = {"test": [frame]}
+        sprite._animations = {'test': [frame]}
 
         color_map = sprite._build_toml_color_map()
 
@@ -142,7 +142,7 @@ class TestAnimatedSpriteRGBRGBA:
         frame = mocker.Mock()
         frame.get_pixel_data.return_value = [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 255)]
 
-        sprite._animations = {"test": [frame]}
+        sprite._animations = {'test': [frame]}
 
         color_map = sprite._build_toml_color_map()
 
@@ -159,7 +159,7 @@ class TestAnimatedSpriteRGBRGBA:
         frame = mocker.Mock()
         frame.get_pixel_data.return_value = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)]
 
-        sprite._animations = {"test": [frame]}
+        sprite._animations = {'test': [frame]}
 
         color_map = sprite._build_toml_color_map()
 
@@ -173,96 +173,96 @@ class TestAnimatedSpriteRGBRGBA:
     def test_build_color_map_from_toml_rgb_only(self):
         """Test loading color map from RGB-only TOML."""
         data = {
-            "colors": {
-                "R": {"red": 255, "green": 0, "blue": 0},
-                "G": {"red": 0, "green": 255, "blue": 0},
-                "B": {"red": 0, "green": 0, "blue": 255},
+            'colors': {
+                'R': {'red': 255, 'green': 0, 'blue': 0},
+                'G': {'red': 0, 'green': 255, 'blue': 0},
+                'B': {'red': 0, 'green': 0, 'blue': 255},
             }
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
 
-        assert color_map["R"] == (255, 0, 0)
-        assert color_map["G"] == (0, 255, 0)
-        assert color_map["B"] == (0, 0, 255)
+        assert color_map['R'] == (255, 0, 0)
+        assert color_map['G'] == (0, 255, 0)
+        assert color_map['B'] == (0, 0, 255)
         # RGB-only colors have no per-pixel alpha
         assert original_alpha_values == {}
         # Color order preserves insertion order
-        assert color_order == ["R", "G", "B"]
+        assert color_order == ['R', 'G', 'B']
 
     def test_build_color_map_from_toml_rgba(self):
         """Test loading color map from RGBA TOML."""
         data = {
-            "colors": {
-                "R": {"red": 255, "green": 0, "blue": 0, "alpha": 255},
-                "G": {"red": 0, "green": 255, "blue": 0, "alpha": 128},
-                "B": {"red": 0, "green": 0, "blue": 255, "alpha": 255},
+            'colors': {
+                'R': {'red': 255, 'green': 0, 'blue': 0, 'alpha': 255},
+                'G': {'red': 0, 'green': 255, 'blue': 0, 'alpha': 128},
+                'B': {'red': 0, 'green': 0, 'blue': 255, 'alpha': 255},
             }
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
 
         # Explicit alpha=255 is stored as RGBA 4-tuple to preserve the explicit declaration
-        assert color_map["R"] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
-        assert color_map["G"] == (0, 255, 0, 128)  # Transparent -> RGBA
-        assert color_map["B"] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
+        assert color_map['R'] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
+        assert color_map['G'] == (0, 255, 0, 128)  # Transparent -> RGBA
+        assert color_map['B'] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
         # Only per-pixel alpha (0-254) is tracked; alpha=255 is not
-        assert original_alpha_values == {"G": 128}
-        assert color_order == ["R", "G", "B"]
+        assert original_alpha_values == {'G': 128}
+        assert color_order == ['R', 'G', 'B']
 
     def test_build_color_map_from_toml_alpha_not_set(self):
         """Test loading color map when alpha is not specified (defaults to opaque)."""
         data = {
-            "colors": {
-                "R": {"red": 255, "green": 0, "blue": 0},  # No alpha specified
-                "G": {"red": 0, "green": 255, "blue": 0},  # No alpha specified
+            'colors': {
+                'R': {'red': 255, 'green': 0, 'blue': 0},  # No alpha specified
+                'G': {'red': 0, 'green': 255, 'blue': 0},  # No alpha specified
             }
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
 
         # Should be RGB since alpha was not specified (indexed color)
-        assert color_map["R"] == (255, 0, 0)  # RGB
-        assert color_map["G"] == (0, 255, 0)  # RGB
+        assert color_map['R'] == (255, 0, 0)  # RGB
+        assert color_map['G'] == (0, 255, 0)  # RGB
         assert original_alpha_values == {}
-        assert color_order == ["R", "G"]
+        assert color_order == ['R', 'G']
 
     def test_build_color_map_from_toml_alpha_255_explicit(self):
         """Test loading color map when alpha is explicitly set to 255."""
         data = {
-            "colors": {
-                "R": {"red": 255, "green": 0, "blue": 0, "alpha": 255},  # Explicit alpha=255
-                "G": {"red": 0, "green": 255, "blue": 0, "alpha": 255},  # Explicit alpha=255
+            'colors': {
+                'R': {'red': 255, 'green': 0, 'blue': 0, 'alpha': 255},  # Explicit alpha=255
+                'G': {'red': 0, 'green': 255, 'blue': 0, 'alpha': 255},  # Explicit alpha=255
             }
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
 
         # Explicit alpha=255 is stored as RGBA 4-tuple to preserve the explicit declaration
-        assert color_map["R"] == (255, 0, 0, 255)  # RGBA
-        assert color_map["G"] == (0, 255, 0, 255)  # RGBA
+        assert color_map['R'] == (255, 0, 0, 255)  # RGBA
+        assert color_map['G'] == (0, 255, 0, 255)  # RGBA
         # alpha=255 is not per-pixel alpha, so not tracked
         assert original_alpha_values == {}
-        assert color_order == ["R", "G"]
+        assert color_order == ['R', 'G']
 
     def test_build_color_map_from_toml_mixed_rgb_rgba(self):
         """Test loading color map from mixed RGB/RGBA TOML."""
         data = {
-            "colors": {
-                "R": {"red": 255, "green": 0, "blue": 0},  # RGB only
-                "G": {"red": 0, "green": 255, "blue": 0, "alpha": 128},  # RGBA
-                "B": {"red": 0, "green": 0, "blue": 255},  # RGB only
+            'colors': {
+                'R': {'red': 255, 'green': 0, 'blue': 0},  # RGB only
+                'G': {'red': 0, 'green': 255, 'blue': 0, 'alpha': 128},  # RGBA
+                'B': {'red': 0, 'green': 0, 'blue': 255},  # RGB only
             }
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
 
-        assert color_map["R"] == (255, 0, 0)  # RGB
-        assert color_map["G"] == (0, 255, 0, 128)  # RGBA
-        assert color_map["B"] == (0, 0, 255)  # RGB
+        assert color_map['R'] == (255, 0, 0)  # RGB
+        assert color_map['G'] == (0, 255, 0, 128)  # RGBA
+        assert color_map['B'] == (0, 0, 255)  # RGB
         # Only the per-pixel alpha color is tracked
-        assert original_alpha_values == {"G": 128}
-        assert color_order == ["R", "G", "B"]
+        assert original_alpha_values == {'G': 128}
+        assert color_order == ['R', 'G', 'B']
 
 
 class TestSpriteSaveLoadRGBRGBA:
@@ -289,11 +289,11 @@ class TestSpriteSaveLoadRGBRGBA:
         # Override get_pixel_data to return the actual pixels
         frame.get_pixel_data.return_value = frame.pixels
 
-        sprite._animations = {"test": [frame]}
-        sprite.name = "test_sprite"
+        sprite._animations = {'test': [frame]}
+        sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_path = f.name
 
@@ -301,14 +301,14 @@ class TestSpriteSaveLoadRGBRGBA:
             sprite._save_toml_single_frame(temp_path)
 
             # Read the saved file
-            content = Path(temp_path).read_text(encoding="utf-8")
+            content = Path(temp_path).read_text(encoding='utf-8')
 
             # Should contain RGB colors only
-            assert "red = 255" in content
-            assert "green = 255" in content
-            assert "blue = 255" in content
+            assert 'red = 255' in content
+            assert 'green = 255' in content
+            assert 'blue = 255' in content
             # Should not contain alpha
-            assert "alpha =" not in content
+            assert 'alpha =' not in content
 
         finally:
             Path(temp_path).unlink()
@@ -323,11 +323,11 @@ class TestSpriteSaveLoadRGBRGBA:
         # Override get_pixel_data to return the actual pixels
         frame.get_pixel_data.return_value = frame.pixels
 
-        sprite._animations = {"test": [frame]}
-        sprite.name = "test_sprite"
+        sprite._animations = {'test': [frame]}
+        sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_path = f.name
 
@@ -335,12 +335,12 @@ class TestSpriteSaveLoadRGBRGBA:
             sprite._save_toml_single_frame(temp_path)
 
             # Read the saved file
-            content = Path(temp_path).read_text(encoding="utf-8")
+            content = Path(temp_path).read_text(encoding='utf-8')
 
             # Should contain alpha values
-            assert "alpha = 255" in content
-            assert "alpha = 128" in content
-            assert "alpha = 0" in content
+            assert 'alpha = 255' in content
+            assert 'alpha = 128' in content
+            assert 'alpha = 0' in content
 
         finally:
             Path(temp_path).unlink()
@@ -358,11 +358,11 @@ class TestSpriteSaveLoadRGBRGBA:
         frame2.pixels = [(0, 0, 255), (128, 128, 128)]
         frame2.get_pixel_data.return_value = frame2.pixels
 
-        sprite._animations = {"test": [frame1, frame2]}
-        sprite.name = "test_sprite"
+        sprite._animations = {'test': [frame1, frame2]}
+        sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_path = f.name
 
@@ -370,14 +370,14 @@ class TestSpriteSaveLoadRGBRGBA:
             sprite._save_toml(temp_path)
 
             # Read the saved file
-            content = Path(temp_path).read_text(encoding="utf-8")
+            content = Path(temp_path).read_text(encoding='utf-8')
 
             # Should contain RGB colors only
-            assert "red = 255" in content
-            assert "green = 255" in content
-            assert "blue = 255" in content
+            assert 'red = 255' in content
+            assert 'green = 255' in content
+            assert 'blue = 255' in content
             # Should not contain alpha
-            assert "alpha =" not in content
+            assert 'alpha =' not in content
 
         finally:
             Path(temp_path).unlink()
@@ -395,11 +395,11 @@ class TestSpriteSaveLoadRGBRGBA:
         frame2.pixels = [(0, 0, 255, 255), (128, 128, 128, 0)]
         frame2.get_pixel_data.return_value = frame2.pixels
 
-        sprite._animations = {"test": [frame1, frame2]}
-        sprite.name = "test_sprite"
+        sprite._animations = {'test': [frame1, frame2]}
+        sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_path = f.name
 
@@ -407,13 +407,13 @@ class TestSpriteSaveLoadRGBRGBA:
             sprite._save_toml(temp_path)
 
             # Read the saved file
-            content = Path(temp_path).read_text(encoding="utf-8")
+            content = Path(temp_path).read_text(encoding='utf-8')
 
             # Should contain per-pixel alpha values (0-254) only
             # alpha=255 (opaque) is omitted as an optimization since it's the default
-            assert "alpha = 255" not in content
-            assert "alpha = 128" in content
-            assert "alpha = 0" in content
+            assert 'alpha = 255' not in content
+            assert 'alpha = 128' in content
+            assert 'alpha = 0' in content
 
         finally:
             Path(temp_path).unlink()
@@ -434,7 +434,7 @@ G = { red = 0, green = 255, blue = 0 }
 """
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             f.write(toml_content)
             temp_path = f.name
@@ -457,12 +457,12 @@ G = { red = 0, green = 255, blue = 0 }
                 return mock_surface
 
             # Patch pygame.Surface specifically for the load operation
-            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
+            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
             sprite = AnimatedSprite(temp_path)
 
             # Should load RGB colors
-            assert sprite._color_map["R"] == (255, 0, 0)
-            assert sprite._color_map["G"] == (0, 255, 0)
+            assert sprite._color_map['R'] == (255, 0, 0)
+            assert sprite._color_map['G'] == (0, 255, 0)
 
         finally:
             Path(temp_path).unlink()
@@ -484,7 +484,7 @@ B = { red = 0, green = 0, blue = 255, alpha = 255 }
 """
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             f.write(toml_content)
             temp_path = f.name
@@ -507,14 +507,14 @@ B = { red = 0, green = 0, blue = 255, alpha = 255 }
                 return mock_surface
 
             # Patch pygame.Surface specifically for the load operation
-            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
+            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
             sprite = AnimatedSprite(temp_path)
 
             # Should load RGBA colors appropriately
             # Explicit alpha=255 in TOML is preserved as RGBA 4-tuple
-            assert sprite._color_map["R"] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
-            assert sprite._color_map["G"] == (0, 255, 0, 128)  # Transparent -> RGBA
-            assert sprite._color_map["B"] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
+            assert sprite._color_map['R'] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
+            assert sprite._color_map['G'] == (0, 255, 0, 128)  # Transparent -> RGBA
+            assert sprite._color_map['B'] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
 
         finally:
             Path(temp_path).unlink()
@@ -536,7 +536,7 @@ B = { red = 0, green = 0, blue = 255 }
 """
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             f.write(toml_content)
             temp_path = f.name
@@ -559,13 +559,13 @@ B = { red = 0, green = 0, blue = 255 }
                 return mock_surface
 
             # Patch pygame.Surface specifically for the load operation
-            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
+            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
             sprite = AnimatedSprite(temp_path)
 
             # Should handle mixed formats correctly
-            assert sprite._color_map["R"] == (255, 0, 0)  # RGB
-            assert sprite._color_map["G"] == (0, 255, 0, 128)  # RGBA
-            assert sprite._color_map["B"] == (0, 0, 255)  # RGB
+            assert sprite._color_map['R'] == (255, 0, 0)  # RGB
+            assert sprite._color_map['G'] == (0, 255, 0, 128)  # RGBA
+            assert sprite._color_map['B'] == (0, 0, 255)  # RGB
 
         finally:
             Path(temp_path).unlink()
@@ -593,11 +593,11 @@ class TestRGBRGBAIntegration:
         frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
         frame.get_pixel_data.return_value = frame.pixels
 
-        sprite._animations = {"test": [frame]}
-        sprite.name = "test_sprite"
+        sprite._animations = {'test': [frame]}
+        sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_path = f.name
 
@@ -622,19 +622,19 @@ class TestRGBRGBAIntegration:
                 return mock_surface
 
             # Load with mock surface
-            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
+            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
             loaded_sprite = AnimatedSprite(temp_path)
 
             # Should maintain RGB format
             # Check what animations are available
-            assert len(loaded_sprite._animations) > 0, "No animations loaded"
+            assert len(loaded_sprite._animations) > 0, 'No animations loaded'
             animation_name = next(iter(loaded_sprite._animations.keys()))
             loaded_frame = loaded_sprite._animations[animation_name][0]
             loaded_pixels = loaded_frame.get_pixel_data()
 
             # All pixels should be RGB (no alpha component)
             for pixel in loaded_pixels:
-                assert len(pixel) == 3, f"Expected RGB pixel, got {pixel}"
+                assert len(pixel) == 3, f'Expected RGB pixel, got {pixel}'
 
         finally:
             Path(temp_path).unlink()
@@ -648,11 +648,11 @@ class TestRGBRGBAIntegration:
         frame.pixels = [(255, 0, 0, 254), (0, 255, 0, 128), (0, 0, 255, 200), (128, 128, 128, 0)]
         frame.get_pixel_data.return_value = frame.pixels
 
-        sprite._animations = {"test": [frame]}
-        sprite.name = "test_sprite"
+        sprite._animations = {'test': [frame]}
+        sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_path = f.name
 
@@ -677,12 +677,12 @@ class TestRGBRGBAIntegration:
                 return mock_surface
 
             # Load with mock surface
-            mocker.patch("pygame.Surface", side_effect=mock_surface_constructor)
+            mocker.patch('pygame.Surface', side_effect=mock_surface_constructor)
             loaded_sprite = AnimatedSprite(temp_path)
 
             # Should maintain RGBA format with transparency
             # Check what animations are available
-            assert len(loaded_sprite._animations) > 0, "No animations loaded"
+            assert len(loaded_sprite._animations) > 0, 'No animations loaded'
             animation_name = next(iter(loaded_sprite._animations.keys()))
             loaded_frame = loaded_sprite._animations[animation_name][0]
             loaded_pixels = loaded_frame.get_pixel_data()
@@ -704,8 +704,8 @@ class TestRGBRGBAIntegration:
         rgb_frame = MockFactory.create_sprite_frame_mock()
         rgb_frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
         rgb_frame.get_pixel_data.return_value = rgb_frame.pixels
-        rgb_sprite._animations = {"test": [rgb_frame]}
-        rgb_sprite.name = "rgb_sprite"
+        rgb_sprite._animations = {'test': [rgb_frame]}
+        rgb_sprite.name = 'rgb_sprite'
 
         # Create RGBA sprite
         rgba_sprite = AnimatedSprite()
@@ -717,16 +717,16 @@ class TestRGBRGBAIntegration:
             (128, 128, 128, 0),
         ]
         rgba_frame.get_pixel_data.return_value = rgba_frame.pixels
-        rgba_sprite._animations = {"test": [rgba_frame]}
-        rgba_sprite.name = "rgba_sprite"
+        rgba_sprite._animations = {'test': [rgba_frame]}
+        rgba_sprite.name = 'rgba_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as rgb_file:
             rgb_path = rgb_file.name
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as rgba_file:
             rgba_path = rgba_file.name
 
@@ -740,7 +740,7 @@ class TestRGBRGBAIntegration:
             rgba_size = Path(rgba_path).stat().st_size
 
             assert rgb_size < rgba_size, (
-                f"RGB file ({rgb_size}) should be smaller than RGBA file ({rgba_size})"
+                f'RGB file ({rgb_size}) should be smaller than RGBA file ({rgba_size})'
             )
 
         finally:
@@ -748,5 +748,5 @@ class TestRGBRGBAIntegration:
             Path(rgba_path).unlink()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

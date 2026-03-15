@@ -20,29 +20,29 @@ class TestCanvasOperationTracker:
             PixelChange(11, 20, (255, 0, 0), (0, 255, 0)),
         ]
 
-        self.tracker.add_frame_pixel_changes("walk_animation", 1, pixels)
+        self.tracker.add_frame_pixel_changes('walk_animation', 1, pixels)
 
-        frame_key = ("walk_animation", 1)
+        frame_key = ('walk_animation', 1)
         assert frame_key in self.manager.frame_undo_stacks
         assert len(self.manager.frame_undo_stacks[frame_key]) == 1
 
         operation = self.manager.frame_undo_stacks[frame_key][0]
-        assert operation.operation_type.value == "canvas_brush_stroke"
-        assert "walk_animation[1]" in operation.description
+        assert operation.operation_type.value == 'canvas_brush_stroke'
+        assert 'walk_animation[1]' in operation.description
 
     def test_add_frame_pixel_changes_with_tuples(self):
         """Test adding frame-specific pixel changes with tuple format."""
         pixels = [(10, 20, (255, 0, 0), (0, 255, 0)), (11, 20, (255, 0, 0), (0, 255, 0))]
 
-        self.tracker.add_frame_pixel_changes("run_animation", 2, pixels)
+        self.tracker.add_frame_pixel_changes('run_animation', 2, pixels)
 
-        frame_key = ("run_animation", 2)
+        frame_key = ('run_animation', 2)
         assert frame_key in self.manager.frame_undo_stacks
         assert len(self.manager.frame_undo_stacks[frame_key]) == 1
 
         operation = self.manager.frame_undo_stacks[frame_key][0]
-        assert operation.operation_type.value == "canvas_brush_stroke"
-        assert "run_animation[2]" in operation.description
+        assert operation.operation_type.value == 'canvas_brush_stroke'
+        assert 'run_animation[2]' in operation.description
 
     def test_add_pixel_changes_global_fallback(self):
         """Test that global tracking still works as fallback."""
@@ -52,7 +52,7 @@ class TestCanvasOperationTracker:
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
-        assert operation.operation_type.value == "canvas_brush_stroke"
+        assert operation.operation_type.value == 'canvas_brush_stroke'
 
     def test_add_single_pixel_change(self):
         """Test adding a single pixel change operation."""
@@ -61,9 +61,9 @@ class TestCanvasOperationTracker:
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
         assert (
-            operation.operation_type.value == "canvas_brush_stroke"
+            operation.operation_type.value == 'canvas_brush_stroke'
         )  # Single pixels are treated as brush strokes
-        assert "Pixel change at (15, 25)" in operation.description
+        assert 'Pixel change at (15, 25)' in operation.description
 
     def test_add_flood_fill(self):
         """Test adding a flood fill operation."""
@@ -72,6 +72,6 @@ class TestCanvasOperationTracker:
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
-        assert operation.operation_type.value == "canvas_flood_fill"
-        assert "Flood fill at (10, 10)" in operation.description
-        assert "4 pixels" in operation.description
+        assert operation.operation_type.value == 'canvas_flood_fill'
+        assert 'Flood fill at (10, 10)' in operation.description
+        assert '4 pixels' in operation.description

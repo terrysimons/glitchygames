@@ -4,6 +4,7 @@
 from typing import Self
 
 import pygame
+
 from glitchygames.color import WHITE
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
@@ -30,7 +31,7 @@ class PauseOverlay(Sprite):
 
         # Create the paused text
         font = pygame.font.Font(None, 72)
-        text_surface = font.render("PAUSED", True, WHITE)  # noqa: FBT003
+        text_surface = font.render('PAUSED', True, WHITE)  # noqa: FBT003
 
         # Center the text on screen
         text_rect = text_surface.get_rect()
@@ -70,7 +71,7 @@ class PauseScene(Scene):
             screenshot = previous_scene.screenshot
         else:
             # This should not happen - scene manager should always have a previous_scene
-            self.log.warning("No previous scene found - this should not happen!")
+            self.log.warning('No previous scene found - this should not happen!')
             # Fallback: create a black screenshot
             screenshot = pygame.Surface((self.screen_width, self.screen_height))
             screenshot.fill((0, 0, 0))
@@ -78,7 +79,7 @@ class PauseScene(Scene):
         self.overlay = PauseOverlay(self.scene_manager.game_engine.game, screenshot)
         self.all_sprites.add(self.overlay)
 
-        self.log.info("Pause scene setup complete")
+        self.log.info('Pause scene setup complete')
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events for the pause scene.
@@ -106,7 +107,7 @@ class PauseScene(Scene):
         if event.key == pygame.K_SPACE and self._space_pressed:
             # Spacebar was pressed and now released - resume the game
             self._space_pressed = False
-            self.log.info("Resuming game...")
+            self.log.info('Resuming game...')
             self.resume()
         else:
             super().on_key_up_event(event)

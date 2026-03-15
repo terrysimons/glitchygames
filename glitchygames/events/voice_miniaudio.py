@@ -47,7 +47,7 @@ class _BlockingByteStream:
             while self._size < size and not self._closed:
                 self._cv.wait(timeout=0.5)
             if self._size == 0 and self._closed:
-                return b""
+                return b''
             chunks: list[bytes] = []
             remaining = size
             while self._buf and remaining > 0:
@@ -63,7 +63,7 @@ class _BlockingByteStream:
                     self._size -= remaining
                     remaining = 0
             # If we still didn't get enough and closed, return what we have
-            return b"".join(chunks)
+            return b''.join(chunks)
 
     def close(self) -> None:
         with self._cv:
@@ -89,7 +89,7 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
 
         """
         if mi is None:
-            raise RuntimeError("miniaudio is not installed")
+            raise RuntimeError('miniaudio is not installed')
         self.device_index = device_index
         self.SAMPLE_RATE = sample_rate
         self.CHANNELS = channels

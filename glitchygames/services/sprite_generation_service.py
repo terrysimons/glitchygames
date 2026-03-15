@@ -18,7 +18,7 @@ from glitchygames.ai.sprite_generator import (
 from glitchygames.services.config import ServiceConfig
 from glitchygames.services.exceptions import AIProviderError
 
-LOG = logging.getLogger("glitchygames.services.sprite_generation")
+LOG = logging.getLogger('glitchygames.services.sprite_generation')
 
 
 @dataclass
@@ -83,20 +83,20 @@ class SpriteGenerationService:
             self._ai_module = ai
         except ImportError as e:
             raise AIProviderError(
-                "aisuite is not installed. Install with: pip install aisuite",
+                'aisuite is not installed. Install with: pip install aisuite',
                 provider=None,
                 original_error=e,
             ) from e
 
-        LOG.info(f"Initializing AI client for provider: {self.config.ai_provider}")
+        LOG.info(f'Initializing AI client for provider: {self.config.ai_provider}')
 
         try:
             self._client = ai.Client()
-            LOG.info("AI client initialized successfully")
+            LOG.info('AI client initialized successfully')
             return self._client
         except Exception as e:
             raise AIProviderError(
-                f"Failed to initialize AI client: {e}",
+                f'Failed to initialize AI client: {e}',
                 provider=self.config.ai_provider,
                 original_error=e,
             ) from e
@@ -141,20 +141,20 @@ class SpriteGenerationService:
         hints = []
 
         if width and height:
-            hints.append(f"{width}x{height} pixels")
+            hints.append(f'{width}x{height} pixels')
 
         # Add animation hints if specified
         if frame_count or film_strip_count or animation_duration:
             animation_parts = []
             if film_strip_count and film_strip_count > 1:
-                animation_parts.append(f"{film_strip_count} film strips")
+                animation_parts.append(f'{film_strip_count} film strips')
             if frame_count:
-                animation_parts.append(f"{frame_count} frames each")
+                animation_parts.append(f'{frame_count} frames each')
             if animation_duration:
-                animation_parts.append(f"animated across {animation_duration} seconds")
+                animation_parts.append(f'animated across {animation_duration} seconds')
 
             if animation_parts:
-                hints.append(", ".join(animation_parts))
+                hints.append(', '.join(animation_parts))
 
         if hints:
             enhanced_prompt = f"{prompt} ({'; '.join(hints)})"
@@ -169,7 +169,7 @@ class SpriteGenerationService:
 
         # Make the API call
         try:
-            LOG.info(f"Generating sprite with model: {model_string}")
+            LOG.info(f'Generating sprite with model: {model_string}')
             response = client.chat.completions.create(
                 model=model_string,
                 messages=messages,
@@ -177,12 +177,12 @@ class SpriteGenerationService:
             )
 
             raw_content = response.choices[0].message.content
-            LOG.debug(f"Raw AI response length: {len(raw_content)} chars")
+            LOG.debug(f'Raw AI response length: {len(raw_content)} chars')
 
         except Exception as e:
-            LOG.exception("AI API call failed")
+            LOG.exception('AI API call failed')
             raise AIProviderError(
-                f"AI generation failed: {e}",
+                f'AI generation failed: {e}',
                 provider=self.config.ai_provider,
                 original_error=e,
             ) from e
@@ -192,7 +192,7 @@ class SpriteGenerationService:
         is_valid, error_message = validate_ai_response(cleaned_content)
 
         if not is_valid:
-            LOG.warning(f"AI response validation failed: {error_message}")
+            LOG.warning(f'AI response validation failed: {error_message}')
             return GenerationResult(
                 success=False,
                 error=error_message,
@@ -203,8 +203,8 @@ class SpriteGenerationService:
         sprite_name, is_animated, frame_count = self._extract_sprite_metadata(cleaned_content)
 
         LOG.info(
-            f"Successfully generated sprite: {sprite_name} "
-            f"(animated={is_animated}, frames={frame_count})"
+            f'Successfully generated sprite: {sprite_name} '
+            f'(animated={is_animated}, frames={frame_count})'
         )
 
         return GenerationResult(
@@ -247,7 +247,7 @@ class SpriteGenerationService:
 
         # Make the API call
         try:
-            LOG.info(f"Refining sprite with model: {self.config.get_ai_model_string()}")
+            LOG.info(f'Refining sprite with model: {self.config.get_ai_model_string()}')
             response = client.chat.completions.create(
                 model=self.config.get_ai_model_string(),
                 messages=messages,
@@ -255,12 +255,12 @@ class SpriteGenerationService:
             )
 
             raw_content = response.choices[0].message.content
-            LOG.debug(f"Raw AI response length: {len(raw_content)} chars")
+            LOG.debug(f'Raw AI response length: {len(raw_content)} chars')
 
         except Exception as e:
-            LOG.exception("AI API call failed")
+            LOG.exception('AI API call failed')
             raise AIProviderError(
-                f"AI refinement failed: {e}",
+                f'AI refinement failed: {e}',
                 provider=self.config.ai_provider,
                 original_error=e,
             ) from e
@@ -270,7 +270,7 @@ class SpriteGenerationService:
         is_valid, error_message = validate_ai_response(cleaned_content)
 
         if not is_valid:
-            LOG.warning(f"AI response validation failed: {error_message}")
+            LOG.warning(f'AI response validation failed: {error_message}')
             return GenerationResult(
                 success=False,
                 error=error_message,
@@ -281,8 +281,8 @@ class SpriteGenerationService:
         sprite_name, is_animated, frame_count = self._extract_sprite_metadata(cleaned_content)
 
         LOG.info(
-            f"Successfully refined sprite: {sprite_name} "
-            f"(animated={is_animated}, frames={frame_count})"
+            f'Successfully refined sprite: {sprite_name} '
+            f'(animated={is_animated}, frames={frame_count})'
         )
 
         return GenerationResult(
@@ -304,33 +304,33 @@ class SpriteGenerationService:
             Tuple of (sprite_name, is_animated, frame_count)
 
         """
-        import toml
+        import tomllib
 
         try:
-            data = toml.loads(toml_content)
+            data = tomllib.loads(toml_content)
         except (ValueError, KeyError, TypeError) as e:
-            LOG.warning(f"Failed to parse TOML for metadata: {e}")
-            return "unknown", False, 1
+            LOG.warning(f'Failed to parse TOML for metadata: {e}')
+            return 'unknown', False, 1
 
         # Get sprite name
-        sprite_name = data.get("sprite", {}).get("name", "unnamed")
+        sprite_name = data.get('sprite', {}).get('name', 'unnamed')
 
         # Check if animated
-        is_animated = "animation" in data
+        is_animated = 'animation' in data
         frame_count = 1
 
         if is_animated:
             # Count frames across all animations
-            animations = data.get("animation", [])
+            animations = data.get('animation', [])
             if isinstance(animations, list):
                 for anim in animations:
-                    if isinstance(anim, dict) and "frame" in anim:
-                        frames = anim.get("frame", [])
+                    if isinstance(anim, dict) and 'frame' in anim:
+                        frames = anim.get('frame', [])
                         if isinstance(frames, list):
                             frame_count = max(frame_count, len(frames))
             elif isinstance(animations, dict):
                 # Single animation
-                frames = animations.get("frame", [])
+                frames = animations.get('frame', [])
                 if isinstance(frames, list):
                     frame_count = len(frames)
 

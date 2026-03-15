@@ -15,7 +15,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.scenes import Scene, SceneManager
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -29,8 +28,8 @@ class TestSceneEvents:
 
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
-            NAME = "MockGameScene"
-            VERSION = "1.0"
+            NAME = 'MockGameScene'
+            VERSION = '1.0'
 
             def __init__(self, options=None, groups=None):
                 super().__init__(options=options, groups=groups)
@@ -47,21 +46,21 @@ class TestSceneEvents:
         """
         mock_args = mocker.Mock()
         mock_args.fps = 60
-        mock_args.resolution = "800x600"
+        mock_args.resolution = '800x600'
         mock_args.windowed = True
         mock_args.use_gfxdraw = False
-        mock_args.update_type = "update"
+        mock_args.update_type = 'update'
         mock_args.fps_refresh_rate = 1000
         mock_args.profile = False
         mock_args.test_flag = False
-        mock_args.font_name = "Arial"
+        mock_args.font_name = 'Arial'
         mock_args.font_size = 16
         mock_args.font_bold = False
         mock_args.font_italic = False
         mock_args.font_antialias = True
         mock_args.font_dpi = 72
-        mock_args.font_system = "pygame"
-        mock_args.log_level = "info"
+        mock_args.font_system = 'pygame'
+        mock_args.log_level = 'info'
         mock_args.no_unhandled_events = False
         return mock_args
 
@@ -76,13 +75,13 @@ class TestSceneEvents:
 
         # Create a mock event
         mock_event = mocker.Mock()
-        mock_event.type = "test_event"
+        mock_event.type = 'test_event'
 
         # Test that scene can handle events (Scene inherits from AllEventStubs)
         # The scene should have event handler methods
-        assert hasattr(scene, "on_quit_event")
-        assert hasattr(scene, "on_fps_event")
-        assert hasattr(scene, "on_game_event")
+        assert hasattr(scene, 'on_quit_event')
+        assert hasattr(scene, 'on_fps_event')
+        assert hasattr(scene, 'on_game_event')
 
     def test_scene_event_processing(self):
         """Test scene event processing."""
@@ -90,9 +89,9 @@ class TestSceneEvents:
 
         # Test that scene has event processing capabilities
         # Scene inherits from AllEventStubs which provides event handling
-        assert hasattr(scene, "on_quit_event")
-        assert hasattr(scene, "on_fps_event")
-        assert hasattr(scene, "on_game_event")
+        assert hasattr(scene, 'on_quit_event')
+        assert hasattr(scene, 'on_fps_event')
+        assert hasattr(scene, 'on_game_event')
 
     def test_scene_event_routing(self, mocker):
         """Test scene event routing."""
@@ -105,13 +104,13 @@ class TestSceneEvents:
 
         # Create mock event
         mock_event = mocker.Mock()
-        mock_event.type = "test_event"
+        mock_event.type = 'test_event'
 
         # Test that manager can handle events
         # The manager should have event handling capabilities
-        assert hasattr(manager, "on_quit_event")
-        assert hasattr(manager, "on_fps_event")
-        assert hasattr(manager, "on_game_event")
+        assert hasattr(manager, 'on_quit_event')
+        assert hasattr(manager, 'on_fps_event')
+        assert hasattr(manager, 'on_game_event')
 
     def test_scene_event_handling_with_manager(self):
         """Test scene event handling with manager."""
@@ -125,8 +124,8 @@ class TestSceneEvents:
         assert manager.active_scene == scene
 
         # Test that both manager and scene have event handling capabilities
-        assert hasattr(manager, "on_quit_event")
-        assert hasattr(scene, "on_quit_event")
+        assert hasattr(manager, 'on_quit_event')
+        assert hasattr(scene, 'on_quit_event')
 
     def test_scene_event_handling_multiple_scenes(self):
         """Test event handling with multiple scenes."""
@@ -140,7 +139,7 @@ class TestSceneEvents:
         assert manager.active_scene == scene1
 
         # Test that scene has event handling capabilities
-        assert hasattr(scene1, "on_quit_event")
+        assert hasattr(scene1, 'on_quit_event')
 
     def test_scene_event_handling_scene_transition(self):
         """Test event handling during scene transition."""
@@ -160,8 +159,8 @@ class TestSceneEvents:
         assert manager.active_scene == scene2
 
         # Test that both scenes have event handling capabilities
-        assert hasattr(scene1, "on_quit_event")
-        assert hasattr(scene2, "on_quit_event")
+        assert hasattr(scene1, 'on_quit_event')
+        assert hasattr(scene2, 'on_quit_event')
 
     def test_scene_event_handling_with_custom_handlers(self, mocker):
         """Test scene event handling with custom handlers."""
@@ -177,9 +176,9 @@ class TestSceneEvents:
         scene = CustomScene()
 
         # Test that custom scene has event handling capabilities
-        assert hasattr(scene, "on_quit_event")
-        assert hasattr(scene, "on_fps_event")
-        assert hasattr(scene, "on_game_event")
+        assert hasattr(scene, 'on_quit_event')
+        assert hasattr(scene, 'on_fps_event')
+        assert hasattr(scene, 'on_game_event')
 
         # Test custom event handling
         custom_event = mocker.Mock()
@@ -208,8 +207,8 @@ class TestSceneEvents:
         assert manager.active_scene == scene1
 
         # Test that both scenes have event handling capabilities
-        assert hasattr(scene1, "on_quit_event")
-        assert hasattr(scene2, "on_quit_event")
+        assert hasattr(scene1, 'on_quit_event')
+        assert hasattr(scene2, 'on_quit_event')
 
         # Transition to scene2
         manager.switch_to_scene(scene2)
@@ -220,18 +219,18 @@ class TestSceneEvents:
         scene = Scene()
 
         # Test that scene has event handling capabilities
-        assert hasattr(scene, "on_quit_event")
-        assert hasattr(scene, "on_fps_event")
-        assert hasattr(scene, "on_game_event")
+        assert hasattr(scene, 'on_quit_event')
+        assert hasattr(scene, 'on_fps_event')
+        assert hasattr(scene, 'on_game_event')
 
     def test_scene_event_handling_with_exceptions(self):
         """Test scene event handling with exceptions."""
         scene = Scene()
 
         # Test that scene has event handling capabilities
-        assert hasattr(scene, "on_quit_event")
-        assert hasattr(scene, "on_fps_event")
-        assert hasattr(scene, "on_game_event")
+        assert hasattr(scene, 'on_quit_event')
+        assert hasattr(scene, 'on_fps_event')
+        assert hasattr(scene, 'on_game_event')
 
     def test_scene_event_handling_with_manager_exceptions(self):
         """Test scene event handling with manager exceptions."""
@@ -245,5 +244,5 @@ class TestSceneEvents:
         assert manager.active_scene == scene
 
         # Test that both manager and scene have event handling capabilities
-        assert hasattr(manager, "on_quit_event")
-        assert hasattr(scene, "on_quit_event")
+        assert hasattr(manager, 'on_quit_event')
+        assert hasattr(scene, 'on_quit_event')

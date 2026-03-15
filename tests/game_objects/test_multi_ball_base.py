@@ -14,6 +14,7 @@ import random
 import time
 
 import pygame
+
 from glitchygames.game_objects.ball import BallSprite
 
 LOG = logging.getLogger(__name__)
@@ -76,13 +77,13 @@ class MultiBallTestBase:
 
     def print_initial_state(self):
         """Print initial ball states."""
-        LOG.debug(f"Created {self.num_balls} balls")
-        LOG.debug("Initial ball states:")
+        LOG.debug(f'Created {self.num_balls} balls')
+        LOG.debug('Initial ball states:')
         for i, ball in enumerate(self.balls):
             magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
             LOG.debug(
-                f"  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) "
-                f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}"
+                f'  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) '
+                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}'
             )
 
     def _tick_cooldowns(self):
@@ -255,8 +256,8 @@ class MultiBallTestBase:
             object: The result.
 
         """
-        LOG.debug(f"=== {self.test_name} ===")
-        LOG.debug(f"Testing at {fps} FPS for {duration_seconds} seconds...")
+        LOG.debug(f'=== {self.test_name} ===')
+        LOG.debug(f'Testing at {fps} FPS for {duration_seconds} seconds...')
 
         # Initialize pygame
         pygame.init()
@@ -267,14 +268,14 @@ class MultiBallTestBase:
         self.print_initial_state()
 
         # Calculate test parameters
-        if fps == float("inf"):
+        if fps == float('inf'):
             dt = 0.0
             max_frames = int(60 * duration_seconds)
         else:
             dt = 1.0 / fps
             max_frames = int(fps * duration_seconds)
 
-        LOG.debug(f"\nRunning simulation for {max_frames} frames ({duration_seconds} seconds)...")
+        LOG.debug(f'\nRunning simulation for {max_frames} frames ({duration_seconds} seconds)...')
 
         # Track statistics
         start_time = time.time()
@@ -291,7 +292,7 @@ class MultiBallTestBase:
                 ball_collisions = self.handle_ball_collisions()
                 total_ball_collisions += ball_collisions
 
-            if fps == float("inf"):
+            if fps == float('inf'):
                 wall_bounces = self.update_balls(0.001, frame_count)
             else:
                 wall_bounces = self.update_balls(dt, frame_count)
@@ -302,9 +303,9 @@ class MultiBallTestBase:
             if frame_count % 300 == 0:
                 alive_count = sum(1 for ball in self.balls if ball.alive())
                 LOG.debug(
-                    f"  Frame {frame_count}: {alive_count} balls alive, "
-                    f"{total_wall_bounces} wall bounces, "
-                    f"{total_ball_collisions} ball collisions"
+                    f'  Frame {frame_count}: {alive_count} balls alive, '
+                    f'{total_wall_bounces} wall bounces, '
+                    f'{total_ball_collisions} ball collisions'
                 )
 
         total_time = time.time() - start_time
@@ -324,23 +325,23 @@ class MultiBallTestBase:
 
     def print_results(self, total_time, frame_count, final_alive, wall_bounces, ball_collisions):
         """Print test results."""
-        LOG.debug("\n=== FINAL RESULTS ===")
-        LOG.debug(f"Total time: {total_time:.2f} seconds")
-        LOG.debug(f"Frames processed: {frame_count:,}")
-        LOG.debug(f"Balls still alive: {final_alive}")
-        LOG.debug(f"Wall bounces: {wall_bounces}")
-        LOG.debug(f"Ball-to-ball collisions: {ball_collisions}")
+        LOG.debug('\n=== FINAL RESULTS ===')
+        LOG.debug(f'Total time: {total_time:.2f} seconds')
+        LOG.debug(f'Frames processed: {frame_count:,}')
+        LOG.debug(f'Balls still alive: {final_alive}')
+        LOG.debug(f'Wall bounces: {wall_bounces}')
+        LOG.debug(f'Ball-to-ball collisions: {ball_collisions}')
 
         # Energy conservation check
         final_energy = self._compute_total_energy()
         energy_drift = abs(final_energy - self.initial_energy)
-        LOG.debug("\n=== ENERGY ANALYSIS ===")
-        LOG.debug(f"  Initial energy: {self.initial_energy:.6f}")
-        LOG.debug(f"  Final energy:   {final_energy:.6f}")
-        LOG.debug(f"  Drift:          {energy_drift:.2e}")
+        LOG.debug('\n=== ENERGY ANALYSIS ===')
+        LOG.debug(f'  Initial energy: {self.initial_energy:.6f}')
+        LOG.debug(f'  Final energy:   {final_energy:.6f}')
+        LOG.debug(f'  Drift:          {energy_drift:.2e}')
 
         # Per-ball speed magnitude analysis
-        LOG.debug("\n=== SPEED MAGNITUDE ANALYSIS ===")
+        LOG.debug('\n=== SPEED MAGNITUDE ANALYSIS ===')
         for i, ball in enumerate(self.balls):
             if ball.alive() and self.speed_magnitude_samples[i]:
                 magnitudes = self.speed_magnitude_samples[i]
@@ -349,26 +350,26 @@ class MultiBallTestBase:
                 drift = max_mag - min_mag
 
                 LOG.debug(
-                    f"Ball {i + 1}: magnitude range [{min_mag:.3f}, {max_mag:.3f}], "
-                    f"drift={drift:.6f}"
+                    f'Ball {i + 1}: magnitude range [{min_mag:.3f}, {max_mag:.3f}], '
+                    f'drift={drift:.6f}'
                 )
 
         # Overall analysis
-        LOG.info("\n=== OVERALL ANALYSIS ===")
+        LOG.info('\n=== OVERALL ANALYSIS ===')
         if final_alive == self.num_balls:
-            LOG.info(f"  All {self.num_balls} balls survived")
+            LOG.info(f'  All {self.num_balls} balls survived')
         else:
-            LOG.info(f"  Only {final_alive}/{self.num_balls} balls survived")
+            LOG.info(f'  Only {final_alive}/{self.num_balls} balls survived')
 
         if wall_bounces > 0:
-            LOG.info(f"  Wall bouncing working ({wall_bounces} bounces)")
+            LOG.info(f'  Wall bouncing working ({wall_bounces} bounces)')
 
         if self.enable_ball_collisions and ball_collisions > 0:
             if self.enable_ball_bouncing:
                 LOG.info(
-                    f"  Ball-to-ball collision bouncing working ({ball_collisions} collisions)"
+                    f'  Ball-to-ball collision bouncing working ({ball_collisions} collisions)'
                 )
             else:
                 LOG.info(
-                    f"  Ball-to-ball collision clipping working ({ball_collisions} collisions)"
+                    f'  Ball-to-ball collision clipping working ({ball_collisions} collisions)'
                 )

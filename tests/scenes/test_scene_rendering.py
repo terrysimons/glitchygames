@@ -15,7 +15,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.scenes import Scene, SceneManager
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -29,8 +28,8 @@ class TestSceneRendering:
 
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
-            NAME = "MockGameScene"
-            VERSION = "1.0"
+            NAME = 'MockGameScene'
+            VERSION = '1.0'
 
             def __init__(self, options=None, groups=None):
                 super().__init__(options=options, groups=groups)
@@ -45,7 +44,7 @@ class TestSceneRendering:
 
     def test_scene_rendering(self, mocker):
         """Test basic scene rendering."""
-        scene = Scene("test_scene")
+        scene = Scene('test_scene')
 
         # Mock render method
         scene.render = mocker.Mock()
@@ -61,7 +60,7 @@ class TestSceneRendering:
 
     def test_scene_rendering_with_surface(self, mocker):
         """Test scene rendering with surface."""
-        scene = Scene("test_scene")
+        scene = Scene('test_scene')
 
         # Mock render method
         scene.render = mocker.Mock()
@@ -93,7 +92,7 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_multiple_scenes(self, mocker):
         """Test rendering with multiple scenes."""
@@ -118,8 +117,8 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene1
 
         # Test that both scenes have render methods
-        assert hasattr(mock_scene1, "render")
-        assert hasattr(mock_scene2, "render")
+        assert hasattr(mock_scene1, 'render')
+        assert hasattr(mock_scene2, 'render')
 
     def test_scene_rendering_scene_transition(self, mocker):
         """Test rendering during scene transition."""
@@ -148,8 +147,8 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene2
 
         # Test that both scenes have render methods
-        assert hasattr(mock_scene1, "render")
-        assert hasattr(mock_scene2, "render")
+        assert hasattr(mock_scene1, 'render')
+        assert hasattr(mock_scene2, 'render')
 
     def test_scene_rendering_with_visibility(self, mocker):
         """Test scene rendering with visibility."""
@@ -160,7 +159,7 @@ class TestSceneRendering:
         mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_visibility_manager(self, mocker):
         """Test scene rendering with visibility through manager."""
@@ -180,7 +179,7 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_custom_drawing(self, mocker):
         """Test scene rendering with custom drawing."""
@@ -194,7 +193,7 @@ class TestSceneRendering:
         mock_scene.render = mock_render
 
         # Test that custom scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
         # Create mock surface using centralized mocks
         mock_surface = MockFactory.create_pygame_surface_mock()
@@ -234,9 +233,9 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene1
 
         # Test that all scenes have render methods
-        assert hasattr(mock_scene1, "render")
-        assert hasattr(mock_scene2, "render")
-        assert hasattr(mock_scene3, "render")
+        assert hasattr(mock_scene1, 'render')
+        assert hasattr(mock_scene2, 'render')
+        assert hasattr(mock_scene3, 'render')
 
     def test_scene_rendering_with_render_state(self, mocker):
         """Test scene rendering with render state."""
@@ -247,7 +246,7 @@ class TestSceneRendering:
         mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_render_state_manager(self, mocker):
         """Test scene rendering with render state through manager."""
@@ -267,7 +266,7 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_exceptions(self, mocker):
         """Test scene rendering with exceptions."""
@@ -278,7 +277,7 @@ class TestSceneRendering:
         mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_manager_exceptions(self, mocker):
         """Test scene rendering with manager exceptions."""
@@ -298,7 +297,7 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_surface_management(self, mocker):
         """Test scene rendering with surface management."""
@@ -309,7 +308,7 @@ class TestSceneRendering:
         mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_surface_management_manager(self, mocker):
         """Test scene rendering with surface management through manager."""
@@ -329,7 +328,7 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_custom_surface(self, mocker):
         """Test scene rendering with custom surface."""
@@ -344,7 +343,7 @@ class TestSceneRendering:
         mock_scene.render = mock_render
 
         # Test that custom scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
         # Create mock surface using centralized mocks
         mock_surface = MockFactory.create_pygame_surface_mock()
@@ -378,8 +377,8 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene1
 
         # Test that both scenes have render methods
-        assert hasattr(mock_scene1, "render")
-        assert hasattr(mock_scene2, "render")
+        assert hasattr(mock_scene1, 'render')
+        assert hasattr(mock_scene2, 'render')
 
     def test_scene_rendering_with_render_order_transition(self, mocker):
         """Test scene rendering with render order during transition."""
@@ -408,8 +407,8 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene2
 
         # Test that both scenes have render methods
-        assert hasattr(mock_scene1, "render")
-        assert hasattr(mock_scene2, "render")
+        assert hasattr(mock_scene1, 'render')
+        assert hasattr(mock_scene2, 'render')
 
     def test_scene_rendering_with_render_state_changes(self, mocker):
         """Test scene rendering with render state changes."""
@@ -420,7 +419,7 @@ class TestSceneRendering:
         mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_render_state_changes_manager(self, mocker):
         """Test scene rendering with render state changes through manager."""
@@ -440,7 +439,7 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_edge_cases(self, mocker):
         """Test scene rendering with edge cases."""
@@ -451,7 +450,7 @@ class TestSceneRendering:
         mock_scene.render = mocker.Mock()
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')
 
     def test_scene_rendering_with_edge_cases_manager(self, mocker):
         """Test scene rendering with edge cases through manager."""
@@ -471,4 +470,4 @@ class TestSceneRendering:
         assert manager.active_scene == mock_scene
 
         # Test that scene has render method
-        assert hasattr(mock_scene, "render")
+        assert hasattr(mock_scene, 'render')

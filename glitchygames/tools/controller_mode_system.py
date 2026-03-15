@@ -22,11 +22,11 @@ MAX_MODE_HISTORY_SIZE = 10
 class ControllerMode(Enum):
     """Controller mode types."""
 
-    FILM_STRIP = "film_strip"
-    CANVAS = "canvas"
-    R_SLIDER = "r_slider"
-    G_SLIDER = "g_slider"
-    B_SLIDER = "b_slider"
+    FILM_STRIP = 'film_strip'
+    CANVAS = 'canvas'
+    R_SLIDER = 'r_slider'
+    G_SLIDER = 'g_slider'
+    B_SLIDER = 'b_slider'
 
 
 @dataclass
@@ -35,7 +35,7 @@ class ModePosition:
 
     position: tuple[int, int]
     frame: int = 0
-    animation: str = ""
+    animation: str = ''
     is_valid: bool = True
 
 
@@ -163,8 +163,8 @@ class TriggerDetector:
         """
         # Initialize controller state if needed
         if controller_id not in self.last_trigger_states:
-            self.last_trigger_states[controller_id] = {"L2": 0.0, "R2": 0.0}
-            self.last_trigger_times[controller_id] = {"L2": 0.0, "R2": 0.0}
+            self.last_trigger_states[controller_id] = {'L2': 0.0, 'R2': 0.0}
+            self.last_trigger_times[controller_id] = {'L2': 0.0, 'R2': 0.0}
 
         # Check if trigger crossed threshold
         last_value = self.last_trigger_states[controller_id][trigger_type]
@@ -273,10 +273,10 @@ class ModeSwitcher:
 
         # Check for trigger presses
         l2_pressed = self.trigger_detector.detect_trigger_press(
-            controller_id, l2_value, "L2", current_time
+            controller_id, l2_value, 'L2', current_time
         )
         r2_pressed = self.trigger_detector.detect_trigger_press(
-            controller_id, r2_value, "R2", current_time
+            controller_id, r2_value, 'R2', current_time
         )
 
         if not (l2_pressed or r2_pressed):

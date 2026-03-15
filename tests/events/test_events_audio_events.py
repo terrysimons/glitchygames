@@ -18,7 +18,6 @@ from glitchygames.events import (
     HashableEvent,
     UnhandledEventError,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -28,15 +27,15 @@ class TestAudioEvents:
     def test_audio_events_interface(self, mock_pygame_patches):
         """Test AudioEvents interface methods."""
         # Test that AudioEvents has required abstract methods
-        assert hasattr(AudioEvents, "on_audio_device_added_event")
-        assert hasattr(AudioEvents, "on_audio_device_removed_event")
+        assert hasattr(AudioEvents, 'on_audio_device_added_event')
+        assert hasattr(AudioEvents, 'on_audio_device_removed_event')
 
     def test_audio_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test AudioEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = AudioEventStubs()
-        assert hasattr(stub, "on_audio_device_added_event")
-        assert hasattr(stub, "on_audio_device_removed_event")
+        assert hasattr(stub, 'on_audio_device_added_event')
+        assert hasattr(stub, 'on_audio_device_removed_event')
 
         # Test that stub methods can be called with proper game object
         scene_mock = self._setup_mock_scene_for_stub(stub)
@@ -44,7 +43,7 @@ class TestAudioEvents:
         # Test method calls
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.core.LOG.error")
+        mocker.patch('glitchygames.events.core.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_audio_device_added_event(event)
         # Expected to call unhandled_event
@@ -55,7 +54,7 @@ class TestAudioEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_audio_device_added_event": lambda event: (
+                'on_audio_device_added_event': lambda event: (
                     scene.audio_events_received.append(event) or True
                 )
             }
@@ -75,7 +74,7 @@ class TestAudioEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_audio_device_removed_event": lambda event: (
+                'on_audio_device_removed_event': lambda event: (
                     scene.audio_events_received.append(event) or True
                 )
             }
@@ -95,11 +94,11 @@ class TestAudioEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_audio_device_added_event": lambda event: (
-                    scene.audio_events_received.append(("added", event)) or True
+                'on_audio_device_added_event': lambda event: (
+                    scene.audio_events_received.append(('added', event)) or True
                 ),
-                "on_audio_device_removed_event": lambda event: (
-                    scene.audio_events_received.append(("removed", event)) or True
+                'on_audio_device_removed_event': lambda event: (
+                    scene.audio_events_received.append(('removed', event)) or True
                 ),
             }
         )
@@ -124,11 +123,11 @@ class TestAudioEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_audio_device_added_event": lambda event: (
-                    scene.audio_events_received.append(("added", event)) or True
+                'on_audio_device_added_event': lambda event: (
+                    scene.audio_events_received.append(('added', event)) or True
                 ),
-                "on_audio_device_removed_event": lambda event: (
-                    scene.audio_events_received.append(("removed", event)) or True
+                'on_audio_device_removed_event': lambda event: (
+                    scene.audio_events_received.append(('removed', event)) or True
                 ),
             }
         )
@@ -166,8 +165,8 @@ class TestAudioEvents:
         # Create a scene mock with proper event handling configuration
         scene_mock = MockFactory.create_event_test_scene_mock(
             options={
-                "debug_events": False,
-                "no_unhandled_events": True,  # This will cause UnhandledEventError to be raised
+                'debug_events': False,
+                'no_unhandled_events': True,  # This will cause UnhandledEventError to be raised
             }
         )
         # Set the options on the stub so unhandled_event can access them
@@ -183,7 +182,7 @@ class TestAudioEventFlow:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_audio_device_added_event": lambda event: (
+                'on_audio_device_added_event': lambda event: (
                     scene.audio_events_received.append(event),
                     True,
                 )[1]
@@ -205,8 +204,8 @@ class TestAudioEventFlow:
         """Test that unhandled audio events fall back to stubs and cause UnhandledEventError."""
         # Test that stubs have concrete implementations
         stub = AudioEventStubs()
-        assert hasattr(stub, "on_audio_device_added_event")
-        assert hasattr(stub, "on_audio_device_removed_event")
+        assert hasattr(stub, 'on_audio_device_added_event')
+        assert hasattr(stub, 'on_audio_device_removed_event')
 
         # Test that stub methods can be called with proper scene object
         self._setup_mock_scene_for_stub(stub)
@@ -215,7 +214,7 @@ class TestAudioEventFlow:
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.core.LOG.error")
+        mocker.patch('glitchygames.events.core.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_audio_device_added_event(event)
 
@@ -226,12 +225,12 @@ class TestAudioEventFlow:
         mock_game = mocker.Mock()
 
         # Mock pygame.mixer.get_init to return a tuple
-        mocker.patch("pygame.mixer.get_init", return_value=(22050, -16, 2))
+        mocker.patch('pygame.mixer.get_init', return_value=(22050, -16, 2))
         manager = AudioEventManager(game=mock_game)
 
         assert manager.game == mock_game
-        assert hasattr(manager, "on_audio_device_added_event")
-        assert hasattr(manager, "on_audio_device_removed_event")
+        assert hasattr(manager, 'on_audio_device_added_event')
+        assert hasattr(manager, 'on_audio_device_removed_event')
 
     def test_audio_manager_directly(self, mock_pygame_patches, mocker):
         """Test AudioEventManager in isolation."""
@@ -239,14 +238,14 @@ class TestAudioEventFlow:
 
         # Use centralized mock for game
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
+        mock_game.options = {'debug_events': False, 'no_unhandled_events': True}
 
         # The centralized mocks should handle pygame.mixer.get_init()
         manager = AudioEventManager(game=mock_game)
 
         # Test that manager has the required methods
-        assert hasattr(manager, "on_audio_device_added_event")
-        assert hasattr(manager, "on_audio_device_removed_event")
+        assert hasattr(manager, 'on_audio_device_added_event')
+        assert hasattr(manager, 'on_audio_device_removed_event')
 
         # Test device added event
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1, iscapture=True)
@@ -266,8 +265,8 @@ class TestAudioEventFlow:
         # Create a scene mock with proper event handling configuration
         scene_mock = MockFactory.create_event_test_scene_mock(
             options={
-                "debug_events": False,
-                "no_unhandled_events": True,  # This will cause UnhandledEventError to be raised
+                'debug_events': False,
+                'no_unhandled_events': True,  # This will cause UnhandledEventError to be raised
             }
         )
         # Set the options on the stub so unhandled_event can access them

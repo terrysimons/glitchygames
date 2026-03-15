@@ -5,16 +5,16 @@ from pathlib import Path
 
 import pygame
 import pytest
+
 from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-PATCH_TARGET_GAME_OVER_SCENE = "glitchygames.scenes.builtin_scenes.game_over_scene.GameOverScene"
+PATCH_TARGET_GAME_OVER_SCENE = 'glitchygames.scenes.builtin_scenes.game_over_scene.GameOverScene'
 
 
 class TestGameOverScene:
@@ -31,7 +31,7 @@ class TestGameOverScene:
         """Test that Game Over scene initializes correctly."""
         scene = GameOverScene()
         assert scene.text_sprite is None
-        assert hasattr(scene, "all_sprites")
+        assert hasattr(scene, 'all_sprites')
 
     def test_game_over_scene_setup(self):
         """Test that Game Over scene sets up correctly."""
@@ -59,7 +59,7 @@ class TestGameOverScene:
         game_over_scene = GameOverScene()
 
         # Simulate the scene manager's _setup_new_scene method
-        if hasattr(mock_scene_manager, "game_engine") and mock_scene_manager.game_engine:
+        if hasattr(mock_scene_manager, 'game_engine') and mock_scene_manager.game_engine:
             game_over_scene.game_engine = mock_scene_manager.game_engine
 
         # Verify the game engine reference was set
@@ -108,7 +108,7 @@ class TestGameOverIntegration:
         # Mock the GameOverScene import to avoid pygame initialization issues
         mock_game_over_scene = mocker.Mock()
         mocker.patch(
-            "glitchygames.examples.paddleslap.GameOverScene",
+            'glitchygames.examples.paddleslap.GameOverScene',
             return_value=mock_game_over_scene,
         )
 
@@ -117,8 +117,8 @@ class TestGameOverIntegration:
         game = Game(options={})
 
         # Mock the collision detection to prevent memory issues
-        mocker.patch.object(game, "_handle_ball_collisions")
-        mocker.patch("pygame.sprite.collide_rect", return_value=False)
+        mocker.patch.object(game, '_handle_ball_collisions')
+        mocker.patch('pygame.sprite.collide_rect', return_value=False)
 
         # Create some mock balls and add them to the game
         mock_ball1 = mocker.Mock()
@@ -161,10 +161,10 @@ class TestGameOverIntegration:
         scene_manager = SceneManager()
         mock_game_engine = mocker.Mock()
         mock_game_engine.OPTIONS = {
-            "update_type": "dirty",
-            "fps_refresh_rate": 1,
-            "target_fps": 60,
-            "fps_log_interval_ms": 1000,
+            'update_type': 'dirty',
+            'fps_refresh_rate': 1,
+            'target_fps': 60,
+            'fps_log_interval_ms': 1000,
         }
         scene_manager.game_engine = mock_game_engine
 
@@ -175,5 +175,5 @@ class TestGameOverIntegration:
         scene_manager._setup_new_scene(game_over_scene)
 
         # Verify the game engine reference was set
-        assert hasattr(game_over_scene, "game_engine")
+        assert hasattr(game_over_scene, 'game_engine')
         assert game_over_scene.game_engine == mock_game_engine

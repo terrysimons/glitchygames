@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pygame
 import pytest
+
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
 
@@ -29,10 +30,10 @@ def get_resource_path(filename: str) -> str:
     """
     return str(
         Path(__file__).parent.parent.parent
-        / "glitchygames"
-        / "examples"
-        / "resources"
-        / "sprites"
+        / 'glitchygames'
+        / 'examples'
+        / 'resources'
+        / 'sprites'
         / filename
     )
 
@@ -47,7 +48,7 @@ MAX_PERFORMANCE_TIME = 2.0
 class HardwareAnimationTestScene(Scene):
     """Test scene for hardware-level animation testing."""
 
-    NAME = "Hardware Animation Test Scene"
+    NAME = 'Hardware Animation Test Scene'
 
     def __init__(self, animation_file: str, groups: pygame.sprite.Group | None = None):
         """Initialize the test scene with an animated sprite."""
@@ -55,7 +56,7 @@ class HardwareAnimationTestScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         # Initialize with minimal options
-        options = {"width": 800, "height": 600, "fullscreen": False}
+        options = {'width': 800, 'height': 600, 'fullscreen': False}
         super().__init__(options=options, groups=groups)
 
         # Set up the scene
@@ -75,7 +76,7 @@ class HardwareAnimationTestScene(Scene):
     def _load_animated_sprite(self) -> None:
         """Load the animated sprite from the specified file."""
         self.animated_sprite = SpriteFactory.load_sprite(filename=self.animation_file)
-        if hasattr(self.animated_sprite, "play"):
+        if hasattr(self.animated_sprite, 'play'):
             self.animated_sprite.play()
         # Center on screen
         self.animated_sprite.rect.center = self.screen.get_rect().center
@@ -84,7 +85,7 @@ class HardwareAnimationTestScene(Scene):
         """Update the scene and capture frame data."""
         super().update()
 
-        if self.animated_sprite and hasattr(self.animated_sprite, "update"):
+        if self.animated_sprite and hasattr(self.animated_sprite, 'update'):
             # Update with delta time
             self.animated_sprite.update(self.dt)
 
@@ -146,7 +147,7 @@ class HardwareAnimationTestScene(Scene):
             return []
 
         # Get the current frame surface
-        if hasattr(self.animated_sprite, "image"):
+        if hasattr(self.animated_sprite, 'image'):
             surface = self.animated_sprite.image
         else:
             return []
@@ -210,7 +211,7 @@ class TestAnimationHardware:
         self.mock_surface = MockFactory.create_pygame_surface_mock()
 
         # Load the colors.toml animation for testing
-        self.animation_file = get_resource_path("colors.toml")
+        self.animation_file = get_resource_path('colors.toml')
 
     def test_hardware_display_buffer_access(self):
         """Test that we can access the hardware display buffer."""
@@ -223,9 +224,9 @@ class TestAnimationHardware:
         hardware_pixels = scene.capture_hardware_display_buffer()
 
         # Verify we can access hardware buffer
-        assert len(hardware_pixels) > 0, "Should capture hardware buffer data"
+        assert len(hardware_pixels) > 0, 'Should capture hardware buffer data'
         assert len(hardware_pixels) == SCREEN_WIDTH * SCREEN_HEIGHT, (
-            "Should capture full screen buffer"
+            'Should capture full screen buffer'
         )
 
     def test_sprite_visibility_in_hardware_buffer(self):
@@ -243,7 +244,7 @@ class TestAnimationHardware:
         non_background_pixels = [pixel for pixel in sprite_area_pixels if pixel != background_color]
 
         # Verify sprite is visible in hardware buffer
-        assert len(non_background_pixels) > 0, "Sprite should be visible in hardware display buffer"
+        assert len(non_background_pixels) > 0, 'Sprite should be visible in hardware display buffer'
 
     def test_hardware_vs_surface_consistency(self):
         """Test that scene surface matches hardware display buffer."""
@@ -257,8 +258,8 @@ class TestAnimationHardware:
         surface_pixels = scene.capture_test_surface_pixels()
 
         # Verify both have data
-        assert len(hardware_pixels) > 0, "Hardware buffer should have data"
-        assert len(surface_pixels) > 0, "Surface buffer should have data"
+        assert len(hardware_pixels) > 0, 'Hardware buffer should have data'
+        assert len(surface_pixels) > 0, 'Surface buffer should have data'
 
         # For small sprites, check sprite area specifically
         sprite_area_hardware = scene.get_sprite_area_from_hardware_buffer()
@@ -274,22 +275,22 @@ class TestAnimationHardware:
 
         # Verify sprite areas have similar content
         assert len(sprite_area_hardware) == len(sprite_area_surface), (
-            "Sprite areas should have same pixel count"
+            'Sprite areas should have same pixel count'
         )
 
     def test_animation_frame_transitions_in_hardware(self):
         """Test that animation frame transitions are visible in hardware buffer."""
         scene = HardwareAnimationTestScene(self.animation_file)
 
-        if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(scene.animated_sprite, 'animations') or not scene.animated_sprite.animations:
+            pytest.skip('No animations found')
 
         # Get all frames from the animation
         animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
 
         if len(frames) < MAX_FRAME_COUNT:
-            pytest.skip("Need at least 3 frames to test transitions")
+            pytest.skip('Need at least 3 frames to test transitions')
 
         # Test frame transitions using sprite pixel data (since centralized mocks
         # simulate sprite-level behavior rather than hardware-level pixel reading)
@@ -297,9 +298,9 @@ class TestAnimationHardware:
 
         for i in range(min(5, len(frames))):  # Test first 5 frames
             # Set the sprite to this specific frame
-            if hasattr(scene.animated_sprite, "set_frame"):
+            if hasattr(scene.animated_sprite, 'set_frame'):
                 scene.animated_sprite.set_frame(i)
-            elif hasattr(scene.animated_sprite, "frame_manager"):
+            elif hasattr(scene.animated_sprite, 'frame_manager'):
                 scene.animated_sprite.frame_manager.set_frame(i)
 
             # Force display update
@@ -312,7 +313,7 @@ class TestAnimationHardware:
 
         # Verify frames have different content
         unique_frames = {tuple(pixels) for pixels in sprite_frame_data}
-        assert len(unique_frames) > 1, "Sprite should show different frame content"
+        assert len(unique_frames) > 1, 'Sprite should show different frame content'
 
     def test_hardware_rendering_performance(self):
         """Test that hardware rendering performs within acceptable limits."""
@@ -332,7 +333,7 @@ class TestAnimationHardware:
 
         # Verify performance is acceptable (sprite-level operations should be fast)
         assert total_time < MAX_PERFORMANCE_TIME, (
-            f"Sprite rendering should be fast: {total_time:.3f}s"
+            f'Sprite rendering should be fast: {total_time:.3f}s'
         )
 
     def test_hardware_buffer_integrity(self):
@@ -348,7 +349,7 @@ class TestAnimationHardware:
         buffer2 = scene.capture_hardware_display_buffer()
 
         # Verify buffer consistency
-        assert len(buffer1) == len(buffer2), "Hardware buffer size should be consistent"
+        assert len(buffer1) == len(buffer2), 'Hardware buffer size should be consistent'
 
         # For static scenes, buffers should be identical
         # For animated scenes, they might differ slightly
@@ -364,14 +365,14 @@ class TestAnimationHardware:
         sprite_rect = scene.animated_sprite.rect
 
         # Verify sprite is within screen bounds
-        assert sprite_rect.left >= 0, "Sprite should be within screen bounds"
-        assert sprite_rect.top >= 0, "Sprite should be within screen bounds"
-        assert sprite_rect.right < SCREEN_WIDTH, "Sprite should be within screen bounds"
-        assert sprite_rect.bottom < SCREEN_HEIGHT, "Sprite should be within screen bounds"
+        assert sprite_rect.left >= 0, 'Sprite should be within screen bounds'
+        assert sprite_rect.top >= 0, 'Sprite should be within screen bounds'
+        assert sprite_rect.right < SCREEN_WIDTH, 'Sprite should be within screen bounds'
+        assert sprite_rect.bottom < SCREEN_HEIGHT, 'Sprite should be within screen bounds'
 
         # Check that sprite area has content in hardware buffer
         sprite_area_pixels = scene.get_sprite_area_from_hardware_buffer()
-        assert len(sprite_area_pixels) > 0, "Sprite area should have pixels in hardware buffer"
+        assert len(sprite_area_pixels) > 0, 'Sprite area should have pixels in hardware buffer'
 
     def test_hardware_vs_sprite_surface_consistency(self):
         """Test that hardware buffer matches sprite surface data."""
@@ -387,8 +388,8 @@ class TestAnimationHardware:
         hardware_sprite_pixels = scene.get_sprite_area_from_hardware_buffer()
 
         # Verify both have data
-        assert len(sprite_pixels) > 0, "Sprite surface should have data"
-        assert len(hardware_sprite_pixels) > 0, "Hardware sprite area should have data"
+        assert len(sprite_pixels) > 0, 'Sprite surface should have data'
+        assert len(hardware_sprite_pixels) > 0, 'Hardware sprite area should have data'
 
         # For small sprites, the pixel counts should match
         # This is informational only - no assertion needed
@@ -397,8 +398,8 @@ class TestAnimationHardware:
         """Test that animation timing affects what appears in hardware buffer."""
         scene = HardwareAnimationTestScene(self.animation_file)
 
-        if not hasattr(scene.animated_sprite, "animations") or not scene.animated_sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(scene.animated_sprite, 'animations') or not scene.animated_sprite.animations:
+            pytest.skip('No animations found')
 
         animation_name = next(iter(scene.animated_sprite.animations.keys()))
         frames = scene.animated_sprite.animations[animation_name]
@@ -409,9 +410,9 @@ class TestAnimationHardware:
 
         for i in range(min(3, len(frames))):  # Test first 3 frames
             # Set frame
-            if hasattr(scene.animated_sprite, "set_frame"):
+            if hasattr(scene.animated_sprite, 'set_frame'):
                 scene.animated_sprite.set_frame(i)
-            elif hasattr(scene.animated_sprite, "frame_manager"):
+            elif hasattr(scene.animated_sprite, 'frame_manager'):
                 scene.animated_sprite.frame_manager.set_frame(i)
 
             # Force display update
@@ -423,7 +424,7 @@ class TestAnimationHardware:
 
         # Verify frames are different
         unique_contents = {tuple(pixels) for pixels in frame_contents}
-        assert len(unique_contents) > 1, "Sprite should show different frame content"
+        assert len(unique_contents) > 1, 'Sprite should show different frame content'
 
 
 # Remove unittest.main() since we're using pytest

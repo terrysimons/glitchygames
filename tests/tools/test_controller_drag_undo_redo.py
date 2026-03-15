@@ -4,6 +4,7 @@
 import time
 
 import pytest
+
 from glitchygames.tools.operation_history import CanvasOperationTracker, FilmStripOperationTracker
 from glitchygames.tools.undo_redo_manager import OperationType, UndoRedoManager
 
@@ -48,7 +49,7 @@ class TestControllerDragUndoRedo:
         # Mock mode switcher
         scene.mode_switcher = mocker.Mock()
         scene.mode_switcher.get_controller_mode = mocker.Mock(
-            return_value=mocker.Mock(value="canvas")
+            return_value=mocker.Mock(value='canvas')
         )
         scene.mode_switcher.get_controller_position = mocker.Mock(
             return_value=mocker.Mock(is_valid=True, position=(5, 5))
@@ -65,12 +66,12 @@ class TestControllerDragUndoRedo:
 
         # Simulate starting a controller drag
         mock_scene.controller_drags[controller_id] = {
-            "active": True,
-            "start_time": time.time(),
-            "start_position": (5, 5),
-            "pixels_drawn": [],
-            "end_time": None,
-            "end_position": None,
+            'active': True,
+            'start_time': time.time(),
+            'start_position': (5, 5),
+            'pixels_drawn': [],
+            'end_time': None,
+            'end_position': None,
         }
 
         # Mock different pixel colors to avoid debouncing
@@ -104,19 +105,19 @@ class TestControllerDragUndoRedo:
                     # Track this pixel in the controller drag operation
                     if controller_id in mock_scene.controller_drags:
                         drag_info = mock_scene.controller_drags[controller_id]
-                        if drag_info["active"]:
+                        if drag_info['active']:
                             # Record the pixel that was drawn for undo functionality
                             pixel_info = {
-                                "position": position.position,
-                                "color": current_color,
-                                "timestamp": time.time(),
+                                'position': position.position,
+                                'color': current_color,
+                                'timestamp': time.time(),
                             }
-                            drag_info["pixels_drawn"].append(pixel_info)
+                            drag_info['pixels_drawn'].append(pixel_info)
 
         # Verify pixels were collected in drag info
         drag_info = mock_scene.controller_drags[controller_id]
-        assert len(drag_info["pixels_drawn"]) == 4
-        assert drag_info["active"]
+        assert len(drag_info['pixels_drawn']) == 4
+        assert drag_info['active']
 
         # Verify NO undo/redo operations were created (this is the bug!)
         assert len(mock_scene.undo_redo_manager.undo_stack) == 0
@@ -130,63 +131,63 @@ class TestControllerDragUndoRedo:
 
         # Set up controller drag with some pixels (including old_color for proper undo/redo)
         mock_scene.controller_drags[controller_id] = {
-            "active": True,
-            "start_time": time.time(),
-            "start_position": (5, 5),
-            "pixels_drawn": [
+            'active': True,
+            'start_time': time.time(),
+            'start_position': (5, 5),
+            'pixels_drawn': [
                 {
-                    "position": (5, 5),
-                    "color": (255, 0, 0),
-                    "old_color": (0, 0, 0),
-                    "timestamp": time.time(),
+                    'position': (5, 5),
+                    'color': (255, 0, 0),
+                    'old_color': (0, 0, 0),
+                    'timestamp': time.time(),
                 },
                 {
-                    "position": (6, 5),
-                    "color": (255, 0, 0),
-                    "old_color": (128, 128, 128),
-                    "timestamp": time.time(),
+                    'position': (6, 5),
+                    'color': (255, 0, 0),
+                    'old_color': (128, 128, 128),
+                    'timestamp': time.time(),
                 },
                 {
-                    "position": (7, 5),
-                    "color": (255, 0, 0),
-                    "old_color": (64, 64, 64),
-                    "timestamp": time.time(),
+                    'position': (7, 5),
+                    'color': (255, 0, 0),
+                    'old_color': (64, 64, 64),
+                    'timestamp': time.time(),
                 },
             ],
-            "end_time": None,
-            "end_position": None,
+            'end_time': None,
+            'end_position': None,
         }
 
         # Simulate the A button release logic directly
         # (since we can't easily mock the event handler)
         if controller_id in mock_scene.controller_drags:
             drag_info = mock_scene.controller_drags[controller_id]
-            if drag_info["active"]:
+            if drag_info['active']:
                 # End the drag operation
-                drag_info["active"] = False
-                drag_info["end_time"] = time.time()
-                drag_info["end_position"] = mocker.Mock(is_valid=True, position=(7, 5))
+                drag_info['active'] = False
+                drag_info['end_time'] = time.time()
+                drag_info['end_position'] = mocker.Mock(is_valid=True, position=(7, 5))
 
                 # Submit collected pixels for undo/redo functionality
-                if drag_info["pixels_drawn"]:
+                if drag_info['pixels_drawn']:
                     # Convert controller drag pixels to undo/redo format
                     pixel_changes = []
-                    for pixel_info in drag_info["pixels_drawn"]:
-                        position = pixel_info["position"]
-                        color = pixel_info["color"]
-                        old_color = pixel_info.get("old_color", (0, 0, 0))
+                    for pixel_info in drag_info['pixels_drawn']:
+                        position = pixel_info['position']
+                        color = pixel_info['color']
+                        old_color = pixel_info.get('old_color', (0, 0, 0))
                         x, y = position[0], position[1]
 
                         pixel_changes.append((x, y, old_color, color))
 
                     # Submit the pixel changes to the undo/redo system
-                    if pixel_changes and hasattr(mock_scene, "canvas_operation_tracker"):
+                    if pixel_changes and hasattr(mock_scene, 'canvas_operation_tracker'):
                         mock_scene.canvas_operation_tracker.add_pixel_changes(pixel_changes)
 
         # Verify drag was ended
         drag_info = mock_scene.controller_drags[controller_id]
-        assert not drag_info["active"]
-        assert drag_info["end_time"] is not None
+        assert not drag_info['active']
+        assert drag_info['end_time'] is not None
 
         # After fix: Should have 1 undo operation for the entire drag
         assert len(mock_scene.undo_redo_manager.undo_stack) == 1
@@ -194,8 +195,8 @@ class TestControllerDragUndoRedo:
         # Verify the operation contains all 3 pixels
         operation = mock_scene.undo_redo_manager.undo_stack[0]
         assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
-        assert len(operation.undo_data["pixels"]) == 3
-        assert len(operation.redo_data["pixels"]) == 3
+        assert len(operation.undo_data['pixels']) == 3
+        assert len(operation.redo_data['pixels']) == 3
 
     def test_expected_behavior_after_fix(self, mock_scene, mocker):
         """Test the expected behavior after fixing the controller drag undo/redo issue."""
@@ -203,57 +204,57 @@ class TestControllerDragUndoRedo:
 
         # Set up controller drag with some pixels (including old_color for proper undo/redo)
         mock_scene.controller_drags[controller_id] = {
-            "active": True,
-            "start_time": time.time(),
-            "start_position": (5, 5),
-            "pixels_drawn": [
+            'active': True,
+            'start_time': time.time(),
+            'start_position': (5, 5),
+            'pixels_drawn': [
                 {
-                    "position": (5, 5),
-                    "color": (255, 0, 0),
-                    "old_color": (0, 0, 0),
-                    "timestamp": time.time(),
+                    'position': (5, 5),
+                    'color': (255, 0, 0),
+                    'old_color': (0, 0, 0),
+                    'timestamp': time.time(),
                 },
                 {
-                    "position": (6, 5),
-                    "color": (255, 0, 0),
-                    "old_color": (128, 128, 128),
-                    "timestamp": time.time(),
+                    'position': (6, 5),
+                    'color': (255, 0, 0),
+                    'old_color': (128, 128, 128),
+                    'timestamp': time.time(),
                 },
                 {
-                    "position": (7, 5),
-                    "color": (255, 0, 0),
-                    "old_color": (64, 64, 64),
-                    "timestamp": time.time(),
+                    'position': (7, 5),
+                    'color': (255, 0, 0),
+                    'old_color': (64, 64, 64),
+                    'timestamp': time.time(),
                 },
             ],
-            "end_time": None,
-            "end_position": None,
+            'end_time': None,
+            'end_position': None,
         }
 
         # Simulate the A button release logic directly
         # (since we can't easily mock the event handler)
         if controller_id in mock_scene.controller_drags:
             drag_info = mock_scene.controller_drags[controller_id]
-            if drag_info["active"]:
+            if drag_info['active']:
                 # End the drag operation
-                drag_info["active"] = False
-                drag_info["end_time"] = time.time()
-                drag_info["end_position"] = mocker.Mock(is_valid=True, position=(7, 5))
+                drag_info['active'] = False
+                drag_info['end_time'] = time.time()
+                drag_info['end_position'] = mocker.Mock(is_valid=True, position=(7, 5))
 
                 # Submit collected pixels for undo/redo functionality
-                if drag_info["pixels_drawn"]:
+                if drag_info['pixels_drawn']:
                     # Convert controller drag pixels to undo/redo format
                     pixel_changes = []
-                    for pixel_info in drag_info["pixels_drawn"]:
-                        position = pixel_info["position"]
-                        color = pixel_info["color"]
-                        old_color = pixel_info.get("old_color", (0, 0, 0))
+                    for pixel_info in drag_info['pixels_drawn']:
+                        position = pixel_info['position']
+                        color = pixel_info['color']
+                        old_color = pixel_info.get('old_color', (0, 0, 0))
                         x, y = position[0], position[1]
 
                         pixel_changes.append((x, y, old_color, color))
 
                     # Submit the pixel changes to the undo/redo system
-                    if pixel_changes and hasattr(mock_scene, "canvas_operation_tracker"):
+                    if pixel_changes and hasattr(mock_scene, 'canvas_operation_tracker'):
                         mock_scene.canvas_operation_tracker.add_pixel_changes(pixel_changes)
 
         # After fix: Should have 1 undo operation for the entire drag
@@ -263,8 +264,8 @@ class TestControllerDragUndoRedo:
         # Verify the operation contains all 3 pixels
         operation = mock_scene.undo_redo_manager.undo_stack[0]
         assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
-        assert len(operation.undo_data["pixels"]) == 3
-        assert len(operation.redo_data["pixels"]) == 3
+        assert len(operation.undo_data['pixels']) == 3
+        assert len(operation.redo_data['pixels']) == 3
 
         # Test undo functionality
         assert mock_scene.undo_redo_manager.can_undo()

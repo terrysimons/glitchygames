@@ -8,7 +8,7 @@ from pathlib import Path
 import pygame
 
 # Add the glitchygames package to the path
-sys.path.insert(0, str(Path(__file__).parent / "../../../glitchygames"))
+sys.path.insert(0, str(Path(__file__).parent / '../../../glitchygames'))
 
 from glitchygames.examples.paddleslap import Game
 
@@ -27,7 +27,7 @@ def test_game_over_condition():
 
     # Check initial state
     initial_ball_count = len(game.balls)
-    LOG.debug(f"Initial ball count: {initial_ball_count}")
+    LOG.debug(f'Initial ball count: {initial_ball_count}')
 
     # Simulate all balls being killed
     for ball in game.balls:
@@ -35,21 +35,21 @@ def test_game_over_condition():
 
     # Check that balls are marked as dead
     dead_balls = [ball for ball in game.balls if not ball.alive()]
-    LOG.debug(f"Dead balls: {len(dead_balls)}")
+    LOG.debug(f'Dead balls: {len(dead_balls)}')
 
     # Simulate the update cycle that should trigger Game Over
     game.update()
 
     # Check if Game Over was triggered (balls list should be empty after cleanup)
     final_ball_count = len(game.balls)
-    LOG.debug(f"Final ball count after update: {final_ball_count}")
+    LOG.debug(f'Final ball count after update: {final_ball_count}')
 
     # Verify that all balls were removed
-    assert final_ball_count == 0, f"Expected 0 balls, got {final_ball_count}"
-    LOG.info("✅ Game Over condition properly detected!")
+    assert final_ball_count == 0, f'Expected 0 balls, got {final_ball_count}'
+    LOG.info('✅ Game Over condition properly detected!')
 
     pygame.quit()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     test_game_over_condition()

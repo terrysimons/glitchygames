@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.sprites.animated import SpriteFrame
 from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.tools.undo_redo_manager import OperationType
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -35,24 +34,24 @@ class TestFrameCopyPaste:
         """Set up test fixtures using centralized mocks."""
         # Create mock options
         self.mock_options = {
-            "balls": 1,
-            "fps": 60,
-            "resolution": "800x600",
-            "windowed": True,
-            "use_gfxdraw": False,
-            "update_type": "update",
-            "fps_refresh_rate": 1000,
-            "profile": False,
-            "test_flag": False,
-            "font_name": "Arial",
-            "font_size": 16,
-            "font_bold": False,
-            "font_italic": False,
-            "font_antialias": True,
-            "font_dpi": 72,
-            "font_system": "pygame",
-            "log_level": "info",
-            "no_unhandled_events": False,
+            'balls': 1,
+            'fps': 60,
+            'resolution': '800x600',
+            'windowed': True,
+            'use_gfxdraw': False,
+            'update_type': 'update',
+            'fps_refresh_rate': 1000,
+            'profile': False,
+            'test_flag': False,
+            'font_name': 'Arial',
+            'font_size': 16,
+            'font_bold': False,
+            'font_italic': False,
+            'font_antialias': True,
+            'font_dpi': 72,
+            'font_system': 'pygame',
+            'log_level': 'info',
+            'no_unhandled_events': False,
         }
 
     def create_mock_scene(self):
@@ -92,13 +91,13 @@ class TestFrameCopyPaste:
 
         # Create mock animated sprite with frame data
         mock_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name="test_anim", frame_size=(8, 8), pixel_color=(255, 0, 0)
+            animation_name='test_anim', frame_size=(8, 8), pixel_color=(255, 0, 0)
         )
 
         # Set up scene state
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = mock_sprite
-        scene.selected_animation = "test_anim"
+        scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
         # Mock the frame object
@@ -108,19 +107,19 @@ class TestFrameCopyPaste:
         mock_frame.duration = 0.5
 
         # Set up the animation frames
-        scene.canvas.animated_sprite._animations = {"test_anim": [mock_frame]}
+        scene.canvas.animated_sprite._animations = {'test_anim': [mock_frame]}
 
         # Test copy operation
         scene._handle_copy_frame()
 
         # Verify clipboard was set
         assert scene._frame_clipboard is not None
-        assert scene._frame_clipboard["pixels"] == [(255, 0, 0)] * 64
-        assert scene._frame_clipboard["width"] == 8
-        assert scene._frame_clipboard["height"] == 8
-        assert math.isclose(scene._frame_clipboard["duration"], 0.5)
-        assert scene._frame_clipboard["animation"] == "test_anim"
-        assert scene._frame_clipboard["frame"] == 0
+        assert scene._frame_clipboard['pixels'] == [(255, 0, 0)] * 64
+        assert scene._frame_clipboard['width'] == 8
+        assert scene._frame_clipboard['height'] == 8
+        assert math.isclose(scene._frame_clipboard['duration'], 0.5)
+        assert scene._frame_clipboard['animation'] == 'test_anim'
+        assert scene._frame_clipboard['frame'] == 0
 
     def test_copy_frame_no_canvas(self):
         """Test copy frame when no canvas is available."""
@@ -154,13 +153,13 @@ class TestFrameCopyPaste:
 
         # Create mock animated sprite
         mock_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name="test_anim", frame_size=(8, 8), pixel_color=(0, 255, 0)
+            animation_name='test_anim', frame_size=(8, 8), pixel_color=(0, 255, 0)
         )
 
         # Set up scene state
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = mock_sprite
-        scene.selected_animation = "test_anim"
+        scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
         # Mock the target frame
@@ -171,16 +170,16 @@ class TestFrameCopyPaste:
         target_frame.set_pixel_data = self._mocker.Mock()
 
         # Set up the animation frames
-        scene.canvas.animated_sprite._animations = {"test_anim": [target_frame]}
+        scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
 
         # Set up clipboard with frame data
         scene._frame_clipboard = {
-            "pixels": [(255, 0, 0)] * 64,
-            "width": 8,
-            "height": 8,
-            "duration": 1.0,
-            "animation": "source_anim",
-            "frame": 1,
+            'pixels': [(255, 0, 0)] * 64,
+            'width': 8,
+            'height': 8,
+            'duration': 1.0,
+            'animation': 'source_anim',
+            'frame': 1,
         }
 
         # Mock undo/redo manager
@@ -205,23 +204,23 @@ class TestFrameCopyPaste:
         # Set up scene state
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.selected_animation = "test_anim"
+        scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
         # Mock target frame with different dimensions
         target_frame = self._mocker.Mock(spec=SpriteFrame)
         target_frame.get_size.return_value = (16, 16)  # Different from clipboard
 
-        scene.canvas.animated_sprite._animations = {"test_anim": [target_frame]}
+        scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
 
         # Set up clipboard with different dimensions
         scene._frame_clipboard = {
-            "pixels": [(255, 0, 0)] * 64,  # 8x8
-            "width": 8,
-            "height": 8,
-            "duration": 1.0,
-            "animation": "source_anim",
-            "frame": 1,
+            'pixels': [(255, 0, 0)] * 64,  # 8x8
+            'width': 8,
+            'height': 8,
+            'duration': 1.0,
+            'animation': 'source_anim',
+            'frame': 1,
         }
 
         # Test paste operation - should fail due to dimension mismatch
@@ -235,7 +234,7 @@ class TestFrameCopyPaste:
         scene = self.create_mock_scene()
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.selected_animation = "test_anim"
+        scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
         scene._frame_clipboard = None
 
@@ -249,7 +248,7 @@ class TestFrameCopyPaste:
         # Set up scene state
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.selected_animation = "test_anim"
+        scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
         # Mock frame
@@ -258,7 +257,7 @@ class TestFrameCopyPaste:
         mock_frame.get_size.return_value = (8, 8)
         mock_frame.duration = 0.5
 
-        scene.canvas.animated_sprite._animations = {"test_anim": [mock_frame]}
+        scene.canvas.animated_sprite._animations = {'test_anim': [mock_frame]}
 
         # Ensure no early returns by mocking attributes that might cause them
         scene.debug_text = self._mocker.Mock()
@@ -300,7 +299,7 @@ class TestFrameCopyPaste:
         # Set up scene state
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.selected_animation = "test_anim"
+        scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
         # Ensure no early returns by mocking attributes that might cause them
@@ -343,7 +342,7 @@ class TestFrameCopyPaste:
         # Set up scene state
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.selected_animation = "test_anim"
+        scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
         # Mock target frame
@@ -353,16 +352,16 @@ class TestFrameCopyPaste:
         target_frame.duration = 0.5
         target_frame.set_pixel_data = self._mocker.Mock()
 
-        scene.canvas.animated_sprite._animations = {"test_anim": [target_frame]}
+        scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
 
         # Set up clipboard
         scene._frame_clipboard = {
-            "pixels": [(255, 0, 0)] * 64,
-            "width": 8,
-            "height": 8,
-            "duration": 1.0,
-            "animation": "source_anim",
-            "frame": 1,
+            'pixels': [(255, 0, 0)] * 64,
+            'width': 8,
+            'height': 8,
+            'duration': 1.0,
+            'animation': 'source_anim',
+            'frame': 1,
         }
 
         # Mock undo/redo manager
@@ -374,7 +373,7 @@ class TestFrameCopyPaste:
         # Verify operation was added with correct type
         scene.undo_redo_manager.add_operation.assert_called_once()
         call_args = scene.undo_redo_manager.add_operation.call_args
-        assert call_args[1]["operation_type"] == OperationType.FRAME_PASTE
+        assert call_args[1]['operation_type'] == OperationType.FRAME_PASTE
 
     def test_apply_frame_paste_for_undo_redo(self):
         """Test the frame paste application method for undo/redo."""
@@ -383,17 +382,17 @@ class TestFrameCopyPaste:
         # Set up scene state
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.selected_animation = "test_anim"
+        scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
 
         # Mock target frame
         target_frame = self._mocker.Mock(spec=SpriteFrame)
         target_frame.set_pixel_data = self._mocker.Mock()
 
-        scene.canvas.animated_sprite._animations = {"test_anim": [target_frame]}
+        scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
 
         # Test applying frame paste
-        result = scene._apply_frame_paste_for_undo_redo("test_anim", 0, [(255, 0, 0)] * 64, 1.0)
+        result = scene._apply_frame_paste_for_undo_redo('test_anim', 0, [(255, 0, 0)] * 64, 1.0)
 
         # Verify success
         assert result is True
@@ -411,7 +410,7 @@ class TestFrameCopyPaste:
 
         # Test applying frame paste to non-existent animation
         result = scene._apply_frame_paste_for_undo_redo(
-            "nonexistent_anim", 0, [(255, 0, 0)] * 64, 1.0
+            'nonexistent_anim', 0, [(255, 0, 0)] * 64, 1.0
         )
 
         # Verify failure
@@ -425,11 +424,11 @@ class TestFrameCopyPaste:
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {
-            "test_anim": []  # Empty frames list
+            'test_anim': []  # Empty frames list
         }
 
         # Test applying frame paste to non-existent frame
-        result = scene._apply_frame_paste_for_undo_redo("test_anim", 0, [(255, 0, 0)] * 64, 1.0)
+        result = scene._apply_frame_paste_for_undo_redo('test_anim', 0, [(255, 0, 0)] * 64, 1.0)
 
         # Verify failure
         assert result is False
@@ -440,27 +439,27 @@ class TestFrameCopyPaste:
 
         # Set up initial clipboard
         scene._frame_clipboard = {
-            "pixels": [(255, 0, 0)] * 64,
-            "width": 8,
-            "height": 8,
-            "duration": 1.0,
-            "animation": "source_anim",
-            "frame": 1,
+            'pixels': [(255, 0, 0)] * 64,
+            'width': 8,
+            'height': 8,
+            'duration': 1.0,
+            'animation': 'source_anim',
+            'frame': 1,
         }
 
         # Verify clipboard persists
         assert scene._frame_clipboard is not None
-        assert scene._frame_clipboard["pixels"] == [(255, 0, 0)] * 64
+        assert scene._frame_clipboard['pixels'] == [(255, 0, 0)] * 64
 
         # Test that clipboard can be overwritten
         scene._frame_clipboard = {
-            "pixels": [(0, 255, 0)] * 64,
-            "width": 8,
-            "height": 8,
-            "duration": 0.5,
-            "animation": "new_anim",
-            "frame": 2,
+            'pixels': [(0, 255, 0)] * 64,
+            'width': 8,
+            'height': 8,
+            'duration': 0.5,
+            'animation': 'new_anim',
+            'frame': 2,
         }
 
-        assert scene._frame_clipboard["pixels"] == [(0, 255, 0)] * 64
-        assert math.isclose(scene._frame_clipboard["duration"], 0.5)
+        assert scene._frame_clipboard['pixels'] == [(0, 255, 0)] * 64
+        assert math.isclose(scene._frame_clipboard['duration'], 0.5)

@@ -19,24 +19,24 @@ from typing import ClassVar
 
 import pygame
 
-LOG = logging.getLogger("game.tools.visual_collision_manager")
+LOG = logging.getLogger('game.tools.visual_collision_manager')
 
 
 class IndicatorShape(Enum):
     """Visual indicator shapes."""
 
-    TRIANGLE = "triangle"
-    CIRCLE = "circle"
-    SQUARE = "square"
-    DIAMOND = "diamond"
+    TRIANGLE = 'triangle'
+    CIRCLE = 'circle'
+    SQUARE = 'square'
+    DIAMOND = 'diamond'
 
 
 class LocationType(Enum):
     """Location types for visual indicators."""
 
-    FILM_STRIP = "film_strip"
-    CANVAS = "canvas"
-    SLIDER = "slider"
+    FILM_STRIP = 'film_strip'
+    CANVAS = 'canvas'
+    SLIDER = 'slider'
 
 
 @dataclass
@@ -144,19 +144,19 @@ class VisualCollisionManager:
         if location_type == LocationType.FILM_STRIP:
             self.film_strip_indicators[controller_id] = indicator
             LOG.debug(
-                "Added to film_strip_indicators - now %s indicators",
+                'Added to film_strip_indicators - now %s indicators',
                 len(self.film_strip_indicators),
             )
         elif location_type == LocationType.CANVAS:
             self.canvas_indicators[controller_id] = indicator
             LOG.debug(
-                "Added to canvas_indicators - now %s indicators",
+                'Added to canvas_indicators - now %s indicators',
                 len(self.canvas_indicators),
             )
         elif location_type == LocationType.SLIDER:
             self.slider_indicators[controller_id] = indicator
             LOG.debug(
-                "Added to slider_indicators - now %s indicators",
+                'Added to slider_indicators - now %s indicators',
                 len(self.slider_indicators),
             )
 
@@ -168,7 +168,7 @@ class VisualCollisionManager:
         self._update_collision_groups(location_type)
 
         LOG.debug(
-            "Added %s indicator for controller %s at %s",
+            'Added %s indicator for controller %s at %s',
             location_type.value,
             controller_id,
             position,
@@ -201,7 +201,7 @@ class VisualCollisionManager:
             del self.indicators[controller_id]
 
             self._update_collision_groups()
-            LOG.debug("Removed indicator for controller %s", controller_id)
+            LOG.debug('Removed indicator for controller %s', controller_id)
 
     def remove_controller_indicator_for_location(
         self, controller_id: int, location_type: LocationType
@@ -224,7 +224,7 @@ class VisualCollisionManager:
         # Update collision groups for the specific location
         self._update_collision_groups(location_type)
 
-        LOG.debug("Removed %s indicator for controller %s", location_type.value, controller_id)
+        LOG.debug('Removed %s indicator for controller %s', location_type.value, controller_id)
 
     def update_controller_position(self, controller_id: int, new_position: tuple[int, int]) -> None:
         """Update the position of a controller indicator.
@@ -237,7 +237,7 @@ class VisualCollisionManager:
         if controller_id in self.indicators:
             self.indicators[controller_id].position = new_position
             self._update_collision_groups()
-            LOG.debug("Updated position for controller %s to %s", controller_id, new_position)
+            LOG.debug('Updated position for controller %s to %s', controller_id, new_position)
 
     def get_controller_indicator(self, controller_id: int) -> VisualIndicator | None:
         """Get visual indicator for a controller.
@@ -385,7 +385,7 @@ class VisualCollisionManager:
                 if i < len(offsets):
                     indicators_dict[controller_id].offset = offsets[i]
                     LOG.debug(
-                        "Applied %s offset %s to controller %s",
+                        'Applied %s offset %s to controller %s',
                         location_type.value,
                         offsets[i],
                         controller_id,
@@ -394,7 +394,7 @@ class VisualCollisionManager:
                     # Fallback to default offset
                     indicators_dict[controller_id].offset = (0, 0)
                     LOG.debug(
-                        "Applied fallback %s offset (0, 0) to controller %s",
+                        'Applied fallback %s offset (0, 0) to controller %s',
                         location_type.value,
                         controller_id,
                     )
@@ -478,7 +478,7 @@ class VisualCollisionManager:
         if controller_id in self.indicators:
             self.indicators[controller_id].is_visible = visible
             self._update_collision_groups()
-            LOG.debug("Set visibility for controller %s to %s", controller_id, visible)
+            LOG.debug('Set visibility for controller %s to %s', controller_id, visible)
 
     def set_indicator_color(self, controller_id: int, color: tuple[int, int, int]) -> None:
         """Set color of a controller indicator.
@@ -490,7 +490,7 @@ class VisualCollisionManager:
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].color = color
-            LOG.debug("Set color for controller %s to %s", controller_id, color)
+            LOG.debug('Set color for controller %s to %s', controller_id, color)
 
     def set_indicator_shape(self, controller_id: int, shape: IndicatorShape) -> None:
         """Set shape of a controller indicator.
@@ -502,7 +502,7 @@ class VisualCollisionManager:
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].shape = shape
-            LOG.debug("Set shape for controller %s to %s", controller_id, shape)
+            LOG.debug('Set shape for controller %s to %s', controller_id, shape)
 
     def set_indicator_size(self, controller_id: int, size: int) -> None:
         """Set size of a controller indicator.
@@ -514,14 +514,14 @@ class VisualCollisionManager:
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].size = size
-            LOG.debug("Set size for controller %s to %s", controller_id, size)
+            LOG.debug('Set size for controller %s to %s', controller_id, size)
 
     def clear_all_indicators(self) -> None:
         """Clear all visual indicators."""
         self.indicators.clear()
         self.collision_groups.clear()
         self.position_cache.clear()
-        LOG.debug("Cleared all indicators")
+        LOG.debug('Cleared all indicators')
 
     def get_collision_summary(self) -> dict[str, any]:
         """Get a summary of collision groups and positioning.
@@ -531,15 +531,15 @@ class VisualCollisionManager:
 
         """
         summary = {
-            "total_indicators": len(self.indicators),
-            "collision_groups": len(self.collision_groups),
-            "groups_with_collisions": 0,
-            "position_cache_size": len(self.position_cache),
+            'total_indicators': len(self.indicators),
+            'collision_groups': len(self.collision_groups),
+            'groups_with_collisions': 0,
+            'position_cache_size': len(self.position_cache),
         }
 
         for controller_ids in self.collision_groups.values():
             if len(controller_ids) > 1:
-                summary["groups_with_collisions"] += 1
+                summary['groups_with_collisions'] += 1
 
         return summary
 
@@ -555,19 +555,19 @@ class VisualCollisionManager:
         """
         if location_type == LocationType.FILM_STRIP:
             LOG.debug(
-                "get_indicators_by_location FILM_STRIP - %s indicators",
+                'get_indicators_by_location FILM_STRIP - %s indicators',
                 len(self.film_strip_indicators),
             )
             return self.film_strip_indicators
         if location_type == LocationType.CANVAS:
             LOG.debug(
-                "get_indicators_by_location CANVAS - %s indicators",
+                'get_indicators_by_location CANVAS - %s indicators',
                 len(self.canvas_indicators),
             )
             return self.canvas_indicators
         if location_type == LocationType.SLIDER:
             LOG.debug(
-                "get_indicators_by_location SLIDER - %s indicators",
+                'get_indicators_by_location SLIDER - %s indicators',
                 len(self.slider_indicators),
             )
             return self.slider_indicators
@@ -581,4 +581,4 @@ class VisualCollisionManager:
         # Recalculate all positions
         self._update_collision_groups()
 
-        LOG.debug("Optimized positioning for all indicators")
+        LOG.debug('Optimized positioning for all indicators')

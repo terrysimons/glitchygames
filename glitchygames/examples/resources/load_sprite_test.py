@@ -75,16 +75,16 @@ config.optionxform = str  # Preserve case sensitivity for keys
 config.read_file(StringIO(ini_content))
 
 # Extract multi-line `pixels` data
-pixels_raw = config.get("sprite", "pixels")
+pixels_raw = config.get('sprite', 'pixels')
 pixels = [line.strip() for line in pixels_raw.splitlines() if line.strip()]
 
 # Extract color data
 color_map = {}
 for i in range(5):
     color_map[str(i)] = (
-        int(config[str(i)]["red"]),
-        int(config[str(i)]["green"]),
-        int(config[str(i)]["blue"]),
+        int(config[str(i)]['red']),
+        int(config[str(i)]['green']),
+        int(config[str(i)]['blue']),
     )
 
 
@@ -96,7 +96,7 @@ def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
         str: The hex color string.
 
     """
-    return "#{:02x}{:02x}{:02x}".format(*rgb)
+    return '#{:02x}{:02x}{:02x}'.format(*rgb)
 
 
 # Prepare the Bokeh plot
@@ -104,10 +104,10 @@ output_notebook()
 p = figure(
     width=320,
     height=320,
-    title="Sprite Visualization",
+    title='Sprite Visualization',
     x_range=(0, len(pixels[0])),
     y_range=(0, len(pixels)),
-    tools="",
+    tools='',
     toolbar_location=None,
 )
 

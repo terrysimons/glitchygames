@@ -10,7 +10,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.sprites import RootSprite, Sprite
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
@@ -51,9 +50,9 @@ class TestRootSprite:
         assert len(sprite.groups()) == 1
         # Check that the group has the expected methods (works with centralized mocks)
         group = sprite.groups()[0]
-        assert hasattr(group, "add")
-        assert hasattr(group, "remove")
-        assert hasattr(group, "draw")
+        assert hasattr(group, 'add')
+        assert hasattr(group, 'remove')
+        assert hasattr(group, 'draw')
 
 
 class TestSpriteInitialization:
@@ -73,7 +72,7 @@ class TestSpriteInitialization:
             y=SPRITE_Y,
             width=SPRITE_WIDTH,
             height=SPRITE_HEIGHT,
-            name="test_sprite",
+            name='test_sprite',
             parent=None,
             groups=groups,
         )
@@ -82,7 +81,7 @@ class TestSpriteInitialization:
         assert sprite.rect.y == SPRITE_Y
         assert sprite.rect.width == SPRITE_WIDTH
         assert sprite.rect.height == SPRITE_HEIGHT
-        assert sprite.name == "test_sprite"
+        assert sprite.name == 'test_sprite'
 
     def test_sprite_initialization_without_name(self):
         """Test Sprite initialization without name."""
@@ -94,7 +93,7 @@ class TestSpriteInitialization:
     def test_sprite_initialization_with_zero_dimensions(self, mocker):
         """Test Sprite initialization with zero dimensions."""
         # Use centralized mocks to suppress logs during successful runs
-        mock_log = mocker.patch.object(Sprite, "log")
+        mock_log = mocker.patch.object(Sprite, 'log')
         sprite = Sprite(x=0, y=0, width=0, height=0)
 
         assert sprite.width == 0
@@ -105,8 +104,8 @@ class TestSpriteInitialization:
         # Check that the log messages contain the expected content
         first_call = mock_log.error.call_args_list[0][0][0]
         second_call = mock_log.error.call_args_list[1][0][0]
-        assert "has 0 Width" in first_call
-        assert "has 0 Height" in second_call
+        assert 'has 0 Width' in first_call
+        assert 'has 0 Height' in second_call
 
     def test_sprite_breakpoints_enabled_empty_list(self):
         """Test sprite breakpoints with empty list."""
@@ -126,16 +125,16 @@ class TestSpriteInitialization:
         """Test that break_when creates a list when passed None."""
         # break_when is a class method, not an instance attribute
         # Test that the class method exists and can be called
-        assert hasattr(Sprite, "break_when")
+        assert hasattr(Sprite, 'break_when')
         assert callable(Sprite.break_when)
 
     def test_break_when_specific_type_appends(self):
         """Test that break_when appends specific type."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
         sprite.break_when = [Sprite]
-        sprite.break_when.append("test")
+        sprite.break_when.append('test')
 
-        assert "test" in sprite.break_when
+        assert 'test' in sprite.break_when
 
 
 class TestSpriteProperties:
@@ -184,9 +183,9 @@ class TestSpriteProperties:
         sprite = Sprite(x=0, y=0, width=10, height=10)
 
         # Test that event handlers exist (using correct method names)
-        assert hasattr(sprite, "on_mouse_motion_event")
-        assert hasattr(sprite, "on_mouse_button_down_event")
-        assert hasattr(sprite, "on_key_down_event")
+        assert hasattr(sprite, 'on_mouse_motion_event')
+        assert hasattr(sprite, 'on_mouse_button_down_event')
+        assert hasattr(sprite, 'on_key_down_event')
 
     def test_sprite_update(self):
         """Test sprite update method."""

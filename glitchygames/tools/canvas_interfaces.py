@@ -11,23 +11,23 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Protocol
 
 import pygame
+from pydantic import BaseModel
 
 # Import the default file format constant
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
-from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from glitchygames.sprites import BitmappySprite
 
-LOG = logging.getLogger("game.tools.canvas_interfaces")
+LOG = logging.getLogger('game.tools.canvas_interfaces')
 LOG.addHandler(logging.NullHandler())
 
 
 class MockPixelEvent(BaseModel):
     """Lightweight mock event for internal pixel update calls."""
 
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = {'arbitrary_types_allowed': True}
 
 
 class MockTrigger(BaseModel):
@@ -230,10 +230,10 @@ class AnimatedCanvasInterface:
         """Initialize with a CanvasSprite instance."""
         self.canvas_sprite = canvas_sprite
         # Set initial animation using sprite introspection
-        if hasattr(canvas_sprite, "animated_sprite") and canvas_sprite.animated_sprite:
+        if hasattr(canvas_sprite, 'animated_sprite') and canvas_sprite.animated_sprite:
             if canvas_sprite.animated_sprite._animations:
                 if (
-                    hasattr(canvas_sprite.animated_sprite, "_animation_order")
+                    hasattr(canvas_sprite.animated_sprite, '_animation_order')
                     and canvas_sprite.animated_sprite._animation_order
                 ):
                     # Use the first animation in the file order
@@ -244,9 +244,9 @@ class AnimatedCanvasInterface:
                         iter(canvas_sprite.animated_sprite._animations.keys())
                     )
             else:
-                self.current_animation = ""
+                self.current_animation = ''
         else:
-            self.current_animation = ""
+            self.current_animation = ''
         self.current_frame = 0
 
     def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
@@ -256,7 +256,7 @@ class AnimatedCanvasInterface:
             list[tuple[int, int, int, int]]: The pixel data.
 
         """
-        if hasattr(self.canvas_sprite, "animated_sprite"):
+        if hasattr(self.canvas_sprite, 'animated_sprite'):
             frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
                 self.current_frame
             ]
@@ -277,7 +277,7 @@ class AnimatedCanvasInterface:
 
     def set_pixel_data(self, pixels: list[tuple[int, int, int, int]]) -> None:
         """Set the pixel data from a list of RGBA tuples."""
-        if hasattr(self.canvas_sprite, "animated_sprite"):
+        if hasattr(self.canvas_sprite, 'animated_sprite'):
             frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
                 self.current_frame
             ]
@@ -306,7 +306,7 @@ class AnimatedCanvasInterface:
         """
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
-            if hasattr(self.canvas_sprite, "animated_sprite"):
+            if hasattr(self.canvas_sprite, 'animated_sprite'):
                 # Get the current frame from the canvas (not the animated sprite)
                 current_animation = self.canvas_sprite.current_animation
                 current_frame_index = self.canvas_sprite.current_frame
@@ -346,12 +346,12 @@ class AnimatedCanvasInterface:
         """
         if old_color == new_color or controller_drag_active:
             return False
-        if not (hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene):
+        if not (hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene):
             return False
         parent = self.canvas_sprite.parent_scene
         return (
-            hasattr(parent, "canvas_operation_tracker")
-            and not getattr(parent, "_applying_undo_redo", False)
+            hasattr(parent, 'canvas_operation_tracker')
+            and not getattr(parent, '_applying_undo_redo', False)
         )
 
     def set_pixel_at(
@@ -400,7 +400,7 @@ class AnimatedCanvasInterface:
         elif controller_drag_active:
             # Controller drag is active with pixels, don't collect pixels in canvas interface
             LOG.debug(
-                "Controller drag active with pixels, skipping canvas interface pixel collection"
+                'Controller drag active with pixels, skipping canvas interface pixel collection'
             )
             # But still update the frame data - don't return early
 
@@ -413,7 +413,7 @@ class AnimatedCanvasInterface:
             The old color tuple, or None.
 
         """
-        if hasattr(self.canvas_sprite, "animated_sprite"):
+        if hasattr(self.canvas_sprite, 'animated_sprite'):
             current_animation = self.canvas_sprite.current_animation
             current_frame_index = self.canvas_sprite.current_frame
             if current_animation in self.canvas_sprite.animated_sprite.frames:
@@ -433,18 +433,18 @@ class AnimatedCanvasInterface:
 
         """
         if not (
-            hasattr(self.canvas_sprite, "parent_scene")
+            hasattr(self.canvas_sprite, 'parent_scene')
             and self.canvas_sprite.parent_scene
-            and hasattr(self.canvas_sprite.parent_scene, "controller_drags")
+            and hasattr(self.canvas_sprite.parent_scene, 'controller_drags')
         ):
             return False
 
         for controller_id, drag_info in self.canvas_sprite.parent_scene.controller_drags.items():
-            if drag_info.get("active", False) and len(drag_info.get("pixels_drawn", [])) > 0:
+            if drag_info.get('active', False) and len(drag_info.get('pixels_drawn', [])) > 0:
                 LOG.debug(
-                    "Controller drag active with pixels"
-                    " for controller %s, skipping"
-                    " canvas interface tracking",
+                    'Controller drag active with pixels'
+                    ' for controller %s, skipping'
+                    ' canvas interface tracking',
                     controller_id,
                 )
                 return True
@@ -461,9 +461,9 @@ class AnimatedCanvasInterface:
         parent_scene = self.canvas_sprite.parent_scene
 
         # Ensure tracking structures exist
-        if not hasattr(parent_scene, "_current_pixel_changes"):
+        if not hasattr(parent_scene, '_current_pixel_changes'):
             parent_scene._current_pixel_changes = []
-        if not hasattr(parent_scene, "_current_pixel_changes_dict"):
+        if not hasattr(parent_scene, '_current_pixel_changes_dict'):
             # Use a dict for O(1) deduplication lookups during drag
             # Maps (x, y) -> (x, y, old_color, new_color) for fast replacement
             parent_scene._current_pixel_changes_dict = {}
@@ -486,7 +486,7 @@ class AnimatedCanvasInterface:
         # Convert dict to list format for compatibility (only when needed, not every time)
         # We'll convert to list format when submitting, but keep dict for efficient updates
         # Update the list periodically or convert on-demand
-        if not hasattr(parent_scene, "_pixel_changes_list_dirty"):
+        if not hasattr(parent_scene, '_pixel_changes_list_dirty'):
             parent_scene._pixel_changes_list_dirty = True
 
         # Only convert to list occasionally or when submitting
@@ -505,7 +505,7 @@ class AnimatedCanvasInterface:
         # Only log debug info occasionally to reduce overhead
         if len(pixel_changes_dict) % 100 == 0:
             LOG.debug(
-                f"Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels"
+                f'Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels'
             )
 
         # Start a timer for single clicks (if this is the first pixel)
@@ -513,7 +513,7 @@ class AnimatedCanvasInterface:
             import time
 
             parent_scene._pixel_change_timer = time.time()
-            LOG.debug("Canvas interface started pixel change timer for single click")
+            LOG.debug('Canvas interface started pixel change timer for single click')
 
     def _update_frame_pixel_data(
         self,
@@ -521,7 +521,7 @@ class AnimatedCanvasInterface:
         color: tuple[int, int, int] | tuple[int, int, int, int],
     ) -> None:
         """Update the pixel data in the frame or static sprite."""
-        if hasattr(self.canvas_sprite, "animated_sprite"):
+        if hasattr(self.canvas_sprite, 'animated_sprite'):
             current_animation = self.canvas_sprite.current_animation
             current_frame_index = self.canvas_sprite.current_frame
 
@@ -535,8 +535,8 @@ class AnimatedCanvasInterface:
                 frame.set_pixel_data(frame_pixels)
 
                 # Clear the surface cache for this frame so it gets regenerated
-                if hasattr(self.canvas_sprite.animated_sprite, "_surface_cache"):
-                    cache_key = f"{current_animation}_{current_frame_index}"
+                if hasattr(self.canvas_sprite.animated_sprite, '_surface_cache'):
+                    cache_key = f'{current_animation}_{current_frame_index}'
                     if cache_key in self.canvas_sprite.animated_sprite._surface_cache:
                         del self.canvas_sprite.animated_sprite._surface_cache[cache_key]
 
@@ -545,7 +545,7 @@ class AnimatedCanvasInterface:
                 self.canvas_sprite.dirty = 1
 
                 # Trigger pixel update event to notify film strip
-                if hasattr(self.canvas_sprite, "on_pixel_update_event"):
+                if hasattr(self.canvas_sprite, 'on_pixel_update_event'):
                     mock_event = MockPixelEvent()
                     mock_trigger = MockTrigger(pixel_number=pixel_num, pixel_color=color)
                     self.canvas_sprite.on_pixel_update_event(mock_event, mock_trigger)
@@ -623,8 +623,8 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             pygame.Surface: The result.
 
         """
-        LOG.debug("DEBUG: AnimatedCanvasRenderer.force_redraw called")
-        if hasattr(self.canvas_sprite, "animated_sprite"):
+        LOG.debug('DEBUG: AnimatedCanvasRenderer.force_redraw called')
+        if hasattr(self.canvas_sprite, 'animated_sprite'):
             self._redraw_animated_sprite()
         else:
             # Fall back to static rendering
@@ -641,7 +641,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         frames = self.canvas_sprite.animated_sprite.frames
 
         LOG.debug(
-            f"DEBUG: current_animation={current_animation}, current_frame={current_frame}"
+            f'DEBUG: current_animation={current_animation}, current_frame={current_frame}'
         )
         LOG.debug(f"DEBUG: frames keys={list(frames.keys()) if frames else 'None'}")
         LOG.debug(
@@ -671,13 +671,13 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
         # Check if selected frame should be visible (for comparison mode)
         selected_frame_visible = True
-        if hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene:
+        if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
             selected_frame_visible = getattr(
-                self.canvas_sprite.parent_scene, "selected_frame_visible", True
+                self.canvas_sprite.parent_scene, 'selected_frame_visible', True
             )
 
         border_thickness = self.canvas_sprite.border_thickness
-        LOG.debug(f"DEBUG RENDERER: border_thickness={border_thickness}")
+        LOG.debug(f'DEBUG RENDERER: border_thickness={border_thickness}')
 
         if selected_frame_visible:
             self._draw_visible_frame_pixels(frame_pixels)
@@ -706,7 +706,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             if frame_idx != current_frame
             and onion_manager.is_frame_onion_skinned(current_animation, frame_idx)
         }
-        LOG.debug(f"Rendering onion frames: {onion_frames}")
+        LOG.debug(f'Rendering onion frames: {onion_frames}')
 
         # Create a temporary surface to accumulate onion layers (hardware accelerated)
         onion_accumulator = pygame.Surface(
@@ -737,11 +737,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             List of pixel tuples.
 
         """
-        if hasattr(frame, "get_pixel_data"):
+        if hasattr(frame, 'get_pixel_data'):
             return frame.get_pixel_data()
         return getattr(
             frame,
-            "pixels",
+            'pixels',
             [(255, 0, 255)]
             * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
         )
@@ -801,34 +801,34 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
         # Use panned pixel data if panning is active, otherwise use original frame data
         if (
-            hasattr(self.canvas_sprite, "_panning_active")
+            hasattr(self.canvas_sprite, '_panning_active')
             and self.canvas_sprite._panning_active
-            and hasattr(self.canvas_sprite, "pixels")
+            and hasattr(self.canvas_sprite, 'pixels')
         ):
             frame_pixels = self.canvas_sprite.pixels
             LOG.debug(
-                f"DEBUG: Using panned canvas pixels: "
-                f"{len(frame_pixels)} pixels, "
-                f"first few: {frame_pixels[:3]}"
+                f'DEBUG: Using panned canvas pixels: '
+                f'{len(frame_pixels)} pixels, '
+                f'first few: {frame_pixels[:3]}'
             )
-        elif hasattr(frame, "get_pixel_data"):
+        elif hasattr(frame, 'get_pixel_data'):
             frame_pixels = frame.get_pixel_data()
             LOG.debug(
-                f"DEBUG: Using frame.get_pixel_data(): "
-                f"{len(frame_pixels)} pixels, "
-                f"first few: {frame_pixels[:3]}"
+                f'DEBUG: Using frame.get_pixel_data(): '
+                f'{len(frame_pixels)} pixels, '
+                f'first few: {frame_pixels[:3]}'
             )
         else:
             frame_pixels = getattr(
                 frame,
-                "pixels",
+                'pixels',
                 [(255, 0, 255)]
                 * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
             )
             LOG.debug(
-                f"DEBUG: Using fallback frame pixels: "
-                f"{len(frame_pixels)} pixels, "
-                f"first few: {frame_pixels[:3]}"
+                f'DEBUG: Using fallback frame pixels: '
+                f'{len(frame_pixels)} pixels, '
+                f'first few: {frame_pixels[:3]}'
             )
         return frame_pixels
 
@@ -976,7 +976,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         """Draw hover effects on the canvas (pixel hover + canvas border)."""
         # Draw hover effect for the hovered pixel (white border to match keyboard selector)
         if (
-            hasattr(self.canvas_sprite, "hovered_pixel")
+            hasattr(self.canvas_sprite, 'hovered_pixel')
             and self.canvas_sprite.hovered_pixel is not None
         ):
             hover_x, hover_y = self.canvas_sprite.hovered_pixel
@@ -993,7 +993,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             )
 
         # Draw canvas hover border (1px white border around entire canvas perimeter)
-        if hasattr(self.canvas_sprite, "is_hovered") and self.canvas_sprite.is_hovered:
+        if hasattr(self.canvas_sprite, 'is_hovered') and self.canvas_sprite.is_hovered:
             # Draw white border around the entire canvas perimeter
             pygame.draw.rect(
                 self.canvas_sprite.image,
@@ -1018,10 +1018,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             The parent scene with controller data, or None.
 
         """
-        if not (hasattr(self.canvas_sprite, "parent_scene") and self.canvas_sprite.parent_scene):
+        if not (hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene):
             return None
         scene = self.canvas_sprite.parent_scene
-        if hasattr(scene, "controller_selections") and hasattr(scene, "mode_switcher"):
+        if hasattr(scene, 'controller_selections') and hasattr(scene, 'mode_switcher'):
             return scene
         return None
 
@@ -1038,7 +1038,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         # Check if any controller is active in canvas mode
         for controller_id in scene.controller_selections:
             controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
-            if not (controller_mode and controller_mode.value == "canvas"):
+            if not (controller_mode and controller_mode.value == 'canvas'):
                 continue
             # Get controller position
             position = scene.mode_switcher.get_controller_position(controller_id)
@@ -1066,7 +1066,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         # Check all controllers for canvas mode
         for controller_id in scene.controller_selections:
             controller_mode = scene.mode_switcher.get_controller_mode(controller_id)
-            if not (controller_mode and controller_mode.value == "canvas"):
+            if not (controller_mode and controller_mode.value == 'canvas'):
                 continue
             position = scene.mode_switcher.get_controller_position(controller_id)
             if not (position and position.is_valid):
@@ -1080,7 +1080,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             controller_pixel_index = y * self.canvas_sprite.pixels_across + x
             if controller_pixel_index != pixel_index:
                 continue
-            if not hasattr(scene, "multi_controller_manager"):
+            if not hasattr(scene, 'multi_controller_manager'):
                 continue
             controller_info = scene.multi_controller_manager.get_controller_info(controller_id)
             if controller_info:
@@ -1123,7 +1123,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             tuple[int, int, int]: The pixel color at position.
 
         """
-        if hasattr(self, "canvas_sprite") and self.canvas_sprite:
+        if hasattr(self, 'canvas_sprite') and self.canvas_sprite:
             if (
                 0 <= x < self.canvas_sprite.pixels_across
                 and 0 <= y < self.canvas_sprite.pixels_tall
@@ -1132,13 +1132,13 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 if pixel_index < len(self.canvas_sprite.pixels):
                     return self.canvas_sprite.pixels[pixel_index]
                 LOG.debug(
-                    "Pixel index %s out of range (max: %s)",
+                    'Pixel index %s out of range (max: %s)',
                     pixel_index,
                     len(self.canvas_sprite.pixels) - 1,
                 )
             else:
-                LOG.debug("Coordinates (%s, %s) out of bounds", x, y)
-        LOG.debug("Pixel not found at (%s, %s), returning black", x, y)
+                LOG.debug('Coordinates (%s, %s) out of bounds', x, y)
+        LOG.debug('Pixel not found at (%s, %s), returning black', x, y)
         return (0, 0, 0)  # Default to black if pixel not found
 
     def _get_inverse_color(self, color: tuple[int, int, int]) -> tuple[int, int, int]:

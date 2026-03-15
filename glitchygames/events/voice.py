@@ -20,7 +20,7 @@ except ImportError:
 
 
 # Centralized logger for voice recognition
-LOG: logging.Logger = logging.getLogger("glitchygames.events.voice")
+LOG: logging.Logger = logging.getLogger('glitchygames.events.voice')
 LOG.addHandler(logging.NullHandler())
 
 # Try to import speech recognition, but don't fail if it's not available
@@ -41,7 +41,7 @@ class VoiceEventManager(ResourceManager):
 
         log: logging.Logger = LOG
 
-        def __init__(self, game: "VoiceEventManager") -> None:
+        def __init__(self, game: 'VoiceEventManager') -> None:
             """Initialize the voice event proxy with a voice event manager."""
             super().__init__(game)
             self.game = game
@@ -89,7 +89,7 @@ class VoiceEventManager(ResourceManager):
         else:
             self.recognizer = None
             self.microphone = None
-            self.log.warning("Speech recognition not available - voice commands disabled")
+            self.log.warning('Speech recognition not available - voice commands disabled')
 
         # Register default commands
         self._register_default_commands()
@@ -104,11 +104,11 @@ class VoiceEventManager(ResourceManager):
             A microphone instance if probing succeeded, or None on failure.
 
         """
-        backend_name = getattr(mic_cls, "__name__", str(mic_cls))
+        backend_name = getattr(mic_cls, '__name__', str(mic_cls))
         try:
             probe = mic_cls()  # type: ignore[call-arg]
-            enter = getattr(probe, "__enter__", None)
-            exit_cm = getattr(probe, "__exit__", None)
+            enter = getattr(probe, '__enter__', None)
+            exit_cm = getattr(probe, '__exit__', None)
             if callable(enter):  # type: ignore[truthy-bool]
                 try:
                     enter()
@@ -117,11 +117,11 @@ class VoiceEventManager(ResourceManager):
                         if callable(exit_cm):  # type: ignore[truthy-bool]
                             exit_cm(None, None, None)
                     except OSError:
-                        LOG.debug("Voice backend cleanup raised OSError during probe")
-            self.log.info(f"Voice backend selected: {backend_name}")
+                        LOG.debug('Voice backend cleanup raised OSError during probe')
+            self.log.info(f'Voice backend selected: {backend_name}')
             return mic_cls()  # type: ignore[call-arg]
         except OSError:
-            self.log.exception(f"Voice backend probe failed for {backend_name}")
+            self.log.exception(f'Voice backend probe failed for {backend_name}')
             return None
 
     def _setup_microphone(self) -> None:
@@ -132,9 +132,9 @@ class VoiceEventManager(ResourceManager):
 
         try:
             self.microphone = sr.Microphone()
-            self.log.info("Microphone initialized successfully")
+            self.log.info('Microphone initialized successfully')
         except (OSError, AttributeError):
-            self.log.error("Failed to initialize microphone")  # noqa: TRY400
+            self.log.error('Failed to initialize microphone')  # noqa: TRY400
             self.microphone = None
 
     def _register_default_commands(self) -> None:
@@ -155,22 +155,22 @@ class VoiceEventManager(ResourceManager):
     def start_listening(self) -> None:
         """Start listening for voice commands in a separate thread."""
         if not SPEECH_RECOGNITION_AVAILABLE:
-            self.log.warning("Cannot start listening: speech recognition not available")
+            self.log.warning('Cannot start listening: speech recognition not available')
             return
 
         if self.is_listening:
-            self.log.warning("Voice recognition is already listening")
+            self.log.warning('Voice recognition is already listening')
             return
 
         if not self.microphone:
-            self.log.error("Cannot start listening: microphone not available")
+            self.log.error('Cannot start listening: microphone not available')
             return
 
         self.is_listening = True
         self.stop_listening_event.clear()
         self.listen_thread = threading.Thread(target=self._listen_loop, daemon=True)
         self.listen_thread.start()
-        self.log.info("Voice recognition started")
+        self.log.info('Voice recognition started')
 
     def stop_listening(self) -> None:
         """Stop listening for voice commands."""
@@ -184,26 +184,26 @@ class VoiceEventManager(ResourceManager):
             self.listen_thread.join(timeout=2.0)  # Increased timeout
             # Force cleanup if thread is still alive
             if self.listen_thread.is_alive():
-                self.log.warning("Voice recognition thread did not stop cleanly")
+                self.log.warning('Voice recognition thread did not stop cleanly')
 
-        self.log.info("Voice recognition stopped")
+        self.log.info('Voice recognition stopped')
 
     def _listen_loop(self) -> None:
         """Run the main listening loop in a separate thread."""
         if not SPEECH_RECOGNITION_AVAILABLE:
-            self.log.error("Cannot start listen loop: speech recognition not available")
+            self.log.error('Cannot start listen loop: speech recognition not available')
             return
 
         # Open microphone once and keep it open for the duration
         with self.microphone as source:
             # Adjust for ambient noise once at the start
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
-            self.log.info("Microphone calibrated for ambient noise")
+            self.log.info('Microphone calibrated for ambient noise')
 
             while self.is_listening and not self.stop_listening_event.is_set():
                 try:
                     # Listen for audio with timeout
-                    self.log.debug("Listening for voice input...")
+                    self.log.debug('Listening for voice input...')
                     audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=10)
 
                     # Recognize speech
@@ -213,9 +213,9 @@ class VoiceEventManager(ResourceManager):
                         self._process_command(text)
                     except sr.UnknownValueError:
                         # Speech was unintelligible, continue listening
-                        self.log.debug("Could not understand audio")
+                        self.log.debug('Could not understand audio')
                     except sr.RequestError:
-                        self.log.error("Speech recognition service error")  # noqa: TRY400
+                        self.log.error('Speech recognition service error')  # noqa: TRY400
                         # Wait a bit before trying again
                         time.sleep(2)
 
@@ -223,7 +223,7 @@ class VoiceEventManager(ResourceManager):
                     # Timeout is normal, continue listening
                     continue
                 except OSError:
-                    self.log.error("Error in voice recognition loop")  # noqa: TRY400
+                    self.log.error('Error in voice recognition loop')  # noqa: TRY400
                     time.sleep(1)
 
     def _process_command(self, text: str) -> None:

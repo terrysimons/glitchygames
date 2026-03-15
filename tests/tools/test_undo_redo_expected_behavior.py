@@ -7,6 +7,7 @@ not just what the current implementation does.
 
 import pygame
 import pytest
+
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.operation_history import (
     CanvasOperationTracker,
@@ -52,7 +53,7 @@ class TestExpectedUndoRedoBehavior:
                 self.undo_redo_manager.set_frame_selection_callback(self._apply_frame_selection)
 
                 # Track current state
-                self.current_animation = "strip_1"
+                self.current_animation = 'strip_1'
                 self.current_frame = 0
                 self.animated_sprite = self._create_test_sprite()
 
@@ -72,7 +73,7 @@ class TestExpectedUndoRedoBehavior:
                 frame1 = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
                 frame1.pixels = [(255, 0, 0)] * (32 * 32)  # Red frame
 
-                sprite._animations = {"strip_1": [frame1]}
+                sprite._animations = {'strip_1': [frame1]}
 
                 return sprite
 
@@ -149,10 +150,10 @@ class TestExpectedUndoRedoBehavior:
             def create_frame(self, animation, frame_index):
                 """Create a new frame and track it."""
                 frame_data = {
-                    "width": 32,
-                    "height": 32,
-                    "pixels": [(0, 255, 0)] * (32 * 32),  # Green frame
-                    "duration": 1.0,
+                    'width': 32,
+                    'height': 32,
+                    'pixels': [(0, 255, 0)] * (32 * 32),  # Green frame
+                    'duration': 1.0,
                 }
                 self.film_strip_operation_tracker.add_frame_added(
                     frame_index, animation, frame_data
@@ -161,15 +162,15 @@ class TestExpectedUndoRedoBehavior:
             def create_animation(self, animation_name):
                 """Create a new animation and track it."""
                 animation_data = {
-                    "frames": [
+                    'frames': [
                         {
-                            "width": 32,
-                            "height": 32,
-                            "pixels": [(0, 0, 255)] * (32 * 32),  # Blue frame
-                            "duration": 1.0,
+                            'width': 32,
+                            'height': 32,
+                            'pixels': [(0, 0, 255)] * (32 * 32),  # Blue frame
+                            'duration': 1.0,
                         }
                     ],
-                    "frame_count": 1,
+                    'frame_count': 1,
                 }
                 self.film_strip_operation_tracker.add_animation_added(
                     animation_name, animation_data
@@ -230,7 +231,7 @@ class TestExpectedUndoRedoBehavior:
 
         class MockCanvas:
             def __init__(self):
-                self.current_animation = "strip_1"
+                self.current_animation = 'strip_1'
                 self.current_frame = 0
 
         return MockScene()
@@ -340,11 +341,11 @@ class TestExpectedUndoRedoBehavior:
         """
         # Create 8 frames
         for i in range(8):
-            mock_scene.create_frame("strip_1", i + 1)
+            mock_scene.create_frame('strip_1', i + 1)
 
         # Edit frames 1, 2, 3, 4
         for frame_num in [1, 2, 3, 4]:
-            mock_scene.switch_to_frame("strip_1", frame_num)
+            mock_scene.switch_to_frame('strip_1', frame_num)
             mock_scene.edit_pixel(
                 frame_num * 5,
                 frame_num * 5,
@@ -365,7 +366,7 @@ class TestExpectedUndoRedoBehavior:
             assert mock_scene.get_redo_count() == i + 1
 
         # Verify we're back to original state (only frame 0 exists)
-        assert mock_scene.current_animation == "strip_1"
+        assert mock_scene.current_animation == 'strip_1'
         assert mock_scene.current_frame == 0
 
         # Perform 10 redos (to redo the 10 undos we just did)
@@ -375,7 +376,7 @@ class TestExpectedUndoRedoBehavior:
             assert mock_scene.get_redo_count() == 10 - (i + 1)  # Start from 10, go to 0
 
         # Verify we're back to edited state
-        assert mock_scene.current_animation == "strip_1"
+        assert mock_scene.current_animation == 'strip_1'
         assert mock_scene.current_frame == 4  # Should be on frame 4 (last edited)
 
     def test_scenario_4_multiple_strips_edit_undo_redo(self, mock_scene):
@@ -388,11 +389,11 @@ class TestExpectedUndoRedoBehavior:
         """
         # Create 4 frames on strip1
         for i in range(4):
-            mock_scene.create_frame("strip_1", i + 1)
+            mock_scene.create_frame('strip_1', i + 1)
 
         # Edit all 4 frames on strip1
         for frame_num in range(1, 5):
-            mock_scene.switch_to_frame("strip_1", frame_num)
+            mock_scene.switch_to_frame('strip_1', frame_num)
             mock_scene.edit_pixel(
                 frame_num * 3,
                 frame_num * 3,
@@ -401,15 +402,15 @@ class TestExpectedUndoRedoBehavior:
             )
 
         # Create strip2
-        mock_scene.create_animation("strip_2")
+        mock_scene.create_animation('strip_2')
 
         # Create 4 frames on strip2
         for i in range(4):
-            mock_scene.create_frame("strip_2", i + 1)
+            mock_scene.create_frame('strip_2', i + 1)
 
         # Edit all 4 frames on strip2
         for frame_num in range(1, 5):
-            mock_scene.switch_to_frame("strip_2", frame_num)
+            mock_scene.switch_to_frame('strip_2', frame_num)
             mock_scene.edit_pixel(
                 frame_num * 7,
                 frame_num * 7,
@@ -429,7 +430,7 @@ class TestExpectedUndoRedoBehavior:
             assert mock_scene.get_redo_count() == i + 1
 
         # Verify we're back to strip_1 after undoing everything
-        assert mock_scene.current_animation == "strip_1"
+        assert mock_scene.current_animation == 'strip_1'
         # Note: After undoing 20 operations, we're at frame 1 (one frame was created)
         assert mock_scene.current_frame == 1
 
@@ -440,7 +441,7 @@ class TestExpectedUndoRedoBehavior:
             assert mock_scene.get_redo_count() == 20 - (i + 1)
 
         # Verify we're back to edited state
-        assert mock_scene.current_animation == "strip_2"
+        assert mock_scene.current_animation == 'strip_2'
         assert mock_scene.current_frame == 4  # Should be on strip2 frame 4 (last edited)
 
     def test_scenario_5_edge_case_too_many_undos(self, mock_scene):
@@ -509,10 +510,10 @@ class TestExpectedUndoRedoBehavior:
         """
         # Create operations in specific order
         mock_scene.edit_pixel(1, 1, (255, 0, 0), (100, 100, 100))  # Operation 1
-        mock_scene.switch_to_frame("strip_1", 1)  # Operation 2
+        mock_scene.switch_to_frame('strip_1', 1)  # Operation 2
         mock_scene.edit_pixel(2, 2, (255, 0, 0), (200, 200, 200))  # Operation 3
-        mock_scene.create_frame("strip_1", 2)  # Operation 4
-        mock_scene.switch_to_frame("strip_1", 2)  # Operation 5
+        mock_scene.create_frame('strip_1', 2)  # Operation 4
+        mock_scene.switch_to_frame('strip_1', 2)  # Operation 5
         mock_scene.edit_pixel(3, 3, (255, 0, 0), (300, 300, 300))  # Operation 6
 
         assert mock_scene.get_undo_count() == 6
@@ -524,7 +525,7 @@ class TestExpectedUndoRedoBehavior:
             assert mock_scene.get_redo_count() == i + 1
 
         # Verify we're back to original state (strip1 frame 0 - the baseline)
-        assert mock_scene.current_animation == "strip_1"
+        assert mock_scene.current_animation == 'strip_1'
         # Note: The baseline frame 0 always exists, so current_frame should be 0
         assert mock_scene.current_frame == 0
         assert mock_scene.get_pixel_state(1, 1) == (255, 0, 0)
@@ -538,7 +539,7 @@ class TestExpectedUndoRedoBehavior:
             assert mock_scene.get_redo_count() == 5 - i
 
         # Verify we're back to edited state
-        assert mock_scene.current_animation == "strip_1"
+        assert mock_scene.current_animation == 'strip_1'
         assert mock_scene.current_frame == 2  # Should be on frame 2 (last selected)
         assert mock_scene.get_pixel_state(1, 1) == (100, 100, 100)
         assert mock_scene.get_pixel_state(2, 2) == (200, 200, 200)

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     import logging
 
 import pygame
+
 from glitchygames import game_objects
 from glitchygames.color import WHITE
 from glitchygames.movement import Speed
@@ -255,36 +256,36 @@ class BallSprite(Sprite):
         # Debug log before bounce
         import logging
 
-        log = logging.getLogger("game")
+        log = logging.getLogger('game')
         log.debug(
-            f"BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) "
-            f"speed=({self.speed.x:.3f},{self.speed.y:.3f}) "
-            f"screen=({self.screen_width},{self.screen_height}) "
-            f"bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}"
+            f'BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) '
+            f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
+            f'screen=({self.screen_width},{self.screen_height}) '
+            f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}'
         )
 
         # Top edge bounce
         if self.bounce_top_bottom and self.rect.y <= 0:
-            if hasattr(self, "snd") and self.snd is not None:
+            if hasattr(self, 'snd') and self.snd is not None:
                 self.snd.play()
             log.debug(
-                f"BALL BOUNCE: TOP EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})"
+                f'BALL BOUNCE: TOP EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})'
             )
             self.rect.y = 0  # Position ball exactly at top boundary
             # Simple Y direction reversal
             self.speed.y = abs(self.speed.y)  # Ensure positive speed (downward)
             log.debug(
-                f"BALL BOUNCE: TOP EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})"
+                f'BALL BOUNCE: TOP EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})'
             )
             # Check for wall bounce speed-up
-            self._check_bounce_speed_up("wall")
+            self._check_bounce_speed_up('wall')
 
         # Bottom edge bounce
         if self.bounce_top_bottom and self.rect.y + self.height >= self.screen_height:
-            if hasattr(self, "snd") and self.snd is not None:
+            if hasattr(self, 'snd') and self.snd is not None:
                 self.snd.play()
             log.debug(
-                f"BALL BOUNCE: BOTTOM EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})"
+                f'BALL BOUNCE: BOTTOM EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})'
             )
             self.rect.y = (
                 self.screen_height - self.height
@@ -292,42 +293,42 @@ class BallSprite(Sprite):
             # Simple Y direction reversal
             self.speed.y = -abs(self.speed.y)  # Ensure negative speed (upward)
             log.debug(
-                f"BALL BOUNCE: BOTTOM EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})"
+                f'BALL BOUNCE: BOTTOM EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})'
             )
             # Check for wall bounce speed-up
-            self._check_bounce_speed_up("wall")
+            self._check_bounce_speed_up('wall')
 
         # Left edge bounce
         if self.bounce_left_right and self.rect.x <= 0:
-            if hasattr(self, "snd") and self.snd is not None:
+            if hasattr(self, 'snd') and self.snd is not None:
                 self.snd.play()
             log.debug(
-                f"BALL BOUNCE: LEFT EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})"
+                f'BALL BOUNCE: LEFT EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})'
             )
             self.rect.x = 1  # Small buffer to prevent sticking
             # Simple X direction reversal
             self.speed.x = abs(self.speed.x)  # Ensure positive speed (rightward)
             log.debug(
-                f"BALL BOUNCE: LEFT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})"
+                f'BALL BOUNCE: LEFT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})'
             )
             # Check for wall bounce speed-up
-            self._check_bounce_speed_up("wall")
+            self._check_bounce_speed_up('wall')
 
         # Right edge bounce
         if self.bounce_left_right and self.rect.x + self.width >= self.screen_width:
-            if hasattr(self, "snd") and self.snd is not None:
+            if hasattr(self, 'snd') and self.snd is not None:
                 self.snd.play()
             log.debug(
-                f"BALL BOUNCE: RIGHT EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})"
+                f'BALL BOUNCE: RIGHT EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})'
             )
             self.rect.x = self.screen_width - self.width - 1  # Small buffer to prevent sticking
             # Simple X direction reversal
             self.speed.x = -abs(self.speed.x)  # Ensure negative speed (leftward)
             log.debug(
-                f"BALL BOUNCE: RIGHT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})"
+                f'BALL BOUNCE: RIGHT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})'
             )
             # Check for wall bounce speed-up
-            self._check_bounce_speed_up("wall")
+            self._check_bounce_speed_up('wall')
 
     def reset(self: Self) -> None:
         """Reset the ball.
@@ -383,7 +384,7 @@ class BallSprite(Sprite):
         self.speed *= 1.1
 
     def speed_up(
-        self: Self, multiplier: float | None = None, speed_up_type: str = "linear"
+        self: Self, multiplier: float | None = None, speed_up_type: str = 'linear'
     ) -> None:
         """Increase the ball's speed with linear, logarithmic, or exponential scaling.
 
@@ -398,34 +399,34 @@ class BallSprite(Sprite):
         if multiplier is None:
             multiplier = self.speed_up_multiplier
 
-        if speed_up_type == "linear":
+        if speed_up_type == 'linear':
             # Linear speed-up: preserve direction by scaling magnitude
             current_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
             if current_magnitude > 0:
                 new_magnitude = current_magnitude * multiplier
                 self.speed.x = (self.speed.x / current_magnitude) * new_magnitude
                 self.speed.y = (self.speed.y / current_magnitude) * new_magnitude
-        elif speed_up_type == "logarithmic_x":
+        elif speed_up_type == 'logarithmic_x':
             # Logarithmic X speed-up: only scale X component
             self.speed.x *= multiplier
-        elif speed_up_type == "logarithmic_y":
+        elif speed_up_type == 'logarithmic_y':
             # Logarithmic Y speed-up: only scale Y component
             self.speed.y *= multiplier
-        elif speed_up_type == "logarithmic_both":
+        elif speed_up_type == 'logarithmic_both':
             # Logarithmic both: scale both components (preserves direction)
             self.speed.x *= multiplier
             self.speed.y *= multiplier
-        elif speed_up_type == "exponential_x":
+        elif speed_up_type == 'exponential_x':
             # Exponential X speed-up: exponential scaling of X component
             # Cap the exponent to prevent runaway growth (max 2.0)
             exponent = min(abs(self.speed.x) / 100.0, 2.0)
             self.speed.x = self.speed.x * (multiplier**exponent) if self.speed.x != 0 else 0
-        elif speed_up_type == "exponential_y":
+        elif speed_up_type == 'exponential_y':
             # Exponential Y speed-up: exponential scaling of Y component
             # Cap the exponent to prevent runaway growth (max 2.0)
             exponent = min(abs(self.speed.y) / 100.0, 2.0)
             self.speed.y = self.speed.y * (multiplier**exponent) if self.speed.y != 0 else 0
-        elif speed_up_type == "exponential_both":
+        elif speed_up_type == 'exponential_both':
             # Exponential both: exponential scaling of both components
             # Cap the exponent to prevent runaway growth (max 2.0)
             x_exponent = min(abs(self.speed.x) / 100.0, 2.0)
@@ -446,34 +447,34 @@ class BallSprite(Sprite):
                 self.speed_up_mode & SpeedUpMode.CONTINUOUS_EXPONENTIAL_X
                 and self.speed_up_mode & SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y
             ):
-                self.speed_up(speed_up_type="exponential_both")
+                self.speed_up(speed_up_type='exponential_both')
                 self._last_speed_up_time = current_time
             # Check for both X and Y logarithmic speed-up
             elif (
                 self.speed_up_mode & SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
                 and self.speed_up_mode & SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y
             ):
-                self.speed_up(speed_up_type="logarithmic_both")
+                self.speed_up(speed_up_type='logarithmic_both')
                 self._last_speed_up_time = current_time
             # Check for exponential X speed-up
             elif self.speed_up_mode & SpeedUpMode.CONTINUOUS_EXPONENTIAL_X:
-                self.speed_up(speed_up_type="exponential_x")
+                self.speed_up(speed_up_type='exponential_x')
                 self._last_speed_up_time = current_time
             # Check for exponential Y speed-up
             elif self.speed_up_mode & SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y:
-                self.speed_up(speed_up_type="exponential_y")
+                self.speed_up(speed_up_type='exponential_y')
                 self._last_speed_up_time = current_time
             # Check for logarithmic X speed-up
             elif self.speed_up_mode & SpeedUpMode.CONTINUOUS_LOGARITHMIC_X:
-                self.speed_up(speed_up_type="logarithmic_x")
+                self.speed_up(speed_up_type='logarithmic_x')
                 self._last_speed_up_time = current_time
             # Check for logarithmic Y speed-up
             elif self.speed_up_mode & SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y:
-                self.speed_up(speed_up_type="logarithmic_y")
+                self.speed_up(speed_up_type='logarithmic_y')
                 self._last_speed_up_time = current_time
             # Check for linear speed-up
             elif self.speed_up_mode & SpeedUpMode.CONTINUOUS_LINEAR:
-                self.speed_up(speed_up_type="linear")
+                self.speed_up(speed_up_type='linear')
                 self._last_speed_up_time = current_time
 
     def _resolve_speed_up_type(
@@ -501,25 +502,25 @@ class BallSprite(Sprite):
         """
         # Check for both X and Y exponential speed-up first (highest priority)
         if self.speed_up_mode & exponential_x_flag and self.speed_up_mode & exponential_y_flag:
-            return "exponential_both"
+            return 'exponential_both'
         # Check for both X and Y logarithmic speed-up
         if self.speed_up_mode & logarithmic_x_flag and self.speed_up_mode & logarithmic_y_flag:
-            return "logarithmic_both"
+            return 'logarithmic_both'
         # Check for exponential X speed-up
         if self.speed_up_mode & exponential_x_flag:
-            return "exponential_x"
+            return 'exponential_x'
         # Check for exponential Y speed-up
         if self.speed_up_mode & exponential_y_flag:
-            return "exponential_y"
+            return 'exponential_y'
         # Check for logarithmic X speed-up
         if self.speed_up_mode & logarithmic_x_flag:
-            return "logarithmic_x"
+            return 'logarithmic_x'
         # Check for logarithmic Y speed-up
         if self.speed_up_mode & logarithmic_y_flag:
-            return "logarithmic_y"
+            return 'logarithmic_y'
         # Check for linear speed-up
         if self.speed_up_mode & linear_flag:
-            return "linear"
+            return 'linear'
         return None
 
     def _check_bounce_speed_up(self: Self, bounce_type: str) -> None:
@@ -529,7 +530,7 @@ class BallSprite(Sprite):
             bounce_type (str): Type of bounce ('paddle' or 'wall').
 
         """
-        if bounce_type == "paddle":
+        if bounce_type == 'paddle':
             speed_up_type = self._resolve_speed_up_type(
                 SpeedUpMode.ON_BOUNCE_EXPONENTIAL_X,
                 SpeedUpMode.ON_BOUNCE_EXPONENTIAL_Y,
@@ -537,7 +538,7 @@ class BallSprite(Sprite):
                 SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
                 SpeedUpMode.ON_BOUNCE_LINEAR,
             )
-        elif bounce_type == "wall":
+        elif bounce_type == 'wall':
             speed_up_type = self._resolve_speed_up_type(
                 SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_X,
                 SpeedUpMode.ON_WALL_BOUNCE_EXPONENTIAL_Y,
@@ -558,7 +559,7 @@ class BallSprite(Sprite):
             None
 
         """
-        self._check_bounce_speed_up("paddle")
+        self._check_bounce_speed_up('paddle')
 
     def dt_tick(self: Self, dt: float) -> None:
         """Update the ball with delta time.
@@ -578,7 +579,7 @@ class BallSprite(Sprite):
         # Debug log speed changes
         import logging
 
-        log = logging.getLogger("game")
+        log = logging.getLogger('game')
         old_speed_x, old_speed_y = self.speed.x, self.speed.y
         old_magnitude = math.sqrt(old_speed_x**2 + old_speed_y**2)
 
@@ -591,9 +592,9 @@ class BallSprite(Sprite):
         ):
             new_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
             log.debug(
-                f"BALL SPEED CHANGE: old=({old_speed_x:.3f},{old_speed_y:.3f}) "
-                f"new=({self.speed.x:.3f},{self.speed.y:.3f}) "
-                f"magnitude_change={new_magnitude - old_magnitude:.3f}"
+                f'BALL SPEED CHANGE: old=({old_speed_x:.3f},{old_speed_y:.3f}) '
+                f'new=({self.speed.x:.3f},{self.speed.y:.3f}) '
+                f'magnitude_change={new_magnitude - old_magnitude:.3f}'
             )
 
         # Calculate movement
@@ -603,14 +604,14 @@ class BallSprite(Sprite):
         # Debug log movement calculation
         import logging
 
-        log = logging.getLogger("game")
+        log = logging.getLogger('game')
 
         # Check for weird upward curving behavior
         if abs(move_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
             log.debug(
-                f"BALL MOVE: speed=({self.speed.x:.3f},{self.speed.y:.3f}) dt={dt:.6f} "
-                f"move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) "
-                f"speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}"
+                f'BALL MOVE: speed=({self.speed.x:.3f},{self.speed.y:.3f}) dt={dt:.6f} '
+                f'move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) '
+                f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}'
             )
 
         # Use proper rounding to avoid precision loss from integer truncation
@@ -625,18 +626,18 @@ class BallSprite(Sprite):
         # Check for weird curving behavior
         if abs(delta_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
             log.debug(
-                f"BALL MOVE: final_pos=({self.rect.x},{self.rect.y}) "
-                f"delta=({delta_x},{delta_y}) "
-                f"expected_move=({round(move_x)},{round(move_y)}) "
-                f"actual_move=({delta_x},{delta_y})"
+                f'BALL MOVE: final_pos=({self.rect.x},{self.rect.y}) '
+                f'delta=({delta_x},{delta_y}) '
+                f'expected_move=({round(move_x)},{round(move_y)}) '
+                f'actual_move=({delta_x},{delta_y})'
             )
 
             # Check if movement matches expectation
             if delta_x != round(move_x) or delta_y != round(move_y):
                 log.debug(
-                    f"BALL MOVE WARNING: Movement mismatch! "
-                    f"Expected=({round(move_x)},{round(move_y)}) "
-                    f"Actual=({delta_x},{delta_y})"
+                    f'BALL MOVE WARNING: Movement mismatch! '
+                    f'Expected=({round(move_x)},{round(move_y)}) '
+                    f'Actual=({delta_x},{delta_y})'
                 )
 
         # Ensure the ball is marked as dirty for redrawing
@@ -677,12 +678,12 @@ class BallSprite(Sprite):
         """
         import logging
 
-        log = logging.getLogger("game")
+        log = logging.getLogger('game')
         log.debug(
-            f"BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) "
-            f"speed=({self.speed.x:.3f},{self.speed.y:.3f}) "
-            f"screen=({self.screen_width},{self.screen_height}) "
-            f"bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}"
+            f'BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) '
+            f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
+            f'screen=({self.screen_width},{self.screen_height}) '
+            f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}'
         )
 
         # Enhanced boundary checking with proper physics
@@ -729,7 +730,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        if hasattr(self, "snd") and self.snd is not None:
+        if hasattr(self, 'snd') and self.snd is not None:
             self.snd.play()
 
         # Enhanced positioning to prevent clipping (historic +1 padding expected by tests)
@@ -744,11 +745,11 @@ class BallSprite(Sprite):
             # X component remains unchanged for realistic bounce
 
             # Add visual feedback for collision
-            self._add_collision_visual_feedback("top", log)
+            self._add_collision_visual_feedback('top', log)
 
-        log.debug(f"BALL BOUNCE: TOP EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})")
-        log.debug(f"BALL BOUNCE: TOP EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})")
-        self._check_bounce_speed_up("wall")
+        log.debug(f'BALL BOUNCE: TOP EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})')
+        log.debug(f'BALL BOUNCE: TOP EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})')
+        self._check_bounce_speed_up('wall')
 
     def _handle_bottom_collision(self: Self, log: logging.Logger) -> None:
         """Handle collision with bottom boundary with realistic physics.
@@ -757,7 +758,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        if hasattr(self, "snd") and self.snd is not None:
+        if hasattr(self, 'snd') and self.snd is not None:
             self.snd.play()
 
         # Enhanced positioning to prevent clipping (historic -1 padding expected by tests)
@@ -772,13 +773,13 @@ class BallSprite(Sprite):
             # X component remains unchanged for realistic bounce
 
             # Add visual feedback for collision
-            self._add_collision_visual_feedback("bottom", log)
+            self._add_collision_visual_feedback('bottom', log)
 
         log.debug(
-            f"BALL BOUNCE: BOTTOM EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})"
+            f'BALL BOUNCE: BOTTOM EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})'
         )
-        log.debug(f"BALL BOUNCE: BOTTOM EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})")
-        self._check_bounce_speed_up("wall")
+        log.debug(f'BALL BOUNCE: BOTTOM EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})')
+        self._check_bounce_speed_up('wall')
 
     def _handle_left_collision(self: Self, log: logging.Logger) -> None:
         """Handle collision with left boundary with realistic physics.
@@ -787,7 +788,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        if hasattr(self, "snd") and self.snd is not None:
+        if hasattr(self, 'snd') and self.snd is not None:
             self.snd.play()
 
         # Enhanced positioning to prevent clipping (keep historic +1 padding)
@@ -802,11 +803,11 @@ class BallSprite(Sprite):
             # Y component remains unchanged for realistic bounce
 
             # Add visual feedback for collision
-            self._add_collision_visual_feedback("left", log)
+            self._add_collision_visual_feedback('left', log)
 
-        log.debug(f"BALL BOUNCE: LEFT EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})")
-        log.debug(f"BALL BOUNCE: LEFT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})")
-        self._check_bounce_speed_up("wall")
+        log.debug(f'BALL BOUNCE: LEFT EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})')
+        log.debug(f'BALL BOUNCE: LEFT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})')
+        self._check_bounce_speed_up('wall')
 
     def _handle_right_collision(self: Self, log: logging.Logger) -> None:
         """Handle collision with right boundary with realistic physics.
@@ -815,7 +816,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        if hasattr(self, "snd") and self.snd is not None:
+        if hasattr(self, 'snd') and self.snd is not None:
             self.snd.play()
 
         # Enhanced positioning to prevent clipping (keep historic -1 padding)
@@ -830,11 +831,11 @@ class BallSprite(Sprite):
             # Y component remains unchanged for realistic bounce
 
             # Add visual feedback for collision
-            self._add_collision_visual_feedback("right", log)
+            self._add_collision_visual_feedback('right', log)
 
-        log.debug(f"BALL BOUNCE: RIGHT EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})")
-        log.debug(f"BALL BOUNCE: RIGHT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})")
-        self._check_bounce_speed_up("wall")
+        log.debug(f'BALL BOUNCE: RIGHT EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})')
+        log.debug(f'BALL BOUNCE: RIGHT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})')
+        self._check_bounce_speed_up('wall')
 
     def _handle_corner_collision(self: Self, log: logging.Logger) -> None:
         """Handle corner collisions with enhanced physics and visual feedback.
@@ -854,9 +855,9 @@ class BallSprite(Sprite):
 
         if in_top_left or in_top_right or in_bottom_left or in_bottom_right:
             log.debug(
-                f"BALL CORNER COLLISION:"
-                f" {in_top_left=} {in_top_right=}"
-                f" {in_bottom_left=} {in_bottom_right=}"
+                f'BALL CORNER COLLISION:'
+                f' {in_top_left=} {in_top_right=}'
+                f' {in_bottom_left=} {in_bottom_right=}'
             )
 
             # Enhanced corner physics - both X and Y components are reflected
@@ -873,7 +874,7 @@ class BallSprite(Sprite):
                     self.speed.y = abs(self.speed.y) if self.speed.y < 0 else -abs(self.speed.y)
 
                 # Add special visual feedback for corner collisions
-                self._add_collision_visual_feedback("corner", log)
+                self._add_collision_visual_feedback('corner', log)
 
             # For corner collisions, ensure ball is properly positioned
             if in_top_left:
@@ -908,7 +909,7 @@ class BallSprite(Sprite):
 
         # For now, we'll add debug logging and prepare for future visual effects
         log.debug(
-            f"BALL COLLISION VISUAL FEEDBACK: {collision_type} at ({self.rect.x}, {self.rect.y})"
+            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at ({self.rect.x}, {self.rect.y})'
         )
 
         # Future implementation could include:
@@ -933,7 +934,7 @@ class BallSprite(Sprite):
             sprite
             for group in self.groups()
             for sprite in group
-            if (hasattr(sprite, "snd") or sprite.__class__.__name__.lower().find("paddle") != -1)
+            if (hasattr(sprite, 'snd') or sprite.__class__.__name__.lower().find('paddle') != -1)
             and sprite != self
         ]
 
@@ -966,11 +967,11 @@ class BallSprite(Sprite):
             self.speed.x = abs(self.speed.x)
 
         # Play collision sound if paddle has one
-        if hasattr(paddle, "snd") and paddle.snd:
+        if hasattr(paddle, 'snd') and paddle.snd:
             paddle.snd.play()
 
         # Check for paddle bounce speed-up (this triggers ball spawn)
-        self._check_bounce_speed_up("paddle")
+        self._check_bounce_speed_up('paddle')
 
         # Cap speed after paddle collision to prevent runaway physics
         max_speed = 500.0  # Maximum speed in pixels per second
@@ -982,7 +983,7 @@ class BallSprite(Sprite):
             self.speed.y *= scale_factor
 
         # Notify the game that a paddle collision occurred (for ball spawn)
-        if hasattr(self, "on_paddle_collision"):
+        if hasattr(self, 'on_paddle_collision'):
             self.on_paddle_collision(self)
 
         # Mark ball as dirty for redraw

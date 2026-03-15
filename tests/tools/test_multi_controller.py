@@ -8,6 +8,7 @@ and integration with the bitmappy tool.
 import time
 
 import pytest
+
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import (
     ControllerInfo,
@@ -50,8 +51,8 @@ class TestMultiControllerManager:
         mock_joystick = mocker.Mock()
         mock_joystick.get_init.return_value = True
         mock_joystick.get_instance_id.return_value = 0
-        mocker.patch("pygame.joystick.Joystick", return_value=mock_joystick)
-        mocker.patch("pygame.joystick.get_count", return_value=1)
+        mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
+        mocker.patch('pygame.joystick.get_count', return_value=1)
 
         # Test scanning
         connected_ids = self.manager.scan_for_controllers()
@@ -185,9 +186,9 @@ class TestControllerSelection:
 
     def test_animation_selection(self):
         """Test animation selection."""
-        self.controller_selection.set_animation("test_animation")
+        self.controller_selection.set_animation('test_animation')
 
-        assert self.controller_selection.get_animation() == "test_animation"
+        assert self.controller_selection.get_animation() == 'test_animation'
         assert len(self.controller_selection.get_navigation_history()) == 1
 
     def test_frame_selection(self):
@@ -198,9 +199,9 @@ class TestControllerSelection:
 
     def test_combined_selection(self):
         """Test combined animation and frame selection."""
-        self.controller_selection.set_selection("test_animation", 3)
+        self.controller_selection.set_selection('test_animation', 3)
 
-        assert self.controller_selection.get_animation() == "test_animation"
+        assert self.controller_selection.get_animation() == 'test_animation'
         assert self.controller_selection.get_frame() == 3
 
     def test_activation_deactivation(self):
@@ -216,16 +217,16 @@ class TestControllerSelection:
     def test_frame_preservation(self):
         """Test frame preservation when switching animations."""
         # Set initial selection
-        self.controller_selection.set_selection("animation1", 3)
+        self.controller_selection.set_selection('animation1', 3)
 
         # Switch to new animation with frame preservation
-        target_frame = self.controller_selection.preserve_frame_for_animation("animation2", 5)
+        target_frame = self.controller_selection.preserve_frame_for_animation('animation2', 5)
 
         # Should preserve frame 3 if it's within range
         assert target_frame == 3
 
         # Test with frame out of range
-        target_frame = self.controller_selection.preserve_frame_for_animation("animation3", 2)
+        target_frame = self.controller_selection.preserve_frame_for_animation('animation3', 2)
 
         # Should clamp to available range
         assert target_frame == 1  # 2 - 1 = 1 (last available frame)
@@ -244,24 +245,24 @@ class TestControllerSelection:
     def test_navigation_history(self):
         """Test navigation history tracking."""
         # Set multiple selections
-        self.controller_selection.set_selection("animation1", 0)
-        self.controller_selection.set_selection("animation2", 1)
-        self.controller_selection.set_selection("animation3", 2)
+        self.controller_selection.set_selection('animation1', 0)
+        self.controller_selection.set_selection('animation2', 1)
+        self.controller_selection.set_selection('animation3', 2)
 
         # Check history
         history = self.controller_selection.get_navigation_history()
         assert len(history) == 2  # Two transitions
 
         # Check history content
-        assert history[0]["animation"] == "animation1"
-        assert history[0]["frame"] == 0
-        assert history[1]["animation"] == "animation2"
-        assert history[1]["frame"] == 1
+        assert history[0]['animation'] == 'animation1'
+        assert history[0]['frame'] == 0
+        assert history[1]['animation'] == 'animation2'
+        assert history[1]['frame'] == 1
 
     def test_state_reset(self):
         """Test state reset."""
         # Set some state
-        self.controller_selection.set_selection("test_animation", 5)
+        self.controller_selection.set_selection('test_animation', 5)
         self.controller_selection.activate()
 
         # Reset to default
@@ -276,7 +277,7 @@ class TestControllerSelection:
     def test_state_cloning(self):
         """Test state cloning between controllers."""
         # Set up source controller
-        self.controller_selection.set_selection("source_animation", 3)
+        self.controller_selection.set_selection('source_animation', 3)
         self.controller_selection.activate()
 
         # Create target controller
@@ -286,7 +287,7 @@ class TestControllerSelection:
         self.controller_selection.clone_state_to(target_controller)
 
         # Check cloned state
-        assert target_controller.get_animation() == "source_animation"
+        assert target_controller.get_animation() == 'source_animation'
         assert target_controller.get_frame() == 3
         assert target_controller.is_active()
 
@@ -460,7 +461,7 @@ class TestMultiControllerIntegration:
         # Create controller selection
         self.controller_selections[0] = ControllerSelection(0, 0)
         self.controller_selections[0].activate()
-        self.controller_selections[0].set_selection("test_animation", 0)
+        self.controller_selections[0].set_selection('test_animation', 0)
 
         # Activate controller in manager
         self.manager.activate_controller(0)
@@ -511,24 +512,24 @@ class TestMultiControllerIntegration:
         # Create controller selection
         controller_selection = ControllerSelection(0, 0)
         controller_selection.activate()
-        controller_selection.set_selection("animation1", 3)
+        controller_selection.set_selection('animation1', 3)
 
         # Simulate navigation
-        controller_selection.set_selection("animation2", 1)
-        controller_selection.set_selection("animation3", 5)
+        controller_selection.set_selection('animation2', 1)
+        controller_selection.set_selection('animation3', 5)
 
         # Check navigation history
         history = controller_selection.get_navigation_history()
         assert len(history) == 2
-        assert history[0]["animation"] == "animation1"
-        assert history[0]["frame"] == 3
-        assert history[1]["animation"] == "animation2"
-        assert history[1]["frame"] == 1
+        assert history[0]['animation'] == 'animation1'
+        assert history[0]['frame'] == 3
+        assert history[1]['animation'] == 'animation2'
+        assert history[1]['frame'] == 1
 
         # Test frame preservation
-        target_frame = controller_selection.preserve_frame_for_animation("animation1", 2)
+        target_frame = controller_selection.preserve_frame_for_animation('animation1', 2)
         assert target_frame == 1  # Clamped to available range
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

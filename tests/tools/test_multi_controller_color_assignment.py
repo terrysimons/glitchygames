@@ -8,13 +8,13 @@ controller indicators.
 import operator
 
 import pytest
+
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import (
     ControllerInfo,
     ControllerStatus,
     MultiControllerManager,
 )
-
 from tests.mocks import MockFactory
 
 
@@ -125,7 +125,7 @@ class TestColorBasedSorting:
 
         # Test color priority function
         def get_color_priority(selection):
-            color = selection["color"]
+            color = selection['color']
             if color == (255, 0, 0):  # Red
                 return 0
             if color == (0, 255, 0):  # Green
@@ -138,10 +138,10 @@ class TestColorBasedSorting:
 
         # Test different colors
         selections = [
-            {"color": (0, 0, 255)},  # Blue
-            {"color": (255, 0, 0)},  # Red
-            {"color": (255, 255, 0)},  # Yellow
-            {"color": (0, 255, 0)},  # Green
+            {'color': (0, 0, 255)},  # Blue
+            {'color': (255, 0, 0)},  # Red
+            {'color': (255, 255, 0)},  # Yellow
+            {'color': (0, 255, 0)},  # Green
         ]
 
         # Sort by color priority
@@ -156,50 +156,50 @@ class TestColorBasedSorting:
         ]
 
         for i, selection in enumerate(selections):
-            assert selection["color"] == expected_order[i]
+            assert selection['color'] == expected_order[i]
 
     def test_controller_selection_color_priority(self):
         """Test controller selection color priority assignment."""
         # Mock controller selections with different colors
         controller_selections = [
             {
-                "controller_id": 2,
-                "color": (0, 0, 255),  # Blue
-                "frame": 0,
+                'controller_id': 2,
+                'color': (0, 0, 255),  # Blue
+                'frame': 0,
             },
             {
-                "controller_id": 0,
-                "color": (255, 0, 0),  # Red
-                "frame": 0,
+                'controller_id': 0,
+                'color': (255, 0, 0),  # Red
+                'frame': 0,
             },
             {
-                "controller_id": 3,
-                "color": (255, 255, 0),  # Yellow
-                "frame": 0,
+                'controller_id': 3,
+                'color': (255, 255, 0),  # Yellow
+                'frame': 0,
             },
             {
-                "controller_id": 1,
-                "color": (0, 255, 0),  # Green
-                "frame": 0,
+                'controller_id': 1,
+                'color': (0, 255, 0),  # Green
+                'frame': 0,
             },
         ]
 
         # Calculate color-based priority
         for selection in controller_selections:
-            color = selection["color"]
+            color = selection['color']
             if color == (255, 0, 0):  # Red
-                selection["priority"] = 0
+                selection['priority'] = 0
             elif color == (0, 255, 0):  # Green
-                selection["priority"] = 1
+                selection['priority'] = 1
             elif color == (0, 0, 255):  # Blue
-                selection["priority"] = 2
+                selection['priority'] = 2
             elif color == (255, 255, 0):  # Yellow
-                selection["priority"] = 3
+                selection['priority'] = 3
             else:
-                selection["priority"] = 999
+                selection['priority'] = 999
 
         # Sort by priority
-        controller_selections.sort(key=operator.itemgetter("priority"))
+        controller_selections.sort(key=operator.itemgetter('priority'))
 
         # Should be sorted by color: Red, Green, Blue, Yellow
         expected_order = [
@@ -210,8 +210,8 @@ class TestColorBasedSorting:
         ]
 
         for i, selection in enumerate(controller_selections):
-            assert selection["color"] == expected_order[i]
-            assert selection["priority"] == i
+            assert selection['color'] == expected_order[i]
+            assert selection['priority'] == i
 
 
 class TestShoulderButtonFunctionality:
@@ -221,13 +221,13 @@ class TestShoulderButtonFunctionality:
         """Set up test fixtures."""
         self.controller_selection = ControllerSelection(controller_id=0, instance_id=0)
         self.controller_selection.activate()
-        self.controller_selection.set_selection("test_animation", 5)
+        self.controller_selection.set_selection('test_animation', 5)
 
     def test_left_shoulder_button_behavior(self, mocker):
         """Test that left shoulder button moves indicator left."""
         # Mock the _multi_controller_previous_frame method
         mock_prev = mocker.patch(
-            "glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame"
+            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame'
         )
         # Simulate left shoulder button press
         controller_id = 0
@@ -243,7 +243,7 @@ class TestShoulderButtonFunctionality:
         """Test that right shoulder button moves indicator right."""
         # Mock the _multi_controller_next_frame method
         mock_next = mocker.patch(
-            "glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame"
+            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame'
         )
         # Simulate right shoulder button press
         controller_id = 0
@@ -264,12 +264,12 @@ class TestShoulderButtonFunctionality:
         # Mock the controller selection
         controller_selection = ControllerSelection(0, 0)
         controller_selection.activate()
-        controller_selection.set_selection("test_animation", 3)
+        controller_selection.set_selection('test_animation', 3)
 
         # Simulate frame navigation that should trigger scrolling
         # This would be called by _multi_controller_previous_frame/_next_frame
-        mock_film_strip.update_scroll_for_frame("test_animation", 2)
-        mock_film_strip.update_scroll_for_frame.assert_called_with("test_animation", 2)
+        mock_film_strip.update_scroll_for_frame('test_animation', 2)
+        mock_film_strip.update_scroll_for_frame.assert_called_with('test_animation', 2)
 
 
 class TestSelectionBoxColorMatching:
@@ -279,58 +279,58 @@ class TestSelectionBoxColorMatching:
         """Test that keyboard selection box is white."""
         # Mock keyboard selection
         keyboard_selection = {
-            "type": "keyboard",
-            "color": (255, 255, 255),  # White
-            "frame": 0,
+            'type': 'keyboard',
+            'color': (255, 255, 255),  # White
+            'frame': 0,
         }
 
         # The selection box should match the indicator color
         expected_box_color = (255, 255, 255)  # White
-        assert keyboard_selection["color"] == expected_box_color
+        assert keyboard_selection['color'] == expected_box_color
 
     def test_controller_selection_box_color(self):
         """Test that controller selection box matches controller color."""
         # Mock controller selections with different colors
         controller_selections = [
             {
-                "type": "controller_0",
-                "color": (255, 0, 0),  # Red
-                "frame": 0,
+                'type': 'controller_0',
+                'color': (255, 0, 0),  # Red
+                'frame': 0,
             },
             {
-                "type": "controller_1",
-                "color": (0, 255, 0),  # Green
-                "frame": 0,
+                'type': 'controller_1',
+                'color': (0, 255, 0),  # Green
+                'frame': 0,
             },
         ]
 
         # Each selection box should match its indicator color
         for selection in controller_selections:
-            expected_box_color = selection["color"]
-            assert selection["color"] == expected_box_color
+            expected_box_color = selection['color']
+            assert selection['color'] == expected_box_color
 
     def test_selection_box_color_priority(self):
         """Test that selection box color is determined by selection type."""
         # Mock mixed selections
         selections = [
             {
-                "type": "keyboard",
-                "color": (255, 255, 255),  # White
-                "frame": 0,
+                'type': 'keyboard',
+                'color': (255, 255, 255),  # White
+                'frame': 0,
             },
             {
-                "type": "controller_0",
-                "color": (255, 0, 0),  # Red
-                "frame": 0,
+                'type': 'controller_0',
+                'color': (255, 0, 0),  # Red
+                'frame': 0,
             },
         ]
 
         # Keyboard should have white box, controller should have red box
         for selection in selections:
-            if selection["type"] == "keyboard":
-                assert selection["color"] == (255, 255, 255)
-            elif selection["type"].startswith("controller"):
-                assert selection["color"] in {(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)}
+            if selection['type'] == 'keyboard':
+                assert selection['color'] == (255, 255, 255)
+            elif selection['type'].startswith('controller'):
+                assert selection['color'] in {(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)}
 
 
 class TestFilmStripScrolling:
@@ -345,15 +345,15 @@ class TestFilmStripScrolling:
         # Mock controller selection
         controller_selection = ControllerSelection(0, 0)
         controller_selection.activate()
-        controller_selection.set_selection("test_animation", 5)
+        controller_selection.set_selection('test_animation', 5)
 
         # Simulate frame navigation
         new_frame = 3
-        controller_selection.set_selection("test_animation", new_frame)
+        controller_selection.set_selection('test_animation', new_frame)
 
         # The film strip should be updated to scroll to the new frame
-        mock_film_strip.update_scroll_for_frame("test_animation", new_frame)
-        mock_film_strip.update_scroll_for_frame.assert_called_with("test_animation", new_frame)
+        mock_film_strip.update_scroll_for_frame('test_animation', new_frame)
+        mock_film_strip.update_scroll_for_frame.assert_called_with('test_animation', new_frame)
 
     def test_controller_animation_switching(self, mocker):
         """Test that switching animations triggers scrolling."""
@@ -364,21 +364,21 @@ class TestFilmStripScrolling:
         # Mock controller selection
         controller_selection = ControllerSelection(0, 0)
         controller_selection.activate()
-        controller_selection.set_selection("animation1", 2)
+        controller_selection.set_selection('animation1', 2)
 
         # Switch to different animation
-        controller_selection.set_selection("animation2", 1)
+        controller_selection.set_selection('animation2', 1)
 
         # Should trigger scrolling to new animation
-        mock_film_strip.update_scroll_for_frame("animation2", 1)
-        mock_film_strip.update_scroll_for_frame.assert_called_with("animation2", 1)
+        mock_film_strip.update_scroll_for_frame('animation2', 1)
+        mock_film_strip.update_scroll_for_frame.assert_called_with('animation2', 1)
 
     def test_multiple_controller_scrolling(self):
         """Test scrolling with multiple controllers."""
         # Use centralized mock factory for multiple film strips
         mock_film_strips = {
-            "animation1": MockFactory.create_optimized_scene_mock(),
-            "animation2": MockFactory.create_optimized_scene_mock(),
+            'animation1': MockFactory.create_optimized_scene_mock(),
+            'animation2': MockFactory.create_optimized_scene_mock(),
         }
 
         # Mock multiple controller selections
@@ -389,15 +389,15 @@ class TestFilmStripScrolling:
 
         for i, selection in enumerate(controller_selections):
             selection.activate()
-            selection.set_selection(f"animation{i + 1}", i)
+            selection.set_selection(f'animation{i + 1}', i)
 
         # Each controller should trigger scrolling for its animation
         for i, selection in enumerate(controller_selections):
-            animation = f"animation{i + 1}"
+            animation = f'animation{i + 1}'
             frame = i
             mock_film_strips[animation].update_scroll_for_frame(animation, frame)
             mock_film_strips[animation].update_scroll_for_frame.assert_called_with(animation, frame)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

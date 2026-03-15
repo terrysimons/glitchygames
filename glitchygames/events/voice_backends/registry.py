@@ -33,9 +33,9 @@ def get_microphone_backend() -> type[object] | None:
             _ = MiniaudioMicrophone()
             return MiniaudioMicrophone
         except (OSError, RuntimeError):
-            LOG.debug("MiniaudioMicrophone probe failed, trying next backend")
+            LOG.debug('MiniaudioMicrophone probe failed, trying next backend')
     except ImportError:
-        LOG.debug("voice_miniaudio module not available")
+        LOG.debug('voice_miniaudio module not available')
 
     # Fallback to PortAudio wrapper if speech_recognition is installed
     try:
@@ -45,8 +45,8 @@ def get_microphone_backend() -> type[object] | None:
             _ = PortAudioMicrophone()
             return PortAudioMicrophone
         except (OSError, RuntimeError):
-            LOG.debug("PortAudioMicrophone probe failed")
+            LOG.debug('PortAudioMicrophone probe failed')
     except ImportError:
-        LOG.debug("voice_portaudio module not available")
+        LOG.debug('voice_portaudio module not available')
 
     return None

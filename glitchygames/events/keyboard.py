@@ -10,9 +10,10 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+
 from glitchygames.events import KEYBOARD_EVENTS, KeyboardEvents, ResourceManager
 
-log = logging.getLogger("game.keyboard")
+log = logging.getLogger('game.keyboard')
 log.addHandler(logging.NullHandler())
 
 
@@ -49,7 +50,7 @@ class KeyboardEventManager(ResourceManager):
             # delete the key "unicode" so we can track
             # both sets of events.
             keyboard_key = event.dict.copy()
-            del keyboard_key["unicode"]
+            del keyboard_key['unicode']
 
             # This makes it possible to use
             # a dictionary as a key, which is
@@ -85,7 +86,7 @@ class KeyboardEventManager(ResourceManager):
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
             )
 
-            event["keys_down"] = keys_down
+            event['keys_down'] = keys_down
 
             self.game.on_key_chord_down_event(event, keys_down)
 
@@ -114,7 +115,7 @@ class KeyboardEventManager(ResourceManager):
         try:
             pygame.event.set_allowed(KEYBOARD_EVENTS)
         except pygame.error:
-            log.debug("Failed to set allowed keyboard events: pygame not fully initialized")
+            log.debug('Failed to set allowed keyboard events: pygame not fully initialized')
         self.proxies = [KeyboardEventManager.KeyboardEventProxy(game=game)]
 
     @classmethod
@@ -130,6 +131,6 @@ class KeyboardEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        _group = parser.add_argument_group("Keyboard Options")
+        _group = parser.add_argument_group('Keyboard Options')
 
         return parser

@@ -10,9 +10,10 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+
 from glitchygames.events import JOYSTICK_EVENTS, JoystickEvents, ResourceManager
 
-LOG = logging.getLogger("game.joysticks")
+LOG = logging.getLogger('game.joysticks')
 LOG.addHandler(logging.NullHandler())
 
 
@@ -49,7 +50,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             self._device_id = joystick_id
             try:
                 if instance_id is not None and hasattr(
-                    pygame.joystick.Joystick, "from_instance_id"
+                    pygame.joystick.Joystick, 'from_instance_id'
                 ):
                     self.joystick = pygame.joystick.Joystick.from_instance_id(self._id)
                 else:
@@ -241,16 +242,16 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             """
             joystick_info = [
-                f"Joystick Name: {self.get_name()}",
-                f"\tJoystick Id: {self._device_id}",
-                f"\tJoystick Inited: {self.get_init()}",
-                f"\tJoystick Axis Count: {self.get_numaxes()}",
-                f"\tJoystick Trackball Count: {self.get_numballs()}",
-                f"\tJoystick Button Count: {self.get_numbuttons()}",
-                f"\tJoystick Hat Count: {self.get_numhats()}",
+                f'Joystick Name: {self.get_name()}',
+                f'\tJoystick Id: {self._device_id}',
+                f'\tJoystick Inited: {self.get_init()}',
+                f'\tJoystick Axis Count: {self.get_numaxes()}',
+                f'\tJoystick Trackball Count: {self.get_numballs()}',
+                f'\tJoystick Button Count: {self.get_numbuttons()}',
+                f'\tJoystick Hat Count: {self.get_numhats()}',
             ]
 
-            return "\n".join(joystick_info)
+            return '\n'.join(joystick_info)
 
         def __repr__(self: Self) -> str:
             """Get the joystick representation.
@@ -272,7 +273,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         try:
             pygame.event.set_allowed(JOYSTICK_EVENTS)
         except pygame.error:
-            LOG.debug("Failed to set allowed joystick events: pygame not fully initialized")
+            LOG.debug('Failed to set allowed joystick events: pygame not fully initialized')
         self.joysticks = {}
         self.game = game
 
@@ -280,11 +281,11 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         # and is safe to call more than once.
         pygame.joystick.init()
 
-        self.log.info(f"Joystick Module Inited: {pygame.joystick.get_init()}")
-        self.log.debug(f"JoystickEventManager init id(self)={id(self)}")
+        self.log.info(f'Joystick Module Inited: {pygame.joystick.get_init()}')
+        self.log.debug(f'JoystickEventManager init id(self)={id(self)}')
 
         # Joystick Setup
-        self.log.info(f"Joystick Count: {pygame.joystick.get_count()}")
+        self.log.info(f'Joystick Count: {pygame.joystick.get_count()}')
         joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
 
         for pygame_joystick_index, joystick in enumerate(joysticks):
@@ -292,28 +293,28 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             # Deep debug: capture both index and instance identity at init time
             try:
-                idx_get_id = joystick.get_id() if hasattr(joystick, "get_id") else None
+                idx_get_id = joystick.get_id() if hasattr(joystick, 'get_id') else None
             except pygame.error:
                 idx_get_id = None
             try:
                 idx_instance = (
-                    joystick.get_instance_id() if hasattr(joystick, "get_instance_id") else None
+                    joystick.get_instance_id() if hasattr(joystick, 'get_instance_id') else None
                 )
             except pygame.error:
                 idx_instance = None
             try:
-                idx_name = joystick.get_name() if hasattr(joystick, "get_name") else None
+                idx_name = joystick.get_name() if hasattr(joystick, 'get_name') else None
             except pygame.error:
                 idx_name = None
             try:
-                idx_guid = joystick.get_guid() if hasattr(joystick, "get_guid") else None
+                idx_guid = joystick.get_guid() if hasattr(joystick, 'get_guid') else None
             except pygame.error:
                 idx_guid = None
             self.log.debug(
-                f"INIT MAP index={pygame_joystick_index}"
-                f" get_id={idx_get_id}"
-                f" instance_id={idx_instance}"
-                f" name={idx_name} guid={idx_guid}"
+                f'INIT MAP index={pygame_joystick_index}'
+                f' get_id={idx_get_id}'
+                f' instance_id={idx_instance}'
+                f' name={idx_name} guid={idx_guid}'
             )
 
             # Use stable instance_id as the key when available
@@ -326,7 +327,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             )
             self.joysticks[instance_id] = joystick_proxy
             # The joystick proxy overrides the joystick object
-            self.log.info(f"Added Joystick: {joystick_proxy}")
+            self.log.info(f'Added Joystick: {joystick_proxy}')
 
         self.proxies = [self.game]
 
@@ -343,7 +344,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             argparse.ArgumentParser
 
         """
-        _group = parser.add_argument_group("Joystick Options")
+        _group = parser.add_argument_group('Joystick Options')
 
         return parser
 
@@ -365,7 +366,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f"JOYAXISMOTION triggered: on_joy_axis_motion_event({event})")
+        self.log.debug(f'JOYAXISMOTION triggered: on_joy_axis_motion_event({event})')
         self.joysticks[joystick_id].on_joy_axis_motion_event(event)
 
     def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
@@ -381,7 +382,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f"JOYBUTTONDOWN triggered: on_joy_button_down_event({event})")
+        self.log.debug(f'JOYBUTTONDOWN triggered: on_joy_button_down_event({event})')
         self.joysticks[joystick_id].on_joy_button_down_event(event)
 
     def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
@@ -397,7 +398,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f"JOYBUTTONUP triggered: on_joy_button_up_event({event})")
+        self.log.debug(f'JOYBUTTONUP triggered: on_joy_button_up_event({event})')
         self.joysticks[joystick_id].on_joy_button_up_event(event)
 
     def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
@@ -413,7 +414,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f"JOYHATMOTION triggered: on_joy_hat_motion_event({event})")
+        self.log.debug(f'JOYHATMOTION triggered: on_joy_hat_motion_event({event})')
         self.joysticks[joystick_id].on_joy_hat_motion_event(event)
 
     def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
@@ -429,7 +430,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         except AttributeError:
             joystick_id = event.joy
 
-        self.log.debug(f"JOYBALLMOTION triggered: on_joy_ball_motion_event({event})")
+        self.log.debug(f'JOYBALLMOTION triggered: on_joy_ball_motion_event({event})')
         self.joysticks[joystick_id].on_joy_ball_motion_event(event)
 
     def on_joy_device_added_event(self: Self, event: pygame.event.Event) -> None:
@@ -442,13 +443,13 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
         # JOYDEVICEADDED device_index, guid
 
         # Deep debug: inspect the joystick reported at this device_index
-        added_idx = getattr(event, "device_index", None)
-        self.log.debug(f"on_joy_device_added_event id(self)={id(self)} device_index={added_idx}")
+        added_idx = getattr(event, 'device_index', None)
+        self.log.debug(f'on_joy_device_added_event id(self)={id(self)} device_index={added_idx}')
         js = None
         try:
             js = pygame.joystick.Joystick(added_idx)
         except pygame.error as e:
-            self.log.debug(f"DEVICEADDED could not open Joystick({added_idx}): {e}")
+            self.log.debug(f'DEVICEADDED could not open Joystick({added_idx}): {e}')
         if js is not None:
             try:
                 js_name = js.get_name()
@@ -467,10 +468,10 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             except pygame.error:
                 js_instance = None
             self.log.debug(
-                f"DEVICEADDED index={added_idx}"
-                f" get_id={js_get_id}"
-                f" instance_id={js_instance}"
-                f" name={js_name} guid={js_guid}"
+                f'DEVICEADDED index={added_idx}'
+                f' get_id={js_get_id}'
+                f' instance_id={js_instance}'
+                f' name={js_name} guid={js_guid}'
             )
 
         # Determine stable instance_id for the new device
@@ -479,41 +480,41 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
             js_inst.init()
             instance_id = (
                 js_inst.get_instance_id()
-                if hasattr(js_inst, "get_instance_id")
+                if hasattr(js_inst, 'get_instance_id')
                 else event.device_index
             )
         except pygame.error:
             LOG.debug(
-                "Failed to get instance_id for device_index=%s, using device_index as key",
+                'Failed to get instance_id for device_index=%s, using device_index as key',
                 event.device_index,
             )
             instance_id = event.device_index
 
         # Check if already tracked
         if instance_id in self.joysticks:
-            self.log.debug(f"Instance #{instance_id} already exists, skipping duplicate creation")
+            self.log.debug(f'Instance #{instance_id} already exists, skipping duplicate creation')
             return
 
         joystick_proxy = JoystickEventManager.JoystickEventProxy(
             joystick_id=event.device_index, instance_id=instance_id, game=self.game
         )
         self.log.debug(
-            f"Created JoystickProxy with"
-            f" device_index={event.device_index},"
-            f" instance_id={instance_id},"
-            f" _device_id={joystick_proxy._device_id}"
+            f'Created JoystickProxy with'
+            f' device_index={event.device_index},'
+            f' instance_id={instance_id},'
+            f' _device_id={joystick_proxy._device_id}'
         )
         self.joysticks[instance_id] = joystick_proxy
 
         # The joystick proxy overrides the joystick object
-        self.log.debug(f"Added Joystick #{event.device_index}: {joystick_proxy}")
-        self.log.debug(f"JOYDEVICEADDED triggered: on_joy_device_added({event})")
+        self.log.debug(f'Added Joystick #{event.device_index}: {joystick_proxy}')
+        self.log.debug(f'JOYDEVICEADDED triggered: on_joy_device_added({event})')
 
         # Need to notify the game after the joystick exists, using stable instance_id
         if instance_id in self.joysticks:
             self.joysticks[instance_id].on_joy_device_added_event(event)
         # Fallback safety: if instance_id could not be derived, try device_index
-        elif hasattr(event, "device_index") and event.device_index in self.joysticks:
+        elif hasattr(event, 'device_index') and event.device_index in self.joysticks:
             self.joysticks[event.device_index].on_joy_device_added_event(event)
 
     def on_joy_device_removed_event(self: Self, event: pygame.event.Event) -> None:
@@ -524,8 +525,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
         """
         # JOYDEVICEREMOVED instance_id
-        self.log.debug(f"Removed Joystick #{event.instance_id}")
-        self.log.debug(f"JOYDEVICEREMOVED triggered: on_joy_device_removed({event})")
+        self.log.debug(f'Removed Joystick #{event.instance_id}')
+        self.log.debug(f'JOYDEVICEREMOVED triggered: on_joy_device_removed({event})')
 
         # Need to notify the game first.
         if event.instance_id in self.joysticks:

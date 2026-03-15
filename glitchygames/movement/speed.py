@@ -151,7 +151,7 @@ class Speed:
         """
         if isinstance(other, (int, float)):
             if other == 0:
-                raise ZeroDivisionError("Cannot divide Speed by zero")
+                raise ZeroDivisionError('Cannot divide Speed by zero')
             return Speed(self.x / other, self.y / other, self.increment)
         return NotImplemented
 
@@ -170,7 +170,7 @@ class Speed:
         """
         if isinstance(other, (int, float)):
             if other == 0:
-                raise ZeroDivisionError("Cannot modulo Speed by zero")
+                raise ZeroDivisionError('Cannot modulo Speed by zero')
             return Speed(self.x % other, self.y % other, self.increment)
         return NotImplemented
 

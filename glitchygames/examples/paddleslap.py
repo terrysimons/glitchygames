@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickEventManager
@@ -30,7 +31,7 @@ from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
 
-log = logging.getLogger("game")
+log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)  # Enable debug logging to catch weird ball movement
 
 # Threshold below which speed changes are considered noise
@@ -190,15 +191,15 @@ class TextSprite(Sprite):
         self.image.fill(self.background_color)
 
         self.text_box.reset()
-        self.text_box.print_text(self.image, f"{Game.NAME} version {Game.VERSION}")
+        self.text_box.print_text(self.image, f'{Game.NAME} version {Game.VERSION}')
 
 
 class Game(Scene):
     """The main game class.  This is where the magic happens."""
 
     # Set your game name/version here.
-    NAME = "Paddle Slap"
-    VERSION = "1.1"
+    NAME = 'Paddle Slap'
+    VERSION = '1.1'
 
     def __init__(
         self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
@@ -220,11 +221,11 @@ class Game(Scene):
         # Set random seed for reproducible randomness
         seed = int(time.perf_counter() * 1000000) % 2**32
         random.seed(seed)
-        log.info(f"Random seed set to: {seed}")
+        log.info(f'Random seed set to: {seed}')
 
         v_center = self.screen_height / 2
         self.player1 = VerticalPaddle(
-            "Player 1",
+            'Player 1',
             (20, 100),  # Smaller paddle - 100 pixels tall
             (0, v_center - 50),  # Center vertically
             WHITE,
@@ -232,7 +233,7 @@ class Game(Scene):
             collision_sound=SFX.SLAP,
         )
         self.player2 = VerticalPaddle(
-            "Player 2",
+            'Player 2',
             (20, 100),  # Smaller paddle - 100 pixels tall
             (self.screen_width - 20, v_center - 50),  # Center vertically
             WHITE,
@@ -247,22 +248,22 @@ class Game(Scene):
         # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
         self._ball_collision_cooldowns: dict[tuple[int, int], int] = {}
         # Convert string argument to BallSpawnMode flag
-        spawn_mode_str = self.options.get("ball_spawn_mode", "paddle_only")
-        if spawn_mode_str == "paddle_only":
+        spawn_mode_str = self.options.get('ball_spawn_mode', 'paddle_only')
+        if spawn_mode_str == 'paddle_only':
             self.ball_spawn_mode = BallSpawnMode.PADDLE_ONLY
-        elif spawn_mode_str == "wall_only":
+        elif spawn_mode_str == 'wall_only':
             self.ball_spawn_mode = BallSpawnMode.WALL_ONLY
-        elif spawn_mode_str == "ball_only":
+        elif spawn_mode_str == 'ball_only':
             self.ball_spawn_mode = BallSpawnMode.BALL_ONLY
-        elif spawn_mode_str == "frequent":
+        elif spawn_mode_str == 'frequent':
             self.ball_spawn_mode = BallSpawnMode.FREQUENT_SPAWNING
-        elif spawn_mode_str == "rare":
+        elif spawn_mode_str == 'rare':
             self.ball_spawn_mode = BallSpawnMode.PADDLE_ONLY | BallSpawnMode.RARE
-        elif spawn_mode_str == "none":
+        elif spawn_mode_str == 'none':
             self.ball_spawn_mode = BallSpawnMode.NO_SPAWNING
         else:
             self.ball_spawn_mode = BallSpawnMode.PADDLE_ONLY
-        for _ in range(self.options.get("balls", 1)):
+        for _ in range(self.options.get('balls', 1)):
             ball = BallSprite(
                 collision_sound=SFX.BOUNCE,
                 bounce_top_bottom=True,  # Bounce off top and bottom walls
@@ -300,19 +301,19 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            "-v", "--version", action="store_true", help="print the game version and exit"
+            '-v', '--version', action='store_true', help='print the game version and exit'
         )
 
         parser.add_argument(
-            "-b", "--balls", type=int, help="the number of balls to start with", default=1
+            '-b', '--balls', type=int, help='the number of balls to start with', default=1
         )
 
         parser.add_argument(
-            "--ball-spawn-mode",
+            '--ball-spawn-mode',
             type=str,
-            help="ball spawn mode (paddle_only, wall_only, ball_only, frequent, rare, none)",
-            default="paddle_only",
-            choices=["paddle_only", "wall_only", "ball_only", "frequent", "rare", "none"],
+            help='ball spawn mode (paddle_only, wall_only, ball_only, frequent, rare, none)',
+            default='paddle_only',
+            choices=['paddle_only', 'wall_only', 'ball_only', 'frequent', 'rare', 'none'],
         )
 
     def setup(self: Self) -> None:
@@ -341,7 +342,7 @@ class Game(Scene):
         for i, ball in enumerate(self.balls):
             if ball.alive():
                 # Track trajectory over time to detect curving
-                if not hasattr(ball, "_debug_positions"):
+                if not hasattr(ball, '_debug_positions'):
                     ball._debug_positions = []
 
                 ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))
@@ -359,15 +360,15 @@ class Game(Scene):
                         y_trend = y_positions[-1] - y_positions[0]
                         if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
                             log.debug(
-                                f"BALL {i + 1} UPWARD CURVE DETECTED: "
-                                f"y_trend={y_trend:.1f} positions={y_positions[-3:]} "
-                                f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f})"
+                                f'BALL {i + 1} UPWARD CURVE DETECTED: '
+                                f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
+                                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
                             )
 
                 log.debug(
-                    f"BALL {i + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
-                    f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) "
-                    f"magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}"
+                    f'BALL {i + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+                    f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
                 )
 
         for sprite in self.all_sprites:
@@ -377,9 +378,9 @@ class Game(Scene):
         for i, ball in enumerate(self.balls):
             if ball.alive():
                 log.debug(
-                    f"BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
-                    f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) "
-                    f"magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}"
+                    f'BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+                    f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
                 )
 
     def update(self: Self) -> None:
@@ -395,16 +396,16 @@ class Game(Scene):
 
             # Debug log ball state before collision checks
             log.debug(
-                f"BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) "
-                f"speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) "
-                f"paddle1_rect=({self.player1.rect.x},"
-                f"{self.player1.rect.y},"
-                f"{self.player1.rect.width},"
-                f"{self.player1.rect.height}) "
-                f"paddle2_rect=({self.player2.rect.x},"
-                f"{self.player2.rect.y},"
-                f"{self.player2.rect.width},"
-                f"{self.player2.rect.height})"
+                f'BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                f'paddle1_rect=({self.player1.rect.x},'
+                f'{self.player1.rect.y},'
+                f'{self.player1.rect.width},'
+                f'{self.player1.rect.height}) '
+                f'paddle2_rect=({self.player2.rect.x},'
+                f'{self.player2.rect.y},'
+                f'{self.player2.rect.width},'
+                f'{self.player2.rect.height})'
             )
 
             # Paddle collision handling is now done in BallSprite._check_paddle_collisions()
@@ -548,9 +549,9 @@ class Game(Scene):
             cooldown = self._get_spawn_cooldown()
             if current_time - self.last_ball_spawn_time < cooldown:
                 log.debug(
-                    f"Ball spawn cooldown active "
-                    f"({current_time - self.last_ball_spawn_time:.1f}s"
-                    f" < {cooldown}s), not spawning"
+                    f'Ball spawn cooldown active '
+                    f'({current_time - self.last_ball_spawn_time:.1f}s'
+                    f' < {cooldown}s), not spawning'
                 )
                 return
 
@@ -559,7 +560,7 @@ class Game(Scene):
             speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
             max_reasonable_speed = 1000.0  # 1000 pixels per second
             if speed_magnitude > max_reasonable_speed:
-                log.debug(f"Ball speed too high ({speed_magnitude:.1f}), not spawning new ball")
+                log.debug(f'Ball speed too high ({speed_magnitude:.1f}), not spawning new ball')
                 return
 
         # Spawn conditions met, spawn a new ball
@@ -615,7 +616,7 @@ class Game(Scene):
                     continue
 
                 # Play collision sound
-                if hasattr(ball1, "snd") and ball1.snd is not None:
+                if hasattr(ball1, 'snd') and ball1.snd is not None:
                     ball1.snd.play()
 
                 # Collision normal (unit vector from ball1 center to ball2 center)
@@ -683,8 +684,8 @@ class Game(Scene):
         ball2_speed_before = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
 
         log.debug(
-            f"BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, "
-            f"ball2 speed before={ball2_speed_before:.2f}"
+            f'BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, '
+            f'ball2 speed before={ball2_speed_before:.2f}'
         )
 
         # Decompose velocities into normal and tangential components
@@ -712,10 +713,10 @@ class Game(Scene):
         ball2_speed_after = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
 
         log.debug(
-            f"BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, "
-            f"ball2 speed after={ball2_speed_after:.2f}, "
-            f"energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, "
-            f"energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}"
+            f'BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, '
+            f'ball2 speed after={ball2_speed_after:.2f}, '
+            f'energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, '
+            f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}'
         )
 
     @staticmethod
@@ -774,7 +775,7 @@ class Game(Scene):
             player = self.player1 if event.instance_id == 0 else self.player2
             player.stop()
 
-        self.log.info(f"GOT on_controller_button_down_event: {event}")
+        self.log.info(f'GOT on_controller_button_down_event: {event}')
 
     def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller button up events.
@@ -789,7 +790,7 @@ class Game(Scene):
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
             player.down()
 
-        self.log.info(f"GOT on_controller_button_up_event: {event}")
+        self.log.info(f'GOT on_controller_button_up_event: {event}')
 
     def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
         """Handle controller axis motion events.
@@ -806,7 +807,7 @@ class Game(Scene):
                 player.stop()
             if event.value > 0:
                 player.down()
-            self.log.info(f"GOT on_controller_axis_motion_event: {event}")
+            self.log.info(f'GOT on_controller_axis_motion_event: {event}')
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events.
@@ -821,22 +822,22 @@ class Game(Scene):
             self._space_pressed = True
         elif event.key == pygame.K_w:
             log.debug(
-                f"PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}"
+                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}'
             )
             self.player1.up()
         elif event.key == pygame.K_s:
             log.debug(
-                f"PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}"
+                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}'
             )
             self.player1.down()
         elif event.key == pygame.K_UP:
             log.debug(
-                f"PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}"
+                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}'
             )
             self.player2.up()
         elif event.key == pygame.K_DOWN:
             log.debug(
-                f"PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}"
+                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}'
             )
             self.player2.down()
 
@@ -861,5 +862,5 @@ def main() -> None:
     GameEngine(game=Game).start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

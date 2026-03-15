@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -34,7 +33,7 @@ class TestBallLinearSpeedUp:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Apply linear speed-up
-        ball.speed_up(multiplier=1.5, speed_up_type="linear")
+        ball.speed_up(multiplier=1.5, speed_up_type='linear')
 
         # Check that direction is preserved
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
@@ -122,7 +121,7 @@ class TestBallLinearSpeedUp:
 
         # Apply speed-up multiple times
         for i in range(3):
-            ball.speed_up(multiplier=1.2, speed_up_type="linear")
+            ball.speed_up(multiplier=1.2, speed_up_type='linear')
 
         # Check final magnitude
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
@@ -137,7 +136,7 @@ class TestBallLinearSpeedUp:
         ball.speed = Speed(0.0, 0.0)
 
         # Apply linear speed-up
-        ball.speed_up(multiplier=1.5, speed_up_type="linear")
+        ball.speed_up(multiplier=1.5, speed_up_type='linear')
 
         # Should remain zero
         assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)
@@ -160,10 +159,10 @@ class TestBallLinearSpeedUp:
             initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
             # Apply linear speed-up
-            ball.speed_up(multiplier=1.5, speed_up_type="linear")
+            ball.speed_up(multiplier=1.5, speed_up_type='linear')
 
             # Check direction preservation
             new_direction = math.atan2(ball.speed.y, ball.speed.x)
             assert initial_direction == pytest.approx(new_direction, abs=1e-12), (
-                f"Direction not preserved for angle {angle_degrees} degrees"
+                f'Direction not preserved for angle {angle_degrees} degrees'
             )

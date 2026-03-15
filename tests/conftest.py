@@ -12,7 +12,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from glitchygames.events import ResourceManager  # noqa: I001
+from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import (
@@ -42,7 +42,7 @@ def setup_conditional_pygame_mocks(request, mocker):
     """
     # Check if this is a scene test or game objects test that needs mocks
     test_file = str(request.node.fspath)
-    needs_mocks = "scene" in test_file.lower() or "game_objects" in test_file.lower()
+    needs_mocks = 'scene' in test_file.lower() or 'game_objects' in test_file.lower()
 
     if needs_mocks:
         # Ensure pygame is properly initialized for mocks
@@ -82,7 +82,7 @@ def _reset_all_singleton_instances():
     for singleton_base in (Singleton, SingletonBitmappySprite, FocusableSingletonBitmappySprite):
         singleton_base.__instance__ = None
         for subclass in singleton_base.__subclasses__():
-            if hasattr(subclass, "__instance__"):
+            if hasattr(subclass, '__instance__'):
                 subclass.__instance__ = None
 
 
@@ -104,15 +104,15 @@ def mock_game_args(mocker):
     """
     mock_args = mocker.Mock()
     mock_args.fps = 60
-    mock_args.resolution = "800x600"  # String format expected by GameEngine
+    mock_args.resolution = '800x600'  # String format expected by GameEngine
     mock_args.windowed = True
     mock_args.use_gfxdraw = False
-    mock_args.update_type = "update"
+    mock_args.update_type = 'update'
     mock_args.fps_refresh_rate = 1
     mock_args.profile = False
     mock_args.test_flag = False
     mock_args.unknown_args = []
-    mock_args.log_level = "INFO"  # Add missing log_level attribute
+    mock_args.log_level = 'INFO'  # Add missing log_level attribute
     return mock_args
 
 
@@ -151,15 +151,15 @@ def mock_game(mocker):
     class MockGame(Scene):
         """Simple mock game scene for testing."""
 
-        NAME = "MockGame"
-        VERSION = "1.0"
+        NAME = 'MockGame'
+        VERSION = '1.0'
 
         def __init__(self, options=None, groups=None):
             if options is None:
                 options = {
-                    "debug_events": False,
+                    'debug_events': False,
                     # Enable globally to catch unhandled events as bugs
-                    "no_unhandled_events": True,
+                    'no_unhandled_events': True,
                 }
             if groups is None:
                 groups = mocker.Mock()  # Mock pygame.sprite.Group
@@ -176,7 +176,7 @@ def mock_game(mocker):
                 object: The result.
 
             """
-            parser.add_argument("--test-flag", action="store_true", help="Test flag")
+            parser.add_argument('--test-flag', action='store_true', help='Test flag')
             return parser
 
         def update(self):
@@ -205,7 +205,7 @@ def mock_game_with_args(mock_game):
                 object: The result.
 
             """
-            parser.add_argument("--test-flag", action="store_true", help="Test flag")
+            parser.add_argument('--test-flag', action='store_true', help='Test flag')
             return parser
 
     return MockGameWithArgs
@@ -242,15 +242,15 @@ def mock_managers(mocker):
 
     """
     return {
-        "joystick_manager": mocker.Mock(),
-        "font_manager": mocker.Mock(),
-        "game_manager": mocker.Mock(),
-        "keyboard_manager": mocker.Mock(),
-        "midi_manager": mocker.Mock(),
-        "mouse_manager": mocker.Mock(),
-        "window_manager": mocker.Mock(),
-        "audio_manager": mocker.Mock(),
-        "controller_manager": mocker.Mock(),
-        "drop_manager": mocker.Mock(),
-        "touch_manager": mocker.Mock(),
+        'joystick_manager': mocker.Mock(),
+        'font_manager': mocker.Mock(),
+        'game_manager': mocker.Mock(),
+        'keyboard_manager': mocker.Mock(),
+        'midi_manager': mocker.Mock(),
+        'mouse_manager': mocker.Mock(),
+        'window_manager': mocker.Mock(),
+        'audio_manager': mocker.Mock(),
+        'controller_manager': mocker.Mock(),
+        'drop_manager': mocker.Mock(),
+        'touch_manager': mocker.Mock(),
     }

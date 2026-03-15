@@ -15,9 +15,10 @@ if TYPE_CHECKING:
     import pygame
 
 import pygame
+
 from glitchygames.events import DROP_EVENTS, DropEvents, ResourceManager
 
-log = logging.getLogger("game.events.drop_events")
+log = logging.getLogger('game.events.drop_events')
 log.addHandler(logging.NullHandler())
 
 
@@ -86,7 +87,7 @@ class DropEventManager(ResourceManager):
             The argument parser.
 
         """
-        _group = parser.add_argument_group("Drop Options")
+        _group = parser.add_argument_group('Drop Options')
 
         return parser
 
@@ -101,6 +102,6 @@ class DropEventManager(ResourceManager):
         try:
             pygame.event.set_allowed(DROP_EVENTS)
         except pygame.error:
-            log.debug("Failed to set allowed drop events: pygame not fully initialized")
+            log.debug('Failed to set allowed drop events: pygame not fully initialized')
 
         self.proxies = [DropEventManager.DropEventProxy(game=game)]

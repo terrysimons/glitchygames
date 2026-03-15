@@ -14,15 +14,15 @@ from glitchygames.tools import bitmappy
 class TestBitmappyFunctionality:
     """Test bitmappy module functionality."""
 
-    @pytest.mark.skip(reason="Not yet implemented")
+    @pytest.mark.skip(reason='Not yet implemented')
     def test_bitmappy_classes_exist(self, mock_pygame_patches):
         """Test that bitmappy classes exist."""
         # Test that main classes are available
-        assert hasattr(bitmappy, "BitmapPixelSprite")
-        assert hasattr(bitmappy, "FilmStripSprite")
-        assert hasattr(bitmappy, "AnimatedCanvasSprite")
-        assert hasattr(bitmappy, "MiniView")
-        assert hasattr(bitmappy, "BitmapEditorScene")
+        assert hasattr(bitmappy, 'BitmapPixelSprite')
+        assert hasattr(bitmappy, 'FilmStripSprite')
+        assert hasattr(bitmappy, 'AnimatedCanvasSprite')
+        assert hasattr(bitmappy, 'MiniView')
+        assert hasattr(bitmappy, 'BitmapEditorScene')
 
         # Test that classes are callable
         assert callable(bitmappy.BitmapPixelSprite)
@@ -39,24 +39,24 @@ class TestBitmappyFunctionality:
 
         """
         # Test that exception classes exist
-        assert hasattr(bitmappy, "GGUnhandledMenuItemError")
+        assert hasattr(bitmappy, 'GGUnhandledMenuItemError')
         assert callable(bitmappy.GGUnhandledMenuItemError)
 
         # Test exception can be raised
         with pytest.raises(bitmappy.GGUnhandledMenuItemError):
-            raise bitmappy.GGUnhandledMenuItemError("Test error")
+            raise bitmappy.GGUnhandledMenuItemError('Test error')
 
     def test_bitmappy_ai_classes(self, mock_pygame_patches):
         """Test bitmappy AI classes."""
         # Test that AI classes exist
-        assert hasattr(bitmappy, "AIRequest")
-        assert hasattr(bitmappy, "AIResponse")
+        assert hasattr(bitmappy, 'AIRequest')
+        assert hasattr(bitmappy, 'AIResponse')
 
         # Test that classes are callable
         assert callable(bitmappy.AIRequest)
         assert callable(bitmappy.AIResponse)
 
-    @pytest.mark.skip(reason="Not yet implemented")
+    @pytest.mark.skip(reason='Not yet implemented')
     def test_bitmappy_sprite_inheritance(self, mock_pygame_patches):
         """Test bitmappy sprite inheritance."""
         # Test that sprite classes exist and are callable
@@ -73,13 +73,13 @@ class TestBitmappyFunctionality:
     def test_bitmappy_module_imports(self, mock_pygame_patches):
         """Test bitmappy module imports."""
         # Test that bitmappy module exists and has expected attributes
-        assert hasattr(bitmappy, "__file__")
-        assert hasattr(bitmappy, "__name__")
-        assert bitmappy.__name__ == "glitchygames.tools.bitmappy"
+        assert hasattr(bitmappy, '__file__')
+        assert hasattr(bitmappy, '__name__')
+        assert bitmappy.__name__ == 'glitchygames.tools.bitmappy'
 
     def test_bitmappy_module_structure(self, mock_pygame_patches):
         """Test bitmappy module structure."""
         # Test that module has expected attributes
-        assert hasattr(bitmappy, "__file__")
-        assert hasattr(bitmappy, "__name__")
-        assert bitmappy.__name__ == "glitchygames.tools.bitmappy"
+        assert hasattr(bitmappy, '__file__')
+        assert hasattr(bitmappy, '__name__')
+        assert bitmappy.__name__ == 'glitchygames.tools.bitmappy'

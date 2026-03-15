@@ -3,6 +3,6 @@
 from glitchygames.interfaces.game import SceneInterface, SpriteInterface
 
 __all__ = [
-    "SceneInterface",
-    "SpriteInterface",
+    'SceneInterface',
+    'SpriteInterface',
 ]

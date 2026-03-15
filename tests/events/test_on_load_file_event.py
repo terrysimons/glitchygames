@@ -16,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
-
 from mocks.test_mock_factory import MockFactory, create_10x10_sprite_mock
 
 
@@ -38,7 +37,7 @@ class TestOnLoadFileEvent:
         # Create a test animated canvas
         self.canvas = AnimatedCanvasSprite(
             animated_sprite=self.animated_sprite,
-            name="Test Animated Canvas",
+            name='Test Animated Canvas',
             x=0,
             y=0,
             pixels_across=8,
@@ -48,7 +47,7 @@ class TestOnLoadFileEvent:
         )
 
         # Create a test scene with canvas using centralized mocks
-        test_options = {"size": "8x8"}
+        test_options = {'size': '8x8'}
         self.scene = BitmapEditorScene(options=test_options)
         self.scene.canvas = self.canvas
         # Use centralized mock for sprite group
@@ -68,14 +67,14 @@ class TestOnLoadFileEvent:
         """
         # Use centralized mock factory to create animated sprite
         animated_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name="idle",
+            animation_name='idle',
             frame_size=(8, 8),
             pixel_color=(255, 0, 0),  # Red base color
             current_frame=0,
         )
 
         # Set up frame manager
-        animated_sprite.frame_manager.current_animation = "idle"
+        animated_sprite.frame_manager.current_animation = 'idle'
         animated_sprite.frame_manager.current_frame = 0
         animated_sprite._frame_interval = 0.5
         animated_sprite._is_looping = True
@@ -91,7 +90,7 @@ class TestOnLoadFileEvent:
 
         """
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             f.write(content)
             return f.name
@@ -119,15 +118,15 @@ class TestOnLoadFileEvent:
             str: The first animation name.
 
         """
-        if not hasattr(sprite, "_animations") or not sprite._animations:
-            return ""
+        if not hasattr(sprite, '_animations') or not sprite._animations:
+            return ''
 
         # First try to find "idle" animation
-        if "idle" in sprite._animations:
-            return "idle"
+        if 'idle' in sprite._animations:
+            return 'idle'
 
         # Use the first animation as it appears in the file order
-        if hasattr(sprite, "_animation_order") and sprite._animation_order:
+        if hasattr(sprite, '_animation_order') and sprite._animation_order:
             return sprite._animation_order[0]
 
         # Fall back to the first key in _animations
@@ -190,11 +189,11 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the detect_file_format function
-            mock_detect = mocker.patch("glitchygames.tools.bitmappy.detect_file_format")
-            mock_detect.return_value = "toml"
+            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
-            mock_load = mocker.patch.object(AnimatedSprite, "load")
+            mock_load = mocker.patch.object(AnimatedSprite, 'load')
             # Create a mock loaded sprite
             _ = self._create_test_animated_sprite()
             mock_load.return_value = None
@@ -215,15 +214,15 @@ pixels = \"\"\"
     def test_load_file_not_found(self, mocker):
         """Test handling of file not found error."""
         # Create mock event with non-existent file
-        event = self._create_mock_event("nonexistent.toml")
+        event = self._create_mock_event('nonexistent.toml')
 
         # Mock the _load_sprite_from_file method to raise FileNotFoundError
-        mock_load = mocker.patch.object(self.scene.canvas, "_load_sprite_from_file")
-        mock_load.side_effect = FileNotFoundError("File not found")
+        mock_load = mocker.patch.object(self.scene.canvas, '_load_sprite_from_file')
+        mock_load.side_effect = FileNotFoundError('File not found')
 
         # Use pytest logger wrapper to suppress logs during successful runs
         # Mock the instance logger instead of the module logger
-        mock_log = mocker.patch.object(self.scene.canvas, "log")
+        mock_log = mocker.patch.object(self.scene.canvas, 'log')
         # Call the method - it should handle the exception gracefully
         self.scene.canvas.on_load_file_event(event)
 
@@ -234,20 +233,20 @@ pixels = \"\"\"
         mock_log.exception.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.exception.call_args[0][0]
-        assert "File not found" in call_args
+        assert 'File not found' in call_args
 
     def test_load_invalid_file_format(self, mocker):
         """Test handling of invalid file format."""
         # Create mock event
-        event = self._create_mock_event("invalid.txt")
+        event = self._create_mock_event('invalid.txt')
 
         # Mock the _load_sprite_from_file method to raise ValueError
-        mock_load = mocker.patch.object(self.scene.canvas, "_load_sprite_from_file")
-        mock_load.side_effect = ValueError("Invalid file format")
+        mock_load = mocker.patch.object(self.scene.canvas, '_load_sprite_from_file')
+        mock_load.side_effect = ValueError('Invalid file format')
 
         # Use pytest logger wrapper to suppress logs during successful runs
         # Mock the instance logger instead of the module logger
-        mock_log = mocker.patch.object(self.scene.canvas, "log")
+        mock_log = mocker.patch.object(self.scene.canvas, 'log')
         # Call the method
         self.scene.canvas.on_load_file_event(event)
 
@@ -257,7 +256,7 @@ pixels = \"\"\"
         assert mock_log.exception.call_count >= 1
         # Check that at least one log message contains the expected content
         all_calls = [call[0][0] for call in mock_log.exception.call_args_list]
-        assert any("Error in on_load_file_event for animated sprite" in call for call in all_calls)
+        assert any('Error in on_load_file_event for animated sprite' in call for call in all_calls)
 
     def test_canvas_resize_on_different_dimensions(self, mocker):
         """Test that canvas resizes when sprite has different dimensions."""
@@ -299,21 +298,21 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process
-            mock_detect = mocker.patch("glitchygames.tools.bitmappy.detect_file_format")
-            mock_detect.return_value = "toml"
+            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect.return_value = 'toml'
 
             # Create a mock loaded sprite with different dimensions using the factory
-            mock_loaded_sprite = create_10x10_sprite_mock(animation_name="idle")
+            mock_loaded_sprite = create_10x10_sprite_mock(animation_name='idle')
 
             # Mock the entire loading process by patching the method that loads the sprite
-            mock_load = mocker.patch.object(self.scene.canvas, "_load_sprite_from_file")
+            mock_load = mocker.patch.object(self.scene.canvas, '_load_sprite_from_file')
             mock_load.return_value = mock_loaded_sprite
 
             # Mock the resize method and other methods to prevent side effects
-            mock_resize = mocker.patch.object(self.scene.canvas, "_resize_canvas_to_sprite_size")
-            mocker.patch.object(self.scene.canvas, "_setup_animation_state")
-            mocker.patch.object(self.scene.canvas, "_update_ui_components")
-            mocker.patch.object(self.scene.canvas, "_finalize_sprite_loading")
+            mock_resize = mocker.patch.object(self.scene.canvas, '_resize_canvas_to_sprite_size')
+            mocker.patch.object(self.scene.canvas, '_setup_animation_state')
+            mocker.patch.object(self.scene.canvas, '_update_ui_components')
+            mocker.patch.object(self.scene.canvas, '_finalize_sprite_loading')
 
             # Call the method
             self.scene.canvas.on_load_file_event(event)
@@ -363,14 +362,14 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process to avoid real file system issues
-            mock_detect = mocker.patch("glitchygames.tools.bitmappy.detect_file_format")
-            mock_detect.return_value = "toml"
+            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
-            mock_load = mocker.patch.object(AnimatedSprite, "load")
+            mock_load = mocker.patch.object(AnimatedSprite, 'load')
             # Create a mock loaded sprite that mimics the actual loading behavior
             mock_loaded_sprite = mocker.Mock(spec=AnimatedSprite)
-            animation_name = "test_sprite_ui"
+            animation_name = 'test_sprite_ui'
             mock_loaded_sprite._animations = {animation_name: [mocker.Mock()]}
             mock_loaded_sprite._animation_order = [animation_name]
             mock_loaded_sprite.current_animation = animation_name
@@ -401,11 +400,11 @@ pixels = \"\"\"
             self.scene.canvas.film_strip.set_animated_sprite = mocker.Mock()
 
             # Mock helper methods to prevent real loading
-            mock_load_sprite = mocker.patch.object(self.scene.canvas, "_load_sprite_from_file")
-            mock_resize = mocker.patch.object(self.scene.canvas, "_check_and_resize_canvas")
-            mock_setup = mocker.patch.object(self.scene.canvas, "_setup_animation_state")
-            mock_update_ui = mocker.patch.object(self.scene.canvas, "_update_ui_components")
-            mock_finalize = mocker.patch.object(self.scene.canvas, "_finalize_sprite_loading")
+            mock_load_sprite = mocker.patch.object(self.scene.canvas, '_load_sprite_from_file')
+            mock_resize = mocker.patch.object(self.scene.canvas, '_check_and_resize_canvas')
+            mock_setup = mocker.patch.object(self.scene.canvas, '_setup_animation_state')
+            mock_update_ui = mocker.patch.object(self.scene.canvas, '_update_ui_components')
+            mock_finalize = mocker.patch.object(self.scene.canvas, '_finalize_sprite_loading')
 
             # Set up the mock for _load_sprite_from_file to return our mock sprite
             mock_load_sprite.return_value = mock_loaded_sprite
@@ -470,21 +469,21 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process
-            mock_detect = mocker.patch("glitchygames.tools.bitmappy.detect_file_format")
-            mock_detect.return_value = "toml"
+            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect.return_value = 'toml'
 
             # Create a mock loaded sprite using the centralized factory
             mock_loaded_sprite = MockFactory.create_animated_sprite_mock(
-                animation_name="test_sprite", frame_size=(8, 8), pixel_color=(255, 0, 0)
+                animation_name='test_sprite', frame_size=(8, 8), pixel_color=(255, 0, 0)
             )
 
             # Mock the entire loading process by patching the method that loads the sprite
-            mock_load = mocker.patch.object(self.scene.canvas, "_load_sprite_from_file")
+            mock_load = mocker.patch.object(self.scene.canvas, '_load_sprite_from_file')
             mock_load.return_value = mock_loaded_sprite
 
             # Mock helper methods
-            mocker.patch.object(self.scene.canvas, "_copy_sprite_to_canvas")
-            mocker.patch.object(self.scene.canvas, "_update_canvas_from_current_frame")
+            mocker.patch.object(self.scene.canvas, '_copy_sprite_to_canvas')
+            mocker.patch.object(self.scene.canvas, '_update_canvas_from_current_frame')
 
             # Call the method
             self.scene.canvas.on_load_file_event(event)
@@ -533,11 +532,11 @@ pixels = \"\"\"
 
         try:
             # Mock the detect_file_format function
-            mock_detect = mocker.patch("glitchygames.tools.bitmappy.detect_file_format")
-            mock_detect.return_value = "toml"
+            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
-            mock_load = mocker.patch.object(AnimatedSprite, "load")
+            mock_load = mocker.patch.object(AnimatedSprite, 'load')
             # Create a mock loaded sprite
             mock_loaded_sprite = self._create_test_animated_sprite()
 
@@ -547,8 +546,8 @@ pixels = \"\"\"
             mock_load.side_effect = mock_load_side_effect
 
             # Mock helper methods
-            mocker.patch.object(self.scene.canvas, "_copy_sprite_to_canvas")
-            mocker.patch.object(self.scene.canvas, "_update_canvas_from_current_frame")
+            mocker.patch.object(self.scene.canvas, '_copy_sprite_to_canvas')
+            mocker.patch.object(self.scene.canvas, '_update_canvas_from_current_frame')
 
             # Call the method with string parameter
             self.scene.canvas.on_load_file_event(sprite_file)
@@ -564,5 +563,5 @@ pixels = \"\"\"
             Path(sprite_file).unlink(missing_ok=True)
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])

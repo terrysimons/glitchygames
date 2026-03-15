@@ -6,7 +6,7 @@ import unicodedata
 from collections.abc import Generator
 
 # Set up logging
-LOG = logging.getLogger("glitchygames.tools.charmap")
+LOG = logging.getLogger('glitchygames.tools.charmap')
 
 # Constants
 MAX_CHARS_TO_DISPLAY = 100
@@ -136,7 +136,7 @@ def unicode_generator_with_priority() -> Generator[str]:
 
 
 # Example usage:
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Configure logging for this module
     logging.basicConfig(level=logging.INFO)
 
@@ -144,5 +144,5 @@ if __name__ == "__main__":
 
     # Log the characters as a single message to avoid excessive logging
     sample_chars = chars[:MAX_CHARS_TO_DISPLAY]
-    truncation = "..." if len(chars) > MAX_CHARS_TO_DISPLAY else ""
+    truncation = '...' if len(chars) > MAX_CHARS_TO_DISPLAY else ''
     LOG.info(f"Generated {len(chars)} Unicode characters: {' '.join(sample_chars)}{truncation}")

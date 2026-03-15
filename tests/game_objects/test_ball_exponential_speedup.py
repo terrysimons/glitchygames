@@ -4,8 +4,8 @@
 import math
 
 import pytest
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 
+from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -30,7 +30,7 @@ class TestBallExponentialSpeedUp:
         ball.speed.y = 50.0
 
         # Apply exponential speed-up
-        ball.speed_up(speed_up_type="exponential_x")
+        ball.speed_up(speed_up_type='exponential_x')
 
         # X speed should be exponentially increased
         expected_x = 100.0 * (1.2 ** (100.0 / 100.0))  # 100 * 1.2^1 = 120
@@ -51,7 +51,7 @@ class TestBallExponentialSpeedUp:
         ball.speed.y = 150.0
 
         # Apply exponential speed-up
-        ball.speed_up(speed_up_type="exponential_y")
+        ball.speed_up(speed_up_type='exponential_y')
 
         # X speed should remain unchanged
         assert math.isclose(ball.speed.x, 200.0)
@@ -73,7 +73,7 @@ class TestBallExponentialSpeedUp:
         ball.speed.y = 120.0
 
         # Apply exponential speed-up
-        ball.speed_up(speed_up_type="exponential_both")
+        ball.speed_up(speed_up_type='exponential_both')
 
         # Both speeds should be exponentially increased
         expected_x = 80.0 * (1.3 ** (80.0 / 100.0))  # 80 * 1.3^0.8 ~= 100.4
@@ -95,7 +95,7 @@ class TestBallExponentialSpeedUp:
         ball.speed.y = 100.0
 
         # Apply exponential speed-up
-        ball.speed_up(speed_up_type="exponential_x")
+        ball.speed_up(speed_up_type='exponential_x')
 
         # X speed should remain zero (no change for zero speed)
         assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)
@@ -139,7 +139,7 @@ class TestBallExponentialSpeedUp:
         ball.speed.y = 100.0
 
         # Trigger paddle bounce speed-up
-        ball._check_bounce_speed_up("paddle")
+        ball._check_bounce_speed_up('paddle')
 
         # X speed should be exponentially increased
         expected_x = 200.0 * (1.4 ** (200.0 / 100.0))  # 200 * 1.4^2 = 392
@@ -160,7 +160,7 @@ class TestBallExponentialSpeedUp:
         ball.speed.y = 80.0
 
         # Trigger wall bounce speed-up
-        ball._check_bounce_speed_up("wall")
+        ball._check_bounce_speed_up('wall')
 
         # X speed should remain unchanged
         assert math.isclose(ball.speed.x, 150.0)
@@ -232,7 +232,7 @@ class TestBallExponentialSpeedUp:
         ball.speed.y = 500.0
 
         # Apply exponential speed-up
-        ball.speed_up(speed_up_type="exponential_x")
+        ball.speed_up(speed_up_type='exponential_x')
 
         # X speed should be exponentially increased but capped to prevent runaway growth
         # With cap of 2.0: 1000 * 1.1^2 = 1210
@@ -254,7 +254,7 @@ class TestBallExponentialSpeedUp:
         ball.speed.y = 50.0
 
         # Apply exponential speed-up
-        ball.speed_up(speed_up_type="exponential_x")
+        ball.speed_up(speed_up_type='exponential_x')
 
         # X speed should be exponentially increased (using absolute value)
         expected_x = -100.0 * (1.2 ** (100.0 / 100.0))  # -100 * 1.2^1 = -120

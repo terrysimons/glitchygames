@@ -4,10 +4,15 @@ import shutil
 import tempfile
 from pathlib import Path
 
-# Import the original SpriteFactory before mocking
-import glitchygames.sprites
 import pygame
 import pytest
+from scripts.sprite_stack import (
+    SpriteStack,
+    SpriteStackInterface,
+)
+
+# Import the original SpriteFactory before mocking
+import glitchygames.sprites
 from glitchygames.sprites import (
     AnimatedSprite,
     AnimatedSpriteInterface,
@@ -15,11 +20,6 @@ from glitchygames.sprites import (
     SpriteFactory,
     SpriteFrame,
 )
-from scripts.sprite_stack import (
-    SpriteStack,
-    SpriteStackInterface,
-)
-
 from tests.mocks.test_mock_factory import MockFactory
 
 original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
@@ -90,18 +90,18 @@ class TestAnimatedSpriteInterface:
         sprite = AnimatedSprite()
 
         # Test that properties exist (even if they return ...)
-        assert hasattr(sprite, "current_animation")
-        assert hasattr(sprite, "current_frame")
-        assert hasattr(sprite, "is_playing")
-        assert hasattr(sprite, "is_looping")
-        assert hasattr(sprite, "frames")
-        assert hasattr(sprite, "animations")
-        assert hasattr(sprite, "frame_interval")
-        assert hasattr(sprite, "loop")
-        assert hasattr(sprite, "frame_count")
-        assert hasattr(sprite, "next_animation")
-        assert hasattr(sprite, "image")
-        assert hasattr(sprite, "rect")
+        assert hasattr(sprite, 'current_animation')
+        assert hasattr(sprite, 'current_frame')
+        assert hasattr(sprite, 'is_playing')
+        assert hasattr(sprite, 'is_looping')
+        assert hasattr(sprite, 'frames')
+        assert hasattr(sprite, 'animations')
+        assert hasattr(sprite, 'frame_interval')
+        assert hasattr(sprite, 'loop')
+        assert hasattr(sprite, 'frame_count')
+        assert hasattr(sprite, 'next_animation')
+        assert hasattr(sprite, 'image')
+        assert hasattr(sprite, 'rect')
 
     @staticmethod
     def test_animated_sprite_methods_exist():
@@ -109,13 +109,13 @@ class TestAnimatedSpriteInterface:
         sprite = AnimatedSprite()
 
         # Test that methods exist
-        assert hasattr(sprite, "play_animation")
-        assert hasattr(sprite, "play")
-        assert hasattr(sprite, "pause")
-        assert hasattr(sprite, "stop")
-        assert hasattr(sprite, "load")
-        assert hasattr(sprite, "update")
-        assert hasattr(sprite, "__getitem__")
+        assert hasattr(sprite, 'play_animation')
+        assert hasattr(sprite, 'play')
+        assert hasattr(sprite, 'pause')
+        assert hasattr(sprite, 'stop')
+        assert hasattr(sprite, 'load')
+        assert hasattr(sprite, 'update')
+        assert hasattr(sprite, '__getitem__')
 
 
 class TestSpriteFactory:
@@ -159,7 +159,7 @@ green = 0
 blue = 0
 '''
 
-        filepath.write_text(toml_content, encoding="utf-8")
+        filepath.write_text(toml_content, encoding='utf-8')
         return str(filepath)
 
     def create_animated_sprite_file(self, filename: str) -> str:
@@ -192,7 +192,7 @@ green = 0
 blue = 0
 '''
 
-        filepath.write_text(toml_content, encoding="utf-8")
+        filepath.write_text(toml_content, encoding='utf-8')
         return str(filepath)
 
     def create_mixed_sprite_file(self, filename: str) -> str:
@@ -222,7 +222,7 @@ green = 0
 blue = 0
 '''
 
-        filepath.write_text(toml_content, encoding="utf-8")
+        filepath.write_text(toml_content, encoding='utf-8')
         return str(filepath)
 
     def create_empty_sprite_file(self, filename: str) -> str:
@@ -239,87 +239,87 @@ name = "TestEmptySprite"
 # No pixels, no frames, no animations
 """
 
-        filepath.write_text(toml_content, encoding="utf-8")
+        filepath.write_text(toml_content, encoding='utf-8')
         return str(filepath)
 
     def test_analyze_static_sprite(self):
         """Test analysis of static sprite file."""
-        filename = self.create_static_sprite_file("static.toml")
+        filename = self.create_static_sprite_file('static.toml')
         analysis = SpriteFactory._analyze_file(filename)
 
-        assert analysis["has_sprite_pixels"]
-        assert not analysis["has_animation_sections"]
-        assert not analysis["has_frame_sections"]
+        assert analysis['has_sprite_pixels']
+        assert not analysis['has_animation_sections']
+        assert not analysis['has_frame_sections']
 
     def test_analyze_animated_sprite(self):
         """Test analysis of animated sprite file."""
-        filename = self.create_animated_sprite_file("animated.toml")
+        filename = self.create_animated_sprite_file('animated.toml')
         analysis = SpriteFactory._analyze_file(filename)
 
-        assert not analysis["has_sprite_pixels"]
-        assert analysis["has_animation_sections"]
-        assert analysis["has_frame_sections"]
+        assert not analysis['has_sprite_pixels']
+        assert analysis['has_animation_sections']
+        assert analysis['has_frame_sections']
 
     def test_analyze_mixed_sprite(self):
         """Test analysis of mixed content sprite file."""
         # Skip this test as mixed content doesn't translate well to TOML format
-        pytest.skip("Mixed content test not applicable to TOML format")
+        pytest.skip('Mixed content test not applicable to TOML format')
 
     def test_analyze_empty_sprite(self):
         """Test analysis of empty sprite file."""
-        filename = self.create_empty_sprite_file("empty.toml")
+        filename = self.create_empty_sprite_file('empty.toml')
         analysis = SpriteFactory._analyze_file(filename)
 
-        assert not analysis["has_sprite_pixels"]
-        assert not analysis["has_animation_sections"]
-        assert not analysis["has_frame_sections"]
+        assert not analysis['has_sprite_pixels']
+        assert not analysis['has_animation_sections']
+        assert not analysis['has_frame_sections']
 
     @staticmethod
     def test_determine_type_static():
         """Test type determination for static sprite."""
         analysis = {
-            "has_sprite_pixels": True,
-            "has_animation_sections": False,
-            "has_frame_sections": False,
+            'has_sprite_pixels': True,
+            'has_animation_sections': False,
+            'has_frame_sections': False,
         }
         sprite_type = SpriteFactory._determine_type(analysis)
-        assert sprite_type == "static"
+        assert sprite_type == 'static'
 
     @staticmethod
     def test_determine_type_animated():
         """Test type determination for animated sprite."""
         analysis = {
-            "has_sprite_pixels": False,
-            "has_animation_sections": True,
-            "has_frame_sections": True,
+            'has_sprite_pixels': False,
+            'has_animation_sections': True,
+            'has_frame_sections': True,
         }
         sprite_type = SpriteFactory._determine_type(analysis)
-        assert sprite_type == "animated"
+        assert sprite_type == 'animated'
 
     @staticmethod
     def test_determine_type_mixed():
         """Test type determination for mixed content (should be error)."""
-        pytest.skip("Mixed content scenario not applicable to TOML format")
+        pytest.skip('Mixed content scenario not applicable to TOML format')
 
     @staticmethod
     def test_determine_type_empty():
         """Test type determination for empty file (should be error)."""
         analysis = {
-            "has_sprite_pixels": False,
-            "has_animation_sections": False,
-            "has_frame_sections": False,
+            'has_sprite_pixels': False,
+            'has_animation_sections': False,
+            'has_frame_sections': False,
         }
         sprite_type = SpriteFactory._determine_type(analysis)
-        assert sprite_type == "error"
+        assert sprite_type == 'error'
 
     def test_load_static_sprite(self):
         """Test loading static sprite through factory."""
-        filename = self.create_static_sprite_file("static.toml")
+        filename = self.create_static_sprite_file('static.toml')
 
         # Test that the factory detects the type correctly
         analysis = SpriteFactory._analyze_file(filename)
         sprite_type = SpriteFactory._determine_type(analysis)
-        assert sprite_type == "static"
+        assert sprite_type == 'static'
 
         # Test actual loading (this will work now that BitmappySprite is in the engine)
         try:
@@ -329,47 +329,47 @@ name = "TestEmptySprite"
             assert isinstance(sprite, AnimatedSprite)
         except ImportError:
             # Skip if BitmappySprite not available in test environment
-            pytest.skip("BitmappySprite not available in test environment")
+            pytest.skip('BitmappySprite not available in test environment')
 
     def test_load_animated_sprite(self, mocker):
         """Test loading animated sprite through factory."""
-        filename = self.create_animated_sprite_file("animated.toml")
+        filename = self.create_animated_sprite_file('animated.toml')
 
         # AnimatedSprite load is now implemented
         # Temporarily disable the centralized mock for this test
         # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite",
+            'glitchygames.sprites.SpriteFactory.load_sprite',
             original_sprite_factory_load_sprite,
         )
         sprite = SpriteFactory.load_sprite(filename=filename)
         assert isinstance(sprite, AnimatedSprite)
-        assert sprite.name == "TestAnimatedSprite"
+        assert sprite.name == 'TestAnimatedSprite'
 
     def test_load_mixed_sprite_raises_error(self, mocker):
         """Test that loading mixed sprite raises ValueError."""
-        filename = self.create_mixed_sprite_file("mixed.toml")
+        filename = self.create_mixed_sprite_file('mixed.toml')
 
         # Temporarily disable the centralized mock for this test
         # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite",
+            'glitchygames.sprites.SpriteFactory.load_sprite',
             original_sprite_factory_load_sprite,
         )
-        with pytest.raises(ValueError, match="Invalid sprite file"):
+        with pytest.raises(ValueError, match='Invalid sprite file'):
             SpriteFactory.load_sprite(filename=filename)
 
     def test_load_empty_sprite_raises_error(self, mocker):
         """Test that loading empty sprite raises ValueError."""
-        filename = self.create_empty_sprite_file("empty.toml")
+        filename = self.create_empty_sprite_file('empty.toml')
 
         # Temporarily disable the centralized mock for this test
         # by patching with the original method
         mocker.patch(
-            "glitchygames.sprites.SpriteFactory.load_sprite",
+            'glitchygames.sprites.SpriteFactory.load_sprite',
             original_sprite_factory_load_sprite,
         )
-        with pytest.raises(ValueError, match="Invalid sprite file"):
+        with pytest.raises(ValueError, match='Invalid sprite file'):
             SpriteFactory.load_sprite(filename=filename)
 
     @staticmethod
@@ -380,7 +380,7 @@ name = "TestEmptySprite"
 
         # With new architecture, everything is an AnimatedSprite
         assert isinstance(sprite, AnimatedSprite)
-        assert sprite.name == "Tiley McTile Face"  # From raspberry.toml
+        assert sprite.name == 'Tiley McTile Face'  # From raspberry.toml
 
     def test_bitmappy_sprite_load_default(self, mocker):
         """Test that BitmappySprite.load() with no filename loads default sprite."""
@@ -390,7 +390,7 @@ name = "TestEmptySprite"
 
         sprite = BitmappySprite(x=0, y=0, width=32, height=32, filename=None)
         sprite.load()  # Should load default raspberry sprite
-        assert sprite.name == "Tiley McTile Face"
+        assert sprite.name == 'Tiley McTile Face'
 
 
 class TestSpriteFactorySave:
@@ -413,16 +413,16 @@ class TestSpriteFactorySave:
         """Test that saving animated sprites works in TOML format."""
         # Create an animated sprite
         sprite = AnimatedSprite()
-        sprite.name = "TestAnimatedSprite"
+        sprite.name = 'TestAnimatedSprite'
 
         # Add a frame
         frame = SpriteFrame(pygame.Surface((2, 2)))
         frame.set_pixel_data([(255, 0, 0)] * 4)
-        sprite.add_animation("test_anim", [frame])
+        sprite.add_animation('test_anim', [frame])
 
         # Save via factory should work in TOML format
-        filename = Path(self.temp_dir) / "test_animated.toml"
-        SpriteFactory.save_sprite(sprite=sprite, filename=str(filename), file_format="toml")
+        filename = Path(self.temp_dir) / 'test_animated.toml'
+        SpriteFactory.save_sprite(sprite=sprite, filename=str(filename), file_format='toml')
 
         # Verify file was created
         assert filename.exists()
@@ -431,7 +431,7 @@ class TestSpriteFactorySave:
         content = filename.read_text()
         # Since it's detected as single-frame, it uses the sprite name
         assert 'name = "TestAnimatedSprite"' in content
-        assert "[colors]" in content
+        assert '[colors]' in content
 
 
 class TestSpriteStackValidation:

@@ -4,10 +4,11 @@ import logging
 from typing import Self
 
 import pygame
+
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
-log = logging.getLogger("game")
+log = logging.getLogger('game')
 
 
 class GameOverScene(Scene):
@@ -34,11 +35,11 @@ class GameOverScene(Scene):
 
         """
         super().setup()
-        log.info("GameOverScene setup() called")
+        log.info('GameOverScene setup() called')
 
         # Create a text sprite for "Game Over"
         self.text_sprite = TextSprite(
-            "GAME OVER",
+            'GAME OVER',
             (self.screen_width // 2, self.screen_height // 2),
             color=(255, 0, 0),  # Red color
             font_size=48,
@@ -47,13 +48,13 @@ class GameOverScene(Scene):
 
         # Create a subtitle
         subtitle = TextSprite(
-            "Press SPACE to restart or ESC to quit",
+            'Press SPACE to restart or ESC to quit',
             (self.screen_width // 2, self.screen_height // 2 + 60),
             color=(255, 255, 255),  # White color
             font_size=24,
         )
         self.all_sprites.add(subtitle)
-        log.info("GameOverScene setup() completed")
+        log.info('GameOverScene setup() completed')
 
     def update(self: Self) -> None:
         """Update the Game Over scene.
@@ -64,7 +65,7 @@ class GameOverScene(Scene):
         """
         # Call the parent update method to handle sprite updates
         super().update()
-        log.debug("GameOverScene update() called")
+        log.debug('GameOverScene update() called')
 
     def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events for the Game Over scene.
@@ -108,7 +109,7 @@ class GameOverScene(Scene):
         # Get the game class from the previous scene
         if self.scene_manager.previous_scene:
             game_class = type(self.scene_manager.previous_scene)
-            self.log.info(f"Restarting game with class: {game_class}")
+            self.log.info(f'Restarting game with class: {game_class}')
 
             # Create a new instance of the game with the same options
             new_game = game_class(options=self.options)
@@ -116,7 +117,7 @@ class GameOverScene(Scene):
             # Switch to the new game instance
             self.scene_manager.switch_to_scene(new_game)
         else:
-            self.log.warning("No previous scene found to restart")
+            self.log.warning('No previous scene found to restart')
 
 
 class TextSprite(Sprite):

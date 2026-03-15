@@ -2,6 +2,7 @@
 
 import pygame
 import pytest
+
 from glitchygames.tools.bitmappy import BitmapEditorScene
 
 # Test constants to avoid magic values
@@ -54,10 +55,10 @@ class TestFilmStripScrolling:
         self.scene.canvas = self._mocker.Mock()
         self.scene.canvas.animated_sprite = self._mocker.Mock()
         self.scene.canvas.animated_sprite._animations = {
-            "anim1": [self._mocker.Mock()],
-            "anim2": [self._mocker.Mock()],
-            "anim3": [self._mocker.Mock()],
-            "anim4": [self._mocker.Mock()],
+            'anim1': [self._mocker.Mock()],
+            'anim2': [self._mocker.Mock()],
+            'anim3': [self._mocker.Mock()],
+            'anim4': [self._mocker.Mock()],
         }
 
         # Scroll down
@@ -83,10 +84,10 @@ class TestFilmStripScrolling:
         self.scene.canvas = self._mocker.Mock()
         self.scene.canvas.animated_sprite = self._mocker.Mock()
         self.scene.canvas.animated_sprite._animations = {
-            "anim1": [self._mocker.Mock()],
-            "anim2": [self._mocker.Mock()],
-            "anim3": [self._mocker.Mock()],
-            "anim4": [self._mocker.Mock()],
+            'anim1': [self._mocker.Mock()],
+            'anim2': [self._mocker.Mock()],
+            'anim3': [self._mocker.Mock()],
+            'anim4': [self._mocker.Mock()],
         }
 
         # Set scroll offset to maximum
@@ -104,25 +105,25 @@ class TestFilmStripScrolling:
         self.scene.canvas = self._mocker.Mock()
         self.scene.canvas.animated_sprite = self._mocker.Mock()
         self.scene.canvas.animated_sprite._animations = {
-            "anim1": [self._mocker.Mock()],
-            "anim2": [self._mocker.Mock()],
-            "anim3": [self._mocker.Mock()],
-            "anim4": [self._mocker.Mock()],
+            'anim1': [self._mocker.Mock()],
+            'anim2': [self._mocker.Mock()],
+            'anim3': [self._mocker.Mock()],
+            'anim4': [self._mocker.Mock()],
         }
-        self.scene.canvas.current_animation = "anim4"  # Last animation (index 3)
+        self.scene.canvas.current_animation = 'anim4'  # Last animation (index 3)
 
         # Set up film strips dictionary
         self.scene.film_strips = {
-            "anim1": self._mocker.Mock(),
-            "anim2": self._mocker.Mock(),
-            "anim3": self._mocker.Mock(),
-            "anim4": self._mocker.Mock(),
+            'anim1': self._mocker.Mock(),
+            'anim2': self._mocker.Mock(),
+            'anim3': self._mocker.Mock(),
+            'anim4': self._mocker.Mock(),
         }
         self.scene.film_strip_sprites = {
-            "anim1": self._mocker.Mock(),
-            "anim2": self._mocker.Mock(),
-            "anim3": self._mocker.Mock(),
-            "anim4": self._mocker.Mock(),
+            'anim1': self._mocker.Mock(),
+            'anim2': self._mocker.Mock(),
+            'anim3': self._mocker.Mock(),
+            'anim4': self._mocker.Mock(),
         }
 
         # Mock the update methods
@@ -142,26 +143,26 @@ class TestFilmStripScrolling:
         self.scene.canvas = self._mocker.Mock()
         self.scene.canvas.animated_sprite = self._mocker.Mock()
         self.scene.canvas.animated_sprite._animations = {
-            "anim1": [self._mocker.Mock()],
-            "anim2": [self._mocker.Mock()],
-            "anim3": [self._mocker.Mock()],
-            "anim4": [self._mocker.Mock()],
+            'anim1': [self._mocker.Mock()],
+            'anim2': [self._mocker.Mock()],
+            'anim3': [self._mocker.Mock()],
+            'anim4': [self._mocker.Mock()],
         }
         # Second animation (index 1, should be visible)
-        self.scene.canvas.current_animation = "anim2"
+        self.scene.canvas.current_animation = 'anim2'
 
         # Set up film strips dictionary
         self.scene.film_strips = {
-            "anim1": self._mocker.Mock(),
-            "anim2": self._mocker.Mock(),
-            "anim3": self._mocker.Mock(),
-            "anim4": self._mocker.Mock(),
+            'anim1': self._mocker.Mock(),
+            'anim2': self._mocker.Mock(),
+            'anim3': self._mocker.Mock(),
+            'anim4': self._mocker.Mock(),
         }
         self.scene.film_strip_sprites = {
-            "anim1": self._mocker.Mock(),
-            "anim2": self._mocker.Mock(),
-            "anim3": self._mocker.Mock(),
-            "anim4": self._mocker.Mock(),
+            'anim1': self._mocker.Mock(),
+            'anim2': self._mocker.Mock(),
+            'anim3': self._mocker.Mock(),
+            'anim4': self._mocker.Mock(),
         }
 
         # Set scroll offset to show first 2 animations
@@ -181,34 +182,34 @@ class TestFilmStripScrolling:
     def test_switch_to_film_strip(self):
         """Test switching to a specific film strip."""
         # Set up film strips
-        self.scene.film_strips = {"anim1": self._mocker.Mock(), "anim2": self._mocker.Mock()}
-        self.scene.film_strip_sprites = {"anim1": self._mocker.Mock(), "anim2": self._mocker.Mock()}
+        self.scene.film_strips = {'anim1': self._mocker.Mock(), 'anim2': self._mocker.Mock()}
+        self.scene.film_strip_sprites = {'anim1': self._mocker.Mock(), 'anim2': self._mocker.Mock()}
 
         # Set up canvas
         self.scene.canvas = self._mocker.Mock()
 
         # Switch to "anim2"
-        self.scene._switch_to_film_strip("anim2", 1)
+        self.scene._switch_to_film_strip('anim2', 1)
 
         # Check global selection state
-        assert self.scene.selected_animation == "anim2"
+        assert self.scene.selected_animation == 'anim2'
         assert self.scene.selected_frame == 1
 
         # Check canvas was updated
-        self.scene.canvas.show_frame.assert_called_once_with("anim2", 1)
+        self.scene.canvas.show_frame.assert_called_once_with('anim2', 1)
 
     def test_dirty_marking_on_switch(self):
         """Test that switching film strips marks sprites as dirty."""
         # Set up film strips
-        self.scene.film_strips = {"anim1": self._mocker.Mock(), "anim2": self._mocker.Mock()}
-        self.scene.film_strip_sprites = {"anim1": self._mocker.Mock(), "anim2": self._mocker.Mock()}
+        self.scene.film_strips = {'anim1': self._mocker.Mock(), 'anim2': self._mocker.Mock()}
+        self.scene.film_strip_sprites = {'anim1': self._mocker.Mock(), 'anim2': self._mocker.Mock()}
 
         # Set up canvas
         self.scene.canvas = self._mocker.Mock()
 
         # Switch to "anim2"
-        self.scene._switch_to_film_strip("anim2", SCROLL_OFFSET_0)
+        self.scene._switch_to_film_strip('anim2', SCROLL_OFFSET_0)
 
         # Check that the film strip sprite is marked as dirty
-        self.scene.film_strip_sprites["anim2"].dirty = DIRTY_VALUE
-        assert self.scene.film_strip_sprites["anim2"].dirty == DIRTY_VALUE
+        self.scene.film_strip_sprites['anim2'].dirty = DIRTY_VALUE
+        assert self.scene.film_strip_sprites['anim2'].dirty == DIRTY_VALUE

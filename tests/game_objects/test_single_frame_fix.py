@@ -12,10 +12,9 @@ from pathlib import Path
 import pygame
 
 # Add the glitchygames package to the path
-sys.path.insert(0, str(Path(__file__).parent / "glitchygames"))
+sys.path.insert(0, str(Path(__file__).parent / 'glitchygames'))
 
 from glitchygames.sprites.animated import SpriteFrame
-
 from tests.mocks import MockFactory
 
 LOG = logging.getLogger(__name__)
@@ -23,7 +22,7 @@ LOG = logging.getLogger(__name__)
 
 def test_single_frame_animation():
     """Test that single-frame animations continue playing."""
-    LOG.debug("Testing single-frame animation fix...")
+    LOG.debug('Testing single-frame animation fix...')
 
     # Initialize pygame
     pygame.init()
@@ -38,18 +37,18 @@ def test_single_frame_animation():
 
     # Create animated sprite with single frame using centralized mocks
     sprite = MockFactory.create_animated_sprite_mock(
-        animation_name="idle", frame_size=(8, 8), pixel_color=(255, 0, 0), current_frame=0
+        animation_name='idle', frame_size=(8, 8), pixel_color=(255, 0, 0), current_frame=0
     )
 
     # Override the animations to use our single frame
-    sprite._animations = {"idle": [frame]}
-    sprite.frame_manager.current_animation = "idle"
+    sprite._animations = {'idle': [frame]}
+    sprite.frame_manager.current_animation = 'idle'
     sprite.frame_manager.current_frame = 0
     sprite._is_playing = True
     sprite._is_looping = True
 
     LOG.debug(
-        f"Initial state: current_frame={sprite.current_frame}, is_playing={sprite._is_playing}"
+        f'Initial state: current_frame={sprite.current_frame}, is_playing={sprite._is_playing}'
     )
 
     # Simulate multiple update cycles
@@ -60,20 +59,20 @@ def test_single_frame_animation():
         # Check every 10 updates
         if i % 10 == 0:
             LOG.debug(
-                f"Update {i}: current_frame={sprite.current_frame}, is_playing={sprite._is_playing}"
+                f'Update {i}: current_frame={sprite.current_frame}, is_playing={sprite._is_playing}'
             )
 
         # The animation should still be playing and on frame 0
-        assert sprite._is_playing, f"Animation stopped playing at update {i}"
+        assert sprite._is_playing, f'Animation stopped playing at update {i}'
         assert sprite.current_frame == 0, (
-            f"Frame changed from 0 to {sprite.current_frame} at update {i}"
+            f'Frame changed from 0 to {sprite.current_frame} at update {i}'
         )
 
-    LOG.info("✅ Single-frame animation test PASSED!")
-    LOG.debug("The animation continued playing and stayed on frame 0 as expected.")
+    LOG.info('✅ Single-frame animation test PASSED!')
+    LOG.debug('The animation continued playing and stayed on frame 0 as expected.')
 
     pygame.quit()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     test_single_frame_animation()

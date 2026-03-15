@@ -17,7 +17,6 @@ from glitchygames.events import (
     HashableEvent,
     UnhandledEventError,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -27,19 +26,19 @@ class TestGameEvents:
     def test_game_events_interface(self, mock_pygame_patches):
         """Test GameEvents interface methods."""
         # Test that GameEvents has required abstract methods
-        assert hasattr(GameEvents, "on_active_event")
-        assert hasattr(GameEvents, "on_fps_event")
-        assert hasattr(GameEvents, "on_game_event")
-        assert hasattr(GameEvents, "on_menu_item_event")
-        assert hasattr(GameEvents, "on_sys_wm_event")
-        assert hasattr(GameEvents, "on_user_event")
-        assert hasattr(GameEvents, "on_video_expose_event")
-        assert hasattr(GameEvents, "on_video_resize_event")
-        assert hasattr(GameEvents, "on_quit_event")
-        assert hasattr(GameEvents, "on_render_device_reset_event")
-        assert hasattr(GameEvents, "on_render_targets_reset_event")
-        assert hasattr(GameEvents, "on_clipboard_update_event")
-        assert hasattr(GameEvents, "on_locale_changed_event")
+        assert hasattr(GameEvents, 'on_active_event')
+        assert hasattr(GameEvents, 'on_fps_event')
+        assert hasattr(GameEvents, 'on_game_event')
+        assert hasattr(GameEvents, 'on_menu_item_event')
+        assert hasattr(GameEvents, 'on_sys_wm_event')
+        assert hasattr(GameEvents, 'on_user_event')
+        assert hasattr(GameEvents, 'on_video_expose_event')
+        assert hasattr(GameEvents, 'on_video_resize_event')
+        assert hasattr(GameEvents, 'on_quit_event')
+        assert hasattr(GameEvents, 'on_render_device_reset_event')
+        assert hasattr(GameEvents, 'on_render_targets_reset_event')
+        assert hasattr(GameEvents, 'on_clipboard_update_event')
+        assert hasattr(GameEvents, 'on_locale_changed_event')
 
     def test_game_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test GameEventStubs implementation."""
@@ -51,7 +50,7 @@ class TestGameEvents:
         # Test that stub methods can be called
         event = HashableEvent(pygame.QUIT)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         with pytest.raises(UnhandledEventError):
             scene.on_quit_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
@@ -60,7 +59,7 @@ class TestGameEvents:
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Unhandled Event: args: Quit" in call_args
+        assert 'Unhandled Event: args: Quit' in call_args
 
     def test_clipboard_update_event_stub(self, mock_pygame_patches, mocker):
         """Test clipboard update event stub implementation."""
@@ -72,7 +71,7 @@ class TestGameEvents:
         # Test that stub method can be called
         event = HashableEvent(pygame.CLIPBOARDUPDATE)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         with pytest.raises(UnhandledEventError):
             scene.on_clipboard_update_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
@@ -81,7 +80,7 @@ class TestGameEvents:
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Unhandled Event: args: ClipboardUpdate" in call_args
+        assert 'Unhandled Event: args: ClipboardUpdate' in call_args
 
     def test_locale_changed_event_stub(self, mock_pygame_patches, mocker):
         """Test locale changed event stub implementation."""
@@ -93,7 +92,7 @@ class TestGameEvents:
         # Test that stub method can be called
         event = HashableEvent(pygame.LOCALECHANGED)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         with pytest.raises(UnhandledEventError):
             scene.on_locale_changed_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
@@ -102,15 +101,15 @@ class TestGameEvents:
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Unhandled Event: args: LocaleChanged" in call_args
+        assert 'Unhandled Event: args: LocaleChanged' in call_args
 
     def test_quit_event(self, mock_pygame_patches):
         """Test quit event handling."""
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_quit_event": lambda event: (
-                    scene.game_events_received.append(("quit", event)),
+                'on_quit_event': lambda event: (
+                    scene.game_events_received.append(('quit', event)),
                     True,
                 )[1]
             }
@@ -123,7 +122,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "quit"
+        assert scene.game_events_received[0][0] == 'quit'
         assert scene.game_events_received[0][1].type == pygame.QUIT
 
     def test_active_event(self, mock_pygame_patches):
@@ -131,8 +130,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_active_event": lambda event: (
-                    scene.game_events_received.append(("active", event)),
+                'on_active_event': lambda event: (
+                    scene.game_events_received.append(('active', event)),
                     True,
                 )[1]
             }
@@ -145,7 +144,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "active"
+        assert scene.game_events_received[0][0] == 'active'
         assert scene.game_events_received[0][1].type == pygame.ACTIVEEVENT
         assert scene.game_events_received[0][1].gain == 1
         assert scene.game_events_received[0][1].state == 1
@@ -155,8 +154,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_fps_event": lambda event: (
-                    scene.game_events_received.append(("fps", event)),
+                'on_fps_event': lambda event: (
+                    scene.game_events_received.append(('fps', event)),
                     True,
                 )[1]
             }
@@ -169,7 +168,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "fps"
+        assert scene.game_events_received[0][0] == 'fps'
         assert scene.game_events_received[0][1].type == pygame.USEREVENT + 1
 
     def test_game_event(self, mock_pygame_patches):
@@ -177,8 +176,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_game_event": lambda event: (
-                    scene.game_events_received.append(("game", event)),
+                'on_game_event': lambda event: (
+                    scene.game_events_received.append(('game', event)),
                     True,
                 )[1]
             }
@@ -191,7 +190,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "game"
+        assert scene.game_events_received[0][0] == 'game'
         assert scene.game_events_received[0][1].type == pygame.USEREVENT + 2
 
     def test_menu_item_event(self, mock_pygame_patches):
@@ -199,8 +198,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_menu_item_event": lambda event: (
-                    scene.game_events_received.append(("menu_item", event)),
+                'on_menu_item_event': lambda event: (
+                    scene.game_events_received.append(('menu_item', event)),
                     True,
                 )[1]
             }
@@ -213,7 +212,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "menu_item"
+        assert scene.game_events_received[0][0] == 'menu_item'
         assert scene.game_events_received[0][1].type == pygame.USEREVENT + 3
 
     def test_sys_wm_event(self, mock_pygame_patches):
@@ -221,8 +220,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_sys_wm_event": lambda event: (
-                    scene.game_events_received.append(("sys_wm", event)),
+                'on_sys_wm_event': lambda event: (
+                    scene.game_events_received.append(('sys_wm', event)),
                     True,
                 )[1]
             }
@@ -235,7 +234,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "sys_wm"
+        assert scene.game_events_received[0][0] == 'sys_wm'
         assert scene.game_events_received[0][1].type == pygame.SYSWMEVENT
 
     def test_user_event(self, mock_pygame_patches):
@@ -243,8 +242,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_user_event": lambda event: (
-                    scene.game_events_received.append(("user", event)),
+                'on_user_event': lambda event: (
+                    scene.game_events_received.append(('user', event)),
                     True,
                 )[1]
             }
@@ -257,7 +256,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "user"
+        assert scene.game_events_received[0][0] == 'user'
         assert scene.game_events_received[0][1].type == pygame.USEREVENT
         assert scene.game_events_received[0][1].code == 1
 
@@ -266,8 +265,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_video_expose_event": lambda event: (
-                    scene.game_events_received.append(("video_expose", event)),
+                'on_video_expose_event': lambda event: (
+                    scene.game_events_received.append(('video_expose', event)),
                     True,
                 )[1]
             }
@@ -280,7 +279,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "video_expose"
+        assert scene.game_events_received[0][0] == 'video_expose'
         assert scene.game_events_received[0][1].type == pygame.VIDEOEXPOSE
 
     def test_video_resize_event(self, mock_pygame_patches):
@@ -288,8 +287,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_video_resize_event": lambda event: (
-                    scene.game_events_received.append(("video_resize", event)),
+                'on_video_resize_event': lambda event: (
+                    scene.game_events_received.append(('video_resize', event)),
                     True,
                 )[1]
             }
@@ -302,7 +301,7 @@ class TestGameEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "video_resize"
+        assert scene.game_events_received[0][0] == 'video_resize'
         assert scene.game_events_received[0][1].type == pygame.VIDEORESIZE
         assert scene.game_events_received[0][1].w == 800
         assert scene.game_events_received[0][1].h == 600
@@ -312,8 +311,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_active_event": lambda event: (
-                    scene.game_events_received.append(("active", event)),
+                'on_active_event': lambda event: (
+                    scene.game_events_received.append(('active', event)),
                     True,
                 )[1]
             }
@@ -336,7 +335,7 @@ class TestGameEvents:
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
-            assert scene.game_events_received[0][0] == "active"
+            assert scene.game_events_received[0][0] == 'active'
             assert scene.game_events_received[0][1].type == pygame.ACTIVEEVENT
             assert scene.game_events_received[0][1].gain == gain
             assert scene.game_events_received[0][1].state == state
@@ -349,8 +348,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_user_event": lambda event: (
-                    scene.game_events_received.append(("user", event)),
+                'on_user_event': lambda event: (
+                    scene.game_events_received.append(('user', event)),
                     True,
                 )[1]
             }
@@ -364,7 +363,7 @@ class TestGameEvents:
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
-            assert scene.game_events_received[0][0] == "user"
+            assert scene.game_events_received[0][0] == 'user'
             assert scene.game_events_received[0][1].type == pygame.USEREVENT
             assert scene.game_events_received[0][1].code == code
 
@@ -376,8 +375,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_video_resize_event": lambda event: (
-                    scene.game_events_received.append(("video_resize", event)),
+                'on_video_resize_event': lambda event: (
+                    scene.game_events_received.append(('video_resize', event)),
                     True,
                 )[1]
             }
@@ -401,7 +400,7 @@ class TestGameEvents:
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
-            assert scene.game_events_received[0][0] == "video_resize"
+            assert scene.game_events_received[0][0] == 'video_resize'
             assert scene.game_events_received[0][1].type == pygame.VIDEORESIZE
             assert scene.game_events_received[0][1].w == w
             assert scene.game_events_received[0][1].h == h
@@ -414,8 +413,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_game_event": lambda event: (
-                    scene.game_events_received.append(("game", event)),
+                'on_game_event': lambda event: (
+                    scene.game_events_received.append(('game', event)),
                     True,
                 )[1]
             }
@@ -423,11 +422,11 @@ class TestGameEvents:
 
         # Test custom game events
         custom_events = [
-            HashableEvent(pygame.USEREVENT + 10, event_type="level_complete"),
-            HashableEvent(pygame.USEREVENT + 11, event_type="player_died"),
-            HashableEvent(pygame.USEREVENT + 12, event_type="power_up_collected"),
-            HashableEvent(pygame.USEREVENT + 13, event_type="enemy_spawned"),
-            HashableEvent(pygame.USEREVENT + 14, event_type="score_updated"),
+            HashableEvent(pygame.USEREVENT + 10, event_type='level_complete'),
+            HashableEvent(pygame.USEREVENT + 11, event_type='player_died'),
+            HashableEvent(pygame.USEREVENT + 12, event_type='power_up_collected'),
+            HashableEvent(pygame.USEREVENT + 13, event_type='enemy_spawned'),
+            HashableEvent(pygame.USEREVENT + 14, event_type='score_updated'),
         ]
 
         for event in custom_events:
@@ -436,7 +435,7 @@ class TestGameEvents:
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
-            assert scene.game_events_received[0][0] == "game"
+            assert scene.game_events_received[0][0] == 'game'
             assert scene.game_events_received[0][1].type == event.type
             assert scene.game_events_received[0][1].event_type == event.event_type
 
@@ -448,8 +447,8 @@ class TestGameEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_menu_item_event": lambda event: (
-                    scene.game_events_received.append(("menu", event)),
+                'on_menu_item_event': lambda event: (
+                    scene.game_events_received.append(('menu', event)),
                     True,
                 )[1]
             }
@@ -457,13 +456,13 @@ class TestGameEvents:
 
         # Test different menu items
         menu_items = [
-            "New Game",
-            "Load Game",
-            "Save Game",
-            "Settings",
-            "Help",
-            "About",
-            "Exit",
+            'New Game',
+            'Load Game',
+            'Save Game',
+            'Settings',
+            'Help',
+            'About',
+            'Exit',
         ]
 
         for item in menu_items:
@@ -473,7 +472,7 @@ class TestGameEvents:
             # Event should be handled successfully
             assert result is True
             assert len(scene.game_events_received) == 1
-            assert scene.game_events_received[0][0] == "menu"
+            assert scene.game_events_received[0][0] == 'menu'
             assert scene.game_events_received[0][1].type == pygame.USEREVENT + 3
             assert scene.game_events_received[0][1].menu_item == item
 
@@ -485,8 +484,8 @@ class TestGameEvents:
         # Use centralized mock for scene with event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_render_device_reset_event": lambda event: (
-                    scene.game_events_received.append(("render_device_reset", event)),
+                'on_render_device_reset_event': lambda event: (
+                    scene.game_events_received.append(('render_device_reset', event)),
                     None,
                 )[1]
             }
@@ -499,7 +498,7 @@ class TestGameEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "render_device_reset"
+        assert scene.game_events_received[0][0] == 'render_device_reset'
         assert scene.game_events_received[0][1].type == pygame.RENDER_DEVICE_RESET
 
     def test_render_targets_reset_event(self, mock_pygame_patches):
@@ -507,8 +506,8 @@ class TestGameEvents:
         # Use centralized mock for scene with event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_render_targets_reset_event": lambda event: (
-                    scene.game_events_received.append(("render_targets_reset", event)),
+                'on_render_targets_reset_event': lambda event: (
+                    scene.game_events_received.append(('render_targets_reset', event)),
                     None,
                 )[1]
             }
@@ -521,7 +520,7 @@ class TestGameEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "render_targets_reset"
+        assert scene.game_events_received[0][0] == 'render_targets_reset'
         assert scene.game_events_received[0][1].type == pygame.RENDER_TARGETS_RESET
 
     def test_clipboard_update_event(self, mock_pygame_patches):
@@ -529,8 +528,8 @@ class TestGameEvents:
         # Use centralized mock for scene with event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_clipboard_update_event": lambda event: (
-                    scene.game_events_received.append(("clipboard_update", event)),
+                'on_clipboard_update_event': lambda event: (
+                    scene.game_events_received.append(('clipboard_update', event)),
                     None,
                 )[1]
             }
@@ -543,7 +542,7 @@ class TestGameEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "clipboard_update"
+        assert scene.game_events_received[0][0] == 'clipboard_update'
         assert scene.game_events_received[0][1].type == pygame.CLIPBOARDUPDATE
 
     def test_locale_changed_event(self, mock_pygame_patches):
@@ -551,8 +550,8 @@ class TestGameEvents:
         # Use centralized mock for scene with event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_locale_changed_event": lambda event: (
-                    scene.game_events_received.append(("locale_changed", event)),
+                'on_locale_changed_event': lambda event: (
+                    scene.game_events_received.append(('locale_changed', event)),
                     None,
                 )[1]
             }
@@ -565,5 +564,5 @@ class TestGameEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "locale_changed"
+        assert scene.game_events_received[0][0] == 'locale_changed'
         assert scene.game_events_received[0][1].type == pygame.LOCALECHANGED

@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.examples.paddleslap import Game
 from glitchygames.game_objects.ball import SpeedUpMode
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -28,24 +27,24 @@ class TestPaddleslapExample:
         """Set up test fixtures using centralized mocks."""
         # Create mock options
         self.mock_options = {
-            "balls": 1,
-            "fps": 60,
-            "resolution": "800x600",
-            "windowed": True,
-            "use_gfxdraw": False,
-            "update_type": "update",
-            "fps_refresh_rate": 1000,
-            "profile": False,
-            "test_flag": False,
-            "font_name": "Arial",
-            "font_size": 16,
-            "font_bold": False,
-            "font_italic": False,
-            "font_antialias": True,
-            "font_dpi": 72,
-            "font_system": "pygame",
-            "log_level": "info",
-            "no_unhandled_events": False,
+            'balls': 1,
+            'fps': 60,
+            'resolution': '800x600',
+            'windowed': True,
+            'use_gfxdraw': False,
+            'update_type': 'update',
+            'fps_refresh_rate': 1000,
+            'profile': False,
+            'test_flag': False,
+            'font_name': 'Arial',
+            'font_size': 16,
+            'font_bold': False,
+            'font_italic': False,
+            'font_antialias': True,
+            'font_dpi': 72,
+            'font_system': 'pygame',
+            'log_level': 'info',
+            'no_unhandled_events': False,
         }
 
     def test_paddleslap_game_initialization(self):
@@ -54,13 +53,13 @@ class TestPaddleslapExample:
         game = Game(options=self.mock_options)
 
         # Verify basic game properties
-        assert game.NAME == "Paddle Slap"
-        assert game.VERSION == "1.1"
+        assert game.NAME == 'Paddle Slap'
+        assert game.VERSION == '1.1'
 
         # Verify game components are created
-        assert hasattr(game, "player1")
-        assert hasattr(game, "player2")
-        assert hasattr(game, "balls")
+        assert hasattr(game, 'player1')
+        assert hasattr(game, 'player2')
+        assert hasattr(game, 'balls')
         assert len(game.balls) == 1
 
         # Verify ball has correct speed-up mode (X-only)
@@ -87,7 +86,7 @@ class TestPaddleslapExample:
     def test_paddleslap_ball_creation_with_multiple_balls(self):
         """Test creating multiple balls with the new speed-up mechanism."""
         multi_ball_options = self.mock_options.copy()
-        multi_ball_options["balls"] = 3
+        multi_ball_options['balls'] = 3
 
         game = Game(options=multi_ball_options)
 
@@ -134,7 +133,7 @@ class TestPaddleslapExample:
         game.setup()
 
         # Verify setup completed without errors
-        assert hasattr(game, "target_fps")
+        assert hasattr(game, 'target_fps')
         assert game.target_fps == 60
 
     def test_paddleslap_args_method(self):
@@ -146,5 +145,5 @@ class TestPaddleslapExample:
 
         # Verify that the parser has the expected arguments
         actions = [action.dest for action in parser._actions]
-        assert "balls" in actions
-        assert "version" in actions
+        assert 'balls' in actions
+        assert 'version' in actions

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 import pygame
 
-LOG = logging.getLogger("game.pixels")
+LOG = logging.getLogger('game.pixels')
 LOG.addHandler(logging.NullHandler())
 
 
@@ -52,36 +52,36 @@ def rgb_555_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
 
             # Pad the data out.
             pad_bits = 16 - len(rgb_data)
-            pad_data = "0" * pad_bits
+            pad_data = '0' * pad_bits
 
             rgb_data = pad_data + rgb_data
 
-            LOG.info(f"Padded {pad_bits} bits (now {rgb_data})")
+            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
 
             # red is 5 bits
-            red = int(rgb_data[0:5] + "000", 2)
+            red = int(rgb_data[0:5] + '000', 2)
 
             if red:
                 red += 7
 
             # green is 6 bits
-            green = int(rgb_data[5:10] + "000", 2)
+            green = int(rgb_data[5:10] + '000', 2)
 
             if green:
                 green += 7
 
             # blue is 5 bits
-            blue = int(rgb_data[10:15] + "000", 2)
+            blue = int(rgb_data[10:15] + '000', 2)
 
             # last bit is ignored or used for alpha.
 
             if blue:
                 blue += 7
 
-            LOG.info(f"Packed RGB: {rgb_data}")
-            LOG.info(f"Red: {red}")
-            LOG.info(f"Green: {green}")
-            LOG.info(f"Blue: {blue}")
+            LOG.info(f'Packed RGB: {rgb_data}')
+            LOG.info(f'Red: {red}')
+            LOG.info(f'Green: {green}')
+            LOG.info(f'Blue: {blue}')
 
             yield (red, green, blue)
     except StopIteration:
@@ -106,34 +106,34 @@ def rgb_565_triplet_generator(pixel_data: iter) -> iter[tuple[int, int, int]]:
 
             # Pad the data out.
             pad_bits = 16 - len(rgb_data)
-            pad_data = "0" * pad_bits
+            pad_data = '0' * pad_bits
 
             rgb_data = pad_data + rgb_data
 
-            LOG.info(f"Padded {pad_bits} bits (now {rgb_data})")
+            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
 
             # red is 5 bits
-            red = int(rgb_data[0:5] + "000", 2)
+            red = int(rgb_data[0:5] + '000', 2)
 
             if red:
                 red += 7
 
             # green is 6 bits
-            green = int(rgb_data[5:11] + "00", 2)
+            green = int(rgb_data[5:11] + '00', 2)
 
             if green:
                 green += 3
 
             # blue is 5 bits
-            blue = int(rgb_data[11:] + "000", 2)
+            blue = int(rgb_data[11:] + '000', 2)
 
             if blue:
                 blue += 7
 
-            LOG.info(f"Packed RGB: {rgb_data}")
-            LOG.info(f"Red: {red}")
-            LOG.info(f"Green: {green}")
-            LOG.info(f"Blue: {blue}")
+            LOG.info(f'Packed RGB: {rgb_data}')
+            LOG.info(f'Red: {red}')
+            LOG.info(f'Green: {green}')
+            LOG.info(f'Blue: {blue}')
 
             yield (red, green, blue)
     except StopIteration:
@@ -155,10 +155,10 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
     """
     # Validate input
     if not pixel_data:
-        raise ValueError("Empty pixel data")
+        raise ValueError('Empty pixel data')
 
     if len(pixel_data) % 3 != 0:
-        raise ValueError(f"Pixel data length ({len(pixel_data)}) is not divisible by 3")
+        raise ValueError(f'Pixel data length ({len(pixel_data)}) is not divisible by 3')
 
     # Convert bytes to integers
     pixels = [int(b) for b in pixel_data]
@@ -171,7 +171,7 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
             b = pixels[i + 2]
             yield (r, g, b)
         except IndexError as e:
-            raise ValueError(f"Not enough data for RGB triplet at index {i}") from e
+            raise ValueError(f'Not enough data for RGB triplet at index {i}') from e
 
 
 def image_from_pixels(pixels: list, width: int, height: int) -> pygame.Surface:
@@ -220,7 +220,7 @@ def pixels_from_path(path: str) -> list:
         list: The result.
 
     """
-    with Path.open(path, "rb") as fh:
+    with Path.open(path, 'rb') as fh:
         pixel_data = fh.read()
 
     return pixels_from_data(pixel_data=pixel_data)

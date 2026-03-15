@@ -45,11 +45,11 @@ def example_game_loop() -> None:
     test_dts = [0.016, 0.033, 0.008, 0.025, 0.050]  # Various frame times
 
     for dt in test_dts:
-        LOG.info(f"Raw dt: {dt:.3f}")
+        LOG.info(f'Raw dt: {dt:.3f}')
         obj.dt_tick(dt)
-        LOG.info(f"Performance: {obj.get_performance_info()}")
-        LOG.info("")
+        LOG.info(f'Performance: {obj.get_performance_info()}')
+        LOG.info('')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     example_game_loop()

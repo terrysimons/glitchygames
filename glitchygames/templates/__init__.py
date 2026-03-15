@@ -3,7 +3,7 @@
 from glitchygames.templates.game import build, get_templates, path
 
 __all__ = [
-    "build",
-    "get_templates",
-    "path",
+    'build',
+    'get_templates',
+    'path',
 ]

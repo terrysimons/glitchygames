@@ -9,6 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
@@ -49,7 +50,7 @@ class TestMultiControllerStress:
         start_time = time.time()
         for _ in range(100):
             for i in range(self.manager.MAX_CONTROLLERS):
-                self.controller_selections[i].set_selection(f"animation_{i}", i)
+                self.controller_selections[i].set_selection(f'animation_{i}', i)
                 self.visual_manager.update_controller_position(i, (i * 10, i * 10))
         end_time = time.time()
 
@@ -60,7 +61,7 @@ class TestMultiControllerStress:
         for i in range(self.manager.MAX_CONTROLLERS):
             assert self.controller_selections[i].is_active()
             animation, frame = self.controller_selections[i].get_selection()
-            assert animation == f"animation_{i}"
+            assert animation == f'animation_{i}'
             assert frame == i
 
     def test_rapid_controller_switching_stress(self):
@@ -77,7 +78,7 @@ class TestMultiControllerStress:
         for cycle in range(1000):
             for i in range(4):
                 self.controller_selections[i].activate()
-                self.controller_selections[i].set_selection(f"animation_{i}", cycle)
+                self.controller_selections[i].set_selection(f'animation_{i}', cycle)
                 time.sleep(0.0001)  # Very small delay
         end_time = time.time()
 
@@ -88,7 +89,7 @@ class TestMultiControllerStress:
         for i in range(4):
             assert self.controller_selections[i].is_active()
             animation, frame = self.controller_selections[i].get_selection()
-            assert animation == f"animation_{i}"
+            assert animation == f'animation_{i}'
             assert frame == 999  # Last cycle
 
     def test_memory_stress_with_navigation_history(self):
@@ -100,7 +101,7 @@ class TestMultiControllerStress:
         # Generate extensive navigation history
         start_time = time.time()
         for i in range(10000):
-            self.controller_selections[0].set_selection(f"animation_{i % 100}", i % 50)
+            self.controller_selections[0].set_selection(f'animation_{i % 100}', i % 50)
         end_time = time.time()
 
         # Should complete quickly
@@ -112,7 +113,7 @@ class TestMultiControllerStress:
 
         # Verify current state
         animation, frame = self.controller_selections[0].get_selection()
-        assert animation == "animation_99"  # Last animation
+        assert animation == 'animation_99'  # Last animation
         assert frame == 49  # Last frame
 
     def test_visual_collision_stress(self):
@@ -159,7 +160,7 @@ class TestMultiControllerStress:
             """Worker function for concurrent operations."""
             for _ in range(iterations):
                 self.controller_selections[controller_id].set_selection(
-                    f"animation_{controller_id}", controller_id
+                    f'animation_{controller_id}', controller_id
                 )
                 time.sleep(0.001)
 
@@ -183,7 +184,7 @@ class TestMultiControllerStress:
         for i in range(8):
             assert self.controller_selections[i].is_active()
             animation, frame = self.controller_selections[i].get_selection()
-            assert animation == f"animation_{i}"
+            assert animation == f'animation_{i}'
             assert frame == i
 
     def test_system_resilience_stress(self):
@@ -312,7 +313,7 @@ class TestMultiControllerStress:
 
             except (KeyError, AttributeError, ValueError):
                 # Should handle errors gracefully
-                LOG.debug("Invalid controller operation handled gracefully")
+                LOG.debug('Invalid controller operation handled gracefully')
 
         # System should still be functional
         assert True  # If we get here, error handling worked
@@ -332,7 +333,7 @@ class TestMultiControllerStress:
         for cycle in range(100):
             # Navigation operations
             for i in range(10):
-                self.controller_selections[i].set_selection(f"animation_{i}", cycle % 50)
+                self.controller_selections[i].set_selection(f'animation_{i}', cycle % 50)
 
             # Visual operations
             for i in range(10):
@@ -357,5 +358,5 @@ class TestMultiControllerStress:
         for i in range(10):
             assert self.controller_selections[i].is_active()
             animation, frame = self.controller_selections[i].get_selection()
-            assert animation == f"animation_{i}"
+            assert animation == f'animation_{i}'
             assert frame == 49  # Last cycle: 99 % 50 = 49

@@ -13,6 +13,7 @@ import math
 import random
 
 import pygame
+
 from glitchygames.game_objects.ball import BallSprite
 
 # Tolerance for floating-point energy comparison.
@@ -249,26 +250,26 @@ def test_multi_ball_ball_collision_bounce():
     # === ASSERTIONS ===
     final_alive = sum(1 for ball in balls if ball.alive())
     assert final_alive == num_balls, (
-        f"Expected all {num_balls} balls to survive, but only {final_alive} alive"
+        f'Expected all {num_balls} balls to survive, but only {final_alive} alive'
     )
-    assert wall_bounces > 0, "No wall bounces detected — wall bouncing is broken"
+    assert wall_bounces > 0, 'No wall bounces detected — wall bouncing is broken'
 
     energy_drift = abs(final_energy - initial_energy)
     assert energy_drift < ENERGY_TOLERANCE, (
-        f"Total kinetic energy not conserved: "
-        f"initial={initial_energy:.6f}, final={final_energy:.6f}, "
-        f"drift={energy_drift:.2e} (tolerance={ENERGY_TOLERANCE:.2e})"
+        f'Total kinetic energy not conserved: '
+        f'initial={initial_energy:.6f}, final={final_energy:.6f}, '
+        f'drift={energy_drift:.2e} (tolerance={ENERGY_TOLERANCE:.2e})'
     )
 
     for i in range(num_balls):
         if i not in collision_participants:
             magnitude_drift = abs(final_magnitudes[i] - initial_magnitudes[i])
             assert magnitude_drift < 1e-12, (
-                f"Ball {i + 1} (no collisions) has speed magnitude drift: "
-                f"initial={initial_magnitudes[i]:.6f}, "
-                f"final={final_magnitudes[i]:.6f}, drift={magnitude_drift:.2e}"
+                f'Ball {i + 1} (no collisions) has speed magnitude drift: '
+                f'initial={initial_magnitudes[i]:.6f}, '
+                f'final={final_magnitudes[i]:.6f}, drift={magnitude_drift:.2e}'
             )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     test_multi_ball_ball_collision_bounce()

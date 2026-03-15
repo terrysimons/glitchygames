@@ -3,7 +3,6 @@
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
 from glitchygames.movement.horizontal import Horizontal
 from glitchygames.movement.vertical import Vertical
-
 from tests.mocks import MockFactory
 
 
@@ -42,7 +41,7 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -50,7 +49,7 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
             height=SIZE_20,
         )
 
-        assert paddle.name == "test_paddle"
+        assert paddle.name == 'test_paddle'
         assert paddle.rect.x == POS_100
         assert paddle.rect.y == POS_200
         assert paddle.width == SIZE_50
@@ -66,7 +65,7 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -82,7 +81,7 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -95,31 +94,31 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
 
     def test_base_paddle_initialization_with_collision_sound(self, mock_pygame_patches, mocker):
         """Test BasePaddle initialization with collision sound."""
-        mock_load_sound = mocker.patch("glitchygames.game_objects.paddle.load_sound")
+        mock_load_sound = mocker.patch('glitchygames.game_objects.paddle.load_sound')
         mock_sound = MockFactory.create_pygame_surface_mock()
         mock_load_sound.return_value = mock_sound
 
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
             width=SIZE_50,
             height=SIZE_20,
-            collision_sound="hit.wav",
+            collision_sound='hit.wav',
         )
 
         assert paddle.snd == mock_sound
-        mock_load_sound.assert_called_once_with("hit.wav")
+        mock_load_sound.assert_called_once_with('hit.wav')
 
     def test_base_paddle_initialization_without_collision_sound(self, mock_pygame_patches):
         """Test BasePaddle initialization without collision sound."""
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -128,7 +127,7 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
         )
 
         # Should not have collision sound
-        assert not hasattr(paddle, "snd")
+        assert not hasattr(paddle, 'snd')
 
 
 class TestPaddleMovement(BasePaddleTest):
@@ -139,7 +138,7 @@ class TestPaddleMovement(BasePaddleTest):
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -160,7 +159,7 @@ class TestPaddleMovement(BasePaddleTest):
         paddle = BasePaddle(
             axis=Vertical,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -185,7 +184,7 @@ class TestPaddleBoundaryDetection(BasePaddleTest):
         paddle = BasePaddle(
             axis=Vertical,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -216,7 +215,7 @@ class TestPaddleBoundaryDetection(BasePaddleTest):
         paddle = BasePaddle(
             axis=Vertical,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -241,7 +240,7 @@ class TestPaddleBoundaryDetection(BasePaddleTest):
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -267,7 +266,7 @@ class TestPaddleBoundaryDetection(BasePaddleTest):
         paddle = BasePaddle(
             axis=Horizontal,
             speed=5,
-            name="test_paddle",
+            name='test_paddle',
             color=(255, 0, 0),
             x=POS_100,
             y=POS_200,
@@ -298,14 +297,14 @@ class TestHorizontalPaddle(BasePaddleTest):
     def test_horizontal_paddle_initialization(self, mock_pygame_patches):
         """Test HorizontalPaddle initialization."""
         paddle = HorizontalPaddle(
-            name="horizontal_paddle",
+            name='horizontal_paddle',
             size=(SIZE_100, SIZE_20),
             position=(POS_200, POS_300),
             color=(0, 255, 0),
             speed=5,
         )
 
-        assert paddle.name == "horizontal_paddle"
+        assert paddle.name == 'horizontal_paddle'
         assert paddle.rect.x == POS_200
         assert paddle.rect.y == POS_300
         assert paddle.width == SIZE_100
@@ -316,7 +315,7 @@ class TestHorizontalPaddle(BasePaddleTest):
         """Test HorizontalPaddle initialization with custom groups."""
         groups = MockFactory.create_pygame_sprite_group_mock()
         paddle = HorizontalPaddle(
-            name="horizontal_paddle",
+            name='horizontal_paddle',
             size=(SIZE_100, SIZE_20),
             position=(POS_200, POS_300),
             color=(0, 255, 0),
@@ -330,17 +329,17 @@ class TestHorizontalPaddle(BasePaddleTest):
         self, mock_pygame_patches, mocker
     ):
         """Test HorizontalPaddle initialization with collision sound."""
-        mock_load_sound = mocker.patch("glitchygames.game_objects.paddle.load_sound")
+        mock_load_sound = mocker.patch('glitchygames.game_objects.paddle.load_sound')
         mock_sound = MockFactory.create_pygame_surface_mock()
         mock_load_sound.return_value = mock_sound
 
         paddle = HorizontalPaddle(
-            name="horizontal_paddle",
+            name='horizontal_paddle',
             size=(SIZE_100, SIZE_20),
             position=(POS_200, POS_300),
             color=(0, 255, 0),
             speed=5,
-            collision_sound="hit.wav",
+            collision_sound='hit.wav',
         )
 
         assert paddle.snd == mock_sound
@@ -352,14 +351,14 @@ class TestVerticalPaddle(BasePaddleTest):
     def test_vertical_paddle_initialization(self, mock_pygame_patches):
         """Test VerticalPaddle initialization."""
         paddle = VerticalPaddle(
-            name="vertical_paddle",
+            name='vertical_paddle',
             size=(SIZE_20, SIZE_100),
             position=(POS_200, POS_300),
             color=(0, 0, 255),
             speed=5,
         )
 
-        assert paddle.name == "vertical_paddle"
+        assert paddle.name == 'vertical_paddle'
         assert paddle.rect.x == POS_200
         assert paddle.rect.y == POS_300
         assert paddle.width == SIZE_20
@@ -370,7 +369,7 @@ class TestVerticalPaddle(BasePaddleTest):
         """Test VerticalPaddle initialization with custom groups."""
         groups = MockFactory.create_pygame_sprite_group_mock()
         paddle = VerticalPaddle(
-            name="vertical_paddle",
+            name='vertical_paddle',
             size=(SIZE_20, SIZE_100),
             position=(POS_200, POS_300),
             color=(0, 0, 255),
@@ -382,17 +381,17 @@ class TestVerticalPaddle(BasePaddleTest):
 
     def test_vertical_paddle_initialization_with_collision_sound(self, mock_pygame_patches, mocker):
         """Test VerticalPaddle initialization with collision sound."""
-        mock_load_sound = mocker.patch("glitchygames.game_objects.paddle.load_sound")
+        mock_load_sound = mocker.patch('glitchygames.game_objects.paddle.load_sound')
         mock_sound = MockFactory.create_pygame_surface_mock()
         mock_load_sound.return_value = mock_sound
 
         paddle = VerticalPaddle(
-            name="vertical_paddle",
+            name='vertical_paddle',
             size=(SIZE_20, SIZE_100),
             position=(POS_200, POS_300),
             color=(0, 0, 255),
             speed=5,
-            collision_sound="hit.wav",
+            collision_sound='hit.wav',
         )
 
         assert paddle.snd == mock_sound
@@ -404,7 +403,7 @@ class TestPaddleIntegration(BasePaddleTest):
     def test_horizontal_paddle_full_cycle(self, mock_pygame_patches):
         """Test complete horizontal paddle game cycle."""
         paddle = HorizontalPaddle(
-            name="horizontal_paddle",
+            name='horizontal_paddle',
             size=(SIZE_100, SIZE_20),
             position=(POS_200, POS_300),
             color=(0, 255, 0),
@@ -428,7 +427,7 @@ class TestPaddleIntegration(BasePaddleTest):
     def test_vertical_paddle_full_cycle(self, mock_pygame_patches):
         """Test complete vertical paddle game cycle."""
         paddle = VerticalPaddle(
-            name="vertical_paddle",
+            name='vertical_paddle',
             size=(SIZE_20, SIZE_100),
             position=(POS_200, POS_300),
             color=(0, 0, 255),
@@ -451,7 +450,7 @@ class TestPaddleIntegration(BasePaddleTest):
         """Test paddle behavior at boundaries."""
         # Test horizontal paddle at boundaries
         h_paddle = HorizontalPaddle(
-            name="horizontal_paddle",
+            name='horizontal_paddle',
             size=(SIZE_100, SIZE_20),
             position=(0, POS_300),
             color=(0, 255, 0),
@@ -467,7 +466,7 @@ class TestPaddleIntegration(BasePaddleTest):
 
         # Test vertical paddle at boundaries
         v_paddle = VerticalPaddle(
-            name="vertical_paddle",
+            name='vertical_paddle',
             size=(SIZE_20, SIZE_100),
             position=(POS_200, 0),
             color=(0, 0, 255),

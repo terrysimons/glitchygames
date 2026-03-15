@@ -9,7 +9,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import bitmappy, film_strip
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -41,7 +40,7 @@ class TestFilmStripEventHandling:
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return True when event is handled
-        assert result, "Film strip should return True when handling event inside bounds"
+        assert result, 'Film strip should return True when handling event inside bounds'
 
     def test_right_click_outside_bounds_returns_false(self):
         """Test that right-click outside film strip bounds returns False."""
@@ -54,13 +53,13 @@ class TestFilmStripEventHandling:
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return False when event is not handled
-        assert not result, "Film strip should return False when not handling event outside bounds"
+        assert not result, 'Film strip should return False when not handling event outside bounds'
 
     def test_right_click_with_frame_selection_returns_true(self):
         """Test that right-click on a frame for color sampling returns True."""
         # Mock the film strip widget to return a frame when clicked
         self.film_strip_widget.get_frame_at_position = self._mocker.Mock(
-            return_value=("animation", 0)
+            return_value=('animation', 0)
         )
 
         # Create a mock right-click event inside the film strip
@@ -72,13 +71,13 @@ class TestFilmStripEventHandling:
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return True when event is handled
-        assert result, "Film strip should return True when handling frame selection event"
+        assert result, 'Film strip should return True when handling frame selection event'
 
     def test_right_click_with_onion_skinning_returns_true(self):
         """Test that right-click for onion skinning returns True."""
         # Mock the film strip widget to return None for frame selection but handle onion skinning
         self.film_strip_widget.get_frame_at_position = self._mocker.Mock(return_value=None)
-        self.film_strip_widget.handle_click = self._mocker.Mock(return_value=("animation", 0))
+        self.film_strip_widget.handle_click = self._mocker.Mock(return_value=('animation', 0))
 
         # Create a mock right-click event inside the film strip
         event = MockFactory.create_pygame_event_mock()
@@ -89,7 +88,7 @@ class TestFilmStripEventHandling:
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return True when event is handled
-        assert result, "Film strip should return True when handling onion skinning event"
+        assert result, 'Film strip should return True when handling onion skinning event'
 
     def test_right_click_when_invisible_returns_false(self):
         """Test that right-click when sprite is invisible returns False."""
@@ -105,7 +104,7 @@ class TestFilmStripEventHandling:
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return False when sprite is invisible
-        assert not result, "Film strip should return False when sprite is invisible"
+        assert not result, 'Film strip should return False when sprite is invisible'
 
     def test_right_click_without_widget_returns_false(self):
         """Test that right-click without widget returns False."""
@@ -121,7 +120,7 @@ class TestFilmStripEventHandling:
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return False when no widget
-        assert not result, "Film strip should return False when no widget"
+        assert not result, 'Film strip should return False when no widget'
 
     def test_event_coordinate_conversion(self):
         """Test that screen coordinates are properly converted to film strip coordinates."""
@@ -145,7 +144,7 @@ class TestFilmStripEventHandling:
         """Test that frame selection for color sampling takes priority over onion skinning."""
         # Mock the film strip widget to return a frame (color sampling)
         self.film_strip_widget.get_frame_at_position = self._mocker.Mock(
-            return_value=("animation", 0)
+            return_value=('animation', 0)
         )
         self.film_strip_widget.handle_click = self._mocker.Mock(return_value=None)
 

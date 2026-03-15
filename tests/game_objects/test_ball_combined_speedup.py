@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
-
 from tests.mocks.test_mock_factory import MockFactory
 
 

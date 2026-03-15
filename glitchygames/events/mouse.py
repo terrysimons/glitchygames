@@ -10,11 +10,12 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+
 from glitchygames.events import MOUSE_EVENTS, MouseEvents, ResourceManager
 
 # from glitchygames.sprites import collided_sprites
 
-LOG = logging.getLogger("game.mouse")
+LOG = logging.getLogger('game.mouse')
 LOG.addHandler(logging.NullHandler())
 
 # TODO @<terry.simons@gmail.com>: Add pygame 2 MOUSEWHEEL event handling.
@@ -66,7 +67,7 @@ class MouseEventManager(ResourceManager):
             self._motion_seq += 1
             try:
                 _has_down = any(
-                    getattr(e, "type", None) == pygame.MOUSEBUTTONDOWN
+                    getattr(e, 'type', None) == pygame.MOUSEBUTTONDOWN
                     for e in self.mouse_state.values()
                 )
             except RuntimeError:
@@ -83,7 +84,7 @@ class MouseEventManager(ResourceManager):
             sprite = collided_sprites(self.game, event=event, index=-1)
 
             if sprite:
-                self.log.debug(f"{type(self)}: Mouse Motion: {event}")
+                self.log.debug(f'{type(self)}: Mouse Motion: {event}')
                 sprite[0].on_mouse_motion_event(event)
 
                 # # See if we're focused on the same sprite.
@@ -163,7 +164,7 @@ class MouseEventManager(ResourceManager):
                 trigger (pygame.event.Event): The triggering event.
 
             """
-            self.log.debug(f"{type(self)}: Mouse Drop: {event} {trigger}")
+            self.log.debug(f'{type(self)}: Mouse Drop: {event} {trigger}')
             self.mouse_dropping = True
             self.game.on_mouse_drop_event(event, trigger)
 
@@ -316,7 +317,7 @@ class MouseEventManager(ResourceManager):
             # Send an enter event for the new focus.
             entering_focus.on_mouse_focus_event(event, self.current_focus)
 
-            self.log.info(f"Entered Focus: {self.current_focus}")
+            self.log.info(f'Entered Focus: {self.current_focus}')
             # else:
             #     self.log.info(f'Focus Locked: {self.previous_focus}')
 
@@ -336,7 +337,7 @@ class MouseEventManager(ResourceManager):
                 leaving_focus.on_mouse_unfocus_event(event)
                 self.current_focus = None
 
-                self.log.info(f"Left Focus: {self.previous_focus}")
+                self.log.info(f'Left Focus: {self.previous_focus}')
 
         def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
             """Handle the mouse button up event.
@@ -535,7 +536,7 @@ class MouseEventManager(ResourceManager):
             argparse.ArgumentParser: The result.
 
         """
-        _group = parser.add_argument_group("Mouse Options")
+        _group = parser.add_argument_group('Mouse Options')
 
         return parser
 

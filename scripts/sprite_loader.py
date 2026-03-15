@@ -13,11 +13,12 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite, SpriteFactory
 
-log = logging.getLogger("game")
+log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
 
 
@@ -52,15 +53,15 @@ class BitmappySprite(Sprite):
         """
         config = configparser.ConfigParser(dict_type=OrderedDict)
 
-        config.read(filename, encoding="utf-8")
+        config.read(filename, encoding='utf-8')
 
         # Example config:
         # [sprite]
         # name = <name>
-        name = config.get(section="sprite", option="name")
+        name = config.get(section='sprite', option='name')
 
         # pixels = <pixels>
-        pixels = config.get(section="sprite", option="pixels").split("\n")
+        pixels = config.get(section='sprite', option='pixels').split('\n')
 
         # Set our sprite's length and width.
         width = 0
@@ -86,9 +87,9 @@ class BitmappySprite(Sprite):
             # This is checking the length of the section's name.
             # Colors are length 1.  This works with unicode, too.
             if len(section) == 1:
-                red = config.getint(section=section, option="red")
-                green = config.getint(section=section, option="green")
-                blue = config.getint(section=section, option="blue")
+                red = config.getint(section=section, option='red')
+                green = config.getint(section=section, option='green')
+                blue = config.getint(section=section, option='blue')
 
                 color_map[section] = (red, green, blue)
 
@@ -153,7 +154,7 @@ class BitmappySprite(Sprite):
         """
         config = self.deflate()
 
-        with Path.open(filename, "w") as deflated_sprite:
+        with Path.open(filename, 'w') as deflated_sprite:
             config.write(deflated_sprite)
 
     def deflate(self: Self) -> configparser.ConfigParser:
@@ -172,7 +173,7 @@ class BitmappySprite(Sprite):
         color_map = {}
         pixels = []
 
-        raw_pixels = self.rgb_triplet_generator(pygame.image.tostring(self.image, "RGB"))
+        raw_pixels = self.rgb_triplet_generator(pygame.image.tostring(self.image, 'RGB'))
 
         # We're utilizing the generator to give us RGB triplets.
         # We need a list here becasue we'll use set() to pull out the
@@ -183,8 +184,8 @@ class BitmappySprite(Sprite):
         # This gives us the unique rgb triplets in the image.
         colors = set(raw_pixels)
 
-        config.add_section("sprite")
-        config.set("sprite", "name", self.name)
+        config.add_section('sprite')
+        config.set('sprite', 'name', self.name)
 
         # Generate the color key
         color_key = chr(47)
@@ -195,16 +196,16 @@ class BitmappySprite(Sprite):
 
             color_map[color] = color_key
 
-            log.debug(f"Key: {color} -> {color_key}")
+            log.debug(f'Key: {color} -> {color_key}')
 
             red = color[0]
-            config.set(color_key, "red", str(red))
+            config.set(color_key, 'red', str(red))
 
             green = color[1]
-            config.set(color_key, "green", str(green))
+            config.set(color_key, 'green', str(green))
 
             blue = color[2]
-            config.set(color_key, "blue", str(blue))
+            config.set(color_key, 'blue', str(blue))
 
         x = 0
         row = []
@@ -213,16 +214,16 @@ class BitmappySprite(Sprite):
             x += 1
 
             if x % self.rect.width == 0:
-                log.debug(f"Row: {row}")
-                pixels.append("".join(row))
+                log.debug(f'Row: {row}')
+                pixels.append(''.join(row))
                 row = []
                 x = 0
 
         log.debug(pixels)
 
-        config.set("sprite", "pixels", "\n".join(pixels))
+        config.set('sprite', 'pixels', '\n'.join(pixels))
 
-        log.debug(f"Deflated Sprite: {config}")
+        log.debug(f'Deflated Sprite: {config}')
 
         return config
 
@@ -237,14 +238,14 @@ class BitmappySprite(Sprite):
 
         """
         description = (
-            f"Name: {self.name}\nDimensions: {self.width}x{self.height}"
-            "\nColor Key: {self.color_key}\n"
+            f'Name: {self.name}\nDimensions: {self.width}x{self.height}'
+            '\nColor Key: {self.color_key}\n'
         )
 
         for row in self.pixels:
             for pixel in row:
                 description += pixel
-            description += "\n"
+            description += '\n'
 
         return description
 
@@ -276,8 +277,8 @@ class Game(Scene):
     """The main game class."""
 
     # Set your game name/version here.
-    NAME = "Sprite Loader"
-    VERSION = "1.0"
+    NAME = 'Sprite Loader'
+    VERSION = '1.0'
 
     def __init__(self: Self, options: dict) -> None:
         """Initialize the Game.
@@ -287,7 +288,7 @@ class Game(Scene):
 
         """
         super().__init__(options=options)
-        self.filename = options.get("filename")
+        self.filename = options.get('filename')
 
         self.next_scene = GameScene(filename=self.filename)
 
@@ -300,10 +301,10 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            "-v", "--version", action="store_true", help="print the game version and exit"
+            '-v', '--version', action='store_true', help='print the game version and exit'
         )
 
-        parser.add_argument("--filename", help="the file to load", required=True)
+        parser.add_argument('--filename', help='the file to load', required=True)
 
 
 def main() -> None:
@@ -311,5 +312,5 @@ def main() -> None:
     GameEngine(game=Game).start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

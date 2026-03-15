@@ -37,11 +37,11 @@ class UnhandledEventError(Exception):
     """
 
 
-LOG: logging.Logger = logging.getLogger("game.events")
+LOG: logging.Logger = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
 
 
-def supported_events(like: str = ".*") -> list:
+def supported_events(like: str = '.*') -> list:
     """Return a list of supported events.
 
     This method is crucial for allowing the game engine
@@ -66,7 +66,7 @@ def supported_events(like: str = ".*") -> list:
     # Get a list of all of the events
     # by name, but ignore duplicates.
     event_names = (pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS))
-    event_names: set[str] = set(event_names) - set("Unknown")
+    event_names: set[str] = set(event_names) - set('Unknown')
 
     # Pygame 2.5.1 and maybe others have a bug where the event name lookup
     # is wrong.
@@ -80,16 +80,16 @@ def supported_events(like: str = ".*") -> list:
     #
     # The controller documentation also indicates that it should be CONTROLLERDEVICEREMAPPED
     patched_event_names = {
-        "APPDIDENTERBACKGROUND": "APP_DIDENTERBACKGROUND",
-        "APPDIDENTERFOREGROUND": "APP_DIDENTERFOREGROUND",
-        "APPLOWMEMORY": "APP_LOWMEMORY",
-        "APPWILLENTERBACKGROUND": "APP_WILLENTERBACKGROUND",
-        "APPWILLENTERFOREGROUND": "APP_WILLENTERFOREGROUND",
-        "APPTERMINATING": "APP_TERMINATING",
-        "CONTROLLERDEVICEMAPPED": "CONTROLLERDEVICEREMAPPED",
-        "RENDERDEVICERESET": "RENDER_DEVICE_RESET",
-        "RENDERTARGETSRESET": "RENDER_TARGETS_RESET",
-        "UNKNOWN": "K_UNKNOWN",
+        'APPDIDENTERBACKGROUND': 'APP_DIDENTERBACKGROUND',
+        'APPDIDENTERFOREGROUND': 'APP_DIDENTERFOREGROUND',
+        'APPLOWMEMORY': 'APP_LOWMEMORY',
+        'APPWILLENTERBACKGROUND': 'APP_WILLENTERBACKGROUND',
+        'APPWILLENTERFOREGROUND': 'APP_WILLENTERFOREGROUND',
+        'APPTERMINATING': 'APP_TERMINATING',
+        'CONTROLLERDEVICEMAPPED': 'CONTROLLERDEVICEREMAPPED',
+        'RENDERDEVICERESET': 'RENDER_DEVICE_RESET',
+        'RENDERTARGETSRESET': 'RENDER_TARGETS_RESET',
+        'UNKNOWN': 'K_UNKNOWN',
     }
 
     event_list = []
@@ -99,7 +99,7 @@ def supported_events(like: str = ".*") -> list:
         #
         # This works around a pygame bug for CONTROLLERDEVICEREMAPPED
         patched_event_name = patched_event_names.get(event_name.upper(), event_name)
-        LOG.info(f"Adding Event: {patched_event_name}")
+        LOG.info(f'Adding Event: {patched_event_name}')
 
         if re.match(like, patched_event_name.upper()):
             event_list.append(getattr(pygame, patched_event_name.upper()))
@@ -112,17 +112,17 @@ FPSEVENT = pygame.USEREVENT + 1
 GAMEEVENT = pygame.USEREVENT + 2
 MENUEVENT = pygame.USEREVENT + 3
 
-AUDIO_EVENTS = supported_events(like="AUDIO.*?")
-APP_EVENTS = supported_events(like="APP.*?")
-CONTROLLER_EVENTS = supported_events(like="CONTROLLER.*?")
-DROP_EVENTS = supported_events(like="DROP.*?")
-TOUCH_EVENTS = supported_events(like="(FINGER|MULTI).*?")
-JOYSTICK_EVENTS = supported_events(like="JOY.*?")
-KEYBOARD_EVENTS = supported_events(like="KEY.*?")
-MIDI_EVENTS = supported_events(like="MIDI.*?")
-MOUSE_EVENTS = supported_events(like="MOUSE.*?")
-TEXT_EVENTS = supported_events(like="TEXT.*?")
-WINDOW_EVENTS = supported_events(like="WINDOW.*?")
+AUDIO_EVENTS = supported_events(like='AUDIO.*?')
+APP_EVENTS = supported_events(like='APP.*?')
+CONTROLLER_EVENTS = supported_events(like='CONTROLLER.*?')
+DROP_EVENTS = supported_events(like='DROP.*?')
+TOUCH_EVENTS = supported_events(like='(FINGER|MULTI).*?')
+JOYSTICK_EVENTS = supported_events(like='JOY.*?')
+KEYBOARD_EVENTS = supported_events(like='KEY.*?')
+MIDI_EVENTS = supported_events(like='MIDI.*?')
+MOUSE_EVENTS = supported_events(like='MOUSE.*?')
+TEXT_EVENTS = supported_events(like='TEXT.*?')
+WINDOW_EVENTS = supported_events(like='WINDOW.*?')
 ALL_EVENTS = supported_events()
 GAME_EVENTS = list(
     set(ALL_EVENTS)
@@ -152,7 +152,7 @@ def dump_cache_info(func: Callable, **kwargs: dict) -> Callable[..., None]:  # n
 
     def wrapper(game: Scene, *args: list, **kwargs: dict) -> None:
         cache_info: Any = func.cache_info()
-        LOG.debug(f"Cache Info: {func.__name__} {cache_info}")
+        LOG.debug(f'Cache Info: {func.__name__} {cache_info}')
         func(game, *args, **kwargs)
 
     return wrapper
@@ -179,12 +179,12 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
         UnhandledEventError: If no_unhandled_events is enabled and the event is not handled.
 
     """
-    debug_events: bool | None = game.options.get("debug_events", None)
-    no_unhandled_events: bool | None = game.options.get("no_unhandled_events", None)
+    debug_events: bool | None = game.options.get('debug_events', None)
+    no_unhandled_events: bool | None = game.options.get('no_unhandled_events', None)
 
     if debug_events:
         LOG.error(
-            f"Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}"
+            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
         )
     elif debug_events is None:
         LOG.error(
@@ -193,9 +193,9 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
 
     if no_unhandled_events:
         LOG.error(
-            f"Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}"
+            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
         )
-        raise UnhandledEventError(f"Unhandled event: {pygame.event.event_name(event.type)} {event}")
+        raise UnhandledEventError(f'Unhandled event: {pygame.event.event_name(event.type)} {event}')
     if no_unhandled_events is None:
         LOG.error(
             "Error: no_unhandled_events is missing from the game options. "
@@ -254,7 +254,7 @@ class ResourceManager:
         """
         if cls not in cls.__instances__:
             cls.__instances__[cls] = object.__new__(cls)
-            LOG.debug(f"Created Resource Manager: {cls}")
+            LOG.debug(f'Created Resource Manager: {cls}')
             cls.__instances__[cls].args = args
             cls.__instances__[cls].kwargs = kwargs
 
@@ -290,10 +290,10 @@ class ResourceManager:
             for proxy in self.proxies:
                 return getattr(proxy, attr)
         except AttributeError:
-            self.log.error(f"No proxies for {type(self)}.{attr}")  # noqa: TRY400
+            self.log.error(f'No proxies for {type(self)}.{attr}')  # noqa: TRY400
             raise
 
-        raise AttributeError(f"No proxies for {type(self)}.{attr}")
+        raise AttributeError(f'No proxies for {type(self)}.{attr}')
 
 
 # Note, we can't subclass HashableEvent because it's a C type.
@@ -436,7 +436,7 @@ class HashableEvent(collections.UserDict):
             str: The string representation.
 
         """
-        return f"{self.__class__.__name__}({self.__dict__})"
+        return f'{self.__class__.__name__}({self.__dict__})'
 
     def __str__(self: Self) -> str:
         """Return a string representation of the object.
@@ -445,7 +445,7 @@ class HashableEvent(collections.UserDict):
             str: The string representation.
 
         """
-        return f"{self.__class__.__name__}({self.__dict__})"
+        return f'{self.__class__.__name__}({self.__dict__})'
 
     def __copy__(self: Self) -> Self:
         """Shallow copy the object.
@@ -501,12 +501,12 @@ class EventInterface(abc.ABC):  # noqa: B024
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
-                    cls.log.info(f"{subclass.__name__}.{attribute} -> ✅ (callable)")
+                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (callable)')
                 else:
-                    cls.log.info(f"{subclass.__name__}.{attribute} -> ✅ (attribute))")
+                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (attribute))')
                 methods.append(True)
             else:
-                cls.log.info(f"{subclass.__name__}.{attribute} -> ❌ (unimplemented)")
+                cls.log.info(f'{subclass.__name__}.{attribute} -> ❌ (unimplemented)')
                 methods.append(False)
 
         # all([]) returns True, so mask it
@@ -1372,7 +1372,7 @@ class AppEventStubs(EventInterface):
     def __init__(self: Self) -> None:
         """Initialize app event stubs."""
         super().__init__()
-        self.options = {"debug_events": False, "no_unhandled_events": True}
+        self.options = {'debug_events': False, 'no_unhandled_events': True}
 
     @functools.cache
     def on_app_did_enter_background_event(self: Self, event: HashableEvent) -> None:
@@ -2706,13 +2706,13 @@ class EventManager(ResourceManager):
             # inspect.stack()[1] is the call frame above us, so this should be reasonable.
             event_handler = inspect.stack()[1].function
 
-            event = kwargs.get("event")
+            event = kwargs.get('event')
 
-            event_trigger: dict | None = kwargs.get("trigger")
+            event_trigger: dict | None = kwargs.get('trigger')
 
             self.log.debug(
-                f"Unhandled Event {event_handler}: "
-                f"{self.event_source}->{event} Event Trigger: {event_trigger}"
+                f'Unhandled Event {event_handler}: '
+                f'{self.event_source}->{event} Event Trigger: {event_trigger}'
             )
 
         def __getattr__(self: Self, attr: str) -> Callable:

@@ -3,6 +3,7 @@
 import os
 
 import pytest
+
 from glitchygames.services.renderer_service import RendererService, RenderResult
 
 
@@ -13,8 +14,8 @@ class TestRenderResult:
         """Test successful render result."""
         result = RenderResult(
             success=True,
-            png_bytes=b"PNG data",
-            png_base64="UE5HIGRhdGE=",
+            png_bytes=b'PNG data',
+            png_base64='UE5HIGRhdGE=',
             width=16,
             height=16,
             frame_count=1,
@@ -28,12 +29,12 @@ class TestRenderResult:
         """Test failed render result."""
         result = RenderResult(
             success=False,
-            error="Sprite loading failed",
+            error='Sprite loading failed',
         )
 
         assert result.success is False
         assert result.png_bytes is None
-        assert result.error == "Sprite loading failed"
+        assert result.error == 'Sprite loading failed'
 
 
 class TestRendererService:
@@ -119,7 +120,7 @@ blue = 0
         RendererService._pygame_initialized = False
 
         # Set headless environment variables
-        mocker.patch.dict(os.environ, {"SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"})
+        mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'})
         service = RendererService()
         assert RendererService._pygame_initialized is True
 
@@ -172,7 +173,7 @@ blue = 0
         """Test rendering with invalid TOML."""
         service = RendererService()
 
-        result = service.render_from_toml("invalid { toml content")
+        result = service.render_from_toml('invalid { toml content')
 
         assert result.success is False
         assert result.error is not None
@@ -181,7 +182,7 @@ blue = 0
         """Test rendering from non-existent file."""
         service = RendererService()
 
-        result = service.render_from_file("/nonexistent/path/sprite.toml")
+        result = service.render_from_file('/nonexistent/path/sprite.toml')
 
         assert result.success is False
-        assert "not found" in result.error.lower() or "no such file" in result.error.lower()
+        assert 'not found' in result.error.lower() or 'no such file' in result.error.lower()

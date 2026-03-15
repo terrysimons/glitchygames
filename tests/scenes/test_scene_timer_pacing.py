@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from glitchygames.scenes import SceneManager
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -67,25 +66,25 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
     fake_timer = FakeTimer()
     engine_mock = mocker.Mock()
     engine_mock.OPTIONS = {
-        "update_type": "update",
-        "fps_log_interval_ms": 1000,
-        "target_fps": 60,
-        "log_timer_jitter": False,
+        'update_type': 'update',
+        'fps_log_interval_ms': 1000,
+        'target_fps': 60,
+        'log_timer_jitter': False,
     }
     engine_mock.timer = fake_timer
     sm.game_engine = engine_mock
     sm.target_fps = 60
 
-    monkeypatch.setattr(sm, "_update_scene", lambda: None)
-    monkeypatch.setattr(sm, "_process_events", lambda: None)
-    monkeypatch.setattr(sm, "_render_scene", lambda: None)
-    monkeypatch.setattr(sm, "_update_display", lambda: None)
+    monkeypatch.setattr(sm, '_update_scene', lambda: None)
+    monkeypatch.setattr(sm, '_process_events', lambda: None)
+    monkeypatch.setattr(sm, '_render_scene', lambda: None)
+    monkeypatch.setattr(sm, '_update_display', lambda: None)
 
-    iterations = {"n": 0}
+    iterations = {'n': 0}
 
     def loop_guard(*args, **kwargs):
-        iterations["n"] += 1
-        if iterations["n"] >= 3:
+        iterations['n'] += 1
+        if iterations['n'] >= 3:
             sm.quit_requested = True
 
     orig_update_display = sm._update_display
@@ -94,7 +93,7 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
         orig_update_display()
         loop_guard()
 
-    monkeypatch.setattr(sm, "_update_display", wrapped_update_display)
+    monkeypatch.setattr(sm, '_update_display', wrapped_update_display)
 
     sm.active_scene = MockFactory.create_event_test_scene_mock()
     sm.active_scene.next_scene = sm.active_scene

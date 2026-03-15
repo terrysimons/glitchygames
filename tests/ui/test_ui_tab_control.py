@@ -13,7 +13,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import TabControlSprite
-
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -38,7 +37,7 @@ class TestTabControlSpriteFunctionality:
         """Test TabControlSprite initialization."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
 
         # Act
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -49,7 +48,7 @@ class TestTabControlSpriteFunctionality:
         assert tab_control.rect.width == TEST_WIDTH
         assert tab_control.rect.height == TEST_HEIGHT
         assert tab_control.parent == parent
-        assert tab_control.tabs == ["%d", "%X"]
+        assert tab_control.tabs == ['%d', '%X']
         assert tab_control.active_tab == 0
         # Dirty flag is set to 1 by default in DirtySprite
         assert tab_control.dirty == 1
@@ -58,7 +57,7 @@ class TestTabControlSpriteFunctionality:
         """Test TabControlSprite click handling."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
         parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -73,13 +72,13 @@ class TestTabControlSpriteFunctionality:
         # Assert
         assert tab_control.active_tab == 1
         assert tab_control.dirty == TEST_TAB_COUNT
-        parent.on_tab_change_event.assert_called_once_with("%X")
+        parent.on_tab_change_event.assert_called_once_with('%X')
 
     def test_tab_control_click_first_tab(self, mocker):
         """Test TabControlSprite click on first tab."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%X"
+        parent.slider_input_format = '%X'
         parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -95,13 +94,13 @@ class TestTabControlSpriteFunctionality:
         # Assert
         assert tab_control.active_tab == 0
         assert tab_control.dirty == TEST_TAB_COUNT
-        parent.on_tab_change_event.assert_called_once_with("%d")
+        parent.on_tab_change_event.assert_called_once_with('%d')
 
     def test_tab_control_click_outside_bounds(self, mocker):
         """Test TabControlSprite click outside bounds."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
         parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -123,7 +122,7 @@ class TestTabControlSpriteFunctionality:
         """Test TabControlSprite update and rendering."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
         tab_control.dirty = 2
@@ -144,7 +143,7 @@ class TestTabControlSpriteFunctionality:
         """Test TabControlSprite tab position calculation."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
@@ -159,7 +158,7 @@ class TestTabControlSpriteFunctionality:
         """Test TabControlSprite active tab property."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
@@ -168,13 +167,13 @@ class TestTabControlSpriteFunctionality:
 
         # Assert
         assert tab_control.active_tab == 1
-        assert tab_control.tabs[tab_control.active_tab] == "%X"
+        assert tab_control.tabs[tab_control.active_tab] == '%X'
 
     def test_tab_control_parent_integration(self, mocker):
         """Test TabControlSprite integration with parent."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
         parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -184,13 +183,13 @@ class TestTabControlSpriteFunctionality:
         tab_control.on_left_mouse_button_down_event(mocker.Mock(pos=(60, 35)))
 
         # Assert
-        parent.on_tab_change_event.assert_called_once_with("%X")
+        parent.on_tab_change_event.assert_called_once_with('%X')
 
     def test_tab_control_dirty_flag_management(self, mocker):
         """Test TabControlSprite dirty flag management."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
@@ -210,19 +209,19 @@ class TestTabControlSpriteFunctionality:
         """Test TabControlSprite tab text content."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
         # Assert
-        assert tab_control.tabs[0] == "%d"  # Decimal format
-        assert tab_control.tabs[1] == "%X"  # Hex format
+        assert tab_control.tabs[0] == '%d'  # Decimal format
+        assert tab_control.tabs[1] == '%X'  # Hex format
 
     def test_tab_control_rect_properties(self, mocker):
         """Test TabControlSprite rect properties."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
@@ -236,7 +235,7 @@ class TestTabControlSpriteFunctionality:
         """Test TabControlSprite click boundary conditions."""
         # Arrange
         parent = mocker.Mock()
-        parent.slider_input_format = "%d"
+        parent.slider_input_format = '%d'
         parent.on_tab_change_event = mocker.Mock()
 
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
@@ -250,4 +249,4 @@ class TestTabControlSpriteFunctionality:
 
         # Assert - should select second tab
         assert tab_control.active_tab == 1
-        parent.on_tab_change_event.assert_called_once_with("%X")
+        parent.on_tab_change_event.assert_called_once_with('%X')

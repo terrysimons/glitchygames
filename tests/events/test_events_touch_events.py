@@ -26,20 +26,20 @@ class TestTouchEvents:
     def test_touch_events_interface(self, mock_pygame_patches):
         """Test TouchEvents interface methods."""
         # Test that TouchEvents has required abstract methods
-        assert hasattr(TouchEvents, "on_touch_down_event")
-        assert hasattr(TouchEvents, "on_touch_motion_event")
-        assert hasattr(TouchEvents, "on_touch_up_event")
-        assert hasattr(TouchEvents, "on_multi_touch_down_event")
-        assert hasattr(TouchEvents, "on_multi_touch_motion_event")
-        assert hasattr(TouchEvents, "on_multi_touch_up_event")
+        assert hasattr(TouchEvents, 'on_touch_down_event')
+        assert hasattr(TouchEvents, 'on_touch_motion_event')
+        assert hasattr(TouchEvents, 'on_touch_up_event')
+        assert hasattr(TouchEvents, 'on_multi_touch_down_event')
+        assert hasattr(TouchEvents, 'on_multi_touch_motion_event')
+        assert hasattr(TouchEvents, 'on_multi_touch_up_event')
 
     def test_touch_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test TouchEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = TouchEventStubs()
-        assert hasattr(stub, "on_touch_down_event")
-        assert hasattr(stub, "on_touch_motion_event")
-        assert hasattr(stub, "on_touch_up_event")
+        assert hasattr(stub, 'on_touch_down_event')
+        assert hasattr(stub, 'on_touch_motion_event')
+        assert hasattr(stub, 'on_touch_up_event')
 
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub, mocker)
@@ -47,7 +47,7 @@ class TestTouchEvents:
         # Test method calls
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         with pytest.raises(UnhandledEventError):
             stub.on_touch_down_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
@@ -56,7 +56,7 @@ class TestTouchEvents:
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Unhandled Event: args: FingerDown" in call_args
+        assert 'Unhandled Event: args: FingerDown' in call_args
 
     def test_touch_down_event(self, mock_pygame_patches):
         """Test touch down event handling."""
@@ -65,8 +65,8 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_down_event": lambda event: (
-                    scene.touch_events_received.append(("touch_down", event)) or True
+                'on_touch_down_event': lambda event: (
+                    scene.touch_events_received.append(('touch_down', event)) or True
                 )
             }
         )
@@ -77,7 +77,7 @@ class TestTouchEvents:
 
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
-        assert scene.touch_events_received[0][0] == "touch_down"
+        assert scene.touch_events_received[0][0] == 'touch_down'
         assert scene.touch_events_received[0][1].type == pygame.FINGERDOWN
 
     def test_touch_motion_event(self, mock_pygame_patches):
@@ -87,8 +87,8 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_motion_event": lambda event: (
-                    scene.touch_events_received.append(("touch_motion", event)) or True
+                'on_touch_motion_event': lambda event: (
+                    scene.touch_events_received.append(('touch_motion', event)) or True
                 )
             }
         )
@@ -99,7 +99,7 @@ class TestTouchEvents:
 
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
-        assert scene.touch_events_received[0][0] == "touch_motion"
+        assert scene.touch_events_received[0][0] == 'touch_motion'
         assert scene.touch_events_received[0][1].type == pygame.FINGERMOTION
 
     def test_touch_up_event(self, mock_pygame_patches):
@@ -109,8 +109,8 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_up_event": lambda event: (
-                    scene.touch_events_received.append(("touch_up", event)) or True
+                'on_touch_up_event': lambda event: (
+                    scene.touch_events_received.append(('touch_up', event)) or True
                 )
             }
         )
@@ -121,7 +121,7 @@ class TestTouchEvents:
 
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
-        assert scene.touch_events_received[0][0] == "touch_up"
+        assert scene.touch_events_received[0][0] == 'touch_up'
         assert scene.touch_events_received[0][1].type == pygame.FINGERUP
 
     def test_multi_touch_down_event(self, mock_pygame_patches):
@@ -131,8 +131,8 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_multi_touch_down_event": lambda event: (
-                    scene.touch_events_received.append(("multi_touch_down", event)) or True
+                'on_multi_touch_down_event': lambda event: (
+                    scene.touch_events_received.append(('multi_touch_down', event)) or True
                 )
             }
         )
@@ -143,7 +143,7 @@ class TestTouchEvents:
 
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
-        assert scene.touch_events_received[0][0] == "multi_touch_down"
+        assert scene.touch_events_received[0][0] == 'multi_touch_down'
         assert scene.touch_events_received[0][1].type == pygame.FINGERDOWN
 
     def test_multi_touch_motion_event(self, mock_pygame_patches):
@@ -153,8 +153,8 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_multi_touch_motion_event": lambda event: (
-                    scene.touch_events_received.append(("multi_touch_motion", event)) or True
+                'on_multi_touch_motion_event': lambda event: (
+                    scene.touch_events_received.append(('multi_touch_motion', event)) or True
                 )
             }
         )
@@ -165,7 +165,7 @@ class TestTouchEvents:
 
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
-        assert scene.touch_events_received[0][0] == "multi_touch_motion"
+        assert scene.touch_events_received[0][0] == 'multi_touch_motion'
         assert scene.touch_events_received[0][1].type == pygame.FINGERMOTION
 
     def test_multi_touch_up_event(self, mock_pygame_patches):
@@ -175,8 +175,8 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_multi_touch_up_event": lambda event: (
-                    scene.touch_events_received.append(("multi_touch_up", event)) or True
+                'on_multi_touch_up_event': lambda event: (
+                    scene.touch_events_received.append(('multi_touch_up', event)) or True
                 )
             }
         )
@@ -187,7 +187,7 @@ class TestTouchEvents:
 
         # Verify the event was handled
         assert len(scene.touch_events_received) == 1
-        assert scene.touch_events_received[0][0] == "multi_touch_up"
+        assert scene.touch_events_received[0][0] == 'multi_touch_up'
         assert scene.touch_events_received[0][1].type == pygame.FINGERUP
 
     def test_multiple_finger_events(self, mock_pygame_patches):
@@ -197,14 +197,14 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_down_event": lambda event: (
-                    scene.touch_events_received.append(("touch_down", event)) or True
+                'on_touch_down_event': lambda event: (
+                    scene.touch_events_received.append(('touch_down', event)) or True
                 ),
-                "on_touch_motion_event": lambda event: (
-                    scene.touch_events_received.append(("touch_motion", event)) or True
+                'on_touch_motion_event': lambda event: (
+                    scene.touch_events_received.append(('touch_motion', event)) or True
                 ),
-                "on_touch_up_event": lambda event: (
-                    scene.touch_events_received.append(("touch_up", event)) or True
+                'on_touch_up_event': lambda event: (
+                    scene.touch_events_received.append(('touch_up', event)) or True
                 ),
             }
         )
@@ -235,14 +235,14 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_down_event": lambda event: (
-                    scene.touch_events_received.append(("touch_down", event)) or True
+                'on_touch_down_event': lambda event: (
+                    scene.touch_events_received.append(('touch_down', event)) or True
                 ),
-                "on_touch_motion_event": lambda event: (
-                    scene.touch_events_received.append(("touch_motion", event)) or True
+                'on_touch_motion_event': lambda event: (
+                    scene.touch_events_received.append(('touch_motion', event)) or True
                 ),
-                "on_touch_up_event": lambda event: (
-                    scene.touch_events_received.append(("touch_up", event)) or True
+                'on_touch_up_event': lambda event: (
+                    scene.touch_events_received.append(('touch_up', event)) or True
                 ),
             }
         )
@@ -263,9 +263,9 @@ class TestTouchEvents:
 
         # Verify all events were handled
         assert len(scene.touch_events_received) == 3
-        assert scene.touch_events_received[0][0] == "touch_down"
-        assert scene.touch_events_received[1][0] == "touch_motion"
-        assert scene.touch_events_received[2][0] == "touch_up"
+        assert scene.touch_events_received[0][0] == 'touch_down'
+        assert scene.touch_events_received[1][0] == 'touch_motion'
+        assert scene.touch_events_received[2][0] == 'touch_up'
 
     def test_touch_events_with_different_positions(self, mock_pygame_patches):
         """Test touch events with different positions."""
@@ -274,14 +274,14 @@ class TestTouchEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_touch_down_event": lambda event: (
-                    scene.touch_events_received.append(("touch_down", event)) or True
+                'on_touch_down_event': lambda event: (
+                    scene.touch_events_received.append(('touch_down', event)) or True
                 ),
-                "on_touch_motion_event": lambda event: (
-                    scene.touch_events_received.append(("touch_motion", event)) or True
+                'on_touch_motion_event': lambda event: (
+                    scene.touch_events_received.append(('touch_motion', event)) or True
                 ),
-                "on_touch_up_event": lambda event: (
-                    scene.touch_events_received.append(("touch_up", event)) or True
+                'on_touch_up_event': lambda event: (
+                    scene.touch_events_received.append(('touch_up', event)) or True
                 ),
             }
         )
@@ -319,7 +319,7 @@ class TestTouchEvents:
 
         """
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
+        mock_game.options = {'debug_events': False, 'no_unhandled_events': True}
         stub.options = mock_game.options
         return mock_game
 
@@ -335,7 +335,7 @@ class TestTouchManager:
         manager = TouchEventManager(game=mock_game)
 
         assert manager.game == mock_game
-        assert hasattr(manager, "proxies")
+        assert hasattr(manager, 'proxies')
         assert isinstance(manager.proxies, list)
 
     def test_touch_manager_events(self, mock_pygame_patches, mocker):

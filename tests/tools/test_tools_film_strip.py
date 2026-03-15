@@ -7,7 +7,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import film_strip
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Test constants to avoid magic values
@@ -30,10 +29,10 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Test basic properties
-        assert hasattr(strip, "rect")
-        assert hasattr(strip, "animated_sprite")
-        assert hasattr(strip, "current_animation")
-        assert hasattr(strip, "current_frame")
+        assert hasattr(strip, 'rect')
+        assert hasattr(strip, 'animated_sprite')
+        assert hasattr(strip, 'current_animation')
+        assert hasattr(strip, 'current_frame')
 
         # Test default values
         assert strip.animated_sprite is None
@@ -51,20 +50,20 @@ class TestFilmStripFunctionality:
         assert strip.rect.height == WIDGET_HEIGHT
 
         # Test styling properties
-        assert hasattr(strip, "frame_width")
-        assert hasattr(strip, "frame_height")
-        assert hasattr(strip, "sprocket_width")
-        assert hasattr(strip, "frame_spacing")
+        assert hasattr(strip, 'frame_width')
+        assert hasattr(strip, 'frame_height')
+        assert hasattr(strip, 'sprocket_width')
+        assert hasattr(strip, 'frame_spacing')
 
     def test_film_strip_widget_methods(self, mock_pygame_patches):
         """Test film strip widget methods."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Test that widget has expected methods (based on actual implementation)
-        assert hasattr(strip, "set_animated_sprite")
-        assert hasattr(strip, "update_animations")
-        assert hasattr(strip, "get_current_preview_frame")
-        assert hasattr(strip, "get_frame_at_position")
+        assert hasattr(strip, 'set_animated_sprite')
+        assert hasattr(strip, 'update_animations')
+        assert hasattr(strip, 'get_current_preview_frame')
+        assert hasattr(strip, 'get_frame_at_position')
 
         # Test methods are callable
         assert callable(strip.set_animated_sprite)
@@ -91,8 +90,8 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Test hover properties
-        assert hasattr(strip, "hovered_frame")
-        assert hasattr(strip, "hovered_animation")
+        assert hasattr(strip, 'hovered_frame')
+        assert hasattr(strip, 'hovered_animation')
 
         # Test initial hover state
         assert strip.hovered_frame is None
@@ -103,9 +102,9 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Test rendering methods exist (based on actual implementation)
-        assert hasattr(strip, "update_layout")
-        assert hasattr(strip, "mark_dirty")
-        assert hasattr(strip, "set_parent_canvas")
+        assert hasattr(strip, 'update_layout')
+        assert hasattr(strip, 'mark_dirty')
+        assert hasattr(strip, 'set_parent_canvas')
 
         # Test methods are callable
         assert callable(strip.update_layout)
@@ -117,9 +116,9 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Test interaction methods exist (based on actual implementation)
-        assert hasattr(strip, "get_frame_at_position")
-        assert hasattr(strip, "update_scroll_for_frame")
-        assert hasattr(strip, "_calculate_scroll_offset")
+        assert hasattr(strip, 'get_frame_at_position')
+        assert hasattr(strip, 'update_scroll_for_frame')
+        assert hasattr(strip, '_calculate_scroll_offset')
 
         # Test methods are callable
         assert callable(strip.get_frame_at_position)
@@ -140,18 +139,18 @@ class TestFilmStripFunctionality:
         # Create frames without duration attribute by using simple objects
         frames_without_duration = []
         for _ in range(ANIMATION_COUNT):
-            frame = type("Frame", (), {})()  # Simple object with no duration attribute
+            frame = type('Frame', (), {})()  # Simple object with no duration attribute
             frame.image = mocker.Mock()
             frame.image.get_size.return_value = (32, 32)
             # No duration attribute
             frames_without_duration.append(frame)
 
-        mock_sprite._animations["no_duration"] = frames_without_duration
+        mock_sprite._animations['no_duration'] = frames_without_duration
         strip.set_animated_sprite(mock_sprite)
 
         # Should use default 1.0 duration
         expected_durations = [DEFAULT_DURATION, DEFAULT_DURATION, DEFAULT_DURATION]
-        assert strip.preview_frame_durations["no_duration"] == expected_durations
+        assert strip.preview_frame_durations['no_duration'] == expected_durations
 
     def test_update_animations_no_sprite(self, mock_pygame_patches):
         """Test update_animations when no animated sprite is set."""
@@ -163,14 +162,14 @@ class TestFilmStripFunctionality:
         """Test get_current_preview_frame when animation is not in timing data."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         # Should return 0 for missing animation
-        result = strip.get_current_preview_frame("nonexistent_animation")
+        result = strip.get_current_preview_frame('nonexistent_animation')
         assert result == 0
 
     def test_get_frame_image_no_image_with_pixel_data(self, mock_pygame_patches, mocker):
         """Test _get_frame_image when frame has no image but has pixel data."""
         # Create a frame without image but with pixel data
         # Production code calls frame.get_size() after get_pixel_data(), so both are needed
-        frame = type("Frame", (), {})()
+        frame = type('Frame', (), {})()
         frame.get_pixel_data = mocker.Mock(return_value=[(255, 0, 0)] * 100)  # 10x10 red pixels
         frame.get_size = mocker.Mock(return_value=(10, 10))
 
@@ -180,7 +179,7 @@ class TestFilmStripFunctionality:
     def test_get_frame_image_no_image_no_pixel_data(self, mock_pygame_patches):
         """Test _get_frame_image when frame has no image and no pixel data."""
         # Create a frame without image or pixel data
-        frame = type("Frame", (), {})()
+        frame = type('Frame', (), {})()
         # No get_pixel_data method
 
         result = film_strip.FilmStripWidget._get_frame_image(frame)
@@ -240,7 +239,7 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         mock_sprite = MockFactory.create_animated_sprite_mock()
         strip.set_animated_sprite(mock_sprite)
-        strip.current_animation = "nonexistent"
+        strip.current_animation = 'nonexistent'
 
         # Should not crash when animation doesn't exist
         strip.update_scroll_for_frame(0)
@@ -250,7 +249,7 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         mock_sprite = MockFactory.create_animated_sprite_mock()
         strip.set_animated_sprite(mock_sprite)
-        strip.current_animation = "idle"
+        strip.current_animation = 'idle'
 
         # Should not crash when frame index is too high
         strip.update_scroll_for_frame(999)
@@ -260,8 +259,8 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
         mock_sprite = MockFactory.create_animated_sprite_mock()
         # Add more animations to test height calculation
-        mock_sprite._animations["walk"] = [mocker.Mock(), mocker.Mock(), mocker.Mock()]
-        mock_sprite._animations["jump"] = [mocker.Mock(), mocker.Mock()]
+        mock_sprite._animations['walk'] = [mocker.Mock(), mocker.Mock(), mocker.Mock()]
+        mock_sprite._animations['jump'] = [mocker.Mock(), mocker.Mock()]
         strip.set_animated_sprite(mock_sprite)
 
         # Should calculate height based on number of animations

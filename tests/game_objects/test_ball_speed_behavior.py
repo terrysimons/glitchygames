@@ -6,6 +6,7 @@ import time
 
 import pygame
 import pytest
+
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 
 
@@ -46,12 +47,12 @@ class TestBallSpeedBehavior:
         # Speed should increase significantly with capped exponential
         # With capped exponent (max 2.0), speed can grow substantially but not runaway
         assert final_magnitude > initial_magnitude * 2, (
-            "Speed should increase significantly with exponential speed-up"
+            'Speed should increase significantly with exponential speed-up'
         )
 
         # Speed should not exceed 100x initial speed (safety check for capped exponential)
         assert final_magnitude < initial_magnitude * 100, (
-            "Speed should not grow more than 100x initial speed with capped exponential"
+            'Speed should not grow more than 100x initial speed with capped exponential'
         )
 
     def test_logarithmic_speedup_behavior(self):
@@ -81,14 +82,14 @@ class TestBallSpeedBehavior:
 
         # Speed should have increased significantly
         assert final_magnitude > initial_magnitude * 1.5, (
-            "Speed should increase significantly with logarithmic speed-up"
+            'Speed should increase significantly with logarithmic speed-up'
         )
 
         # Direction should be preserved (signs should match)
         if initial_x != 0:
-            assert (final_x > 0) == (initial_x > 0), "X direction should be preserved"
+            assert (final_x > 0) == (initial_x > 0), 'X direction should be preserved'
         if initial_y != 0:
-            assert (final_y > 0) == (initial_y > 0), "Y direction should be preserved"
+            assert (final_y > 0) == (initial_y > 0), 'Y direction should be preserved'
 
     def test_linear_speedup_behavior(self):
         """Test that linear speed-up preserves direction."""
@@ -117,7 +118,7 @@ class TestBallSpeedBehavior:
 
         # Speed should have increased significantly
         assert final_magnitude > initial_magnitude * 1.2, (
-            "Speed should increase significantly with linear speed-up"
+            'Speed should increase significantly with linear speed-up'
         )
 
     def test_continuous_speedup_respects_interval(self):
@@ -135,7 +136,7 @@ class TestBallSpeedBehavior:
 
         # First dt_tick should not trigger speed-up (interval not reached)
         ball.dt_tick(0.05)  # Half the interval
-        assert ball.speed.x == initial_x, "Speed should not change before interval"
+        assert ball.speed.x == initial_x, 'Speed should not change before interval'
 
         # After 2 dt_tick calls (0.1 seconds total), speed-up should trigger
         for i in range(2):
@@ -168,7 +169,7 @@ class TestBallSpeedBehavior:
         # Speed magnitude should have increased due to wall bounce
         final_x = abs(ball.speed.x)
         assert final_x > initial_x, (
-            f"Speed magnitude should increase on wall bounce: {initial_x:.3f} -> {final_x:.3f}"
+            f'Speed magnitude should increase on wall bounce: {initial_x:.3f} -> {final_x:.3f}'
         )
 
     def test_speedup_mode_none_no_speedup(self):
@@ -214,7 +215,7 @@ class TestBallSpeedBehavior:
 
         # Speed should not grow more than 100x initial speed (safety check)
         assert final_magnitude < initial_magnitude * 100, (
-            f"Speed magnitude {final_magnitude:.3f} should not exceed 100x initial"
+            f'Speed magnitude {final_magnitude:.3f} should not exceed 100x initial'
         )
 
     def test_exponential_vs_logarithmic_comparison(self):
@@ -244,15 +245,15 @@ class TestBallSpeedBehavior:
 
         # Both modes should show significant speed increase
         assert exp_final > 50, (
-            f"Exponential speed-up should show significant increase, got {exp_final:.3f}"
+            f'Exponential speed-up should show significant increase, got {exp_final:.3f}'
         )
         assert log_final > 50, (
-            f"Logarithmic speed-up should show significant increase, got {log_final:.3f}"
+            f'Logarithmic speed-up should show significant increase, got {log_final:.3f}'
         )
 
         # Both should be reasonable (not runaway)
-        assert exp_final < 10000, f"Exponential speed-up should not be runaway, got {exp_final:.3f}"
-        assert log_final < 10000, f"Logarithmic speed-up should not be runaway, got {log_final:.3f}"
+        assert exp_final < 10000, f'Exponential speed-up should not be runaway, got {exp_final:.3f}'
+        assert log_final < 10000, f'Logarithmic speed-up should not be runaway, got {log_final:.3f}'
 
     def test_speedup_preserves_direction_components(self):
         """Test that speed-up preserves the direction of individual components."""
@@ -274,8 +275,8 @@ class TestBallSpeedBehavior:
             time.sleep(0.02)  # Small delay to ensure time passes
 
         # Only X should change, Y should remain the same
-        assert ball.speed.x != initial_x, "X speed should change"
-        assert ball.speed.y == initial_y, "Y speed should remain unchanged"
+        assert ball.speed.x != initial_x, 'X speed should change'
+        assert ball.speed.y == initial_y, 'Y speed should remain unchanged'
 
     def test_speedup_with_negative_speeds(self):
         """Test that speed-up works correctly with negative speeds."""
@@ -303,5 +304,5 @@ class TestBallSpeedBehavior:
 
         # Magnitude should increase, but signs should be preserved
         assert final_magnitude > initial_magnitude
-        assert ball.speed.x < 0, "X speed should remain negative"
-        assert ball.speed.y < 0, "Y speed should remain negative"
+        assert ball.speed.x < 0, 'X speed should remain negative'
+        assert ball.speed.y < 0, 'Y speed should remain negative'

@@ -20,7 +20,6 @@ from glitchygames.events import (
     UnhandledEventError,
 )
 from glitchygames.events.app import AppEventManager
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -30,27 +29,27 @@ class TestAppEvents:
     def test_app_events_interface(self, mock_pygame_patches):
         """Test AppEvents interface methods."""
         # Test that AppEvents has required abstract methods
-        assert hasattr(AppEvents, "on_app_did_enter_background_event")
-        assert hasattr(AppEvents, "on_app_did_enter_foreground_event")
-        assert hasattr(AppEvents, "on_app_will_enter_background_event")
-        assert hasattr(AppEvents, "on_app_will_enter_foreground_event")
-        assert hasattr(AppEvents, "on_app_low_memory_event")
-        assert hasattr(AppEvents, "on_app_terminating_event")
+        assert hasattr(AppEvents, 'on_app_did_enter_background_event')
+        assert hasattr(AppEvents, 'on_app_did_enter_foreground_event')
+        assert hasattr(AppEvents, 'on_app_will_enter_background_event')
+        assert hasattr(AppEvents, 'on_app_will_enter_foreground_event')
+        assert hasattr(AppEvents, 'on_app_low_memory_event')
+        assert hasattr(AppEvents, 'on_app_terminating_event')
 
     def test_app_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test AppEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = AppEventStubs()
-        assert hasattr(stub, "on_app_did_enter_background_event")
-        assert hasattr(stub, "on_app_did_enter_foreground_event")
-        assert hasattr(stub, "on_app_will_enter_background_event")
-        assert hasattr(stub, "on_app_will_enter_foreground_event")
-        assert hasattr(stub, "on_app_low_memory_event")
-        assert hasattr(stub, "on_app_terminating_event")
+        assert hasattr(stub, 'on_app_did_enter_background_event')
+        assert hasattr(stub, 'on_app_did_enter_foreground_event')
+        assert hasattr(stub, 'on_app_will_enter_background_event')
+        assert hasattr(stub, 'on_app_will_enter_foreground_event')
+        assert hasattr(stub, 'on_app_low_memory_event')
+        assert hasattr(stub, 'on_app_terminating_event')
 
         # Test method calls - suppress log messages since these will trigger unhandled_event
         event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
-        mocker.patch("glitchygames.events.core.LOG.error")
+        mocker.patch('glitchygames.events.core.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_app_did_enter_background_event(event)
         # Expected to call unhandled_event
@@ -61,10 +60,10 @@ class TestAppEvents:
 
         # Use centralized mock for scene with event handlers
         def app_did_enter_background_handler(event):
-            scene.game_events_received.append(("app_did_enter_background", event))
+            scene.game_events_received.append(('app_did_enter_background', event))
 
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={"on_app_did_enter_background_event": app_did_enter_background_handler}
+            event_handlers={'on_app_did_enter_background_event': app_did_enter_background_handler}
         )
 
         # Test app did enter background event
@@ -74,7 +73,7 @@ class TestAppEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "app_did_enter_background"
+        assert scene.game_events_received[0][0] == 'app_did_enter_background'
         assert scene.game_events_received[0][1].type == pygame.APP_DIDENTERBACKGROUND
 
     def test_app_did_enter_foreground_event(self, mock_pygame_patches):
@@ -82,10 +81,10 @@ class TestAppEvents:
 
         # Use centralized mock for scene with event handlers
         def app_did_enter_foreground_handler(event):
-            scene.game_events_received.append(("app_did_enter_foreground", event))
+            scene.game_events_received.append(('app_did_enter_foreground', event))
 
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={"on_app_did_enter_foreground_event": app_did_enter_foreground_handler}
+            event_handlers={'on_app_did_enter_foreground_event': app_did_enter_foreground_handler}
         )
 
         # Test app did enter foreground event
@@ -95,7 +94,7 @@ class TestAppEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "app_did_enter_foreground"
+        assert scene.game_events_received[0][0] == 'app_did_enter_foreground'
         assert scene.game_events_received[0][1].type == pygame.APP_DIDENTERFOREGROUND
 
     def test_app_will_enter_background_event(self, mock_pygame_patches):
@@ -103,10 +102,10 @@ class TestAppEvents:
 
         # Use centralized mock for scene with event handlers
         def app_will_enter_background_handler(event):
-            scene.game_events_received.append(("app_will_enter_background", event))
+            scene.game_events_received.append(('app_will_enter_background', event))
 
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={"on_app_will_enter_background_event": app_will_enter_background_handler}
+            event_handlers={'on_app_will_enter_background_event': app_will_enter_background_handler}
         )
 
         # Test app will enter background event
@@ -116,7 +115,7 @@ class TestAppEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "app_will_enter_background"
+        assert scene.game_events_received[0][0] == 'app_will_enter_background'
         assert scene.game_events_received[0][1].type == pygame.APP_WILLENTERBACKGROUND
 
     def test_app_will_enter_foreground_event(self, mock_pygame_patches):
@@ -124,10 +123,10 @@ class TestAppEvents:
 
         # Use centralized mock for scene with event handlers
         def app_will_enter_foreground_handler(event):
-            scene.game_events_received.append(("app_will_enter_foreground", event))
+            scene.game_events_received.append(('app_will_enter_foreground', event))
 
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={"on_app_will_enter_foreground_event": app_will_enter_foreground_handler}
+            event_handlers={'on_app_will_enter_foreground_event': app_will_enter_foreground_handler}
         )
 
         # Test app will enter foreground event
@@ -137,7 +136,7 @@ class TestAppEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "app_will_enter_foreground"
+        assert scene.game_events_received[0][0] == 'app_will_enter_foreground'
         assert scene.game_events_received[0][1].type == pygame.APP_WILLENTERFOREGROUND
 
     def test_app_low_memory_event(self, mock_pygame_patches):
@@ -145,10 +144,10 @@ class TestAppEvents:
 
         # Use centralized mock for scene with event handlers
         def app_low_memory_handler(event):
-            scene.game_events_received.append(("app_low_memory", event))
+            scene.game_events_received.append(('app_low_memory', event))
 
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={"on_app_low_memory_event": app_low_memory_handler}
+            event_handlers={'on_app_low_memory_event': app_low_memory_handler}
         )
 
         # Test app low memory event
@@ -158,7 +157,7 @@ class TestAppEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "app_low_memory"
+        assert scene.game_events_received[0][0] == 'app_low_memory'
         assert scene.game_events_received[0][1].type == pygame.APP_LOWMEMORY
 
     def test_app_terminating_event(self, mock_pygame_patches):
@@ -166,10 +165,10 @@ class TestAppEvents:
 
         # Use centralized mock for scene with event handlers
         def app_terminating_handler(event):
-            scene.game_events_received.append(("app_terminating", event))
+            scene.game_events_received.append(('app_terminating', event))
 
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={"on_app_terminating_event": app_terminating_handler}
+            event_handlers={'on_app_terminating_event': app_terminating_handler}
         )
 
         # Test app terminating event
@@ -179,7 +178,7 @@ class TestAppEvents:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "app_terminating"
+        assert scene.game_events_received[0][0] == 'app_terminating'
         assert scene.game_events_received[0][1].type == pygame.APP_TERMINATING
 
 
@@ -191,23 +190,23 @@ class TestAppEventFlow:
         # Create a mock scene with app event handlers
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_app_did_enter_background_event": lambda event: (
-                    scene.game_events_received.append(("app_did_enter_background", event)) or True
+                'on_app_did_enter_background_event': lambda event: (
+                    scene.game_events_received.append(('app_did_enter_background', event)) or True
                 )
             }
         )
 
         # Mock the argument parsing to avoid command line issues
-        mock_init_args = mocker.patch("glitchygames.engine.GameEngine.initialize_arguments")
+        mock_init_args = mocker.patch('glitchygames.engine.GameEngine.initialize_arguments')
         mock_init_args.return_value = {
-            "debug_events": False,
-            "no_unhandled_events": True,
-            "fps": 60.0,
-            "update_type": "update",
-            "use_gfxdraw": False,
-            "windowed": True,
-            "resolution": "800x600",
-            "fps_refresh_rate": 1.0,
+            'debug_events': False,
+            'no_unhandled_events': True,
+            'fps': 60.0,
+            'update_type': 'update',
+            'use_gfxdraw': False,
+            'windowed': True,
+            'resolution': '800x600',
+            'fps_refresh_rate': 1.0,
         }
 
         # Create engine with the scene
@@ -229,7 +228,7 @@ class TestAppEventFlow:
 
         # Verify the event was processed
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "app_did_enter_background"
+        assert scene.game_events_received[0][0] == 'app_did_enter_background'
         assert scene.game_events_received[0][1].type == pygame.APP_DIDENTERBACKGROUND
 
     def test_app_event_falls_back_to_stubs(self, mock_pygame_patches, mocker):
@@ -242,7 +241,7 @@ class TestAppEventFlow:
 
         # Test app did enter background event - should fall back to stubs
         event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
-        mocker.patch("glitchygames.events.core.LOG.error")
+        mocker.patch('glitchygames.events.core.LOG.error')
         with pytest.raises(UnhandledEventError):
             manager.on_app_did_enter_background_event(event)
         # Expected to call unhandled_event
@@ -263,5 +262,5 @@ class TestAppEventFlow:
         # Verify the event was processed
         assert result is None
         assert len(scene.game_events_received) == 1
-        assert scene.game_events_received[0][0] == "app_did_enter_background"
+        assert scene.game_events_received[0][0] == 'app_did_enter_background'
         assert scene.game_events_received[0][1].type == pygame.APP_DIDENTERBACKGROUND

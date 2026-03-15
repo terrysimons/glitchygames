@@ -24,7 +24,7 @@ from glitchygames.sprites import SpriteFrame
 class SpriteStackInterface(abc.ABC):
     """A formal interface for the Sprite Stack prototype."""
 
-    log = logging.getLogger("glitchygames.sprite_stack.SpriteStackInterface")
+    log = logging.getLogger('glitchygames.sprite_stack.SpriteStackInterface')
 
     """A formal interface for the Sprite Stack prototype."""
 
@@ -40,7 +40,7 @@ class SpriteStackInterface(abc.ABC):
         interface_attributes = set(cls.__abstractmethods__)
 
         # Check if subclass has __abstractmethods__ attribute
-        if hasattr(subclass, "__abstractmethods__"):
+        if hasattr(subclass, '__abstractmethods__'):
             subclass_attributes = set(subclass.__abstractmethods__)
         else:
             subclass_attributes = set()
@@ -49,12 +49,12 @@ class SpriteStackInterface(abc.ABC):
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
-                    cls.log.info(f"{subclass.__name__}.{attribute} -> ✅ (callable)")
+                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (callable)')
                 else:
-                    cls.log.info(f"{subclass.__name__}.{attribute} -> ✅ (attribute))")
+                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (attribute))')
                 methods.append(True)
             else:
-                cls.log.info(f"{subclass.__name__}.{attribute} -> ❌ (unimplemented)")
+                cls.log.info(f'{subclass.__name__}.{attribute} -> ❌ (unimplemented)')
                 methods.append(False)
 
         # all([]) returns True, so mask it
@@ -87,7 +87,7 @@ class SpriteStackInterface(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def __getitem__(self: Self, index: int) -> "SpriteFrame":
+    def __getitem__(self: Self, index: int) -> 'SpriteFrame':
         """Return a sprite from the stack."""
         raise NotImplementedError
 
@@ -113,7 +113,7 @@ class SpriteStackInterface(abc.ABC):
 class SpriteStack(SpriteStackInterface):
     """A prototype Sprite Stack class."""
 
-    def __init__(self: Self, sprites: list["SpriteFrame"] | list[pygame.Surface]) -> Self:
+    def __init__(self: Self, sprites: list['SpriteFrame'] | list[pygame.Surface]) -> Self:
         """Initialize the Sprite Stack prototype."""
         super().__init__()
         self.stack = []
@@ -145,7 +145,7 @@ class SpriteStack(SpriteStackInterface):
         """Set the rect."""
         self.stack[self.frame_index].rect = new_rect
 
-    def __getitem__(self: Self, index: int) -> "SpriteFrame":
+    def __getitem__(self: Self, index: int) -> 'SpriteFrame':
         """Return a sprite from the stack.
 
         Returns:
@@ -186,16 +186,16 @@ class SpriteStack(SpriteStackInterface):
 # The official implementations are used instead of the old incomplete ones
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Sprite Stack Prototype")
-    logging.getLogger("glitchygames.sprite_stack")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser('Sprite Stack Prototype')
+    logging.getLogger('glitchygames.sprite_stack')
     logging.basicConfig(
-        format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+        format='%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s',
         level=logging.DEBUG,
     )
 
     if not issubclass(SpriteStack, SpriteStackInterface):
-        msg = "SpriteStack must implement SpriteStackInterface"
+        msg = 'SpriteStack must implement SpriteStackInterface'
         raise TypeError(msg)
 
     sprite_stack = SpriteStack([pygame.Surface((32, 32)) for _ in range(10)])

@@ -12,21 +12,21 @@ from pathlib import Path
 
 import pygame
 import pytest
+
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
-
 from tests.mocks import MockFactory
 
 # Path to the static sprite fixture
 STATIC_TOML = str(
     Path(__file__).parent.parent.parent
-    / "glitchygames"
-    / "examples"
-    / "resources"
-    / "sprites"
-    / "static.toml"
+    / 'glitchygames'
+    / 'examples'
+    / 'resources'
+    / 'sprites'
+    / 'static.toml'
 )
 
 # Frame time at 60 FPS
@@ -129,8 +129,8 @@ class TestAnimatedSpriteBenchmarks:
         for _ in range(frame_count):
             surface = MockFactory.create_pygame_surface_mock(8, 8)
             surfaces.append(SpriteFrame(surface, duration=0.1))
-        sprite._animations = {"idle": surfaces}
-        sprite.frame_manager.current_animation = "idle"
+        sprite._animations = {'idle': surfaces}
+        sprite.frame_manager.current_animation = 'idle'
         sprite._is_playing = True
         sprite._is_looping = True
         return sprite
@@ -174,9 +174,9 @@ class TestAnimatedSpriteBenchmarks:
             SpriteFrame(MockFactory.create_pygame_surface_mock(8, 8), duration=0.1)
             for _ in range(10)
         ]
-        sprite.add_animation("walk", walk_frames)
+        sprite.add_animation('walk', walk_frames)
 
-        animation_names = ["idle", "walk"]
+        animation_names = ['idle', 'walk']
         call_count = 0
 
         def switch_animation():
@@ -202,7 +202,7 @@ class TestControllerSelectionBenchmarks:
 
         def set_selection():
             nonlocal call_count
-            selection.set_selection(f"animation_{call_count % 10}", call_count % 50)
+            selection.set_selection(f'animation_{call_count % 10}', call_count % 50)
             call_count += 1
 
         benchmark(set_selection)
@@ -214,14 +214,14 @@ class TestControllerSelectionBenchmarks:
 
         # Build up navigation history
         for i in range(20):
-            selection.set_selection(f"animation_{i % 5}", i % 10)
+            selection.set_selection(f'animation_{i % 5}', i % 10)
 
         call_count = 0
 
         def preserve_frame():
             nonlocal call_count
             selection.preserve_frame_for_animation(
-                f"animation_{call_count % 5}", available_frames=20
+                f'animation_{call_count % 5}', available_frames=20
             )
             call_count += 1
 
@@ -234,7 +234,7 @@ class TestControllerSelectionBenchmarks:
 
         # Build deep history
         for i in range(100):
-            selection.set_selection(f"animation_{i % 10}", i % 50)
+            selection.set_selection(f'animation_{i % 10}', i % 50)
 
         benchmark(selection.get_navigation_history)
 
@@ -242,7 +242,7 @@ class TestControllerSelectionBenchmarks:
         """Benchmark state summary generation."""
         selection = ControllerSelection(0, 0)
         selection.activate()
-        selection.set_selection("idle", 5)
+        selection.set_selection('idle', 5)
 
         benchmark(selection.get_state_summary)
 

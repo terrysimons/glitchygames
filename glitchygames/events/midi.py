@@ -7,6 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Self
 
 import pygame
+
 from glitchygames.events import MIDI_EVENTS
 
 if TYPE_CHECKING:
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
 from glitchygames.events import MidiEvents, ResourceManager
 
-log = logging.getLogger("game.midi")
+log = logging.getLogger('game.midi')
 log.addHandler(logging.NullHandler())
 
 
@@ -32,12 +33,12 @@ class MidiEventManager(ResourceManager):
 
         def on_midi_in_event(self: Self, event: pygame.event.Event) -> None:
             """Forward MIDI input events to the game object."""
-            if hasattr(self.game, "on_midi_in_event"):
+            if hasattr(self.game, 'on_midi_in_event'):
                 self.game.on_midi_in_event(event)
 
         def on_midi_out_event(self: Self, event: pygame.event.Event) -> None:
             """Forward MIDI output events to the game object."""
-            if hasattr(self.game, "on_midi_out_event"):
+            if hasattr(self.game, 'on_midi_out_event'):
                 self.game.on_midi_out_event(event)
 
     def __init__(self: Self, game: object = None) -> None:
@@ -51,7 +52,7 @@ class MidiEventManager(ResourceManager):
         try:
             pygame.event.set_allowed(MIDI_EVENTS)
         except pygame.error:
-            log.debug("Failed to set allowed MIDI events: pygame not fully initialized")
+            log.debug('Failed to set allowed MIDI events: pygame not fully initialized')
         self.game = game
         self.proxies = [MidiEventManager.MidiEventProxy(game=game)]
 
@@ -68,6 +69,6 @@ class MidiEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        _group = parser.add_argument_group("Midi Options")
+        _group = parser.add_argument_group('Midi Options')
 
         return parser

@@ -10,7 +10,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import bitmappy, film_strip
-
 from tests.mocks.test_mock_factory import MockFactory
 
 LOG = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ class TestShiftRightClickSamplingSimple:
     def test_regular_right_click_samples_pixel_data(self, mocker):
         """Test that regular right-click samples from pixel data (RGBA)."""
         # Mock the film strip widget to return a frame when clicked
-        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=("animation", 0))
+        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=('animation', 0))
 
         # Create a mock right-click event (no shift)
         event = MockFactory.create_pygame_event_mock()
@@ -60,13 +59,13 @@ class TestShiftRightClickSamplingSimple:
 
         # Mock pygame key state to return False for shift keys
         mock_key_state = MockFactory.create_pygame_key_mock(shift_pressed=False)
-        mocker.patch("pygame.key.get_pressed", return_value=mock_key_state)
+        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return True when event is handled
-        assert result, "Regular right-click should be handled"
+        assert result, 'Regular right-click should be handled'
 
         # Should call get_frame_at_position for pixel data sampling
         self.film_strip_widget.get_frame_at_position.assert_called_once()
@@ -74,7 +73,7 @@ class TestShiftRightClickSamplingSimple:
     def test_shift_right_click_samples_screen(self, mocker):
         """Test that shift-right-click samples from screen (RGB only)."""
         # Mock the film strip widget to return a frame when clicked
-        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=("animation", 0))
+        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=('animation', 0))
 
         # Create a mock right-click event
         event = MockFactory.create_pygame_event_mock()
@@ -84,33 +83,33 @@ class TestShiftRightClickSamplingSimple:
         # Mock pygame key state to return True for left shift key
         mock_key_state = MockFactory.create_pygame_key_mock(shift_pressed=True)
         mock_get_pressed = mocker.patch(
-            "glitchygames.tools.bitmappy.pygame.key.get_pressed", return_value=mock_key_state
+            'glitchygames.tools.bitmappy.pygame.key.get_pressed', return_value=mock_key_state
         )
 
         # Debug: Check the mock key state
-        LOG.debug(f"Mock key state: {mock_key_state}")
-        LOG.debug(f"Mock key state[304] (LSHIFT): {mock_key_state[304]}")
-        LOG.debug(f"Mock key state[303] (RSHIFT): {mock_key_state[303]}")
+        LOG.debug(f'Mock key state: {mock_key_state}')
+        LOG.debug(f'Mock key state[304] (LSHIFT): {mock_key_state[304]}')
+        LOG.debug(f'Mock key state[303] (RSHIFT): {mock_key_state[303]}')
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return True when event is handled
-        assert result, "Shift-right-click should be handled"
+        assert result, 'Shift-right-click should be handled'
 
         # Debug: Check if the mock was called
-        LOG.debug(f"Mock call count: {self.parent_scene._sample_color_from_screen.call_count}")
-        LOG.debug(f"Mock call args: {self.parent_scene._sample_color_from_screen.call_args_list}")
-        LOG.debug(f"get_pressed call count: {mock_get_pressed.call_count}")
-        LOG.debug(f"get_pressed call args: {mock_get_pressed.call_args_list}")
+        LOG.debug(f'Mock call count: {self.parent_scene._sample_color_from_screen.call_count}')
+        LOG.debug(f'Mock call args: {self.parent_scene._sample_color_from_screen.call_args_list}')
+        LOG.debug(f'get_pressed call count: {mock_get_pressed.call_count}')
+        LOG.debug(f'get_pressed call args: {mock_get_pressed.call_args_list}')
 
         # Should call the parent scene's screen sampling method
         self.parent_scene._sample_color_from_screen.assert_called_once_with((150, 150))
 
         # Verify that get_pressed was called (short-circuits after first True, so only 1 call)
         assert mock_get_pressed.call_count == 1, (
-            f"Expected get_pressed to be called 1 time, "
-            f"but was called {mock_get_pressed.call_count} times"
+            f'Expected get_pressed to be called 1 time, '
+            f'but was called {mock_get_pressed.call_count} times'
         )
 
     def test_screen_sampling_handles_rgb_format(self):
@@ -195,13 +194,13 @@ class TestShiftRightClickSamplingSimple:
         # Mock pygame key state to return True for shift key
         mock_key_state = [False] * 512
         mock_key_state[304] = True  # Left shift pressed
-        mocker.patch("pygame.key.get_pressed", return_value=mock_key_state)
+        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return False when event is not handled
-        assert not result, "Shift-right-click outside bounds should not be handled"
+        assert not result, 'Shift-right-click outside bounds should not be handled'
 
     def test_regular_right_click_outside_bounds_not_handled(self, mocker):
         """Test that regular right-click outside film strip bounds is not handled."""
@@ -212,13 +211,13 @@ class TestShiftRightClickSamplingSimple:
 
         # Mock pygame key state to return False for shift keys
         mock_key_state = MockFactory.create_pygame_key_mock(shift_pressed=False)
-        mocker.patch("pygame.key.get_pressed", return_value=mock_key_state)
+        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
 
         # Call the event handler
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should return False when event is not handled
-        assert not result, "Regular right-click outside bounds should not be handled"
+        assert not result, 'Regular right-click outside bounds should not be handled'
 
     def test_shift_right_click_without_parent_scene_handles_gracefully(self, mocker):
         """Test that shift-right-click without parent scene handles gracefully."""
@@ -226,7 +225,7 @@ class TestShiftRightClickSamplingSimple:
         self.film_strip_sprite.parent_scene = None
 
         # Mock the film strip widget to return a frame when clicked
-        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=("animation", 0))
+        self.film_strip_widget.get_frame_at_position = mocker.Mock(return_value=('animation', 0))
 
         # Create a mock right-click event
         event = MockFactory.create_pygame_event_mock()
@@ -236,10 +235,10 @@ class TestShiftRightClickSamplingSimple:
         # Mock pygame key state to return True for shift key
         mock_key_state = [False] * 512
         mock_key_state[304] = True  # Left shift pressed
-        mocker.patch("pygame.key.get_pressed", return_value=mock_key_state)
+        mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
 
         # Call the event handler - should not crash
         result = self.film_strip_sprite.on_right_mouse_button_up_event(event)
 
         # Should still return True (event was handled, just no sampling occurred)
-        assert result, "Shift-right-click should be handled even without parent scene"
+        assert result, 'Shift-right-click should be handled even without parent scene'

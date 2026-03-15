@@ -21,11 +21,11 @@ class TestControllerMode:
 
     def test_controller_mode_values(self):
         """Test that ControllerMode has correct values."""
-        assert ControllerMode.FILM_STRIP.value == "film_strip"
-        assert ControllerMode.CANVAS.value == "canvas"
-        assert ControllerMode.R_SLIDER.value == "r_slider"
-        assert ControllerMode.G_SLIDER.value == "g_slider"
-        assert ControllerMode.B_SLIDER.value == "b_slider"
+        assert ControllerMode.FILM_STRIP.value == 'film_strip'
+        assert ControllerMode.CANVAS.value == 'canvas'
+        assert ControllerMode.R_SLIDER.value == 'r_slider'
+        assert ControllerMode.G_SLIDER.value == 'g_slider'
+        assert ControllerMode.B_SLIDER.value == 'b_slider'
 
 
 class TestModePosition:
@@ -33,11 +33,11 @@ class TestModePosition:
 
     def test_mode_position_creation(self):
         """Test creating ModePosition objects."""
-        position = ModePosition(position=(10, 20), frame=5, animation="test_anim", is_valid=True)
+        position = ModePosition(position=(10, 20), frame=5, animation='test_anim', is_valid=True)
 
         assert position.position == (10, 20)
         assert position.frame == 5
-        assert position.animation == "test_anim"
+        assert position.animation == 'test_anim'
         assert position.is_valid is True
 
     def test_mode_position_defaults(self):
@@ -70,7 +70,7 @@ class TestControllerModeState:
         current_time = time.time()
 
         # Save current position before switching
-        self.mode_state.save_current_position((10, 20), 5, "test_anim")
+        self.mode_state.save_current_position((10, 20), 5, 'test_anim')
 
         # Switch to canvas mode
         self.mode_state.switch_to_mode(ControllerMode.CANVAS, current_time)
@@ -81,31 +81,31 @@ class TestControllerModeState:
 
     def test_save_current_position(self):
         """Test saving current position."""
-        self.mode_state.save_current_position((15, 25), 3, "anim_test")
+        self.mode_state.save_current_position((15, 25), 3, 'anim_test')
 
         position = self.mode_state.get_current_position()
         assert position.position == (15, 25)
         assert position.frame == 3
-        assert position.animation == "anim_test"
+        assert position.animation == 'anim_test'
         assert position.is_valid
 
     def test_get_position_for_mode(self):
         """Test getting position for specific mode."""
         # Save position for film strip mode
-        self.mode_state.save_current_position((10, 20), 1, "film_anim")
+        self.mode_state.save_current_position((10, 20), 1, 'film_anim')
 
         # Switch to canvas mode and save different position
         self.mode_state.switch_to_mode(ControllerMode.CANVAS, time.time())
-        self.mode_state.save_current_position((30, 40), 2, "canvas_anim")
+        self.mode_state.save_current_position((30, 40), 2, 'canvas_anim')
 
         # Get positions for both modes
         film_position = self.mode_state.get_position_for_mode(ControllerMode.FILM_STRIP)
         canvas_position = self.mode_state.get_position_for_mode(ControllerMode.CANVAS)
 
         assert film_position.position == (10, 20)
-        assert film_position.animation == "film_anim"
+        assert film_position.animation == 'film_anim'
         assert canvas_position.position == (30, 40)
-        assert canvas_position.animation == "canvas_anim"
+        assert canvas_position.animation == 'canvas_anim'
 
     def test_get_location_type(self):
         """Test getting location type for current mode."""
@@ -136,7 +136,7 @@ class TestTriggerDetector:
         """Test detecting trigger press for the first time."""
         controller_id = 0
         trigger_value = 1.0
-        trigger_name = "L2"
+        trigger_name = 'L2'
         current_time = time.time()
 
         result = self.trigger_detector.detect_trigger_press(
@@ -149,7 +149,7 @@ class TestTriggerDetector:
         """Test that trigger press below threshold returns False."""
         controller_id = 0
         trigger_value = 0.3  # Below threshold of 0.4
-        trigger_name = "L2"
+        trigger_name = 'L2'
         current_time = time.time()
 
         result = self.trigger_detector.detect_trigger_press(
@@ -162,7 +162,7 @@ class TestTriggerDetector:
         """Test that rapid trigger presses are debounced."""
         controller_id = 0
         trigger_value = 1.0
-        trigger_name = "L2"
+        trigger_name = 'L2'
         current_time = time.time()
 
         # First press should succeed
@@ -180,7 +180,7 @@ class TestTriggerDetector:
     def test_detect_trigger_press_after_debounce(self):
         """Test that trigger press works after debounce period."""
         controller_id = 0
-        trigger_name = "L2"
+        trigger_name = 'L2'
         current_time = time.time()
 
         # First press (0.0 -> 1.0)
@@ -205,7 +205,7 @@ class TestTriggerDetector:
     def test_detect_trigger_press_different_controllers(self):
         """Test that different controllers have independent debounce."""
         trigger_value = 1.0
-        trigger_name = "L2"
+        trigger_name = 'L2'
         current_time = time.time()
 
         # Controller 0 press
@@ -228,13 +228,13 @@ class TestTriggerDetector:
 
         # L2 press
         result_l2 = self.trigger_detector.detect_trigger_press(
-            controller_id, trigger_value, "L2", current_time
+            controller_id, trigger_value, 'L2', current_time
         )
         assert result_l2 is True
 
         # R2 press immediately after (should work)
         result_r2 = self.trigger_detector.detect_trigger_press(
-            controller_id, trigger_value, "R2", current_time + 0.01
+            controller_id, trigger_value, 'R2', current_time + 0.01
         )
         assert result_r2 is True
 
@@ -388,12 +388,12 @@ class TestModeSwitcher:
 
         self.mode_switcher.register_controller(controller_id, ControllerMode.CANVAS)
 
-        self.mode_switcher.save_controller_position(controller_id, (10, 20), 5, "test_anim")
+        self.mode_switcher.save_controller_position(controller_id, (10, 20), 5, 'test_anim')
 
         position = self.mode_switcher.get_controller_position(controller_id)
         assert position.position == (10, 20)
         assert position.frame == 5
-        assert position.animation == "test_anim"
+        assert position.animation == 'test_anim'
         assert position.is_valid
 
     def test_get_controller_position_unregistered(self):

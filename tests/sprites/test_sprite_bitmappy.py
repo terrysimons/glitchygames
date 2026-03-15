@@ -15,7 +15,6 @@ from glitchygames.sprites import (
     Singleton,
     SingletonBitmappySprite,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Test constants
@@ -39,10 +38,10 @@ class TestBitmappySprite:
 
     def test_bitmappy_sprite_initialization_with_filename(self):
         """Test BitmappySprite initialization with filename."""
-        sprite = BitmappySprite(filename="test.toml")
+        sprite = BitmappySprite(filename='test.toml')
 
         assert isinstance(sprite, BitmappySprite)
-        assert sprite.filename == "test.toml"
+        assert sprite.filename == 'test.toml'
 
     def test_bitmappy_sprite_initialization_without_filename(self):
         """Test BitmappySprite initialization without filename."""
@@ -69,40 +68,40 @@ class TestBitmappySprite:
         """Test BitmappySprite load method."""
         sprite = BitmappySprite()
 
-        mock_load = mocker.patch("glitchygames.sprites.BitmappySprite._load_static_only")
-        mock_factory = mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite")
-        mock_factory.side_effect = ValueError("Factory failed")
-        sprite.load("test.toml")
-        mock_load.assert_called_once_with("test.toml")
+        mock_load = mocker.patch('glitchygames.sprites.BitmappySprite._load_static_only')
+        mock_factory = mocker.patch('glitchygames.sprites.SpriteFactory.load_sprite')
+        mock_factory.side_effect = ValueError('Factory failed')
+        sprite.load('test.toml')
+        mock_load.assert_called_once_with('test.toml')
 
     def test_bitmappy_sprite_load_method_with_frame(self, mocker):
         """Test BitmappySprite load method with frame."""
         sprite = BitmappySprite()
 
-        mock_load = mocker.patch("glitchygames.sprites.BitmappySprite._load_static_only")
-        mock_factory = mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite")
-        mock_factory.side_effect = ValueError("Factory failed")
-        sprite.load("test.toml")
-        mock_load.assert_called_once_with("test.toml")
+        mock_load = mocker.patch('glitchygames.sprites.BitmappySprite._load_static_only')
+        mock_factory = mocker.patch('glitchygames.sprites.SpriteFactory.load_sprite')
+        mock_factory.side_effect = ValueError('Factory failed')
+        sprite.load('test.toml')
+        mock_load.assert_called_once_with('test.toml')
 
     def test_bitmappy_sprite_load_method_fallback(self, mocker):
         """Test BitmappySprite load method fallback."""
         sprite = BitmappySprite()
 
-        mock_load = mocker.patch("glitchygames.sprites.BitmappySprite._load_static_only")
-        mock_factory = mocker.patch("glitchygames.sprites.SpriteFactory.load_sprite")
-        mock_factory.side_effect = ValueError("Factory failed")
-        mock_load.side_effect = Exception("Load failed")
-        with pytest.raises(Exception, match="Load failed"):
-            sprite.load("test.toml")
+        mock_load = mocker.patch('glitchygames.sprites.BitmappySprite._load_static_only')
+        mock_factory = mocker.patch('glitchygames.sprites.SpriteFactory.load_sprite')
+        mock_factory.side_effect = ValueError('Factory failed')
+        mock_load.side_effect = Exception('Load failed')
+        with pytest.raises(Exception, match='Load failed'):
+            sprite.load('test.toml')
 
     def test_bitmappy_sprite_save_method(self, mocker):
         """Test BitmappySprite save method."""
         sprite = BitmappySprite()
 
-        mock_save = mocker.patch("glitchygames.sprites.BitmappySprite._save_static_only")
-        sprite.save("test.toml")
-        mock_save.assert_called_once_with("test.toml", "toml")
+        mock_save = mocker.patch('glitchygames.sprites.BitmappySprite._save_static_only')
+        sprite.save('test.toml')
+        mock_save.assert_called_once_with('test.toml', 'toml')
 
     def test_bitmappy_sprite_deflate_method(self, mocker):
         """Test BitmappySprite deflate method."""
@@ -110,41 +109,41 @@ class TestBitmappySprite:
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
 
         mocker.patch(
-            "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)},
+            'glitchygames.sprites.BitmappySprite._create_color_map',
+            return_value={'A': (255, 0, 0), 'B': (0, 255, 0), 'X': (255, 0, 255)},
         )
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        result = sprite.deflate("toml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        result = sprite.deflate('toml')
         assert result is not None
 
         # Verify the ERROR log message was called
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Pixels list length mismatch: 2 vs expected 1024" in call_args
+        assert 'Pixels list length mismatch: 2 vs expected 1024' in call_args
 
     def test_bitmappy_sprite_deflate_method_unsupported_format(self, mocker):
         """Test BitmappySprite deflate method with unsupported format."""
         sprite = BitmappySprite()
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        with pytest.raises(ValueError, match="Unsupported format"):
-            sprite.deflate("json")
+        mock_log = mocker.patch.object(sprite, 'log')
+        with pytest.raises(ValueError, match='Unsupported format'):
+            sprite.deflate('json')
 
         # Verify the ERROR log message was called for validation warnings
         assert mock_log.error.call_count >= 1
         # Check that the log messages contain the expected content
         error_args_list = [call[0][0] for call in mock_log.error.call_args_list]
         assert any(
-            "Pixels list length mismatch: 0 vs expected 1024" in msg for msg in error_args_list
+            'Pixels list length mismatch: 0 vs expected 1024' in msg for msg in error_args_list
         )
         # "Error in deflate" is logged via LOG.exception (inside except block)
         assert mock_log.exception.call_count >= 1
         exception_args_list = [call[0][0] for call in mock_log.exception.call_args_list]
-        assert any("Error in deflate" in msg for msg in exception_args_list)
+        assert any('Error in deflate' in msg for msg in exception_args_list)
 
     def test_bitmappy_sprite_deflate_method_too_many_colors(self, mocker):
         """Test BitmappySprite deflate method with too many colors."""
@@ -153,21 +152,21 @@ class TestBitmappySprite:
         sprite.pixels = [(i, i, i) for i in range(100)]
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        with pytest.raises(ValueError, match="Too many colors"):
-            sprite.deflate("toml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        with pytest.raises(ValueError, match='Too many colors'):
+            sprite.deflate('toml')
 
         # Verify the ERROR log message was called for validation warnings
         assert mock_log.error.call_count >= 1
         # Check that the log messages contain the expected content
         error_args_list = [call[0][0] for call in mock_log.error.call_args_list]
         assert any(
-            "Pixels list length mismatch: 100 vs expected 1024" in msg for msg in error_args_list
+            'Pixels list length mismatch: 100 vs expected 1024' in msg for msg in error_args_list
         )
         # "Error in deflate" is logged via LOG.exception (inside except block)
         assert mock_log.exception.call_count >= 1
         exception_args_list = [call[0][0] for call in mock_log.exception.call_args_list]
-        assert any("Error in deflate" in msg for msg in exception_args_list)
+        assert any('Error in deflate' in msg for msg in exception_args_list)
 
     def test_bitmappy_sprite_deflate_pads_and_truncates_pixels(self, mocker):
         """Test BitmappySprite deflate method padding and truncating pixels."""
@@ -175,20 +174,20 @@ class TestBitmappySprite:
         sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
 
         mocker.patch(
-            "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "C": (0, 0, 255), "X": (255, 0, 255)},
+            'glitchygames.sprites.BitmappySprite._create_color_map',
+            return_value={'A': (255, 0, 0), 'B': (0, 255, 0), 'C': (0, 0, 255), 'X': (255, 0, 255)},
         )
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        result = sprite.deflate("toml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        result = sprite.deflate('toml')
         assert result is not None
 
         # Verify the ERROR log message was called
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Pixels list length mismatch: 3 vs expected 1024" in call_args
+        assert 'Pixels list length mismatch: 3 vs expected 1024' in call_args
 
     def test_bitmappy_sprite_deflate_dangerous_char_replacement(self, mocker):
         """Test BitmappySprite deflate method dangerous character replacement."""
@@ -196,20 +195,20 @@ class TestBitmappySprite:
         sprite.pixels = [(1, 1, 1)]  # Dangerous character
 
         mocker.patch(
-            "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (1, 1, 1), "X": (255, 0, 255)},
+            'glitchygames.sprites.BitmappySprite._create_color_map',
+            return_value={'A': (1, 1, 1), 'X': (255, 0, 255)},
         )
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        result = sprite.deflate("toml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        result = sprite.deflate('toml')
         assert result is not None
 
         # Verify the ERROR log message was called
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Pixels list length mismatch: 1 vs expected 1024" in call_args
+        assert 'Pixels list length mismatch: 1 vs expected 1024' in call_args
 
     def test_bitmappy_sprite_deflate_missing_color_in_map(self, mocker):
         """Test BitmappySprite deflate method with missing color in map."""
@@ -217,13 +216,13 @@ class TestBitmappySprite:
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
 
         mocker.patch(
-            "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "X": (255, 0, 255)},  # Missing second color
+            'glitchygames.sprites.BitmappySprite._create_color_map',
+            return_value={'A': (255, 0, 0), 'X': (255, 0, 255)},  # Missing second color
         )
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        result = sprite.deflate("toml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        result = sprite.deflate('toml')
         assert result is not None
 
         # Verify the ERROR log messages were called
@@ -231,45 +230,45 @@ class TestBitmappySprite:
         # Check that the log messages contain the expected content
         first_call = mock_log.error.call_args_list[0][0][0]
         second_call = mock_log.error.call_args_list[1][0][0]
-        assert "Pixels list length mismatch: 2 vs expected 1024" in first_call
-        assert "Color (0, 255, 0) not found in color_map" in second_call
+        assert 'Pixels list length mismatch: 2 vs expected 1024' in first_call
+        assert 'Color (0, 255, 0) not found in color_map' in second_call
 
     def test_bitmappy_sprite_inflate_method(self, mocker):
         """Test BitmappySprite inflate method."""
         sprite = BitmappySprite()
 
-        mock_inflate = mocker.patch("glitchygames.sprites.BitmappySprite._inflate_toml")
-        mock_inflate.return_value = {"pixels": [(255, 0, 0)]}
-        result = sprite.inflate_from_file("test.toml")
+        mock_inflate = mocker.patch('glitchygames.sprites.BitmappySprite._inflate_toml')
+        mock_inflate.return_value = {'pixels': [(255, 0, 0)]}
+        result = sprite.inflate_from_file('test.toml')
         assert result is not None
 
     def test_bitmappy_sprite_save_static_only_method(self, mocker):
         """Test BitmappySprite save_static_only method."""
         sprite = BitmappySprite()
 
-        mock_deflate = mocker.patch("glitchygames.sprites.BitmappySprite.deflate")
-        mock_deflate.return_value = {"sprite": {"pixels": []}}
-        mock_open = mocker.patch("pathlib.Path.open")
-        sprite._save_static_only("test.toml")
+        mock_deflate = mocker.patch('glitchygames.sprites.BitmappySprite.deflate')
+        mock_deflate.return_value = {'sprite': {'pixels': []}}
+        mock_open = mocker.patch('pathlib.Path.open')
+        sprite._save_static_only('test.toml')
         mock_open.assert_called_once()
 
     def test_bitmappy_sprite_save_static_only_method_unsupported_format(self, mocker):
         """Test BitmappySprite save_static_only method with unsupported format."""
         sprite = BitmappySprite()
 
-        mock_deflate = mocker.patch("glitchygames.sprites.BitmappySprite.deflate")
-        mock_deflate.side_effect = ValueError("Unsupported format: xml")
+        mock_deflate = mocker.patch('glitchygames.sprites.BitmappySprite.deflate')
+        mock_deflate.side_effect = ValueError('Unsupported format: xml')
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        with pytest.raises(ValueError, match="Unsupported format: xml"):
-            sprite._save_static_only("test.xml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        with pytest.raises(ValueError, match='Unsupported format: xml'):
+            sprite._save_static_only('test.xml')
 
         # Verify the EXCEPTION log message was called (inside except block)
         mock_log.exception.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.exception.call_args[0][0]
-        assert "Error in save" in call_args
+        assert 'Error in save' in call_args
 
     def test_bitmappy_sprite_create_toml_config_coverage(self, mocker):
         """Test BitmappySprite create_toml_config coverage."""
@@ -277,11 +276,11 @@ class TestBitmappySprite:
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
 
         mocker.patch(
-            "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)},
+            'glitchygames.sprites.BitmappySprite._create_color_map',
+            return_value={'A': (255, 0, 0), 'B': (0, 255, 0), 'X': (255, 0, 255)},
         )
         result = sprite._create_toml_config()
-        assert "sprite" in result
+        assert 'sprite' in result
 
     def test_bitmappy_sprite_process_pixel_rows_missing_color(self, mocker):
         """Test BitmappySprite process_pixel_rows with missing color."""
@@ -289,13 +288,13 @@ class TestBitmappySprite:
         sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]  # 4 pixels
 
         mocker.patch(
-            "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "X": (255, 0, 255)},  # Missing second color
+            'glitchygames.sprites.BitmappySprite._create_color_map',
+            return_value={'A': (255, 0, 0), 'X': (255, 0, 255)},  # Missing second color
         )
-        color_map = {"A": (255, 0, 0), "X": (255, 0, 255)}
+        color_map = {'A': (255, 0, 0), 'X': (255, 0, 255)}
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
+        mock_log = mocker.patch.object(sprite, 'log')
         result = sprite._process_pixel_rows(color_map)
         assert result is not None
 
@@ -305,45 +304,45 @@ class TestBitmappySprite:
         first_call = mock_log.error.call_args_list[0][0][0]
         second_call = mock_log.error.call_args_list[1][0][0]
         third_call = mock_log.error.call_args_list[2][0][0]
-        assert "Color (0, 255, 0) not found in color_map" in first_call
-        assert "Color (0, 0, 255) not found in color_map" in second_call
-        assert "Color (255, 255, 0) not found in color_map" in third_call
+        assert 'Color (0, 255, 0) not found in color_map' in first_call
+        assert 'Color (0, 0, 255) not found in color_map' in second_call
+        assert 'Color (255, 255, 0) not found in color_map' in third_call
 
     def test_bitmappy_sprite_save_static_only_unsupported_format_error(self, mocker):
         """Test BitmappySprite save_static_only with unsupported format error."""
         sprite = BitmappySprite()
 
-        mock_deflate = mocker.patch("glitchygames.sprites.BitmappySprite.deflate")
-        mock_deflate.side_effect = ValueError("Unsupported format: xml")
+        mock_deflate = mocker.patch('glitchygames.sprites.BitmappySprite.deflate')
+        mock_deflate.side_effect = ValueError('Unsupported format: xml')
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        with pytest.raises(ValueError, match="Unsupported format: xml"):
-            sprite._save_static_only("test.xml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        with pytest.raises(ValueError, match='Unsupported format: xml'):
+            sprite._save_static_only('test.xml')
 
         # Verify the EXCEPTION log message was called (inside except block)
         mock_log.exception.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.exception.call_args[0][0]
-        assert "Error in save" in call_args
+        assert 'Error in save' in call_args
 
     def test_bitmappy_sprite_save_static_only_method_unsupported_format_json(self, mocker):
         """Test BitmappySprite save_static_only method with unsupported format."""
         sprite = BitmappySprite()
 
-        mock_deflate = mocker.patch("glitchygames.sprites.BitmappySprite.deflate")
-        mock_deflate.side_effect = ValueError("Unsupported format: json")
+        mock_deflate = mocker.patch('glitchygames.sprites.BitmappySprite.deflate')
+        mock_deflate.side_effect = ValueError('Unsupported format: json')
 
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch.object(sprite, "log")
-        with pytest.raises(ValueError, match="Unsupported format: json"):
-            sprite._save_static_only("test.json")
+        mock_log = mocker.patch.object(sprite, 'log')
+        with pytest.raises(ValueError, match='Unsupported format: json'):
+            sprite._save_static_only('test.json')
 
         # Verify the EXCEPTION log message was called (inside except block)
         mock_log.exception.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.exception.call_args[0][0]
-        assert "Error in save" in call_args
+        assert 'Error in save' in call_args
 
     def test_get_pixel_string_method(self, mocker):
         """Test get_pixel_string method."""
@@ -351,8 +350,8 @@ class TestBitmappySprite:
         sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]  # 4 pixels
 
         mocker.patch(
-            "glitchygames.sprites.BitmappySprite._create_color_map",
-            return_value={"A": (255, 0, 0), "B": (0, 255, 0), "X": (255, 0, 255)},
+            'glitchygames.sprites.BitmappySprite._create_color_map',
+            return_value={'A': (255, 0, 0), 'B': (0, 255, 0), 'X': (255, 0, 255)},
         )
         result = sprite._get_pixel_string()
         assert result is not None
@@ -412,11 +411,11 @@ class TestSingletonBitmappySprite:
         assert isinstance(sprite, SingletonBitmappySprite)
         # Test that it has BitmappySprite attributes instead of isinstance check
         # (Centralized mocks interfere with isinstance() checks)
-        assert hasattr(sprite, "filename")
-        assert hasattr(sprite, "focusable")
-        assert hasattr(sprite, "pixels")
-        assert hasattr(sprite, "pixels_across")
-        assert hasattr(sprite, "pixels_tall")
+        assert hasattr(sprite, 'filename')
+        assert hasattr(sprite, 'focusable')
+        assert hasattr(sprite, 'pixels')
+        assert hasattr(sprite, 'pixels_across')
+        assert hasattr(sprite, 'pixels_tall')
 
 
 class TestFocusableSingletonBitmappySprite:
@@ -440,9 +439,9 @@ class TestFocusableSingletonBitmappySprite:
         assert isinstance(sprite, FocusableSingletonBitmappySprite)
         # Test that it has BitmappySprite attributes instead of isinstance check
         # (Centralized mocks interfere with isinstance() checks)
-        assert hasattr(sprite, "filename")
-        assert hasattr(sprite, "focusable")
-        assert hasattr(sprite, "pixels")
-        assert hasattr(sprite, "pixels_across")
-        assert hasattr(sprite, "pixels_tall")
+        assert hasattr(sprite, 'filename')
+        assert hasattr(sprite, 'focusable')
+        assert hasattr(sprite, 'pixels')
+        assert hasattr(sprite, 'pixels_across')
+        assert hasattr(sprite, 'pixels_tall')
         assert sprite.focusable

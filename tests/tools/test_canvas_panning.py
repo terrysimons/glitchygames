@@ -5,9 +5,9 @@ import math
 
 import pygame
 import pytest
+
 from glitchygames.sprites.animated import SpriteFrame
 from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -24,7 +24,7 @@ class TestCanvasPanning:
 
         # Use centralized mock factory
         self.animated_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name="test_animation",
+            animation_name='test_animation',
             frame_size=(8, 8),
             pixel_color=(255, 0, 0),
             current_frame=0,
@@ -46,7 +46,7 @@ class TestCanvasPanning:
     def test_panning_initialization(self):
         """Test that panning system is properly initialized."""
         # Check that frame-specific panning attributes exist
-        assert hasattr(self.canvas, "_frame_panning")
+        assert hasattr(self.canvas, '_frame_panning')
         assert isinstance(self.canvas._frame_panning, dict)
         assert len(self.canvas._frame_panning) == 0  # No frames panned yet
 
@@ -57,24 +57,24 @@ class TestCanvasPanning:
         # Test panning right
         self.canvas.pan_canvas(1, 0)
         assert frame_key in self.canvas._frame_panning
-        assert self.canvas._frame_panning[frame_key]["pan_x"] == 1
-        assert self.canvas._frame_panning[frame_key]["pan_y"] == 0
-        assert self.canvas._frame_panning[frame_key]["active"] is True
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 1
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 0
+        assert self.canvas._frame_panning[frame_key]['active'] is True
 
         # Test panning down
         self.canvas.pan_canvas(0, 1)
-        assert self.canvas._frame_panning[frame_key]["pan_x"] == 1
-        assert self.canvas._frame_panning[frame_key]["pan_y"] == 1
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 1
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 1
 
         # Test panning left
         self.canvas.pan_canvas(-1, 0)
-        assert self.canvas._frame_panning[frame_key]["pan_x"] == 0
-        assert self.canvas._frame_panning[frame_key]["pan_y"] == 1
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 0
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 1
 
         # Test panning up
         self.canvas.pan_canvas(0, -1)
-        assert self.canvas._frame_panning[frame_key]["pan_x"] == 0
-        assert self.canvas._frame_panning[frame_key]["pan_y"] == 0
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 0
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 0
 
     def test_pan_canvas_bounds_checking(self):
         """Test that panning respects bounds."""
@@ -87,8 +87,8 @@ class TestCanvasPanning:
         # Test panning within bounds
         self.canvas.pan_canvas(5, 0)
         assert frame_key in self.canvas._frame_panning
-        assert self.canvas._frame_panning[frame_key]["pan_x"] == 5
-        assert self.canvas._frame_panning[frame_key]["pan_y"] == 0
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 5
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 0
 
     def test_reset_panning(self):
         """Test resetting panning to original position."""
@@ -96,17 +96,17 @@ class TestCanvasPanning:
 
         # Pan the canvas
         self.canvas.pan_canvas(3, 2)
-        assert self.canvas._frame_panning[frame_key]["active"] is True
-        assert self.canvas._frame_panning[frame_key]["pan_x"] == 3
-        assert self.canvas._frame_panning[frame_key]["pan_y"] == 2
+        assert self.canvas._frame_panning[frame_key]['active'] is True
+        assert self.canvas._frame_panning[frame_key]['pan_x'] == 3
+        assert self.canvas._frame_panning[frame_key]['pan_y'] == 2
 
         # Reset panning
         self.canvas.reset_panning()
         # Reset should clear the frame's panning state
         if frame_key in self.canvas._frame_panning:
-            assert self.canvas._frame_panning[frame_key]["active"] is False
-            assert self.canvas._frame_panning[frame_key]["pan_x"] == 0
-            assert self.canvas._frame_panning[frame_key]["pan_y"] == 0
+            assert self.canvas._frame_panning[frame_key]['active'] is False
+            assert self.canvas._frame_panning[frame_key]['pan_x'] == 0
+            assert self.canvas._frame_panning[frame_key]['pan_y'] == 0
 
     def test_is_panning_active(self):
         """Test panning active state detection."""
@@ -127,32 +127,32 @@ class TestCanvasPanning:
 
         # Check that frame panning state is created and pixels are updated
         assert frame_key in self.canvas._frame_panning
-        assert self.canvas._frame_panning[frame_key]["original_pixels"] is not None
+        assert self.canvas._frame_panning[frame_key]['original_pixels'] is not None
         assert len(self.canvas.pixels) == 64  # 8x8 viewport
         assert self.canvas.dirty_pixels == [True] * 64
 
     def test_save_with_panning(self, mocker):
         """Test saving when panning is active."""
         # Mock the viewport saving method
-        mock_save = mocker.patch.object(self.canvas, "_save_viewport_sprite")
+        mock_save = mocker.patch.object(self.canvas, '_save_viewport_sprite')
         # Activate panning
         self.canvas.pan_canvas(1, 0)
 
         # Save the sprite
-        self.canvas.save_animated_sprite("test.toml")
+        self.canvas.save_animated_sprite('test.toml')
 
         # Check that viewport saving was called
-        mock_save.assert_called_once_with("test.toml")
+        mock_save.assert_called_once_with('test.toml')
 
     def test_save_without_panning(self, mocker):
         """Test saving when panning is not active."""
         # Mock the sprite serializer
-        mock_save = mocker.patch.object(self.canvas.sprite_serializer, "save")
+        mock_save = mocker.patch.object(self.canvas.sprite_serializer, 'save')
         # Save without panning
-        self.canvas.save_animated_sprite("test.toml")
+        self.canvas.save_animated_sprite('test.toml')
 
         # Check that normal saving was called
-        mock_save.assert_called_once_with(self.canvas.animated_sprite, "test.toml", "toml")
+        mock_save.assert_called_once_with(self.canvas.animated_sprite, 'test.toml', 'toml')
 
     def test_viewport_frame_creation(self, mocker):
         """Test creating viewport frames from original frames."""
@@ -170,7 +170,7 @@ class TestCanvasPanning:
 
         # Check that viewport frame was created
         assert viewport_frame is not None
-        assert hasattr(viewport_frame, "duration")
+        assert hasattr(viewport_frame, 'duration')
         assert math.isclose(viewport_frame.duration, 0.5)
 
     def test_get_viewport_pixels_from_frame(self, mocker):
@@ -227,8 +227,8 @@ class TestCanvasPanning:
         large_canvas.pan_canvas(5, 3)
         frame_key = large_canvas._get_current_frame_key()
         assert frame_key in large_canvas._frame_panning
-        assert large_canvas._frame_panning[frame_key]["pan_x"] == 5
-        assert large_canvas._frame_panning[frame_key]["pan_y"] == 3
+        assert large_canvas._frame_panning[frame_key]['pan_x'] == 5
+        assert large_canvas._frame_panning[frame_key]['pan_y'] == 3
         assert large_canvas.is_panning_active() is True
 
     def test_panning_state_persistence(self):
@@ -264,16 +264,16 @@ class TestPanningKeyboardHandling:
 
         # Add necessary attributes for the commit test
         self.canvas.animated_sprite = mocker.Mock()
-        self.canvas.animated_sprite._animations = {"strip_1": [mocker.Mock()]}
-        self.canvas.animated_sprite._animations["strip_1"][0].pixels = [(255, 0, 0)] * 64
-        self.canvas.current_animation = "strip_1"
+        self.canvas.animated_sprite._animations = {'strip_1': [mocker.Mock()]}
+        self.canvas.animated_sprite._animations['strip_1'][0].pixels = [(255, 0, 0)] * 64
+        self.canvas.current_animation = 'strip_1'
         self.canvas.current_frame = 0
         self.canvas.pixels = [(255, 0, 0)] * 64
 
         # Set up _frame_panning as a real dict on the mock canvas so
         # that _commit_panned_buffer can use 'in' operator on it
         self.canvas._frame_panning = {}
-        self.canvas._get_current_frame_key = mocker.Mock(return_value="strip_1_0")
+        self.canvas._get_current_frame_key = mocker.Mock(return_value='strip_1_0')
 
         # Create a mock scene with canvas
         self.scene = mocker.Mock(spec=BitmapEditorScene)
@@ -281,7 +281,7 @@ class TestPanningKeyboardHandling:
 
         # Create a real scene instance for testing keyboard handling
         # Use a smaller sprite to avoid layout issues
-        mock_options = {"size": "32x32"}
+        mock_options = {'size': '32x32'}
         self.real_scene = BitmapEditorScene(mock_options)
         # Replace the canvas with our mock
         self.real_scene.canvas = self.canvas
@@ -330,21 +330,21 @@ class TestPanningKeyboardHandling:
         event.key = pygame.K_LEFT
         event.mod = 0  # No modifier keys
 
-        mocker.patch.object(self.real_scene, "canvas", self.canvas)
+        mocker.patch.object(self.real_scene, 'canvas', self.canvas)
         self.real_scene.on_key_down_event(event)
         # Should not call pan_canvas
         self.canvas.pan_canvas.assert_not_called()
 
         # Test Left with only Ctrl (no Shift)
         event.mod = pygame.KMOD_CTRL
-        mocker.patch.object(self.real_scene, "canvas", self.canvas)
+        mocker.patch.object(self.real_scene, 'canvas', self.canvas)
         self.real_scene.on_key_down_event(event)
         # Should not call pan_canvas
         self.canvas.pan_canvas.assert_not_called()
 
         # Test Left with only Shift (no Ctrl)
         event.mod = pygame.KMOD_SHIFT
-        mocker.patch.object(self.real_scene, "canvas", self.canvas)
+        mocker.patch.object(self.real_scene, 'canvas', self.canvas)
         self.real_scene.on_key_down_event(event)
         # Should not call pan_canvas
         self.canvas.pan_canvas.assert_not_called()
@@ -378,12 +378,12 @@ class TestPanningKeyboardHandling:
         self.canvas.pan_canvas.assert_called_with(-1, 0)
 
         # Simulate that panning is active by setting up _frame_panning state
-        frame_key = "strip_1_0"
+        frame_key = 'strip_1_0'
         self.canvas._frame_panning[frame_key] = {
-            "pan_x": -1,
-            "pan_y": 0,
-            "original_pixels": [(255, 0, 0)] * 64,
-            "active": True,
+            'pan_x': -1,
+            'pan_y': 0,
+            'original_pixels': [(255, 0, 0)] * 64,
+            'active': True,
         }
 
         # Now release the key
@@ -396,10 +396,10 @@ class TestPanningKeyboardHandling:
         # Verify that panning state was preserved (not cleared)
         assert frame_key in self.canvas._frame_panning
         frame_state = self.canvas._frame_panning[frame_key]
-        assert frame_state["active"] is True
-        assert frame_state["pan_x"] == -1
-        assert frame_state["pan_y"] == 0
-        assert frame_state["original_pixels"] is not None
+        assert frame_state['active'] is True
+        assert frame_state['pan_x'] == -1
+        assert frame_state['pan_y'] == 0
+        assert frame_state['original_pixels'] is not None
 
     def test_key_release_updates_film_strip(self, mocker):
         """Test that releasing Ctrl+Shift+Arrow updates the film strip."""
@@ -412,17 +412,17 @@ class TestPanningKeyboardHandling:
         self.canvas.pan_canvas.assert_called_with(-1, 0)
 
         # Simulate that panning is active by setting up _frame_panning state
-        frame_key = "strip_1_0"
+        frame_key = 'strip_1_0'
         self.canvas._frame_panning[frame_key] = {
-            "pan_x": -1,
-            "pan_y": 0,
-            "original_pixels": [(255, 0, 0)] * 64,
-            "active": True,
+            'pan_x': -1,
+            'pan_y': 0,
+            'original_pixels': [(255, 0, 0)] * 64,
+            'active': True,
         }
 
         # Mock the _update_film_strips_for_animated_sprite_update method
         mock_update_film = mocker.patch.object(
-            self.real_scene, "_update_film_strips_for_animated_sprite_update"
+            self.real_scene, '_update_film_strips_for_animated_sprite_update'
         )
         # Now release the key
         event_up = self._mocker.Mock()
@@ -435,5 +435,5 @@ class TestPanningKeyboardHandling:
         mock_update_film.assert_called_once()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

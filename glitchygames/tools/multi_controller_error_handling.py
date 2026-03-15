@@ -24,10 +24,10 @@ POSITION_TUPLE_LENGTH = 2
 class ErrorSeverity(Enum):
     """Error severity levels."""
 
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+    LOW = 'low'
+    MEDIUM = 'medium'
+    HIGH = 'high'
+    CRITICAL = 'critical'
 
 
 @dataclass
@@ -53,7 +53,7 @@ class MultiControllerErrorHandler:
             log_level: Logging level
 
         """
-        self.logger = logging.getLogger("multi_controller")
+        self.logger = logging.getLogger('multi_controller')
         self.logger.setLevel(log_level)
 
         # Error tracking
@@ -109,7 +109,7 @@ class MultiControllerErrorHandler:
             self.error_history = self.error_history[-self.max_error_history :]
 
         # Update error counts
-        error_key = f"{error_info.error_type}_{error_info.operation}"
+        error_key = f'{error_info.error_type}_{error_info.operation}'
         self.error_counts[error_key] = self.error_counts.get(error_key, 0) + 1
 
         # Log error
@@ -129,7 +129,7 @@ class MultiControllerErrorHandler:
 
         """
         log_message = (
-            f"Controller {error_info.controller_id}: {error_info.error_type} - {error_info.message}"
+            f'Controller {error_info.controller_id}: {error_info.error_type} - {error_info.message}'
         )
 
         if error_info.severity == ErrorSeverity.CRITICAL:
@@ -151,11 +151,11 @@ class MultiControllerErrorHandler:
             True if recovery was successful
 
         """
-        error_key = f"{error_info.error_type}_{error_info.operation}"
+        error_key = f'{error_info.error_type}_{error_info.operation}'
 
         # Check if we've exceeded recovery attempts
         if self.recovery_attempts.get(error_key, 0) >= self.max_recovery_attempts:
-            self.logger.error(f"Max recovery attempts exceeded for {error_key}")
+            self.logger.error(f'Max recovery attempts exceeded for {error_key}')
             return False
 
         # Increment recovery attempts
@@ -166,7 +166,7 @@ class MultiControllerErrorHandler:
             try:
                 return self.recovery_handlers[error_key](error_info)
             except (ValueError, TypeError, AttributeError, KeyError, OSError):
-                self.logger.exception("Recovery handler failed")
+                self.logger.exception('Recovery handler failed')
                 return False
 
         # Default recovery strategies
@@ -182,13 +182,13 @@ class MultiControllerErrorHandler:
             True if recovery was successful
 
         """
-        if error_info.error_type == "KeyError":
+        if error_info.error_type == 'KeyError':
             # Try to recreate missing key
             return self._recover_missing_key(error_info)
-        if error_info.error_type == "AttributeError":
+        if error_info.error_type == 'AttributeError':
             # Try to fix missing attribute
             return self._recover_missing_attribute(error_info)
-        if error_info.error_type == "ValueError":
+        if error_info.error_type == 'ValueError':
             # Try to fix invalid value
             return self._recover_invalid_value(error_info)
 
@@ -205,7 +205,7 @@ class MultiControllerErrorHandler:
 
         """
         # This would need to be implemented based on specific error context
-        self.logger.info(f"Attempting to recover from missing key: {error_info.message}")
+        self.logger.info(f'Attempting to recover from missing key: {error_info.message}')
         return True
 
     def _recover_missing_attribute(self, error_info: ErrorInfo) -> bool:
@@ -218,7 +218,7 @@ class MultiControllerErrorHandler:
             True if recovery was successful
 
         """
-        self.logger.info(f"Attempting to recover from missing attribute: {error_info.message}")
+        self.logger.info(f'Attempting to recover from missing attribute: {error_info.message}')
         return True
 
     def _recover_invalid_value(self, error_info: ErrorInfo) -> bool:
@@ -231,7 +231,7 @@ class MultiControllerErrorHandler:
             True if recovery was successful
 
         """
-        self.logger.info(f"Attempting to recover from invalid value: {error_info.message}")
+        self.logger.info(f'Attempting to recover from invalid value: {error_info.message}')
         return True
 
     def register_error_handler(self, error_type: str, handler: Callable) -> None:
@@ -262,16 +262,16 @@ class MultiControllerErrorHandler:
 
         """
         return {
-            "total_errors": len(self.error_history),
-            "error_counts": self.error_counts.copy(),
-            "recovery_attempts": self.recovery_attempts.copy(),
-            "recent_errors": [
+            'total_errors': len(self.error_history),
+            'error_counts': self.error_counts.copy(),
+            'recovery_attempts': self.recovery_attempts.copy(),
+            'recent_errors': [
                 {
-                    "type": error.error_type,
-                    "message": error.message,
-                    "severity": error.severity.value,
-                    "timestamp": error.timestamp,
-                    "controller_id": error.controller_id,
+                    'type': error.error_type,
+                    'message': error.message,
+                    'severity': error.severity.value,
+                    'timestamp': error.timestamp,
+                    'controller_id': error.controller_id,
                 }
                 for error in self.error_history[-10:]  # Last 10 errors
             ],
@@ -296,7 +296,7 @@ class MultiControllerConfig:
     # Visual settings
     collision_offset_distance: int = 15
     visual_indicator_size: int = 12
-    visual_indicator_shape: str = "triangle"
+    visual_indicator_shape: str = 'triangle'
 
     # Performance settings
     enable_caching: bool = True
@@ -314,7 +314,7 @@ class MultiControllerConfig:
     enable_navigation_history: bool = True
 
     @classmethod
-    def from_file(cls, config_file: str) -> "MultiControllerConfig":
+    def from_file(cls, config_file: str) -> 'MultiControllerConfig':
         """Load configuration from file.
 
         Args:
@@ -329,12 +329,12 @@ class MultiControllerConfig:
             return cls()
 
         try:
-            with config_path.open(encoding="utf-8") as f:
+            with config_path.open(encoding='utf-8') as f:
                 config_data = json.load(f)
 
             return cls(**config_data)
         except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
-            log.warning(f"Failed to load config from {config_file}: {e}")
+            log.warning(f'Failed to load config from {config_file}: {e}')
             return cls()
 
     def save_to_file(self, config_file: str) -> bool:
@@ -349,29 +349,29 @@ class MultiControllerConfig:
         """
         try:
             config_data = {
-                "max_controllers": self.max_controllers,
-                "controller_timeout": self.controller_timeout,
-                "auto_cleanup_interval": self.auto_cleanup_interval,
-                "collision_offset_distance": self.collision_offset_distance,
-                "visual_indicator_size": self.visual_indicator_size,
-                "visual_indicator_shape": self.visual_indicator_shape,
-                "enable_caching": self.enable_caching,
-                "enable_optimization": self.enable_optimization,
-                "update_throttle": self.update_throttle,
-                "error_logging_enabled": self.error_logging_enabled,
-                "auto_recovery_enabled": self.auto_recovery_enabled,
-                "max_error_history": self.max_error_history,
-                "max_recovery_attempts": self.max_recovery_attempts,
-                "navigation_history_limit": self.navigation_history_limit,
-                "enable_navigation_history": self.enable_navigation_history,
+                'max_controllers': self.max_controllers,
+                'controller_timeout': self.controller_timeout,
+                'auto_cleanup_interval': self.auto_cleanup_interval,
+                'collision_offset_distance': self.collision_offset_distance,
+                'visual_indicator_size': self.visual_indicator_size,
+                'visual_indicator_shape': self.visual_indicator_shape,
+                'enable_caching': self.enable_caching,
+                'enable_optimization': self.enable_optimization,
+                'update_throttle': self.update_throttle,
+                'error_logging_enabled': self.error_logging_enabled,
+                'auto_recovery_enabled': self.auto_recovery_enabled,
+                'max_error_history': self.max_error_history,
+                'max_recovery_attempts': self.max_recovery_attempts,
+                'navigation_history_limit': self.navigation_history_limit,
+                'enable_navigation_history': self.enable_navigation_history,
             }
 
-            with Path(config_file).open("w", encoding="utf-8") as f:
+            with Path(config_file).open('w', encoding='utf-8') as f:
                 json.dump(config_data, f, indent=2)
 
             return True
         except Exception:
-            log.exception(f"Failed to save config to {config_file}")
+            log.exception(f'Failed to save config to {config_file}')
             return False
 
 
@@ -386,7 +386,7 @@ class MultiControllerLogger:
 
         """
         self.config = config
-        self.logger = logging.getLogger("multi_controller")
+        self.logger = logging.getLogger('multi_controller')
 
         # Setup logging
         if config.error_logging_enabled:
@@ -395,7 +395,7 @@ class MultiControllerLogger:
     def _setup_logging(self) -> None:
         """Set up logging configuration."""
         # Create formatter
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
         # Create console handler
         console_handler = logging.StreamHandler()
@@ -403,7 +403,7 @@ class MultiControllerLogger:
         self.logger.addHandler(console_handler)
 
         # Create file handler
-        file_handler = logging.FileHandler("multi_controller.log")
+        file_handler = logging.FileHandler('multi_controller.log')
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
@@ -416,7 +416,7 @@ class MultiControllerLogger:
             data: Event data
 
         """
-        self.logger.info(f"Controller {controller_id}: {event} - {data}")
+        self.logger.info(f'Controller {controller_id}: {event} - {data}')
 
     def log_performance_metric(self, operation: str, duration: float) -> None:
         """Log performance metric.
@@ -426,7 +426,7 @@ class MultiControllerLogger:
             duration: Operation duration
 
         """
-        self.logger.debug(f"Performance: {operation} took {duration:.4f}s")
+        self.logger.debug(f'Performance: {operation} took {duration:.4f}s')
 
     def log_system_status(self, status: dict[str, Any]) -> None:
         """Log system status.
@@ -435,7 +435,7 @@ class MultiControllerLogger:
             status: System status dictionary
 
         """
-        self.logger.info(f"System status: {status}")
+        self.logger.info(f'System status: {status}')
 
 
 class MultiControllerValidator:

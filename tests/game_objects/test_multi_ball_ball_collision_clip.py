@@ -12,6 +12,7 @@ import math
 import random
 
 import pygame
+
 from glitchygames.game_objects.ball import BallSprite
 
 # Number of frames to suppress re-detection of the same ball pair after a collision.
@@ -142,18 +143,18 @@ def test_multi_ball_ball_collision_clip():
 
     # === ASSERTIONS ===
     assert final_alive == num_balls, (
-        f"Expected all {num_balls} balls to survive, but only {final_alive} alive"
+        f'Expected all {num_balls} balls to survive, but only {final_alive} alive'
     )
-    assert wall_bounces > 0, "No wall bounces detected — wall bouncing is broken"
+    assert wall_bounces > 0, 'No wall bounces detected — wall bouncing is broken'
 
     for i in range(num_balls):
         magnitude_drift = abs(final_magnitudes[i] - initial_magnitudes[i])
         assert magnitude_drift < 1e-12, (
-            f"Ball {i + 1} has speed magnitude drift during clipping: "
-            f"initial={initial_magnitudes[i]:.6f}, "
-            f"final={final_magnitudes[i]:.6f}, drift={magnitude_drift:.2e}"
+            f'Ball {i + 1} has speed magnitude drift during clipping: '
+            f'initial={initial_magnitudes[i]:.6f}, '
+            f'final={final_magnitudes[i]:.6f}, drift={magnitude_drift:.2e}'
         )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     test_multi_ball_ball_collision_clip()

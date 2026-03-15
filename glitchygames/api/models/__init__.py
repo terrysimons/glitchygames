@@ -15,15 +15,15 @@ from glitchygames.api.models.sprite_models import (
 )
 
 __all__ = [
-    "OUTPUT_FORMAT_PNG",
-    "OUTPUT_FORMAT_TOML",
-    "VALID_OUTPUT_FORMATS",
-    "ApngExtractRequest",
-    "ApngExtractResponse",
-    "ApngFrameInfo",
-    "HealthResponse",
-    "RenderedFrameInfo",
-    "SpriteGenerationRequest",
-    "SpriteGenerationResponse",
-    "SpriteRefinementRequest",
+    'OUTPUT_FORMAT_PNG',
+    'OUTPUT_FORMAT_TOML',
+    'VALID_OUTPUT_FORMATS',
+    'ApngExtractRequest',
+    'ApngExtractResponse',
+    'ApngFrameInfo',
+    'HealthResponse',
+    'RenderedFrameInfo',
+    'SpriteGenerationRequest',
+    'SpriteGenerationResponse',
+    'SpriteRefinementRequest',
 ]

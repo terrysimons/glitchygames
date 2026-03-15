@@ -29,8 +29,8 @@ class ASCIIRenderer:
 
         """
         if self.detector.has_color_support():
-            return "█"  # Full block for transparency
-        return " "  # Space for monochrome
+            return '█'  # Full block for transparency
+        return ' '  # Space for monochrome
 
     def _get_pixel_char(self, char: str) -> str:
         """Get ASCII character for pixel.
@@ -43,7 +43,7 @@ class ASCIIRenderer:
 
         """
         # Always render pixels as a solid block; color comes from the pixel's mapped RGB
-        return "█"
+        return '█'
 
     def _extract_colors_from_toml(
         self, toml_data: dict[str, Any]
@@ -59,26 +59,26 @@ class ASCIIRenderer:
         """
         colors = {}
 
-        if "colors" in toml_data:
-            colors_section = toml_data["colors"]
+        if 'colors' in toml_data:
+            colors_section = toml_data['colors']
 
             for key, value in colors_section.items():
                 if (
                     isinstance(value, dict)
-                    and "red" in value
-                    and "green" in value
-                    and "blue" in value
+                    and 'red' in value
+                    and 'green' in value
+                    and 'blue' in value
                 ):
-                    r = int(value["red"])
-                    g = int(value["green"])
-                    b = int(value["blue"])
+                    r = int(value['red'])
+                    g = int(value['green'])
+                    b = int(value['blue'])
 
                     # Check for magenta transparency (255, 0, 255) = alpha 0
                     if r == MAX_COLOR_CHANNEL_VALUE and g == 0 and b == MAX_COLOR_CHANNEL_VALUE:
                         a = 0  # Fully transparent
                     else:
                         # Default alpha to 255 (opaque) if not specified
-                        a = int(value.get("alpha", value.get("a", 255)))
+                        a = int(value.get('alpha', value.get('a', 255)))
 
                     colors[key] = (r, g, b, a)
 
@@ -95,16 +95,16 @@ class ASCIIRenderer:
 
         """
         # Check for static sprite pixels
-        if "sprite" in toml_data and "pixels" in toml_data["sprite"]:
-            return toml_data["sprite"]["pixels"]
+        if 'sprite' in toml_data and 'pixels' in toml_data['sprite']:
+            return toml_data['sprite']['pixels']
 
         # Check for animated sprite pixels (first frame)
-        if "animation" in toml_data and len(toml_data["animation"]) > 0:
-            first_anim = toml_data["animation"][0]
-            if "frame" in first_anim and len(first_anim["frame"]) > 0:
-                first_frame = first_anim["frame"][0]
-                if "pixels" in first_frame:
-                    return first_frame["pixels"]
+        if 'animation' in toml_data and len(toml_data['animation']) > 0:
+            first_anim = toml_data['animation'][0]
+            if 'frame' in first_anim and len(first_anim['frame']) > 0:
+                first_frame = first_anim['frame'][0]
+                if 'pixels' in first_frame:
+                    return first_frame['pixels']
 
         return None
 
@@ -122,11 +122,11 @@ class ASCIIRenderer:
         if not self.detector.has_color_support():
             return pixels
 
-        lines = pixels.strip().split("\n")
+        lines = pixels.strip().split('\n')
         colorized_lines = []
 
         for line in lines:
-            colorized_line = ""
+            colorized_line = ''
             for char in line:
                 if char in colors:
                     r, g, b, a = colors[char]
@@ -157,13 +157,13 @@ class ASCIIRenderer:
                         display_char = self._get_pixel_char(char)
 
                     reset_code = self.color_mapper.get_reset_code()
-                    colorized_line += f"{color_code}{display_char}{reset_code}"
+                    colorized_line += f'{color_code}{display_char}{reset_code}'
                 else:
                     colorized_line += self._colorize_non_mapped_char(char, colors)
 
             colorized_lines.append(colorized_line)
 
-        return "\n".join(colorized_lines)
+        return '\n'.join(colorized_lines)
 
     def _colorize_non_mapped_char(
         self, char: str, colors: dict[str, tuple[int, int, int, int]]
@@ -182,13 +182,13 @@ class ASCIIRenderer:
 
         """
         # Handle transparency (magenta) or unknown characters
-        if char == "." and any(rgb[:3] == (255, 0, 255) for rgb in colors.values()):
+        if char == '.' and any(rgb[:3] == (255, 0, 255) for rgb in colors.values()):
             # This is transparency - draw as light grey for contrast
             display_char = self._get_transparency_char()
             # Use light grey background (192, 192, 192) for better contrast
             color_code = self.color_mapper.get_color_code(192, 192, 192)
             reset_code = self.color_mapper.get_reset_code()
-            return f"{color_code}{display_char}{reset_code}"
+            return f'{color_code}{display_char}{reset_code}'
         return char
 
     def _colorize_colors_section(self, colors: dict[str, tuple[int, int, int]]) -> str:
@@ -203,33 +203,33 @@ class ASCIIRenderer:
         """
         if not self.detector.has_color_support():
             # Return plain TOML format using proper Bitmappy structure
-            lines = ["[colors]"]
+            lines = ['[colors]']
             for char, (r, g, b) in colors.items():
                 lines.extend([
                     f'[colors."{char}"]',
-                    f"red = {r}",
-                    f"green = {g}",
-                    f"blue = {b}",
-                    "",
+                    f'red = {r}',
+                    f'green = {g}',
+                    f'blue = {b}',
+                    '',
                 ])
-            return "\n".join(lines)
+            return '\n'.join(lines)
 
-        lines = ["[colors]"]
+        lines = ['[colors]']
         for char, (r, g, b) in colors.items():
             color_code = self.color_mapper.get_color_code(r, g, b)
             reset_code = self.color_mapper.get_reset_code()
 
             # Colorize the character key
-            colorized_char = f"{color_code}{char}{reset_code}"
+            colorized_char = f'{color_code}{char}{reset_code}'
             lines.extend([
                 f'[colors."{colorized_char}"]',
-                f"red = {r}",
-                f"green = {g}",
-                f"blue = {b}",
-                "",
+                f'red = {r}',
+                f'green = {g}',
+                f'blue = {b}',
+                '',
             ])
 
-        return "\n".join(lines)
+        return '\n'.join(lines)
 
     def render_sprite(self, sprite_data: dict[str, Any]) -> str:
         """Render a sprite as colorized ASCII.
@@ -251,17 +251,17 @@ class ASCIIRenderer:
         pixels = self._extract_pixels_from_toml(sprite_data)
 
         if not pixels:
-            return "No pixels data found"
+            return 'No pixels data found'
 
         # Build output
         output_lines = []
 
         # Add sprite section
-        if "sprite" in sprite_data:
-            sprite_section = sprite_data["sprite"]
-            output_lines.append("[sprite]")
+        if 'sprite' in sprite_data:
+            sprite_section = sprite_data['sprite']
+            output_lines.append('[sprite]')
 
-            if "name" in sprite_section:
+            if 'name' in sprite_section:
                 output_lines.append(f'name = "{sprite_section["name"]}"')
 
             if pixels:
@@ -271,7 +271,7 @@ class ASCIIRenderer:
 
         # Skip colors section - just show the colorized pixels
 
-        result = "\n".join(output_lines)
+        result = '\n'.join(output_lines)
 
         # Cache the result
         self._render_cache[cache_key] = result

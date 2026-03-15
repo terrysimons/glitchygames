@@ -5,8 +5,9 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-from glitchygames.scenes import SceneManager
 from tests.mocks.test_mock_factory import MockFactory
+
+from glitchygames.scenes import SceneManager
 
 
 class FakeTimer:
@@ -70,21 +71,21 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch):
     fake_timer = FakeTimer()
     sm.game_engine = Mock()
     sm.game_engine.timer = fake_timer
-    sm.OPTIONS = {"log_timer_jitter": False}
+    sm.OPTIONS = {'log_timer_jitter': False}
     sm.target_fps = 60
 
     # Prevent calls into scene-specific logic
-    monkeypatch.setattr(sm, "_update_scene", lambda: None)
-    monkeypatch.setattr(sm, "_process_events", lambda: None)
-    monkeypatch.setattr(sm, "_render_scene", lambda: None)
-    monkeypatch.setattr(sm, "_update_display", lambda: None)
+    monkeypatch.setattr(sm, '_update_scene', lambda: None)
+    monkeypatch.setattr(sm, '_process_events', lambda: None)
+    monkeypatch.setattr(sm, '_render_scene', lambda: None)
+    monkeypatch.setattr(sm, '_update_display', lambda: None)
 
     # Short-circuit the main loop after a few iterations
-    iterations = {"n": 0}
+    iterations = {'n': 0}
 
     def loop_guard(*args, **kwargs):
-        iterations["n"] += 1
-        if iterations["n"] >= 3:
+        iterations['n'] += 1
+        if iterations['n'] >= 3:
             sm.quit_requested = True
 
     # Hook right after display update point by wrapping with our guard on each cycle
@@ -94,7 +95,7 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch):
         orig_update_display()
         loop_guard()
 
-    monkeypatch.setattr(sm, "_update_display", wrapped_update_display)
+    monkeypatch.setattr(sm, '_update_display', wrapped_update_display)
 
     # Ensure loop runs: set a dummy active_scene to satisfy the guard condition
     sm.active_scene = object()
@@ -112,27 +113,27 @@ def test_scene_manager_unlimited_fps_skips_sleep(monkeypatch):
     fake_timer = FakeTimer()
     engine_mock = Mock()
     engine_mock.OPTIONS = {
-        "update_type": "update",
-        "fps_log_interval_ms": 1000,
-        "target_fps": 0,
-        "log_timer_jitter": False,
+        'update_type': 'update',
+        'fps_log_interval_ms': 1000,
+        'target_fps': 0,
+        'log_timer_jitter': False,
     }
     engine_mock.timer = fake_timer
     sm.game_engine = engine_mock
     sm.target_fps = 0
 
     # Patch heavy methods
-    monkeypatch.setattr(sm, "_update_scene", lambda: None)
-    monkeypatch.setattr(sm, "_process_events", lambda: None)
-    monkeypatch.setattr(sm, "_render_scene", lambda: None)
-    monkeypatch.setattr(sm, "_update_display", lambda: None)
+    monkeypatch.setattr(sm, '_update_scene', lambda: None)
+    monkeypatch.setattr(sm, '_process_events', lambda: None)
+    monkeypatch.setattr(sm, '_render_scene', lambda: None)
+    monkeypatch.setattr(sm, '_update_display', lambda: None)
 
     # Stop after a couple iterations
-    iterations = {"n": 0}
+    iterations = {'n': 0}
 
     def loop_guard(*args, **kwargs):
-        iterations["n"] += 1
-        if iterations["n"] >= 2:
+        iterations['n'] += 1
+        if iterations['n'] >= 2:
             sm.quit_requested = True
 
     orig_update_display = sm._update_display
@@ -141,7 +142,7 @@ def test_scene_manager_unlimited_fps_skips_sleep(monkeypatch):
         orig_update_display()
         loop_guard()
 
-    monkeypatch.setattr(sm, "_update_display", wrapped_update_display)
+    monkeypatch.setattr(sm, '_update_display', wrapped_update_display)
 
     sm.active_scene = MockFactory.create_event_test_scene_mock()
     sm.active_scene.next_scene = sm.active_scene

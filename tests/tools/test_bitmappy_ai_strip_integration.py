@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pygame
 import pytest
-from glitchygames.tools.bitmappy import BitmapEditorScene
 
+from glitchygames.tools.bitmappy import BitmapEditorScene
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -33,14 +33,14 @@ class TestAISStripIntegration:
 
     def test_save_current_strip_to_temp_toml(self, mocker):
         """Test that current strip is saved to temporary TOML file."""
-        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         scene = BitmapEditorScene({})
         scene.log = self._mocker.Mock()
 
         # Mock canvas with animated sprite
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.current_animation = "test_animation"
+        scene.canvas.current_animation = 'test_animation'
 
         # Mock animation data
         mock_frame1 = self._mocker.Mock()
@@ -48,10 +48,10 @@ class TestAISStripIntegration:
         mock_frame2 = self._mocker.Mock()
         mock_frame2.pixels = [(0, 0, 255), (255, 255, 0)]  # Blue, Yellow
 
-        scene.canvas.animated_sprite._animations = {"test_animation": [mock_frame1, mock_frame2]}
+        scene.canvas.animated_sprite._animations = {'test_animation': [mock_frame1, mock_frame2]}
 
         # Mock the AnimatedSprite.save method
-        mock_sprite_class = mocker.patch("glitchygames.sprites.animated.AnimatedSprite")
+        mock_sprite_class = mocker.patch('glitchygames.sprites.animated.AnimatedSprite')
         mock_sprite_instance = self._mocker.Mock()
         mock_sprite_class.return_value = mock_sprite_instance
         mock_sprite_instance.save = self._mocker.Mock()
@@ -62,8 +62,8 @@ class TestAISStripIntegration:
         # Verify temp file was created
         assert temp_path is not None
         assert Path(temp_path).exists()
-        assert temp_path.endswith(".toml")
-        assert "bitmappy_strip_" in temp_path
+        assert temp_path.endswith('.toml')
+        assert 'bitmappy_strip_' in temp_path
 
         # Verify save was called
         mock_sprite_instance.save.assert_called_once_with(temp_path)
@@ -74,7 +74,7 @@ class TestAISStripIntegration:
 
     def test_save_current_strip_handles_missing_animation(self, mocker):
         """Test that saving strip handles missing animation gracefully."""
-        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         scene = BitmapEditorScene({})
         scene.log = self._mocker.Mock()
 
@@ -89,10 +89,10 @@ class TestAISStripIntegration:
         # Should return None for missing animation
         assert temp_path is None
 
-    @pytest.mark.skip(reason="Not yet implemented")
+    @pytest.mark.skip(reason='Not yet implemented')
     def test_ai_integration_with_frame_and_strip(self, mocker):
         """Test that AI integration provides both frame and strip context."""
-        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         scene = BitmapEditorScene({})
         scene.log = self._mocker.Mock()
         scene.ai_request_queue = self._mocker.Mock()
@@ -103,7 +103,7 @@ class TestAISStripIntegration:
         scene.canvas = self._mocker.Mock()
         scene.canvas.pixels = [(255, 0, 0), (0, 255, 0)]  # Non-magenta pixels
         scene.canvas.animated_sprite = self._mocker.Mock()
-        scene.canvas.current_animation = "test_animation"
+        scene.canvas.current_animation = 'test_animation'
 
         # Mock animation data
         mock_frame1 = self._mocker.Mock()
@@ -111,33 +111,33 @@ class TestAISStripIntegration:
         mock_frame2 = self._mocker.Mock()
         mock_frame2.pixels = [(0, 0, 255), (255, 255, 0)]
 
-        scene.canvas.animated_sprite._animations = {"test_animation": [mock_frame1, mock_frame2]}
+        scene.canvas.animated_sprite._animations = {'test_animation': [mock_frame1, mock_frame2]}
 
         # Mock the helper methods
         scene._check_current_frame_has_content = self._mocker.Mock(return_value=True)
-        scene._save_current_frame_to_temp_toml = self._mocker.Mock(return_value="/tmp/frame.toml")  # noqa: S108
-        scene._save_current_strip_to_temp_toml = self._mocker.Mock(return_value="/tmp/strip.toml")  # noqa: S108
+        scene._save_current_frame_to_temp_toml = self._mocker.Mock(return_value='/tmp/frame.toml')  # noqa: S108
+        scene._save_current_strip_to_temp_toml = self._mocker.Mock(return_value='/tmp/strip.toml')  # noqa: S108
         scene._load_temp_toml_as_example = self._mocker.Mock(
             side_effect=[
-                {"name": "selected_frame", "sprite_type": "static", "pixels": "test_frame"},
-                {"name": "selected_strip", "sprite_type": "animated", "pixels": "test_strip"},
+                {'name': 'selected_frame', 'sprite_type': 'static', 'pixels': 'test_frame'},
+                {'name': 'selected_strip', 'sprite_type': 'animated', 'pixels': 'test_strip'},
             ]
         )
 
         # Mock debug_text
         scene.debug_text = self._mocker.Mock()
-        scene.debug_text.text = "test"
+        scene.debug_text.text = 'test'
 
         # Mock the missing constants and functions
-        mocker.patch("glitchygames.tools.bitmappy.AI_TRAINING_FORMAT", "toml")
-        mocker.patch("glitchygames.tools.bitmappy.SPRITE_GLYPHS", "0123456789ABCDEF")
-        mocker.patch("glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT", "test format")
-        mock_select = mocker.patch("glitchygames.tools.bitmappy._select_relevant_training_examples")
+        mocker.patch('glitchygames.tools.bitmappy.AI_TRAINING_FORMAT', 'toml')
+        mocker.patch('glitchygames.tools.bitmappy.SPRITE_GLYPHS', '0123456789ABCDEF')
+        mocker.patch('glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT', 'test format')
+        mock_select = mocker.patch('glitchygames.tools.bitmappy._select_relevant_training_examples')
 
         mock_select.return_value = []
 
         # Test AI request submission
-        scene.on_text_submit_event("Create a new sprite")
+        scene.on_text_submit_event('Create a new sprite')
 
         # Verify both frame and strip were saved
         scene._save_current_frame_to_temp_toml.assert_called_once()
@@ -149,10 +149,10 @@ class TestAISStripIntegration:
         # Verify AI request was submitted
         scene.ai_request_queue.put.assert_called_once()
 
-    @pytest.mark.skip(reason="Not yet implemented")
+    @pytest.mark.skip(reason='Not yet implemented')
     def test_ai_integration_fallback_to_regular_examples(self, mocker):
         """Test that AI integration falls back to regular examples if context fails."""
-        mocker.patch.object(BitmapEditorScene, "__init__", return_value=None)
+        mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         scene = BitmapEditorScene({})
         scene.log = self._mocker.Mock()
         scene.ai_request_queue = self._mocker.Mock()
@@ -170,18 +170,18 @@ class TestAISStripIntegration:
 
         # Mock debug_text
         scene.debug_text = self._mocker.Mock()
-        scene.debug_text.text = "test"
+        scene.debug_text.text = 'test'
 
         # Mock the missing constants and functions
-        mocker.patch("glitchygames.tools.bitmappy.AI_TRAINING_FORMAT", "toml")
-        mocker.patch("glitchygames.tools.bitmappy.SPRITE_GLYPHS", "0123456789ABCDEF")
-        mocker.patch("glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT", "test format")
-        mock_select = mocker.patch("glitchygames.tools.bitmappy._select_relevant_training_examples")
+        mocker.patch('glitchygames.tools.bitmappy.AI_TRAINING_FORMAT', 'toml')
+        mocker.patch('glitchygames.tools.bitmappy.SPRITE_GLYPHS', '0123456789ABCDEF')
+        mocker.patch('glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT', 'test format')
+        mock_select = mocker.patch('glitchygames.tools.bitmappy._select_relevant_training_examples')
 
         mock_select.return_value = []
 
         # Test AI request submission
-        scene.on_text_submit_event("Create a new sprite")
+        scene.on_text_submit_event('Create a new sprite')
 
         # Verify fallback to regular examples
         scene._save_current_frame_to_temp_toml.assert_called_once()

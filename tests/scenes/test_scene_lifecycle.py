@@ -27,8 +27,8 @@ class TestSceneLifecycle:
 
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
-            NAME = "MockGameScene"
-            VERSION = "1.0"
+            NAME = 'MockGameScene'
+            VERSION = '1.0'
 
             def __init__(self, options=None, groups=None):
                 super().__init__(options=options, groups=groups)
@@ -62,7 +62,7 @@ class TestSceneLifecycle:
         assert scene.fps == 0
         assert scene.dt == 0
         assert scene.dirty == 1
-        assert scene.options == {"debug_events": False, "no_unhandled_events": False}
+        assert scene.options == {'debug_events': False, 'no_unhandled_events': False}
         assert scene.name is type(scene)
 
     def test_scene_cleanup(self):
@@ -109,24 +109,24 @@ class TestSceneLifecycle:
         scene2 = Scene()
 
         # Set some state on scene1
-        scene1.custom_data = "test_data"
+        scene1.custom_data = 'test_data'
 
         # Switch to scene1
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
-        assert scene1.custom_data == "test_data"
+        assert scene1.custom_data == 'test_data'
 
         # Transition to scene2
         manager.switch_to_scene(scene2)
         assert manager.active_scene == scene2
 
         # Scene1 should retain its state
-        assert scene1.custom_data == "test_data"
+        assert scene1.custom_data == 'test_data'
 
         # Transition back to scene1
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
-        assert scene1.custom_data == "test_data"
+        assert scene1.custom_data == 'test_data'
 
     def test_scene_lifecycle_with_custom_methods(self):
         """Test scene lifecycle with custom methods."""

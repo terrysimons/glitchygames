@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pygame
 import pytest
+
 from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import SceneManager
-
 from tests.mocks.test_mock_factory import MockFactory
 
 LOG = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ LOG = logging.getLogger(__name__)
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-PATCH_TARGET_PAUSE_SCENE = "glitchygames.scenes.builtin_scenes.pause_scene.PauseScene"
+PATCH_TARGET_PAUSE_SCENE = 'glitchygames.scenes.builtin_scenes.pause_scene.PauseScene'
 
 
 class TestPauseScreen:
@@ -51,7 +51,7 @@ class TestPauseScreen:
         # The game should be the active scene initially, but if it's not, that's okay
         # as long as it's not the pause scene yet
         assert scene_manager.active_scene != mock_pause_scene, (
-            "Expected pause scene not to be active initially"
+            'Expected pause scene not to be active initially'
         )
 
         # Simulate spacebar press to trigger pause
@@ -73,9 +73,9 @@ class TestPauseScreen:
 
         scene_manager = SceneManager()
         assert scene_manager.active_scene == mock_pause_scene, (
-            "Expected pause scene to be set as active scene"
+            'Expected pause scene to be set as active scene'
         )
-        LOG.info("✅ Pause screen condition properly detected!")
+        LOG.info('✅ Pause screen condition properly detected!')
 
     def test_pause_screen_resume_on_spacebar(self, mocker):
         """Test that Pause Screen can be resumed with spacebar."""
@@ -107,14 +107,14 @@ class TestPauseScreen:
 
         scene_manager = SceneManager()
         pause_scene = scene_manager.active_scene
-        assert pause_scene == mock_pause_scene, "Expected pause scene to be created"
+        assert pause_scene == mock_pause_scene, 'Expected pause scene to be created'
 
         # Simulate resuming from pause
         pause_scene.on_key_down_event(space_down_event)
 
         # Check if resume was triggered
-        assert pause_scene.next_scene is not None, "Expected game scene to be set for resume"
-        LOG.info("✅ Pause screen resume properly detected!")
+        assert pause_scene.next_scene is not None, 'Expected game scene to be set for resume'
+        LOG.info('✅ Pause screen resume properly detected!')
 
     def test_pause_screen_gets_game_engine_reference(self, mocker):
         """Test that Pause Screen gets game engine reference from scene manager."""
@@ -129,10 +129,10 @@ class TestPauseScreen:
         scene_manager = SceneManager()
         mock_game_engine = mocker.Mock()
         mock_game_engine.OPTIONS = {
-            "update_type": "dirty",
-            "fps_refresh_rate": 1,
-            "target_fps": 60,
-            "fps_log_interval_ms": 1000.0,
+            'update_type': 'dirty',
+            'fps_refresh_rate': 1,
+            'target_fps': 60,
+            'fps_log_interval_ms': 1000.0,
         }
         scene_manager.game_engine = mock_game_engine
 
@@ -143,9 +143,9 @@ class TestPauseScreen:
         scene_manager._setup_new_scene(pause_scene)
 
         # Verify the game engine reference was set
-        assert hasattr(pause_scene, "game_engine")
+        assert hasattr(pause_scene, 'game_engine')
         assert pause_scene.game_engine == mock_game_engine
-        LOG.info("✅ Pause screen gets game engine reference properly!")
+        LOG.info('✅ Pause screen gets game engine reference properly!')
 
 
 class TestPauseScreenIntegration:
@@ -184,15 +184,15 @@ class TestPauseScreenIntegration:
         from glitchygames.scenes import SceneManager
 
         scene_manager = SceneManager()
-        assert scene_manager.active_scene == mock_pause_scene, "Expected pause scene to be set"
+        assert scene_manager.active_scene == mock_pause_scene, 'Expected pause scene to be set'
 
         # Simulate resume
         pause_scene = scene_manager.active_scene
         pause_scene.on_key_down_event(space_down_event)
-        assert pause_scene.next_scene is not None, "Expected resume to work"
+        assert pause_scene.next_scene is not None, 'Expected resume to work'
 
-        LOG.info("✅ Complete pause/resume cycle works properly!")
+        LOG.info('✅ Complete pause/resume cycle works properly!')
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])

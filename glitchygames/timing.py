@@ -97,25 +97,25 @@ class FastTimer:
         """Initialize the FastTimer with sleep granularity and Windows timer options."""
         self.sleep_granularity_ns = max(0, int(sleep_granularity_ns))
         self._win_period_on = False
-        if windows_timer_1ms and sys.platform.startswith("win"):
+        if windows_timer_1ms and sys.platform.startswith('win'):
             try:
                 import ctypes
 
                 ctypes.windll.winmm.timeBeginPeriod(1)
                 self._win_period_on = True
             except (OSError, AttributeError) as timer_error:
-                LOG.debug("Windows timer resolution setup failed: %s", timer_error)
+                LOG.debug('Windows timer resolution setup failed: %s', timer_error)
                 self._win_period_on = False
 
     def __del__(self) -> None:
         """Clean up Windows timer resolution if it was changed."""
-        if self._win_period_on and sys.platform.startswith("win"):
+        if self._win_period_on and sys.platform.startswith('win'):
             try:
                 import ctypes
 
                 ctypes.windll.winmm.timeEndPeriod(1)
             except (OSError, AttributeError) as timer_error:
-                LOG.debug("Windows timer resolution cleanup failed: %s", timer_error)
+                LOG.debug('Windows timer resolution cleanup failed: %s', timer_error)
 
     def ns_now(self) -> int:
         """Return the current time in nanoseconds using perf_counter_ns.
@@ -182,9 +182,9 @@ def create_timer(timer_type: str | None, options: dict | None = None) -> PygameT
         PygameTimer | FastTimer: The created timer backend.
 
     """
-    tt = (timer_type or (options or {}).get("timer_backend") or "pygame").lower()
-    if tt == "fast":
-        sleep_gran_ns = (options or {}).get("sleep_granularity_ns", 1_000_000)
-        windows_1ms = bool((options or {}).get("windows_timer_1ms", False))
+    tt = (timer_type or (options or {}).get('timer_backend') or 'pygame').lower()
+    if tt == 'fast':
+        sleep_gran_ns = (options or {}).get('sleep_granularity_ns', 1_000_000)
+        windows_1ms = bool((options or {}).get('windows_timer_1ms', False))
         return FastTimer(sleep_granularity_ns=sleep_gran_ns, windows_timer_1ms=windows_1ms)
     return PygameTimer()

@@ -29,12 +29,12 @@ class TestUndoRedoManager:
 
     def test_add_operation(self):
         """Test adding operations to history."""
-        undo_data = {"pixel": (10, 20, (255, 0, 0))}
-        redo_data = {"pixel": (10, 20, (0, 255, 0))}
+        undo_data = {'pixel': (10, 20, (255, 0, 0))}
+        redo_data = {'pixel': (10, 20, (0, 255, 0))}
 
         self.manager.add_operation(
             operation_type=OperationType.CANVAS_PIXEL_CHANGE,
-            description="Test pixel change",
+            description='Test pixel change',
             undo_data=undo_data,
             redo_data=redo_data,
         )
@@ -43,7 +43,7 @@ class TestUndoRedoManager:
         assert len(self.manager.redo_stack) == 0
         assert self.manager.can_undo()
         assert not self.manager.can_redo()
-        assert self.manager.get_undo_description() == "Test pixel change"
+        assert self.manager.get_undo_description() == 'Test pixel change'
 
     def test_add_operation_clears_redo_stack(self, mocker):
         """Test that adding new operation clears redo stack."""
@@ -54,9 +54,9 @@ class TestUndoRedoManager:
         # Add initial operation
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
-            "First operation",
-            {"pixel": (10, 20, (255, 0, 0))},
-            {"pixel": (10, 20, (0, 255, 0))},
+            'First operation',
+            {'pixel': (10, 20, (255, 0, 0))},
+            {'pixel': (10, 20, (0, 255, 0))},
         )
 
         # Undo it to create redo stack
@@ -66,9 +66,9 @@ class TestUndoRedoManager:
         # Add new operation - should clear redo stack
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
-            "Second operation",
-            {"pixel": (15, 25, (100, 0, 0))},
-            {"pixel": (15, 25, (0, 100, 0))},
+            'Second operation',
+            {'pixel': (15, 25, (100, 0, 0))},
+            {'pixel': (15, 25, (0, 100, 0))},
         )
 
         assert len(self.manager.redo_stack) == 0
@@ -80,13 +80,13 @@ class TestUndoRedoManager:
         for i in range(7):  # More than max_history of 5
             self.manager.add_operation(
                 OperationType.CANVAS_PIXEL_CHANGE,
-                f"Operation {i}",
-                {"data": f"undo{i}"},
-                {"data": f"redo{i}"},
+                f'Operation {i}',
+                {'data': f'undo{i}'},
+                {'data': f'redo{i}'},
             )
 
         assert len(self.manager.undo_stack) == 5  # Should be limited to max_history
-        assert self.manager.undo_stack[0].description == "Operation 2"  # First 2 should be removed
+        assert self.manager.undo_stack[0].description == 'Operation 2'  # First 2 should be removed
 
     def test_undo_operation(self, mocker):
         """Test undoing operations."""
@@ -96,9 +96,9 @@ class TestUndoRedoManager:
 
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
-            "Test operation",
-            {"pixel": (10, 20, (255, 0, 0))},
-            {"pixel": (10, 20, (0, 255, 0))},
+            'Test operation',
+            {'pixel': (10, 20, (255, 0, 0))},
+            {'pixel': (10, 20, (0, 255, 0))},
         )
 
         result = self.manager.undo()
@@ -116,9 +116,9 @@ class TestUndoRedoManager:
 
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
-            "Test operation",
-            {"pixel": (10, 20, (255, 0, 0))},
-            {"pixel": (10, 20, (0, 255, 0))},
+            'Test operation',
+            {'pixel': (10, 20, (255, 0, 0))},
+            {'pixel': (10, 20, (0, 255, 0))},
         )
 
         # Undo first
@@ -148,9 +148,9 @@ class TestUndoRedoManager:
         for i in range(3):
             self.manager.add_operation(
                 OperationType.CANVAS_PIXEL_CHANGE,
-                f"Operation {i}",
-                {"data": f"undo{i}"},
-                {"data": f"redo{i}"},
+                f'Operation {i}',
+                {'data': f'undo{i}'},
+                {'data': f'redo{i}'},
             )
 
         assert len(self.manager.undo_stack) == 3
@@ -163,17 +163,17 @@ class TestUndoRedoManager:
     def test_get_history_info(self):
         """Test getting history information."""
         self.manager.add_operation(
-            OperationType.CANVAS_PIXEL_CHANGE, "Test operation", {"data": "undo"}, {"data": "redo"}
+            OperationType.CANVAS_PIXEL_CHANGE, 'Test operation', {'data': 'undo'}, {'data': 'redo'}
         )
 
         info = self.manager.get_history_info()
-        assert info["undo_count"] == 1
-        assert info["redo_count"] == 0
-        assert info["can_undo"] is True
-        assert info["can_redo"] is False
-        assert info["next_undo"] == "Test operation"
-        assert info["next_redo"] is None
-        assert info["max_history"] == 5
+        assert info['undo_count'] == 1
+        assert info['redo_count'] == 0
+        assert info['can_undo'] is True
+        assert info['can_redo'] is False
+        assert info['next_undo'] == 'Test operation'
+        assert info['next_redo'] is None
+        assert info['max_history'] == 5
 
 
 class TestCanvasOperationTracker:
@@ -212,7 +212,7 @@ class TestCanvasOperationTracker:
 
         operation = self.manager.undo_stack[0]
         assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
-        assert "Brush stroke" in operation.description
+        assert 'Brush stroke' in operation.description
 
     def test_end_brush_stroke_no_pixels(self):
         """Test ending a brush stroke with no pixel changes."""
@@ -233,7 +233,7 @@ class TestCanvasOperationTracker:
         assert (
             operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
         )  # Single pixel uses brush stroke type
-        assert "Pixel change at (15, 25)" in operation.description
+        assert 'Pixel change at (15, 25)' in operation.description
 
     def test_add_flood_fill(self):
         """Test adding a flood fill operation."""
@@ -243,8 +243,8 @@ class TestCanvasOperationTracker:
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
         assert operation.operation_type == OperationType.CANVAS_FLOOD_FILL
-        assert "Flood fill at (10, 10)" in operation.description
-        assert "4 pixels" in operation.description
+        assert 'Flood fill at (10, 10)' in operation.description
+        assert '4 pixels' in operation.description
 
 
 class TestFilmStripOperationTracker:
@@ -257,8 +257,8 @@ class TestFilmStripOperationTracker:
 
     def test_add_frame_added(self):
         """Test tracking frame addition."""
-        frame_data = {"width": 32, "height": 32, "pixels": []}
-        self.tracker.add_frame_added(2, "walk_animation", frame_data)
+        frame_data = {'width': 32, 'height': 32, 'pixels': []}
+        self.tracker.add_frame_added(2, 'walk_animation', frame_data)
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
@@ -267,8 +267,8 @@ class TestFilmStripOperationTracker:
 
     def test_add_frame_deleted(self):
         """Test tracking frame deletion."""
-        frame_data = {"width": 32, "height": 32, "pixels": []}
-        self.tracker.add_frame_deleted(1, "run_animation", frame_data)
+        frame_data = {'width': 32, 'height': 32, 'pixels': []}
+        self.tracker.add_frame_deleted(1, 'run_animation', frame_data)
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
@@ -277,7 +277,7 @@ class TestFilmStripOperationTracker:
 
     def test_add_frame_reordered(self):
         """Test tracking frame reordering."""
-        self.tracker.add_frame_reordered(0, 2, "jump_animation")
+        self.tracker.add_frame_reordered(0, 2, 'jump_animation')
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
@@ -286,8 +286,8 @@ class TestFilmStripOperationTracker:
 
     def test_add_animation_added(self):
         """Test tracking animation addition."""
-        animation_data = {"frames": 5, "duration": 1000}
-        self.tracker.add_animation_added("new_animation", animation_data)
+        animation_data = {'frames': 5, 'duration': 1000}
+        self.tracker.add_animation_added('new_animation', animation_data)
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
@@ -296,8 +296,8 @@ class TestFilmStripOperationTracker:
 
     def test_add_animation_deleted(self):
         """Test tracking animation deletion."""
-        animation_data = {"frames": 3, "duration": 500}
-        self.tracker.add_animation_deleted("old_animation", animation_data)
+        animation_data = {'frames': 3, 'duration': 500}
+        self.tracker.add_animation_deleted('old_animation', animation_data)
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
@@ -315,8 +315,8 @@ class TestCrossAreaOperationTracker:
 
     def test_add_frame_copy(self):
         """Test tracking frame copy operation."""
-        frame_data = {"width": 32, "height": 32, "pixels": []}
-        self.tracker.add_frame_copied(1, "source_animation", frame_data)
+        frame_data = {'width': 32, 'height': 32, 'pixels': []}
+        self.tracker.add_frame_copied(1, 'source_animation', frame_data)
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
@@ -325,8 +325,8 @@ class TestCrossAreaOperationTracker:
 
     def test_add_frame_paste(self):
         """Test tracking frame paste operation."""
-        frame_data = {"width": 32, "height": 32, "pixels": []}
-        self.tracker.add_frame_pasted(2, "target_animation", frame_data)
+        frame_data = {'width': 32, 'height': 32, 'pixels': []}
+        self.tracker.add_frame_pasted(2, 'target_animation', frame_data)
 
         assert len(self.manager.undo_stack) == 1
         operation = self.manager.undo_stack[0]
@@ -339,21 +339,21 @@ class TestOperationTypes:
 
     def test_operation_type_values(self):
         """Test that operation types have correct values."""
-        assert OperationType.CANVAS_PIXEL_CHANGE.value == "canvas_pixel_change"
-        assert OperationType.CANVAS_BRUSH_STROKE.value == "canvas_brush_stroke"
-        assert OperationType.CANVAS_FLOOD_FILL.value == "canvas_flood_fill"
-        assert OperationType.CANVAS_COLOR_CHANGE.value == "canvas_color_change"
+        assert OperationType.CANVAS_PIXEL_CHANGE.value == 'canvas_pixel_change'
+        assert OperationType.CANVAS_BRUSH_STROKE.value == 'canvas_brush_stroke'
+        assert OperationType.CANVAS_FLOOD_FILL.value == 'canvas_flood_fill'
+        assert OperationType.CANVAS_COLOR_CHANGE.value == 'canvas_color_change'
 
-        assert OperationType.FILM_STRIP_FRAME_ADD.value == "film_strip_frame_add"
-        assert OperationType.FILM_STRIP_FRAME_DELETE.value == "film_strip_frame_delete"
-        assert OperationType.FILM_STRIP_FRAME_REORDER.value == "film_strip_frame_reorder"
-        assert OperationType.FILM_STRIP_ANIMATION_ADD.value == "film_strip_animation_add"
-        assert OperationType.FILM_STRIP_ANIMATION_DELETE.value == "film_strip_animation_delete"
+        assert OperationType.FILM_STRIP_FRAME_ADD.value == 'film_strip_frame_add'
+        assert OperationType.FILM_STRIP_FRAME_DELETE.value == 'film_strip_frame_delete'
+        assert OperationType.FILM_STRIP_FRAME_REORDER.value == 'film_strip_frame_reorder'
+        assert OperationType.FILM_STRIP_ANIMATION_ADD.value == 'film_strip_animation_add'
+        assert OperationType.FILM_STRIP_ANIMATION_DELETE.value == 'film_strip_animation_delete'
 
-        assert OperationType.FRAME_COPY.value == "frame_copy"
-        assert OperationType.FRAME_PASTE.value == "frame_paste"
-        assert OperationType.ANIMATION_COPY.value == "animation_copy"
-        assert OperationType.ANIMATION_PASTE.value == "animation_paste"
+        assert OperationType.FRAME_COPY.value == 'frame_copy'
+        assert OperationType.FRAME_PASTE.value == 'frame_paste'
+        assert OperationType.ANIMATION_COPY.value == 'animation_copy'
+        assert OperationType.ANIMATION_PASTE.value == 'animation_paste'
 
 
 class TestDataClasses:

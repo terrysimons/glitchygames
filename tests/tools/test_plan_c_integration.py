@@ -11,6 +11,7 @@ import math
 import time
 
 import pytest
+
 from glitchygames.tools.controller_mode_system import ControllerMode, ModeSwitcher
 from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import (
@@ -291,12 +292,12 @@ class TestPlanCIntegration:
         self.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
 
         # Save position for film strip mode
-        self.mode_switcher.save_controller_position(controller_id, (10, 20), 5, "animation1")
+        self.mode_switcher.save_controller_position(controller_id, (10, 20), 5, 'animation1')
 
         # L2: FILM_STRIP -> CANVAS
         new_mode = self.mode_switcher.handle_trigger_input(controller_id, 1.0, 0.0, current_time)
         assert new_mode == ControllerMode.CANVAS
-        self.mode_switcher.save_controller_position(controller_id, (50, 60), 3, "animation2")
+        self.mode_switcher.save_controller_position(controller_id, (50, 60), 3, 'animation2')
 
         # Release L2
         self.mode_switcher.handle_trigger_input(controller_id, 0.0, 0.0, current_time + 0.1)
@@ -306,7 +307,7 @@ class TestPlanCIntegration:
             controller_id, 1.0, 0.0, current_time + 0.2
         )
         assert new_mode == ControllerMode.R_SLIDER
-        self.mode_switcher.save_controller_position(controller_id, (100, 200), 1, "animation3")
+        self.mode_switcher.save_controller_position(controller_id, (100, 200), 1, 'animation3')
 
         # Release L2
         self.mode_switcher.handle_trigger_input(controller_id, 0.0, 0.0, current_time + 0.3)
@@ -330,7 +331,7 @@ class TestPlanCIntegration:
         film_position = self.mode_switcher.get_controller_position(controller_id)
         assert film_position.position == (10, 20)
         assert film_position.frame == 5
-        assert film_position.animation == "animation1"
+        assert film_position.animation == 'animation1'
 
         # Verify mode-specific positions are preserved
         mode_state = self.mode_switcher.controller_modes[controller_id]
@@ -339,11 +340,11 @@ class TestPlanCIntegration:
 
         assert canvas_position.position == (50, 60)
         assert canvas_position.frame == 3
-        assert canvas_position.animation == "animation2"
+        assert canvas_position.animation == 'animation2'
 
         assert r_slider_position.position == (100, 200)
         assert r_slider_position.frame == 1
-        assert r_slider_position.animation == "animation3"
+        assert r_slider_position.animation == 'animation3'
 
     def test_error_handling_integration(self):
         """Test error handling in integrated system."""

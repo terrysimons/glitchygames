@@ -14,15 +14,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEventManager
 from glitchygames.scenes import Scene
-
 from tests.mocks import MockFactory
 
 
 class MockGame(Scene):
     """Simple mock game scene for testing."""
 
-    NAME = "MockGame"
-    VERSION = "1.0"
+    NAME = 'MockGame'
+    VERSION = '1.0'
 
     def __init__(self, options=None, groups=None):
         """Initialize mock game scene."""
@@ -43,7 +42,7 @@ class MockGame(Scene):
             object: The result.
 
         """
-        parser.add_argument("--test-flag", action="store_true", help="Test flag")
+        parser.add_argument('--test-flag', action='store_true', help='Test flag')
         return parser
 
     def update(self):
@@ -61,7 +60,7 @@ class MockGameWithArgs(MockGame):
             object: The result.
 
         """
-        parser.add_argument("--test-flag", action="store_true", help="Test flag")
+        parser.add_argument('--test-flag', action='store_true', help='Test flag')
         return parser
 
 
@@ -93,7 +92,7 @@ class TestGameManager:
     def test_game_manager_init(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEventManager initialization."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = mock_game_args
 
         # Create mock game
@@ -113,7 +112,7 @@ class TestGameManager:
     def test_game_manager_process_events(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEventManager event processing."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = mock_game_args
 
         # Create mock game
@@ -130,7 +129,7 @@ class TestGameManager:
         ]
 
         # Mock the process_events method to avoid actual event processing
-        mock_process_events = mocker.patch.object(manager, "process_events")
+        mock_process_events = mocker.patch.object(manager, 'process_events')
         mock_process_events.return_value = None
 
         # Test that process_events can be called
@@ -142,7 +141,7 @@ class TestGameManager:
     def test_game_manager_event_handlers(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEventManager event handler methods."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = mock_game_args
 
         # Create mock game
@@ -190,4 +189,4 @@ class TestGameManager:
 
         # Test that we can parse the arguments
         args = parser.parse_args([])
-        assert hasattr(args, "profile")  # Should have profile option
+        assert hasattr(args, 'profile')  # Should have profile option

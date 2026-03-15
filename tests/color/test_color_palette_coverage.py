@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from glitchygames.color.palette import ColorPalette, PaletteUtility
 
 
@@ -37,12 +38,12 @@ class TestColorPaletteCoverage:
         mock_colors = [(255, 0, 0), (0, 255, 0)]
 
         mock_load = mocker.patch.object(
-            PaletteUtility, "load_palette_from_file", return_value=mock_colors
+            PaletteUtility, 'load_palette_from_file', return_value=mock_colors
         )
-        mocker.patch("pathlib.Path.exists", return_value=True)
-        mocker.patch("sys.argv", ["/fake/script.py"])
+        mocker.patch('pathlib.Path.exists', return_value=True)
+        mocker.patch('sys.argv', ['/fake/script.py'])
 
-        palette = ColorPalette(colors=None, filename="test_palette")
+        palette = ColorPalette(colors=None, filename='test_palette')
 
         mock_load.assert_called_once()
         assert palette._colors == mock_colors
@@ -57,10 +58,10 @@ class TestColorPaletteCoverage:
 
     def test_color_palette_initialization_filename_not_found(self, mocker):
         """Test ColorPalette initialization when filename is not found."""
-        mocker.patch("pathlib.Path.exists", return_value=False)
-        mocker.patch("sys.argv", ["/fake/script.py"])
+        mocker.patch('pathlib.Path.exists', return_value=False)
+        mocker.patch('sys.argv', ['/fake/script.py'])
 
-        palette = ColorPalette(colors=None, filename="nonexistent")
+        palette = ColorPalette(colors=None, filename='nonexistent')
 
         assert palette._colors is None
         assert palette._size == 0
@@ -113,9 +114,9 @@ class TestPaletteUtilityCoverage:
     def test_load_palette_from_config(self):
         """Test loading palette from ConfigParser."""
         config = configparser.ConfigParser()
-        config["default"] = {"colors": "2"}
-        config["0"] = {"red": "255", "green": "0", "blue": "0", "alpha": "255"}
-        config["1"] = {"red": "0", "green": "255", "blue": "0", "alpha": "255"}
+        config['default'] = {'colors': '2'}
+        config['0'] = {'red': '255', 'green': '0', 'blue': '0', 'alpha': '255'}
+        config['1'] = {'red': '0', 'green': '255', 'blue': '0', 'alpha': '255'}
 
         result = PaletteUtility.load_palette_from_config(config)
         expected = [(255, 0, 0), (0, 255, 0)]
@@ -140,7 +141,7 @@ alpha = 255
 """
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".palette", delete=False, encoding="utf-8"
+            mode='w', suffix='.palette', delete=False, encoding='utf-8'
         ) as f:
             f.write(ini_content)
             temp_path = Path(f.name)
@@ -155,23 +156,23 @@ alpha = 255
     def test_load_palette_from_file_unsupported_format(self):
         """Test loading palette from unsupported format."""
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            mode='w', suffix='.txt', delete=False, encoding='utf-8'
         ) as f:
-            f.write("unsupported format")
+            f.write('unsupported format')
             temp_path = Path(f.name)
 
         try:
             # The function tries to parse as INI first, which will raise MissingSectionHeaderError
-            with pytest.raises(Exception, match=r".*"):  # Catch any parsing error
+            with pytest.raises(Exception, match=r'.*'):  # Catch any parsing error
                 PaletteUtility.load_palette_from_file(temp_path)
         finally:
             temp_path.unlink()
 
     def test_write_palette_to_file(self):
         """Test writing palette to file."""
-        config_data = {"colors": [{"r": 255, "g": 0, "b": 0}]}
+        config_data = {'colors': [{'r': 255, 'g': 0, 'b': 0}]}
 
-        with tempfile.NamedTemporaryFile(suffix=".palette", delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix='.palette', delete=False) as f:
             temp_path = Path(f.name)
 
         try:
@@ -185,10 +186,10 @@ alpha = 255
 
     def test_parse_rgb_data_in_file(self):
         """Test parsing RGB data from file."""
-        rgb_content = "255,0,0\n0,255,0\n0,0,255\n"
+        rgb_content = '255,0,0\n0,255,0\n0,0,255\n'
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            mode='w', suffix='.txt', delete=False, encoding='utf-8'
         ) as f:
             f.write(rgb_content)
             temp_path = Path(f.name)
@@ -210,9 +211,9 @@ alpha = 255
         result = PaletteUtility.create_palette_data(colors)
 
         # Verify it returns a ConfigParser object
-        assert hasattr(result, "sections")
-        assert "default" in result.sections()
-        assert result["default"]["colors"] == "2"
+        assert hasattr(result, 'sections')
+        assert 'default' in result.sections()
+        assert result['default']['colors'] == '2'
 
 
 class TestSystemPaletteCoverage:
@@ -223,19 +224,19 @@ class TestSystemPaletteCoverage:
         from glitchygames.color.palette import ColorPalette, System
 
         # Mock the parent class __init__ and get_color method to avoid the bug
-        mocker.patch.object(ColorPalette, "__init__", return_value=None)
-        mocker.patch.object(System, "get_color", return_value=(0, 0, 0))
+        mocker.patch.object(ColorPalette, '__init__', return_value=None)
+        mocker.patch.object(System, 'get_color', return_value=(0, 0, 0))
         system_palette = System()
 
         # Test that the palette was created successfully
         assert system_palette is not None
 
         # Test that system colors are accessible (these are set in __init__)
-        assert hasattr(system_palette, "BLACK")
-        assert hasattr(system_palette, "WHITE")
-        assert hasattr(system_palette, "RED")
-        assert hasattr(system_palette, "GREEN")
-        assert hasattr(system_palette, "BLUE")
+        assert hasattr(system_palette, 'BLACK')
+        assert hasattr(system_palette, 'WHITE')
+        assert hasattr(system_palette, 'RED')
+        assert hasattr(system_palette, 'GREEN')
+        assert hasattr(system_palette, 'BLUE')
 
         # Test that colors are tuples (RGB values)
         assert isinstance(system_palette.BLACK, tuple)
@@ -253,7 +254,7 @@ class TestVgaPaletteCoverage:
         from glitchygames.color.palette import ColorPalette, Vga
 
         # Mock the parent class __init__ to avoid the bug
-        mocker.patch.object(ColorPalette, "__init__", return_value=None)
+        mocker.patch.object(ColorPalette, '__init__', return_value=None)
         vga_palette = Vga()
 
         # Test that the palette was created successfully

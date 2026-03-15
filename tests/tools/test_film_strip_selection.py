@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
 from glitchygames.tools.bitmappy import BitmapEditorScene
 from glitchygames.tools.film_strip import FilmStripWidget
-
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -45,15 +44,15 @@ class TestFilmStripSelection:
             object: The result.
 
         """
-        mock_display = mocker.patch("pygame.display")
-        mock_font = mocker.patch("pygame.font")
-        mock_draw = mocker.patch("pygame.draw")
-        mock_surface = mocker.patch("pygame.Surface")
+        mock_display = mocker.patch('pygame.display')
+        mock_font = mocker.patch('pygame.font')
+        mock_draw = mocker.patch('pygame.draw')
+        mock_surface = mocker.patch('pygame.Surface')
         return {
-            "display": mock_display,
-            "font": mock_font,
-            "draw": mock_draw,
-            "surface": mock_surface,
+            'display': mock_display,
+            'font': mock_font,
+            'draw': mock_draw,
+            'surface': mock_surface,
         }
 
     @pytest.fixture
@@ -66,14 +65,14 @@ class TestFilmStripSelection:
         """
         sprite = mocker.Mock(spec=AnimatedSprite)
         sprite._animations = {
-            "walk": [
+            'walk': [
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
             ]
         }
-        sprite._animation_order = ["walk"]
+        sprite._animation_order = ['walk']
         return sprite
 
     @pytest.fixture
@@ -86,24 +85,24 @@ class TestFilmStripSelection:
         """
         widget = FilmStripWidget(0, 0, 400, 100)
         widget.animated_sprite = sample_animated_sprite
-        widget.current_animation = "walk"
+        widget.current_animation = 'walk'
         widget.selected_frame = 0
         widget.current_frame = 0
 
         # Mock the parent scene
         widget.parent_scene = mocker.Mock(spec=BitmapEditorScene)
         widget.parent_scene.selected_frame = 0
-        widget.parent_scene.selected_animation = "walk"
+        widget.parent_scene.selected_animation = 'walk'
 
         # Mock layout data
         widget.frame_layouts = {
-            ("walk", 0): pygame.Rect(10, 10, 64, 64),
-            ("walk", 1): pygame.Rect(80, 10, 64, 64),
-            ("walk", 2): pygame.Rect(150, 10, 64, 64),
-            ("walk", 3): pygame.Rect(220, 10, 64, 64),
+            ('walk', 0): pygame.Rect(10, 10, 64, 64),
+            ('walk', 1): pygame.Rect(80, 10, 64, 64),
+            ('walk', 2): pygame.Rect(150, 10, 64, 64),
+            ('walk', 3): pygame.Rect(220, 10, 64, 64),
         }
-        widget.preview_rects = {"walk": pygame.Rect(300, 10, 64, 64)}
-        widget.animation_layouts = {"walk": pygame.Rect(10, 0, 200, 20)}
+        widget.preview_rects = {'walk': pygame.Rect(300, 10, 64, 64)}
+        widget.animation_layouts = {'walk': pygame.Rect(10, 0, 200, 20)}
 
         return widget
 
@@ -120,9 +119,9 @@ class TestFilmStripSelection:
         # Should return the selected frame (2), not reset to 0
         assert result is not None
         animation, frame_idx = result
-        assert animation == "walk"
+        assert animation == 'walk'
         assert frame_idx == TEST_FRAME_COUNT_2, (
-            f"Expected frame {TEST_FRAME_COUNT_2}, got {frame_idx}"
+            f'Expected frame {TEST_FRAME_COUNT_2}, got {frame_idx}'
         )
 
         # Verify the widget's selected_frame is updated
@@ -137,13 +136,13 @@ class TestFilmStripSelection:
         # Mock the _on_frame_inserted method
         def mock_on_frame_inserted(animation, frame_index):
             film_strip_widget.parent_scene.selected_frame = frame_index
-            if animation == "walk":
+            if animation == 'walk':
                 film_strip_widget.selected_frame = frame_index
 
         film_strip_widget.parent_scene._on_frame_inserted = mock_on_frame_inserted
 
         # Simulate frame insertion
-        film_strip_widget.parent_scene._on_frame_inserted("walk", 0)
+        film_strip_widget.parent_scene._on_frame_inserted('walk', 0)
 
         # The scene should update its selected_frame to the new frame index
         assert film_strip_widget.parent_scene.selected_frame == 0
@@ -160,24 +159,24 @@ class TestFilmStripSelection:
         # Create a second strip with different selection
         second_strip = FilmStripWidget(0, 120, 400, 100)
         second_strip.animated_sprite = film_strip_widget.animated_sprite
-        second_strip.current_animation = "run"
+        second_strip.current_animation = 'run'
         second_strip.selected_frame = 1  # Different selection
         second_strip.parent_scene = film_strip_widget.parent_scene
 
         # Mock the scene's film strips
         film_strip_widget.parent_scene.film_strips = {
-            "walk": film_strip_widget,
-            "run": second_strip,
+            'walk': film_strip_widget,
+            'run': second_strip,
         }
         film_strip_widget.parent_scene.film_strip_sprites = {
-            "walk": mocker.Mock(),
-            "run": mocker.Mock(),
+            'walk': mocker.Mock(),
+            'run': mocker.Mock(),
         }
 
         # Mock the _update_film_strip_selection_state method
         def mock_update_selection_state():
-            current_animation = getattr(film_strip_widget.parent_scene, "selected_animation", "")
-            current_frame = getattr(film_strip_widget.parent_scene, "selected_frame", 0)
+            current_animation = getattr(film_strip_widget.parent_scene, 'selected_animation', '')
+            current_frame = getattr(film_strip_widget.parent_scene, 'selected_frame', 0)
 
             for strip_name, strip_widget in film_strip_widget.parent_scene.film_strips.items():
                 strip_widget.current_animation = strip_name
@@ -194,7 +193,7 @@ class TestFilmStripSelection:
         )
 
         # Switch to the second strip
-        film_strip_widget.parent_scene.selected_animation = "run"
+        film_strip_widget.parent_scene.selected_animation = 'run'
         film_strip_widget.parent_scene.selected_frame = 1
         film_strip_widget.parent_scene._update_film_strip_selection_state()
 
@@ -208,7 +207,7 @@ class TestFilmStripSelection:
         assert second_strip.selected_frame == 1
 
         # Now switch back to first strip
-        film_strip_widget.parent_scene.selected_animation = "walk"
+        film_strip_widget.parent_scene.selected_animation = 'walk'
         film_strip_widget.parent_scene.selected_frame = 2  # Use the preserved selection
         film_strip_widget.parent_scene._update_film_strip_selection_state()
 
@@ -230,8 +229,8 @@ class TestFilmStripSelection:
 
         # Animation label clicks now enter edit mode for renaming, returning None
         assert result is None
-        assert film_strip_widget.editing_animation == "walk"
-        assert film_strip_widget.original_animation_name == "walk"
+        assert film_strip_widget.editing_animation == 'walk'
+        assert film_strip_widget.original_animation_name == 'walk'
 
     def test_frame_click_updates_selection(self, film_strip_widget):
         """Test that clicking on a specific frame updates the selection."""
@@ -242,7 +241,7 @@ class TestFilmStripSelection:
         # Should return frame 2
         assert result is not None
         animation, frame_idx = result
-        assert animation == "walk"
+        assert animation == 'walk'
         assert frame_idx == TEST_FRAME_COUNT_2
 
         # Verify the widget's selected_frame is updated
@@ -255,19 +254,19 @@ class TestFilmStripSelection:
         # Create two strips
         strip1 = FilmStripWidget(0, 0, 400, 100)
         strip1.animated_sprite = sample_animated_sprite
-        strip1.current_animation = "walk"
+        strip1.current_animation = 'walk'
         strip1.selected_frame = 2
 
         strip2 = FilmStripWidget(0, 120, 400, 100)
         strip2.animated_sprite = sample_animated_sprite
-        strip2.current_animation = "run"
+        strip2.current_animation = 'run'
         strip2.selected_frame = 1
 
         # Create a scene with both strips
         scene = mocker.Mock(spec=BitmapEditorScene)
-        scene.film_strips = {"walk": strip1, "run": strip2}
-        scene.film_strip_sprites = {"walk": mocker.Mock(), "run": mocker.Mock()}
-        scene.selected_animation = "walk"
+        scene.film_strips = {'walk': strip1, 'run': strip2}
+        scene.film_strip_sprites = {'walk': mocker.Mock(), 'run': mocker.Mock()}
+        scene.selected_animation = 'walk'
         scene.selected_frame = 2
 
         # Set parent scenes
@@ -276,8 +275,8 @@ class TestFilmStripSelection:
 
         # Mock the _update_film_strip_selection_state method
         def mock_update_selection_state():
-            current_animation = getattr(scene, "selected_animation", "")
-            current_frame = getattr(scene, "selected_frame", 0)
+            current_animation = getattr(scene, 'selected_animation', '')
+            current_frame = getattr(scene, 'selected_frame', 0)
 
             for strip_name, strip_widget in scene.film_strips.items():
                 strip_widget.current_animation = strip_name
@@ -303,7 +302,7 @@ class TestFilmStripSelection:
         assert strip2.selected_frame == 1  # Should preserve its own selection
 
         # Switch to strip 2
-        scene.selected_animation = "run"
+        scene.selected_animation = 'run'
         scene.selected_frame = 1
         scene._update_film_strip_selection_state()
 
@@ -329,8 +328,8 @@ class TestFilmStripSelection:
         assert result is not None
         _, frame_idx = result  # animation not used in this test
         assert frame_idx == TEST_FRAME_COUNT_2, (
-            f"Expected frame {TEST_FRAME_COUNT_2} (global), got {frame_idx} "
-            f"(strip had {film_strip_widget.selected_frame})"
+            f'Expected frame {TEST_FRAME_COUNT_2} (global), got {frame_idx} '
+            f'(strip had {film_strip_widget.selected_frame})'
         )
 
         # Click on a position within the strip rect but outside any specific element
@@ -343,8 +342,8 @@ class TestFilmStripSelection:
         assert result is not None
         _, frame_idx = result  # animation not used in this test
         assert frame_idx == TEST_FRAME_COUNT_2, (
-            f"Expected frame {TEST_FRAME_COUNT_2} (global), got {frame_idx} "
-            f"(strip had {film_strip_widget.selected_frame})"
+            f'Expected frame {TEST_FRAME_COUNT_2} (global), got {frame_idx} '
+            f'(strip had {film_strip_widget.selected_frame})'
         )
 
     def test_parent_strip_click_selects_itself(self, film_strip_widget):
@@ -369,10 +368,10 @@ class TestFilmStripSelection:
         # Should return the global selected frame (2), not the strip's own (0)
         assert result is not None
         animation, frame_idx = result
-        assert animation == "walk"
+        assert animation == 'walk'
         assert frame_idx == TEST_FRAME_COUNT_2, (
-            f"Expected frame {TEST_FRAME_COUNT_2} (global), got {frame_idx} "
-            f"(strip had {film_strip_widget.selected_frame})"
+            f'Expected frame {TEST_FRAME_COUNT_2} (global), got {frame_idx} '
+            f'(strip had {film_strip_widget.selected_frame})'
         )
 
         # Verify the strip's selected_frame is updated to match the global selection
@@ -383,12 +382,12 @@ class TestFilmStripSelection:
     ):
         """Test that the triangle indicator is drawn below the active animation frame."""
         # Set up: frame 2 is the active animation frame
-        film_strip_widget.current_animation = "walk"
+        film_strip_widget.current_animation = 'walk'
         # Mock get_current_preview_frame to return frame 2
         film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=2)
 
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches["draw"]
+        mock_draw = mock_pygame_patches['draw']
 
         # Create a mock surface
         mock_surface = self._create_mock_surface()
@@ -407,12 +406,12 @@ class TestFilmStripSelection:
     ):
         """Test that the triangle indicator uses the correct colors."""
         # Set up: frame 0 is the active animation frame
-        film_strip_widget.current_animation = "walk"
+        film_strip_widget.current_animation = 'walk'
         # Mock get_current_preview_frame to return frame 0
         film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=0)
 
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches["draw"]
+        mock_draw = mock_pygame_patches['draw']
 
         # Create a mock surface
         mock_surface = self._create_mock_surface()
@@ -428,12 +427,12 @@ class TestFilmStripSelection:
     ):
         """Test that the triangle indicator has the correct size and position."""
         # Set up: frame 1 is the active animation frame
-        film_strip_widget.current_animation = "walk"
+        film_strip_widget.current_animation = 'walk'
         # Mock get_current_preview_frame to return frame 1
         film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=1)
 
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches["draw"]
+        mock_draw = mock_pygame_patches['draw']
 
         # Create a mock surface
         mock_surface = self._create_mock_surface()
@@ -453,10 +452,10 @@ class TestFilmStripSelection:
         since there are no frames to indicate.
         """
         # Set up: no current animation
-        film_strip_widget.current_animation = ""
+        film_strip_widget.current_animation = ''
 
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches["draw"]
+        mock_draw = mock_pygame_patches['draw']
 
         # Create a mock surface
         mock_surface = self._create_mock_surface()
@@ -475,10 +474,10 @@ class TestFilmStripSelection:
         """
         # Set up: no animated sprite
         film_strip_widget.animated_sprite = None
-        film_strip_widget.current_animation = "walk"
+        film_strip_widget.current_animation = 'walk'
 
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches["draw"]
+        mock_draw = mock_pygame_patches['draw']
 
         # Create a mock surface
         mock_surface = self._create_mock_surface()
@@ -497,12 +496,12 @@ class TestFilmStripSelection:
         Tests when frame layout is not found.
         """
         # Set up: frame layout doesn't exist
-        film_strip_widget.current_animation = "walk"
+        film_strip_widget.current_animation = 'walk'
         # Mock get_current_preview_frame to return frame 5 (doesn't exist in frame_layouts)
         film_strip_widget.get_current_preview_frame = mocker.Mock(return_value=5)
 
         # Mock pygame.draw.polygon to track calls
-        mock_draw = mock_pygame_patches["draw"]
+        mock_draw = mock_pygame_patches['draw']
 
         # Create a mock surface
         mock_surface = self._create_mock_surface()

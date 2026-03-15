@@ -65,39 +65,39 @@ class TestHashableEvent:
         # Test basic initialization
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         assert event.type == pygame.KEYDOWN
-        assert event["key"] == pygame.K_SPACE
+        assert event['key'] == pygame.K_SPACE
 
         # Test with multiple attributes
-        event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100), extra="test")
+        event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100), extra='test')
         assert event.type == pygame.MOUSEBUTTONDOWN
-        assert event["button"] == 1
-        assert event["pos"] == (100, 100)
-        assert event["extra"] == "test"
+        assert event['button'] == 1
+        assert event['pos'] == (100, 100)
+        assert event['extra'] == 'test'
 
     def test_hashable_event_dict_property(self, mock_pygame_patches):
         """Test HashableEvent dict property."""
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=pygame.KMOD_CTRL)
         event_dict = event.dict
         assert isinstance(event_dict, dict)
-        assert event_dict["key"] == pygame.K_SPACE
-        assert event_dict["mod"] == pygame.KMOD_CTRL
+        assert event_dict['key'] == pygame.K_SPACE
+        assert event_dict['mod'] == pygame.KMOD_CTRL
 
     def test_hashable_event_item_access(self, mock_pygame_patches):
         """Test HashableEvent item access methods."""
         event = HashableEvent(pygame.MOUSEMOTION, pos=(200, 200), rel=(10, 10))
 
         # Test __getitem__
-        assert event["pos"] == (200, 200)
-        assert event["rel"] == (10, 10)
+        assert event['pos'] == (200, 200)
+        assert event['rel'] == (10, 10)
 
         # Test __setitem__
-        event["new_attr"] = "test_value"
-        assert event["new_attr"] == "test_value"
+        event['new_attr'] = 'test_value'
+        assert event['new_attr'] == 'test_value'
 
         # Test __delitem__
-        del event["new_attr"]
+        del event['new_attr']
         with pytest.raises(KeyError):
-            _ = event["new_attr"]
+            _ = event['new_attr']
 
     def test_hashable_event_length(self, mock_pygame_patches):
         """Test HashableEvent length."""
@@ -105,7 +105,7 @@ class TestHashableEvent:
         # HashableEvent includes type, key, and __hash attributes
         assert len(event) >= MIN_ATTRIBUTES_1  # At least 'key' attribute
 
-        event["mod"] = pygame.KMOD_CTRL
+        event['mod'] = pygame.KMOD_CTRL
         assert len(event) >= MIN_ATTRIBUTES_2  # At least 'key' and 'mod' attributes
 
     def test_hashable_event_clear(self, mock_pygame_patches):
@@ -122,12 +122,12 @@ class TestHashableEvent:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=pygame.KMOD_CTRL)
         event_copy = event.copy()
 
-        assert event_copy["key"] == pygame.K_SPACE
-        assert event_copy["mod"] == pygame.KMOD_CTRL
+        assert event_copy['key'] == pygame.K_SPACE
+        assert event_copy['mod'] == pygame.KMOD_CTRL
 
         # Modify copy and ensure original is unchanged
-        event_copy["key"] = pygame.K_RETURN
-        assert event["key"] == pygame.K_SPACE  # Original unchanged
+        event_copy['key'] = pygame.K_RETURN
+        assert event['key'] == pygame.K_SPACE  # Original unchanged
 
     def test_hashable_event_hash(self, mock_pygame_patches):
         """Test HashableEvent hash functionality."""
@@ -151,22 +151,22 @@ class TestHashableEvent:
         # Test __getstate__
         state = event.__getstate__()
         assert isinstance(state, dict)
-        assert state["type"] == pygame.MOUSEBUTTONDOWN
-        assert state["button"] == 1
-        assert state["pos"] == (100, 100)
+        assert state['type'] == pygame.MOUSEBUTTONDOWN
+        assert state['button'] == 1
+        assert state['pos'] == (100, 100)
 
         # Test __setstate__ with simple values to avoid hash issues
         # We'll just test that __getstate__ works and returns the expected structure
-        assert state["type"] == pygame.MOUSEBUTTONDOWN
-        assert state["button"] == 1
-        assert state["pos"] == (100, 100)
+        assert state['type'] == pygame.MOUSEBUTTONDOWN
+        assert state['button'] == 1
+        assert state['pos'] == (100, 100)
 
     def test_hashable_event_init_with_type(self, mock_pygame_patches):
         """Test HashableEvent.__init__ with type parameter."""
         # Test HashableEvent initialization with type
-        event = HashableEvent(type=1, data="test")
-        assert event["type"] == 1
-        assert event["data"] == "test"
+        event = HashableEvent(type=1, data='test')
+        assert event['type'] == 1
+        assert event['data'] == 'test'
 
     def test_hashable_event_init_without_type(self, mock_pygame_patches):
         """Test HashableEvent.__init__ without type parameter."""
@@ -176,51 +176,51 @@ class TestHashableEvent:
 
     def test_hashable_event_delattr(self, mock_pygame_patches):
         """Test HashableEvent.__delattr__ method."""
-        event = HashableEvent(type=1, data="test")
-        del event["data"]
+        event = HashableEvent(type=1, data='test')
+        del event['data']
         # HashableEvent inherits from UserDict, so we need to check __dict__ directly
-        assert "data" not in event.__dict__
+        assert 'data' not in event.__dict__
 
     def test_hashable_event_getattr(self, mock_pygame_patches):
         """Test HashableEvent.__getattr__ method."""
-        event = HashableEvent(type=1, data="test")
-        assert event.data == "test"
+        event = HashableEvent(type=1, data='test')
+        assert event.data == 'test'
 
     def test_hashable_event_setattr(self, mock_pygame_patches):
         """Test HashableEvent.__setattr__ method."""
         event = HashableEvent(type=1)
-        event.new_attr = "new_value"
-        assert event.new_attr == "new_value"
+        event.new_attr = 'new_value'
+        assert event.new_attr == 'new_value'
 
     def test_hashable_event_eq(self, mock_pygame_patches):
         """Test HashableEvent.__eq__ method."""
-        event1 = HashableEvent(type=1, data="test")
-        event2 = HashableEvent(type=1, data="test")
-        event3 = HashableEvent(type=2, data="test")
+        event1 = HashableEvent(type=1, data='test')
+        event2 = HashableEvent(type=1, data='test')
+        event3 = HashableEvent(type=2, data='test')
 
         assert event1 == event2
         assert event1 != event3
 
     def test_hashable_event_ne(self, mock_pygame_patches):
         """Test HashableEvent.__ne__ method."""
-        event1 = HashableEvent(type=1, data="test")
-        event2 = HashableEvent(type=2, data="test")
+        event1 = HashableEvent(type=1, data='test')
+        event2 = HashableEvent(type=2, data='test')
 
         assert event1 != event2
 
     def test_hashable_event_str(self, mock_pygame_patches):
         """Test HashableEvent.__str__ method."""
-        event = HashableEvent(type=1, data="test")
+        event = HashableEvent(type=1, data='test')
         str_repr = str(event)
         assert isinstance(str_repr, str)
-        assert "HashableEvent" in str_repr
+        assert 'HashableEvent' in str_repr
 
     def test_hashable_event_repr(self, mock_pygame_patches):
         """Test HashableEvent.__repr__ method."""
-        event = HashableEvent(type=1, data="test")
+        event = HashableEvent(type=1, data='test')
         repr_str = repr(event)
         assert isinstance(repr_str, str)
-        assert "HashableEvent" in repr_str
+        assert 'HashableEvent' in repr_str
 
 
 class TestEventInterface:
@@ -229,7 +229,7 @@ class TestEventInterface:
     def test_event_interface_subclasshook_valid_implementation(self, mock_pygame_patches):
         """Test EventInterface.__subclasshook__ with valid implementation."""
         # Test that the subclasshook method exists and can be called
-        assert hasattr(EventInterface, "__subclasshook__")
+        assert hasattr(EventInterface, '__subclasshook__')
         assert callable(EventInterface.__subclasshook__)
 
         # Test that it can be called with a simple class
@@ -300,7 +300,7 @@ class TestEventManager:
     def test_event_manager_initialization(self, mock_pygame_patches):
         """Test EventManager initialization."""
         manager = EventManager()
-        assert hasattr(manager, "log")
+        assert hasattr(manager, 'log')
         assert manager.log is not None
 
     def test_event_manager_initialization_with_game(self, mock_pygame_patches, mocker):
@@ -308,7 +308,7 @@ class TestEventManager:
         mock_game = mocker.Mock()
         manager = EventManager(game=mock_game)
         # EventManager stores game in a different way - check that it's accessible
-        assert hasattr(manager, "game")
+        assert hasattr(manager, 'game')
 
     def test_event_proxy_initialization(self, mock_pygame_patches, mocker):
         """Test EventManager.EventProxy initialization."""
@@ -316,7 +316,7 @@ class TestEventManager:
         proxy = EventManager.EventProxy(mock_event_source)
 
         assert proxy.event_source == mock_event_source
-        assert hasattr(proxy, "proxies")
+        assert hasattr(proxy, 'proxies')
         assert isinstance(proxy.proxies, list)
         assert len(proxy.proxies) == 0
 
@@ -326,12 +326,12 @@ class TestEventManager:
         proxy = EventManager.EventProxy(mock_event_source)
 
         # Mock the log to avoid actual logging
-        mock_log = mocker.patch.object(proxy, "log")
-        mock_stack = mocker.patch("inspect.stack")
-        mock_stack.return_value = [None, mocker.Mock(function="test_handler")]
+        mock_log = mocker.patch.object(proxy, 'log')
+        mock_stack = mocker.patch('inspect.stack')
+        mock_stack.return_value = [None, mocker.Mock(function='test_handler')]
 
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
-        proxy.unhandled_event(event=event, trigger="test_trigger")
+        proxy.unhandled_event(event=event, trigger='test_trigger')
 
         # Verify log was called
         mock_log.debug.assert_called_once()
@@ -357,7 +357,7 @@ class TestEventManager:
         with pytest.raises(AttributeError) as context:
             _ = event_manager.non_existent_method
 
-        assert "No proxies for" in str(context.value)
+        assert 'No proxies for' in str(context.value)
         # The current implementation doesn't log when there are no proxies
         # assert event_manager.log.error.called
 
@@ -369,7 +369,7 @@ class TestEventManager:
         # Create a custom proxy class that raises AttributeError
         class FailingProxy:
             def __getattr__(self, name):
-                raise AttributeError("Proxy method not found")
+                raise AttributeError('Proxy method not found')
 
         event_manager.proxies = [FailingProxy()]
         event_manager.log = mocker.Mock()
@@ -415,7 +415,7 @@ class TestResourceManager:
         """Test ResourceManager initialization."""
         mock_game = mocker.Mock()
         manager = ResourceManager(game=mock_game)
-        assert hasattr(manager, "proxies")
+        assert hasattr(manager, 'proxies')
         assert isinstance(manager.proxies, list)
 
     def test_resource_manager_getattr(self, mock_pygame_patches, mocker):
@@ -432,7 +432,7 @@ class TestResourceManager:
         mock_game = mocker.Mock()
         resource_manager = ResourceManager(game=mock_game)
         # ResourceManager doesn't store the game directly, it's a singleton
-        assert hasattr(resource_manager, "proxies")
+        assert hasattr(resource_manager, 'proxies')
         assert isinstance(resource_manager.proxies, list)
 
     def test_resource_manager_init_without_game(self, mock_pygame_patches):
@@ -448,7 +448,7 @@ class TestResourceManager:
         # ResourceManager doesn't have a register method, it delegates to proxies
         # Test that accessing register raises AttributeError when no proxies
         with pytest.raises(AttributeError):
-            resource_manager.register("test_resource", mocker.Mock())
+            resource_manager.register('test_resource', mocker.Mock())
 
     def test_resource_manager_process_events(self, mock_pygame_patches, mocker):
         """Test ResourceManager.process_events method."""
@@ -482,25 +482,25 @@ class TestEventSystemUtilities:
         assert len(all_events) > 0
 
         # Test specific patterns
-        audio_events = supported_events(like="AUDIO.*?")
+        audio_events = supported_events(like='AUDIO.*?')
         assert isinstance(audio_events, list)
 
-        mouse_events = supported_events(like="MOUSE.*?")
+        mouse_events = supported_events(like='MOUSE.*?')
         assert isinstance(mouse_events, list)
 
-        keyboard_events = supported_events(like="KEY.*?")
+        keyboard_events = supported_events(like='KEY.*?')
         assert isinstance(keyboard_events, list)
 
     def test_supported_events_with_regex_pattern(self, mock_pygame_patches):
         """Test supported_events function with regex pattern."""
         # Test with regex pattern
-        events = supported_events(like=".*KEY.*")
+        events = supported_events(like='.*KEY.*')
         assert isinstance(events, list)
 
     def test_supported_events_with_specific_pattern(self, mock_pygame_patches):
         """Test supported_events function with specific pattern."""
         # Test with specific pattern
-        events = supported_events(like="KEYDOWN")
+        events = supported_events(like='KEYDOWN')
         assert isinstance(events, list)
 
     def test_supported_events_with_default_pattern(self, mock_pygame_patches):
@@ -513,12 +513,12 @@ class TestEventSystemUtilities:
         """Test unhandled_event function with various scenarios."""
         # Mock a game object with options
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": True, "no_unhandled_events": True}
+        mock_game.options = {'debug_events': True, 'no_unhandled_events': True}
 
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
         # Test with debug_events enabled
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         with pytest.raises(UnhandledEventError):
             unhandled_event(mock_game, event)
 
@@ -529,13 +529,13 @@ class TestEventSystemUtilities:
         """Test unhandled_event function with no_unhandled_events enabled."""
         # Mock a game object with options
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
+        mock_game.options = {'debug_events': False, 'no_unhandled_events': True}
 
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
         # Test with no_unhandled_events enabled (should raise UnhandledEventError)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         with pytest.raises(UnhandledEventError):
             unhandled_event(mock_game, event)
 
@@ -543,7 +543,7 @@ class TestEventSystemUtilities:
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Unhandled Event: args: KeyDown" in call_args
+        assert 'Unhandled Event: args: KeyDown' in call_args
 
     def test_unhandled_event_with_missing_options(self, mock_pygame_patches, mocker):
         """Test unhandled_event with missing options."""
@@ -553,7 +553,7 @@ class TestEventSystemUtilities:
         mock_event = mocker.Mock()
         mock_event.type = 2  # pygame.KEYDOWN
 
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         unhandled_event(mock_game, mock_event)
 
         # Verify error logging was called
@@ -563,7 +563,7 @@ class TestEventSystemUtilities:
         """Test dump_cache_info function with func parameter."""
         mock_func = mocker.Mock()
         mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = "test_func"
+        mock_func.__name__ = 'test_func'
 
         # Test dump_cache_info with func - it returns a wrapper
         wrapper = dump_cache_info(mock_func)
@@ -578,10 +578,10 @@ class TestEventSystemUtilities:
         """Test dump_cache_info function with all parameters."""
         mock_func = mocker.Mock()
         mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = "test_func"
+        mock_func.__name__ = 'test_func'
 
         # Test dump_cache_info with all parameters (they're ignored in the current implementation)
-        wrapper = dump_cache_info(mock_func, file=mocker.Mock(), sep=",", end="\n", flush=True)
+        wrapper = dump_cache_info(mock_func, file=mocker.Mock(), sep=',', end='\n', flush=True)
         assert callable(wrapper)
 
         # Test calling the wrapper
@@ -593,7 +593,7 @@ class TestEventSystemUtilities:
         """Test dump_cache_info function with file parameter."""
         mock_func = mocker.Mock()
         mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = "test_func"
+        mock_func.__name__ = 'test_func'
         mock_file = mocker.Mock()
 
         wrapper = dump_cache_info(mock_func, file=mock_file)
@@ -608,9 +608,9 @@ class TestEventSystemUtilities:
         """Test dump_cache_info function with sep parameter."""
         mock_func = mocker.Mock()
         mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = "test_func"
+        mock_func.__name__ = 'test_func'
 
-        wrapper = dump_cache_info(mock_func, sep="|")
+        wrapper = dump_cache_info(mock_func, sep='|')
         assert callable(wrapper)
 
         # Test calling the wrapper
@@ -622,9 +622,9 @@ class TestEventSystemUtilities:
         """Test dump_cache_info function with end parameter."""
         mock_func = mocker.Mock()
         mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = "test_func"
+        mock_func.__name__ = 'test_func'
 
-        wrapper = dump_cache_info(mock_func, end="\r\n")
+        wrapper = dump_cache_info(mock_func, end='\r\n')
         assert callable(wrapper)
 
         # Test calling the wrapper
@@ -636,7 +636,7 @@ class TestEventSystemUtilities:
         """Test dump_cache_info function with flush parameter."""
         mock_func = mocker.Mock()
         mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = "test_func"
+        mock_func.__name__ = 'test_func'
 
         wrapper = dump_cache_info(mock_func, flush=True)
         assert callable(wrapper)
@@ -649,33 +649,33 @@ class TestEventSystemUtilities:
     def test_unhandled_event_debug_events_true(self, mock_pygame_patches, mocker):
         """Test unhandled_event with debug_events=True."""
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": True, "no_unhandled_events": False}
+        mock_game.options = {'debug_events': True, 'no_unhandled_events': False}
 
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_event_name = mocker.patch("pygame.event.event_name", return_value="KEYDOWN")
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_event_name = mocker.patch('pygame.event.event_name', return_value='KEYDOWN')
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
 
-        unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
+        unhandled_event(mock_game, mock_event, 'arg1', kwarg1='value1')
 
         mock_event_name.assert_called_once_with(pygame.KEYDOWN)
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Unhandled Event: args: KEYDOWN" in call_args
-        assert "arg1" in call_args
+        assert 'Unhandled Event: args: KEYDOWN' in call_args
+        assert 'arg1' in call_args
         assert "'kwarg1': 'value1'" in call_args
 
     def test_unhandled_event_debug_events_none(self, mock_pygame_patches, mocker):
         """Test unhandled_event with debug_events=None."""
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": None, "no_unhandled_events": False}
+        mock_game.options = {'debug_events': None, 'no_unhandled_events': False}
 
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         unhandled_event(mock_game, mock_event)
 
         mock_log.error.assert_called_once_with(
@@ -685,13 +685,13 @@ class TestEventSystemUtilities:
     def test_unhandled_event_both_false(self, mock_pygame_patches, mocker):
         """Test unhandled_event with both options False."""
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": False}
+        mock_game.options = {'debug_events': False, 'no_unhandled_events': False}
 
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
-        mock_exit = mocker.patch("sys.exit")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_exit = mocker.patch('sys.exit')
         unhandled_event(mock_game, mock_event)
 
         # Should not log anything when both are False
@@ -702,14 +702,14 @@ class TestEventSystemUtilities:
     def test_unhandled_event_no_exit_when_none(self, mock_pygame_patches, mocker):
         """Test that unhandled_event does NOT raise SystemExit when no_unhandled_events=None."""
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": None}
+        mock_game.options = {'debug_events': False, 'no_unhandled_events': None}
 
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
         # This should NOT raise any exception (but should log an error about missing option)
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
-        mock_exit = mocker.patch("sys.exit")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_exit = mocker.patch('sys.exit')
         unhandled_event(mock_game, mock_event)
         # Should log error about missing option but not exit
         mock_log.error.assert_called()
@@ -723,15 +723,15 @@ class TestEventSystemUtilities:
         Tests when debug_events=True and no_unhandled_events=False.
         """
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": True, "no_unhandled_events": False}
+        mock_game.options = {'debug_events': True, 'no_unhandled_events': False}
 
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mocker.patch("pygame.event.event_name", return_value="KEYDOWN")
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
-        mock_exit = mocker.patch("sys.exit")
-        unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
+        mocker.patch('pygame.event.event_name', return_value='KEYDOWN')
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_exit = mocker.patch('sys.exit')
+        unhandled_event(mock_game, mock_event, 'arg1', kwarg1='value1')
 
         # Should log debug message but NOT exit
         mock_log.error.assert_called_once()
@@ -741,14 +741,14 @@ class TestEventSystemUtilities:
         """Test unhandled_event with both options True."""
         # Use centralized mock for game with both options True
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": True, "no_unhandled_events": True}
+        mock_game.options = {'debug_events': True, 'no_unhandled_events': True}
 
         # Use a proper HashableEvent instead of Mock
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
         # Test that UnhandledEventError is raised instead of sys.exit
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         with pytest.raises(UnhandledEventError):
             unhandled_event(mock_game, event)
 
@@ -757,8 +757,8 @@ class TestEventSystemUtilities:
         # Check that both log messages contain the expected content
         first_call = mock_log.error.call_args_list[0][0][0]
         second_call = mock_log.error.call_args_list[1][0][0]
-        assert "Unhandled Event: args: KeyDown" in first_call
-        assert "Unhandled Event: args: KeyDown" in second_call
+        assert 'Unhandled Event: args: KeyDown' in first_call
+        assert 'Unhandled Event: args: KeyDown' in second_call
 
     def test_supported_events_filters_and_patches(self, mock_pygame_patches, mocker):
         """supported_events should filter by regex and patch known names."""
@@ -766,16 +766,16 @@ class TestEventSystemUtilities:
         # Craft a tiny namespace of pygame constants and event names
         def fake_event_name(idx):
             mapping = {
-                0: "KEYDOWN",
-                1: "JOYAXISMOTION",
-                2: "WINDOWSHOWN",
-                3: "UNKNOWN",
-                4: "CONTROLLERDEVICEMAPPED",
+                0: 'KEYDOWN',
+                1: 'JOYAXISMOTION',
+                2: 'WINDOWSHOWN',
+                3: 'UNKNOWN',
+                4: 'CONTROLLERDEVICEMAPPED',
             }
-            return mapping.get(idx, "UNKNOWN")
+            return mapping.get(idx, 'UNKNOWN')
 
-        mocker.patch.object(pygame, "NUMEVENTS", 5)
-        mocker.patch("pygame.event.event_name", side_effect=fake_event_name)
+        mocker.patch.object(pygame, 'NUMEVENTS', 5)
+        mocker.patch('pygame.event.event_name', side_effect=fake_event_name)
         mocker.patch.multiple(
             pygame,
             KEYDOWN=1,
@@ -784,10 +784,10 @@ class TestEventSystemUtilities:
             CONTROLLERDEVICEREMAPPED=4,
             K_UNKNOWN=0,
         )
-        keys = supported_events(like="KEY.*?")
-        joys = supported_events(like="JOY.*?")
-        wins = supported_events(like="WINDOW.*?")
-        ctrls = supported_events(like="CONTROLLER.*?")
+        keys = supported_events(like='KEY.*?')
+        joys = supported_events(like='JOY.*?')
+        wins = supported_events(like='WINDOW.*?')
+        ctrls = supported_events(like='CONTROLLER.*?')
 
         # Expect the patched numeric constants returned by supported_events
         assert keys == [1]
@@ -801,7 +801,7 @@ class TestEventSystemUtilities:
 
         class Dummy:
             def foo(self):
-                return "bar"
+                return 'bar'
 
         class DummyManager(ResourceManager):
             pass
@@ -809,7 +809,7 @@ class TestEventSystemUtilities:
         mgr = DummyManager(game=None)
         mgr.proxies = [Dummy()]
         # Delegation
-        assert mgr.foo() == "bar"
+        assert mgr.foo() == 'bar'
 
         # Missing path raises
         mgr.proxies = []

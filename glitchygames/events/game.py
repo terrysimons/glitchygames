@@ -249,23 +249,23 @@ class GameEventManager(ResourceManager, GameEvents):
             argparse.ArgumentParser: The result.
 
         """
-        group = parser.add_argument_group("Game Options")
+        group = parser.add_argument_group('Game Options')
         group.add_argument(
-            "-l",
-            "--log-level",
-            help="set the logging level",
-            choices=["debug", "info", "warning", "error", "critical"],
+            '-l',
+            '--log-level',
+            help='set the logging level',
+            choices=['debug', 'info', 'warning', 'error', 'critical'],
             type=str.lower,
-            default="info",
+            default='info',
         )
         group.add_argument(
-            "--no-unhandled-events",
-            help="fail on unhandled events",
-            action="store_true",
+            '--no-unhandled-events',
+            help='fail on unhandled events',
+            action='store_true',
             default=False,
         )
         group.add_argument(
-            "-p", "--profile", help="enable profiling", action="store_true", default=False
+            '-p', '--profile', help='enable profiling', action='store_true', default=False
         )
 
         return parser

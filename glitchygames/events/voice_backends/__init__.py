@@ -8,5 +8,5 @@ preferring miniaudio and falling back to PortAudio (via speech_recognition).
 from glitchygames.events.voice_backends.registry import get_microphone_backend
 
 __all__ = [
-    "get_microphone_backend",
+    'get_microphone_backend',
 ]

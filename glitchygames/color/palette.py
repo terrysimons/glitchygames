@@ -14,16 +14,16 @@ from typing import ClassVar, Self
 
 from pygame import Color
 
-VGA = "vga"
-SYSTEM = "system"
-NES = "nes"
+VGA = 'vga'
+SYSTEM = 'system'
+NES = 'nes'
 
 
 class ColorPalette:
     """Manages color palette data for Glitchy Games."""
 
-    _BUILTIN_PALETTE_LOCATION: ClassVar = Path(__file__).parent / "resources"
-    _DEFAULT_EXTENSION: ClassVar = "palette"
+    _BUILTIN_PALETTE_LOCATION: ClassVar = Path(__file__).parent / 'resources'
+    _DEFAULT_EXTENSION: ClassVar = 'palette'
 
     def __init__(self: Self, colors: list, filename: str | None = None) -> None:
         """Create a color palette object.
@@ -38,9 +38,9 @@ class ColorPalette:
 
         if not self._colors and filename:
             script_path = Path(sys.argv[0]).parent
-            paths = [self._BUILTIN_PALETTE_LOCATION, script_path, Path(script_path) / "resources"]
+            paths = [self._BUILTIN_PALETTE_LOCATION, script_path, Path(script_path) / 'resources']
             for path in paths:
-                file_path = Path(path) / f"{filename}.{self._DEFAULT_EXTENSION}"
+                file_path = Path(path) / f'{filename}.{self._DEFAULT_EXTENSION}'
                 if Path.exists(file_path):
                     self._colors = PaletteUtility.load_palette_from_file(file_path)
                     break
@@ -97,13 +97,13 @@ class PaletteUtility:
 
         """
         colors = []
-        for index in range(int(config["default"]["colors"])):
+        for index in range(int(config['default']['colors'])):
             color_index = str(index)
             tmp_color = Color(
-                config[color_index].getint("red"),
-                config[color_index].getint("green"),
-                config[color_index].getint("blue"),
-                config[color_index].getint("alpha", 255),
+                config[color_index].getint('red'),
+                config[color_index].getint('green'),
+                config[color_index].getint('blue'),
+                config[color_index].getint('alpha', 255),
             )
             colors.append(tmp_color)
 
@@ -135,7 +135,7 @@ class PaletteUtility:
             output_file: The path to the palette file to write.
 
         """
-        with Path.open(Path(output_file), "w") as file_obj:
+        with Path.open(Path(output_file), 'w') as file_obj:
             file_obj.write(json.dumps(config_data))
 
     @staticmethod
@@ -153,7 +153,7 @@ class PaletteUtility:
         colors = []
         with Path.open(rgb_data_file) as file_obj:
             for line in file_obj.readlines():
-                tmp = [int(x) for x in line.strip().split(",")]
+                tmp = [int(x) for x in line.strip().split(',')]
                 color = Color(*tmp)
                 if color not in colors:
                     colors.append(color)
@@ -171,13 +171,13 @@ class PaletteUtility:
 
         """
         palette_data = configparser.ConfigParser()
-        palette_data["default"] = {"colors": str(len(colors))}
+        palette_data['default'] = {'colors': str(len(colors))}
         for count, color in enumerate(colors):
             palette_data[str(count)] = {
-                "red": color.r,
-                "green": color.g,
-                "blue": color.b,
-                "alpha": color.a,
+                'red': color.r,
+                'green': color.g,
+                'blue': color.b,
+                'alpha': color.a,
             }
         return palette_data
 
@@ -188,7 +188,7 @@ class Default(ColorPalette):
 
     def __init__(self: Self) -> None:
         """Create a default color palette object."""
-        super().__init__(colors=[], filename="default")
+        super().__init__(colors=[], filename='default')
         self.YELLOW = self.get_color(0)
         self.PURPLE = self.get_color(1)
         self.BLUE = self.get_color(2)

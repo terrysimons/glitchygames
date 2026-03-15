@@ -4,189 +4,189 @@ import nox
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
-nox.options.default_venv_backend = "uv"
+nox.options.default_venv_backend = 'uv'
 
 
 # @nox.session(python=['3.9', '3.10', '3.11', '3.12'], reuse_venv=False)
-@nox.session(python=["3.13"], reuse_venv=False)
+@nox.session(python=['3.13'], reuse_venv=False)
 def lint_and_test(session: nox.Session) -> None:
     """Run linting and tests with coverage."""
-    session.install(".[api,dev,docs]")
+    session.install('.[api,dev,docs]')
 
     # Run tests with coverage
     # Override addopts to avoid duplicate --cov flags from pyproject.toml
     session.run(
-        "pytest",
-        "-o",
-        "addopts=",
-        "--cov=glitchygames",
-        "--cov-report=term-missing",
-        "--cov-report=html",
+        'pytest',
+        '-o',
+        'addopts=',
+        '--cov=glitchygames',
+        '--cov-report=term-missing',
+        '--cov-report=html',
     )
 
     # Sort imports (not supported by ruff format yet)
     session.run(
-        "ruff",
-        "check",
-        "--select",
-        "I",
-        "--fix",
-        "noxfile.py",
+        'ruff',
+        'check',
+        '--select',
+        'I',
+        '--fix',
+        'noxfile.py',
     )
     session.run(
-        "ruff",
-        "check",
-        "--select",
-        "I",
-        "--fix",
-        "glitchygames",
+        'ruff',
+        'check',
+        '--select',
+        'I',
+        '--fix',
+        'glitchygames',
     )
     session.run(
-        "ruff",
-        "check",
-        "--select",
-        "I",
-        "--fix",
-        "scripts",
+        'ruff',
+        'check',
+        '--select',
+        'I',
+        '--fix',
+        'scripts',
     )
     session.run(
-        "ruff",
-        "check",
-        "--select",
-        "I",
-        "--fix",
-        "tests",
+        'ruff',
+        'check',
+        '--select',
+        'I',
+        '--fix',
+        'tests',
     )
 
     session.run(
-        "pyright",
+        'pyright',
     )
 
     # Format code (ruff format is mostly black style)
     session.run(
-        "ruff",
-        "format",
-        "noxfile.py",
+        'ruff',
+        'format',
+        'noxfile.py',
     )
     session.run(
-        "ruff",
-        "format",
-        "glitchygames",
+        'ruff',
+        'format',
+        'glitchygames',
     )
     session.run(
-        "ruff",
-        "format",
-        "scripts",
+        'ruff',
+        'format',
+        'scripts',
     )
     session.run(
-        "ruff",
-        "format",
-        "tests",
+        'ruff',
+        'format',
+        'tests',
     )
 
     # Lint code
     session.run(
-        "ruff",
-        "check",
-        "noxfile.py",
+        'ruff',
+        'check',
+        'noxfile.py',
     )
     session.run(
-        "ruff",
-        "check",
-        "glitchygames",
+        'ruff',
+        'check',
+        'glitchygames',
     )
     session.run(
-        "ruff",
-        "check",
-        "scripts",
+        'ruff',
+        'check',
+        'scripts',
     )
     session.run(
-        "ruff",
-        "check",
-        "tests",
+        'ruff',
+        'check',
+        'tests',
     )
 
     # Lint docs
     session.run(
-        "mkdocs",
-        "build",
-        "--strict",
+        'mkdocs',
+        'build',
+        '--strict',
     )
 
 
-@nox.session(python=["3.13"], reuse_venv=False)
+@nox.session(python=['3.13'], reuse_venv=False)
 def security_scan(session: nox.Session) -> None:
     """Run security scanning tools."""
-    session.install(".[dev,docs,api]")
+    session.install('.[dev,docs,api]')
 
     # Run bandit security scan
     session.run(
-        "bandit",
-        "-r",
-        "glitchygames",
-        "-f",
-        "json",
-        "-o",
-        "bandit-report.json",
+        'bandit',
+        '-r',
+        'glitchygames',
+        '-f',
+        'json',
+        '-o',
+        'bandit-report.json',
     )
     session.run(
-        "bandit",
-        "-r",
-        "glitchygames",
+        'bandit',
+        '-r',
+        'glitchygames',
     )
 
     # Run safety check for known vulnerabilities
     session.run(
-        "safety",
-        "check",
-        "--json",
+        'safety',
+        'check',
+        '--json',
     )
     session.run(
-        "safety",
-        "check",
+        'safety',
+        'check',
     )
 
 
-@nox.session(python=["3.13"], reuse_venv=False)
+@nox.session(python=['3.13'], reuse_venv=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
-    session.install(".[dev,docs,api]")
+    session.install('.[dev,docs,api]')
 
     # Run performance tests with pytest-benchmark
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
     session.run(
-        "pytest",
-        "-o",
-        "addopts=",
-        "--benchmark-only",
-        "--benchmark-save=baseline",
-        "tests/",
+        'pytest',
+        '-o',
+        'addopts=',
+        '--benchmark-only',
+        '--benchmark-save=baseline',
+        'tests/',
     )
 
 
-@nox.session(python=["3.13"], reuse_venv=False)
+@nox.session(python=['3.13'], reuse_venv=False)
 def coverage_report(session: nox.Session) -> None:
     """Generate detailed coverage report."""
-    session.install(".[dev,docs,api]")
+    session.install('.[dev,docs,api]')
 
     # Run tests with coverage
     # Override addopts to avoid duplicate --cov flags from pyproject.toml
     session.run(
-        "pytest",
-        "-o",
-        "addopts=",
-        "--cov=glitchygames",
-        "--cov-report=html",
-        "--cov-report=term-missing",
+        'pytest',
+        '-o',
+        'addopts=',
+        '--cov=glitchygames',
+        '--cov-report=html',
+        '--cov-report=term-missing',
     )
 
     # Generate coverage report
     session.run(
-        "coverage",
-        "report",
-        "--show-missing",
+        'coverage',
+        'report',
+        '--show-missing',
     )
     session.run(
-        "coverage",
-        "html",
+        'coverage',
+        'html',
     )

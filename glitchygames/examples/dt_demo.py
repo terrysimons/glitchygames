@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     import argparse
 
 import pygame
+
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
@@ -21,8 +22,8 @@ class Game(Scene):
     """The main game class."""
 
     # Set your game name/version here.
-    NAME = "Delta Time Demo"
-    VERSION = "1.0"
+    NAME = 'Delta Time Demo'
+    VERSION = '1.0'
 
     def __init__(
         self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
@@ -38,7 +39,7 @@ class Game(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
-        self.font = pygame.font.SysFont("Calibri", 40)
+        self.font = pygame.font.SysFont('Calibri', 40)
         self.rect_pos = 0
         # Pixels per second; use a visible speed
         self.velocity = 300
@@ -57,11 +58,11 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            "-v", "--version", action="store_true", help="print the game version and exit"
+            '-v', '--version', action='store_true', help='print the game version and exit'
         )
 
         parser.add_argument(
-            "-b", "--balls", type=int, help="the number of balls to start with", default=1
+            '-b', '--balls', type=int, help='the number of balls to start with', default=1
         )
 
     # def setup(self):
@@ -99,18 +100,18 @@ class Game(Scene):
             self.passed = True
 
         countdown = self.font.render(
-            "Time: " + str(round(self.dt_timer, 2)),
+            'Time: ' + str(round(self.dt_timer, 2)),
             False,  # noqa: FBT003
             (255, 255, 255),
         )
-        fps_text = self.font.render(f"FPS: {round(self.fps, 2)}", False, (255, 255, 255))  # noqa: FBT003
+        fps_text = self.font.render(f'FPS: {round(self.fps, 2)}', False, (255, 255, 255))  # noqa: FBT003
 
         self.screen.blit(countdown, (0, 0))
         self.screen.blit(fps_text, (0, 50))
 
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
-            record_text = self.font.render(f"Time: {round(self.record, 2)}", False, (255, 255, 255))  # noqa: FBT003
+            record_text = self.font.render(f'Time: {round(self.record, 2)}', False, (255, 255, 255))  # noqa: FBT003
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
@@ -132,5 +133,5 @@ def main() -> None:
     GameEngine(game=Game).start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

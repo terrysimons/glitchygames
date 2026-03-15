@@ -9,8 +9,8 @@ from glitchygames.scenes.scene import (
 )
 
 __all__ = [
-    "JITTER_SAMPLE_BUFFER_MAX_SIZE",
-    "LOG",
-    "Scene",
-    "SceneManager",
+    'JITTER_SAMPLE_BUFFER_MAX_SIZE',
+    'LOG',
+    'Scene',
+    'SceneManager',
 ]

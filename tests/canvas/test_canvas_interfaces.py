@@ -26,7 +26,6 @@ from glitchygames.tools.canvas_interfaces import (
     AnimatedCanvasRenderer,
     AnimatedSpriteSerializer,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for test values
@@ -59,12 +58,12 @@ class TestAnimatedCanvasInterfaces:
         frame.set_pixel_data(pixel_data)
 
         # Add a simple animation with the SpriteFrame
-        self.animated_sprite.add_animation("idle", [frame])
+        self.animated_sprite.add_animation('idle', [frame])
 
         # Create a test animated canvas
         self.canvas = AnimatedCanvasSprite(
             animated_sprite=self.animated_sprite,
-            name="Test Animated Canvas",
+            name='Test Animated Canvas',
             x=0,
             y=0,
             pixels_across=8,
@@ -134,17 +133,17 @@ class TestAnimatedCanvasInterfaces:
     def test_animated_canvas_functionality(self):
         """Test that AnimatedCanvasSprite functionality works."""
         # Test that animated canvas attributes exist
-        assert hasattr(self.canvas, "animated_sprite")
-        assert hasattr(self.canvas, "current_animation")
-        assert hasattr(self.canvas, "current_frame")
-        assert hasattr(self.canvas, "pixels")
-        assert hasattr(self.canvas, "pixels_across")
-        assert hasattr(self.canvas, "pixels_tall")
+        assert hasattr(self.canvas, 'animated_sprite')
+        assert hasattr(self.canvas, 'current_animation')
+        assert hasattr(self.canvas, 'current_frame')
+        assert hasattr(self.canvas, 'pixels')
+        assert hasattr(self.canvas, 'pixels_across')
+        assert hasattr(self.canvas, 'pixels_tall')
 
         # Test that animated canvas methods exist
-        assert hasattr(self.canvas, "force_redraw")
-        assert hasattr(self.canvas, "show_frame")
-        assert hasattr(self.canvas, "update_animation")
+        assert hasattr(self.canvas, 'force_redraw')
+        assert hasattr(self.canvas, 'show_frame')
+        assert hasattr(self.canvas, 'update_animation')
 
         # Test setting pixels
         self.canvas.pixels[0] = (255, 0, 0)  # Red pixel
@@ -199,11 +198,11 @@ class TestAnimatedCanvasInterfaceEdgeCases:
         frame.set_pixel_data(pixel_data)
 
         # Add a simple animation with the SpriteFrame
-        self.animated_sprite.add_animation("idle", [frame])
+        self.animated_sprite.add_animation('idle', [frame])
 
         self.canvas = AnimatedCanvasSprite(
             animated_sprite=self.animated_sprite,
-            name="Test Animated Canvas",
+            name='Test Animated Canvas',
             x=0,
             y=0,
             pixels_across=4,
@@ -231,5 +230,5 @@ class TestAnimatedCanvasInterfaceEdgeCases:
         assert len(self.canvas.pixels) == SMALL_CANVAS_PIXEL_COUNT  # 4x4 = 16 pixels
 
 
-if __name__ == "__main__":
-    sys.exit(pytest.main([__file__, "-v"]))
+if __name__ == '__main__':
+    sys.exit(pytest.main([__file__, '-v']))

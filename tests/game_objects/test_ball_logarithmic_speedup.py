@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -34,7 +33,7 @@ class TestBallLogarithmicSpeedUp:
         initial_y = ball.speed.y
 
         # Apply logarithmic X speed-up
-        ball.speed_up(multiplier=1.2, speed_up_type="logarithmic_x")
+        ball.speed_up(multiplier=1.2, speed_up_type='logarithmic_x')
 
         # X should increase, Y should remain unchanged
         assert ball.speed.x == pytest.approx(initial_x * 1.2)
@@ -48,7 +47,7 @@ class TestBallLogarithmicSpeedUp:
         initial_y = ball.speed.y
 
         # Apply logarithmic Y speed-up
-        ball.speed_up(multiplier=1.3, speed_up_type="logarithmic_y")
+        ball.speed_up(multiplier=1.3, speed_up_type='logarithmic_y')
 
         # Y should increase, X should remain unchanged
         assert ball.speed.x == pytest.approx(initial_x)
@@ -62,7 +61,7 @@ class TestBallLogarithmicSpeedUp:
         initial_y = ball.speed.y
 
         # Apply logarithmic both speed-up
-        ball.speed_up(multiplier=1.15, speed_up_type="logarithmic_both")
+        ball.speed_up(multiplier=1.15, speed_up_type='logarithmic_both')
 
         # Both should increase
         assert ball.speed.x == pytest.approx(initial_x * 1.15)
@@ -201,7 +200,7 @@ class TestBallLogarithmicSpeedUp:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Apply logarithmic X speed-up (changes direction)
-        ball.speed_up(multiplier=1.5, speed_up_type="logarithmic_x")
+        ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_x')
 
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
         # Direction should have changed
@@ -216,7 +215,7 @@ class TestBallLogarithmicSpeedUp:
 
         # Apply X speed-up multiple times
         for i in range(3):
-            ball.speed_up(multiplier=1.2, speed_up_type="logarithmic_x")
+            ball.speed_up(multiplier=1.2, speed_up_type='logarithmic_x')
 
         # Check final X speed
         expected_x = initial_x * (1.2**3)
@@ -230,7 +229,7 @@ class TestBallLogarithmicSpeedUp:
         ball.speed = Speed(-100.0, -200.0)
 
         # Apply logarithmic X speed-up
-        ball.speed_up(multiplier=1.3, speed_up_type="logarithmic_x")
+        ball.speed_up(multiplier=1.3, speed_up_type='logarithmic_x')
 
         # X should become more negative, Y should remain unchanged
         assert ball.speed.x == pytest.approx(-100.0 * 1.3)
@@ -242,7 +241,7 @@ class TestBallLogarithmicSpeedUp:
         ball.speed = Speed(100.0, 0.0)
 
         # Apply logarithmic Y speed-up (should have no effect)
-        ball.speed_up(multiplier=1.5, speed_up_type="logarithmic_y")
+        ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_y')
 
         # Y should remain zero
         assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)
@@ -260,7 +259,7 @@ class TestBallLogarithmicSpeedUp:
             initial_y = ball.speed.y
 
             # Apply logarithmic X speed-up
-            ball.speed_up(multiplier=multiplier, speed_up_type="logarithmic_x")
+            ball.speed_up(multiplier=multiplier, speed_up_type='logarithmic_x')
 
             # Check precision
             assert ball.speed.x == pytest.approx(initial_x * multiplier)

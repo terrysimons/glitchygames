@@ -13,7 +13,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import CheckboxSprite, ColorWellSprite, SliderSprite
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Test constants to avoid magic values
@@ -44,11 +43,11 @@ class TestSliderSpriteFunctionality:
     def test_slider_initialization(self, mocker):
         """Test SliderSprite initialization."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -60,23 +59,23 @@ class TestSliderSpriteFunctionality:
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
         # Act
-        slider = SliderSprite(x=10, y=20, width=200, height=20, name="TestSlider")
+        slider = SliderSprite(x=10, y=20, width=200, height=20, name='TestSlider')
 
         # Assert
         assert slider.rect.x == SLIDER_X
         assert slider.rect.y == SLIDER_Y
         assert slider.rect.width == SLIDER_WIDTH
         assert slider.rect.height == SLIDER_HEIGHT
-        assert slider.name == "TestSlider"
+        assert slider.name == 'TestSlider'
 
     def test_slider_value_change(self, mocker):
         """Test SliderSprite value change functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -87,20 +86,20 @@ class TestSliderSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        slider = SliderSprite(x=10, y=20, width=200, height=20, name="TestSlider")
+        slider = SliderSprite(x=10, y=20, width=200, height=20, name='TestSlider')
 
         # Test that slider can be created and has expected properties
         assert slider is not None
-        assert slider.name == "TestSlider"
+        assert slider.name == 'TestSlider'
 
     def test_slider_mouse_drag(self, mocker):
         """Test SliderSprite mouse drag functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -111,7 +110,7 @@ class TestSliderSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        slider = SliderSprite(x=10, y=20, width=200, height=20, name="TestSlider")
+        slider = SliderSprite(x=10, y=20, width=200, height=20, name='TestSlider')
 
         # Test that slider can be created and responds to mouse events
         assert slider is not None
@@ -127,11 +126,11 @@ class TestSliderSpriteFunctionality:
     def test_slider_callback(self, mocker):
         """Test SliderSprite value change callback."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -142,11 +141,11 @@ class TestSliderSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        slider = SliderSprite(x=10, y=20, width=200, height=20, name="TestSlider")
+        slider = SliderSprite(x=10, y=20, width=200, height=20, name='TestSlider')
 
         # Test that slider can be created
         assert slider is not None
-        assert slider.name == "TestSlider"
+        assert slider.name == 'TestSlider'
 
 
 class TestCheckboxSpriteFunctionality:
@@ -162,11 +161,11 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_initialization(self, mocker):
         """Test CheckboxSprite initialization."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -178,24 +177,24 @@ class TestCheckboxSpriteFunctionality:
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
         # Act
-        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name="TestCheckbox")
+        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name='TestCheckbox')
 
         # Assert
         assert checkbox.rect.x == CHECKBOX_X
         assert checkbox.rect.y == CHECKBOX_Y
         assert checkbox.rect.width == CHECKBOX_WIDTH
         assert checkbox.rect.height == CHECKBOX_HEIGHT
-        assert checkbox.name == "TestCheckbox"
+        assert checkbox.name == 'TestCheckbox'
         assert not checkbox.checked
 
     def test_checkbox_toggle(self, mocker):
         """Test CheckboxSprite toggle functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -206,7 +205,7 @@ class TestCheckboxSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name="TestCheckbox")
+        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name='TestCheckbox')
 
         # Test initial state
         assert not checkbox.checked
@@ -227,11 +226,11 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_click_toggle(self, mocker):
         """Test CheckboxSprite click to toggle functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -242,7 +241,7 @@ class TestCheckboxSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name="TestCheckbox")
+        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name='TestCheckbox')
 
         # Test initial state
         assert not checkbox.checked
@@ -258,11 +257,11 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_callback(self, mocker):
         """Test CheckboxSprite state change callback."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -273,20 +272,20 @@ class TestCheckboxSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name="TestCheckbox")
+        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name='TestCheckbox')
 
         # Test that checkbox can be created and responds to events
         assert checkbox is not None
-        assert checkbox.name == "TestCheckbox"
+        assert checkbox.name == 'TestCheckbox'
 
     def test_checkbox_set_checked(self, mocker):
         """Test CheckboxSprite set checked state."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -297,7 +296,7 @@ class TestCheckboxSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name="TestCheckbox")
+        checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name='TestCheckbox')
 
         # Test initial state
         assert not checkbox.checked
@@ -330,24 +329,24 @@ class TestColorWellSpriteFunctionality:
         """Test ColorWellSprite initialization."""
         # Arrange - use centralized mocks
         # Act
-        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name="TestColorWell")
+        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name='TestColorWell')
 
         # Assert
         assert colorwell.rect.x == COLORWELL_X
         assert colorwell.rect.y == COLORWELL_Y
         assert colorwell.rect.width == COLORWELL_WIDTH
         assert colorwell.rect.height == COLORWELL_HEIGHT
-        assert colorwell.name == "TestColorWell"
+        assert colorwell.name == 'TestColorWell'
         assert colorwell.active_color == (0, 0, 0, 255)  # Default color (RGBA)
 
     def test_colorwell_color_change(self, mocker):
         """Test ColorWellSprite color change functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -358,16 +357,16 @@ class TestColorWellSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name="TestColorWell")
+        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name='TestColorWell')
 
         # Test that colorwell can be created
         assert colorwell is not None
-        assert colorwell.name == "TestColorWell"
+        assert colorwell.name == 'TestColorWell'
 
     def test_colorwell_click_callback(self, mocker):
         """Test ColorWellSprite click callback."""
         # Arrange - use centralized mocks
-        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name="TestColorWell")
+        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name='TestColorWell')
 
         # Test that colorwell can be created and responds to mouse events
         assert colorwell is not None
@@ -383,7 +382,7 @@ class TestColorWellSpriteFunctionality:
     def test_colorwell_hover_effect(self, mocker):
         """Test ColorWellSprite hover effect."""
         # Arrange - use centralized mocks
-        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name="TestColorWell")
+        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name='TestColorWell')
 
         # Test that colorwell can be created and responds to mouse events
         assert colorwell is not None
@@ -404,11 +403,11 @@ class TestColorWellSpriteFunctionality:
     def test_colorwell_color_validation(self, mocker):
         """Test ColorWellSprite color validation."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
-        mock_draw_rect = mocker.patch("pygame.draw.rect")
-        mock_group = mocker.patch("pygame.sprite.LayeredDirty")
-        mock_surface_cls = mocker.patch("pygame.Surface")
-        mock_get_display = mocker.patch("pygame.display.get_surface")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_draw_rect = mocker.patch('pygame.draw.rect')
+        mock_group = mocker.patch('pygame.sprite.LayeredDirty')
+        mock_surface_cls = mocker.patch('pygame.Surface')
+        mock_get_display = mocker.patch('pygame.display.get_surface')
 
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -419,11 +418,11 @@ class TestColorWellSpriteFunctionality:
         mock_surface_cls.return_value = MockFactory.create_pygame_surface_mock()
         mock_get_display.return_value = MockFactory.create_display_mock(width=800, height=600)
 
-        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name="TestColorWell")
+        colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name='TestColorWell')
 
         # Test that colorwell can be created
         assert colorwell is not None
-        assert colorwell.name == "TestColorWell"
+        assert colorwell.name == 'TestColorWell'
 
         # Test that it has default color properties
         assert colorwell.active_color is not None

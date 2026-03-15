@@ -9,7 +9,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import get_templates
-
 from tests.mocks.test_mock_factory import create_template_directory_mock
 
 
@@ -18,96 +17,96 @@ class TestTemplateDiscovery:
 
     def test_get_templates_basic(self, mocker):
         """Test basic template discovery."""
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
-        mock_directory = create_template_directory_mock(["template1", "template2"])
+        mock_directory = create_template_directory_mock(['template1', 'template2'])
         mock_path.iterdir.return_value = mock_directory.iterdir.return_value
 
         # Mock Path.is_dir() static method calls
-        mock_is_dir = mocker.patch("pathlib.Path.is_dir")
+        mock_is_dir = mocker.patch('pathlib.Path.is_dir')
 
         def is_dir_side_effect(path):
             # Check if the path ends with a template name
             path_str = str(path)
-            return any(template in path_str for template in ["template1", "template2"])
+            return any(template in path_str for template in ['template1', 'template2'])
 
         mock_is_dir.side_effect = is_dir_side_effect
 
         templates = get_templates()
-        assert templates == ["template1", "template2"]
+        assert templates == ['template1', 'template2']
 
     def test_get_templates_empty(self, mocker):
         """Test get_templates with empty directory."""
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         mock_path.iterdir.return_value = []
         templates = get_templates()
         assert templates == []
 
     def test_get_templates_no_directories(self, mocker):
         """Test get_templates with no directories."""
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         mock_file1 = mocker.Mock()
-        mock_file1.name = "file1.txt"
+        mock_file1.name = 'file1.txt'
 
         mock_file2 = mocker.Mock()
-        mock_file2.name = "file2.py"
+        mock_file2.name = 'file2.py'
 
         mock_path.iterdir.return_value = [mock_file1, mock_file2]
 
-        mock_is_dir = mocker.patch("pathlib.Path.is_dir")
+        mock_is_dir = mocker.patch('pathlib.Path.is_dir')
         mock_is_dir.return_value = False
         templates = get_templates()
         assert templates == []
 
     def test_get_templates_hidden_directories(self, mocker):
         """Test get_templates with hidden directories (implementation doesn't filter them)."""
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         # Use centralized mock factory
         mock_items = []
-        for name in ["template1", "__pycache__", ".git", "__init__.py"]:
+        for name in ['template1', '__pycache__', '.git', '__init__.py']:
             mock_item = mocker.Mock()
             mock_item.name = name
             mock_items.append(mock_item)
 
         mock_path.iterdir.return_value = mock_items
 
-        mock_is_dir = mocker.patch("pathlib.Path.is_dir")
+        mock_is_dir = mocker.patch('pathlib.Path.is_dir')
 
         def is_dir_side_effect(path):
             path_str = str(path)
             return any(
-                name in path_str for name in ["template1", "__pycache__", ".git", "__init__.py"]
+                name in path_str for name in ['template1', '__pycache__', '.git', '__init__.py']
             )
 
         mock_is_dir.side_effect = is_dir_side_effect
 
         templates = get_templates()
         # The actual implementation doesn't filter hidden directories
-        assert "template1" in templates
+        assert 'template1' in templates
         # Note: The current implementation includes hidden directories
         assert len(templates) >= 1
 
     def test_get_templates_filters_directories(self, mocker):
         """Test that get_templates properly filters directories."""
-        mock_path = mocker.patch("glitchygames.templates.game.path")
+        mock_path = mocker.patch('glitchygames.templates.game.path')
         mock_dir = mocker.Mock()
-        mock_dir.name = "valid_template"
+        mock_dir.name = 'valid_template'
 
         mock_file = mocker.Mock()
-        mock_file.name = "not_a_template.txt"
+        mock_file.name = 'not_a_template.txt'
 
         mock_path.iterdir.return_value = [mock_dir, mock_file]
 
-        mock_is_dir = mocker.patch("pathlib.Path.is_dir")
+        mock_is_dir = mocker.patch('pathlib.Path.is_dir')
 
         def is_dir_side_effect(path):
-            return "valid_template" in str(path)
+            return 'valid_template' in str(path)
 
         mock_is_dir.side_effect = is_dir_side_effect
 
         templates = get_templates()
-        assert templates == ["valid_template"]
+        assert templates == ['valid_template']
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

@@ -5,8 +5,8 @@ import logging
 import math
 
 import pytest
-from glitchygames.game_objects.ball import BallSprite
 
+from glitchygames.game_objects.ball import BallSprite
 from tests.mocks.test_mock_factory import MockFactory
 
 LOG = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class TestBallDtTick:
 
     def test_ball_dt_tick(self):
         """Test ball dt_tick method for consistent movement."""
-        LOG.debug("Testing ball dt_tick method...")
+        LOG.debug('Testing ball dt_tick method...')
 
         # Create a ball
         ball = BallSprite()
@@ -31,9 +31,9 @@ class TestBallDtTick:
         directions = [0, 45, 90, 135, 180, 225, 270, 315]  # 8 directions
         dt = 1.0 / 60.0  # 60 FPS
 
-        LOG.debug(f"Testing with dt={dt:.4f} (60 FPS)")
-        LOG.debug("Direction | Initial Pos | Final Pos  | Distance | Speed")
-        LOG.debug("----------|-------------|------------|----------|-------")
+        LOG.debug(f'Testing with dt={dt:.4f} (60 FPS)')
+        LOG.debug('Direction | Initial Pos | Final Pos  | Distance | Speed')
+        LOG.debug('----------|-------------|------------|----------|-------')
 
         for direction in directions:
             # Reset ball position to center
@@ -61,7 +61,7 @@ class TestBallDtTick:
             actual_speed = distance / 1.0  # distance per second
 
             LOG.debug(
-                f"{direction:8d}° | ({initial_x:3d},{initial_y:3d})"
-                f"     | ({final_x:3d},{final_y:3d})"
-                f"    | {distance:6.1f} | {actual_speed:6.1f}"
+                f'{direction:8d}° | ({initial_x:3d},{initial_y:3d})'
+                f'     | ({final_x:3d},{final_y:3d})'
+                f'    | {distance:6.1f} | {actual_speed:6.1f}'
             )

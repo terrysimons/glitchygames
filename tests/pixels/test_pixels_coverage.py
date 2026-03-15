@@ -17,7 +17,6 @@ from glitchygames.pixels import (
     rgb_565_triplet_generator,
     rgb_triplet_generator,
 )
-
 from tests.mocks import MockFactory
 
 # Constants for magic values
@@ -128,7 +127,7 @@ class TestPixelsCoverage:
     def test_rgb_triplet_generator(self):
         """Test rgb_triplet_generator function."""
         # Test with valid bytes data
-        pixel_data = b"\xff\x00\x00\x00\xff\x00\x00\x00\xff"  # RGB triplets
+        pixel_data = b'\xff\x00\x00\x00\xff\x00\x00\x00\xff'  # RGB triplets
         result = list(rgb_triplet_generator(pixel_data))
         assert len(result) == RGB_COMPONENTS_PER_PIXEL
         assert result[0] == (255, 0, 0)
@@ -136,18 +135,18 @@ class TestPixelsCoverage:
         assert result[2] == (0, 0, 255)
 
         # Test with empty data - should raise ValueError
-        with pytest.raises(ValueError, match="Empty pixel data"):
-            list(rgb_triplet_generator(b""))
+        with pytest.raises(ValueError, match='Empty pixel data'):
+            list(rgb_triplet_generator(b''))
 
         # Test with single triplet
-        pixel_data = b"\x80\x40\x20"  # Single RGB triplet
+        pixel_data = b'\x80\x40\x20'  # Single RGB triplet
         result = list(rgb_triplet_generator(pixel_data))
         assert len(result) == 1
         assert result[0] == (128, 64, 32)
 
     def test_image_from_pixels(self, mocker):
         """Test image_from_pixels function."""
-        mock_surface = mocker.patch("pygame.Surface")
+        mock_surface = mocker.patch('pygame.Surface')
         # Mock the surface
         mock_surface_instance = self._create_mock_surface()
         mock_surface.return_value = mock_surface_instance
@@ -179,7 +178,7 @@ class TestPixelsCoverage:
         assert result[2] == (0, 0, 255)
 
         # Test with empty data - should raise ValueError
-        with pytest.raises(ValueError, match="Empty pixel data"):
+        with pytest.raises(ValueError, match='Empty pixel data'):
             pixels_from_data([])
 
         # Test with single pixel
@@ -190,16 +189,16 @@ class TestPixelsCoverage:
 
         # Test with incomplete pixel (not divisible by 3) - should raise ValueError
         pixel_data = [255, 0]  # Only 2 values, need 3 for RGB
-        with pytest.raises(ValueError, match="Pixel data length \\(2\\) is not divisible by 3"):
+        with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
             pixels_from_data(pixel_data)
 
     def test_pixels_from_path(self, mocker):
         """Test pixels_from_path function."""
         mocker.patch(
-            "pathlib.Path.open", mocker.mock_open(read_data=b"\xff\x00\x00\x00\xff\x00\x00\x00\xff")
+            'pathlib.Path.open', mocker.mock_open(read_data=b'\xff\x00\x00\x00\xff\x00\x00\x00\xff')
         )
         # Test with valid file path
-        result = pixels_from_path("test_file.txt")
+        result = pixels_from_path('test_file.txt')
         assert len(result) == RGB_COMPONENTS_PER_PIXEL
         assert result[0] == (255, 0, 0)
         assert result[1] == (0, 255, 0)
@@ -208,9 +207,9 @@ class TestPixelsCoverage:
     def test_pixels_from_path_empty_file(self, mocker):
         """Test pixels_from_path with empty file."""
         # Test with empty file - should raise ValueError
-        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=b""))
-        with pytest.raises(ValueError, match="Empty pixel data"):
-            pixels_from_path("empty_file.txt")
+        mocker.patch('pathlib.Path.open', mocker.mock_open(read_data=b''))
+        with pytest.raises(ValueError, match='Empty pixel data'):
+            pixels_from_path('empty_file.txt')
 
     def test_edge_cases(self):
         """Test edge cases for all functions."""
@@ -231,14 +230,14 @@ class TestPixelsCoverage:
         assert result[0] == (0, 0, 0)
 
         # Test rgb_triplet_generator with odd number of bytes - should raise ValueError
-        pixel_data = b"\xff\x00"  # Only 2 bytes, need 3 for RGB
-        with pytest.raises(ValueError, match="Pixel data length \\(2\\) is not divisible by 3"):
+        pixel_data = b'\xff\x00'  # Only 2 bytes, need 3 for RGB
+        with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
             list(rgb_triplet_generator(pixel_data))
 
     def test_edge_cases_image_from_pixels(self, mocker):
         """Test image_from_pixels with zero dimensions."""
-        mock_surface = mocker.patch("pygame.Surface")
-        mock_pixel_array = mocker.patch("pygame.PixelArray")
+        mock_surface = mocker.patch('pygame.Surface')
+        mock_pixel_array = mocker.patch('pygame.PixelArray')
         mock_surface_instance = self._create_mock_surface()
         mock_surface.return_value = mock_surface_instance
         mock_pixel_array_instance = self._create_mock_pixel_array()
@@ -294,28 +293,28 @@ class TestPixelsCoverage:
 
         # Test with 1 value (incomplete pixel) - should raise ValueError
         pixel_data = [255]
-        with pytest.raises(ValueError, match="Pixel data length \\(1\\) is not divisible by 3"):
+        with pytest.raises(ValueError, match='Pixel data length \\(1\\) is not divisible by 3'):
             pixels_from_data(pixel_data)
 
         # Test with 2 values (incomplete pixel) - should raise ValueError
         pixel_data = [255, 0]
-        with pytest.raises(ValueError, match="Pixel data length \\(2\\) is not divisible by 3"):
+        with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
             pixels_from_data(pixel_data)
 
     def test_pixels_from_path_edge_cases(self, mocker):
         """Test pixels_from_path edge cases."""
         # Test with file containing invalid data (not divisible by 3)
-        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=b"\xff\x00"))
-        mocker.patch("pathlib.Path.exists", return_value=True)
-        with pytest.raises(ValueError, match="Pixel data length \\(2\\) is not divisible by 3"):
-            pixels_from_path("invalid_file.txt")
+        mocker.patch('pathlib.Path.open', mocker.mock_open(read_data=b'\xff\x00'))
+        mocker.patch('pathlib.Path.exists', return_value=True)
+        with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
+            pixels_from_path('invalid_file.txt')
 
     def test_pixels_from_path_edge_cases_valid(self, mocker):
         """Test pixels_from_path edge cases with valid data."""
         # Test with file containing valid data
-        mocker.patch("pathlib.Path.open", mocker.mock_open(read_data=b"\xff\x00\x00\x00\xff\x00"))
-        mocker.patch("pathlib.Path.exists", return_value=True)
-        result = pixels_from_path("valid_file.txt")
+        mocker.patch('pathlib.Path.open', mocker.mock_open(read_data=b'\xff\x00\x00\x00\xff\x00'))
+        mocker.patch('pathlib.Path.exists', return_value=True)
+        result = pixels_from_path('valid_file.txt')
         assert len(result) == TWO_PIXEL_BYTES // RGB_BYTES_PER_PIXEL
         assert result[0] == (255, 0, 0)
         assert result[1] == (0, 255, 0)

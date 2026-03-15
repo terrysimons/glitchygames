@@ -11,6 +11,7 @@ Tests complex scenarios involving:
 
 import pygame
 import pytest
+
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tools.operation_history import (
     CanvasOperationTracker,
@@ -56,7 +57,7 @@ class TestFilmStripUndoRedo:
                 self.undo_redo_manager.set_frame_selection_callback(self._apply_frame_selection)
 
                 # Track current state
-                self.current_animation = "strip_1"
+                self.current_animation = 'strip_1'
                 self.current_frame = 0
                 self.animated_sprite = self._create_test_sprite()
 
@@ -73,7 +74,7 @@ class TestFilmStripUndoRedo:
                 frame1 = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
                 frame1.pixels = [(255, 0, 0)] * (32 * 32)  # Red frame
 
-                sprite._animations = {"strip_1": [frame1]}
+                sprite._animations = {'strip_1': [frame1]}
 
                 return sprite
 
@@ -149,10 +150,10 @@ class TestFilmStripUndoRedo:
             def create_frame(self, animation, frame_index):
                 """Create a new frame and track it."""
                 frame_data = {
-                    "width": 32,
-                    "height": 32,
-                    "pixels": [(0, 255, 0)] * (32 * 32),  # Green frame
-                    "duration": 1.0,
+                    'width': 32,
+                    'height': 32,
+                    'pixels': [(0, 255, 0)] * (32 * 32),  # Green frame
+                    'duration': 1.0,
                 }
                 self.film_strip_operation_tracker.add_frame_added(
                     frame_index, animation, frame_data
@@ -161,15 +162,15 @@ class TestFilmStripUndoRedo:
             def create_animation(self, animation_name):
                 """Create a new animation and track it."""
                 animation_data = {
-                    "frames": [
+                    'frames': [
                         {
-                            "width": 32,
-                            "height": 32,
-                            "pixels": [(0, 0, 255)] * (32 * 32),  # Blue frame
-                            "duration": 1.0,
+                            'width': 32,
+                            'height': 32,
+                            'pixels': [(0, 0, 255)] * (32 * 32),  # Blue frame
+                            'duration': 1.0,
                         }
                     ],
-                    "frame_count": 1,
+                    'frame_count': 1,
                 }
                 self.film_strip_operation_tracker.add_animation_added(
                     animation_name, animation_data
@@ -217,7 +218,7 @@ class TestFilmStripUndoRedo:
 
         class MockCanvas:
             def __init__(self):
-                self.current_animation = "strip_1"
+                self.current_animation = 'strip_1'
                 self.current_frame = 0
 
         return MockScene()
@@ -231,7 +232,7 @@ class TestFilmStripUndoRedo:
         assert mock_scene.get_undo_count() == 2
 
         # Switch to different frame (should create frame selection operation)
-        mock_scene.switch_to_frame("strip_1", 0)
+        mock_scene.switch_to_frame('strip_1', 0)
 
         assert mock_scene.get_undo_count() == 3
 
@@ -243,11 +244,11 @@ class TestFilmStripUndoRedo:
     def test_frame_creation_and_editing(self, mock_scene):
         """Test frame creation and editing operations."""
         # Create a new frame
-        mock_scene.create_frame("strip_1", 1)
+        mock_scene.create_frame('strip_1', 1)
         assert mock_scene.get_undo_count() == 1
 
         # Switch to the new frame
-        mock_scene.switch_to_frame("strip_1", 1)
+        mock_scene.switch_to_frame('strip_1', 1)
         assert mock_scene.get_undo_count() == 2
 
         # Edit the new frame
@@ -265,19 +266,19 @@ class TestFilmStripUndoRedo:
     def test_animation_creation_and_frame_operations(self, mock_scene):
         """Test animation creation and frame operations."""
         # Create a new animation
-        mock_scene.create_animation("strip_2")
+        mock_scene.create_animation('strip_2')
         assert mock_scene.get_undo_count() == 1
 
         # Switch to the new animation
-        mock_scene.switch_to_frame("strip_2", 0)
+        mock_scene.switch_to_frame('strip_2', 0)
         assert mock_scene.get_undo_count() == 2
 
         # Create a frame in the new animation
-        mock_scene.create_frame("strip_2", 1)
+        mock_scene.create_frame('strip_2', 1)
         assert mock_scene.get_undo_count() == 3
 
         # Switch to the new frame
-        mock_scene.switch_to_frame("strip_2", 1)
+        mock_scene.switch_to_frame('strip_2', 1)
         assert mock_scene.get_undo_count() == 4
 
         # Edit the frame
@@ -287,10 +288,10 @@ class TestFilmStripUndoRedo:
     def test_complex_undo_sequence(self, mock_scene):
         """Test complex undo sequence."""
         # Create operations
-        mock_scene.create_animation("strip_2")
-        mock_scene.switch_to_frame("strip_2", 0)
-        mock_scene.create_frame("strip_2", 1)
-        mock_scene.switch_to_frame("strip_2", 1)
+        mock_scene.create_animation('strip_2')
+        mock_scene.switch_to_frame('strip_2', 0)
+        mock_scene.create_frame('strip_2', 1)
+        mock_scene.switch_to_frame('strip_2', 1)
         mock_scene.edit_pixel(25, 25, (0, 0, 255), (255, 255, 255))
 
         initial_undo_count = mock_scene.get_undo_count()
@@ -310,9 +311,9 @@ class TestFilmStripUndoRedo:
     def test_redo_sequence(self, mock_scene):
         """Test redo sequence."""
         # Create operations
-        mock_scene.create_animation("strip_2")
-        mock_scene.switch_to_frame("strip_2", 0)
-        mock_scene.create_frame("strip_2", 1)
+        mock_scene.create_animation('strip_2')
+        mock_scene.switch_to_frame('strip_2', 0)
+        mock_scene.create_frame('strip_2', 1)
 
         initial_undo_count = mock_scene.get_undo_count()
 
@@ -335,22 +336,22 @@ class TestFilmStripUndoRedo:
     def test_mixed_operations_with_frame_switching(self, mock_scene):
         """Test mixed operations with frame switching."""
         # Create operations
-        mock_scene.create_animation("strip_2")
-        mock_scene.switch_to_frame("strip_2", 0)
-        mock_scene.create_frame("strip_2", 1)
-        mock_scene.switch_to_frame("strip_2", 1)
+        mock_scene.create_animation('strip_2')
+        mock_scene.switch_to_frame('strip_2', 0)
+        mock_scene.create_frame('strip_2', 1)
+        mock_scene.switch_to_frame('strip_2', 1)
         mock_scene.edit_pixel(25, 25, (0, 0, 255), (255, 255, 255))
 
         # Switch back to strip_1
-        mock_scene.switch_to_frame("strip_1", 0)
+        mock_scene.switch_to_frame('strip_1', 0)
 
         # Create another frame in strip_1
-        mock_scene.create_frame("strip_1", 2)
-        mock_scene.switch_to_frame("strip_1", 2)
+        mock_scene.create_frame('strip_1', 2)
+        mock_scene.switch_to_frame('strip_1', 2)
         mock_scene.edit_pixel(30, 30, (255, 0, 0), (0, 255, 255))
 
         # Switch back to strip_2
-        mock_scene.switch_to_frame("strip_2", 1)
+        mock_scene.switch_to_frame('strip_2', 1)
         mock_scene.edit_pixel(5, 5, (0, 0, 255), (255, 0, 0))
 
         # Should have many operations
@@ -359,10 +360,10 @@ class TestFilmStripUndoRedo:
     def test_edge_case_multiple_rapid_operations(self, mock_scene):
         """Test edge case with multiple rapid operations."""
         # Rapid frame creation and switching
-        mock_scene.create_frame("strip_1", 3)
-        mock_scene.switch_to_frame("strip_1", 3)
-        mock_scene.create_frame("strip_1", 4)
-        mock_scene.switch_to_frame("strip_1", 4)
+        mock_scene.create_frame('strip_1', 3)
+        mock_scene.switch_to_frame('strip_1', 3)
+        mock_scene.create_frame('strip_1', 4)
+        mock_scene.switch_to_frame('strip_1', 4)
         mock_scene.edit_pixel(1, 1, (255, 0, 0), (0, 0, 0))
 
         # Should have 5 operations
@@ -376,10 +377,10 @@ class TestFilmStripUndoRedo:
     def test_animation_deletion_operations(self, mock_scene):
         """Test animation deletion operations."""
         # Create another animation
-        mock_scene.create_animation("strip_3")
-        mock_scene.switch_to_frame("strip_3", 0)
-        mock_scene.create_frame("strip_3", 1)
-        mock_scene.switch_to_frame("strip_3", 1)
+        mock_scene.create_animation('strip_3')
+        mock_scene.switch_to_frame('strip_3', 0)
+        mock_scene.create_frame('strip_3', 1)
+        mock_scene.switch_to_frame('strip_3', 1)
         mock_scene.edit_pixel(10, 10, (0, 0, 255), (255, 255, 0))
 
         initial_undo_count = mock_scene.get_undo_count()
@@ -400,8 +401,8 @@ class TestFilmStripUndoRedo:
         """Test stress test with many operations."""
         # Create many operations
         for i in range(10):
-            mock_scene.create_frame("strip_1", i + 5)
-            mock_scene.switch_to_frame("strip_1", i + 5)
+            mock_scene.create_frame('strip_1', i + 5)
+            mock_scene.switch_to_frame('strip_1', i + 5)
             mock_scene.edit_pixel(i, i, (255, 0, 0), (i * 25, i * 25, i * 25))
 
         # Should have 30 operations (3 per iteration)
@@ -415,9 +416,9 @@ class TestFilmStripUndoRedo:
     def test_frame_selection_undo_redo(self, mock_scene):
         """Test frame selection undo/redo specifically."""
         # Switch between frames multiple times
-        mock_scene.switch_to_frame("strip_1", 0)
-        mock_scene.switch_to_frame("strip_1", 0)  # Same frame, should not create operation
-        mock_scene.switch_to_frame("strip_1", 1)  # Different frame, should create operation
+        mock_scene.switch_to_frame('strip_1', 0)
+        mock_scene.switch_to_frame('strip_1', 0)  # Same frame, should not create operation
+        mock_scene.switch_to_frame('strip_1', 1)  # Different frame, should create operation
 
         # Should have 2 operations (first switch and second switch)
         assert mock_scene.get_undo_count() == 2
@@ -434,19 +435,19 @@ class TestFilmStripUndoRedo:
         """Test that operations have proper descriptions."""
         # Create various operations
         mock_scene.edit_pixel(10, 10, (255, 0, 0), (255, 255, 0))
-        mock_scene.create_frame("strip_1", 1)
-        mock_scene.create_animation("strip_2")
-        mock_scene.switch_to_frame("strip_1", 1)
+        mock_scene.create_frame('strip_1', 1)
+        mock_scene.create_animation('strip_2')
+        mock_scene.switch_to_frame('strip_1', 1)
 
         # Check operation descriptions
         operations = mock_scene.undo_redo_manager.undo_stack
         assert len(operations) == 4
 
         # Check that descriptions are meaningful
-        assert "Pixel change" in operations[0].description
-        assert "Added frame" in operations[1].description
-        assert "Added animation" in operations[2].description
-        assert "Selected frame" in operations[3].description
+        assert 'Pixel change' in operations[0].description
+        assert 'Added frame' in operations[1].description
+        assert 'Added animation' in operations[2].description
+        assert 'Selected frame' in operations[3].description
 
     def test_undo_redo_stack_limits(self, mock_scene):
         """Test that undo/redo stacks respect size limits."""
@@ -466,9 +467,9 @@ class TestFilmStripUndoRedo:
         """Test mixed operation types in undo stack."""
         # Create different types of operations
         mock_scene.edit_pixel(10, 10, (255, 0, 0), (255, 255, 0))  # Canvas operation
-        mock_scene.create_frame("strip_1", 1)  # Film strip operation
-        mock_scene.switch_to_frame("strip_1", 1)  # Frame selection operation
-        mock_scene.create_animation("strip_2")  # Film strip operation
+        mock_scene.create_frame('strip_1', 1)  # Film strip operation
+        mock_scene.switch_to_frame('strip_1', 1)  # Frame selection operation
+        mock_scene.create_animation('strip_2')  # Film strip operation
 
         # All operations should be in the same undo stack
         assert mock_scene.get_undo_count() == 4

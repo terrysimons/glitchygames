@@ -2,4 +2,4 @@
 
 from .test_mock_factory import MockFactory
 
-__all__ = ["MockFactory"]
+__all__ = ['MockFactory']

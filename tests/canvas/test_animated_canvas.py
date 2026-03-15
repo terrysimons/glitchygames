@@ -22,7 +22,6 @@ from glitchygames.tools.canvas_interfaces import (
     AnimatedSpriteSerializer,
 )
 from glitchygames.tools.film_strip import FilmStripWidget
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -43,7 +42,7 @@ class TestAnimatedCanvasSprite:
         # Create a test animated canvas
         self.canvas = AnimatedCanvasSprite(
             animated_sprite=self.animated_sprite,
-            name="Test Animated Canvas",
+            name='Test Animated Canvas',
             x=0,
             y=0,
             pixels_across=8,
@@ -90,11 +89,11 @@ class TestAnimatedCanvasSprite:
         animated_sprite = AnimatedSprite()
         # Set frames using the internal structure
         animated_sprite._animations = {
-            "idle": [idle_frame1, idle_frame2],
-            "walk": [walk_frame1, walk_frame2],
+            'idle': [idle_frame1, idle_frame2],
+            'walk': [walk_frame1, walk_frame2],
         }
         # Set the current animation to idle (first available animation)
-        animated_sprite.frame_manager.current_animation = "idle"
+        animated_sprite.frame_manager.current_animation = 'idle'
 
         return animated_sprite
 
@@ -102,7 +101,7 @@ class TestAnimatedCanvasSprite:
         """Test that AnimatedCanvasSprite is created correctly."""
         assert isinstance(self.canvas, AnimatedCanvasSprite)
         assert self.canvas.animated_sprite == self.animated_sprite
-        assert self.canvas.current_animation == "idle"
+        assert self.canvas.current_animation == 'idle'
         assert self.canvas.current_frame == 0
 
     def test_interface_initialization(self):
@@ -114,13 +113,13 @@ class TestAnimatedCanvasSprite:
     def test_show_frame(self):
         """Test switching to different frames."""
         # Test switching to walk animation, frame 1
-        self.canvas.show_frame("walk", 1)
-        assert self.canvas.current_animation == "walk"
+        self.canvas.show_frame('walk', 1)
+        assert self.canvas.current_animation == 'walk'
         assert self.canvas.current_frame == 1
 
         # Test switching back to idle animation, frame 0
-        self.canvas.show_frame("idle", 0)
-        assert self.canvas.current_animation == "idle"
+        self.canvas.show_frame('idle', 0)
+        assert self.canvas.current_animation == 'idle'
         assert self.canvas.current_frame == 0
 
     def test_frame_editing(self):
@@ -133,34 +132,34 @@ class TestAnimatedCanvasSprite:
         assert pixel_color == (255, 255, 255, 255)
 
         # Verify it's set in the actual frame
-        current_frame = self.animated_sprite.frames["idle"][0]
+        current_frame = self.animated_sprite.frames['idle'][0]
         frame_pixels = current_frame.get_pixel_data()
         assert frame_pixels[0] == (255, 255, 255)
 
     def test_frame_isolation(self):
         """Test that editing one frame doesn't affect others."""
         # Edit frame 0 of idle animation
-        self.canvas.show_frame("idle", 0)
+        self.canvas.show_frame('idle', 0)
         self.canvas.canvas_interface.set_pixel_at(0, 0, (255, 0, 0))
 
         # Switch to frame 1 of idle animation
-        self.canvas.show_frame("idle", 1)
+        self.canvas.show_frame('idle', 1)
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
         assert pixel_color == (0, 255, 0, 255)  # Should be green (original color)
 
         # Switch back to frame 0
-        self.canvas.show_frame("idle", 0)
+        self.canvas.show_frame('idle', 0)
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
         assert pixel_color == (255, 0, 0, 255)  # Should be red (our edit)
 
     def test_animation_isolation(self):
         """Test that editing one animation doesn't affect others."""
         # Edit idle animation, frame 0
-        self.canvas.show_frame("idle", 0)
+        self.canvas.show_frame('idle', 0)
         self.canvas.canvas_interface.set_pixel_at(0, 0, (255, 0, 0))
 
         # Switch to walk animation, frame 0
-        self.canvas.show_frame("walk", 0)
+        self.canvas.show_frame('walk', 0)
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
         assert pixel_color == (0, 0, 255, 255)  # Should be blue (original color)
 
@@ -182,12 +181,12 @@ class TestAnimatedCanvasSprite:
         """Test navigating between animations."""
         # Test next animation
         self.canvas.next_animation()
-        assert self.canvas.current_animation == "walk"
+        assert self.canvas.current_animation == 'walk'
         assert self.canvas.current_frame == 0  # Should reset to frame 0
 
         # Test previous animation
         self.canvas.previous_animation()
-        assert self.canvas.current_animation == "idle"
+        assert self.canvas.current_animation == 'idle'
         assert self.canvas.current_frame == 0
 
     def test_film_strip_integration(self):
@@ -209,7 +208,7 @@ class TestAnimatedCanvasSprite:
     def test_keyboard_navigation(self):
         """Test keyboard navigation between frames."""
         # Test left arrow (previous frame)
-        self.canvas.show_frame("idle", 1)
+        self.canvas.show_frame('idle', 1)
         self.canvas.handle_keyboard_event(pygame.K_LEFT)
         assert self.canvas.current_frame == 0
 
@@ -219,11 +218,11 @@ class TestAnimatedCanvasSprite:
 
         # Test up arrow (previous animation)
         self.canvas.handle_keyboard_event(pygame.K_UP)
-        assert self.canvas.current_animation == "walk"
+        assert self.canvas.current_animation == 'walk'
 
         # Test down arrow (next animation)
         self.canvas.handle_keyboard_event(pygame.K_DOWN)
-        assert self.canvas.current_animation == "idle"
+        assert self.canvas.current_animation == 'idle'
 
     def test_copy_paste_functionality(self):
         """Test copying and pasting between frames."""
@@ -234,7 +233,7 @@ class TestAnimatedCanvasSprite:
         self.canvas.copy_current_frame()
 
         # Switch to another frame
-        self.canvas.show_frame("idle", 1)
+        self.canvas.show_frame('idle', 1)
 
         # Paste the copied frame
         self.canvas.paste_to_current_frame()
@@ -247,7 +246,7 @@ class TestAnimatedCanvasSprite:
         """Test saving and loading animated sprites."""
         # Create a temporary file
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False, encoding="utf-8"
+            mode='w', suffix='.toml', delete=False, encoding='utf-8'
         ) as f:
             temp_filename = f.name
 
@@ -267,7 +266,7 @@ class TestAnimatedCanvasSprite:
             )
 
             # Verify it loaded correctly
-            assert loaded_canvas.current_animation == "idle"
+            assert loaded_canvas.current_animation == 'idle'
             assert loaded_canvas.current_frame == 0
             assert len(loaded_canvas.animated_sprite.frames) == self.EXPECTED_FRAME_COUNT
 
@@ -304,7 +303,7 @@ class TestAnimatedCanvasSpriteEdgeCases:
 
         canvas = AnimatedCanvasSprite(
             animated_sprite=empty_sprite,
-            name="Empty Canvas",
+            name='Empty Canvas',
             x=0,
             y=0,
             pixels_across=8,
@@ -327,13 +326,13 @@ class TestAnimatedCanvasSpriteEdgeCases:
         frame.pixels = [(255, 0, 0)] * 64
 
         single_sprite = AnimatedSprite()
-        single_sprite._animations = {"idle": [frame]}
+        single_sprite._animations = {'idle': [frame]}
         # Set the current animation to idle
-        single_sprite.frame_manager.current_animation = "idle"
+        single_sprite.frame_manager.current_animation = 'idle'
 
         canvas = AnimatedCanvasSprite(
             animated_sprite=single_sprite,
-            name="Single Frame Canvas",
+            name='Single Frame Canvas',
             x=0,
             y=0,
             pixels_across=8,
@@ -343,7 +342,7 @@ class TestAnimatedCanvasSpriteEdgeCases:
         )
 
         # Should handle single frame correctly
-        assert canvas.current_animation == "idle"
+        assert canvas.current_animation == 'idle'
         assert canvas.current_frame == 0
 
         # Navigation should wrap around
@@ -351,5 +350,5 @@ class TestAnimatedCanvasSpriteEdgeCases:
         assert canvas.current_frame == 0  # Should wrap to 0
 
 
-if __name__ == "__main__":
-    sys.exit(pytest.main([__file__, "-v"]))
+if __name__ == '__main__':
+    sys.exit(pytest.main([__file__, '-v']))

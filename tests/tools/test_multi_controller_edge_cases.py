@@ -10,6 +10,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
@@ -102,7 +103,7 @@ class TestControllerHotplugEdgeCases:
         def operation_worker():
             for _ in range(100):
                 if controller_id in self.controller_selections:
-                    self.controller_selections[controller_id].set_selection("animation", 0)
+                    self.controller_selections[controller_id].set_selection('animation', 0)
                 time.sleep(0.001)
 
         # Start operation in thread
@@ -131,26 +132,26 @@ class TestNavigationBoundaryCases:
     def test_navigation_at_frame_boundaries(self):
         """Test navigation at frame 0 and maximum frames."""
         # Test at frame 0
-        self.controller_selection.set_selection("animation", 0)
+        self.controller_selection.set_selection('animation', 0)
         animation, frame = self.controller_selection.get_selection()
-        assert animation == "animation"
+        assert animation == 'animation'
         assert frame == 0
 
         # Test at high frame number
-        self.controller_selection.set_selection("animation", 999)
+        self.controller_selection.set_selection('animation', 999)
         animation, frame = self.controller_selection.get_selection()
-        assert animation == "animation"
+        assert animation == 'animation'
         assert frame == 999
 
     def test_rapid_navigation_stress(self):
         """Test rapid navigation that could cause race conditions."""
         # Rapid navigation with many changes
         for i in range(1000):
-            self.controller_selection.set_selection(f"animation_{i % 10}", i % 20)
+            self.controller_selection.set_selection(f'animation_{i % 10}', i % 20)
 
         # Should maintain valid state
         animation, frame = self.controller_selection.get_selection()
-        assert animation.startswith("animation_")
+        assert animation.startswith('animation_')
         assert 0 <= frame <= 19
 
         # Navigation history should be reasonable
@@ -161,28 +162,28 @@ class TestNavigationBoundaryCases:
     def test_navigation_with_invalid_inputs(self):
         """Test navigation with invalid inputs."""
         # Test with empty animation name
-        self.controller_selection.set_selection("", 0)
+        self.controller_selection.set_selection('', 0)
         animation, frame = self.controller_selection.get_selection()
         assert not animation
         assert frame == 0
 
         # Test with negative frame
-        self.controller_selection.set_selection("animation", -1)
+        self.controller_selection.set_selection('animation', -1)
         animation, frame = self.controller_selection.get_selection()
-        assert animation == "animation"
+        assert animation == 'animation'
         assert frame == -1  # Should accept negative frames
 
         # Test with very large frame number
-        self.controller_selection.set_selection("animation", 999999)
+        self.controller_selection.set_selection('animation', 999999)
         animation, frame = self.controller_selection.get_selection()
-        assert animation == "animation"
+        assert animation == 'animation'
         assert frame == 999999
 
     def test_navigation_history_limits(self):
         """Test navigation history with many entries."""
         # Add many navigation entries
         for i in range(10000):
-            self.controller_selection.set_selection(f"animation_{i % 100}", i % 50)
+            self.controller_selection.set_selection(f'animation_{i % 100}', i % 50)
 
         # Get history
         history = self.controller_selection.get_navigation_history()
@@ -193,14 +194,14 @@ class TestNavigationBoundaryCases:
 
         # Should maintain chronological order
         for i in range(len(history) - 1):
-            assert history[i]["timestamp"] <= history[i + 1]["timestamp"]
+            assert history[i]['timestamp'] <= history[i + 1]['timestamp']
 
     def test_concurrent_navigation(self):
         """Test concurrent navigation operations."""
 
         def navigation_worker(worker_id):
             for i in range(100):
-                self.controller_selection.set_selection(f"worker_{worker_id}_animation", i)
+                self.controller_selection.set_selection(f'worker_{worker_id}_animation', i)
                 time.sleep(0.001)
 
         # Start multiple navigation workers
@@ -216,7 +217,7 @@ class TestNavigationBoundaryCases:
 
         # Should have valid final state
         animation, frame = self.controller_selection.get_selection()
-        assert animation.startswith("worker_")
+        assert animation.startswith('worker_')
         assert 0 <= frame <= 99
 
 
@@ -243,7 +244,7 @@ class TestVisualCollisionEdgeCases:
         assert len(self.visual_manager.indicators) == 25
 
     @pytest.mark.skip(
-        reason="VisualCollisionManager is not thread-safe — concurrent updates cause RuntimeError"
+        reason='VisualCollisionManager is not thread-safe — concurrent updates cause RuntimeError'
     )
     def test_position_update_races(self):
         """Test rapid position updates causing potential race conditions."""
@@ -394,7 +395,7 @@ class TestMemoryAndPerformanceEdgeCases:
         # Navigation operations
         for _ in range(1000):
             for i in range(10):
-                self.controller_selections[i].set_selection(f"animation_{i}", i % 20)
+                self.controller_selections[i].set_selection(f'animation_{i}', i % 20)
 
         # Visual operations
         for _ in range(1000):
@@ -429,7 +430,7 @@ class TestMemoryAndPerformanceEdgeCases:
 
                 # Navigation
                 self.controller_selections[controller_id].set_selection(
-                    f"worker_{worker_id}", _ % 10
+                    f'worker_{worker_id}', _ % 10
                 )
 
                 # Visual updates
@@ -487,8 +488,8 @@ class TestErrorRecoveryEdgeCases:
     def test_operations_with_corrupted_state(self):
         """Test operations with corrupted internal state."""
         # Corrupt manager state
-        self.manager.controllers[999] = "invalid_object"
-        self.manager.assigned_controllers[999] = "invalid_object"
+        self.manager.controllers[999] = 'invalid_object'
+        self.manager.assigned_controllers[999] = 'invalid_object'
 
         # System raises AttributeError when accessing corrupted state
         # because is_controller_active expects a ControllerInfo with .status
@@ -496,7 +497,7 @@ class TestErrorRecoveryEdgeCases:
             self.manager.is_controller_active(999)
 
         # get_controller_info returns the raw value (doesn't validate type)
-        assert self.manager.get_controller_info(999) == "invalid_object"
+        assert self.manager.get_controller_info(999) == 'invalid_object'
 
     def test_visual_manager_with_invalid_data(self):
         """Test visual manager with invalid data."""
@@ -507,10 +508,10 @@ class TestErrorRecoveryEdgeCases:
 
         # Corrupt the indicator position
         if 0 in self.visual_manager.indicators:
-            self.visual_manager.indicators[0].position = "invalid"
+            self.visual_manager.indicators[0].position = 'invalid'
 
         # get_final_position unpacks position as tuple — corrupted data raises ValueError
-        with pytest.raises(ValueError, match="too many values to unpack"):
+        with pytest.raises(ValueError, match='too many values to unpack'):
             self.visual_manager.get_final_position(0)
 
     def test_recovery_from_system_errors(self):
@@ -529,7 +530,7 @@ class TestErrorRecoveryEdgeCases:
             self.manager.get_controller_info(0)
         except (TypeError, AttributeError):
             # Should not crash the entire system
-            LOG.debug("System error during corrupted state access handled gracefully")
+            LOG.debug('System error during corrupted state access handled gracefully')
 
         # Restore data
         self.manager.controllers = original_controllers

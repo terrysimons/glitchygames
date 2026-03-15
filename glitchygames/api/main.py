@@ -26,31 +26,32 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from glitchygames.api.routes import health_router, sprites_router
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
 
-LOG = logging.getLogger("glitchygames.api")
+LOG = logging.getLogger('glitchygames.api')
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncGenerator[None]:  # noqa: ARG001, RUF029
     """Manage application startup and shutdown lifecycle."""
-    LOG.info("Starting GlitchyGames Sprite Generation API")
+    LOG.info('Starting GlitchyGames Sprite Generation API')
 
     # Pre-initialize renderer service to set up pygame in headless mode
     from glitchygames.services import RendererService
 
     RendererService()
-    LOG.info("Renderer service initialized")
+    LOG.info('Renderer service initialized')
 
     yield
 
-    LOG.info("Shutting down GlitchyGames Sprite Generation API")
+    LOG.info('Shutting down GlitchyGames Sprite Generation API')
 
 
 def create_app() -> FastAPI:
@@ -61,23 +62,23 @@ def create_app() -> FastAPI:
 
     """
     application = FastAPI(
-        title="GlitchyGames Sprite Generation API",
+        title='GlitchyGames Sprite Generation API',
         description=(
-            "Generate pixel art sprites using AI. Supports static and animated sprites "
-            "with TOML and PNG output formats."
+            'Generate pixel art sprites using AI. Supports static and animated sprites '
+            'with TOML and PNG output formats.'
         ),
-        version="1.0.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        version='1.0.0',
+        docs_url='/docs',
+        redoc_url='/redoc',
         lifespan=lifespan,
         openapi_tags=[
             {
-                "name": "health",
-                "description": "Health check and status endpoints",
+                'name': 'health',
+                'description': 'Health check and status endpoints',
             },
             {
-                "name": "sprites",
-                "description": "Sprite generation and refinement endpoints",
+                'name': 'sprites',
+                'description': 'Sprite generation and refinement endpoints',
             },
         ],
     )
@@ -85,10 +86,10 @@ def create_app() -> FastAPI:
     # Add CORS middleware
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Configure appropriately for production
+        allow_origins=['*'],  # Configure appropriately for production
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=['*'],
+        allow_headers=['*'],
     )
 
     # Include routers
@@ -109,18 +110,18 @@ def run() -> None:
     """
     import uvicorn
 
-    host = os.environ.get("GLITCHYGAMES_HOST", "0.0.0.0")  # noqa: S104
-    port = int(os.environ.get("GLITCHYGAMES_PORT", "8000"))
-    reload = os.environ.get("GLITCHYGAMES_RELOAD", "false").lower() == "true"
+    host = os.environ.get('GLITCHYGAMES_HOST', '0.0.0.0')  # noqa: S104
+    port = int(os.environ.get('GLITCHYGAMES_PORT', '8000'))
+    reload = os.environ.get('GLITCHYGAMES_RELOAD', 'false').lower() == 'true'
 
-    LOG.info(f"Starting server on {host}:{port}")
+    LOG.info(f'Starting server on {host}:{port}')
     uvicorn.run(
-        "glitchygames.api.main:app",
+        'glitchygames.api.main:app',
         host=host,
         port=port,
         reload=reload,
     )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     run()

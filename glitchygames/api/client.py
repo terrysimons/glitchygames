@@ -6,17 +6,18 @@ import io
 import json
 import logging
 import sys
+import tomllib
 from pathlib import Path
 
 import httpx
-import toml
 from apng import APNG, PNG
+
 from glitchygames.tools.ascii_renderer import ASCIIRenderer
 
-LOG = logging.getLogger("glitchygames.api.client")
+LOG = logging.getLogger('glitchygames.api.client')
 
-DEFAULT_SERVER_URL = "http://localhost:8000"
-DEFAULT_OUTPUT_FORMATS = ["toml", "png"]
+DEFAULT_SERVER_URL = 'http://localhost:8000'
+DEFAULT_OUTPUT_FORMATS = ['toml', 'png']
 
 MAX_FILE_NUMBERING_ATTEMPTS = 1000
 
@@ -29,90 +30,90 @@ def create_parser() -> argparse.ArgumentParser:
 
     """
     parser = argparse.ArgumentParser(
-        prog="glitchygames-client",
-        description="CLI client for GlitchyGames Sprite Generation API",
+        prog='glitchygames-client',
+        description='CLI client for GlitchyGames Sprite Generation API',
     )
 
     parser.add_argument(
-        "prompt",
-        nargs="?",  # Optional when using --extract-frames
-        help="Text description of the sprite to generate",
+        'prompt',
+        nargs='?',  # Optional when using --extract-frames
+        help='Text description of the sprite to generate',
     )
 
     parser.add_argument(
-        "--extract-frames",
-        metavar="APNG_PATH",
-        help="Extract frames from an APNG file instead of generating a sprite",
+        '--extract-frames',
+        metavar='APNG_PATH',
+        help='Extract frames from an APNG file instead of generating a sprite',
     )
 
     parser.add_argument(
-        "--server-url",
+        '--server-url',
         default=DEFAULT_SERVER_URL,
-        help=f"Server URL (default: {DEFAULT_SERVER_URL})",
+        help=f'Server URL (default: {DEFAULT_SERVER_URL})',
     )
 
     parser.add_argument(
-        "--output-format",
-        "-f",
-        action="append",
-        choices=["toml", "png"],
-        dest="output_formats",
-        help="Output format (can be specified multiple times). Default: toml and png",
+        '--output-format',
+        '-f',
+        action='append',
+        choices=['toml', 'png'],
+        dest='output_formats',
+        help='Output format (can be specified multiple times). Default: toml and png',
     )
 
     parser.add_argument(
-        "--output-path",
-        "-o",
+        '--output-path',
+        '-o',
         help="Directory to save output files. Created if it doesn't exist.",
     )
 
     parser.add_argument(
-        "--width",
+        '--width',
         type=int,
-        help="Sprite width in pixels (1-64)",
+        help='Sprite width in pixels (1-64)',
     )
 
     parser.add_argument(
-        "--height",
+        '--height',
         type=int,
-        help="Sprite height in pixels (1-64)",
+        help='Sprite height in pixels (1-64)',
     )
 
     parser.add_argument(
-        "--frame-count",
+        '--frame-count',
         type=int,
-        help="Number of frames per animation (1-32)",
+        help='Number of frames per animation (1-32)',
     )
 
     parser.add_argument(
-        "--film-strip-count",
+        '--film-strip-count',
         type=int,
-        help="Number of film strips/animations to create (1-8)",
+        help='Number of film strips/animations to create (1-8)',
     )
 
     parser.add_argument(
-        "--animation-duration",
+        '--animation-duration',
         type=float,
-        help="Duration of animation in seconds",
+        help='Duration of animation in seconds',
     )
 
     parser.add_argument(
-        "--png-scale",
+        '--png-scale',
         type=int,
         default=1,
-        help="Scale factor for PNG output (1-10, default: 1)",
+        help='Scale factor for PNG output (1-10, default: 1)',
     )
 
     parser.add_argument(
-        "--extract-scale",
+        '--extract-scale',
         type=int,
         default=8,
-        help="Scale factor for extracted PNG frames using nearest-neighbor (default: 8)",
+        help='Scale factor for extracted PNG frames using nearest-neighbor (default: 8)',
     )
 
     parser.add_argument(
-        "--animation-language-model",
-        metavar="MODEL",
+        '--animation-language-model',
+        metavar='MODEL',
         help=(
             "Override the AI model for generation "
             "(aisuite format, e.g., 'anthropic:claude-sonnet-4-5')"
@@ -120,17 +121,17 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Enable verbose output",
+        '--verbose',
+        '-v',
+        action='store_true',
+        help='Enable verbose output',
     )
 
     parser.add_argument(
-        "--quiet",
-        "-q",
-        action="store_true",
-        help="Suppress output except errors",
+        '--quiet',
+        '-q',
+        action='store_true',
+        help='Suppress output except errors',
     )
 
     return parser
@@ -154,13 +155,13 @@ def extract_apng_frames(
 
     # Read and encode the APNG file
     apng_bytes = Path(apng_path).read_bytes()
-    apng_base64 = base64.b64encode(apng_bytes).decode("utf-8")
+    apng_base64 = base64.b64encode(apng_bytes).decode('utf-8')
 
     payload = {
-        "apng_base64": apng_base64,
+        'apng_base64': apng_base64,
     }
 
-    LOG.debug(f"Sending extract request to {url}")
+    LOG.debug(f'Sending extract request to {url}')
 
     with httpx.Client(timeout=60.0) as client:
         response = client.post(url, json=payload)
@@ -206,27 +207,27 @@ def generate_sprite(
     effective_frame_count = frame_count or 1
 
     payload = {
-        "prompt": prompt,
-        "output_format": output_formats,
-        "png_scale": png_scale,
-        "frame_count": effective_frame_count,
+        'prompt': prompt,
+        'output_format': output_formats,
+        'png_scale': png_scale,
+        'frame_count': effective_frame_count,
     }
 
     if output_path:
-        payload["output_path"] = output_path
+        payload['output_path'] = output_path
     if width:
-        payload["width"] = width
+        payload['width'] = width
     if height:
-        payload["height"] = height
+        payload['height'] = height
     if film_strip_count:
-        payload["film_strip_count"] = film_strip_count
+        payload['film_strip_count'] = film_strip_count
     if animation_duration:
-        payload["animation_duration"] = animation_duration
+        payload['animation_duration'] = animation_duration
     if model:
-        payload["model"] = model
+        payload['model'] = model
 
-    LOG.debug(f"Sending request to {url}")
-    LOG.debug(f"Payload: {json.dumps(payload, indent=2)}")
+    LOG.debug(f'Sending request to {url}')
+    LOG.debug(f'Payload: {json.dumps(payload, indent=2)}')
 
     with httpx.Client(timeout=300.0) as client:
         response = client.post(url, json=payload)
@@ -242,37 +243,37 @@ def display_sprite_ascii(toml_content: str) -> None:
 
     """
     try:
-        sprite_data = toml.loads(toml_content)
+        sprite_data = tomllib.loads(toml_content)
         renderer = ASCIIRenderer()
         colors = renderer._extract_colors_from_toml(sprite_data)
 
         # Check if it's an animated sprite
-        if sprite_data.get("animation"):
-            animations = sprite_data["animation"]
+        if sprite_data.get('animation'):
+            animations = sprite_data['animation']
             for anim_index, animation in enumerate(animations):
-                anim_name = animation.get("namespace", f"animation-{anim_index}")
-                frames = animation.get("frame", [])
+                anim_name = animation.get('namespace', f'animation-{anim_index}')
+                frames = animation.get('frame', [])
 
-                print(f"\n=== Animation: {anim_name} ({len(frames)} frames) ===")  # noqa: T201
+                print(f'\n=== Animation: {anim_name} ({len(frames)} frames) ===')  # noqa: T201
 
                 for frame_index, frame in enumerate(frames):
-                    pixels = frame.get("pixels", "")
+                    pixels = frame.get('pixels', '')
                     if pixels:
-                        print(f"\n--- Frame {frame_index} ---")  # noqa: T201
+                        print(f'\n--- Frame {frame_index} ---')  # noqa: T201
                         colorized = renderer._colorize_pixels(pixels, colors)
                         print(colorized)  # noqa: T201
         else:
             # Static sprite
             pixels = renderer._extract_pixels_from_toml(sprite_data)
             if pixels:
-                print("\n=== Sprite Preview ===")  # noqa: T201
+                print('\n=== Sprite Preview ===')  # noqa: T201
                 colorized = renderer._colorize_pixels(pixels, colors)
                 print(colorized)  # noqa: T201
 
         print()  # noqa: T201  # Empty line after output
 
     except (ValueError, KeyError, TypeError, AttributeError) as e:
-        LOG.warning(f"Could not render ASCII preview: {e}")
+        LOG.warning(f'Could not render ASCII preview: {e}')
 
 
 def create_apng_from_frames(
@@ -327,7 +328,7 @@ def find_available_path(base_path: Path) -> Path:
 
     counter = 1
     while counter < MAX_FILE_NUMBERING_ATTEMPTS:  # Safety limit
-        new_path = parent / f"{stem}_{counter:03d}{suffix}"
+        new_path = parent / f'{stem}_{counter:03d}{suffix}'
         if not new_path.exists():
             return new_path
         counter += 1
@@ -336,7 +337,7 @@ def find_available_path(base_path: Path) -> Path:
     import time
 
     timestamp = int(time.time())
-    return parent / f"{stem}_{timestamp}{suffix}"
+    return parent / f'{stem}_{timestamp}{suffix}'
 
 
 def find_available_directory(base_dir: Path) -> Path:
@@ -357,7 +358,7 @@ def find_available_directory(base_dir: Path) -> Path:
 
     counter = 1
     while counter < MAX_FILE_NUMBERING_ATTEMPTS:  # Safety limit
-        new_dir = parent / f"{name}-{counter:03d}"
+        new_dir = parent / f'{name}-{counter:03d}'
         if not new_dir.exists():
             return new_dir
         counter += 1
@@ -366,7 +367,7 @@ def find_available_directory(base_dir: Path) -> Path:
     import time
 
     timestamp = int(time.time())
-    return parent / f"{name}-{timestamp}"
+    return parent / f'{name}-{timestamp}'
 
 
 def _save_extracted_frames(
@@ -395,7 +396,7 @@ def _save_extracted_frames(
 
     saved_paths = []
     for frame_name, animation_index_str, frame_index_str, frame_base64 in frame_entries:
-        frame_path = extracted_dir / f"{frame_name}.png"
+        frame_path = extracted_dir / f'{frame_name}.png'
         frame_image = Image.open(io.BytesIO(base64.b64decode(frame_base64)))
 
         # Upscale using nearest-neighbor to keep pixels crisp
@@ -407,17 +408,17 @@ def _save_extracted_frames(
 
         # Create PNG metadata
         png_metadata = PngImagePlugin.PngInfo()
-        png_metadata.add_text("FrameName", frame_name)
-        png_metadata.add_text("AnimationIndex", animation_index_str)
-        png_metadata.add_text("FrameIndex", frame_index_str)
-        png_metadata.add_text("FrameCount", str(frame_count))
-        png_metadata.add_text("DelayMs", str(frame_delay_ms))
-        png_metadata.add_text("ExtractScale", str(extract_scale))
+        png_metadata.add_text('FrameName', frame_name)
+        png_metadata.add_text('AnimationIndex', animation_index_str)
+        png_metadata.add_text('FrameIndex', frame_index_str)
+        png_metadata.add_text('FrameCount', str(frame_count))
+        png_metadata.add_text('DelayMs', str(frame_delay_ms))
+        png_metadata.add_text('ExtractScale', str(extract_scale))
         if model_used:
-            png_metadata.add_text("AIModel", model_used)
+            png_metadata.add_text('AIModel', model_used)
 
         # Save with metadata (uncompressed)
-        frame_image.save(str(frame_path), format="PNG", compress_level=0, pnginfo=png_metadata)
+        frame_image.save(str(frame_path), format='PNG', compress_level=0, pnginfo=png_metadata)
 
         saved_paths.append(str(frame_path))
 
@@ -455,28 +456,28 @@ def save_files_locally(
     base_output_dir = Path(output_path)
     base_output_dir.mkdir(parents=True, exist_ok=True)
 
-    sprite_name = response.get("sprite_name", "sprite")
+    sprite_name = response.get('sprite_name', 'sprite')
     # Sanitize sprite name for directory/filename
-    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in sprite_name)
+    safe_name = ''.join(c if c.isalnum() or c in '-_' else '_' for c in sprite_name)
     if not safe_name:
-        safe_name = "sprite"
+        safe_name = 'sprite'
 
     # Create a directory for this sprite
     sprite_dir = find_available_directory(base_output_dir / safe_name)
     sprite_dir.mkdir(parents=True, exist_ok=True)
-    LOG.info(f"Created sprite directory: {sprite_dir}")
+    LOG.info(f'Created sprite directory: {sprite_dir}')
 
     # Save TOML if requested and available
-    if "toml" in output_formats and response.get("toml_content"):
-        toml_path = sprite_dir / f"{safe_name}.toml"
-        toml_path.write_text(response["toml_content"], encoding="utf-8")
+    if 'toml' in output_formats and response.get('toml_content'):
+        toml_path = sprite_dir / f'{safe_name}.toml'
+        toml_path.write_text(response['toml_content'], encoding='utf-8')
         saved_files.append(str(toml_path))
-        LOG.info(f"Saved TOML: {toml_path}")
+        LOG.info(f'Saved TOML: {toml_path}')
 
     # Save APNG and extracted frames if animation frames are available
-    if response.get("all_frames_png_base64"):
-        frames = response["all_frames_png_base64"]
-        rendered_frames = response.get("rendered_frames", [])
+    if response.get('all_frames_png_base64'):
+        frames = response['all_frames_png_base64']
+        rendered_frames = response.get('rendered_frames', [])
         frame_count = len(frames)
 
         # Calculate frame delay for APNG
@@ -487,13 +488,13 @@ def save_files_locally(
             frame_delay_ms = 100  # Default: 10 FPS
 
         # Create and save APNG
-        apng_path = sprite_dir / f"{safe_name}.apng"
+        apng_path = sprite_dir / f'{safe_name}.apng'
         apng_path.write_bytes(create_apng_from_frames(frames, frame_delay_ms=frame_delay_ms))
         saved_files.append(str(apng_path))
-        LOG.info(f"Saved APNG: {apng_path} ({frame_count} frames, {frame_delay_ms}ms/frame)")
+        LOG.info(f'Saved APNG: {apng_path} ({frame_count} frames, {frame_delay_ms}ms/frame)')
 
         # Extract and save individual frames with metadata
-        extracted_dir = sprite_dir / "extracted"
+        extracted_dir = sprite_dir / 'extracted'
         extracted_dir.mkdir(exist_ok=True)
 
         if rendered_frames:
@@ -504,16 +505,16 @@ def save_files_locally(
                         f"animation-{info.get('animation_index', 0)}"
                         f"-frame-{info.get('frame_index', 0)}"
                     ),
-                    str(info.get("animation_index", 0)),
-                    str(info.get("frame_index", 0)),
-                    info.get("png_base64", ""),
+                    str(info.get('animation_index', 0)),
+                    str(info.get('frame_index', 0)),
+                    info.get('png_base64', ''),
                 )
                 for info in rendered_frames
             ]
         else:
             # Fallback to old naming if rendered_frames not available
             frame_entries = [
-                (f"animation-0-frame-{i}", "0", str(i), frame_base64)
+                (f'animation-0-frame-{i}', '0', str(i), frame_base64)
                 for i, frame_base64 in enumerate(frames)
             ]
 
@@ -528,15 +529,15 @@ def save_files_locally(
             )
         )
 
-        LOG.info(f"Saved {frame_count} frames to: {extracted_dir} (scale: {extract_scale}x)")
+        LOG.info(f'Saved {frame_count} frames to: {extracted_dir} (scale: {extract_scale}x)')
 
     # Save single PNG if requested, available, and no animation frames
-    elif "png" in output_formats and response.get("png_base64"):
-        png_path = sprite_dir / f"{safe_name}.png"
-        png_bytes = base64.b64decode(response["png_base64"])
+    elif 'png' in output_formats and response.get('png_base64'):
+        png_path = sprite_dir / f'{safe_name}.png'
+        png_bytes = base64.b64decode(response['png_base64'])
         png_path.write_bytes(png_bytes)
         saved_files.append(str(png_path))
-        LOG.info(f"Saved PNG: {png_path}")
+        LOG.info(f'Saved PNG: {png_path}')
 
     return saved_files
 
@@ -549,12 +550,12 @@ def _log_extraction_metadata(response: dict) -> None:
 
     """
     LOG.info(f"Extracted {response.get('frame_count')} frames")
-    if response.get("width") and response.get("height"):
+    if response.get('width') and response.get('height'):
         LOG.info(f"  Canvas size: {response.get('width')}x{response.get('height')} pixels")
-    if response.get("total_duration_ms"):
+    if response.get('total_duration_ms'):
         LOG.info(f"  Total duration: {response.get('total_duration_ms')}ms")
-    if response.get("loop_count") is not None:
-        loops = response.get("loop_count")
+    if response.get('loop_count') is not None:
+        loops = response.get('loop_count')
         LOG.info(f"  Loop count: {'infinite' if loops == 0 else loops}")
 
 
@@ -573,14 +574,14 @@ def _save_apng_extracted_frames(response: dict, output_path: str, apng_path: str
     apng_name = Path(apng_path).stem
     saved_files = []
 
-    for frame_info in response.get("frames", []):
+    for frame_info in response.get('frames', []):
         frame_path = output_dir / f"{apng_name}_frame_{frame_info['index']:03d}.png"
-        frame_bytes = base64.b64decode(frame_info["png_base64"])
+        frame_bytes = base64.b64decode(frame_info['png_base64'])
         frame_path.write_bytes(frame_bytes)
         saved_files.append(str(frame_path))
-        LOG.debug(f"Saved frame: {frame_path}")
+        LOG.debug(f'Saved frame: {frame_path}')
 
-    LOG.info(f"Saved {len(saved_files)} frames to {output_dir}")
+    LOG.info(f'Saved {len(saved_files)} frames to {output_dir}')
 
 
 def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
@@ -596,13 +597,13 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
     apng_path = parsed_args.extract_frames
 
     try:
-        LOG.info(f"Extracting frames from: {apng_path}")
+        LOG.info(f'Extracting frames from: {apng_path}')
         response = extract_apng_frames(
             server_url=parsed_args.server_url,
             apng_path=apng_path,
         )
 
-        if not response.get("success"):
+        if not response.get('success'):
             LOG.error(f"Extraction failed: {response.get('error', 'Unknown error')}")
             return 1
 
@@ -618,24 +619,24 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
             # Remove base64 data from output for readability unless verbose
             output_data = response.copy()
             if not parsed_args.verbose:
-                for frame in output_data.get("frames", []):
-                    frame["png_base64"] = f"<{len(frame.get('png_base64', ''))} chars>"
+                for frame in output_data.get('frames', []):
+                    frame['png_base64'] = f"<{len(frame.get('png_base64', ''))} chars>"
             print(json.dumps(output_data, indent=2))  # noqa: T201
 
         return 0
 
     except FileNotFoundError:
-        LOG.error(f"APNG file not found: {apng_path}")  # noqa: TRY400
+        LOG.error(f'APNG file not found: {apng_path}')  # noqa: TRY400
         return 1
     except httpx.ConnectError:
-        LOG.error(f"Could not connect to server at {parsed_args.server_url}")  # noqa: TRY400
-        LOG.error("Is the server running? Start it with: glitchygames-server")  # noqa: TRY400
+        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # noqa: TRY400
+        LOG.error('Is the server running? Start it with: glitchygames-server')  # noqa: TRY400
         return 1
     except httpx.HTTPStatusError as e:
-        LOG.error(f"HTTP error: {e.response.status_code} - {e.response.text}")  # noqa: TRY400
+        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # noqa: TRY400
         return 1
     except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error(f"Error: {e}")  # noqa: TRY400
+        LOG.error(f'Error: {e}')  # noqa: TRY400
         if parsed_args.verbose:
             import traceback
 
@@ -654,9 +655,9 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         Exit code (0 for success, non-zero for errors)
 
     """
-    LOG.info(f"Generating sprite: {parsed_args.prompt}")
+    LOG.info(f'Generating sprite: {parsed_args.prompt}')
     if parsed_args.animation_language_model:
-        LOG.info(f"Using model: {parsed_args.animation_language_model}")
+        LOG.info(f'Using model: {parsed_args.animation_language_model}')
     response = generate_sprite(
         server_url=parsed_args.server_url,
         prompt=parsed_args.prompt,
@@ -671,20 +672,20 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         model=parsed_args.animation_language_model,
     )
 
-    if not response.get("success"):
+    if not response.get('success'):
         LOG.error(f"Generation failed: {response.get('error', 'Unknown error')}")
         return 1
 
     # Display results
     LOG.info(f"Generated sprite: {response.get('sprite_name')}")
-    if response.get("is_animated"):
+    if response.get('is_animated'):
         LOG.info(f"  Animated: {response.get('frame_count')} frames")
-    if response.get("width") and response.get("height"):
+    if response.get('width') and response.get('height'):
         LOG.info(f"  Size: {response.get('width')}x{response.get('height')} pixels")
 
     # Display colorized ASCII preview of the sprite
-    if response.get("toml_content"):
-        display_sprite_ascii(response["toml_content"])
+    if response.get('toml_content'):
+        display_sprite_ascii(response['toml_content'])
 
     # Save files locally if output_path specified
     if parsed_args.output_path:
@@ -697,15 +698,15 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
             model_used=parsed_args.animation_language_model,
         )
         if saved_files:
-            LOG.info("Saved files:")
+            LOG.info('Saved files:')
             for filepath in saved_files:
-                LOG.info(f"  {filepath}")
+                LOG.info(f'  {filepath}')
 
     # Output TOML to stdout if no output path specified
-    if not parsed_args.output_path and "toml" in output_formats and response.get("toml_content"):
+    if not parsed_args.output_path and 'toml' in output_formats and response.get('toml_content'):
         if not parsed_args.quiet:
-            print("\n--- TOML Content ---")  # noqa: T201
-        print(response["toml_content"])  # noqa: T201
+            print('\n--- TOML Content ---')  # noqa: T201
+        print(response['toml_content'])  # noqa: T201
 
     return 0
 
@@ -725,11 +726,11 @@ def main(args: list[str] | None = None) -> int:
 
     # Set up logging
     if parsed_args.verbose:
-        logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+        logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
     elif parsed_args.quiet:
-        logging.basicConfig(level=logging.ERROR, format="%(levelname)s: %(message)s")
+        logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
     else:
-        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     # Handle --extract-frames mode
     if parsed_args.extract_frames:
@@ -737,7 +738,7 @@ def main(args: list[str] | None = None) -> int:
 
     # Validate that prompt is provided for generation
     if not parsed_args.prompt:
-        parser.error("prompt is required unless using --extract-frames")
+        parser.error('prompt is required unless using --extract-frames')
 
     # Use default output formats if none specified
     output_formats = parsed_args.output_formats or DEFAULT_OUTPUT_FORMATS
@@ -745,14 +746,14 @@ def main(args: list[str] | None = None) -> int:
     try:
         return _handle_generate_sprite(parsed_args, output_formats)
     except httpx.ConnectError:
-        LOG.error(f"Could not connect to server at {parsed_args.server_url}")  # noqa: TRY400
-        LOG.error("Is the server running? Start it with: glitchygames-server")  # noqa: TRY400
+        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # noqa: TRY400
+        LOG.error('Is the server running? Start it with: glitchygames-server')  # noqa: TRY400
         return 1
     except httpx.HTTPStatusError as e:
-        LOG.error(f"HTTP error: {e.response.status_code} - {e.response.text}")  # noqa: TRY400
+        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # noqa: TRY400
         return 1
     except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error(f"Error: {e}")  # noqa: TRY400
+        LOG.error(f'Error: {e}')  # noqa: TRY400
         if parsed_args.verbose:
             import traceback
 
@@ -765,5 +766,5 @@ def run() -> None:
     sys.exit(main())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     run()

@@ -34,9 +34,9 @@ class TestFilmStripNavigation(FilmStripTestBase):
         # Set up multiple animations for navigation testing using centralized mocks
 
         # Create additional animations using the centralized mock factory
-        walk_sprite = MockFactory.create_animated_sprite_mock("walk", use_cache=True)
-        jump_sprite = MockFactory.create_animated_sprite_mock("jump", use_cache=True)
-        attack_sprite = MockFactory.create_animated_sprite_mock("attack", use_cache=True)
+        walk_sprite = MockFactory.create_animated_sprite_mock('walk', use_cache=True)
+        jump_sprite = MockFactory.create_animated_sprite_mock('jump', use_cache=True)
+        attack_sprite = MockFactory.create_animated_sprite_mock('attack', use_cache=True)
 
         # Replace mock frame images with real pygame Surfaces for rendering
         self._replace_mock_images_with_real_surfaces(walk_sprite)
@@ -45,16 +45,16 @@ class TestFilmStripNavigation(FilmStripTestBase):
 
         # Combine animations from different sprites
         self.mock_sprite._animations.update({
-            "walk": walk_sprite._animations["walk"],
-            "jump": jump_sprite._animations["jump"],
-            "attack": attack_sprite._animations["attack"],
+            'walk': walk_sprite._animations['walk'],
+            'jump': jump_sprite._animations['jump'],
+            'attack': attack_sprite._animations['attack'],
         })
 
         # Reload the sprite to create film strips for all animations
         self.scene._on_sprite_loaded(self.mock_sprite)
 
         # Ensure canvas has proper navigation state
-        self.scene.canvas.current_animation = "idle"
+        self.scene.canvas.current_animation = 'idle'
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
 
     def test_up_arrow_navigation(self):
@@ -106,7 +106,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
     def test_left_arrow_frame_navigation(self):
         """Test LEFT arrow navigates to previous frame."""
         # Start at frame 2 of "idle" (3 frames total)
-        self.scene.canvas.current_animation = "idle"
+        self.scene.canvas.current_animation = 'idle'
         self.scene.canvas.current_frame = FRAME_INDEX_2
 
         # Create LEFT arrow event
@@ -119,13 +119,13 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.on_key_down_event(left_event)
 
         # Should navigate to frame 1
-        assert self.scene.canvas.current_animation == "idle"
+        assert self.scene.canvas.current_animation == 'idle'
         assert self.scene.canvas.current_frame == 1
 
     def test_right_arrow_frame_navigation(self):
         """Test RIGHT arrow navigates to next frame."""
         # Start at frame 0 of "idle"
-        self.scene.canvas.current_animation = "idle"
+        self.scene.canvas.current_animation = 'idle'
         self.scene.canvas.current_frame = SCROLL_OFFSET_0
 
         # Create RIGHT arrow event
@@ -138,7 +138,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.on_key_down_event(right_event)
 
         # Should navigate to frame 1
-        assert self.scene.canvas.current_animation == "idle"
+        assert self.scene.canvas.current_animation == 'idle'
         assert self.scene.canvas.current_frame == 1
 
     def test_animation_wraparound(self):
@@ -173,11 +173,11 @@ class TestFilmStripNavigation(FilmStripTestBase):
     def test_frame_wraparound(self):
         """Test frame navigation wraps around at boundaries."""
         # Get the number of frames for the idle animation
-        idle_frames = len(self.mock_sprite._animations["idle"])
+        idle_frames = len(self.mock_sprite._animations['idle'])
         last_frame_index = idle_frames - 1
 
         # Start at the last frame of "idle"
-        self.scene.canvas.current_animation = "idle"
+        self.scene.canvas.current_animation = 'idle'
         self.scene.canvas.current_frame = last_frame_index
 
         # Navigate right (should wrap to frame 0)
@@ -250,11 +250,11 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0  # Showing first animations
 
         # Set current animation to "attack" (last added animation)
-        self.scene.canvas.current_animation = "attack"
+        self.scene.canvas.current_animation = 'attack'
 
         # Find the index of "attack" in the animation list
         animation_names = list(self.scene.canvas.animated_sprite._animations.keys())
-        attack_index = animation_names.index("attack")
+        attack_index = animation_names.index('attack')
 
         # Call auto-scroll
         self.scene._scroll_to_current_animation()
@@ -271,7 +271,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.film_strip_scroll_offset = SCROLL_OFFSET_1  # Showing animations 1 and 2
 
         # Set current animation to "walk" (index 1, should be visible)
-        self.scene.canvas.current_animation = "walk"
+        self.scene.canvas.current_animation = 'walk'
 
         # Call auto-scroll
         self.scene._scroll_to_current_animation()
@@ -279,45 +279,45 @@ class TestFilmStripNavigation(FilmStripTestBase):
         # Should not change offset since "walk" is already visible
         assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_1
 
-    @pytest.mark.skip(reason="Selection state management not implemented")
+    @pytest.mark.skip(reason='Selection state management not implemented')
     def test_film_strip_selection_state(self):
         """Test film strip selection state management."""
         # Set current animation to "walk"
-        self.scene.canvas.current_animation = "walk"
+        self.scene.canvas.current_animation = 'walk'
         self.scene.canvas.current_frame = 1
 
         # Update selection state
         self.scene._update_film_strip_selection_state()
 
         # Check that the correct strip is marked as selected
-        if "walk" in self.scene.film_strips:
-            walk_strip = self.scene.film_strips["walk"]
+        if 'walk' in self.scene.film_strips:
+            walk_strip = self.scene.film_strips['walk']
             assert walk_strip.is_selected
-            assert walk_strip.current_animation == "walk"
+            assert walk_strip.current_animation == 'walk'
             assert walk_strip.current_frame == 1
 
     def test_switch_to_film_strip(self):
         """Test switching to a specific film strip."""
         # Switch to "jump" animation, frame 0
-        self.scene._switch_to_film_strip("jump", SCROLL_OFFSET_0)
+        self.scene._switch_to_film_strip('jump', SCROLL_OFFSET_0)
 
         # Check global selection state
-        assert self.scene.selected_animation == "jump"
+        assert self.scene.selected_animation == 'jump'
         assert self.scene.selected_frame == SCROLL_OFFSET_0
 
         # Check canvas state
-        assert self.scene.canvas.current_animation == "jump"
+        assert self.scene.canvas.current_animation == 'jump'
         assert self.scene.canvas.current_frame == SCROLL_OFFSET_0
 
-    @pytest.mark.skip(reason="Selection state management not implemented")
+    @pytest.mark.skip(reason='Selection state management not implemented')
     def test_dirty_marking_on_selection_change(self):
         """Test that selection changes properly mark sprites as dirty."""
         # Switch to a different strip
-        self.scene._switch_to_film_strip("attack", SCROLL_OFFSET_0)
+        self.scene._switch_to_film_strip('attack', SCROLL_OFFSET_0)
 
         # Check that the film strip sprite is marked as dirty
-        if "attack" in self.scene.film_strip_sprites:
-            attack_sprite = self.scene.film_strip_sprites["attack"]
+        if 'attack' in self.scene.film_strip_sprites:
+            attack_sprite = self.scene.film_strip_sprites['attack']
             assert attack_sprite.dirty == SCROLL_OFFSET_2
 
     def test_keyboard_navigation_with_auto_scroll(self):
@@ -328,12 +328,12 @@ class TestFilmStripNavigation(FilmStripTestBase):
 
         # Find "idle" and "attack" positions in the animation list
         animation_names = list(self.scene.canvas.animated_sprite._animations.keys())
-        idle_index = animation_names.index("idle")
-        attack_index = animation_names.index("attack")
+        idle_index = animation_names.index('idle')
+        attack_index = animation_names.index('attack')
         steps_needed = attack_index - idle_index
 
         # Start at "idle"
-        self.scene.canvas.current_animation = "idle"
+        self.scene.canvas.current_animation = 'idle'
 
         # Navigate down to "attack"
         down_event = self._mocker.Mock()
@@ -345,7 +345,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
             self.scene.on_key_down_event(down_event)
 
         # Should have navigated to "attack" and auto-scrolled to show it
-        assert self.scene.canvas.current_animation == "attack"
+        assert self.scene.canvas.current_animation == 'attack'
         # Should have scrolled so "attack" is visible
         expected_offset = max(0, attack_index - self.scene.max_visible_strips + 1)
         assert self.scene.film_strip_scroll_offset == expected_offset

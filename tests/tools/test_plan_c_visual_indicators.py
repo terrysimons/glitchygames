@@ -8,6 +8,7 @@ import math
 
 import pygame
 import pytest
+
 from glitchygames.tools.controller_mode_system import ModeSwitcher
 from glitchygames.tools.visual_collision_manager import (
     IndicatorShape,

@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pygame
 import pytest
-from glitchygames.sprites import SPRITE_GLYPHS
 from scripts.raw_sprite_loader import BitmappyLegacySprite
 
+from glitchygames.sprites import SPRITE_GLYPHS
 from tests.mocks import MockFactory
 
 # Constants for test values
@@ -62,7 +62,7 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_legacy"
+        legacy_sprite.name = 'test_legacy'
 
         # Test deflate method
         config = legacy_sprite.deflate()
@@ -72,23 +72,23 @@ class TestLegacySpriteGlyphs:
         sections = config.sections()
 
         # Should have sprite section
-        assert "sprite" in sections
-        assert config.get("sprite", "name") == "test_legacy"
+        assert 'sprite' in sections
+        assert config.get('sprite', 'name') == 'test_legacy'
 
         # Color sections should use universal characters
         color_sections = [s for s in sections if len(s) == 1 and s in glyphs]
-        assert len(color_sections) > 0, "Should have color sections using universal characters"
+        assert len(color_sections) > 0, 'Should have color sections using universal characters'
 
         # Check that color sections have proper RGB values
         for char in color_sections:
-            assert config.has_option(char, "red")
-            assert config.has_option(char, "green")
-            assert config.has_option(char, "blue")
+            assert config.has_option(char, 'red')
+            assert config.has_option(char, 'green')
+            assert config.has_option(char, 'blue')
 
             # Values should be valid integers
-            red = int(config.get(char, "red"))
-            green = int(config.get(char, "green"))
-            blue = int(config.get(char, "blue"))
+            red = int(config.get(char, 'red'))
+            green = int(config.get(char, 'green'))
+            blue = int(config.get(char, 'blue'))
 
             assert red >= 0
             assert red <= MAX_RGB_VALUE
@@ -111,7 +111,7 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_mapping"
+        legacy_sprite.name = 'test_mapping'
 
         # Test deflate method
         config = legacy_sprite.deflate()
@@ -122,15 +122,15 @@ class TestLegacySpriteGlyphs:
 
         # Should have 4 color sections (one for each unique color)
         color_sections = [s for s in sections if len(s) == 1 and s in glyphs]
-        assert len(color_sections) == TEST_SMALL_SIZE, "Should have 4 color sections"
+        assert len(color_sections) == TEST_SMALL_SIZE, 'Should have 4 color sections'
 
         # Check that universal characters are used (starting with '.')
-        assert "." in color_sections  # Black should map to '.'
-        assert "a" in color_sections  # Red should map to 'a'
+        assert '.' in color_sections  # Black should map to '.'
+        assert 'a' in color_sections  # Red should map to 'a'
 
         # Check that other colors use universal characters
-        other_colors = [s for s in color_sections if s not in {".", "a"}]
-        assert len(other_colors) == TEST_MEDIUM_SIZE, "Should have 2 other color sections"
+        other_colors = [s for s in color_sections if s not in {'.', 'a'}]
+        assert len(other_colors) == TEST_MEDIUM_SIZE, 'Should have 2 other color sections'
 
         for char in other_colors:
             assert char in glyphs, f"Character '{char}' should be in universal glyphs"
@@ -152,10 +152,10 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_limit"
+        legacy_sprite.name = 'test_limit'
 
         # Should raise ValueError when trying to deflate
-        with pytest.raises(ValueError, match="Too many colors"):
+        with pytest.raises(ValueError, match='Too many colors'):
             legacy_sprite.deflate()
 
     def test_legacy_sprite_single_color(self):
@@ -168,26 +168,26 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_single_color"
+        legacy_sprite.name = 'test_single_color'
 
         # Test deflate method
         config = legacy_sprite.deflate()
 
         # Test that the deflate method works correctly for a single-color sprite
-        assert config.has_section("sprite"), "Should have sprite section"
-        assert config.get("sprite", "name") == "test_single_color", (
-            "Should have correct sprite name"
+        assert config.has_section('sprite'), 'Should have sprite section'
+        assert config.get('sprite', 'name') == 'test_single_color', (
+            'Should have correct sprite name'
         )
 
         # Test that there's at least one color section
         sections = config.sections()
-        color_sections = [s for s in sections if s != "sprite"]
-        assert len(color_sections) > 0, "Should have at least one color section"
+        color_sections = [s for s in sections if s != 'sprite']
+        assert len(color_sections) > 0, 'Should have at least one color section'
 
         # Test that the pixel data exists and is consistent
-        pixels = config.get("sprite", "pixels")
-        assert pixels is not None, "Should have pixel data"
-        assert len(pixels) > 0, "Pixel data should not be empty"
+        pixels = config.get('sprite', 'pixels')
+        assert pixels is not None, 'Should have pixel data'
+        assert len(pixels) > 0, 'Pixel data should not be empty'
 
     @staticmethod
     def test_legacy_sprite_pixel_data_consistency():
@@ -208,21 +208,21 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_consistency"
+        legacy_sprite.name = 'test_consistency'
 
         # Test deflate method
         config = legacy_sprite.deflate()
 
         # Check that pixel data is correctly encoded
-        pixels = config.get("sprite", "pixels")
+        pixels = config.get('sprite', 'pixels')
         assert pixels is not None
 
         # Should be 3 rows of 3 characters each
-        rows = pixels.split("\n")
-        assert len(rows) == TEST_PATTERN_SIZE, "Should have 3 rows"
+        rows = pixels.split('\n')
+        assert len(rows) == TEST_PATTERN_SIZE, 'Should have 3 rows'
 
         for row in rows:
-            assert len(row) == TEST_PATTERN_SIZE, "Each row should have 3 characters"
+            assert len(row) == TEST_PATTERN_SIZE, 'Each row should have 3 characters'
 
         # Check that characters are from universal set
         glyphs = SPRITE_GLYPHS
@@ -239,20 +239,20 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_empty"
+        legacy_sprite.name = 'test_empty'
 
         # Should not crash when deflating
         config = legacy_sprite.deflate()
 
         # Should have sprite section
-        assert config.has_section("sprite")
-        assert config.get("sprite", "name") == "test_empty"
+        assert config.has_section('sprite')
+        assert config.get('sprite', 'name') == 'test_empty'
 
         # Should have no color sections
         glyphs = SPRITE_GLYPHS
         sections = config.sections()
         color_sections = [s for s in sections if len(s) == 1 and s in glyphs]
-        assert len(color_sections) == 0, "Should have no color sections"
+        assert len(color_sections) == 0, 'Should have no color sections'
 
     @staticmethod
     def test_legacy_sprite_grayscale():
@@ -268,7 +268,7 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_grayscale"
+        legacy_sprite.name = 'test_grayscale'
 
         # Test deflate method
         config = legacy_sprite.deflate()
@@ -278,21 +278,21 @@ class TestLegacySpriteGlyphs:
         sections = config.sections()
         color_sections = [s for s in sections if len(s) == 1 and s in glyphs]
 
-        assert len(color_sections) == TEST_GRAYSCALE_SIZE, "Should have 4 color sections"
+        assert len(color_sections) == TEST_GRAYSCALE_SIZE, 'Should have 4 color sections'
 
         # Find which character maps to black (0, 0, 0)
         black_char = None
         for char in color_sections:
-            red = int(config.get(char, "red"))
-            green = int(config.get(char, "green"))
-            blue = int(config.get(char, "blue"))
+            red = int(config.get(char, 'red'))
+            green = int(config.get(char, 'green'))
+            blue = int(config.get(char, 'blue'))
             if red == 0 and green == 0 and blue == 0:
                 black_char = char
                 break
 
-        assert black_char is not None, "Black color (0,0,0) should be mapped to a character"
+        assert black_char is not None, 'Black color (0,0,0) should be mapped to a character'
         assert black_char in SPRITE_GLYPHS, (
-            f"Black should map to a universal character, got {black_char}"
+            f'Black should map to a universal character, got {black_char}'
         )
 
     @staticmethod
@@ -309,7 +309,7 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_order"
+        legacy_sprite.name = 'test_order'
 
         # Test deflate method
         config = legacy_sprite.deflate()
@@ -325,8 +325,8 @@ class TestLegacySpriteGlyphs:
             assert char in color_sections, f"Character '{char}' should be used"
 
         # Check that black and red use universal characters
-        assert "." in color_sections, "Black should map to '.'"
-        assert "a" in color_sections, "Red should map to 'a'"
+        assert '.' in color_sections, "Black should map to '.'"
+        assert 'a' in color_sections, "Red should map to 'a'"
 
     @staticmethod
     def test_legacy_sprite_save():
@@ -339,7 +339,7 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_legacy"
+        legacy_sprite.name = 'test_legacy'
 
         # Test deflate method
         config = legacy_sprite.deflate()
@@ -349,11 +349,11 @@ class TestLegacySpriteGlyphs:
         sections = config.sections()
 
         # Should have sprite section and color sections
-        assert "sprite" in sections
+        assert 'sprite' in sections
 
         # Color sections should use universal characters
         color_sections = [s for s in sections if len(s) == 1 and s in glyphs]
-        assert len(color_sections) > 0, "Should have color sections using universal characters"
+        assert len(color_sections) > 0, 'Should have color sections using universal characters'
 
     @staticmethod
     def test_legacy_sprite_character_limit_duplicate():
@@ -372,8 +372,8 @@ class TestLegacySpriteGlyphs:
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_legacy_limit"
+        legacy_sprite.name = 'test_legacy_limit'
 
         # Should raise ValueError when trying to deflate
-        with pytest.raises(ValueError, match="Too many colors"):
+        with pytest.raises(ValueError, match='Too many colors'):
             legacy_sprite.deflate()

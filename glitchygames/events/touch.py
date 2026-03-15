@@ -7,9 +7,10 @@ import logging
 from typing import Self
 
 import pygame
+
 from glitchygames.events import TOUCH_EVENTS, ResourceManager, TouchEvents
 
-LOG = logging.getLogger("game.touch")
+LOG = logging.getLogger('game.touch')
 LOG.addHandler(logging.NullHandler())
 
 
@@ -99,5 +100,5 @@ class TouchEventManager(ResourceManager):
         try:
             pygame.event.set_allowed(TOUCH_EVENTS)
         except pygame.error:
-            LOG.debug("Failed to set allowed touch events: pygame not fully initialized")
+            LOG.debug('Failed to set allowed touch events: pygame not fully initialized')
         self.proxies = [TouchEventManager.TouchEventProxy(game=game)]

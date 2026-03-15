@@ -9,9 +9,10 @@ import logging
 from typing import Self
 
 import pygame
+
 from glitchygames.events import AUDIO_EVENTS, AudioEvents, ResourceManager
 
-log = logging.getLogger("game.audio")
+log = logging.getLogger('game.audio')
 log.addHandler(logging.NullHandler())
 
 
@@ -62,7 +63,7 @@ class AudioEventManager(ResourceManager):
         try:
             pygame.event.set_allowed(AUDIO_EVENTS)
         except pygame.error:
-            log.debug("Failed to set allowed audio events: pygame not fully initialized")
+            log.debug('Failed to set allowed audio events: pygame not fully initialized')
 
         # Set the mixer pre-init settings
         pygame.mixer.pre_init(22050, -16, 2, 1024)
@@ -71,9 +72,9 @@ class AudioEventManager(ResourceManager):
         # Sound Stuff
         # pygame.mixer.get_init() -> (frequency, format, channels)
         (sound_frequency, sound_format, sound_channels) = pygame.mixer.get_init()
-        log.info("Mixer Settings:")
+        log.info('Mixer Settings:')
         log.info(
-            f"Frequency: {sound_frequency}, Format: {sound_format}, Channels: {sound_channels}"
+            f'Frequency: {sound_frequency}, Format: {sound_format}, Channels: {sound_channels}'
         )
 
         self.proxies = [AudioEventManager.AudioEventProxy(game=game)]
@@ -89,6 +90,6 @@ class AudioEventManager(ResourceManager):
             The argument parser.
 
         """
-        _group: argparse._ArgumentGroup = parser.add_argument_group("Sound Mixer Options")
+        _group: argparse._ArgumentGroup = parser.add_argument_group('Sound Mixer Options')
 
         return parser

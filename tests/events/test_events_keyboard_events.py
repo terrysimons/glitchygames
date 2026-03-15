@@ -18,7 +18,6 @@ from glitchygames.events import (
     KeyboardEventStubs,
     UnhandledEventError,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -28,19 +27,19 @@ class TestKeyboardEvents:
     def test_keyboard_events_interface(self, mock_pygame_patches):
         """Test KeyboardEvents interface methods."""
         # Test that KeyboardEvents has required abstract methods
-        assert hasattr(KeyboardEvents, "on_key_down_event")
-        assert hasattr(KeyboardEvents, "on_key_up_event")
-        assert hasattr(KeyboardEvents, "on_key_chord_up_event")
-        assert hasattr(KeyboardEvents, "on_key_chord_down_event")
+        assert hasattr(KeyboardEvents, 'on_key_down_event')
+        assert hasattr(KeyboardEvents, 'on_key_up_event')
+        assert hasattr(KeyboardEvents, 'on_key_chord_up_event')
+        assert hasattr(KeyboardEvents, 'on_key_chord_down_event')
 
     def test_keyboard_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test KeyboardEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = KeyboardEventStubs()
-        assert hasattr(stub, "on_key_down_event")
-        assert hasattr(stub, "on_key_up_event")
-        assert hasattr(stub, "on_key_chord_up_event")
-        assert hasattr(stub, "on_key_chord_down_event")
+        assert hasattr(stub, 'on_key_down_event')
+        assert hasattr(stub, 'on_key_up_event')
+        assert hasattr(stub, 'on_key_chord_up_event')
+        assert hasattr(stub, 'on_key_chord_down_event')
 
         # Test that stub methods can be called with proper scene object
         self._setup_mock_scene_for_stub(stub)
@@ -48,7 +47,7 @@ class TestKeyboardEvents:
         # Test method calls
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.core.LOG.error")
+        mocker.patch('glitchygames.events.core.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_key_down_event(event)
         # Expected to call unhandled_event
@@ -59,7 +58,7 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_down_event": lambda event: (
+                'on_key_down_event': lambda event: (
                     scene.keyboard_events_received.append(event) or True
                 )
             }
@@ -79,7 +78,7 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_up_event": lambda event: (
+                'on_key_up_event': lambda event: (
                     scene.keyboard_events_received.append(event) or True
                 )
             }
@@ -99,8 +98,8 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_chord_down_event": lambda event, keys: (
-                    scene.keyboard_events_received.append(("chord_down", event, keys)),
+                'on_key_chord_down_event': lambda event, keys: (
+                    scene.keyboard_events_received.append(('chord_down', event, keys)),
                     True,
                 )[1]
             }
@@ -114,7 +113,7 @@ class TestKeyboardEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.keyboard_events_received) == 1
-        assert scene.keyboard_events_received[0][0] == "chord_down"
+        assert scene.keyboard_events_received[0][0] == 'chord_down'
         assert scene.keyboard_events_received[0][1].key == pygame.K_c
         assert scene.keyboard_events_received[0][2] == keys
 
@@ -123,8 +122,8 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_chord_up_event": lambda event, keys: (
-                    scene.keyboard_events_received.append(("chord_up", event, keys)),
+                'on_key_chord_up_event': lambda event, keys: (
+                    scene.keyboard_events_received.append(('chord_up', event, keys)),
                     True,
                 )[1]
             }
@@ -138,7 +137,7 @@ class TestKeyboardEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.keyboard_events_received) == 1
-        assert scene.keyboard_events_received[0][0] == "chord_up"
+        assert scene.keyboard_events_received[0][0] == 'chord_up'
         assert scene.keyboard_events_received[0][1].key == pygame.K_c
         assert scene.keyboard_events_received[0][2] == keys
 
@@ -147,11 +146,11 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_down_event": lambda event: (
-                    scene.keyboard_events_received.append(("down", event)) or True
+                'on_key_down_event': lambda event: (
+                    scene.keyboard_events_received.append(('down', event)) or True
                 ),
-                "on_key_up_event": lambda event: (
-                    scene.keyboard_events_received.append(("up", event)) or True
+                'on_key_up_event': lambda event: (
+                    scene.keyboard_events_received.append(('up', event)) or True
                 ),
             }
         )
@@ -189,12 +188,12 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_down_event": lambda event: (
-                    scene.keyboard_events_received.append(("down", event)),
+                'on_key_down_event': lambda event: (
+                    scene.keyboard_events_received.append(('down', event)),
                     True,
                 )[1],
-                "on_key_up_event": lambda event: (
-                    scene.keyboard_events_received.append(("up", event)),
+                'on_key_up_event': lambda event: (
+                    scene.keyboard_events_received.append(('up', event)),
                     True,
                 )[1],
             }
@@ -231,12 +230,12 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_chord_down_event": lambda event, keys: (
-                    scene.keyboard_events_received.append(("chord_down", event, keys)),
+                'on_key_chord_down_event': lambda event, keys: (
+                    scene.keyboard_events_received.append(('chord_down', event, keys)),
                     True,
                 )[1],
-                "on_key_chord_up_event": lambda event, keys: (
-                    scene.keyboard_events_received.append(("chord_up", event, keys)),
+                'on_key_chord_up_event': lambda event, keys: (
+                    scene.keyboard_events_received.append(('chord_up', event, keys)),
                     True,
                 )[1],
             }
@@ -272,8 +271,8 @@ class TestKeyboardEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_key_down_event": lambda event: (
-                    scene.keyboard_events_received.append(("down", event)),
+                'on_key_down_event': lambda event: (
+                    scene.keyboard_events_received.append(('down', event)),
                     True,
                 )[1]
             }
@@ -307,8 +306,8 @@ class TestKeyboardEvents:
         # Create a scene mock with proper event handling configuration
         scene_mock = MockFactory.create_event_test_scene_mock(
             options={
-                "debug_events": False,
-                "no_unhandled_events": True,  # This will cause UnhandledEventError to be raised
+                'debug_events': False,
+                'no_unhandled_events': True,  # This will cause UnhandledEventError to be raised
             }
         )
         # Set the options on the stub so unhandled_event can access them
@@ -327,8 +326,8 @@ class TestKeyboardManager:
         manager = KeyboardEventManager(game=mock_game)
 
         assert manager.game == mock_game
-        assert hasattr(manager, "on_key_down_event")
-        assert hasattr(manager, "on_key_up_event")
+        assert hasattr(manager, 'on_key_down_event')
+        assert hasattr(manager, 'on_key_up_event')
 
     def test_keyboard_manager_events(self, mock_pygame_patches, mocker):
         """Test keyboard event handling through manager."""
@@ -338,7 +337,7 @@ class TestKeyboardManager:
         manager = KeyboardEventManager(game=mock_game)
 
         # Test key down
-        down_event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0, unicode=" ")
+        down_event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE, mod=0, unicode=' ')
         manager.on_key_down_event(down_event)
 
         # Test key up

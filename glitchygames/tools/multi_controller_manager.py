@@ -20,16 +20,16 @@ from typing import Any, ClassVar, Self
 
 import pygame
 
-LOG = logging.getLogger("game.tools.multi_controller_manager")
+LOG = logging.getLogger('game.tools.multi_controller_manager')
 
 
 class ControllerStatus(Enum):
     """Controller connection and assignment status."""
 
-    DISCONNECTED = "disconnected"
-    CONNECTED = "connected"
-    ASSIGNED = "assigned"
-    ACTIVE = "active"
+    DISCONNECTED = 'disconnected'
+    CONNECTED = 'connected'
+    ASSIGNED = 'assigned'
+    ACTIVE = 'active'
 
 
 @dataclass
@@ -86,7 +86,7 @@ class MultiControllerManager:
         self.scan_interval = 1.0  # seconds
         self._initialized = True
 
-        LOG.debug("MultiControllerManager singleton initialized")
+        LOG.debug('MultiControllerManager singleton initialized')
 
     @classmethod
     def get_instance(cls) -> Self:
@@ -151,7 +151,7 @@ class MultiControllerManager:
         )
 
         LOG.debug(
-            "Controller %s connected (instance_id=%s, color=%s)",
+            'Controller %s connected (instance_id=%s, color=%s)',
             controller_id,
             instance_id,
             color,
@@ -173,7 +173,7 @@ class MultiControllerManager:
         if instance_id in self.controllers:
             controller_info = self.controllers[instance_id]
             LOG.debug(
-                "Controller %s disconnected (instance_id=%s)",
+                'Controller %s disconnected (instance_id=%s)',
                 controller_info.controller_id,
                 instance_id,
             )
@@ -186,14 +186,14 @@ class MultiControllerManager:
 
     def assign_color_to_controller(self, controller_id: int) -> None:
         """Assign a color to a controller based on activation order."""
-        LOG.debug("assign_color_to_controller called with controller_id=%s", controller_id)
-        LOG.debug("Available controllers: %s", list(self.controllers.keys()))
-        LOG.debug("Current next_color_index: %s", self.next_color_index)
+        LOG.debug('assign_color_to_controller called with controller_id=%s', controller_id)
+        LOG.debug('Available controllers: %s', list(self.controllers.keys()))
+        LOG.debug('Current next_color_index: %s', self.next_color_index)
 
         # Find the controller by controller_id and assign the next color
         for instance_id, info in self.controllers.items():
             LOG.debug(
-                "Checking instance_id=%s, info.controller_id=%s",
+                'Checking instance_id=%s, info.controller_id=%s',
                 instance_id,
                 info.controller_id,
             )
@@ -203,21 +203,21 @@ class MultiControllerManager:
                 info.color = color
                 self.next_color_index += 1
                 LOG.debug(
-                    "Assigned color %s to controller %s (was %s)",
+                    'Assigned color %s to controller %s (was %s)',
                     color,
                     controller_id,
                     old_color,
                 )
-                LOG.debug("next_color_index is now %s", self.next_color_index)
+                LOG.debug('next_color_index is now %s', self.next_color_index)
                 break
         else:
             LOG.debug(
-                "Controller %s not found in controllers: %s",
+                'Controller %s not found in controllers: %s',
                 controller_id,
                 list(self.controllers.keys()),
             )
             LOG.debug(
-                "Available controller_ids: %s",
+                'Available controller_ids: %s',
                 [info.controller_id for info in self.controllers.values()],
             )
 
@@ -249,7 +249,7 @@ class MultiControllerManager:
         self.assigned_controllers[instance_id] = controller_info.controller_id
 
         LOG.debug(
-            "Controller %s assigned (instance_id=%s)",
+            'Controller %s assigned (instance_id=%s)',
             controller_info.controller_id,
             instance_id,
         )
@@ -378,7 +378,7 @@ class MultiControllerManager:
                 self.controllers[instance_id].status = ControllerStatus.CONNECTED
                 self.controllers[instance_id].assigned_time = None
                 LOG.debug(
-                    "Controller %s deactivated due to inactivity",
+                    'Controller %s deactivated due to inactivity',
                     self.controllers[instance_id].controller_id,
                 )
 
@@ -390,19 +390,19 @@ class MultiControllerManager:
 
         """
         summary = {
-            "total_connected": len(self.controllers),
-            "total_assigned": len(self.assigned_controllers),
-            "active_controllers": len(self.get_active_controllers()),
-            "controllers": {},
+            'total_connected': len(self.controllers),
+            'total_assigned': len(self.assigned_controllers),
+            'active_controllers': len(self.get_active_controllers()),
+            'controllers': {},
         }
 
         for instance_id, controller_info in self.controllers.items():
-            summary["controllers"][instance_id] = {
-                "controller_id": controller_info.controller_id,
-                "status": controller_info.status.value,
-                "color": controller_info.color,
-                "assigned_time": controller_info.assigned_time,
-                "last_activity": controller_info.last_activity,
+            summary['controllers'][instance_id] = {
+                'controller_id': controller_info.controller_id,
+                'status': controller_info.status.value,
+                'color': controller_info.color,
+                'assigned_time': controller_info.assigned_time,
+                'last_activity': controller_info.last_activity,
             }
 
         return summary

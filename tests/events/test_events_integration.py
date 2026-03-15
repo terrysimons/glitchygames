@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent, UnhandledEventError
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -26,25 +25,25 @@ class TestEventIntegration:
         # Use global mocks from mock_pygame_patches fixture
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={"on_audio_device_added_event": lambda event: True}
+            event_handlers={'on_audio_device_added_event': lambda event: True}
         )
 
         # Mock sys.argv to prevent argument parsing issues
-        mocker.patch("sys.argv", ["test_engine.py"])
+        mocker.patch('sys.argv', ['test_engine.py'])
         # Create engine with test scene
         engine = GameEngine(game=scene)
 
         # Use centralized mocks for managers
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.game_engine = engine
-        engine.audio_manager = mock_managers["audio_manager"]
+        engine.audio_manager = mock_managers['audio_manager']
         engine.audio_manager.on_audio_device_added_event = mocker.Mock(return_value=True)
 
         # Create a proper HashableEvent
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
 
         # Mock pygame.event.get to return our test event
-        mocker.patch("pygame.event.get", return_value=[event])
+        mocker.patch('pygame.event.get', return_value=[event])
         # Process events through the engine
         result = engine.process_events()
 
@@ -56,24 +55,24 @@ class TestEventIntegration:
         # Use global mocks from mock_pygame_patches fixture
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={"on_controller_axis_motion_event": lambda event: True}
+            event_handlers={'on_controller_axis_motion_event': lambda event: True}
         )
 
         # Mock sys.argv to prevent argument parsing issues
-        mocker.patch("sys.argv", ["test_engine.py"])
+        mocker.patch('sys.argv', ['test_engine.py'])
         engine = GameEngine(game=scene)
 
         # Use centralized mocks for managers
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.game_engine = engine
-        engine.controller_manager = mock_managers["controller_manager"]
+        engine.controller_manager = mock_managers['controller_manager']
         engine.controller_manager.on_controller_axis_motion_event = mocker.Mock(return_value=True)
 
         # Create a proper pygame event with dict attribute
         pygame_event = pygame.event.Event(pygame.CONTROLLERAXISMOTION, axis=0, value=0.5)
-        pygame_event.dict = {"type": pygame.CONTROLLERAXISMOTION, "axis": 0, "value": 0.5}
+        pygame_event.dict = {'type': pygame.CONTROLLERAXISMOTION, 'axis': 0, 'value': 0.5}
 
-        mocker.patch("pygame.event.get", return_value=[pygame_event])
+        mocker.patch('pygame.event.get', return_value=[pygame_event])
         result = engine.process_events()
 
         assert result is True
@@ -84,22 +83,22 @@ class TestEventIntegration:
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
             options={
-                "debug_events": False,
-                "no_unhandled_events": True,  # Explicitly set to True
-                "resolution": "800x480",  # Required by GameEngine
-                "fps": 60.0,  # Required by GameEngine
-                "update_type": "update",  # Required by GameEngine
-                "use_gfxdraw": False,  # Required by GameEngine
-                "windowed": True,  # Required by GameEngine
-                "fps_refresh_rate": 1000,  # Required by GameEngine
+                'debug_events': False,
+                'no_unhandled_events': True,  # Explicitly set to True
+                'resolution': '800x480',  # Required by GameEngine
+                'fps': 60.0,  # Required by GameEngine
+                'update_type': 'update',  # Required by GameEngine
+                'use_gfxdraw': False,  # Required by GameEngine
+                'windowed': True,  # Required by GameEngine
+                'fps_refresh_rate': 1000,  # Required by GameEngine
             },
             event_handlers={},  # No event handlers - will fall back to stubs
         )
 
         # Mock sys.argv to prevent argument parsing issues
-        mocker.patch("sys.argv", ["test_engine.py"])
+        mocker.patch('sys.argv', ['test_engine.py'])
         # Mock initialize_arguments to prevent it from overriding scene options
-        mocker.patch.object(GameEngine, "initialize_arguments", return_value=scene.options)
+        mocker.patch.object(GameEngine, 'initialize_arguments', return_value=scene.options)
         engine = GameEngine(game=scene)
 
         # Use centralized mocks for managers
@@ -118,9 +117,9 @@ class TestEventIntegration:
         # Create a proper HashableEvent
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
 
-        mocker.patch("pygame.event.get", return_value=[event])
+        mocker.patch('pygame.event.get', return_value=[event])
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.core.LOG")
+        mock_log = mocker.patch('glitchygames.events.core.LOG')
         with pytest.raises(UnhandledEventError):
             engine.process_events()
 
@@ -128,25 +127,25 @@ class TestEventIntegration:
         mock_log.error.assert_called_once()
         # Check that the log message contains the expected content
         call_args = mock_log.error.call_args[0][0]
-        assert "Unhandled Event: args: AudioDeviceAdded" in call_args
+        assert 'Unhandled Event: args: AudioDeviceAdded' in call_args
 
     def test_event_routing_through_managers(self, mock_pygame_patches, mock_managers, mocker):
         """Test that events are properly routed through managers."""
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             options={
-                "debug_events": False,
-                "no_unhandled_events": False,  # Don't exit on unhandled events for this test
+                'debug_events': False,
+                'no_unhandled_events': False,  # Don't exit on unhandled events for this test
             },
             event_handlers={
-                "on_audio_device_added_event": lambda event: (
+                'on_audio_device_added_event': lambda event: (
                     scene.audio_events_received.append(event) or True
                 )
             },
         )
 
         # Mock sys.argv to prevent argument parsing issues
-        mocker.patch("sys.argv", ["test_engine.py"])
+        mocker.patch('sys.argv', ['test_engine.py'])
         engine = GameEngine(game=scene)
 
         # Set up the scene manager to delegate to our scene
@@ -169,7 +168,7 @@ class TestEventIntegration:
             HashableEvent(pygame.AUDIODEVICEADDED, which=2),
         ]
 
-        mocker.patch("pygame.event.get", return_value=events)
+        mocker.patch('pygame.event.get', return_value=events)
         result = engine.process_events()
 
         # Events should be routed to the scene
@@ -184,7 +183,7 @@ class TestEventIntegration:
         scene = MockFactory.create_event_test_scene_mock()
 
         # Mock sys.argv to prevent argument parsing issues
-        mocker.patch("sys.argv", ["test_engine.py"])
+        mocker.patch('sys.argv', ['test_engine.py'])
         engine = GameEngine(game=scene)
 
         # Use centralized mocks for managers

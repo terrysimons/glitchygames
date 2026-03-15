@@ -18,7 +18,6 @@ from glitchygames.events import (
     WindowEvents,
     WindowEventStubs,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -28,32 +27,32 @@ class TestWindowEvents:
     def test_window_events_interface(self, mock_pygame_patches):
         """Test WindowEvents interface methods."""
         # Test that WindowEvents has required abstract methods
-        assert hasattr(WindowEvents, "on_window_close_event")
-        assert hasattr(WindowEvents, "on_window_enter_event")
-        assert hasattr(WindowEvents, "on_window_exposed_event")
-        assert hasattr(WindowEvents, "on_window_focus_gained_event")
-        assert hasattr(WindowEvents, "on_window_focus_lost_event")
-        assert hasattr(WindowEvents, "on_window_hidden_event")
-        assert hasattr(WindowEvents, "on_window_hit_test_event")
-        assert hasattr(WindowEvents, "on_window_leave_event")
-        assert hasattr(WindowEvents, "on_window_maximized_event")
-        assert hasattr(WindowEvents, "on_window_minimized_event")
-        assert hasattr(WindowEvents, "on_window_moved_event")
-        assert hasattr(WindowEvents, "on_window_resized_event")
-        assert hasattr(WindowEvents, "on_window_restored_event")
-        assert hasattr(WindowEvents, "on_window_shown_event")
-        assert hasattr(WindowEvents, "on_window_size_changed_event")
-        assert hasattr(WindowEvents, "on_window_take_focus_event")
+        assert hasattr(WindowEvents, 'on_window_close_event')
+        assert hasattr(WindowEvents, 'on_window_enter_event')
+        assert hasattr(WindowEvents, 'on_window_exposed_event')
+        assert hasattr(WindowEvents, 'on_window_focus_gained_event')
+        assert hasattr(WindowEvents, 'on_window_focus_lost_event')
+        assert hasattr(WindowEvents, 'on_window_hidden_event')
+        assert hasattr(WindowEvents, 'on_window_hit_test_event')
+        assert hasattr(WindowEvents, 'on_window_leave_event')
+        assert hasattr(WindowEvents, 'on_window_maximized_event')
+        assert hasattr(WindowEvents, 'on_window_minimized_event')
+        assert hasattr(WindowEvents, 'on_window_moved_event')
+        assert hasattr(WindowEvents, 'on_window_resized_event')
+        assert hasattr(WindowEvents, 'on_window_restored_event')
+        assert hasattr(WindowEvents, 'on_window_shown_event')
+        assert hasattr(WindowEvents, 'on_window_size_changed_event')
+        assert hasattr(WindowEvents, 'on_window_take_focus_event')
 
     def test_window_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test WindowEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = WindowEventStubs()
-        assert hasattr(stub, "on_window_close_event")
-        assert hasattr(stub, "on_window_enter_event")
-        assert hasattr(stub, "on_window_exposed_event")
-        assert hasattr(stub, "on_window_focus_gained_event")
-        assert hasattr(stub, "on_window_focus_lost_event")
+        assert hasattr(stub, 'on_window_close_event')
+        assert hasattr(stub, 'on_window_enter_event')
+        assert hasattr(stub, 'on_window_exposed_event')
+        assert hasattr(stub, 'on_window_focus_gained_event')
+        assert hasattr(stub, 'on_window_focus_lost_event')
 
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub)
@@ -61,7 +60,7 @@ class TestWindowEvents:
         # Test method calls
         event = HashableEvent(pygame.WINDOWCLOSE)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.core.LOG.error")
+        mocker.patch('glitchygames.events.core.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_window_close_event(event)
 
@@ -70,8 +69,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_close_event": lambda event: (
-                    scene.window_events_received.append(("window_close", event)),
+                'on_window_close_event': lambda event: (
+                    scene.window_events_received.append(('window_close', event)),
                     True,
                 )[1]
             }
@@ -84,7 +83,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_close"
+        assert scene.window_events_received[0][0] == 'window_close'
         assert scene.window_events_received[0][1].type == pygame.WINDOWCLOSE
 
     def test_window_enter_event(self, mock_pygame_patches):
@@ -92,8 +91,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_enter_event": lambda event: (
-                    scene.window_events_received.append(("window_enter", event)),
+                'on_window_enter_event': lambda event: (
+                    scene.window_events_received.append(('window_enter', event)),
                     True,
                 )[1]
             }
@@ -106,7 +105,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_enter"
+        assert scene.window_events_received[0][0] == 'window_enter'
         assert scene.window_events_received[0][1].type == pygame.WINDOWENTER
 
     def test_window_leave_event(self, mock_pygame_patches):
@@ -114,8 +113,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_leave_event": lambda event: (
-                    scene.window_events_received.append(("window_leave", event)),
+                'on_window_leave_event': lambda event: (
+                    scene.window_events_received.append(('window_leave', event)),
                     True,
                 )[1]
             }
@@ -128,7 +127,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_leave"
+        assert scene.window_events_received[0][0] == 'window_leave'
         assert scene.window_events_received[0][1].type == pygame.WINDOWLEAVE
 
     def test_window_focus_gained_event(self, mock_pygame_patches):
@@ -136,8 +135,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_focus_gained_event": lambda event: (
-                    scene.window_events_received.append(("window_focus_gained", event)),
+                'on_window_focus_gained_event': lambda event: (
+                    scene.window_events_received.append(('window_focus_gained', event)),
                     True,
                 )[1]
             }
@@ -150,7 +149,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_focus_gained"
+        assert scene.window_events_received[0][0] == 'window_focus_gained'
         assert scene.window_events_received[0][1].type == pygame.WINDOWFOCUSGAINED
 
     def test_window_focus_lost_event(self, mock_pygame_patches):
@@ -158,8 +157,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_focus_lost_event": lambda event: (
-                    scene.window_events_received.append(("window_focus_lost", event)),
+                'on_window_focus_lost_event': lambda event: (
+                    scene.window_events_received.append(('window_focus_lost', event)),
                     True,
                 )[1]
             }
@@ -172,7 +171,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_focus_lost"
+        assert scene.window_events_received[0][0] == 'window_focus_lost'
         assert scene.window_events_received[0][1].type == pygame.WINDOWFOCUSLOST
 
     def test_window_resized_event(self, mock_pygame_patches):
@@ -180,8 +179,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_resized_event": lambda event: (
-                    scene.window_events_received.append(("window_resized", event)),
+                'on_window_resized_event': lambda event: (
+                    scene.window_events_received.append(('window_resized', event)),
                     True,
                 )[1]
             }
@@ -194,7 +193,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_resized"
+        assert scene.window_events_received[0][0] == 'window_resized'
         assert scene.window_events_received[0][1].type == pygame.WINDOWRESIZED
         assert scene.window_events_received[0][1].x == 800
         assert scene.window_events_received[0][1].y == 600
@@ -204,8 +203,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_moved_event": lambda event: (
-                    scene.window_events_received.append(("window_moved", event)),
+                'on_window_moved_event': lambda event: (
+                    scene.window_events_received.append(('window_moved', event)),
                     True,
                 )[1]
             }
@@ -218,7 +217,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_moved"
+        assert scene.window_events_received[0][0] == 'window_moved'
         assert scene.window_events_received[0][1].type == pygame.WINDOWMOVED
         assert scene.window_events_received[0][1].x == 100
         assert scene.window_events_received[0][1].y == 100
@@ -228,8 +227,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_minimized_event": lambda event: (
-                    scene.window_events_received.append(("window_minimized", event)),
+                'on_window_minimized_event': lambda event: (
+                    scene.window_events_received.append(('window_minimized', event)),
                     True,
                 )[1]
             }
@@ -242,7 +241,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_minimized"
+        assert scene.window_events_received[0][0] == 'window_minimized'
         assert scene.window_events_received[0][1].type == pygame.WINDOWMINIMIZED
 
     def test_window_maximized_event(self, mock_pygame_patches):
@@ -250,8 +249,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_maximized_event": lambda event: (
-                    scene.window_events_received.append(("window_maximized", event)),
+                'on_window_maximized_event': lambda event: (
+                    scene.window_events_received.append(('window_maximized', event)),
                     True,
                 )[1]
             }
@@ -264,7 +263,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_maximized"
+        assert scene.window_events_received[0][0] == 'window_maximized'
         assert scene.window_events_received[0][1].type == pygame.WINDOWMAXIMIZED
 
     def test_window_restored_event(self, mock_pygame_patches):
@@ -272,8 +271,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_restored_event": lambda event: (
-                    scene.window_events_received.append(("window_restored", event)),
+                'on_window_restored_event': lambda event: (
+                    scene.window_events_received.append(('window_restored', event)),
                     True,
                 )[1]
             }
@@ -286,7 +285,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_restored"
+        assert scene.window_events_received[0][0] == 'window_restored'
         assert scene.window_events_received[0][1].type == pygame.WINDOWRESTORED
 
     def test_window_shown_event(self, mock_pygame_patches):
@@ -294,8 +293,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_shown_event": lambda event: (
-                    scene.window_events_received.append(("window_shown", event)),
+                'on_window_shown_event': lambda event: (
+                    scene.window_events_received.append(('window_shown', event)),
                     True,
                 )[1]
             }
@@ -308,7 +307,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_shown"
+        assert scene.window_events_received[0][0] == 'window_shown'
         assert scene.window_events_received[0][1].type == pygame.WINDOWSHOWN
 
     def test_window_hidden_event(self, mock_pygame_patches):
@@ -316,8 +315,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_hidden_event": lambda event: (
-                    scene.window_events_received.append(("window_hidden", event)),
+                'on_window_hidden_event': lambda event: (
+                    scene.window_events_received.append(('window_hidden', event)),
                     True,
                 )[1]
             }
@@ -330,7 +329,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_hidden"
+        assert scene.window_events_received[0][0] == 'window_hidden'
         assert scene.window_events_received[0][1].type == pygame.WINDOWHIDDEN
 
     def test_window_exposed_event(self, mock_pygame_patches):
@@ -338,8 +337,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_exposed_event": lambda event: (
-                    scene.window_events_received.append(("window_exposed", event)),
+                'on_window_exposed_event': lambda event: (
+                    scene.window_events_received.append(('window_exposed', event)),
                     True,
                 )[1]
             }
@@ -352,7 +351,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_exposed"
+        assert scene.window_events_received[0][0] == 'window_exposed'
         assert scene.window_events_received[0][1].type == pygame.WINDOWEXPOSED
 
     def test_window_take_focus_event(self, mock_pygame_patches):
@@ -360,8 +359,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_take_focus_event": lambda event: (
-                    scene.window_events_received.append(("window_take_focus", event)),
+                'on_window_take_focus_event': lambda event: (
+                    scene.window_events_received.append(('window_take_focus', event)),
                     True,
                 )[1]
             }
@@ -374,7 +373,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_take_focus"
+        assert scene.window_events_received[0][0] == 'window_take_focus'
         assert scene.window_events_received[0][1].type == pygame.WINDOWTAKEFOCUS
 
     def test_window_size_changed_event(self, mock_pygame_patches):
@@ -382,8 +381,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_size_changed_event": lambda event: (
-                    scene.window_events_received.append(("window_size_changed", event)),
+                'on_window_size_changed_event': lambda event: (
+                    scene.window_events_received.append(('window_size_changed', event)),
                     True,
                 )[1]
             }
@@ -396,7 +395,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_size_changed"
+        assert scene.window_events_received[0][0] == 'window_size_changed'
         assert scene.window_events_received[0][1].type == pygame.WINDOWSIZECHANGED
         assert scene.window_events_received[0][1].x == 1024
         assert scene.window_events_received[0][1].y == 768
@@ -406,8 +405,8 @@ class TestWindowEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_window_hit_test_event": lambda event: (
-                    scene.window_events_received.append(("window_hit_test", event)),
+                'on_window_hit_test_event': lambda event: (
+                    scene.window_events_received.append(('window_hit_test', event)),
                     True,
                 )[1]
             }
@@ -420,7 +419,7 @@ class TestWindowEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.window_events_received) == 1
-        assert scene.window_events_received[0][0] == "window_hit_test"
+        assert scene.window_events_received[0][0] == 'window_hit_test'
         assert scene.window_events_received[0][1].type == pygame.WINDOWHITTEST
 
     def test_window_manager_initialization(self, mock_pygame_patches, mocker):
@@ -431,8 +430,8 @@ class TestWindowEvents:
         manager = WindowEventManager(game=mock_game)
 
         assert manager.game == mock_game
-        assert hasattr(manager, "on_window_close_event")
-        assert hasattr(manager, "on_window_enter_event")
+        assert hasattr(manager, 'on_window_close_event')
+        assert hasattr(manager, 'on_window_enter_event')
 
     def test_window_manager_events(self, mock_pygame_patches, mocker):
         """Test window event handling through manager."""
@@ -461,7 +460,7 @@ class TestWindowEvents:
 
         """
         scene_mock = MockFactory.create_event_test_scene_mock(
-            options={"debug_events": False, "no_unhandled_events": True}
+            options={'debug_events': False, 'no_unhandled_events': True}
         )
         stub.options = scene_mock.options
         return scene_mock

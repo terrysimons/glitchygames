@@ -4,18 +4,19 @@
 import sys
 
 import pytest
+
 from glitchygames.timing import FastTimer, create_timer
 
 
 def _os_overshoot_ns_default() -> int:
-    if sys.platform.startswith("win"):
+    if sys.platform.startswith('win'):
         return 20_000_000
     return 5_000_000
 
 
 def test_factory_fast_backend_instantiates():
     """Test that create_timer with 'fast' returns a FastTimer instance."""
-    t = create_timer("fast", {"sleep_granularity_ns": 1_000_000, "windows_timer_1ms": False})
+    t = create_timer('fast', {'sleep_granularity_ns': 1_000_000, 'windows_timer_1ms': False})
     assert isinstance(t, FastTimer)
 
 
@@ -42,7 +43,7 @@ def test_fast_timer_spin_tighten_accuracy():
 
 
 @pytest.mark.skipif(
-    not sys.platform.startswith("win"), reason="Windows-only timing resolution test"
+    not sys.platform.startswith('win'), reason='Windows-only timing resolution test'
 )
 def test_fast_timer_windows_1ms_option_tighter():
     """Test that Windows 1ms timer resolution yields tighter sleep accuracy."""

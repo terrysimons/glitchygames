@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+
 from glitchygames.api.models import (
     OUTPUT_FORMAT_PNG,
     OUTPUT_FORMAT_TOML,
@@ -24,11 +25,11 @@ from glitchygames.services import (
     SpriteGenerationService,
 )
 
-LOG = logging.getLogger("glitchygames.api.sprites")
+LOG = logging.getLogger('glitchygames.api.sprites')
 
 PNG_IHDR_MINIMUM_BYTES = 24
 
-router = APIRouter(prefix="/sprites", tags=["sprites"])
+router = APIRouter(prefix='/sprites', tags=['sprites'])
 
 
 def _get_services() -> tuple[SpriteGenerationService, RendererService]:
@@ -69,42 +70,42 @@ def _save_sprite_files(
     # Create directory if it doesn't exist
     save_dir = Path(output_path)
     save_dir.mkdir(parents=True, exist_ok=True)
-    LOG.info(f"Saving sprite files to: {save_dir}")
+    LOG.info(f'Saving sprite files to: {save_dir}')
 
     # Sanitize sprite name for filename
-    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in sprite_name)
+    safe_name = ''.join(c if c.isalnum() or c in '-_' else '_' for c in sprite_name)
     if not safe_name:
-        safe_name = "sprite"
+        safe_name = 'sprite'
 
     # Save TOML if requested
     if OUTPUT_FORMAT_TOML in output_format and toml_content:
-        toml_path = save_dir / f"{safe_name}.toml"
-        toml_path.write_text(toml_content, encoding="utf-8")
+        toml_path = save_dir / f'{safe_name}.toml'
+        toml_path.write_text(toml_content, encoding='utf-8')
         saved_files.append(str(toml_path))
-        LOG.info(f"Saved TOML: {toml_path}")
+        LOG.info(f'Saved TOML: {toml_path}')
 
     # Save PNG if requested
     if OUTPUT_FORMAT_PNG in output_format and png_bytes:
-        png_path = save_dir / f"{safe_name}.png"
+        png_path = save_dir / f'{safe_name}.png'
         png_path.write_bytes(png_bytes)
         saved_files.append(str(png_path))
-        LOG.info(f"Saved PNG: {png_path}")
+        LOG.info(f'Saved PNG: {png_path}')
 
     # Save animation frames if provided (using animation-#-frame-#.png naming)
     if rendered_frames:
         for frame_info in rendered_frames:
             frame_bytes = base64.b64decode(frame_info.png_base64)
             frame_path = save_dir / (
-                f"animation-{frame_info.animation_index}-frame-{frame_info.frame_index}.png"
+                f'animation-{frame_info.animation_index}-frame-{frame_info.frame_index}.png'
             )
             frame_path.write_bytes(frame_bytes)
             saved_files.append(str(frame_path))
-            LOG.info(f"Saved frame: {frame_path}")
+            LOG.info(f'Saved frame: {frame_path}')
 
     return saved_files
 
 
-@router.post("/generate")
+@router.post('/generate')
 async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationResponse:
     """Generate a new sprite from a text prompt.
 
@@ -125,9 +126,9 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
 
     try:
         # Generate the sprite
-        LOG.info(f"Generating sprite from prompt: {request.prompt[:50]}...")
+        LOG.info(f'Generating sprite from prompt: {request.prompt[:50]}...')
         if request.model:
-            LOG.info(f"Using model override: {request.model}")
+            LOG.info(f'Using model override: {request.model}')
         result = generation_service.generate_sprite(
             prompt=request.prompt,
             width=request.width,
@@ -139,7 +140,7 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
         )
 
         if not result.success:
-            LOG.warning(f"Generation failed: {result.error}")
+            LOG.warning(f'Generation failed: {result.error}')
             return SpriteGenerationResponse(
                 success=False,
                 error=result.error,
@@ -184,12 +185,12 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
                         for rf in render_result.rendered_frames
                     ]
             else:
-                LOG.warning(f"PNG rendering failed: {render_result.error}")
+                LOG.warning(f'PNG rendering failed: {render_result.error}')
                 # Only fail if PNG was the only requested format
                 if request.output_format == [OUTPUT_FORMAT_PNG]:
                     return SpriteGenerationResponse(
                         success=False,
-                        error=f"PNG rendering failed: {render_result.error}",
+                        error=f'PNG rendering failed: {render_result.error}',
                     )
 
         # Save files if output_path is specified
@@ -207,20 +208,20 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
         return response
 
     except AIProviderError as e:
-        LOG.exception("AI provider error")
+        LOG.exception('AI provider error')
         raise HTTPException(
             status_code=503,
-            detail=f"AI provider unavailable: {e}",
+            detail=f'AI provider unavailable: {e}',
         ) from e
     except Exception as e:
-        LOG.exception("Unexpected error")
+        LOG.exception('Unexpected error')
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error: {e}",
+            detail=f'Internal server error: {e}',
         ) from e
 
 
-@router.post("/refine")
+@router.post('/refine')
 async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationResponse:
     """Refine an existing sprite based on a text prompt.
 
@@ -241,14 +242,14 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
 
     try:
         # Refine the sprite
-        LOG.info(f"Refining sprite with prompt: {request.prompt[:50]}...")
+        LOG.info(f'Refining sprite with prompt: {request.prompt[:50]}...')
         result = generation_service.refine_sprite(
             prompt=request.prompt,
             current_toml=request.current_toml,
         )
 
         if not result.success:
-            LOG.warning(f"Refinement failed: {result.error}")
+            LOG.warning(f'Refinement failed: {result.error}')
             return SpriteGenerationResponse(
                 success=False,
                 error=result.error,
@@ -293,12 +294,12 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
                         for rf in render_result.rendered_frames
                     ]
             else:
-                LOG.warning(f"PNG rendering failed: {render_result.error}")
+                LOG.warning(f'PNG rendering failed: {render_result.error}')
                 # Only fail if PNG was the only requested format
                 if request.output_format == [OUTPUT_FORMAT_PNG]:
                     return SpriteGenerationResponse(
                         success=False,
-                        error=f"PNG rendering failed: {render_result.error}",
+                        error=f'PNG rendering failed: {render_result.error}',
                     )
 
         # Save files if output_path is specified
@@ -316,16 +317,16 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
         return response
 
     except AIProviderError as e:
-        LOG.exception("AI provider error")
+        LOG.exception('AI provider error')
         raise HTTPException(
             status_code=503,
-            detail=f"AI provider unavailable: {e}",
+            detail=f'AI provider unavailable: {e}',
         ) from e
     except Exception as e:
-        LOG.exception("Unexpected error")
+        LOG.exception('Unexpected error')
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error: {e}",
+            detail=f'Internal server error: {e}',
         ) from e
 
 
@@ -347,22 +348,22 @@ def _extract_single_frame(
     frame_buffer = io.BytesIO()
     png.save(frame_buffer)
     frame_bytes = frame_buffer.getvalue()
-    frame_base64 = base64.b64encode(frame_bytes).decode("utf-8")
+    frame_base64 = base64.b64encode(frame_bytes).decode('utf-8')
 
     # Calculate frame delay in milliseconds
     # APNG stores delay as delay_num/delay_den seconds
     if control is not None:
-        delay_num = control.delay if hasattr(control, "delay") else 100
-        delay_den = control.delay_den if hasattr(control, "delay_den") else 1000
+        delay_num = control.delay if hasattr(control, 'delay') else 100
+        delay_den = control.delay_den if hasattr(control, 'delay_den') else 1000
         if delay_den == 0:
             delay_den = 1000
         delay_ms = int((delay_num / delay_den) * 1000)
 
         # Get frame dimensions and offsets
-        frame_width = control.width if hasattr(control, "width") else 0
-        frame_height = control.height if hasattr(control, "height") else 0
-        x_offset = control.x_offset if hasattr(control, "x_offset") else 0
-        y_offset = control.y_offset if hasattr(control, "y_offset") else 0
+        frame_width = control.width if hasattr(control, 'width') else 0
+        frame_height = control.height if hasattr(control, 'height') else 0
+        x_offset = control.x_offset if hasattr(control, 'x_offset') else 0
+        y_offset = control.y_offset if hasattr(control, 'y_offset') else 0
     else:
         # Default values if no control chunk
         delay_ms = 100
@@ -406,15 +407,15 @@ def _extract_png_dimensions(
 
         # PNG dimensions are in the IHDR chunk at bytes 16-24
         if len(frame_bytes) >= PNG_IHDR_MINIMUM_BYTES:
-            width = struct.unpack(">I", frame_bytes[16:20])[0]
-            height = struct.unpack(">I", frame_bytes[20:24])[0]
+            width = struct.unpack('>I', frame_bytes[16:20])[0]
+            height = struct.unpack('>I', frame_bytes[20:24])[0]
             return width, height
     except (struct.error, IndexError, ValueError) as dimension_error:
-        LOG.debug("Could not extract PNG dimensions: %s", dimension_error)
+        LOG.debug('Could not extract PNG dimensions: %s', dimension_error)
     return default_width, default_height
 
 
-@router.post("/extract-frames")
+@router.post('/extract-frames')
 async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractResponse:
     """Extract individual frames and metadata from an APNG file.
 
@@ -438,20 +439,20 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         try:
             apng_bytes = base64.b64decode(request.apng_base64)
         except (ValueError, TypeError) as e:
-            LOG.warning(f"Failed to decode base64: {e}")
+            LOG.warning(f'Failed to decode base64: {e}')
             return ApngExtractResponse(
                 success=False,
-                error=f"Invalid base64 data: {e}",
+                error=f'Invalid base64 data: {e}',
             )
 
         # Parse the APNG
         try:
             apng = APNG.from_bytes(apng_bytes)
         except (ValueError, OSError) as e:
-            LOG.warning(f"Failed to parse APNG: {e}")
+            LOG.warning(f'Failed to parse APNG: {e}')
             return ApngExtractResponse(
                 success=False,
-                error=f"Invalid APNG file: {e}",
+                error=f'Invalid APNG file: {e}',
             )
 
         # Extract frames and metadata
@@ -472,11 +473,11 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
             frames_info.append(frame_info)
 
         # Get loop count from APNG
-        loop_count = apng.num_plays if hasattr(apng, "num_plays") else 0
+        loop_count = apng.num_plays if hasattr(apng, 'num_plays') else 0
 
         LOG.info(
-            f"Extracted {len(frames_info)} frames from APNG "
-            f"({canvas_width}x{canvas_height}, {total_duration_ms}ms total)"
+            f'Extracted {len(frames_info)} frames from APNG '
+            f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)'
         )
 
         return ApngExtractResponse(
@@ -490,8 +491,8 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         )
 
     except Exception as e:
-        LOG.exception("Unexpected error extracting APNG frames")
+        LOG.exception('Unexpected error extracting APNG frames')
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error: {e}",
+            detail=f'Internal server error: {e}',
         ) from e

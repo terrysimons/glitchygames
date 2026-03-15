@@ -20,7 +20,6 @@ from glitchygames.events import (
     UnhandledEventError,
 )
 from glitchygames.events.drop import DropEventManager
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -30,19 +29,19 @@ class TestDropEvents:
     def test_drop_events_interface(self, mock_pygame_patches):
         """Test DropEvents interface methods."""
         # Test that DropEvents has required abstract methods
-        assert hasattr(DropEvents, "on_drop_begin_event")
-        assert hasattr(DropEvents, "on_drop_file_event")
-        assert hasattr(DropEvents, "on_drop_text_event")
-        assert hasattr(DropEvents, "on_drop_complete_event")
+        assert hasattr(DropEvents, 'on_drop_begin_event')
+        assert hasattr(DropEvents, 'on_drop_file_event')
+        assert hasattr(DropEvents, 'on_drop_text_event')
+        assert hasattr(DropEvents, 'on_drop_complete_event')
 
     def test_drop_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test DropEventStubs implementation."""
         # Test that stubs have concrete implementations
         stub = DropEventStubs()
-        assert hasattr(stub, "on_drop_begin_event")
-        assert hasattr(stub, "on_drop_file_event")
-        assert hasattr(stub, "on_drop_text_event")
-        assert hasattr(stub, "on_drop_complete_event")
+        assert hasattr(stub, 'on_drop_begin_event')
+        assert hasattr(stub, 'on_drop_file_event')
+        assert hasattr(stub, 'on_drop_text_event')
+        assert hasattr(stub, 'on_drop_complete_event')
 
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub, mocker)
@@ -50,7 +49,7 @@ class TestDropEvents:
         # Test method calls
         event = HashableEvent(pygame.DROPBEGIN)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.core.LOG.error")
+        mocker.patch('glitchygames.events.core.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_drop_begin_event(event)
         # Expected to call unhandled_event
@@ -61,7 +60,7 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_begin_event": lambda event: (
+                'on_drop_begin_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1]
@@ -82,7 +81,7 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_file_event": lambda event: (
+                'on_drop_file_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1]
@@ -90,21 +89,21 @@ class TestDropEvents:
         )
 
         # Test drop file
-        event = HashableEvent(pygame.DROPFILE, file="/path/to/file.txt")
+        event = HashableEvent(pygame.DROPFILE, file='/path/to/file.txt')
         result = scene.on_drop_file_event(event)
 
         # Event should be handled successfully
         assert result is True
         assert len(scene.drop_events_received) == 1
         assert scene.drop_events_received[0].type == pygame.DROPFILE
-        assert scene.drop_events_received[0].file == "/path/to/file.txt"
+        assert scene.drop_events_received[0].file == '/path/to/file.txt'
 
     def test_drop_text_event(self, mock_pygame_patches):
         """Test drop text event handling."""
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_text_event": lambda event: (
+                'on_drop_text_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1]
@@ -112,21 +111,21 @@ class TestDropEvents:
         )
 
         # Test drop text
-        event = HashableEvent(pygame.DROPTEXT, text="Hello World")
+        event = HashableEvent(pygame.DROPTEXT, text='Hello World')
         result = scene.on_drop_text_event(event)
 
         # Event should be handled successfully
         assert result is True
         assert len(scene.drop_events_received) == 1
         assert scene.drop_events_received[0].type == pygame.DROPTEXT
-        assert scene.drop_events_received[0].text == "Hello World"
+        assert scene.drop_events_received[0].text == 'Hello World'
 
     def test_drop_complete_event(self, mock_pygame_patches):
         """Test drop complete event handling."""
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_complete_event": lambda event: (
+                'on_drop_complete_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1]
@@ -147,7 +146,7 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_file_event": lambda event: (
+                'on_drop_file_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1]
@@ -156,11 +155,11 @@ class TestDropEvents:
 
         # Test multiple file drops
         file_paths = [
-            "/path/to/file1.txt",
-            "/path/to/file2.png",
-            "/path/to/file3.pdf",
-            "/path/to/file4.mp3",
-            "/path/to/file5.zip",
+            '/path/to/file1.txt',
+            '/path/to/file2.png',
+            '/path/to/file3.pdf',
+            '/path/to/file4.mp3',
+            '/path/to/file5.zip',
         ]
 
         for file_path in file_paths:
@@ -179,7 +178,7 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_text_event": lambda event: (
+                'on_drop_text_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1]
@@ -188,11 +187,11 @@ class TestDropEvents:
 
         # Test multiple text drops
         text_contents = [
-            "Hello World",
-            "This is a test",
-            "Drop and drag functionality",
-            "Text with special characters: !@#$%^&*()",
-            "Multiline\ntext\ncontent",
+            'Hello World',
+            'This is a test',
+            'Drop and drag functionality',
+            'Text with special characters: !@#$%^&*()',
+            'Multiline\ntext\ncontent',
         ]
 
         for text in text_contents:
@@ -211,19 +210,19 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_begin_event": lambda event: (
+                'on_drop_begin_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1],
-                "on_drop_file_event": lambda event: (
+                'on_drop_file_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1],
-                "on_drop_text_event": lambda event: (
+                'on_drop_text_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1],
-                "on_drop_complete_event": lambda event: (
+                'on_drop_complete_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1],
@@ -236,12 +235,12 @@ class TestDropEvents:
         assert result is True
 
         # Test drop file with position
-        event = HashableEvent(pygame.DROPFILE, file="/path/to/file.txt", x=150, y=150)
+        event = HashableEvent(pygame.DROPFILE, file='/path/to/file.txt', x=150, y=150)
         result = scene.on_drop_file_event(event)
         assert result is True
 
         # Test drop text with position
-        event = HashableEvent(pygame.DROPTEXT, text="Hello", x=200, y=200)
+        event = HashableEvent(pygame.DROPTEXT, text='Hello', x=200, y=200)
         result = scene.on_drop_text_event(event)
         assert result is True
 
@@ -261,7 +260,7 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_file_event": lambda event: (
+                'on_drop_file_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1]
@@ -270,14 +269,14 @@ class TestDropEvents:
 
         # Test different file types
         file_types = [
-            "/path/to/image.png",
-            "/path/to/document.pdf",
-            "/path/to/audio.mp3",
-            "/path/to/video.mp4",
-            "/path/to/archive.zip",
-            "/path/to/executable.exe",
-            "/path/to/script.py",
-            "/path/to/data.json",
+            '/path/to/image.png',
+            '/path/to/document.pdf',
+            '/path/to/audio.mp3',
+            '/path/to/video.mp4',
+            '/path/to/archive.zip',
+            '/path/to/executable.exe',
+            '/path/to/script.py',
+            '/path/to/data.json',
         ]
 
         for file_path in file_types:
@@ -296,11 +295,11 @@ class TestDropEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_drop_file_event": lambda event: (
+                'on_drop_file_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1],
-                "on_drop_text_event": lambda event: (
+                'on_drop_text_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
                 )[1],
@@ -309,13 +308,13 @@ class TestDropEvents:
 
         # Test file paths with special characters
         special_file_paths = [
-            "/path/with spaces/file.txt",
-            "/path/with-dashes/file.txt",
-            "/path/with_underscores/file.txt",
-            "/path/with.dots/file.txt",
-            "/path/with(parantheses)/file.txt",
-            "/path/with[brackets]/file.txt",
-            "/path/with{braces}/file.txt",
+            '/path/with spaces/file.txt',
+            '/path/with-dashes/file.txt',
+            '/path/with_underscores/file.txt',
+            '/path/with.dots/file.txt',
+            '/path/with(parantheses)/file.txt',
+            '/path/with[brackets]/file.txt',
+            '/path/with{braces}/file.txt',
         ]
 
         for file_path in special_file_paths:
@@ -325,16 +324,16 @@ class TestDropEvents:
 
         # Test text with special characters
         special_texts = [
-            "Text with spaces",
-            "Text-with-dashes",
-            "Text_with_underscores",
-            "Text.with.dots",
-            "Text(with)parantheses",
-            "Text[with]brackets",
-            "Text{with}braces",
-            "Text with\nnewlines",
-            "Text with\ttabs",
-            "Text with unicode: ñáéíóú",
+            'Text with spaces',
+            'Text-with-dashes',
+            'Text_with_underscores',
+            'Text.with.dots',
+            'Text(with)parantheses',
+            'Text[with]brackets',
+            'Text{with}braces',
+            'Text with\nnewlines',
+            'Text with\ttabs',
+            'Text with unicode: ñáéíóú',
         ]
 
         for text in special_texts:
@@ -354,7 +353,7 @@ class TestDropEvents:
 
         """
         mock_game = mocker.Mock()
-        mock_game.options = {"debug_events": False, "no_unhandled_events": True}
+        mock_game.options = {'debug_events': False, 'no_unhandled_events': True}
         stub.options = mock_game.options
         return mock_game
 
@@ -368,8 +367,8 @@ class TestDropEventManagerCoverage:
         manager = DropEventManager(game=mock_game)
 
         assert manager.game == mock_game
-        assert hasattr(manager, "on_drop_begin_event")
-        assert hasattr(manager, "on_drop_file_event")
+        assert hasattr(manager, 'on_drop_begin_event')
+        assert hasattr(manager, 'on_drop_file_event')
 
     def test_drop_manager_initialization_no_game(self, mock_pygame_patches):
         """Test DropEventManager initialization without game."""
@@ -389,7 +388,7 @@ class TestDropEventManagerCoverage:
         manager = DropEventManager(game=mock_game)
 
         # Test that proxy is created
-        assert hasattr(manager, "proxies")
+        assert hasattr(manager, 'proxies')
         assert len(manager.proxies) > 0
 
     def test_drop_proxy_initialization_no_game(self, mock_pygame_patches):
@@ -397,7 +396,7 @@ class TestDropEventManagerCoverage:
         manager = DropEventManager(game=None)
 
         # Test that proxy is created even without game
-        assert hasattr(manager, "proxies")
+        assert hasattr(manager, 'proxies')
         assert len(manager.proxies) > 0
 
     def test_drop_proxy_on_drop_begin_event(self, mock_pygame_patches, mocker):
@@ -437,7 +436,7 @@ class TestDropEventManagerCoverage:
         manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
 
-        event = HashableEvent(pygame.DROPFILE, file="/path/to/file.txt")
+        event = HashableEvent(pygame.DROPFILE, file='/path/to/file.txt')
         # Should not raise exception
         proxy.on_drop_file_event(event)
         mock_game.on_drop_file_event.assert_called_once_with(event)
@@ -451,7 +450,7 @@ class TestDropEventManagerCoverage:
         manager = DropEventManager(game=mock_game)
         proxy = manager.proxies[0]
 
-        event = HashableEvent(pygame.DROPTEXT, text="dropped text")
+        event = HashableEvent(pygame.DROPTEXT, text='dropped text')
         # Should not raise exception
         proxy.on_drop_text_event(event)
         mock_game.on_drop_text_event.assert_called_once_with(event)

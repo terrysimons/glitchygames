@@ -18,7 +18,6 @@ from glitchygames.events import (
     JoystickEvents,
     UnhandledEventError,
 )
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -28,13 +27,13 @@ class TestJoystickEvents:
     def test_joystick_events_interface(self, mock_pygame_patches):
         """Test JoystickEvents interface methods."""
         # Test that JoystickEvents has required abstract methods
-        assert hasattr(JoystickEvents, "on_joy_axis_motion_event")
-        assert hasattr(JoystickEvents, "on_joy_button_down_event")
-        assert hasattr(JoystickEvents, "on_joy_button_up_event")
-        assert hasattr(JoystickEvents, "on_joy_device_added_event")
-        assert hasattr(JoystickEvents, "on_joy_device_removed_event")
-        assert hasattr(JoystickEvents, "on_joy_hat_motion_event")
-        assert hasattr(JoystickEvents, "on_joy_ball_motion_event")
+        assert hasattr(JoystickEvents, 'on_joy_axis_motion_event')
+        assert hasattr(JoystickEvents, 'on_joy_button_down_event')
+        assert hasattr(JoystickEvents, 'on_joy_button_up_event')
+        assert hasattr(JoystickEvents, 'on_joy_device_added_event')
+        assert hasattr(JoystickEvents, 'on_joy_device_removed_event')
+        assert hasattr(JoystickEvents, 'on_joy_hat_motion_event')
+        assert hasattr(JoystickEvents, 'on_joy_ball_motion_event')
 
     def test_joystick_event_stubs_implementation(self, mock_pygame_patches, mocker):
         """Test JoystickEventStubs implementation."""
@@ -46,7 +45,7 @@ class TestJoystickEvents:
         # Test that stub methods can be called
         event = HashableEvent(pygame.JOYAXISMOTION, axis=0, value=0.5)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.core.LOG.error")
+        mocker.patch('glitchygames.events.core.LOG.error')
         with pytest.raises(UnhandledEventError):
             scene.on_joy_axis_motion_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
@@ -56,7 +55,7 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_axis_motion_event": lambda event: (
+                'on_joy_axis_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
                 )[1]
@@ -78,7 +77,7 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_button_down_event": lambda event: (
+                'on_joy_button_down_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
                 )[1]
@@ -99,7 +98,7 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_button_up_event": lambda event: (
+                'on_joy_button_up_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
                 )[1]
@@ -120,7 +119,7 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_hat_motion_event": lambda event: (
+                'on_joy_hat_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
                 )[1]
@@ -142,7 +141,7 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_ball_motion_event": lambda event: (
+                'on_joy_ball_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
                 )[1]
@@ -165,8 +164,8 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_device_added_event": lambda event: (
-                    scene.joystick_device_events.append(("added", event)),
+                'on_joy_device_added_event': lambda event: (
+                    scene.joystick_device_events.append(('added', event)),
                     True,
                 )[1]
             }
@@ -179,7 +178,7 @@ class TestJoystickEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_device_events) == 1
-        assert scene.joystick_device_events[0][0] == "added"
+        assert scene.joystick_device_events[0][0] == 'added'
         assert scene.joystick_device_events[0][1].device_id == 0
 
     def test_joy_device_removed_event(self, mock_pygame_patches):
@@ -187,8 +186,8 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_device_removed_event": lambda event: (
-                    scene.joystick_device_events.append(("removed", event)),
+                'on_joy_device_removed_event': lambda event: (
+                    scene.joystick_device_events.append(('removed', event)),
                     True,
                 )[1]
             }
@@ -201,7 +200,7 @@ class TestJoystickEvents:
         # Event should be handled successfully
         assert result is True
         assert len(scene.joystick_device_events) == 1
-        assert scene.joystick_device_events[0][0] == "removed"
+        assert scene.joystick_device_events[0][0] == 'removed'
         assert scene.joystick_device_events[0][1].type == pygame.JOYDEVICEREMOVED
         assert scene.joystick_device_events[0][1].device_id == 0
 
@@ -210,7 +209,7 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_axis_motion_event": lambda event: (
+                'on_joy_axis_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
                 )[1]
@@ -237,12 +236,12 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_button_down_event": lambda event: (
-                    scene.joystick_events_received.append(("button_down", event)),
+                'on_joy_button_down_event': lambda event: (
+                    scene.joystick_events_received.append(('button_down', event)),
                     True,
                 )[1],
-                "on_joy_button_up_event": lambda event: (
-                    scene.joystick_events_received.append(("button_up", event)),
+                'on_joy_button_up_event': lambda event: (
+                    scene.joystick_events_received.append(('button_up', event)),
                     True,
                 )[1],
             }
@@ -257,7 +256,7 @@ class TestJoystickEvents:
             # Event should be handled successfully
             assert result is True
             assert len(scene.joystick_events_received) == 1
-            assert scene.joystick_events_received[0][0] == "button_down"
+            assert scene.joystick_events_received[0][0] == 'button_down'
             assert scene.joystick_events_received[0][1].type == pygame.JOYBUTTONDOWN
             assert scene.joystick_events_received[0][1].button == button
 
@@ -271,7 +270,7 @@ class TestJoystickEvents:
             # Event should be handled successfully
             assert result is True
             assert len(scene.joystick_events_received) == 1
-            assert scene.joystick_events_received[0][0] == "button_up"
+            assert scene.joystick_events_received[0][0] == 'button_up'
             assert scene.joystick_events_received[0][1].type == pygame.JOYBUTTONUP
             assert scene.joystick_events_received[0][1].button == button
 
@@ -283,7 +282,7 @@ class TestJoystickEvents:
         # Use centralized mock for scene with proper event handling
         scene = MockFactory.create_event_test_scene_mock(
             event_handlers={
-                "on_joy_hat_motion_event": lambda event: (
+                'on_joy_hat_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
                 )[1]
@@ -329,8 +328,8 @@ class TestJoystickManager:
         manager = JoystickEventManager(game=mock_game)
 
         assert manager.game == mock_game
-        assert hasattr(manager, "on_joystick_axis_motion_event")
-        assert hasattr(manager, "on_joystick_button_down_event")
+        assert hasattr(manager, 'on_joystick_axis_motion_event')
+        assert hasattr(manager, 'on_joystick_button_down_event')
 
     def test_joystick_manager_events(self, mock_pygame_patches, mocker):
         """Test joystick event handling through manager."""

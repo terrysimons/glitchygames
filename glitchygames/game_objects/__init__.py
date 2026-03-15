@@ -7,10 +7,10 @@ from .paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
 from .sounds import SFX, load_sound
 
 __all__ = [
-    "SFX",
-    "BallSprite",
-    "BasePaddle",
-    "HorizontalPaddle",
-    "VerticalPaddle",
-    "load_sound",
+    'SFX',
+    'BallSprite',
+    'BasePaddle',
+    'HorizontalPaddle',
+    'VerticalPaddle',
+    'load_sound',
 ]

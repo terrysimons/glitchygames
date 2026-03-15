@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -68,12 +67,12 @@ class TestBallDirectionPreservation:
             initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
             # Apply linear speed-up
-            ball.speed_up(multiplier=1.5, speed_up_type="linear")
+            ball.speed_up(multiplier=1.5, speed_up_type='linear')
 
             # Check direction preservation
             new_direction = math.atan2(ball.speed.y, ball.speed.x)
             assert initial_direction == pytest.approx(new_direction, abs=1e-12), (
-                f"Direction not preserved for angle {angle_degrees} degrees"
+                f'Direction not preserved for angle {angle_degrees} degrees'
             )
 
     def test_logarithmic_x_speed_up_changes_direction(self):
@@ -85,12 +84,12 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Apply logarithmic X speed-up
-        ball.speed_up(multiplier=1.5, speed_up_type="logarithmic_x")
+        ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_x')
 
         # Direction should change
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction != pytest.approx(new_direction, abs=1e-5), (
-            "Direction should change with logarithmic X speed-up"
+            'Direction should change with logarithmic X speed-up'
         )
 
     def test_logarithmic_y_speed_up_changes_direction(self):
@@ -102,12 +101,12 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Apply logarithmic Y speed-up
-        ball.speed_up(multiplier=1.3, speed_up_type="logarithmic_y")
+        ball.speed_up(multiplier=1.3, speed_up_type='logarithmic_y')
 
         # Direction should change
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction != pytest.approx(new_direction, abs=1e-5), (
-            "Direction should change with logarithmic Y speed-up"
+            'Direction should change with logarithmic Y speed-up'
         )
 
     def test_logarithmic_both_speed_up_changes_direction(self):
@@ -121,12 +120,12 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Apply logarithmic both speed-up
-        ball.speed_up(multiplier=1.2, speed_up_type="logarithmic_both")
+        ball.speed_up(multiplier=1.2, speed_up_type='logarithmic_both')
 
         # Direction should be preserved (both components scaled equally)
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction == pytest.approx(new_direction), (
-            "Direction should be preserved with logarithmic both speed-up"
+            'Direction should be preserved with logarithmic both speed-up'
         )
 
     def test_direction_preservation_with_bouncing(self):
@@ -172,7 +171,7 @@ class TestBallDirectionPreservation:
         # Direction should change due to logarithmic X scaling
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction != pytest.approx(new_direction, abs=1e-5), (
-            "Direction should change with logarithmic X bounce speed-up"
+            'Direction should change with logarithmic X bounce speed-up'
         )
 
     def test_combined_linear_and_logarithmic_direction_behavior(self):
@@ -191,7 +190,7 @@ class TestBallDirectionPreservation:
 
         linear_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction == pytest.approx(linear_direction), (
-            "Linear speed-up should preserve direction"
+            'Linear speed-up should preserve direction'
         )
 
         # Test paddle bounce logarithmic X (should change direction)
@@ -199,7 +198,7 @@ class TestBallDirectionPreservation:
 
         bounce_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert linear_direction != pytest.approx(bounce_direction, abs=1e-5), (
-            "Logarithmic X speed-up should change direction"
+            'Logarithmic X speed-up should change direction'
         )
 
     def test_direction_preservation_with_multiple_linear_speed_ups(self):
@@ -211,12 +210,12 @@ class TestBallDirectionPreservation:
 
         # Apply multiple linear speed-ups
         for i in range(5):
-            ball.speed_up(multiplier=1.1, speed_up_type="linear")
+            ball.speed_up(multiplier=1.1, speed_up_type='linear')
 
         # Direction should still be preserved
         final_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction == pytest.approx(final_direction, abs=1e-12), (
-            "Multiple linear speed-ups should preserve direction"
+            'Multiple linear speed-ups should preserve direction'
         )
 
     def test_direction_change_with_multiple_logarithmic_speed_ups(self):
@@ -228,12 +227,12 @@ class TestBallDirectionPreservation:
 
         # Apply multiple logarithmic X speed-ups
         for i in range(3):
-            ball.speed_up(multiplier=1.2, speed_up_type="logarithmic_x")
+            ball.speed_up(multiplier=1.2, speed_up_type='logarithmic_x')
 
         # Direction should change
         final_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction != pytest.approx(final_direction, abs=1e-5), (
-            "Multiple logarithmic speed-ups should change direction"
+            'Multiple logarithmic speed-ups should change direction'
         )
 
     def test_edge_case_pure_horizontal_movement(self):
@@ -245,13 +244,13 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Linear speed-up should preserve direction
-        ball.speed_up(multiplier=1.5, speed_up_type="linear")
+        ball.speed_up(multiplier=1.5, speed_up_type='linear')
         linear_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction == pytest.approx(linear_direction, abs=1e-12)
 
         # Logarithmic Y speed-up should not affect direction (Y is already 0)
         ball.speed = Speed(100.0, 0.0)
-        ball.speed_up(multiplier=1.5, speed_up_type="logarithmic_y")
+        ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_y')
         assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)  # Should remain 0
         assert ball.speed.x == pytest.approx(100.0)  # Should remain unchanged
 
@@ -264,13 +263,13 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Linear speed-up should preserve direction
-        ball.speed_up(multiplier=1.5, speed_up_type="linear")
+        ball.speed_up(multiplier=1.5, speed_up_type='linear')
         linear_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction == pytest.approx(linear_direction, abs=1e-12)
 
         # Logarithmic X speed-up should not affect direction (X is already 0)
         ball.speed = Speed(0.0, 100.0)
-        ball.speed_up(multiplier=1.5, speed_up_type="logarithmic_x")
+        ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_x')
         assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)  # Should remain 0
         assert ball.speed.y == pytest.approx(100.0)  # Should remain unchanged
 
@@ -287,10 +286,10 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Apply linear speed-up
-        ball.speed_up(multiplier=1.234567, speed_up_type="linear")
+        ball.speed_up(multiplier=1.234567, speed_up_type='linear')
 
         # Check very high precision
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction == pytest.approx(new_direction, abs=1e-15), (
-            "High-precision direction preservation failed"
+            'High-precision direction preservation failed'
         )

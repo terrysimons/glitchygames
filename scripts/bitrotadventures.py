@@ -10,7 +10,7 @@ from glitchygames.scenes import Scene
 
 # Instantiate a logger called "game" to enable glitchygames
 # logging module. This is optional, but recommended.
-LOG = logging.getLogger("game")
+LOG = logging.getLogger('game')
 
 
 # Think of a scene as an encapsulated pygame screen.
@@ -26,8 +26,8 @@ LOG = logging.getLogger("game")
 class BitrotAdventures(Scene):
     """Draws a pixel to the screen."""
 
-    NAME = "Bitrot Adventures"
-    VERSION = "0.0.0"
+    NAME = 'Bitrot Adventures'
+    VERSION = '0.0.0'
 
     def __init__(self: Self, options: dict[str, str]) -> Self:
         """Initialize the scene.
@@ -64,7 +64,7 @@ class BitrotAdventures(Scene):
             argparse.ArgumentParser: The result.
 
         """
-        parser.add_argument("-s", "--some-game-specific-option", help="foo help")
+        parser.add_argument('-s', '--some-game-specific-option', help='foo help')
         return parser
 
 
@@ -73,8 +73,8 @@ def main() -> NoReturn:
     # Note that the Scene (BitrotAdventures) is
     # passed in uninitialized - the engine
     # will initialize it for you.
-    GameEngine(game=BitrotAdventures, icon="/path/to/icon").start()
+    GameEngine(game=BitrotAdventures, icon='/path/to/icon').start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -14,7 +14,7 @@ from glitchygames.scenes import Scene
 from glitchygames.sprites.animated import AnimatedSprite
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -36,18 +36,18 @@ class AnimationScene(Scene):
         self.groups = pygame.sprite.LayeredDirty()
 
         # Load the animated sprite from foo.toml
-        foo_toml_path = Path(__file__).parent.parent / "foo.toml"
+        foo_toml_path = Path(__file__).parent.parent / 'foo.toml'
 
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.groups)
             self.animated_sprite.play()
             self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
             logger.info(
-                f"Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)"
+                f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)'
             )
-            logger.info("Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1")
+            logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
         except (FileNotFoundError, ValueError, RuntimeError):
-            logger.exception("Failed to load animation")
+            logger.exception('Failed to load animation')
             raise
 
     def update(self, dt: float | None = None) -> None:
@@ -67,8 +67,8 @@ class AnimationScene(Scene):
 
         """
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE or event.unicode.lower() == "q":
-                return "quit"
+            if event.key == pygame.K_ESCAPE or event.unicode.lower() == 'q':
+                return 'quit'
             if event.key == pygame.K_SPACE:
                 if self.animated_sprite.is_playing:
                     self.animated_sprite.pause()
@@ -96,7 +96,7 @@ def main() -> None:
 
     # Set up the display
     screen = pygame.display.set_mode((800, 600))
-    pygame.display.set_caption("Animated Scene Demo - foo.toml")
+    pygame.display.set_caption('Animated Scene Demo - foo.toml')
     clock = pygame.time.Clock()
 
     # Create and run the scene
@@ -114,7 +114,7 @@ def main() -> None:
                 running = False
             else:
                 result = scene.handle_event(event)
-                if result == "quit":
+                if result == 'quit':
                     running = False
 
         # Update and render
@@ -127,5 +127,5 @@ def main() -> None:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())

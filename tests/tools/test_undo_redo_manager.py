@@ -23,12 +23,12 @@ class TestUndoRedoManager:
 
     def test_add_operation(self):
         """Test adding operations to history."""
-        undo_data = {"pixel": (10, 20, (255, 0, 0))}
-        redo_data = {"pixel": (10, 20, (0, 255, 0))}
+        undo_data = {'pixel': (10, 20, (255, 0, 0))}
+        redo_data = {'pixel': (10, 20, (0, 255, 0))}
 
         self.manager.add_operation(
             operation_type=OperationType.CANVAS_PIXEL_CHANGE,
-            description="Test pixel change",
+            description='Test pixel change',
             undo_data=undo_data,
             redo_data=redo_data,
         )
@@ -37,7 +37,7 @@ class TestUndoRedoManager:
         assert len(self.manager.redo_stack) == 0
         assert self.manager.can_undo()
         assert not self.manager.can_redo()
-        assert self.manager.get_undo_description() == "Test pixel change"
+        assert self.manager.get_undo_description() == 'Test pixel change'
 
     def test_undo_operation(self, mocker):
         """Test undoing operations."""
@@ -47,9 +47,9 @@ class TestUndoRedoManager:
 
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
-            "Test operation",
-            {"pixel": (10, 20, (255, 0, 0))},
-            {"pixel": (10, 20, (0, 255, 0))},
+            'Test operation',
+            {'pixel': (10, 20, (255, 0, 0))},
+            {'pixel': (10, 20, (0, 255, 0))},
         )
 
         result = self.manager.undo()
@@ -67,9 +67,9 @@ class TestUndoRedoManager:
 
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
-            "Test operation",
-            {"pixel": (10, 20, (255, 0, 0))},
-            {"pixel": (10, 20, (0, 255, 0))},
+            'Test operation',
+            {'pixel': (10, 20, (255, 0, 0))},
+            {'pixel': (10, 20, (0, 255, 0))},
         )
 
         # Undo first
@@ -92,9 +92,9 @@ class TestUndoRedoManager:
         # Add initial operation
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
-            "First operation",
-            {"pixel": (10, 20, (255, 0, 0))},
-            {"pixel": (10, 20, (0, 255, 0))},
+            'First operation',
+            {'pixel': (10, 20, (255, 0, 0))},
+            {'pixel': (10, 20, (0, 255, 0))},
         )
 
         # Undo it to create redo stack
@@ -104,9 +104,9 @@ class TestUndoRedoManager:
         # Add new operation - should clear redo stack
         self.manager.add_operation(
             OperationType.CANVAS_PIXEL_CHANGE,
-            "Second operation",
-            {"pixel": (15, 25, (255, 0, 0))},
-            {"pixel": (15, 25, (0, 255, 0))},
+            'Second operation',
+            {'pixel': (15, 25, (255, 0, 0))},
+            {'pixel': (15, 25, (0, 255, 0))},
         )
 
         # Adding a new operation always clears the redo stack (we're branching off)
@@ -119,13 +119,13 @@ class TestUndoRedoManager:
         for i in range(7):  # More than max_history of 5
             self.manager.add_operation(
                 OperationType.CANVAS_PIXEL_CHANGE,
-                f"Operation {i}",
-                {"data": f"undo{i}"},
-                {"data": f"redo{i}"},
+                f'Operation {i}',
+                {'data': f'undo{i}'},
+                {'data': f'redo{i}'},
             )
 
         assert len(self.manager.undo_stack) == 5  # Should be limited to max_history
-        assert self.manager.undo_stack[0].description == "Operation 2"  # First 2 should be removed
+        assert self.manager.undo_stack[0].description == 'Operation 2'  # First 2 should be removed
 
     def test_undo_with_no_operations(self):
         """Test undo when no operations are available."""
@@ -143,9 +143,9 @@ class TestUndoRedoManager:
         for i in range(3):
             self.manager.add_operation(
                 OperationType.CANVAS_PIXEL_CHANGE,
-                f"Operation {i}",
-                {"data": f"undo{i}"},
-                {"data": f"redo{i}"},
+                f'Operation {i}',
+                {'data': f'undo{i}'},
+                {'data': f'redo{i}'},
             )
 
         assert len(self.manager.undo_stack) == 3
@@ -158,17 +158,17 @@ class TestUndoRedoManager:
     def test_get_history_info(self):
         """Test getting history information."""
         self.manager.add_operation(
-            OperationType.CANVAS_PIXEL_CHANGE, "Test operation", {"data": "undo"}, {"data": "redo"}
+            OperationType.CANVAS_PIXEL_CHANGE, 'Test operation', {'data': 'undo'}, {'data': 'redo'}
         )
 
         info = self.manager.get_history_info()
-        assert info["undo_count"] == 1
-        assert info["redo_count"] == 0
-        assert info["can_undo"] is True
-        assert info["can_redo"] is False
-        assert info["next_undo"] == "Test operation"
-        assert info["next_redo"] is None
-        assert info["max_history"] == 5
+        assert info['undo_count'] == 1
+        assert info['redo_count'] == 0
+        assert info['can_undo'] is True
+        assert info['can_redo'] is False
+        assert info['next_undo'] == 'Test operation'
+        assert info['next_redo'] is None
+        assert info['max_history'] == 5
 
     def test_operation_with_failed_callback(self, mocker):
         """Test handling of failed callbacks."""
@@ -179,9 +179,9 @@ class TestUndoRedoManager:
         # Add operation
         self.manager.add_operation(
             OperationType.CANVAS_BRUSH_STROKE,
-            "Test operation",
-            {"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
-            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]},  # (x, y, old_color, new_color)
+            'Test operation',
+            {'pixels': [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            {'pixels': [(10, 20, (255, 0, 0), (0, 255, 0))]},  # (x, y, old_color, new_color)
         )
 
         # Undo should fail

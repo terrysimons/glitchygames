@@ -8,6 +8,7 @@ import logging
 
 import pygame
 import pytest
+
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import (
     ControllerInfo,
@@ -78,7 +79,7 @@ class TestButtonMappingIssues:
         # This should not trigger controller activation
         # (Button 9 is now unhandled to prevent reset behavior)
         mock_activate = mocker.patch(
-            "glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_activate"
+            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_activate'
         )
         # Simulate the event handling logic
         if mock_event.button == 9:
@@ -105,10 +106,10 @@ class TestButtonMappingIssues:
 
         # Mock the navigation methods
         mock_prev = mocker.patch(
-            "glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame"
+            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame'
         )
         mock_next = mocker.patch(
-            "glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame"
+            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame'
         )
 
         # Simulate left shoulder button press
@@ -131,19 +132,19 @@ class TestSelectionBoxRegression:
         """Test that selection boxes are drawn for controller selections."""
         # Mock controller selection
         controller_selection = {
-            "controller_id": 0,
-            "animation": "test_animation",
-            "frame": 2,
-            "color": (255, 0, 0),  # Red
+            'controller_id': 0,
+            'animation': 'test_animation',
+            'frame': 2,
+            'color': (255, 0, 0),  # Red
         }
 
         # Mock frame selection
-        frame_selection = {"animation": "test_animation", "frame": 2}
+        frame_selection = {'animation': 'test_animation', 'frame': 2}
 
         # Should draw selection box for controller
         should_draw_box = (
-            controller_selection["animation"] == frame_selection["animation"]
-            and controller_selection["frame"] == frame_selection["frame"]
+            controller_selection['animation'] == frame_selection['animation']
+            and controller_selection['frame'] == frame_selection['frame']
         )
 
         assert should_draw_box is True
@@ -153,26 +154,26 @@ class TestSelectionBoxRegression:
         # Mock selections with different colors
         selections = [
             {
-                "type": "keyboard",
-                "color": (255, 255, 255),  # White
-                "frame": 0,
+                'type': 'keyboard',
+                'color': (255, 255, 255),  # White
+                'frame': 0,
             },
             {
-                "type": "controller_0",
-                "color": (255, 0, 0),  # Red
-                "frame": 0,
+                'type': 'controller_0',
+                'color': (255, 0, 0),  # Red
+                'frame': 0,
             },
             {
-                "type": "controller_1",
-                "color": (0, 255, 0),  # Green
-                "frame": 0,
+                'type': 'controller_1',
+                'color': (0, 255, 0),  # Green
+                'frame': 0,
             },
         ]
 
         # Each selection box should match its indicator color
         for selection in selections:
-            expected_box_color = selection["color"]
-            assert selection["color"] == expected_box_color
+            expected_box_color = selection['color']
+            assert selection['color'] == expected_box_color
 
 
 class TestFilmStripDirtyMarking:
@@ -190,13 +191,13 @@ class TestFilmStripDirtyMarking:
 
         # Mock the scene with film strips
         mock_scene = mocker.Mock()
-        mock_scene.film_strips = {"test_animation": mock_film_strip}
-        mock_scene.film_strip_sprites = {"test_animation": mock_film_strip_sprite}
+        mock_scene.film_strips = {'test_animation': mock_film_strip}
+        mock_scene.film_strip_sprites = {'test_animation': mock_film_strip_sprite}
 
         # Simulate color assignment
-        mocker.patch.object(mock_scene, "film_strips", {"test_animation": mock_film_strip})
+        mocker.patch.object(mock_scene, 'film_strips', {'test_animation': mock_film_strip})
         mocker.patch.object(
-            mock_scene, "film_strip_sprites", {"test_animation": mock_film_strip_sprite}
+            mock_scene, 'film_strip_sprites', {'test_animation': mock_film_strip_sprite}
         )
         # Mark film strips as dirty
         for film_strip in mock_scene.film_strips.values():
@@ -274,15 +275,15 @@ class TestDebugOutputCleanup:
     def test_debug_output_control(self, mocker):
         """Test that debug output can be controlled."""
         # Mock the module-level LOG object
-        mock_log = mocker.patch("tests.tools.test_multi_controller_troubleshooting.LOG")
+        mock_log = mocker.patch('tests.tools.test_multi_controller_troubleshooting.LOG')
         # Simulate debug output
-        mock_log.debug("DEBUG: Controller 0 activated")
-        mock_log.debug("DEBUG: Controller 1 activated")
+        mock_log.debug('DEBUG: Controller 0 activated')
+        mock_log.debug('DEBUG: Controller 1 activated')
 
         # Verify debug output
         assert mock_log.debug.call_count == 2
-        assert "Controller 0 activated" in str(mock_log.debug.call_args_list[0])
-        assert "Controller 1 activated" in str(mock_log.debug.call_args_list[1])
+        assert 'Controller 0 activated' in str(mock_log.debug.call_args_list[0])
+        assert 'Controller 1 activated' in str(mock_log.debug.call_args_list[1])
 
     def test_logging_integration(self, mocker):
         """Test that logging is properly integrated."""
@@ -290,13 +291,13 @@ class TestDebugOutputCleanup:
         mock_logger = mocker.Mock()
 
         # Simulate logging calls
-        mock_logger.debug("Controller 0 activated")
-        mock_logger.debug("Controller 1 activated")
+        mock_logger.debug('Controller 0 activated')
+        mock_logger.debug('Controller 1 activated')
 
         # Verify logging calls
         assert mock_logger.debug.call_count == 2
-        assert "Controller 0 activated" in str(mock_logger.debug.call_args_list[0])
-        assert "Controller 1 activated" in str(mock_logger.debug.call_args_list[1])
+        assert 'Controller 0 activated' in str(mock_logger.debug.call_args_list[0])
+        assert 'Controller 1 activated' in str(mock_logger.debug.call_args_list[1])
 
 
 class TestPerformanceOptimization:
@@ -359,5 +360,5 @@ class TestPerformanceOptimization:
             assert self.manager.controllers[i].color == expected_colors[i]
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

@@ -2,6 +2,7 @@
 """Integration tests for undo/redo workflows and edge cases."""
 
 import pytest
+
 from glitchygames.tools.operation_history import (
     CanvasOperationTracker,
     FilmStripOperationTracker,
@@ -40,9 +41,9 @@ class TestUndoRedoCallbacks:
 
         self.manager.add_operation(
             OperationType.CANVAS_BRUSH_STROKE,
-            "Test brush stroke",
-            {"pixels": [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
-            {"pixels": [(10, 20, (255, 0, 0), (0, 255, 0))]},  # (x, y, old_color, new_color)
+            'Test brush stroke',
+            {'pixels': [(10, 20, (0, 255, 0), (255, 0, 0))]},  # (x, y, new_color, old_color)
+            {'pixels': [(10, 20, (255, 0, 0), (0, 255, 0))]},  # (x, y, old_color, new_color)
         )
 
         self.manager.undo()
@@ -55,9 +56,9 @@ class TestUndoRedoCallbacks:
         # Test frame add undo
         self.manager.add_operation(
             OperationType.FILM_STRIP_FRAME_ADD,
-            "Test frame add",
-            {"frame_index": 1, "animation_name": "test", "frame_data": {}},
-            {"frame_index": 1, "animation_name": "test", "frame_data": {}},
+            'Test frame add',
+            {'frame_index': 1, 'animation_name': 'test', 'frame_data': {}},
+            {'frame_index': 1, 'animation_name': 'test', 'frame_data': {}},
         )
 
         self.manager.undo()
@@ -66,9 +67,9 @@ class TestUndoRedoCallbacks:
         # Test frame delete undo
         self.manager.add_operation(
             OperationType.FILM_STRIP_FRAME_DELETE,
-            "Test frame delete",
-            {"frame_index": 1, "animation_name": "test", "frame_data": {}},
-            {"frame_index": 1, "animation_name": "test", "frame_data": {}},
+            'Test frame delete',
+            {'frame_index': 1, 'animation_name': 'test', 'frame_data': {}},
+            {'frame_index': 1, 'animation_name': 'test', 'frame_data': {}},
         )
 
         self.manager.undo()
@@ -77,9 +78,9 @@ class TestUndoRedoCallbacks:
         # Test animation add undo
         self.manager.add_operation(
             OperationType.FILM_STRIP_ANIMATION_ADD,
-            "Test animation add",
-            {"animation_name": "test", "animation_data": {}},
-            {"animation_name": "test", "animation_data": {}},
+            'Test animation add',
+            {'animation_name': 'test', 'animation_data': {}},
+            {'animation_name': 'test', 'animation_data': {}},
         )
 
         self.manager.undo()
@@ -88,9 +89,9 @@ class TestUndoRedoCallbacks:
         # Test animation delete undo
         self.manager.add_operation(
             OperationType.FILM_STRIP_ANIMATION_DELETE,
-            "Test animation delete",
-            {"animation_name": "test", "animation_data": {}},
-            {"animation_name": "test", "animation_data": {}},
+            'Test animation delete',
+            {'animation_name': 'test', 'animation_data': {}},
+            {'animation_name': 'test', 'animation_data': {}},
         )
 
         self.manager.undo()
@@ -127,8 +128,8 @@ class TestIntegrationScenarios:
         self.canvas_tracker.add_pixel_changes(pixels)
 
         # Add frame operation
-        frame_data = {"width": 32, "height": 32, "pixels": [], "duration": 1.0}
-        self.film_tracker.add_frame_added(1, "walk_animation", frame_data)
+        frame_data = {'width': 32, 'height': 32, 'pixels': [], 'duration': 1.0}
+        self.film_tracker.add_frame_added(1, 'walk_animation', frame_data)
 
         # Add another canvas operation
         pixels2 = [(15, 25, (0, 0, 255), (255, 255, 0))]
@@ -153,19 +154,19 @@ class TestIntegrationScenarios:
 
         # Add frame-specific operation
         frame_pixels = [PixelChange(15, 25, (0, 0, 255), (255, 255, 0))]
-        self.canvas_tracker.add_frame_pixel_changes("walk_animation", 1, frame_pixels)
+        self.canvas_tracker.add_frame_pixel_changes('walk_animation', 1, frame_pixels)
 
         # Global stack should have 1 operation
         assert len(self.manager.undo_stack) == 1
 
         # Frame-specific stack should have 1 operation
-        frame_key = ("walk_animation", 1)
+        frame_key = ('walk_animation', 1)
         assert frame_key in self.manager.frame_undo_stacks
         assert len(self.manager.frame_undo_stacks[frame_key]) == 1
 
         # Can undo both independently
         assert self.manager.can_undo()
-        assert self.manager.can_undo_frame("walk_animation", 1)
+        assert self.manager.can_undo_frame('walk_animation', 1)
 
     def test_operation_descriptions(self):
         """Test that operation descriptions are informative."""
@@ -174,14 +175,14 @@ class TestIntegrationScenarios:
         self.canvas_tracker.add_pixel_changes(pixels)
 
         operation = self.manager.undo_stack[0]
-        assert "Pixel change" in operation.description
-        assert "(10, 20)" in operation.description
+        assert 'Pixel change' in operation.description
+        assert '(10, 20)' in operation.description
 
         # Test frame-specific operation description
         frame_pixels = [PixelChange(15, 25, (0, 0, 255), (255, 255, 0))]
-        self.canvas_tracker.add_frame_pixel_changes("walk_animation", 1, frame_pixels)
+        self.canvas_tracker.add_frame_pixel_changes('walk_animation', 1, frame_pixels)
 
-        frame_key = ("walk_animation", 1)
+        frame_key = ('walk_animation', 1)
         frame_operation = self.manager.frame_undo_stacks[frame_key][0]
-        assert "walk_animation[1]" in frame_operation.description
-        assert "pixel change" in frame_operation.description  # Singular for single pixel
+        assert 'walk_animation[1]' in frame_operation.description
+        assert 'pixel change' in frame_operation.description  # Singular for single pixel

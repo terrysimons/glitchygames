@@ -15,12 +15,12 @@ from glitchygames.services.renderer_service import RenderedFrame, RendererServic
 from glitchygames.services.sprite_generation_service import SpriteGenerationService
 
 __all__ = [
-    "AIProviderError",
-    "RenderedFrame",
-    "RendererService",
-    "RenderingError",
-    "ServiceConfig",
-    "SpriteGenerationService",
-    "SpriteServiceError",
-    "ValidationError",
+    'AIProviderError',
+    'RenderedFrame',
+    'RendererService',
+    'RenderingError',
+    'ServiceConfig',
+    'SpriteGenerationService',
+    'SpriteServiceError',
+    'ValidationError',
 ]

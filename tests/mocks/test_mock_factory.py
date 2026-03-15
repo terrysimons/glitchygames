@@ -8,6 +8,7 @@ from typing import ClassVar
 from unittest.mock import Mock, patch
 
 import pygame
+
 from glitchygames.events import unhandled_event
 from glitchygames.sprites import AnimatedSprite
 
@@ -51,7 +52,7 @@ class MockSurface(pygame.Surface):
         # Initialize the parent pygame.Surface
         super().__init__(*args, **kwargs)
         self._surface = self  # For compatibility with existing code
-        self._mock_path = "/mock/surface/path.png"  # Default mock path for PathLike protocol
+        self._mock_path = '/mock/surface/path.png'  # Default mock path for PathLike protocol
 
     def convert(self, *args, **kwargs):
         """Mock convert method that returns self.
@@ -79,14 +80,14 @@ class MockSurface(pygame.Surface):
 
         """
         # Handle MockSurface sources by extracting their real surface
-        if hasattr(source, "_surface"):
+        if hasattr(source, '_surface'):
             source = source._surface
 
         # If source is still a mock, create a real surface for it
         if (
-            hasattr(source, "_spec_class")
-            or str(type(source)).find("Mock") != -1
-            or str(type(source)).find("MockSurface") != -1
+            hasattr(source, '_spec_class')
+            or str(type(source)).find('Mock') != -1
+            or str(type(source)).find('MockSurface') != -1
         ):
             # Create a real pygame surface for the mock by calling the real constructor
             real_source = pygame.surface.Surface((32, 32))
@@ -94,7 +95,7 @@ class MockSurface(pygame.Surface):
             source = real_source
 
         # Handle mock destination (position)
-        if hasattr(dest, "_spec_class") or str(type(dest)).find("Mock") != -1:
+        if hasattr(dest, '_spec_class') or str(type(dest)).find('Mock') != -1:
             dest = (0, 0)
 
         return super().blit(source, dest, area, special_flags)
@@ -192,18 +193,18 @@ class MockFactory:
 
         # Copy essential attributes manually to avoid circular references
         for attr_name in [
-            "_animations",
-            "current_animation",
-            "current_frame",
-            "is_playing",
-            "_is_looping",
+            '_animations',
+            'current_animation',
+            'current_frame',
+            'is_playing',
+            '_is_looping',
         ]:
             if hasattr(original_sprite, attr_name):
                 setattr(new_sprite, attr_name, getattr(original_sprite, attr_name))
 
         # Copy methods
         for attr_name in dir(original_sprite):
-            if not attr_name.startswith("_") and callable(getattr(original_sprite, attr_name)):
+            if not attr_name.startswith('_') and callable(getattr(original_sprite, attr_name)):
                 setattr(new_sprite, attr_name, getattr(original_sprite, attr_name))
 
         return new_sprite
@@ -406,10 +407,10 @@ class MockFactory:
                 raise ValueError(f"Animation '{animation_name}' not found")
             frames = mock_sprite._animations[animation_name]
             return {
-                "name": animation_name,
-                "frame_count": len(frames),
-                "total_duration": sum(frame.duration for frame in frames),
-                "is_looping": mock_sprite._is_looping,
+                'name': animation_name,
+                'frame_count': len(frames),
+                'total_duration': sum(frame.duration for frame in frames),
+                'is_looping': mock_sprite._is_looping,
             }
 
         mock_sprite.get_animation_metadata = mock_get_animation_metadata
@@ -503,7 +504,7 @@ class MockFactory:
 
     @staticmethod
     def create_animated_sprite_mock(
-        animation_name: str = "idle",
+        animation_name: str = 'idle',
         frame_size: tuple = (8, 8),
         pixel_color: tuple = (255, 0, 0),
         current_frame: int = 0,
@@ -547,17 +548,17 @@ class MockFactory:
         # Create animations for testing
         mock_sprite._animations = {
             animation_name: mock_frames,
-            "timing_demo": mock_frames,  # Add timing_demo animation for tests
+            'timing_demo': mock_frames,  # Add timing_demo animation for tests
         }
 
         # Only add "idle" if it's specifically requested
-        if animation_name == "idle":
-            mock_sprite._animations["idle"] = mock_frames
+        if animation_name == 'idle':
+            mock_sprite._animations['idle'] = mock_frames
         mock_sprite.current_animation = animation_name  # Set to the provided animation name
         mock_sprite.current_frame = current_frame  # Start with specified frame
         mock_sprite.is_playing = is_playing
         mock_sprite._is_looping = is_looping
-        mock_sprite.name = "Tiley McTile Face"  # Default name for tests
+        mock_sprite.name = 'Tiley McTile Face'  # Default name for tests
 
         # Add essential sprite attributes
         mock_sprite.image = mock_frames[0].image
@@ -676,8 +677,8 @@ class MockFactory:
         """
         if options is None:
             options = {
-                "debug_events": False,
-                "no_unhandled_events": True,  # Enable globally to catch unhandled events as bugs
+                'debug_events': False,
+                'no_unhandled_events': True,  # Enable globally to catch unhandled events as bugs
             }
 
         # Create scene mock
@@ -711,36 +712,36 @@ class MockFactory:
                 unhandled_event(scene_mock, event)
 
             unhandled_fallback_handler_names = [
-                "on_controller_axis_motion_event",
-                "on_audio_device_added_event",
-                "on_font_changed_event",
-                "on_quit_event",
-                "on_active_event",
-                "on_user_event",
-                "on_video_resize_event",
-                "on_game_event",
-                "on_menu_item_event",
-                "on_joy_axis_motion_event",
-                "on_joy_button_down_event",
-                "on_joy_button_up_event",
-                "on_joy_device_added_event",
-                "on_joy_device_removed_event",
-                "on_joy_hat_motion_event",
-                "on_joy_ball_motion_event",
-                "on_midi_in_event",
-                "on_midi_out_event",
-                "on_text_input_event",
-                "on_text_editing_event",
-                "on_render_device_reset_event",
-                "on_render_targets_reset_event",
-                "on_clipboard_update_event",
-                "on_locale_changed_event",
-                "on_app_did_enter_background_event",
-                "on_app_did_enter_foreground_event",
-                "on_app_will_enter_background_event",
-                "on_app_will_enter_foreground_event",
-                "on_app_low_memory_event",
-                "on_app_terminating_event",
+                'on_controller_axis_motion_event',
+                'on_audio_device_added_event',
+                'on_font_changed_event',
+                'on_quit_event',
+                'on_active_event',
+                'on_user_event',
+                'on_video_resize_event',
+                'on_game_event',
+                'on_menu_item_event',
+                'on_joy_axis_motion_event',
+                'on_joy_button_down_event',
+                'on_joy_button_up_event',
+                'on_joy_device_added_event',
+                'on_joy_device_removed_event',
+                'on_joy_hat_motion_event',
+                'on_joy_ball_motion_event',
+                'on_midi_in_event',
+                'on_midi_out_event',
+                'on_text_input_event',
+                'on_text_editing_event',
+                'on_render_device_reset_event',
+                'on_render_targets_reset_event',
+                'on_clipboard_update_event',
+                'on_locale_changed_event',
+                'on_app_did_enter_background_event',
+                'on_app_did_enter_foreground_event',
+                'on_app_will_enter_background_event',
+                'on_app_will_enter_foreground_event',
+                'on_app_low_memory_event',
+                'on_app_terminating_event',
             ]
             for handler_name in unhandled_fallback_handler_names:
                 setattr(scene_mock, handler_name, unhandled_event_fallback)
@@ -750,36 +751,36 @@ class MockFactory:
             # tag=None means append event directly and return True;
             # tag=string means append (tag, event) tuple with no return value.
             default_handler_definitions = [
-                ("on_audio_device_added_event", "audio_events_received", None),
-                ("on_controller_axis_motion_event", "controller_events_received", None),
-                ("on_text_input_event", "text_events_received", None),
-                ("on_text_editing_event", "text_events_received", None),
-                ("on_render_device_reset_event", "game_events_received", "render_device_reset"),
-                ("on_render_targets_reset_event", "game_events_received", "render_targets_reset"),
+                ('on_audio_device_added_event', 'audio_events_received', None),
+                ('on_controller_axis_motion_event', 'controller_events_received', None),
+                ('on_text_input_event', 'text_events_received', None),
+                ('on_text_editing_event', 'text_events_received', None),
+                ('on_render_device_reset_event', 'game_events_received', 'render_device_reset'),
+                ('on_render_targets_reset_event', 'game_events_received', 'render_targets_reset'),
                 (
-                    "on_app_did_enter_background_event",
-                    "game_events_received",
-                    "app_did_enter_background",
+                    'on_app_did_enter_background_event',
+                    'game_events_received',
+                    'app_did_enter_background',
                 ),
                 (
-                    "on_app_did_enter_foreground_event",
-                    "game_events_received",
-                    "app_did_enter_foreground",
+                    'on_app_did_enter_foreground_event',
+                    'game_events_received',
+                    'app_did_enter_foreground',
                 ),
                 (
-                    "on_app_will_enter_background_event",
-                    "game_events_received",
-                    "app_will_enter_background",
+                    'on_app_will_enter_background_event',
+                    'game_events_received',
+                    'app_will_enter_background',
                 ),
                 (
-                    "on_app_will_enter_foreground_event",
-                    "game_events_received",
-                    "app_will_enter_foreground",
+                    'on_app_will_enter_foreground_event',
+                    'game_events_received',
+                    'app_will_enter_foreground',
                 ),
-                ("on_app_low_memory_event", "game_events_received", "app_low_memory"),
-                ("on_app_terminating_event", "game_events_received", "app_terminating"),
-                ("on_clipboard_update_event", "game_events_received", "clipboard_update"),
-                ("on_locale_changed_event", "game_events_received", "locale_changed"),
+                ('on_app_low_memory_event', 'game_events_received', 'app_low_memory'),
+                ('on_app_terminating_event', 'game_events_received', 'app_terminating'),
+                ('on_clipboard_update_event', 'game_events_received', 'clipboard_update'),
+                ('on_locale_changed_event', 'game_events_received', 'locale_changed'),
             ]
 
             for handler_name, event_list_attr, tag in default_handler_definitions:
@@ -814,7 +815,7 @@ class MockFactory:
         mock_canvas.dirty_pixels = [True] * pixel_count
 
         # Set up canvas properties with real values
-        mock_canvas.current_animation = ""
+        mock_canvas.current_animation = ''
         mock_canvas.current_frame = 0
         mock_canvas.animated_sprite = None
 
@@ -968,8 +969,8 @@ class MockFactory:
         mock_event.pos = (0, 0)
         mock_event.button = 1
         mock_event.key = 0
-        mock_event.unicode = ""
-        mock_event.text = ""
+        mock_event.unicode = ''
+        mock_event.text = ''
         return mock_event
 
     @staticmethod
@@ -998,7 +999,7 @@ class MockFactory:
 
         """
         mock_joystick = Mock()
-        mock_joystick.get_name.return_value = "Mock Joystick"
+        mock_joystick.get_name.return_value = 'Mock Joystick'
         mock_joystick.get_numaxes.return_value = 2
         mock_joystick.get_numbuttons.return_value = 8
         mock_joystick.get_numhats.return_value = 1
@@ -1034,8 +1035,8 @@ class MockFactory:
 
         """
         mock_game = Mock()
-        mock_game.NAME = "MockGame"
-        mock_game.VERSION = "1.0"
+        mock_game.NAME = 'MockGame'
+        mock_game.VERSION = '1.0'
         mock_game.args = Mock(return_value=Mock())
         return mock_game
 
@@ -1056,7 +1057,7 @@ class MockFactory:
         for i in range(joystick_count):
             mock_joystick_proxy = Mock()
             mock_joystick_proxy._id = i
-            mock_joystick_proxy.get_name.return_value = f"Mock Joystick {i}"
+            mock_joystick_proxy.get_name.return_value = f'Mock Joystick {i}'
             mock_joystick_proxy.get_numaxes.return_value = 4
             mock_joystick_proxy.get_numbuttons.return_value = 12
             mock_joystick_proxy.get_numhats.return_value = 1
@@ -1096,12 +1097,12 @@ class MockFactory:
                 self._mock_surface = MockFactory.create_pygame_surface_mock(width, height)
                 # Copy all attributes from the mock surface
                 for attr in dir(self._mock_surface):
-                    if not attr.startswith("_"):
+                    if not attr.startswith('_'):
                         setattr(self, attr, getattr(self._mock_surface, attr))
 
         # Make it look like a proper class
-        MockSurfaceClass.__name__ = "Surface"
-        MockSurfaceClass.__module__ = "pygame"
+        MockSurfaceClass.__name__ = 'Surface'
+        MockSurfaceClass.__module__ = 'pygame'
 
         # Store the class for isinstance checks
         MockFactory._surface_class = MockSurfaceClass
@@ -1151,21 +1152,21 @@ class MockFactory:
         """Mock Sprite.__init__ that handles pygame.display.get_surface() properly."""
         # Avoid referencing self in debug output to prevent __str__ access before attributes are set
         # Extract arguments from kwargs since that's how they're being passed
-        x = kwargs.get("x", 0)
-        y = kwargs.get("y", 0)
-        width = kwargs.get("width", 32)
-        height = kwargs.get("height", 32)
-        name = kwargs.get("name", "")
-        parent = kwargs.get("parent")
-        groups = kwargs.get("groups")
+        x = kwargs.get('x', 0)
+        y = kwargs.get('y', 0)
+        width = kwargs.get('width', 32)
+        height = kwargs.get('height', 32)
+        name = kwargs.get('name', '')
+        parent = kwargs.get('parent')
+        groups = kwargs.get('groups')
 
         # Set essential identifiers early
         self.name = name
         self.parent = parent
 
         # BitmappySprite-specific attributes
-        self.filename = kwargs.get("filename", "")
-        self.focusable = kwargs.get("focusable", False)
+        self.filename = kwargs.get('filename', '')
+        self.focusable = kwargs.get('focusable', False)
 
         # Initialize pixel data attributes
         self.pixels = []
@@ -1174,12 +1175,12 @@ class MockFactory:
 
         # Ensure proper inheritance by setting __class__ if needed
         # This helps with isinstance() checks in tests
-        if hasattr(self, "__class__"):
+        if hasattr(self, '__class__'):
             # Make sure the class hierarchy is preserved
             pass
 
         # Add private _text attribute for TextSprite (must be set early)
-        self._text = ""
+        self._text = ''
 
         # Add background_color attribute for TextSprite
         self.background_color = (0, 0, 0, 0)  # Transparent black by default
@@ -1265,7 +1266,7 @@ class MockFactory:
         display_mock.flip.return_value = None
         display_mock.update.return_value = None
         display_mock.set_icon.return_value = None
-        display_mock.get_caption.return_value = ("Test Game", "Test Game")
+        display_mock.get_caption.return_value = ('Test Game', 'Test Game')
 
         # Add Info class to display mock
         class MockDisplayInfo:
@@ -1295,9 +1296,9 @@ class MockFactory:
         display_surface = display_mock.get_surface.return_value
 
         # Only patch display-related functions
-        display_patcher = patch("pygame.display", display_mock)
+        display_patcher = patch('pygame.display', display_mock)
         display_get_surface_patcher = patch(
-            "pygame.display.get_surface", return_value=display_surface
+            'pygame.display.get_surface', return_value=display_surface
         )
 
         return (display_patcher, display_get_surface_patcher)
@@ -1318,7 +1319,7 @@ class MockFactory:
         def mock_draw(surface):
             """Mock draw method that handles sprites properly."""
             for sprite in mock_group._spritelist:
-                if hasattr(sprite, "image") and hasattr(sprite, "rect"):
+                if hasattr(sprite, 'image') and hasattr(sprite, 'rect'):
                     if sprite not in mock_group._old_rect:
                         mock_group._old_rect[sprite] = sprite.rect.copy()
                     surface.blit(sprite.image, sprite.rect)
@@ -1328,7 +1329,7 @@ class MockFactory:
             for sprite in sprites:
                 if sprite not in mock_group._spritelist:
                     mock_group._spritelist.append(sprite)
-                    if hasattr(sprite, "rect"):
+                    if hasattr(sprite, 'rect'):
                         mock_group._old_rect[sprite] = sprite.rect.copy()
 
         def mock_remove(*sprites):
@@ -1357,7 +1358,7 @@ class MockFactory:
 
         """
         return MockFactory.create_animated_sprite_mock(
-            animation_name="idle",
+            animation_name='idle',
             frame_size=(8, 8),
             pixel_color=(255, 0, 0),
             current_frame=0,
@@ -1376,13 +1377,13 @@ class MockFactory:
         # Use format_str to avoid unused argument warning
         _ = format_str
         # Return mock pixel data based on surface size
-        if hasattr(surface, "get_width") and hasattr(surface, "get_height"):
+        if hasattr(surface, 'get_width') and hasattr(surface, 'get_height'):
             width = surface.get_width()
             height = surface.get_height()
 
             # Check if this is a single-color surface (for legacy sprite tests)
             # If the surface has a single color, return consistent pixel data
-            if hasattr(surface, "_test_single_color") and surface._test_single_color:
+            if hasattr(surface, '_test_single_color') and surface._test_single_color:
                 # Return all pixels as red (255, 0, 0) for single color tests
                 pixel_data = bytearray()
                 for _ in range(height):
@@ -1402,7 +1403,7 @@ class MockFactory:
                     b = ((x + y * width) * 3) % 256
                     pixel_data.extend([r, g, b])
             return bytes(pixel_data)
-        return b"\x00" * 100  # Default mock data
+        return b'\x00' * 100  # Default mock data
 
     @staticmethod
     def _mock_transform_scale(surface, size):
@@ -1444,7 +1445,7 @@ class MockFactory:
                 object: The result.
 
             """
-            if hasattr(surface, "_surface"):
+            if hasattr(surface, '_surface'):
                 # Use the original pygame.draw.polygon directly to avoid recursion
                 return original_draw_polygon(surface._surface, color, points, width)
             # For mock surfaces, just return without doing anything
@@ -1472,18 +1473,18 @@ class MockFactory:
         clock_mock.get_fps.return_value = 60.0
 
         return {
-            "display_mock": display_mock,
-            "display_surface": display_surface,
-            "surface_class_mock": surface_class_mock,
-            "mock_layered_dirty_constructor": MockFactory._create_mock_layered_dirty,
-            "mock_sprite_factory_load_sprite": MockFactory._mock_sprite_factory_load_sprite,
-            "mock_draw_polygon": mock_draw_polygon,
-            "mixer_mock": mixer_mock,
-            "key_mock": key_mock,
-            "mock_transform_scale": MockFactory._mock_transform_scale,
-            "mock_font": mock_font,
-            "mock_image_tostring": MockFactory._mock_image_tostring,
-            "clock_mock": clock_mock,
+            'display_mock': display_mock,
+            'display_surface': display_surface,
+            'surface_class_mock': surface_class_mock,
+            'mock_layered_dirty_constructor': MockFactory._create_mock_layered_dirty,
+            'mock_sprite_factory_load_sprite': MockFactory._mock_sprite_factory_load_sprite,
+            'mock_draw_polygon': mock_draw_polygon,
+            'mixer_mock': mixer_mock,
+            'key_mock': key_mock,
+            'mock_transform_scale': MockFactory._mock_transform_scale,
+            'mock_font': mock_font,
+            'mock_image_tostring': MockFactory._mock_image_tostring,
+            'clock_mock': clock_mock,
         }
 
     @staticmethod
@@ -1505,7 +1506,7 @@ class MockFactory:
 
             """
             # Handle different render method signatures
-            text = str(args[0]) if len(args) >= 1 else "Mock"
+            text = str(args[0]) if len(args) >= 1 else 'Mock'
 
             # Create a real surface for text rendering
             import pygame
@@ -1524,7 +1525,7 @@ class MockFactory:
             surface.get_rect = Mock(return_value=text_rect)
 
             # Handle different return types (surface vs (surface, rect))
-            if "fgcolor" in kwargs or len(args) >= MIN_ARGS_FOR_FGCOLOR:
+            if 'fgcolor' in kwargs or len(args) >= MIN_ARGS_FOR_FGCOLOR:
                 # pygame.freetype style - return (surface, rect)
                 return surface, text_rect
             # pygame.font style - return surface
@@ -1551,73 +1552,73 @@ class MockFactory:
         """
         return {
             # Display mocks
-            "display": ("pygame.display", {"new": mock_objects["display_mock"]}),
-            "display_get_surface": (
-                "pygame.display.get_surface",
-                {"return_value": mock_objects["display_surface"]},
+            'display': ('pygame.display', {'new': mock_objects['display_mock']}),
+            'display_get_surface': (
+                'pygame.display.get_surface',
+                {'return_value': mock_objects['display_surface']},
             ),
             # Surface mocking
-            "surface": ("pygame.Surface", {"new": mock_objects["surface_class_mock"]}),
+            'surface': ('pygame.Surface', {'new': mock_objects['surface_class_mock']}),
             # Event mocking
-            "event_get": ("pygame.event.get", {"return_value": []}),
-            "event_get_blocked": ("pygame.event.get_blocked", {"return_value": False}),
-            "event_post": ("pygame.event.post", {}),
-            "event_event": ("pygame.event.Event", {}),
+            'event_get': ('pygame.event.get', {'return_value': []}),
+            'event_get_blocked': ('pygame.event.get_blocked', {'return_value': False}),
+            'event_post': ('pygame.event.post', {}),
+            'event_event': ('pygame.event.Event', {}),
             # Drawing mocks for Film Strip and other modules
-            "draw_circle": ("pygame.draw.circle", {}),
-            "draw_line": ("pygame.draw.line", {}),
-            "draw_rect": ("pygame.draw.rect", {}),
-            "draw_polygon": (
-                "pygame.draw.polygon",
-                {"side_effect": mock_objects["mock_draw_polygon"]},
+            'draw_circle': ('pygame.draw.circle', {}),
+            'draw_line': ('pygame.draw.line', {}),
+            'draw_rect': ('pygame.draw.rect', {}),
+            'draw_polygon': (
+                'pygame.draw.polygon',
+                {'side_effect': mock_objects['mock_draw_polygon']},
             ),
             # Sprite group mocking
-            "layered_dirty": (
-                "pygame.sprite.LayeredDirty",
-                {"side_effect": mock_objects["mock_layered_dirty_constructor"]},
+            'layered_dirty': (
+                'pygame.sprite.LayeredDirty',
+                {'side_effect': mock_objects['mock_layered_dirty_constructor']},
             ),
-            "sprite_group": (
-                "pygame.sprite.Group",
-                {"side_effect": mock_objects["mock_layered_dirty_constructor"]},
+            'sprite_group': (
+                'pygame.sprite.Group',
+                {'side_effect': mock_objects['mock_layered_dirty_constructor']},
             ),
             # SpriteFactory mocking
-            "sprite_factory": (
-                "glitchygames.sprites.SpriteFactory.load_sprite",
-                {"side_effect": mock_objects["mock_sprite_factory_load_sprite"]},
+            'sprite_factory': (
+                'glitchygames.sprites.SpriteFactory.load_sprite',
+                {'side_effect': mock_objects['mock_sprite_factory_load_sprite']},
             ),
             # Sound/mixer mocking
-            "mixer": ("pygame.mixer", {"new": mock_objects["mixer_mock"]}),
-            "mixer_sound": ("pygame.mixer.Sound", {"return_value": Mock()}),
+            'mixer': ('pygame.mixer', {'new': mock_objects['mixer_mock']}),
+            'mixer_sound': ('pygame.mixer.Sound', {'return_value': Mock()}),
             # Keyboard mocking
-            "key": ("pygame.key", {"new": mock_objects["key_mock"]}),
+            'key': ('pygame.key', {'new': mock_objects['key_mock']}),
             # Transform mocking
-            "transform_scale": (
-                "pygame.transform.scale",
-                {"side_effect": mock_objects["mock_transform_scale"]},
+            'transform_scale': (
+                'pygame.transform.scale',
+                {'side_effect': mock_objects['mock_transform_scale']},
             ),
             # Image module mock
-            "image_tostring": (
-                "pygame.image.tostring",
-                {"side_effect": mock_objects["mock_image_tostring"]},
+            'image_tostring': (
+                'pygame.image.tostring',
+                {'side_effect': mock_objects['mock_image_tostring']},
             ),
             # FontManager mock
-            "font_manager": (
-                "glitchygames.fonts.FontManager.get_font",
-                {"return_value": mock_objects["mock_font"]},
+            'font_manager': (
+                'glitchygames.fonts.FontManager.get_font',
+                {'return_value': mock_objects['mock_font']},
             ),
             # Clock mocking
-            "clock": ("pygame.time.Clock", {"return_value": mock_objects["clock_mock"]}),
+            'clock': ('pygame.time.Clock', {'return_value': mock_objects['clock_mock']}),
             # Sprite class mocking - patch the BitmappySprite constructor
             # to handle pygame.display.get_surface()
-            "sprite_init": (
-                "glitchygames.sprites.BitmappySprite.__init__",
-                {"new": MockFactory._mock_sprite_init},
+            'sprite_init': (
+                'glitchygames.sprites.BitmappySprite.__init__',
+                {'new': MockFactory._mock_sprite_init},
             ),
             # Key constants mocking
-            "K_q": ("pygame.K_q", {"new": 113}),
-            "K_ESCAPE": ("pygame.K_ESCAPE", {"new": 27}),
-            "K_LSHIFT": ("pygame.K_LSHIFT", {"new": 304}),
-            "K_RSHIFT": ("pygame.K_RSHIFT", {"new": 303}),
+            'K_q': ('pygame.K_q', {'new': 113}),
+            'K_ESCAPE': ('pygame.K_ESCAPE', {'new': 27}),
+            'K_LSHIFT': ('pygame.K_LSHIFT', {'new': 304}),
+            'K_RSHIFT': ('pygame.K_RSHIFT', {'new': 303}),
         }
 
     @staticmethod
@@ -1632,79 +1633,79 @@ class MockFactory:
 
         return {
             # Keyboard events
-            "KEYDOWN": ("pygame.KEYDOWN", {"new": pygame.KEYDOWN}),
-            "KEYUP": ("pygame.KEYUP", {"new": pygame.KEYUP}),
+            'KEYDOWN': ('pygame.KEYDOWN', {'new': pygame.KEYDOWN}),
+            'KEYUP': ('pygame.KEYUP', {'new': pygame.KEYUP}),
             # Mouse events
-            "MOUSEBUTTONDOWN": ("pygame.MOUSEBUTTONDOWN", {"new": pygame.MOUSEBUTTONDOWN}),
-            "MOUSEBUTTONUP": ("pygame.MOUSEBUTTONUP", {"new": pygame.MOUSEBUTTONUP}),
-            "MOUSEMOTION": ("pygame.MOUSEMOTION", {"new": pygame.MOUSEMOTION}),
-            "MOUSEWHEEL": ("pygame.MOUSEWHEEL", {"new": pygame.MOUSEWHEEL}),
+            'MOUSEBUTTONDOWN': ('pygame.MOUSEBUTTONDOWN', {'new': pygame.MOUSEBUTTONDOWN}),
+            'MOUSEBUTTONUP': ('pygame.MOUSEBUTTONUP', {'new': pygame.MOUSEBUTTONUP}),
+            'MOUSEMOTION': ('pygame.MOUSEMOTION', {'new': pygame.MOUSEMOTION}),
+            'MOUSEWHEEL': ('pygame.MOUSEWHEEL', {'new': pygame.MOUSEWHEEL}),
             # Window/system events
-            "QUIT": ("pygame.QUIT", {"new": pygame.QUIT}),
-            "TEXTINPUT": ("pygame.TEXTINPUT", {"new": pygame.TEXTINPUT}),
+            'QUIT': ('pygame.QUIT', {'new': pygame.QUIT}),
+            'TEXTINPUT': ('pygame.TEXTINPUT', {'new': pygame.TEXTINPUT}),
             # Touch events
-            "FINGERDOWN": ("pygame.FINGERDOWN", {"new": pygame.FINGERDOWN}),
-            "FINGERUP": ("pygame.FINGERUP", {"new": pygame.FINGERUP}),
-            "FINGERMOTION": ("pygame.FINGERMOTION", {"new": pygame.FINGERMOTION}),
+            'FINGERDOWN': ('pygame.FINGERDOWN', {'new': pygame.FINGERDOWN}),
+            'FINGERUP': ('pygame.FINGERUP', {'new': pygame.FINGERUP}),
+            'FINGERMOTION': ('pygame.FINGERMOTION', {'new': pygame.FINGERMOTION}),
             # Window events
-            "WINDOWRESIZED": ("pygame.WINDOWRESIZED", {"new": pygame.WINDOWRESIZED}),
-            "WINDOWRESTORED": ("pygame.WINDOWRESTORED", {"new": pygame.WINDOWRESTORED}),
-            "WINDOWFOCUSGAINED": (
-                "pygame.WINDOWFOCUSGAINED",
-                {"new": pygame.WINDOWFOCUSGAINED},
+            'WINDOWRESIZED': ('pygame.WINDOWRESIZED', {'new': pygame.WINDOWRESIZED}),
+            'WINDOWRESTORED': ('pygame.WINDOWRESTORED', {'new': pygame.WINDOWRESTORED}),
+            'WINDOWFOCUSGAINED': (
+                'pygame.WINDOWFOCUSGAINED',
+                {'new': pygame.WINDOWFOCUSGAINED},
             ),
-            "WINDOWFOCUSLOST": ("pygame.WINDOWFOCUSLOST", {"new": pygame.WINDOWFOCUSLOST}),
+            'WINDOWFOCUSLOST': ('pygame.WINDOWFOCUSLOST', {'new': pygame.WINDOWFOCUSLOST}),
             # Audio events - use real pygame constants
-            "AUDIODEVICEADDED": (
-                "pygame.AUDIODEVICEADDED",
-                {"new": pygame.AUDIODEVICEADDED},
+            'AUDIODEVICEADDED': (
+                'pygame.AUDIODEVICEADDED',
+                {'new': pygame.AUDIODEVICEADDED},
             ),
-            "AUDIODEVICEREMOVED": (
-                "pygame.AUDIODEVICEREMOVED",
-                {"new": pygame.AUDIODEVICEREMOVED},
+            'AUDIODEVICEREMOVED': (
+                'pygame.AUDIODEVICEREMOVED',
+                {'new': pygame.AUDIODEVICEREMOVED},
             ),
             # Joystick/Controller events
-            "JOYAXISMOTION": ("pygame.JOYAXISMOTION", {"new": pygame.JOYAXISMOTION}),
-            "JOYBALLMOTION": ("pygame.JOYBALLMOTION", {"new": pygame.JOYBALLMOTION}),
-            "JOYBUTTONDOWN": ("pygame.JOYBUTTONDOWN", {"new": pygame.JOYBUTTONDOWN}),
-            "JOYBUTTONUP": ("pygame.JOYBUTTONUP", {"new": pygame.JOYBUTTONUP}),
-            "JOYHATMOTION": ("pygame.JOYHATMOTION", {"new": pygame.JOYHATMOTION}),
-            "JOYDEVICEADDED": ("pygame.JOYDEVICEADDED", {"new": pygame.JOYDEVICEADDED}),
-            "JOYDEVICEREMOVED": ("pygame.JOYDEVICEREMOVED", {"new": pygame.JOYDEVICEREMOVED}),
+            'JOYAXISMOTION': ('pygame.JOYAXISMOTION', {'new': pygame.JOYAXISMOTION}),
+            'JOYBALLMOTION': ('pygame.JOYBALLMOTION', {'new': pygame.JOYBALLMOTION}),
+            'JOYBUTTONDOWN': ('pygame.JOYBUTTONDOWN', {'new': pygame.JOYBUTTONDOWN}),
+            'JOYBUTTONUP': ('pygame.JOYBUTTONUP', {'new': pygame.JOYBUTTONUP}),
+            'JOYHATMOTION': ('pygame.JOYHATMOTION', {'new': pygame.JOYHATMOTION}),
+            'JOYDEVICEADDED': ('pygame.JOYDEVICEADDED', {'new': pygame.JOYDEVICEADDED}),
+            'JOYDEVICEREMOVED': ('pygame.JOYDEVICEREMOVED', {'new': pygame.JOYDEVICEREMOVED}),
             # Controller events
-            "CONTROLLERAXISMOTION": (
-                "pygame.CONTROLLERAXISMOTION",
-                {"new": pygame.CONTROLLERAXISMOTION},
+            'CONTROLLERAXISMOTION': (
+                'pygame.CONTROLLERAXISMOTION',
+                {'new': pygame.CONTROLLERAXISMOTION},
             ),
-            "CONTROLLERBUTTONDOWN": (
-                "pygame.CONTROLLERBUTTONDOWN",
-                {"new": pygame.CONTROLLERBUTTONDOWN},
+            'CONTROLLERBUTTONDOWN': (
+                'pygame.CONTROLLERBUTTONDOWN',
+                {'new': pygame.CONTROLLERBUTTONDOWN},
             ),
-            "CONTROLLERBUTTONUP": (
-                "pygame.CONTROLLERBUTTONUP",
-                {"new": pygame.CONTROLLERBUTTONUP},
+            'CONTROLLERBUTTONUP': (
+                'pygame.CONTROLLERBUTTONUP',
+                {'new': pygame.CONTROLLERBUTTONUP},
             ),
-            "CONTROLLERDEVICEADDED": (
-                "pygame.CONTROLLERDEVICEADDED",
-                {"new": pygame.CONTROLLERDEVICEADDED},
+            'CONTROLLERDEVICEADDED': (
+                'pygame.CONTROLLERDEVICEADDED',
+                {'new': pygame.CONTROLLERDEVICEADDED},
             ),
-            "CONTROLLERDEVICEREMOVED": (
-                "pygame.CONTROLLERDEVICEREMOVED",
-                {"new": pygame.CONTROLLERDEVICEREMOVED},
+            'CONTROLLERDEVICEREMOVED': (
+                'pygame.CONTROLLERDEVICEREMOVED',
+                {'new': pygame.CONTROLLERDEVICEREMOVED},
             ),
-            "CONTROLLERDEVICEREMAPPED": (
-                "pygame.CONTROLLERDEVICEREMAPPED",
-                {"new": pygame.CONTROLLERDEVICEREMAPPED},
+            'CONTROLLERDEVICEREMAPPED': (
+                'pygame.CONTROLLERDEVICEREMAPPED',
+                {'new': pygame.CONTROLLERDEVICEREMAPPED},
             ),
             # Drop events
-            "DROPBEGIN": ("pygame.DROPBEGIN", {"new": pygame.DROPBEGIN}),
-            "DROPCOMPLETE": ("pygame.DROPCOMPLETE", {"new": pygame.DROPCOMPLETE}),
-            "DROPFILE": ("pygame.DROPFILE", {"new": pygame.DROPFILE}),
-            "DROPTEXT": ("pygame.DROPTEXT", {"new": pygame.DROPTEXT}),
+            'DROPBEGIN': ('pygame.DROPBEGIN', {'new': pygame.DROPBEGIN}),
+            'DROPCOMPLETE': ('pygame.DROPCOMPLETE', {'new': pygame.DROPCOMPLETE}),
+            'DROPFILE': ('pygame.DROPFILE', {'new': pygame.DROPFILE}),
+            'DROPTEXT': ('pygame.DROPTEXT', {'new': pygame.DROPTEXT}),
             # MIDI events
-            "MIDIIN": ("pygame.MIDIIN", {"new": pygame.MIDIIN}),
+            'MIDIIN': ('pygame.MIDIIN', {'new': pygame.MIDIIN}),
             # User events
-            "USEREVENT": ("pygame.USEREVENT", {"new": pygame.USEREVENT}),
+            'USEREVENT': ('pygame.USEREVENT', {'new': pygame.USEREVENT}),
         }
 
     @staticmethod
@@ -1773,7 +1774,7 @@ class MockFactory:
 
 
 # Convenience functions for common use cases
-def create_8x8_sprite_mock(animation_name: str = "idle") -> Mock:
+def create_8x8_sprite_mock(animation_name: str = 'idle') -> Mock:
     """Create a standard 8x8 sprite mock.
 
     Returns:
@@ -1783,7 +1784,7 @@ def create_8x8_sprite_mock(animation_name: str = "idle") -> Mock:
     return MockFactory.create_animated_sprite_mock(animation_name=animation_name, frame_size=(8, 8))
 
 
-def create_10x10_sprite_mock(animation_name: str = "idle") -> Mock:
+def create_10x10_sprite_mock(animation_name: str = 'idle') -> Mock:
     """Create a 10x10 sprite mock for dimension testing.
 
     Returns:
@@ -1810,7 +1811,7 @@ def create_custom_sprite_mock(
 
 
 # Template-related mock functions
-def create_template_path_mock(template_name: str = "test_template") -> Mock:
+def create_template_path_mock(template_name: str = 'test_template') -> Mock:
     """Create a mock Path object for template testing.
 
     Returns:
@@ -1839,7 +1840,7 @@ def create_template_path_mock(template_name: str = "test_template") -> Mock:
             return Mock()
 
         def __str__(self):
-            return f"/mock/path/{self._template_name}"
+            return f'/mock/path/{self._template_name}'
 
         def __repr__(self):
             return f"MockPath('{self._template_name}')"
@@ -1872,7 +1873,7 @@ def create_template_directory_mock(template_names: list | None = None) -> Mock:
 
     """
     if template_names is None:
-        template_names = ["template1", "template2"]
+        template_names = ['template1', 'template2']
 
     mock_items = []
     for name in template_names:

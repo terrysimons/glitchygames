@@ -11,7 +11,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import ButtonSprite
-
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -44,12 +43,12 @@ class TestButtonSpriteFunctionality:
 
     def test_button_mouse_down_up_changes_background(self, mock_pygame_patches, mocker):
         """Test that button background changes on mouse down/up events."""
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="ClickMe")
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='ClickMe')
         assert btn.background_color == btn.inactive_color
 
         # Act: simulate mouse down
@@ -67,12 +66,12 @@ class TestButtonSpriteFunctionality:
 
     def test_button_hover_state_changes(self, mock_pygame_patches, mocker):
         """Test that button changes appearance on hover."""
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="HoverButton")
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='HoverButton')
         initial_color = btn.background_color
 
         # Act: simulate mouse enter
@@ -90,12 +89,12 @@ class TestButtonSpriteFunctionality:
 
     def test_button_click_behavior(self, mock_pygame_patches, mocker):
         """Test that button changes color on click."""
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="ClickButton")
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='ClickButton')
         assert btn.background_color == btn.inactive_color
 
         # Act: simulate click
@@ -112,20 +111,20 @@ class TestButtonSpriteFunctionality:
 
     def test_button_initialization(self, mock_pygame_patches, mocker):
         """Test ButtonSprite initialization."""
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
         # Act
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="TestButton")
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='TestButton')
 
         # Assert
         assert btn.rect.x == BUTTON_X
         assert btn.rect.y == BUTTON_Y
         assert btn.rect.width == BUTTON_WIDTH
         assert btn.rect.height == BUTTON_HEIGHT
-        assert btn.name == "TestButton"
+        assert btn.name == 'TestButton'
         assert btn.background_color is not None
         assert btn.active_color is not None
         assert btn.inactive_color is not None
@@ -133,31 +132,31 @@ class TestButtonSpriteFunctionality:
 
     def test_button_text_rendering(self, mock_pygame_patches, mocker):
         """Test that button text is rendered correctly."""
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
         # Act
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="TextButton")
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='TextButton')
 
         # Assert - ButtonSprite creates a TextSprite internally, so we check that it exists
         assert btn.text is not None
         # TextSprite name is set to the button's name
-        assert btn.text.name == "TextButton"
+        assert btn.text.name == 'TextButton'
 
     def test_button_disabled_state(self, mock_pygame_patches, mocker):
         """Test button disabled state functionality."""
-        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name="DisabledButton")
+        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='DisabledButton')
 
         # Test that button can be created and has expected properties
         assert btn is not None
-        assert btn.name == "DisabledButton"
+        assert btn.name == 'DisabledButton'
 
         # Test that button responds to mouse events
         event = self._create_mock_event()

@@ -254,7 +254,7 @@ class TestBallBoundaryPhysics:
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            collision_sound="test_sound",
+            collision_sound='test_sound',
             speed_up_mode=SpeedUpMode.NONE,
         )
 
@@ -277,7 +277,7 @@ class TestBallBoundaryPhysics:
             speed_up_mode=SpeedUpMode.NONE,
         )
 
-        mock_logger = mocker.patch("logging.getLogger")
+        mock_logger = mocker.patch('logging.getLogger')
         mock_log = mocker.Mock()
         mock_logger.return_value = mock_log
 
@@ -288,7 +288,7 @@ class TestBallBoundaryPhysics:
         assert mock_log.debug.called
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import pytest
 
     pytest.main([__file__])

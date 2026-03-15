@@ -11,7 +11,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.scenes import Scene, SceneManager
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
@@ -29,8 +28,8 @@ class TestSceneManager:
 
         # Create a mock game scene class for the engine
         class MockGameScene(Scene):
-            NAME = "MockGameScene"
-            VERSION = "1.0"
+            NAME = 'MockGameScene'
+            VERSION = '1.0'
 
             def __init__(self, options=None, groups=None):
                 super().__init__(options=options, groups=groups)
@@ -56,7 +55,7 @@ class TestSceneManager:
 
         # Check basic attributes
         assert scene_manager.screen is not None
-        assert scene_manager.update_type == "update"
+        assert scene_manager.update_type == 'update'
         assert scene_manager.fps_log_interval_ms == FPS_REFRESH_RATE
         # target_fps may be 60 if game_engine was set in previous tests (singleton behavior)
         assert scene_manager.target_fps in {0, 60}
@@ -82,9 +81,9 @@ class TestSceneManager:
         # Test setting game_engine with proper OPTIONS structure
         mock_engine = mocker.Mock()
         mock_engine.OPTIONS = {
-            "update_type": "update",
-            "fps_log_interval_ms": FPS_REFRESH_RATE,
-            "target_fps": 60,
+            'update_type': 'update',
+            'fps_log_interval_ms': FPS_REFRESH_RATE,
+            'target_fps': 60,
         }
         scene_manager.game_engine = mock_engine
         assert scene_manager.game_engine == mock_engine
@@ -190,15 +189,15 @@ class TestSceneManager:
         """Test SceneManager on_game_event method."""
         scene_manager = self.scene_manager
         mock_event = mocker.Mock()
-        mock_event.subtype = "test_event"
+        mock_event.subtype = 'test_event'
 
         # Set up a mock game engine with registered_events and OPTIONS
         mock_engine = mocker.Mock()
-        mock_engine.registered_events = {"test_event": mocker.Mock()}
+        mock_engine.registered_events = {'test_event': mocker.Mock()}
         mock_engine.OPTIONS = {
-            "update_type": "update",
-            "fps_log_interval_ms": FPS_REFRESH_RATE,
-            "target_fps": 60,
+            'update_type': 'update',
+            'fps_log_interval_ms': FPS_REFRESH_RATE,
+            'target_fps': 60,
         }
         scene_manager.game_engine = mock_engine
 
@@ -212,7 +211,7 @@ class TestSceneManager:
 
         # Test registering game event (may not exist in all implementations)
         with contextlib.suppress(AttributeError):
-            scene_manager.register_game_event("test_event", mock_callback)
+            scene_manager.register_game_event('test_event', mock_callback)
 
     def test_scene_manager_getattr(self):
         """Test SceneManager __getattr__ method."""
@@ -260,7 +259,7 @@ class TestSceneManager:
         scene_manager = self.scene_manager
 
         # Set up proper OPTIONS structure
-        scene_manager.OPTIONS = {"fps_log_interval_ms": FPS_REFRESH_RATE}
+        scene_manager.OPTIONS = {'fps_log_interval_ms': FPS_REFRESH_RATE}
 
         # Test FPS event posting logic
         current_time = 1.0

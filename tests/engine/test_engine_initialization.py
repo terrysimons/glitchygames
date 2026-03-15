@@ -11,7 +11,7 @@ from pathlib import Path
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.engine import GameEngine  # noqa: I001
+from glitchygames.engine import GameEngine
 from tests.mocks import MockFactory
 
 
@@ -30,7 +30,7 @@ class TestEngineInitialization:
         mock_args.resolution = (800, 600)
         mock_args.windowed = True
         mock_args.use_gfxdraw = False
-        mock_args.update_type = "update"
+        mock_args.update_type = 'update'
         mock_args.fps_refresh_rate = 1
         mock_args.profile = False
         mock_args.test_flag = False
@@ -40,14 +40,14 @@ class TestEngineInitialization:
     def test_game_engine_initialize_icon_with_surface(self, mocker):
         """Test GameEngine.initialize_icon with pygame.Surface."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = self._create_mock_args(mocker)
 
         # Create a mock surface using the centralized mock factory
         mock_icon = MockFactory.create_pygame_surface_mock(32, 32)
 
         # Mock pygame.image.load to return our mock surface
-        mocker.patch("pygame.image.load", return_value=mock_icon)
+        mocker.patch('pygame.image.load', return_value=mock_icon)
         # Test the class method
         GameEngine.initialize_icon(mock_icon)
 
@@ -57,16 +57,16 @@ class TestEngineInitialization:
     def test_game_engine_initialize_icon_with_path(self, mocker):
         """Test GameEngine.initialize_icon with Path."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = self._create_mock_args(mocker)
 
         # Create a mock path
         mock_path = mocker.Mock()
-        mock_path.__fspath__ = mocker.Mock(return_value="/path/to/icon.png")
+        mock_path.__fspath__ = mocker.Mock(return_value='/path/to/icon.png')
 
         # Mock pygame.image.load to return a mock surface
         mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
-        mocker.patch("pygame.image.load", return_value=mock_surface)
+        mocker.patch('pygame.image.load', return_value=mock_surface)
         # Test the class method
         GameEngine.initialize_icon(mock_path)
 
@@ -76,7 +76,7 @@ class TestEngineInitialization:
     def test_game_engine_initialize_icon_with_none(self, mocker):
         """Test GameEngine.initialize_icon with None."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = self._create_mock_args(mocker)
 
         # Test the class method with None
@@ -88,15 +88,15 @@ class TestEngineInitialization:
     def test_game_engine_icon_file_not_found(self, mocker):
         """Test GameEngine.initialize_icon when file is not found."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = self._create_mock_args(mocker)
 
         # Create a mock path that will cause FileNotFoundError
         mock_path = mocker.Mock()
-        mock_path.__fspath__ = mocker.Mock(return_value="/nonexistent/path.png")
+        mock_path.__fspath__ = mocker.Mock(return_value='/nonexistent/path.png')
 
         # Mock pygame.image.load to raise FileNotFoundError
-        mocker.patch("pygame.image.load", side_effect=FileNotFoundError)
+        mocker.patch('pygame.image.load', side_effect=FileNotFoundError)
         # Test the class method - should handle FileNotFoundError gracefully
         GameEngine.initialize_icon(mock_path)
 
@@ -106,14 +106,14 @@ class TestEngineInitialization:
     def test_game_engine_icon_with_string_path(self, mocker):
         """Test GameEngine.initialize_icon with string path."""
         # Mock argument parsing to prevent command line argument issues
-        mock_parse_args = mocker.patch("argparse.ArgumentParser.parse_args")
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
         mock_parse_args.return_value = self._create_mock_args(mocker)
 
         # Mock pygame.image.load to return a mock surface
         mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
-        mocker.patch("pygame.image.load", return_value=mock_surface)
+        mocker.patch('pygame.image.load', return_value=mock_surface)
         # Test the class method with string path
-        GameEngine.initialize_icon("/path/to/icon.png")
+        GameEngine.initialize_icon('/path/to/icon.png')
 
         # Verify the icon was set
         assert GameEngine.icon == mock_surface
@@ -131,15 +131,15 @@ class TestEngineInitialization:
         assert result_parser == parser
 
         # Test parsing with known arguments
-        args = result_parser.parse_args(["--log-level", "debug", "--profile"])
-        assert args.log_level == "debug"
+        args = result_parser.parse_args(['--log-level', 'debug', '--profile'])
+        assert args.log_level == 'debug'
         assert args.profile
 
     def test_game_engine_class_variables(self):
         """Test GameEngine class variables."""
         # Test that class variables are properly set
-        assert GameEngine.NAME == "Boilerplate Adventures"
-        assert GameEngine.VERSION == "1.0"
+        assert GameEngine.NAME == 'Boilerplate Adventures'
+        assert GameEngine.VERSION == '1.0'
         assert isinstance(GameEngine.OPTIONS, dict)
         assert isinstance(GameEngine.LAST_EVENT_MISS, str)
         assert isinstance(GameEngine.MISSING_EVENTS, list)
@@ -151,14 +151,14 @@ class TestEngineInitialization:
         """Test GameEngine logger."""
         # Test that logger is properly configured
         assert GameEngine.log is not None
-        assert GameEngine.log.name == "game.engine"
+        assert GameEngine.log.name == 'game.engine'
 
     def test_initialize_icon_with_path(self, mocker):
         """Test GameEngine.initialize_icon with Path object."""
         # Create a mock icon file
-        mock_icon_path = Path("test_icon.png")
+        mock_icon_path = Path('test_icon.png')
 
-        mock_load = mocker.patch("pygame.image.load")
+        mock_load = mocker.patch('pygame.image.load')
         mock_surface = mocker.Mock()
         mock_load.return_value = mock_surface
 
@@ -181,9 +181,9 @@ class TestEngineInitialization:
 
     def test_initialize_icon_file_not_found(self, mocker):
         """Test GameEngine.initialize_icon with non-existent file."""
-        mock_icon_path = Path("nonexistent_icon.png")
+        mock_icon_path = Path('nonexistent_icon.png')
 
-        mock_load = mocker.patch("pygame.image.load")
+        mock_load = mocker.patch('pygame.image.load')
         mock_load.side_effect = FileNotFoundError()
 
         # Test with non-existent file (should suppress error)
@@ -196,18 +196,18 @@ class TestEngineInitialization:
         """Test GameEngine.set_cursor with basic cursor."""
         # Use cursor data that's divisible by 8
         cursor_data = [
-            "........",
-            "XXXXXXXX",
-            "........",
-            "........",
-            "........",
-            "........",
-            "........",
-            "........",
+            '........',
+            'XXXXXXXX',
+            '........',
+            '........',
+            '........',
+            '........',
+            '........',
+            '........',
         ]
 
         # Mock pygame.mouse.set_cursor to avoid video system initialization
-        mock_set_cursor = mocker.patch("pygame.mouse.set_cursor")
+        mock_set_cursor = mocker.patch('pygame.mouse.set_cursor')
         result = GameEngine.set_cursor(cursor_data)
 
         # Verify cursor was set and returned
@@ -218,20 +218,20 @@ class TestEngineInitialization:
         """Test GameEngine.set_cursor with custom colors."""
         # Use cursor data that's divisible by 8
         cursor_data = [
-            "BBBBBBBB",
-            "WWWWWWWW",
-            "OOOOOOOO",
-            "BBBBBBBB",
-            "WWWWWWWW",
-            "OOOOOOOO",
-            "BBBBBBBB",
-            "WWWWWWWW",
+            'BBBBBBBB',
+            'WWWWWWWW',
+            'OOOOOOOO',
+            'BBBBBBBB',
+            'WWWWWWWW',
+            'OOOOOOOO',
+            'BBBBBBBB',
+            'WWWWWWWW',
         ]
 
         # Mock pygame.mouse.set_cursor to avoid video system initialization
-        mock_set_cursor = mocker.patch("pygame.mouse.set_cursor")
+        mock_set_cursor = mocker.patch('pygame.mouse.set_cursor')
         result = GameEngine.set_cursor(
-            cursor_data, cursor_black="B", cursor_white="W", cursor_xor="O"
+            cursor_data, cursor_black='B', cursor_white='W', cursor_xor='O'
         )
 
         # Verify cursor was set with custom colors
@@ -241,26 +241,26 @@ class TestEngineInitialization:
     def test_engine_options_initialization(self):
         """Test that engine options are properly initialized."""
         # Test that OPTIONS dict exists and has expected keys
-        assert hasattr(GameEngine, "OPTIONS")
+        assert hasattr(GameEngine, 'OPTIONS')
         assert isinstance(GameEngine.OPTIONS, dict)
 
         # Test that profile option exists
-        assert "profile" in GameEngine.OPTIONS
+        assert 'profile' in GameEngine.OPTIONS
 
     def test_engine_constants(self):
         """Test that engine constants are properly set."""
         # Test class constants
-        assert GameEngine.NAME == "Boilerplate Adventures"
-        assert GameEngine.VERSION == "1.0"
-        assert hasattr(GameEngine, "icon")
-        assert hasattr(GameEngine, "log")
+        assert GameEngine.NAME == 'Boilerplate Adventures'
+        assert GameEngine.VERSION == '1.0'
+        assert hasattr(GameEngine, 'icon')
+        assert hasattr(GameEngine, 'log')
 
     def test_engine_missing_events_tracking(self):
         """Test missing events tracking."""
         # Test that missing events tracking exists
-        assert hasattr(GameEngine, "LAST_EVENT_MISS")
-        assert hasattr(GameEngine, "MISSING_EVENTS")
-        assert hasattr(GameEngine, "UNIMPLEMENTED_EVENTS")
+        assert hasattr(GameEngine, 'LAST_EVENT_MISS')
+        assert hasattr(GameEngine, 'MISSING_EVENTS')
+        assert hasattr(GameEngine, 'UNIMPLEMENTED_EVENTS')
 
         # Test that they are properly initialized
         assert isinstance(GameEngine.MISSING_EVENTS, list)

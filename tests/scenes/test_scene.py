@@ -17,7 +17,7 @@ class TestScene:
         assert scene.dt == 0
         assert scene.dt_timer == 0
         assert scene.dirty == 1
-        assert scene.options == {"debug_events": False, "no_unhandled_events": False}
+        assert scene.options == {'debug_events': False, 'no_unhandled_events': False}
         assert scene.name is type(scene)
         assert scene._background_color == (0, 0, 0, 0)  # BLACK color
         assert scene.next_scene == scene
@@ -32,7 +32,7 @@ class TestScene:
 
     def test_scene_initialization_with_options(self, mock_pygame_patches, mocker):
         """Test Scene initialization with options."""
-        options = {"test": "value"}
+        options = {'test': 'value'}
         scene = Scene(options=options)
 
         assert scene.options == options
@@ -51,7 +51,7 @@ class TestScene:
         # Test screenshot property
         screenshot = scene.screenshot
         assert screenshot is not None
-        assert hasattr(screenshot, "get_size")
+        assert hasattr(screenshot, 'get_size')
 
     def test_scene_background_color_property(self, mock_pygame_patches, mocker):
         """Test Scene background_color property."""

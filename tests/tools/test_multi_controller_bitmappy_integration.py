@@ -8,6 +8,7 @@ import logging
 
 import pygame
 import pytest
+
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
@@ -76,7 +77,7 @@ class TestBitmappyMultiControllerIntegration:
                     if controller_id in self.scene.controller_selections:
                         self.scene.controller_selections[controller_id].activate()
                         self.scene.controller_selections[controller_id].set_selection(
-                            "test_animation", 0
+                            'test_animation', 0
                         )
                 elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
                     # D-pad left - previous frame
@@ -108,18 +109,18 @@ class TestBitmappyMultiControllerIntegration:
         animation_0, frame_0 = self.scene.controller_selections[0].get_selection()
         animation_1, frame_1 = self.scene.controller_selections[1].get_selection()
 
-        assert animation_0 == "test_animation"
+        assert animation_0 == 'test_animation'
         assert frame_0 == 0  # Left d-pad should have decremented
-        assert animation_1 == "test_animation"
+        assert animation_1 == 'test_animation'
         assert frame_1 == 1  # Right d-pad should have incremented
 
     def test_film_strip_integration(self):
         """Test integration with film strip navigation."""
         # Mock film strips
         self.scene.film_strips = {
-            "animation1": self._mocker.Mock(),
-            "animation2": self._mocker.Mock(),
-            "animation3": self._mocker.Mock(),
+            'animation1': self._mocker.Mock(),
+            'animation2': self._mocker.Mock(),
+            'animation3': self._mocker.Mock(),
         }
 
         # Set up controllers
@@ -131,28 +132,28 @@ class TestBitmappyMultiControllerIntegration:
             self.scene.controller_selections[i].activate()
 
         # Test independent navigation
-        self.scene.controller_selections[0].set_selection("animation1", 0)
-        self.scene.controller_selections[1].set_selection("animation2", 1)
+        self.scene.controller_selections[0].set_selection('animation1', 0)
+        self.scene.controller_selections[1].set_selection('animation2', 1)
 
         # Verify independent state
         anim_0, frame_0 = self.scene.controller_selections[0].get_selection()
         anim_1, frame_1 = self.scene.controller_selections[1].get_selection()
 
-        assert anim_0 == "animation1"
+        assert anim_0 == 'animation1'
         assert frame_0 == 0
-        assert anim_1 == "animation2"
+        assert anim_1 == 'animation2'
         assert frame_1 == 1
 
         # Test switching between controllers
-        self.scene.controller_selections[0].set_selection("animation3", 2)
+        self.scene.controller_selections[0].set_selection('animation3', 2)
 
         # Controller 0 should have new selection, controller 1 unchanged
         anim_0, frame_0 = self.scene.controller_selections[0].get_selection()
         anim_1, frame_1 = self.scene.controller_selections[1].get_selection()
 
-        assert anim_0 == "animation3"
+        assert anim_0 == 'animation3'
         assert frame_0 == 2
-        assert anim_1 == "animation2"  # Unchanged
+        assert anim_1 == 'animation2'  # Unchanged
         assert frame_1 == 1
 
     def test_visual_indicator_integration(self):
@@ -164,7 +165,7 @@ class TestBitmappyMultiControllerIntegration:
             self.manager.assigned_controllers[instance_id] = i
             self.scene.controller_selections[i] = ControllerSelection(i, instance_id)
             self.scene.controller_selections[i].activate()
-            self.scene.controller_selections[i].set_selection(f"animation_{i}", i)
+            self.scene.controller_selections[i].set_selection(f'animation_{i}', i)
 
             # Add visual indicators
             self.visual_manager.add_controller_indicator(
@@ -201,7 +202,7 @@ class TestBitmappyMultiControllerIntegration:
         # Verify controller was added
         assert instance_id in self.manager.controllers
         controller_info = self.manager.controllers[instance_id]
-        assert controller_info.status.value == "connected"
+        assert controller_info.status.value == 'connected'
 
         # Assign controller
         controller_id = self.manager.assign_controller(instance_id)
@@ -216,7 +217,7 @@ class TestBitmappyMultiControllerIntegration:
             controller_id, instance_id
         )
         self.scene.controller_selections[controller_id].activate()
-        self.scene.controller_selections[controller_id].set_selection("test_animation", 0)
+        self.scene.controller_selections[controller_id].set_selection('test_animation', 0)
 
         # Simulate controller disconnection
         self.manager._handle_controller_disconnect(instance_id)
@@ -236,32 +237,32 @@ class TestBitmappyMultiControllerIntegration:
             self.scene.controller_selections[i].activate()
 
         # Scenario 1: Independent navigation
-        self.scene.controller_selections[0].set_selection("animation1", 0)
-        self.scene.controller_selections[1].set_selection("animation2", 1)
-        self.scene.controller_selections[2].set_selection("animation3", 2)
-        self.scene.controller_selections[3].set_selection("animation1", 3)
+        self.scene.controller_selections[0].set_selection('animation1', 0)
+        self.scene.controller_selections[1].set_selection('animation2', 1)
+        self.scene.controller_selections[2].set_selection('animation3', 2)
+        self.scene.controller_selections[3].set_selection('animation1', 3)
 
         # Verify independent states
         for i in range(4):
             animation, frame = self.scene.controller_selections[i].get_selection()
             if i == 0:
-                assert animation == "animation1"
+                assert animation == 'animation1'
                 assert frame == 0
             elif i == 1:
-                assert animation == "animation2"
+                assert animation == 'animation2'
                 assert frame == 1
             elif i == 2:
-                assert animation == "animation3"
+                assert animation == 'animation3'
                 assert frame == 2
             elif i == 3:
-                assert animation == "animation1"
+                assert animation == 'animation1'
                 assert frame == 3
 
         # Scenario 2: Navigation history tracking
         # Navigate controller 0 through multiple animations
-        self.scene.controller_selections[0].set_selection("animation2", 0)
-        self.scene.controller_selections[0].set_selection("animation3", 1)
-        self.scene.controller_selections[0].set_selection("animation1", 2)
+        self.scene.controller_selections[0].set_selection('animation2', 0)
+        self.scene.controller_selections[0].set_selection('animation3', 1)
+        self.scene.controller_selections[0].set_selection('animation1', 2)
 
         # Verify navigation history
         history = self.scene.controller_selections[0].get_navigation_history()
@@ -278,7 +279,7 @@ class TestBitmappyMultiControllerIntegration:
 
         # Controller 0 should preserve its state
         animation, frame = self.scene.controller_selections[0].get_selection()
-        assert animation == "animation1"
+        assert animation == 'animation1'
         assert frame == 2
 
     def test_error_handling_integration(self):
@@ -298,7 +299,7 @@ class TestBitmappyMultiControllerIntegration:
             try:
                 # Simulate event processing
                 if (
-                    hasattr(event, "instance_id")
+                    hasattr(event, 'instance_id')
                     and event.instance_id is not None
                     and event.instance_id in self.scene.controller_selections
                 ):
@@ -306,7 +307,7 @@ class TestBitmappyMultiControllerIntegration:
                     pass
             except (AttributeError, KeyError):
                 # Should handle gracefully
-                LOG.debug("Invalid event handled gracefully: %s", event)
+                LOG.debug('Invalid event handled gracefully: %s', event)
 
         # Test with malformed controller data
         try:
@@ -315,7 +316,7 @@ class TestBitmappyMultiControllerIntegration:
                 self.scene.controller_selections[999].activate()
         except (KeyError, AttributeError):
             # Should handle gracefully
-            LOG.debug("Malformed controller data handled gracefully")
+            LOG.debug('Malformed controller data handled gracefully')
 
         # System should still be functional
         assert True  # If we get here, error handling worked
@@ -349,7 +350,7 @@ class TestBitmappyMultiControllerIntegration:
         nav_start = time.time()
         for _ in range(100):
             for i in range(10):
-                self.scene.controller_selections[i].set_selection(f"animation_{i}", i)
+                self.scene.controller_selections[i].set_selection(f'animation_{i}', i)
         nav_end = time.time()
 
         # Should navigate quickly

@@ -19,9 +19,10 @@ from glitchygames.services.config import ServiceConfig
 
 if TYPE_CHECKING:
     import pygame
+
     from glitchygames.sprites.animated import AnimatedSprite
 
-LOG = logging.getLogger("glitchygames.services.renderer")
+LOG = logging.getLogger('glitchygames.services.renderer')
 
 
 @dataclass
@@ -97,8 +98,8 @@ class RendererService:
             return
 
         # Set headless mode before importing/initializing pygame
-        os.environ["SDL_VIDEODRIVER"] = "dummy"
-        os.environ["SDL_AUDIODRIVER"] = "dummy"
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        os.environ['SDL_AUDIODRIVER'] = 'dummy'
 
         import pygame
 
@@ -107,7 +108,7 @@ class RendererService:
         pygame.display.set_mode((1, 1), pygame.HIDDEN)
 
         cls._pygame_initialized = True
-        LOG.info("Pygame initialized in headless mode")
+        LOG.info('Pygame initialized in headless mode')
 
     def render_from_toml(
         self, toml_content: str, scale: int = 1, *, render_all_frames: bool = False
@@ -126,15 +127,15 @@ class RendererService:
         # Write TOML to a temporary file
         try:
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".toml", delete=False, encoding="utf-8"
+                mode='w', suffix='.toml', delete=False, encoding='utf-8'
             ) as temp_file:
                 temp_file.write(toml_content)
                 temp_path = temp_file.name
         except OSError as e:
-            LOG.exception("Failed to create temporary file")
+            LOG.exception('Failed to create temporary file')
             return RenderResult(
                 success=False,
-                error=f"Failed to create temporary file: {e}",
+                error=f'Failed to create temporary file: {e}',
             )
 
         try:
@@ -148,11 +149,11 @@ class RendererService:
             if not current_frame:
                 return RenderResult(
                     success=False,
-                    error="Failed to get sprite frame",
+                    error='Failed to get sprite frame',
                 )
 
             width, height = current_frame.get_size()
-            LOG.info(f"Loaded sprite: {width}x{height}")
+            LOG.info(f'Loaded sprite: {width}x{height}')
 
             # Render first frame (or current frame)
             png_bytes, png_base64 = self._render_frame_to_png(current_frame.image, scale)
@@ -162,29 +163,29 @@ class RendererService:
             all_frames_base64 = []
 
             # Log sprite type for debugging
-            LOG.info(f"Loaded sprite type: {type(sprite).__name__}")
+            LOG.info(f'Loaded sprite type: {type(sprite).__name__}')
 
-            if hasattr(sprite, "get_total_frame_count"):
+            if hasattr(sprite, 'get_total_frame_count'):
                 frame_count = sprite.get_total_frame_count()
-                LOG.info(f"Sprite has {frame_count} total frames (via get_total_frame_count)")
-            elif hasattr(sprite, "frames"):
+                LOG.info(f'Sprite has {frame_count} total frames (via get_total_frame_count)')
+            elif hasattr(sprite, 'frames'):
                 # Fallback: count frames from the frames property
                 total = sum(len(frames) for frames in sprite.frames.values())
                 frame_count = total if total > 0 else 1
-                LOG.info(f"Sprite has {frame_count} total frames (via frames property)")
+                LOG.info(f'Sprite has {frame_count} total frames (via frames property)')
             else:
-                LOG.info(f"Sprite has no frame count method, type={type(sprite).__name__}")
+                LOG.info(f'Sprite has no frame count method, type={type(sprite).__name__}')
 
             # Render all frames if requested and sprite is animated
             rendered_frames = []
-            LOG.info(f"render_all_frames={render_all_frames}, frame_count={frame_count}")
+            LOG.info(f'render_all_frames={render_all_frames}, frame_count={frame_count}')
             if render_all_frames and frame_count > 1:
                 all_frames_base64, rendered_frames = self._render_all_frames(sprite, scale)
-                LOG.info(f"Rendered {len(all_frames_base64)} frames")
+                LOG.info(f'Rendered {len(all_frames_base64)} frames')
             else:
                 LOG.info(
-                    f"Skipping frame rendering: render_all_frames={render_all_frames}, "
-                    f"frame_count={frame_count}"
+                    f'Skipping frame rendering: render_all_frames={render_all_frames}, '
+                    f'frame_count={frame_count}'
                 )
 
             return RenderResult(
@@ -199,17 +200,17 @@ class RendererService:
             )
 
         except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
-            LOG.exception("Failed to render sprite")
+            LOG.exception('Failed to render sprite')
             return RenderResult(
                 success=False,
-                error=f"Failed to render sprite: {e}",
+                error=f'Failed to render sprite: {e}',
             )
         finally:
             # Clean up temporary file
             try:
                 Path(temp_path).unlink()
             except OSError as unlink_error:
-                LOG.debug("Failed to clean up temporary file %s: %s", temp_path, unlink_error)
+                LOG.debug('Failed to clean up temporary file %s: %s', temp_path, unlink_error)
 
     def _render_frame_to_png(self, surface: pygame.Surface, scale: int = 1) -> tuple[bytes, str]:
         """Render a pygame surface to PNG bytes with no compression.
@@ -233,16 +234,16 @@ class RendererService:
         # Convert pygame surface to PIL Image for uncompressed PNG output
         # Get the raw pixel data from the pygame surface
         width, height = surface.get_size()
-        raw_data = pygame.image.tobytes(surface, "RGBA")
+        raw_data = pygame.image.tobytes(surface, 'RGBA')
 
         # Create PIL Image from raw data
-        pil_image = Image.frombytes("RGBA", (width, height), raw_data)
+        pil_image = Image.frombytes('RGBA', (width, height), raw_data)
 
         # Save to bytes with no compression (compress_level=0)
         buffer = io.BytesIO()
-        pil_image.save(buffer, format="PNG", compress_level=0)
+        pil_image.save(buffer, format='PNG', compress_level=0)
         png_bytes = buffer.getvalue()
-        png_base64 = base64.b64encode(png_bytes).decode("utf-8")
+        png_base64 = base64.b64encode(png_bytes).decode('utf-8')
 
         return png_bytes, png_base64
 
@@ -271,7 +272,7 @@ class RendererService:
                 frame_surface = frame.image
 
         # Second try: direct access to sprite_frame.image
-        if frame_surface is None and hasattr(sprite_frame, "image"):
+        if frame_surface is None and hasattr(sprite_frame, 'image'):
             frame_surface = sprite_frame.image
 
         return frame_surface
@@ -347,22 +348,22 @@ class RendererService:
 
         """
         # Use public 'frames' property if available, fallback to _animations
-        if hasattr(sprite, "frames"):
+        if hasattr(sprite, 'frames'):
             all_animations = sprite.frames
-        elif hasattr(sprite, "_animations"):
+        elif hasattr(sprite, '_animations'):
             all_animations = sprite._animations
         else:
-            LOG.debug("Sprite has no frames or _animations attribute")
+            LOG.debug('Sprite has no frames or _animations attribute')
             return [], []
 
         if not all_animations:
-            LOG.debug("Sprite has empty animations dict")
+            LOG.debug('Sprite has empty animations dict')
             return [], []
 
-        LOG.debug(f"Rendering {len(all_animations)} animations")
+        LOG.debug(f'Rendering {len(all_animations)} animations')
 
         # Check if sprite has frame_manager for state restoration
-        has_frame_manager = hasattr(sprite, "frame_manager")
+        has_frame_manager = hasattr(sprite, 'frame_manager')
         original_animation = None
         original_frame = None
 
@@ -380,7 +381,7 @@ class RendererService:
                 sprite.frame_manager._current_animation = original_animation
                 sprite.frame_manager._current_frame = original_frame
 
-        LOG.debug(f"Rendered {len(frames_base64)} total frames")
+        LOG.debug(f'Rendered {len(frames_base64)} total frames')
         return frames_base64, rendered_frames
 
     def render_from_file(
@@ -398,15 +399,15 @@ class RendererService:
 
         """
         try:
-            toml_content = Path(file_path).read_text(encoding="utf-8")
+            toml_content = Path(file_path).read_text(encoding='utf-8')
             return self.render_from_toml(toml_content, scale, render_all_frames=render_all_frames)
         except FileNotFoundError:
             return RenderResult(
                 success=False,
-                error=f"File not found: {file_path}",
+                error=f'File not found: {file_path}',
             )
         except OSError as e:
             return RenderResult(
                 success=False,
-                error=f"Failed to read file: {e}",
+                error=f'Failed to read file: {e}',
             )

@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-LOG = logging.getLogger("game.tools.controller_selection")
+LOG = logging.getLogger('game.tools.controller_selection')
 
 
 @dataclass
@@ -25,10 +25,10 @@ class ControllerSelectionState:
 
     controller_id: int
     instance_id: int
-    selected_animation: str = ""
+    selected_animation: str = ''
     selected_frame: int = 0
-    selected_slider: str = "R"  # R, G, or B
-    controller_fill_direction: str = "HORIZONTAL"  # HORIZONTAL or VERTICAL
+    selected_slider: str = 'R'  # R, G, or B
+    controller_fill_direction: str = 'HORIZONTAL'  # HORIZONTAL or VERTICAL
     is_active: bool = False
     last_update_time: float = 0.0
     navigation_history: list = None
@@ -69,9 +69,9 @@ class ControllerSelection:
         if self.state.selected_animation != animation_name:
             # Preserve frame index when switching animations
             self.state.navigation_history.append({
-                "animation": self.state.selected_animation,
-                "frame": self.state.selected_frame,
-                "timestamp": time.time(),
+                'animation': self.state.selected_animation,
+                'frame': self.state.selected_frame,
+                'timestamp': time.time(),
             })
 
             self.state.selected_animation = animation_name
@@ -90,7 +90,7 @@ class ControllerSelection:
             self.state.selected_frame = frame_index
             self.state.last_update_time = time.time()
 
-            LOG.debug("Controller %s selected frame %s", self.controller_id, frame_index)
+            LOG.debug('Controller %s selected frame %s', self.controller_id, frame_index)
 
     def set_selection(self, animation_name: str, frame_index: int) -> None:
         """Set both animation and frame selection.
@@ -108,9 +108,9 @@ class ControllerSelection:
             if animation_changed and self.state.selected_animation:
                 # Preserve frame index when switching animations
                 self.state.navigation_history.append({
-                    "animation": self.state.selected_animation,
-                    "frame": self.state.selected_frame,
-                    "timestamp": time.time(),
+                    'animation': self.state.selected_animation,
+                    'frame': self.state.selected_frame,
+                    'timestamp': time.time(),
                 })
 
             self.state.selected_animation = animation_name
@@ -158,7 +158,7 @@ class ControllerSelection:
             slider_name: Name of the slider (R, G, or B)
 
         """
-        if slider_name in {"R", "G", "B"} and self.state.selected_slider != slider_name:
+        if slider_name in {'R', 'G', 'B'} and self.state.selected_slider != slider_name:
             self.state.selected_slider = slider_name
             self.state.last_update_time = time.time()
 
@@ -180,10 +180,10 @@ class ControllerSelection:
             direction: "HORIZONTAL" or "VERTICAL"
 
         """
-        if direction in {"HORIZONTAL", "VERTICAL"}:
+        if direction in {'HORIZONTAL', 'VERTICAL'}:
             self.state.controller_fill_direction = direction
             self.state.last_update_time = time.time()
-            LOG.debug("Controller %s fill direction set to %s", self.controller_id, direction)
+            LOG.debug('Controller %s fill direction set to %s', self.controller_id, direction)
         else:
             LOG.debug(
                 "Invalid fill direction '%s' for controller %s", direction, self.controller_id
@@ -203,13 +203,13 @@ class ControllerSelection:
         if not self.state.is_active:
             self.state.is_active = True
             self.state.last_update_time = time.time()
-            LOG.debug("Controller %s activated", self.controller_id)
+            LOG.debug('Controller %s activated', self.controller_id)
 
     def deactivate(self) -> None:
         """Deactivate this controller."""
         if self.state.is_active:
             self.state.is_active = False
-            LOG.debug("Controller %s deactivated", self.controller_id)
+            LOG.debug('Controller %s deactivated', self.controller_id)
 
     def is_active(self) -> bool:
         """Check if controller is active.
@@ -242,9 +242,9 @@ class ControllerSelection:
 
         # Check if we have a previous selection for this animation
         for history_entry in reversed(self.state.navigation_history):
-            if history_entry["animation"] == new_animation:
+            if history_entry['animation'] == new_animation:
                 # Use the frame from the last time we were on this animation
-                target_frame = history_entry["frame"]
+                target_frame = history_entry['frame']
                 if target_frame >= available_frames:
                     target_frame = max(0, available_frames - 1)
                 elif target_frame < 0:
@@ -287,27 +287,27 @@ class ControllerSelection:
 
         """
         return {
-            "controller_id": self.controller_id,
-            "instance_id": self.instance_id,
-            "selected_animation": self.state.selected_animation,
-            "selected_frame": self.state.selected_frame,
-            "is_active": self.state.is_active,
-            "last_update_time": self.state.last_update_time,
-            "activity_age": self.get_activity_age(),
-            "navigation_history_count": len(self.state.navigation_history),
-            "creation_time": self.creation_time,
+            'controller_id': self.controller_id,
+            'instance_id': self.instance_id,
+            'selected_animation': self.state.selected_animation,
+            'selected_frame': self.state.selected_frame,
+            'is_active': self.state.is_active,
+            'last_update_time': self.state.last_update_time,
+            'activity_age': self.get_activity_age(),
+            'navigation_history_count': len(self.state.navigation_history),
+            'creation_time': self.creation_time,
         }
 
     def reset_to_default(self) -> None:
         """Reset controller selection to default state."""
-        self.state.selected_animation = ""
+        self.state.selected_animation = ''
         self.state.selected_frame = 0
         self.state.is_active = False
         self.state.last_update_time = time.time()
         self.state.navigation_history.clear()
-        LOG.debug("Controller %s reset to default state", self.controller_id)
+        LOG.debug('Controller %s reset to default state', self.controller_id)
 
-    def clone_state_to(self, target_controller: "ControllerSelection") -> None:
+    def clone_state_to(self, target_controller: 'ControllerSelection') -> None:
         """Clone this controller's state to another controller.
 
         Args:
@@ -321,7 +321,7 @@ class ControllerSelection:
             target_controller.deactivate()
 
         LOG.debug(
-            "Controller %s state cloned to controller %s",
+            'Controller %s state cloned to controller %s',
             self.controller_id,
             target_controller.controller_id,
         )

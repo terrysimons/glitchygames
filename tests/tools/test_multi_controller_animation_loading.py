@@ -8,6 +8,7 @@ import logging
 import time
 
 import pytest
+
 from glitchygames.tools.controller_selection import ControllerSelection
 from glitchygames.tools.multi_controller_manager import (
     ControllerInfo,
@@ -62,7 +63,7 @@ class TestMultiControllerAnimationLoading:
                 controller_id, instance_id
             )
             self.controller_selections[controller_id].activate()
-            self.controller_selections[controller_id].set_selection(f"existing_animation_{i}", i)
+            self.controller_selections[controller_id].set_selection(f'existing_animation_{i}', i)
 
             # Set up visual indicators
             self.visual_manager.add_controller_indicator(
@@ -77,7 +78,7 @@ class TestMultiControllerAnimationLoading:
         assert len(self.visual_manager.indicators) == 2
 
         # Simulate loading a new animation
-        new_animation_name = "new_loaded_animation"
+        new_animation_name = 'new_loaded_animation'
         self._simulate_animation_loading(new_animation_name)
 
         # Verify controllers are still active
@@ -107,7 +108,7 @@ class TestMultiControllerAnimationLoading:
 
         self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
         self.controller_selections[controller_id].activate()
-        self.controller_selections[controller_id].set_selection("original_animation", 5)
+        self.controller_selections[controller_id].set_selection('original_animation', 5)
 
         # Record initial state
         initial_animation, initial_frame = self.controller_selections[controller_id].get_selection()
@@ -116,7 +117,7 @@ class TestMultiControllerAnimationLoading:
         )
 
         # Simulate loading new animation
-        self._simulate_animation_loading("loaded_animation")
+        self._simulate_animation_loading('loaded_animation')
 
         # Verify controller state is preserved
         current_animation, current_frame = self.controller_selections[controller_id].get_selection()
@@ -148,7 +149,7 @@ class TestMultiControllerAnimationLoading:
 
         self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
         self.controller_selections[controller_id].activate()
-        self.controller_selections[controller_id].set_selection("animation_1", 2)
+        self.controller_selections[controller_id].set_selection('animation_1', 2)
 
         # Add visual indicator
         self.visual_manager.add_controller_indicator(
@@ -165,7 +166,7 @@ class TestMultiControllerAnimationLoading:
         assert initial_indicator.color == self.manager.CONTROLLER_COLORS[controller_id]
 
         # Simulate loading new animation
-        self._simulate_animation_loading("animation_2")
+        self._simulate_animation_loading('animation_2')
 
         # Verify indicator is still present and updated
         assert controller_id in self.visual_manager.indicators
@@ -196,7 +197,7 @@ class TestMultiControllerAnimationLoading:
                 controller_id, instance_id
             )
             self.controller_selections[controller_id].activate()
-            self.controller_selections[controller_id].set_selection(f"animation_{i}", i)
+            self.controller_selections[controller_id].set_selection(f'animation_{i}', i)
 
             # Add indicators at same position to test collision
             self.visual_manager.add_controller_indicator(
@@ -211,7 +212,7 @@ class TestMultiControllerAnimationLoading:
         assert len(self.visual_manager.film_strip_collision_groups[100, 100]) == 3
 
         # Simulate loading new animation
-        self._simulate_animation_loading("new_animation")
+        self._simulate_animation_loading('new_animation')
 
         # Verify all controllers are still active
         for i in range(3):
@@ -242,10 +243,10 @@ class TestMultiControllerAnimationLoading:
 
         self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
         self.controller_selections[controller_id].activate()
-        self.controller_selections[controller_id].set_selection("animation_1", 0)
+        self.controller_selections[controller_id].set_selection('animation_1', 0)
 
         # Simulate loading new animation
-        self._simulate_animation_loading("animation_2")
+        self._simulate_animation_loading('animation_2')
 
         # Test that navigation still works
         # Navigate to next frame
@@ -260,9 +261,9 @@ class TestMultiControllerAnimationLoading:
         assert new_frame == current_frame + 1
 
         # Test animation switching
-        self.controller_selections[controller_id].set_selection("animation_2", 0)
+        self.controller_selections[controller_id].set_selection('animation_2', 0)
         final_animation, final_frame = self.controller_selections[controller_id].get_selection()
-        assert final_animation == "animation_2"
+        assert final_animation == 'animation_2'
         assert final_frame == 0
 
     def test_load_animation_error_handling(self, mocker):
@@ -281,7 +282,7 @@ class TestMultiControllerAnimationLoading:
 
         self.controller_selections[controller_id] = ControllerSelection(controller_id, instance_id)
         self.controller_selections[controller_id].activate()
-        self.controller_selections[controller_id].set_selection("animation_1", 0)
+        self.controller_selections[controller_id].set_selection('animation_1', 0)
 
         # Add visual indicator
         self.visual_manager.add_controller_indicator(
@@ -293,17 +294,17 @@ class TestMultiControllerAnimationLoading:
 
         # Simulate loading animation with error
         mocker.patch.object(
-            self.scene, "_on_sprite_loaded", side_effect=RuntimeError("Loading error")
+            self.scene, '_on_sprite_loaded', side_effect=RuntimeError('Loading error')
         )
         try:
-            self._simulate_animation_loading("error_animation")
+            self._simulate_animation_loading('error_animation')
         except RuntimeError:
-            LOG.debug("Animation loading failed as expected during error handling test")
+            LOG.debug('Animation loading failed as expected during error handling test')
 
         # Verify controller state is preserved despite error
         assert self.controller_selections[controller_id].is_active()
         animation, frame = self.controller_selections[controller_id].get_selection()
-        assert animation == "animation_1"  # Should be unchanged
+        assert animation == 'animation_1'  # Should be unchanged
         assert frame == 0  # Should be unchanged
 
         # Verify visual indicator is still present
@@ -329,7 +330,7 @@ class TestMultiControllerAnimationLoading:
                 controller_id, instance_id
             )
             self.controller_selections[controller_id].activate()
-            self.controller_selections[controller_id].set_selection(f"animation_{i}", i)
+            self.controller_selections[controller_id].set_selection(f'animation_{i}', i)
 
             self.visual_manager.add_controller_indicator(
                 controller_id=controller_id,
@@ -340,7 +341,7 @@ class TestMultiControllerAnimationLoading:
 
         # Measure time for loading animation
         start_time = time.time()
-        self._simulate_animation_loading("performance_test_animation")
+        self._simulate_animation_loading('performance_test_animation')
         end_time = time.time()
 
         # Should complete quickly (less than 1 second)

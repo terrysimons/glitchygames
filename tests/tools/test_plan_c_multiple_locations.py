@@ -23,9 +23,9 @@ class TestMultipleLocationSupport:
 
     def test_location_type_enum(self):
         """Test that LocationType enum has correct values."""
-        assert LocationType.FILM_STRIP.value == "film_strip"
-        assert LocationType.CANVAS.value == "canvas"
-        assert LocationType.SLIDER.value == "slider"
+        assert LocationType.FILM_STRIP.value == 'film_strip'
+        assert LocationType.CANVAS.value == 'canvas'
+        assert LocationType.SLIDER.value == 'slider'
 
     def test_add_film_strip_indicator(self):
         """Test adding film strip indicator with correct properties."""

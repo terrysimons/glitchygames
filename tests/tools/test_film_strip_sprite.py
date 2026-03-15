@@ -9,7 +9,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import bitmappy, film_strip
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -31,20 +30,20 @@ class TestFilmStripSprite:
         sprite = bitmappy.FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
         # Test basic properties
-        assert hasattr(sprite, "film_strip_widget")
-        assert hasattr(sprite, "name")
-        assert hasattr(sprite, "image")
-        assert hasattr(sprite, "rect")
-        assert hasattr(sprite, "dirty")
+        assert hasattr(sprite, 'film_strip_widget')
+        assert hasattr(sprite, 'name')
+        assert hasattr(sprite, 'image')
+        assert hasattr(sprite, 'rect')
+        assert hasattr(sprite, 'dirty')
 
         # Test values
         assert sprite.film_strip_widget == film_strip_widget
-        assert sprite.name == "Film Strip"
+        assert sprite.name == 'Film Strip'
         # Note: Mock rect properties may not match exact values due to mock setup
-        assert hasattr(sprite.rect, "x")
-        assert hasattr(sprite.rect, "y")
-        assert hasattr(sprite.rect, "width")
-        assert hasattr(sprite.rect, "height")
+        assert hasattr(sprite.rect, 'x')
+        assert hasattr(sprite.rect, 'y')
+        assert hasattr(sprite.rect, 'width')
+        assert hasattr(sprite.rect, 'height')
         assert sprite.dirty == 1  # Should be dirty initially
 
     def test_film_strip_sprite_methods(self):
@@ -53,10 +52,10 @@ class TestFilmStripSprite:
         sprite = bitmappy.FilmStripSprite(film_strip_widget)
 
         # Test methods exist
-        assert hasattr(sprite, "update")
-        assert hasattr(sprite, "force_redraw")
-        assert hasattr(sprite, "on_left_mouse_button_down_event")
-        assert hasattr(sprite, "set_parent_canvas")
+        assert hasattr(sprite, 'update')
+        assert hasattr(sprite, 'force_redraw')
+        assert hasattr(sprite, 'on_left_mouse_button_down_event')
+        assert hasattr(sprite, 'set_parent_canvas')
 
         # Test methods are callable
         assert callable(sprite.update)
@@ -167,11 +166,11 @@ class TestFilmStripSprite:
         mock_event.pos = (50, 50)
 
         # Mock the handle_click to return a frame
-        mocker.patch.object(film_strip_widget, "handle_click", return_value=("idle", 0))
+        mocker.patch.object(film_strip_widget, 'handle_click', return_value=('idle', 0))
         sprite.on_left_mouse_button_down_event(mock_event)
 
         # Should call parent canvas show_frame
-        mock_canvas.show_frame.assert_called_once_with("idle", 0)
+        mock_canvas.show_frame.assert_called_once_with('idle', 0)
 
     def test_film_strip_sprite_click_no_frame_selected(self, mocker):
         """Test film strip sprite click when no frame is selected."""
@@ -187,7 +186,7 @@ class TestFilmStripSprite:
         mock_event.pos = (50, 50)
 
         # Mock the handle_click to return None
-        mocker.patch.object(film_strip_widget, "handle_click", return_value=None)
+        mocker.patch.object(film_strip_widget, 'handle_click', return_value=None)
         sprite.on_left_mouse_button_down_event(mock_event)
 
         # Should not call parent canvas show_frame
@@ -219,12 +218,12 @@ class TestFilmStripSprite:
 
         # Test surface properties
         assert sprite.image is not None
-        assert hasattr(sprite.image, "get_width")
-        assert hasattr(sprite.image, "get_height")
+        assert hasattr(sprite.image, 'get_width')
+        assert hasattr(sprite.image, 'get_height')
 
         # Test rect properties
-        assert hasattr(sprite.rect, "width")
-        assert hasattr(sprite.rect, "height")
+        assert hasattr(sprite.rect, 'width')
+        assert hasattr(sprite.rect, 'height')
 
     def test_film_strip_sprite_coordinate_conversion(self, mocker):
         """Test film strip sprite coordinate conversion."""
@@ -236,9 +235,9 @@ class TestFilmStripSprite:
         mock_event.pos = (50, 70)  # Screen coordinates
 
         # Test coordinate conversion
-        mock_handle_click = mocker.patch.object(film_strip_widget, "handle_click")
+        mock_handle_click = mocker.patch.object(film_strip_widget, 'handle_click')
         # Configure mock to return proper tuple
-        mock_handle_click.return_value = ("idle", 0)
+        mock_handle_click.return_value = ('idle', 0)
         sprite.on_left_mouse_button_down_event(mock_event)
 
         # Should convert screen coordinates to film strip coordinates

@@ -4,6 +4,7 @@
 import logging
 
 import pygame
+
 from glitchygames.game_objects.paddle import VerticalPaddle
 
 LOG = logging.getLogger(__name__)
@@ -11,7 +12,7 @@ LOG = logging.getLogger(__name__)
 
 def test_paddle_movement():
     """Test paddle movement for consistent behavior."""
-    LOG.debug("Testing paddle movement...")
+    LOG.debug('Testing paddle movement...')
 
     # Initialize pygame
     pygame.init()
@@ -19,7 +20,7 @@ def test_paddle_movement():
 
     # Create a paddle
     paddle = VerticalPaddle(
-        "Test Paddle",
+        'Test Paddle',
         (20, 80),
         (400, 300),
         (255, 255, 255),
@@ -28,21 +29,21 @@ def test_paddle_movement():
     )
 
     # Test movement in different directions
-    directions = ["up", "down", "stop"]
+    directions = ['up', 'down', 'stop']
     dt = 1.0 / 60.0  # 60 FPS
 
-    LOG.debug(f"Testing with dt={dt:.4f} (60 FPS)")
-    LOG.debug("Direction | Initial Pos | Final Pos | Distance | Speed")
-    LOG.debug("----------|-------------|-----------|----------|-------")
+    LOG.debug(f'Testing with dt={dt:.4f} (60 FPS)')
+    LOG.debug('Direction | Initial Pos | Final Pos | Distance | Speed')
+    LOG.debug('----------|-------------|-----------|----------|-------')
 
     for direction in directions:
         # Reset paddle position
         paddle.rect.y = 300
 
         # Set movement direction
-        if direction == "up":
+        if direction == 'up':
             paddle.up()
-        elif direction == "down":
+        elif direction == 'down':
             paddle.down()
         else:  # stop
             paddle.stop()
@@ -60,11 +61,11 @@ def test_paddle_movement():
         actual_speed = distance / 1.0  # distance per second
 
         LOG.debug(
-            f"{direction:8s} | {initial_y:10d}"
-            f" | {final_y:9d} | {distance:6.1f}"
-            f" | {actual_speed:6.1f}"
+            f'{direction:8s} | {initial_y:10d}'
+            f' | {final_y:9d} | {distance:6.1f}'
+            f' | {actual_speed:6.1f}'
         )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     test_paddle_movement()

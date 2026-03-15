@@ -10,7 +10,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools import bitmappy
-
 from tests.mocks.test_mock_factory import MockFactory
 
 # Test constants to avoid magic values
@@ -54,7 +53,7 @@ class FilmStripTestBase:
         """Pre-create commonly used objects to improve test performance."""
         # Create cached animated sprite
         cls.cached_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name="idle",
+            animation_name='idle',
             frame_size=(FRAME_SIZE, FRAME_SIZE),
             pixel_color=MAGENTA_PIXELS,
             use_cache=True,
@@ -99,14 +98,14 @@ class FilmStripTestBase:
         """
         if options is None:
             options = {
-                "pixels_across": PIXELS_ACROSS,
-                "pixels_tall": PIXELS_TALL,
-                "pixel_size": PIXEL_SIZE,
+                'pixels_across': PIXELS_ACROSS,
+                'pixels_tall': PIXELS_TALL,
+                'pixel_size': PIXEL_SIZE,
             }
 
         return bitmappy.BitmapEditorScene(options=options)
 
-    def create_optimized_sprite(self, animation_name="idle", **kwargs):
+    def create_optimized_sprite(self, animation_name='idle', **kwargs):
         """Create an optimized sprite using cached objects.
 
         Returns:

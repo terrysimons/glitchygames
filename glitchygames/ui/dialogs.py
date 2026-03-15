@@ -16,10 +16,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 import pygame
+
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputDialog
 
-LOG = logging.getLogger("game.ui.dialogs")
+LOG = logging.getLogger('game.ui.dialogs')
 LOG.addHandler(logging.NullHandler())
 
 
@@ -41,15 +42,15 @@ def _process_example_filename(filename: str) -> tuple[str, bool]:
     is_example = False
     cleaned_filename = filename.strip()
 
-    if cleaned_filename.startswith("example:"):
+    if cleaned_filename.startswith('example:'):
         is_example = True
-        cleaned_filename = cleaned_filename[len("example:") :].strip()
+        cleaned_filename = cleaned_filename[len('example:') :].strip()
         LOG.info(
             f"Detected 'example:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'"
         )
-    elif cleaned_filename.startswith("examples:"):
+    elif cleaned_filename.startswith('examples:'):
         is_example = True
-        cleaned_filename = cleaned_filename[len("examples:") :].strip()
+        cleaned_filename = cleaned_filename[len('examples:') :].strip()
         LOG.info(
             f"Detected 'examples:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'"
         )
@@ -65,17 +66,17 @@ def _get_examples_dir() -> Path:
 
     """
     # Use the same logic as resource_path but defined here to avoid circular imports
-    if hasattr(sys, "_MEIPASS"):
+    if hasattr(sys, '_MEIPASS'):
         # Running in PyInstaller bundle
         base_path = Path(sys._MEIPASS)
-        return base_path.joinpath("glitchygames", "examples", "resources", "sprites")
+        return base_path.joinpath('glitchygames', 'examples', 'resources', 'sprites')
     # Running in normal Python environment
     # dialogs.py is in glitchygames/ui, so go up to glitchygames/, then to examples/
     # Path(__file__) = glitchygames/ui/dialogs.py
     # .parent = glitchygames/ui/
     # .parent.parent = glitchygames/
     # Then join with examples/resources/sprites
-    return Path(__file__).parent.parent.joinpath("examples", "resources", "sprites")
+    return Path(__file__).parent.parent.joinpath('examples', 'resources', 'sprites')
 
 
 def _get_save_path(filename: str) -> Path:
@@ -93,11 +94,11 @@ def _get_save_path(filename: str) -> Path:
     if is_example:
         examples_dir = _get_examples_dir()
         save_path = examples_dir / cleaned_filename
-        LOG.info(f"Example save path: {save_path}")
+        LOG.info(f'Example save path: {save_path}')
         return save_path
     # Normal save - return just the filename (current behavior)
     save_path = Path(cleaned_filename)
-    LOG.info(f"Normal save path: {save_path}")
+    LOG.info(f'Normal save path: {save_path}')
     return save_path
 
 
@@ -116,11 +117,11 @@ def _get_load_path(filename: str) -> Path:
     if is_example:
         examples_dir = _get_examples_dir()
         load_path = examples_dir / cleaned_filename
-        LOG.info(f"Example load path: {load_path}")
+        LOG.info(f'Example load path: {load_path}')
         return load_path
     # Normal load - return just the filename (current behavior)
     load_path = Path(cleaned_filename)
-    LOG.info(f"Normal load path: {load_path}")
+    LOG.info(f'Normal load path: {load_path}')
     return load_path
 
 
@@ -128,11 +129,11 @@ class InputConfirmationDialogScene(Scene):
     """Input Confirmation Dialog Scene."""
 
     log = LOG
-    NAME = "InputConfirmationDialog"
-    DIALOG_TEXT = "Would you like to do a thing?"
-    CONFIRMATION_TEXT = "Confirm"
-    CANCEL_TEXT = "Cancel"
-    VERSION = ""
+    NAME = 'InputConfirmationDialog'
+    DIALOG_TEXT = 'Would you like to do a thing?'
+    CONFIRMATION_TEXT = 'Confirm'
+    CANCEL_TEXT = 'Cancel'
+    VERSION = ''
 
     def __init__(
         self: Self,
@@ -187,10 +188,10 @@ class InputConfirmationDialogScene(Scene):
 
         """
         self.dialog.cancel_button.callbacks = {
-            "on_left_mouse_button_up_event": self.on_cancel_event
+            'on_left_mouse_button_up_event': self.on_cancel_event
         }
         self.dialog.confirm_button.callbacks = {
-            "on_left_mouse_button_up_event": self.on_confirm_event
+            'on_left_mouse_button_up_event': self.on_confirm_event
         }
 
         self.dialog.add(self.all_sprites)
@@ -233,12 +234,12 @@ class InputConfirmationDialogScene(Scene):
 
 
         """
-        self.log.info(f"Cancel: event: {event}, trigger: {trigger}")
+        self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
         self.dismiss()
 
     def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
         """Handle confirm events."""
-        self.log.info(f"Confirm: event: {event}, trigger: {trigger}")
+        self.log.info(f'Confirm: event: {event}, trigger: {trigger}')
         # Get the text from input box before dismissing
         filename = self.dialog.input_box.text
         # Dismiss first to restore previous scene
@@ -247,7 +248,7 @@ class InputConfirmationDialogScene(Scene):
         if isinstance(self, SaveDialogScene):
             self.previous_scene.canvas.on_save_file_event(filename)
         elif isinstance(self, LoadDialogScene):
-            LOG.debug("Dialog calling canvas.on_load_file_event with filename: %s", filename)
+            LOG.debug('Dialog calling canvas.on_load_file_event with filename: %s', filename)
             self.previous_scene.canvas.on_load_file_event(filename)
         elif isinstance(self, NewCanvasDialogScene):
             self.previous_scene.canvas.on_new_file_event(filename)
@@ -260,7 +261,7 @@ class InputConfirmationDialogScene(Scene):
 
 
         """
-        self.log.info(f"{self.name} Got text input from: {control.name}: {control.text}")
+        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
 
     def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle the mouse button up event.
@@ -305,10 +306,10 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
     """New Canvas Dialog Scene."""
 
     log = LOG
-    NAME = "New Canvas Dialog"
-    DIALOG_TEXT = "Enter canvas size (WxH):"
-    CONFIRMATION_TEXT = "Create"
-    CANCEL_TEXT = "Cancel"
+    NAME = 'New Canvas Dialog'
+    DIALOG_TEXT = 'Enter canvas size (WxH):'
+    CONFIRMATION_TEXT = 'Create'
+    CANCEL_TEXT = 'Cancel'
 
     def __init__(
         self: Self,
@@ -339,13 +340,13 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
 
 
         """
-        self.log.info(f"New Canvas: event: {event}, trigger: {trigger}")
+        self.log.info(f'New Canvas: event: {event}, trigger: {trigger}')
         # Extract the text from the input box
         dimensions = self.dialog.input_box.text
-        self.log.info(f"New Canvas dimensions: {dimensions}")
-        self.log.info(f"Calling scene.on_new_file_event with dimensions: {dimensions}")
+        self.log.info(f'New Canvas dimensions: {dimensions}')
+        self.log.info(f'Calling scene.on_new_file_event with dimensions: {dimensions}')
         self.previous_scene.on_new_file_event(dimensions)
-        self.log.info("Scene.on_new_file_event completed")
+        self.log.info('Scene.on_new_file_event completed')
         self.dismiss()
 
 
@@ -353,11 +354,11 @@ class LoadDialogScene(InputConfirmationDialogScene):
     """Load Dialog Scene."""
 
     log = LOG
-    NAME = "Load Dialog"
-    DIALOG_TEXT = "Enter filename to load:"
-    CONFIRMATION_TEXT = "Load"
-    CANCEL_TEXT = "Cancel"
-    VERSION = ""
+    NAME = 'Load Dialog'
+    DIALOG_TEXT = 'Enter filename to load:'
+    CONFIRMATION_TEXT = 'Load'
+    CANCEL_TEXT = 'Cancel'
+    VERSION = ''
 
     def __init__(
         self: Self,
@@ -389,12 +390,12 @@ class LoadDialogScene(InputConfirmationDialogScene):
 
 
         """
-        self.log.info(f"Load File: event: {event}, trigger: {trigger}")
+        self.log.info(f'Load File: event: {event}, trigger: {trigger}')
         # Get the filename from the input box text
         filename = self.dialog.input_box.text
         # Process example: prefix if present
         load_path = _get_load_path(filename)
-        LOG.info(f"Processed load path: {load_path}")
+        LOG.info(f'Processed load path: {load_path}')
         # Pass the path as string to maintain compatibility
         self.previous_scene.canvas.on_load_file_event(str(load_path))
         self.dismiss()
@@ -404,11 +405,11 @@ class SaveDialogScene(InputConfirmationDialogScene):
     """Save Dialog Scene."""
 
     log = LOG
-    NAME = "Save Dialog"
-    DIALOG_TEXT = "Enter filename to save:"
-    CONFIRMATION_TEXT = "Save"
-    CANCEL_TEXT = "Cancel"
-    VERSION = ""
+    NAME = 'Save Dialog'
+    DIALOG_TEXT = 'Enter filename to save:'
+    CONFIRMATION_TEXT = 'Save'
+    CANCEL_TEXT = 'Cancel'
+    VERSION = ''
 
     def __init__(
         self: Self,
@@ -440,12 +441,12 @@ class SaveDialogScene(InputConfirmationDialogScene):
 
 
         """
-        self.log.info(f"Save File: event: {event}, trigger: {trigger}")
+        self.log.info(f'Save File: event: {event}, trigger: {trigger}')
         # Get the filename from the input box
         filename = self.dialog.input_box.text
         # Process example: prefix if present
         save_path = _get_save_path(filename)
-        LOG.info(f"Processed save path: {save_path}")
+        LOG.info(f'Processed save path: {save_path}')
         # Pass the path as string to maintain compatibility
         self.previous_scene.canvas.on_save_file_event(str(save_path))
         self.dismiss()
@@ -455,7 +456,7 @@ class DeleteAnimationDialogScene(Scene):
     """Delete Animation Confirmation Dialog - requires typing exact name."""
 
     log = LOG
-    NAME = "DeleteAnimationDialog"
+    NAME = 'DeleteAnimationDialog'
 
     def __init__(
         self,
@@ -495,8 +496,8 @@ class DeleteAnimationDialogScene(Scene):
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=message,
-            confirm_text="Delete",
-            cancel_text="Cancel",
+            confirm_text='Delete',
+            cancel_text='Cancel',
             x=self.screen.get_rect().center[0] - (dialog_width // 2),
             y=self.screen.get_rect().center[1] - (dialog_height // 2),
             width=dialog_width,
@@ -510,10 +511,10 @@ class DeleteAnimationDialogScene(Scene):
     def setup(self) -> None:
         """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
-            "on_left_mouse_button_up_event": self.on_cancel_event
+            'on_left_mouse_button_up_event': self.on_cancel_event
         }
         self.dialog.confirm_button.callbacks = {
-            "on_left_mouse_button_up_event": self.on_confirm_event
+            'on_left_mouse_button_up_event': self.on_confirm_event
         }
         self.dialog.add(self.all_sprites)
         # Activate input box so user can start typing immediately
@@ -539,11 +540,11 @@ class DeleteAnimationDialogScene(Scene):
             )
             # Could show an error message here, but for now just do nothing
             # Clear the input box to let user try again
-            self.dialog.input_box.text = ""
+            self.dialog.input_box.text = ''
 
     def on_cancel_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle cancel button click."""
-        LOG.info("DeleteAnimationDialog: User cancelled")
+        LOG.info('DeleteAnimationDialog: User cancelled')
         # Call the cancel callback if provided
         if self.on_cancel_callback:
             self.on_cancel_callback()
@@ -571,7 +572,7 @@ class DeleteFrameDialogScene(Scene):
     """Delete Frame Confirmation Dialog - requires typing 'YES'."""
 
     log = LOG
-    NAME = "DeleteFrameDialog"
+    NAME = 'DeleteFrameDialog'
 
     def __init__(
         self,
@@ -615,8 +616,8 @@ class DeleteFrameDialogScene(Scene):
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=message1,
-            confirm_text="Delete",
-            cancel_text="Cancel",
+            confirm_text='Delete',
+            cancel_text='Cancel',
             x=self.screen.get_rect().center[0] - (dialog_width // 2),
             y=self.screen.get_rect().center[1] - (dialog_height // 2),
             width=dialog_width,
@@ -644,10 +645,10 @@ class DeleteFrameDialogScene(Scene):
     def setup(self) -> None:
         """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
-            "on_left_mouse_button_up_event": self.on_cancel_event
+            'on_left_mouse_button_up_event': self.on_cancel_event
         }
         self.dialog.confirm_button.callbacks = {
-            "on_left_mouse_button_up_event": self.on_confirm_event
+            'on_left_mouse_button_up_event': self.on_confirm_event
         }
         self.dialog.add(self.all_sprites)
         # Activate input box so user can start typing immediately
@@ -659,7 +660,7 @@ class DeleteFrameDialogScene(Scene):
         typed_text = self.dialog.input_box.text.strip()
 
         # Validate that the typed text is "YES"
-        if typed_text == "YES":
+        if typed_text == 'YES':
             LOG.info(
                 f"DeleteFrameDialog: User confirmed deletion of"
                 f" frame {self.frame_index}"
@@ -673,11 +674,11 @@ class DeleteFrameDialogScene(Scene):
         else:
             LOG.warning(f"DeleteFrameDialog: Typed text '{typed_text}' does not match 'YES'")
             # Clear the input box to let user try again
-            self.dialog.input_box.text = ""
+            self.dialog.input_box.text = ''
 
     def on_cancel_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle cancel button click."""
-        LOG.info("DeleteFrameDialog: User cancelled")
+        LOG.info('DeleteFrameDialog: User cancelled')
         # Call the cancel callback if provided
         if self.on_cancel_callback:
             self.on_cancel_callback()

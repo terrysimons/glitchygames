@@ -3,9 +3,9 @@
 import math
 
 import pytest
+
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.game_objects.paddle import VerticalPaddle
-
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -26,12 +26,12 @@ class TestBallPaddleCollision:
 
         ball = BallSprite(x=100, y=100, groups=group)
         paddle = VerticalPaddle(
-            "Test Paddle",
+            'Test Paddle',
             (20, 100),
             (50, 50),
             (255, 255, 255),
             400,
-            collision_sound="test.wav",
+            collision_sound='test.wav',
             groups=group,
         )
 
@@ -40,7 +40,7 @@ class TestBallPaddleCollision:
         ball.rect.y = 75  # Within paddle's y range
 
         # Mock the paddle detection
-        mock_adjust = mocker.patch.object(ball, "_adjust_position_for_paddle_collision")
+        mock_adjust = mocker.patch.object(ball, '_adjust_position_for_paddle_collision')
         ball._check_paddle_collisions()
         mock_adjust.assert_called_once_with(paddle)
 
@@ -89,7 +89,7 @@ class TestBallPaddleCollision:
         # Create a ball and paddle with collision sound
         ball = BallSprite(x=100, y=100)
         paddle = VerticalPaddle(
-            "Test Paddle", (20, 100), (50, 50), (255, 255, 255), 400, collision_sound="test.wav"
+            'Test Paddle', (20, 100), (50, 50), (255, 255, 255), 400, collision_sound='test.wav'
         )
 
         # Add both to a real pygame group
@@ -103,7 +103,7 @@ class TestBallPaddleCollision:
         ball.rect.y = 75
 
         # Mock the paddle detection
-        mock_adjust = mocker.patch.object(ball, "_adjust_position_for_paddle_collision")
+        mock_adjust = mocker.patch.object(ball, '_adjust_position_for_paddle_collision')
         ball._check_paddle_collisions()
         mock_adjust.assert_not_called()
 
@@ -116,12 +116,12 @@ class TestBallPaddleCollision:
 
         ball = BallSprite(x=100, y=100, groups=group)
         paddle = VerticalPaddle(
-            "Test Paddle",
+            'Test Paddle',
             (20, 100),
             (50, 50),
             (255, 255, 255),
             400,
-            collision_sound="test.wav",
+            collision_sound='test.wav',
             groups=group,
         )
 

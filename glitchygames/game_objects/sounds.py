@@ -11,8 +11,8 @@ import pygame.mixer
 class SFX:
     """Sound effects."""
 
-    BOUNCE = "sfx_bounce.wav"
-    SLAP = "sfx_slap.wav"
+    BOUNCE = 'sfx_bounce.wav'
+    SLAP = 'sfx_slap.wav'
 
 
 def load_sound(snd_file: str, volume: float = 0.25) -> pygame.mixer.Sound:
@@ -26,7 +26,7 @@ def load_sound(snd_file: str, volume: float = 0.25) -> pygame.mixer.Sound:
         pygame.mixer.Sound: The sound object.
 
     """
-    path: Path = Path(__file__).parent / "snd_files" / snd_file
+    path: Path = Path(__file__).parent / 'snd_files' / snd_file
     sound = pygame.mixer.Sound(path)
     sound.set_volume(volume)
     return sound
