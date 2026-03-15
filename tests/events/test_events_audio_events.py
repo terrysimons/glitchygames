@@ -44,7 +44,7 @@ class TestAudioEvents:
         # Test method calls
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.LOG.error")
+        mocker.patch("glitchygames.events.core.LOG.error")
         with pytest.raises(UnhandledEventError):
             stub.on_audio_device_added_event(event)
         # Expected to call unhandled_event
@@ -215,7 +215,7 @@ class TestAudioEventFlow:
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.LOG.error")
+        mocker.patch("glitchygames.events.core.LOG.error")
         with pytest.raises(UnhandledEventError):
             stub.on_audio_device_added_event(event)
 

@@ -140,7 +140,7 @@ class TestEngineLifecycle:
 
         # Mock all the manager classes
         mocker.patch.multiple(
-            "glitchygames.engine",
+            "glitchygames.engine.game_engine",
             AudioEventManager=mocker.Mock,
             DropEventManager=mocker.Mock,
             ControllerEventManager=mocker.Mock,
@@ -199,7 +199,7 @@ class TestEngineLifecycle:
 
         # Mock all the manager classes
         mocker.patch.multiple(
-            "glitchygames.engine",
+            "glitchygames.engine.game_engine",
             AudioEventManager=mocker.Mock,
             DropEventManager=mocker.Mock,
             ControllerEventManager=mocker.Mock,
@@ -264,7 +264,7 @@ class TestEngineLifecycle:
 
         # Mock all the manager classes to raise exceptions
         mocker.patch.multiple(
-            "glitchygames.engine",
+            "glitchygames.engine.game_engine",
             AudioEventManager=mocker.Mock(side_effect=Exception("AudioEventManager failed")),
             DropEventManager=mocker.Mock,
             ControllerEventManager=mocker.Mock,
@@ -327,7 +327,7 @@ class TestEngineLifecycle:
 
         # Mock all the manager classes
         mocker.patch.multiple(
-            "glitchygames.engine",
+            "glitchygames.engine.game_engine",
             AudioEventManager=mocker.Mock,
             DropEventManager=mocker.Mock,
             ControllerEventManager=mocker.Mock,
@@ -390,7 +390,7 @@ class TestEngineLifecycle:
 
         # Mock all the manager classes
         mocker.patch.multiple(
-            "glitchygames.engine",
+            "glitchygames.engine.game_engine",
             AudioEventManager=mocker.Mock,
             DropEventManager=mocker.Mock,
             ControllerEventManager=mocker.Mock,
@@ -453,7 +453,7 @@ class TestEngineLifecycle:
 
         # Mock all the manager classes
         mocker.patch.multiple(
-            "glitchygames.engine",
+            "glitchygames.engine.game_engine",
             AudioEventManager=mocker.Mock,
             DropEventManager=mocker.Mock,
             ControllerEventManager=mocker.Mock,

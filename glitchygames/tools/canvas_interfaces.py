@@ -34,7 +34,7 @@ class MockTrigger(BaseModel):
     """Lightweight mock trigger for pixel update notifications."""
 
     pixel_number: int
-    pixel_color: tuple[int, int, int]
+    pixel_color: tuple[int, int, int] | tuple[int, int, int, int]
 
 
 class CanvasInterface(Protocol):
@@ -56,7 +56,9 @@ class CanvasInterface(Protocol):
         """Get the color of a pixel at the given coordinates."""
         ...
 
-    def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int]) -> None:
+    def set_pixel_at(
+        self, x: int, y: int, color: tuple[int, int, int] | tuple[int, int, int, int]
+    ) -> None:
         """Set the color of a pixel at the given coordinates."""
         ...
 
@@ -182,7 +184,9 @@ class StaticCanvasInterface:
             return (pixel[0], pixel[1], pixel[2], 255)
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
-    def set_pixel_at(self, x: int, y: int, color: tuple[int, int, int]) -> None:
+    def set_pixel_at(
+        self, x: int, y: int, color: tuple[int, int, int] | tuple[int, int, int, int]
+    ) -> None:
         """Set the color of a pixel at the given coordinates."""
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
@@ -323,7 +327,12 @@ class AnimatedCanvasInterface:
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
     def set_pixel_at(
-        self, x: int, y: int, color: tuple[int, int, int], *, skip_drag_ops: bool = False
+        self,
+        x: int,
+        y: int,
+        color: tuple[int, int, int] | tuple[int, int, int, int],
+        *,
+        skip_drag_ops: bool = False,
     ) -> None:
         """Set the color of a pixel at the given coordinates.
 

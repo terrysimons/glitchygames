@@ -50,7 +50,7 @@ class TestDropEvents:
         # Test method calls
         event = HashableEvent(pygame.DROPBEGIN)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.LOG.error")
+        mocker.patch("glitchygames.events.core.LOG.error")
         with pytest.raises(UnhandledEventError):
             stub.on_drop_begin_event(event)
         # Expected to call unhandled_event

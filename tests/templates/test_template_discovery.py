@@ -18,7 +18,7 @@ class TestTemplateDiscovery:
 
     def test_get_templates_basic(self, mocker):
         """Test basic template discovery."""
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_directory = create_template_directory_mock(["template1", "template2"])
         mock_path.iterdir.return_value = mock_directory.iterdir.return_value
@@ -38,14 +38,14 @@ class TestTemplateDiscovery:
 
     def test_get_templates_empty(self, mocker):
         """Test get_templates with empty directory."""
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         mock_path.iterdir.return_value = []
         templates = get_templates()
         assert templates == []
 
     def test_get_templates_no_directories(self, mocker):
         """Test get_templates with no directories."""
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         mock_file1 = mocker.Mock()
         mock_file1.name = "file1.txt"
 
@@ -61,7 +61,7 @@ class TestTemplateDiscovery:
 
     def test_get_templates_hidden_directories(self, mocker):
         """Test get_templates with hidden directories (implementation doesn't filter them)."""
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_items = []
         for name in ["template1", "__pycache__", ".git", "__init__.py"]:
@@ -89,7 +89,7 @@ class TestTemplateDiscovery:
 
     def test_get_templates_filters_directories(self, mocker):
         """Test that get_templates properly filters directories."""
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         mock_dir = mocker.Mock()
         mock_dir.name = "valid_template"
 

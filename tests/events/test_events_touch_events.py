@@ -47,7 +47,7 @@ class TestTouchEvents:
         # Test method calls
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         with pytest.raises(UnhandledEventError):
             stub.on_touch_down_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError

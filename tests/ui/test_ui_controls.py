@@ -44,7 +44,7 @@ class TestSliderSpriteFunctionality:
     def test_slider_initialization(self, mocker):
         """Test SliderSprite initialization."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -72,7 +72,7 @@ class TestSliderSpriteFunctionality:
     def test_slider_value_change(self, mocker):
         """Test SliderSprite value change functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -96,7 +96,7 @@ class TestSliderSpriteFunctionality:
     def test_slider_mouse_drag(self, mocker):
         """Test SliderSprite mouse drag functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -127,7 +127,7 @@ class TestSliderSpriteFunctionality:
     def test_slider_callback(self, mocker):
         """Test SliderSprite value change callback."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -162,7 +162,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_initialization(self, mocker):
         """Test CheckboxSprite initialization."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -191,7 +191,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_toggle(self, mocker):
         """Test CheckboxSprite toggle functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -227,7 +227,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_click_toggle(self, mocker):
         """Test CheckboxSprite click to toggle functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -258,7 +258,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_callback(self, mocker):
         """Test CheckboxSprite state change callback."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -282,7 +282,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_set_checked(self, mocker):
         """Test CheckboxSprite set checked state."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -343,7 +343,7 @@ class TestColorWellSpriteFunctionality:
     def test_colorwell_color_change(self, mocker):
         """Test ColorWellSprite color change functionality."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")
@@ -404,7 +404,7 @@ class TestColorWellSpriteFunctionality:
     def test_colorwell_color_validation(self, mocker):
         """Test ColorWellSprite color validation."""
         # Arrange
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         mock_draw_rect = mocker.patch("pygame.draw.rect")
         mock_group = mocker.patch("pygame.sprite.LayeredDirty")
         mock_surface_cls = mocker.patch("pygame.Surface")

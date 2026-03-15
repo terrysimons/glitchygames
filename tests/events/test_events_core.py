@@ -518,7 +518,7 @@ class TestEventSystemUtilities:
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
         # Test with debug_events enabled
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         with pytest.raises(UnhandledEventError):
             unhandled_event(mock_game, event)
 
@@ -535,7 +535,7 @@ class TestEventSystemUtilities:
 
         # Test with no_unhandled_events enabled (should raise UnhandledEventError)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         with pytest.raises(UnhandledEventError):
             unhandled_event(mock_game, event)
 
@@ -553,7 +553,7 @@ class TestEventSystemUtilities:
         mock_event = mocker.Mock()
         mock_event.type = 2  # pygame.KEYDOWN
 
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         unhandled_event(mock_game, mock_event)
 
         # Verify error logging was called
@@ -655,7 +655,7 @@ class TestEventSystemUtilities:
         mock_event.type = pygame.KEYDOWN
 
         mock_event_name = mocker.patch("pygame.event.event_name", return_value="KEYDOWN")
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
 
         unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
 
@@ -675,7 +675,7 @@ class TestEventSystemUtilities:
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         unhandled_event(mock_game, mock_event)
 
         mock_log.error.assert_called_once_with(
@@ -690,7 +690,7 @@ class TestEventSystemUtilities:
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         mock_exit = mocker.patch("sys.exit")
         unhandled_event(mock_game, mock_event)
 
@@ -708,7 +708,7 @@ class TestEventSystemUtilities:
         mock_event.type = pygame.KEYDOWN
 
         # This should NOT raise any exception (but should log an error about missing option)
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         mock_exit = mocker.patch("sys.exit")
         unhandled_event(mock_game, mock_event)
         # Should log error about missing option but not exit
@@ -729,7 +729,7 @@ class TestEventSystemUtilities:
         mock_event.type = pygame.KEYDOWN
 
         mocker.patch("pygame.event.event_name", return_value="KEYDOWN")
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         mock_exit = mocker.patch("sys.exit")
         unhandled_event(mock_game, mock_event, "arg1", kwarg1="value1")
 
@@ -748,7 +748,7 @@ class TestEventSystemUtilities:
 
         # Test that UnhandledEventError is raised instead of sys.exit
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         with pytest.raises(UnhandledEventError):
             unhandled_event(mock_game, event)
 

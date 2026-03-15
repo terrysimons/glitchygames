@@ -20,7 +20,7 @@ class TestTemplateBuilding:
         """Test build with local template (no .repo file)."""
         template_name = "test_template"
 
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -30,7 +30,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.side_effect = FileNotFoundError()
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.cookiecutter")
+        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
         build(template_name)
 
         # Verify cookiecutter was called
@@ -45,7 +45,7 @@ class TestTemplateBuilding:
         template_name = "remote_template"
         repo_url = "https://github.com/user/repo.git"
 
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -56,7 +56,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.cookiecutter")
+        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
         build(template_name)
 
         # Verify cookiecutter was called with repo URL
@@ -70,7 +70,7 @@ class TestTemplateBuilding:
         """Test build with empty .repo file."""
         template_name = "empty_repo_template"
 
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -81,7 +81,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.cookiecutter")
+        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
         build(template_name)
 
         # Should still call cookiecutter with empty string
@@ -95,7 +95,7 @@ class TestTemplateBuilding:
         """Test build with whitespace-only .repo file."""
         template_name = "whitespace_repo_template"
 
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -106,7 +106,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.cookiecutter")
+        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
         build(template_name)
 
         # Should call cookiecutter with whitespace string
@@ -121,7 +121,7 @@ class TestTemplateBuilding:
         template_name = "multi_line_repo_template"
         repo_url = "https://github.com/user/repo.git"
 
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -132,7 +132,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.cookiecutter")
+        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
         build(template_name)
 
         # Should use first line only
@@ -147,7 +147,7 @@ class TestTemplateBuilding:
         template_name = "stripped_whitespace_template"
         repo_url = "https://github.com/user/repo.git"
 
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -158,7 +158,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.cookiecutter")
+        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
         build(template_name)
 
         # Should use the string as-is (no automatic stripping)
@@ -172,7 +172,7 @@ class TestTemplateBuilding:
         """Test build template path operations."""
         template_name = "path_test_template"
 
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -182,7 +182,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.side_effect = FileNotFoundError()
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.cookiecutter")
+        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
         build(template_name)
 
         # Verify that the build function completed successfully
@@ -197,7 +197,7 @@ class TestTemplateBuilding:
         """Test build with empty .repo file."""
         template_name = "empty_repo_template"
 
-        mock_path = mocker.patch("glitchygames.templates.path")
+        mock_path = mocker.patch("glitchygames.templates.game.path")
         # Use centralized mock factory
         mock_template_path = create_template_path_mock(template_name)
         mock_path.__truediv__ = mocker.Mock(return_value=mock_template_path)
@@ -208,7 +208,7 @@ class TestTemplateBuilding:
         mock_repo_path.open.return_value = mock_repo_file
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
-        mock_cookiecutter = mocker.patch("glitchygames.templates.cookiecutter")
+        mock_cookiecutter = mocker.patch("glitchygames.templates.game.cookiecutter")
         build(template_name)
 
         # Should call cookiecutter with empty string

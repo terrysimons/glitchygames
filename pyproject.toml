@@ -160,9 +160,6 @@ lint.ignore = [
   "PLR0915", # too-many-statements
   "PLR0914", # too-many-locals
   "PLR0916", # too-many-boolean-expressions
-
-  # --- Module structure ---
-  "RUF067", # non-empty-init-module (__init__.py re-exports are intentional)
 ]
 lint.exclude = []
 lint.fixable = [

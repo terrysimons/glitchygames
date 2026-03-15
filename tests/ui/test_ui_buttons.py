@@ -44,7 +44,7 @@ class TestButtonSpriteFunctionality:
 
     def test_button_mouse_down_up_changes_background(self, mock_pygame_patches, mocker):
         """Test that button background changes on mouse down/up events."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
@@ -67,7 +67,7 @@ class TestButtonSpriteFunctionality:
 
     def test_button_hover_state_changes(self, mock_pygame_patches, mocker):
         """Test that button changes appearance on hover."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
@@ -90,7 +90,7 @@ class TestButtonSpriteFunctionality:
 
     def test_button_click_behavior(self, mock_pygame_patches, mocker):
         """Test that button changes color on click."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
@@ -112,7 +112,7 @@ class TestButtonSpriteFunctionality:
 
     def test_button_initialization(self, mock_pygame_patches, mocker):
         """Test ButtonSprite initialization."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
@@ -133,7 +133,7 @@ class TestButtonSpriteFunctionality:
 
     def test_button_text_rendering(self, mock_pygame_patches, mocker):
         """Test that button text is rendered correctly."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
@@ -148,7 +148,7 @@ class TestButtonSpriteFunctionality:
 
     def test_button_disabled_state(self, mock_pygame_patches, mocker):
         """Test button disabled state functionality."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font

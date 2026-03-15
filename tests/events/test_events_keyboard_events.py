@@ -48,7 +48,7 @@ class TestKeyboardEvents:
         # Test method calls
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.LOG.error")
+        mocker.patch("glitchygames.events.core.LOG.error")
         with pytest.raises(UnhandledEventError):
             stub.on_key_down_event(event)
         # Expected to call unhandled_event

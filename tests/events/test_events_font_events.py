@@ -41,7 +41,7 @@ class TestFontEvents:
         # Test that stub methods can be called
         event = HashableEvent(pygame.USEREVENT + 1)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch("glitchygames.events.LOG.error")
+        mocker.patch("glitchygames.events.core.LOG.error")
 
         with pytest.raises(UnhandledEventError):
             scene.on_font_changed_event(event)

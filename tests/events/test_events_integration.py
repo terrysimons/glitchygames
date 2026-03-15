@@ -120,7 +120,7 @@ class TestEventIntegration:
 
         mocker.patch("pygame.event.get", return_value=[event])
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         with pytest.raises(UnhandledEventError):
             engine.process_events()
 

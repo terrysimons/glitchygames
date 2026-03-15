@@ -28,7 +28,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_with_wrapped_text(self, mocker):
         """Test that cursor positioning works correctly with automatically wrapped text."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Create a real font for accurate text measurements
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
@@ -60,7 +60,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_issue_with_wrapped_text(self, mocker):
         """Test that demonstrates the cursor positioning issue with wrapped text."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -101,7 +101,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_with_mixed_wrapped_and_explicit_newlines(self, mocker):
         """Test cursor positioning with both wrapped text and explicit newlines."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -126,7 +126,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_at_beginning_of_wrapped_line(self, mocker):
         """Test cursor positioning at the beginning of a wrapped line."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -147,7 +147,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_with_very_long_single_word(self, mocker):
         """Test cursor positioning when a single word is longer than the text box width."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -172,7 +172,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_blinking_with_wrapped_text(self, mocker):
         """Test that cursor blinking works correctly with wrapped text."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -192,7 +192,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_mouse_click_positioning_with_wrapped_text(self, mocker):
         """Test that mouse clicks position the cursor correctly in wrapped text."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -215,7 +215,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_arrow_key_navigation_with_wrapped_text(self, mocker):
         """Test that arrow key navigation works correctly with wrapped text."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -264,7 +264,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_mouse_click_positioning_issue_with_wrapped_text(self, mocker):
         """Test that demonstrates the mouse click positioning issue with wrapped text."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 

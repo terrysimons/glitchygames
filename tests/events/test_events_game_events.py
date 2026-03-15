@@ -51,7 +51,7 @@ class TestGameEvents:
         # Test that stub methods can be called
         event = HashableEvent(pygame.QUIT)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         with pytest.raises(UnhandledEventError):
             scene.on_quit_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
@@ -72,7 +72,7 @@ class TestGameEvents:
         # Test that stub method can be called
         event = HashableEvent(pygame.CLIPBOARDUPDATE)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         with pytest.raises(UnhandledEventError):
             scene.on_clipboard_update_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError
@@ -93,7 +93,7 @@ class TestGameEvents:
         # Test that stub method can be called
         event = HashableEvent(pygame.LOCALECHANGED)
         # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch("glitchygames.events.LOG")
+        mock_log = mocker.patch("glitchygames.events.core.LOG")
         with pytest.raises(UnhandledEventError):
             scene.on_locale_changed_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError

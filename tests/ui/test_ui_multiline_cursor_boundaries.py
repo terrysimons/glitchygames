@@ -53,7 +53,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             Configured MultiLineTextBox instance
 
         """
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
         textbox = MultiLineTextBox(
@@ -107,7 +107,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         This is the core bug test: cursor should be able to reach position
         len(text), not len(text) - 1.
         """
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -136,7 +136,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_cursor_reaches_last_character_multi_line(self, mocker):
         """Test cursor can reach last character on each line of multi-line text."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -169,7 +169,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_cursor_at_end_after_explicit_newline(self, mocker):
         """Test cursor position immediately after an explicit newline character."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -191,7 +191,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_cursor_at_end_of_wrapped_line(self, mocker):
         """Test cursor can reach end of automatically wrapped line."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -217,7 +217,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_right_arrow_at_end_of_line_moves_to_next_line(self, mocker):
         """Test right arrow at end of line moves cursor to start of next line."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -242,7 +242,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_left_arrow_at_start_of_line_moves_to_prev_line_end(self, mocker):
         """Test left arrow at position 0 of line moves to end of previous line."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -267,7 +267,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_right_arrow_at_absolute_end(self, mocker):
         """Test right arrow at very end of text does not crash or move past end."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -292,7 +292,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_left_arrow_at_absolute_start(self, mocker):
         """Test left arrow at position 0 does not crash or go negative."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -315,7 +315,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_down_arrow_preserves_column_when_possible(self, mocker):
         """Test down arrow maintains column position when next line is long enough."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -341,7 +341,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_up_arrow_preserves_column_when_possible(self, mocker):
         """Test up arrow maintains column position when previous line is long enough."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -370,7 +370,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_mouse_click_at_exact_character_boundary(self, mocker):
         """Test mouse click exactly at character boundary positions cursor correctly."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -393,7 +393,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_mouse_click_past_end_of_line(self, mocker):
         """Test clicking past the last character positions cursor at end of line."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -417,7 +417,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_mouse_click_on_wrapped_second_line(self, mocker):
         """Test mouse click on automatically wrapped line maps to correct position."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -443,7 +443,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_mouse_click_on_empty_line(self, mocker):
         """Test mouse click on empty line (just newline) positions cursor correctly."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -478,7 +478,7 @@ class TestMultiLineTextBoxCursorBoundaries:
         This stress tests the character-matching algorithm which counts
         character occurrences. With 'aaaa', positions 0-4 should all work.
         """
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -503,7 +503,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_cursor_with_repeated_patterns(self, mocker):
         """Test cursor in text with repeating patterns like 'abcabc'."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -528,7 +528,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_cursor_with_spaces_only(self, mocker):
         """Test cursor positioning in text that is only spaces."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -556,7 +556,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_explicit_newline_followed_by_long_line(self, mocker):
         """Test cursor when explicit newline is followed by auto-wrapped line."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -577,7 +577,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_multiple_explicit_newlines_in_sequence(self, mocker):
         """Test cursor positioning with consecutive newlines (empty lines)."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -605,7 +605,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_wrapped_line_ending_with_explicit_newline(self, mocker):
         """Test auto-wrapped line that also ends with explicit newline."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -632,7 +632,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_backspace_at_end_of_line(self, mocker):
         """Test backspace at end of line deletes correct character."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -658,7 +658,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_backspace_at_start_of_line_joins_lines(self, mocker):
         """Test backspace at start of line joins with previous line."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -684,7 +684,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_delete_at_end_of_line_joins_lines(self, mocker):
         """Test delete at end of line joins with next line."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -710,7 +710,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_delete_at_very_end_of_text(self, mocker):
         """Test delete at absolute end does nothing and doesn't crash."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -740,7 +740,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_insert_at_end_of_line(self, mocker):
         """Test inserting character at end of line works correctly."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -768,7 +768,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_insert_at_very_end_of_text(self, mocker):
         """Test inserting at absolute end of text appends correctly."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -796,7 +796,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_insert_newline_in_middle_of_line(self, mocker):
         """Test inserting newline splits line correctly."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -826,7 +826,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_selection_to_end_of_line(self, mocker):
         """Test shift+right selects to end of line correctly."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -847,7 +847,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
         # Simulate Shift+Right to select "llo"
         # Patch where pygame is used, not where it's defined
-        mocker.patch("glitchygames.ui.pygame.key.get_mods", return_value=pygame.KMOD_SHIFT)
+        mocker.patch("glitchygames.ui.widgets.pygame.key.get_mods", return_value=pygame.KMOD_SHIFT)
         for _ in range(3):
             mock_event = mocker.Mock()
             mock_event.key = pygame.K_RIGHT
@@ -863,7 +863,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_selection_from_end_of_line_backwards(self, mocker):
         """Test selection starting at end going backwards."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -884,7 +884,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
         # Simulate Shift+Left to select backwards
         # Patch where pygame is used, not where it's defined
-        mocker.patch("glitchygames.ui.pygame.key.get_mods", return_value=pygame.KMOD_SHIFT)
+        mocker.patch("glitchygames.ui.widgets.pygame.key.get_mods", return_value=pygame.KMOD_SHIFT)
         for _ in range(3):
             mock_event = mocker.Mock()
             mock_event.key = pygame.K_LEFT
@@ -900,7 +900,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
     def test_selection_across_wrapped_line_boundary(self, mocker):
         """Test selection spanning auto-wrapped line boundary."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         font = pygame.font.Font(None, TEST_LINE_HEIGHT)
         mock_get_font.return_value = font
 
@@ -921,7 +921,7 @@ class TestMultiLineTextBoxCursorBoundaries:
 
         # Simulate Shift+Right to select across potential wrap boundary
         # Patch where pygame is used, not where it's defined
-        mocker.patch("glitchygames.ui.pygame.key.get_mods", return_value=pygame.KMOD_SHIFT)
+        mocker.patch("glitchygames.ui.widgets.pygame.key.get_mods", return_value=pygame.KMOD_SHIFT)
         for _ in range(20):  # Select 20 characters
             mock_event = mocker.Mock()
             mock_event.key = pygame.K_RIGHT

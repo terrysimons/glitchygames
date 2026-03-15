@@ -50,7 +50,7 @@ class TestAppEvents:
 
         # Test method calls - suppress log messages since these will trigger unhandled_event
         event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
-        mocker.patch("glitchygames.events.LOG.error")
+        mocker.patch("glitchygames.events.core.LOG.error")
         with pytest.raises(UnhandledEventError):
             stub.on_app_did_enter_background_event(event)
         # Expected to call unhandled_event
@@ -242,7 +242,7 @@ class TestAppEventFlow:
 
         # Test app did enter background event - should fall back to stubs
         event = HashableEvent(pygame.APP_DIDENTERBACKGROUND)
-        mocker.patch("glitchygames.events.LOG.error")
+        mocker.patch("glitchygames.events.core.LOG.error")
         with pytest.raises(UnhandledEventError):
             manager.on_app_did_enter_background_event(event)
         # Expected to call unhandled_event

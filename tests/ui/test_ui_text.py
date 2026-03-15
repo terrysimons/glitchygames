@@ -38,7 +38,7 @@ class TestTextSpriteFunctionality:
 
     def test_text_sprite_initialization(self, mocker):
         """Test TextSprite initialization."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -64,7 +64,7 @@ class TestTextSpriteFunctionality:
 
     def test_text_sprite_text_update(self, mocker):
         """Test TextSprite text update functionality."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -101,7 +101,7 @@ class TestTextBoxSpriteFunctionality:
 
     def test_textbox_initialization(self, mocker):
         """Test TextBoxSprite initialization."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -123,7 +123,7 @@ class TestTextBoxSpriteFunctionality:
 
     def test_textbox_text_input(self, mocker):
         """Test TextBoxSprite text input handling."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -143,7 +143,7 @@ class TestTextBoxSpriteFunctionality:
 
     def test_textbox_backspace(self, mocker):
         """Test TextBoxSprite backspace functionality."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -164,7 +164,7 @@ class TestTextBoxSpriteFunctionality:
 
     def test_textbox_focus_handling(self, mocker):
         """Test TextBoxSprite focus handling."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -203,7 +203,7 @@ class TestMultiLineTextBoxFunctionality:
 
     def test_multiline_textbox_initialization(self, mocker):
         """Test MultiLineTextBox initialization."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         font.get_linesize = mocker.Mock(return_value=24)  # Provide proper line height
@@ -231,7 +231,7 @@ class TestMultiLineTextBoxFunctionality:
 
     def test_multiline_textbox_line_breaks(self, mocker):
         """Test MultiLineTextBox line break handling."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         font.get_linesize = mocker.Mock(return_value=24)  # Provide proper line height
@@ -261,7 +261,7 @@ class TestMultiLineTextBoxFunctionality:
 
     def test_multiline_textbox_scrolling(self, mocker):
         """Test MultiLineTextBox scrolling functionality."""
-        mock_get_font = mocker.patch("glitchygames.ui.FontManager.get_font")
+        mock_get_font = mocker.patch("glitchygames.ui.widgets.FontManager.get_font")
         # Arrange
         font = mocker.Mock()
         font.get_linesize = mocker.Mock(return_value=24)  # Provide proper line height
