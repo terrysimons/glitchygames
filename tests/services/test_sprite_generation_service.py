@@ -61,12 +61,12 @@ class TestSpriteGenerationService:
         service = SpriteGenerationService()
 
         mocker.patch.dict("sys.modules", {"aisuite": None})
+        # Mock import to fail
+        mocker.patch(
+            "builtins.__import__", side_effect=ImportError("No module named 'aisuite'")
+        )
         # This should raise an error on import attempt
         with pytest.raises(AIProviderError):
-            # Mock import to fail
-            mocker.patch(
-                "builtins.__import__", side_effect=ImportError("No module named 'aisuite'")
-            )
             service._ensure_client()
 
     def test_is_animation_request_true(self):

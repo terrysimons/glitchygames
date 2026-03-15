@@ -510,7 +510,7 @@ class TestErrorRecoveryEdgeCases:
             self.visual_manager.indicators[0].position = "invalid"
 
         # get_final_position unpacks position as tuple — corrupted data raises ValueError
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="too many values to unpack"):
             self.visual_manager.get_final_position(0)
 
     def test_recovery_from_system_errors(self):

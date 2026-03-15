@@ -5,6 +5,8 @@ import logging
 import math
 import time
 
+import pytest
+
 LOG = logging.getLogger(__name__)
 
 
@@ -195,10 +197,10 @@ def test_ball_math_fast():
     # Check for NaN or infinity
     if math.isnan(speed_x) or math.isnan(speed_y) or math.isnan(x) or math.isnan(y):
         LOG.debug("  ❌ NaN values detected!")
-        assert False, "NaN values detected in ball calculations"
+        pytest.fail("NaN values detected in ball calculations")
     elif math.isinf(speed_x) or math.isinf(speed_y) or math.isinf(x) or math.isinf(y):
         LOG.debug("  ❌ Infinity values detected!")
-        assert False, "Infinity values detected in ball calculations"
+        pytest.fail("Infinity values detected in ball calculations")
     else:
         LOG.info("  ✅ All values are finite")
 

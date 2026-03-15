@@ -245,13 +245,17 @@ class TestBitmappyMultiControllerIntegration:
         for i in range(4):
             animation, frame = self.scene.controller_selections[i].get_selection()
             if i == 0:
-                assert animation == "animation1" and frame == 0
+                assert animation == "animation1"
+                assert frame == 0
             elif i == 1:
-                assert animation == "animation2" and frame == 1
+                assert animation == "animation2"
+                assert frame == 1
             elif i == 2:
-                assert animation == "animation3" and frame == 2
+                assert animation == "animation3"
+                assert frame == 2
             elif i == 3:
-                assert animation == "animation1" and frame == 3
+                assert animation == "animation1"
+                assert frame == 3
 
         # Scenario 2: Navigation history tracking
         # Navigate controller 0 through multiple animations
@@ -274,7 +278,8 @@ class TestBitmappyMultiControllerIntegration:
 
         # Controller 0 should preserve its state
         animation, frame = self.scene.controller_selections[0].get_selection()
-        assert animation == "animation1" and frame == 2
+        assert animation == "animation1"
+        assert frame == 2
 
     def test_error_handling_integration(self):
         """Test error handling in integration scenarios."""

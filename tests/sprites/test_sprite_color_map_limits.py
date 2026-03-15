@@ -223,7 +223,7 @@ class TestCharacterLimitEnforcement:
             animated_sprite.save(str(toml_file), "toml")
 
     @pytest.mark.parametrize(
-        "width,height",
+        ("width", "height"),
         [
             (1, 64),  # 1x64 grid
             (2, 32),  # 2x32 grid

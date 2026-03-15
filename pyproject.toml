@@ -211,11 +211,6 @@ lint.ignore = [
   "B905", # zip-without-explicit-strict
   "B011", # assert-false
   "B023", # function-uses-loop-variable
-  "PT018", # pytest-composite-assertion
-  "PT015", # pytest-assert-always-false
-  "PT006", # pytest-parametrize-names-wrong-type
-  "PT011", # pytest-raises-too-broad
-  "PT012", # pytest-raises-with-multiple-statements
 ]
 lint.exclude = []
 lint.fixable = [
