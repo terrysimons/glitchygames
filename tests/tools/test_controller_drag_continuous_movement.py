@@ -147,8 +147,7 @@ class TestControllerDragContinuousMovement:
         assert mock_scene._canvas_move_cursor.call_count == 0
 
     def test_controller_drag_inactive_during_continuous_movement(self, mock_scene, mocker):
-        """Test that no painting occurs when controller drag is inactive during continuous movement.
-        """
+        """Test no painting when drag is inactive during continuous movement."""
         controller_id = 0
 
         # Set up continuous movement

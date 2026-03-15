@@ -194,6 +194,8 @@ if __name__ == "__main__":
         level=logging.DEBUG,
     )
 
-    assert issubclass(SpriteStack, SpriteStackInterface)
+    if not issubclass(SpriteStack, SpriteStackInterface):
+        msg = "SpriteStack must implement SpriteStackInterface"
+        raise TypeError(msg)
 
     sprite_stack = SpriteStack([pygame.Surface((32, 32)) for _ in range(10)])

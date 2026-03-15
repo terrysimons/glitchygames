@@ -60,8 +60,7 @@ class TestControllerDragUndoRedo:
         return scene
 
     def test_controller_drag_operation_collects_pixels(self, mock_scene, mocker):
-        """Test that controller drag operations collect pixels but don't submit them for undo/redo.
-        """
+        """Test drag ops collect pixels but don't submit for undo/redo."""
         controller_id = 0
 
         # Simulate starting a controller drag

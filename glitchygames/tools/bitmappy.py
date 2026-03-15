@@ -666,9 +666,16 @@ def _convert_animation_colors_to_rgba(animations: dict) -> dict:
 
 
 def load_ai_training_data() -> None:
-    """Load AI training data from sprite config files."""
+    """Load AI training data from sprite config files.
+
+    Raises:
+        TypeError: If ai_training_state['data'] is not a list.
+
+    """
     training_data = ai_training_state["data"]
-    assert isinstance(training_data, list)
+    if not isinstance(training_data, list):
+        msg = "ai_training_state['data'] must be a list"
+        raise TypeError(msg)
 
     LOG.info(f"Loading AI training data from: {SPRITE_CONFIG_DIR}")
     LOG.debug(f"Sprite config directory exists: {SPRITE_CONFIG_DIR.exists()}")
