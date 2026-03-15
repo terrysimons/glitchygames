@@ -205,9 +205,11 @@ def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
     for char, color_data in sorted(colors.items()):
         lines.append(f'[colors."{char}"]')
         if isinstance(color_data, dict):
-            lines.append(f"red = {color_data.get('red', 0)}")
-            lines.append(f"green = {color_data.get('green', 0)}")
-            lines.append(f"blue = {color_data.get('blue', 0)}")
+            lines.extend((
+                f"red = {color_data.get('red', 0)}",
+                f"green = {color_data.get('green', 0)}",
+                f"blue = {color_data.get('blue', 0)}",
+            ))
             if "alpha" in color_data and color_data["alpha"] != MAX_COLOR_CHANNEL_VALUE:
                 lines.append(f"alpha = {color_data['alpha']}")
         lines.append("")
@@ -223,8 +225,10 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
 
     """
     lines = ["[sprite]"]
-    lines.append(f'name = "{example.get("name", "unknown")}"')
-    lines.append("")
+    lines.extend((
+        f'name = "{example.get("name", "unknown")}"',
+        "",
+    ))
 
     # Add animations
     animations = example.get("animations", [])
@@ -232,11 +236,13 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
         if not isinstance(anim, dict):
             continue
 
-        lines.append("[[animation]]")
-        lines.append(f'namespace = "{anim.get("namespace", "default")}"')
-        lines.append(f"frame_interval = {anim.get('frame_interval', 0.5)}")
-        lines.append(f"loop = {str(anim.get('loop', True)).lower()}")
-        lines.append("")
+        lines.extend([
+            "[[animation]]",
+            f'namespace = "{anim.get("namespace", "default")}"',
+            f"frame_interval = {anim.get('frame_interval', 0.5)}",
+            f"loop = {str(anim.get('loop', True)).lower()}",
+            "",
+        ])
 
         # Add frames
         frames = anim.get("frame", [])
@@ -244,9 +250,11 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
             if not isinstance(frame, dict):
                 continue
 
-            lines.append("[[animation.frame]]")
-            lines.append(f'namespace = "{anim.get("namespace", "default")}"')
-            lines.append(f"frame_index = {frame.get('frame_index', 0)}")
+            lines.extend((
+                "[[animation.frame]]",
+                f'namespace = "{anim.get("namespace", "default")}"',
+                f"frame_index = {frame.get('frame_index', 0)}",
+            ))
 
             # Handle pixels
             pixels = frame.get("pixels", "")
@@ -264,9 +272,11 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
     for char, color_data in sorted(colors.items()):
         lines.append(f'[colors."{char}"]')
         if isinstance(color_data, dict):
-            lines.append(f"red = {color_data.get('red', 0)}")
-            lines.append(f"green = {color_data.get('green', 0)}")
-            lines.append(f"blue = {color_data.get('blue', 0)}")
+            lines.extend((
+                f"red = {color_data.get('red', 0)}",
+                f"green = {color_data.get('green', 0)}",
+                f"blue = {color_data.get('blue', 0)}",
+            ))
             if "alpha" in color_data and color_data["alpha"] != MAX_COLOR_CHANNEL_VALUE:
                 lines.append(f"alpha = {color_data['alpha']}")
         lines.append("")

@@ -4748,10 +4748,12 @@ class AnimatedCanvasSprite(BitmappySprite):
                 filled_pixels += 1
 
                 # Add adjacent pixels to stack (4-connected)
-                stack.append((x + 1, y))  # Right
-                stack.append((x - 1, y))  # Left
-                stack.append((x, y + 1))  # Down
-                stack.append((x, y - 1))  # Up
+                stack.extend([
+                    (x + 1, y),  # Right
+                    (x - 1, y),  # Left
+                    (x, y + 1),  # Down
+                    (x, y - 1),  # Up
+                ])
 
         self.log.info(f"Flood fill completed: filled {filled_pixels} pixels")
 
@@ -9236,28 +9238,34 @@ class BitmapEditorScene(Scene):
             if "description" in sprite_data:
                 lines.append(f'description = """{sprite_data["description"]}"""')
             if "pixels" in sprite_data:
-                lines.append('pixels = """')
-                lines.append(sprite_data["pixels"])
-                lines.append('"""')
+                lines.extend((
+                    'pixels = """',
+                    sprite_data["pixels"],
+                    '"""',
+                ))
             lines.append("")
 
         # Add animation sections
         if "animation" in data:
             for animation in data["animation"]:
-                lines.append("[[animation]]")
-                lines.append(f'namespace = "{animation["namespace"]}"')
-                lines.append(f"frame_interval = {animation['frame_interval']}")
-                lines.append(f"loop = {str(animation['loop']).lower()}")
-                lines.append("")
+                lines.extend([
+                    "[[animation]]",
+                    f'namespace = "{animation["namespace"]}"',
+                    f"frame_interval = {animation['frame_interval']}",
+                    f"loop = {str(animation['loop']).lower()}",
+                    "",
+                ])
 
                 for frame in animation.get("frame", []):
-                    lines.append("[[animation.frame]]")
-                    lines.append(f'namespace = "{animation["namespace"]}"')
-                    lines.append(f"frame_index = {frame['frame_index']}")
-                    lines.append('pixels = """')
-                    lines.append(frame["pixels"])
-                    lines.append('"""')
-                    lines.append("")
+                    lines.extend([
+                        "[[animation.frame]]",
+                        f'namespace = "{animation["namespace"]}"',
+                        f"frame_index = {frame['frame_index']}",
+                        'pixels = """',
+                        frame["pixels"],
+                        '"""',
+                        "",
+                    ])
 
         # Add colors section
         if "colors" in data:
@@ -9267,11 +9275,13 @@ class BitmapEditorScene(Scene):
             for color_key, color_data in data["colors"].items():
                 if color_key not in seen_colors:
                     seen_colors.add(color_key)
-                    lines.append(f'[colors."{color_key}"]')
-                    lines.append(f"red = {color_data['red']}")
-                    lines.append(f"green = {color_data['green']}")
-                    lines.append(f"blue = {color_data['blue']}")
-                    lines.append("")
+                    lines.extend([
+                        f'[colors."{color_key}"]',
+                        f"red = {color_data['red']}",
+                        f"green = {color_data['green']}",
+                        f"blue = {color_data['blue']}",
+                        "",
+                    ])
                 else:
                     self.log.warning(f"Skipping duplicate color definition for '{color_key}'")
 
@@ -9874,10 +9884,11 @@ pixels = \"\"\"
                     new_history.extend(request_state.conversation_history)
 
                 # Add user's request
-                new_history.append({"role": "user", "content": original_prompt})
-
-                # Add assistant's response (cleaned sprite content)
-                new_history.append({"role": "assistant", "content": cleaned_content})
+                new_history.extend((
+                    {"role": "user", "content": original_prompt},
+                    # Add assistant's response (cleaned sprite content)
+                    {"role": "assistant", "content": cleaned_content},
+                ))
 
                 # Save for next request
                 self.last_conversation_history = new_history

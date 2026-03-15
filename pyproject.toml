@@ -189,7 +189,6 @@ lint.ignore = [
   "G003", # logging-string-concat
 
   # --- Code style preferences (not bugs) ---
-  "FURB113", # repeated-append
   "FURB118", # reimplemented-operator
   "FURB148", # unnecessary-enumerate
   "PLR6201", # literal-membership (list vs set in `in`)

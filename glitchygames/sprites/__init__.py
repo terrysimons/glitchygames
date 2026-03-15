@@ -1586,15 +1586,19 @@ class BitmappySprite(Sprite):
 
                 # Show sprite header once
                 if "sprite" in toml_data and "name" in toml_data["sprite"]:
-                    output_lines.append("[sprite]")
-                    output_lines.append(f'name = "{toml_data["sprite"]["name"]}"')
-                    output_lines.append("")
+                    output_lines.extend((
+                        "[sprite]",
+                        f'name = "{toml_data["sprite"]["name"]}"',
+                        "",
+                    ))
 
                 # Show all animations and frames
                 for anim_idx, animation in enumerate(toml_data["animation"]):
                     namespace = animation.get("namespace", f"animation_{anim_idx}")
-                    output_lines.append(f"# Namespace: {namespace}")
-                    output_lines.append("")
+                    output_lines.extend((
+                        f"# Namespace: {namespace}",
+                        "",
+                    ))
 
                     if "frame" in animation:
                         for frame_idx, frame in enumerate(animation["frame"]):
@@ -1613,14 +1617,11 @@ class BitmappySprite(Sprite):
                                 # Render this frame with colorized output
                                 renderer = ASCIIRenderer()
                                 frame_result = renderer.render_sprite(frame_data)
-                                output_lines.append(frame_result)
-                                output_lines.append("")
+                                output_lines.extend((frame_result, ""))
                             else:
-                                output_lines.append("# No pixels data in this frame")
-                                output_lines.append("")
+                                output_lines.extend(("# No pixels data in this frame", ""))
                     else:
-                        output_lines.append("# No frames found in this animation")
-                        output_lines.append("")
+                        output_lines.extend(("# No frames found in this animation", ""))
 
                 return "\n".join(output_lines)
             # Static sprite - show normally

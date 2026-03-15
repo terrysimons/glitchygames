@@ -191,11 +191,13 @@ class ASCIIRenderer:
             # Return plain TOML format using proper Bitmappy structure
             lines = ["[colors]"]
             for char, (r, g, b) in colors.items():
-                lines.append(f'[colors."{char}"]')
-                lines.append(f"red = {r}")
-                lines.append(f"green = {g}")
-                lines.append(f"blue = {b}")
-                lines.append("")
+                lines.extend([
+                    f'[colors."{char}"]',
+                    f"red = {r}",
+                    f"green = {g}",
+                    f"blue = {b}",
+                    "",
+                ])
             return "\n".join(lines)
 
         lines = ["[colors]"]
@@ -205,11 +207,13 @@ class ASCIIRenderer:
 
             # Colorize the character key
             colorized_char = f"{color_code}{char}{reset_code}"
-            lines.append(f'[colors."{colorized_char}"]')
-            lines.append(f"red = {r}")
-            lines.append(f"green = {g}")
-            lines.append(f"blue = {b}")
-            lines.append("")
+            lines.extend([
+                f'[colors."{colorized_char}"]',
+                f"red = {r}",
+                f"green = {g}",
+                f"blue = {b}",
+                "",
+            ])
 
         return "\n".join(lines)
 
@@ -249,8 +253,7 @@ class ASCIIRenderer:
             if pixels:
                 output_lines.append('pixels = """')
                 colorized_pixels = self._colorize_pixels(pixels, colors)
-                output_lines.append(colorized_pixels)
-                output_lines.append('"""')
+                output_lines.extend((colorized_pixels, '"""'))
 
         # Skip colors section - just show the colorized pixels
 
