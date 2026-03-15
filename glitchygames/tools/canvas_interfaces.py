@@ -1030,16 +1030,18 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                                 and 0 <= y < self.canvas_sprite.pixels_tall
                             ):
                                 controller_pixel_index = y * self.canvas_sprite.pixels_across + x
-                                if controller_pixel_index == pixel_index:
+                                if (
+                                    controller_pixel_index == pixel_index
+                                    and hasattr(scene, "multi_controller_manager")
+                                ):
                                     # Get controller color
-                                    if hasattr(scene, "multi_controller_manager"):
-                                        controller_info = (
-                                            scene.multi_controller_manager.get_controller_info(
-                                                controller_id
-                                            )
+                                    controller_info = (
+                                        scene.multi_controller_manager.get_controller_info(
+                                            controller_id
                                         )
-                                        if controller_info:
-                                            return controller_info.color
+                                    )
+                                    if controller_info:
+                                        return controller_info.color
         return None
 
     def _draw_plus_indicator(

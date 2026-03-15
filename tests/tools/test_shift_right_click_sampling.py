@@ -277,10 +277,10 @@ class TestShiftRightClickSampling:
                 hasattr(scene, "canvas")
                 and scene.canvas
                 and scene.canvas.rect.collidepoint(event.pos)
+                and is_shift_click
             ):
-                if is_shift_click:
-                    scene._sample_color_from_screen(event.pos)
-                    return
+                scene._sample_color_from_screen(event.pos)
+                return
 
         scene.on_right_mouse_button_up_event = mock_on_right_mouse_button_up_event
 

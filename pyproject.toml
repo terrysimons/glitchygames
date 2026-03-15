@@ -192,7 +192,6 @@ lint.ignore = [
   "G003", # logging-string-concat
 
   # --- Code style preferences (not bugs) ---
-  "SIM102", # collapsible-if
   "SIM105", # suppressible-exception (use contextlib.suppress)
   "SIM108", # if-else-block-instead-of-if-exp
   "SIM113", # enumerate-for-loop

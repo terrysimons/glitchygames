@@ -485,10 +485,9 @@ def _render_frame_to_ascii(frame, renderer) -> str:
             # Find a pixel with this RGB to get alpha value
             alpha = 255  # Default to opaque
             for pixel in pixels:
-                if len(pixel) == RGBA_COMPONENT_COUNT:
-                    if pixel[:3] == rgb:
-                        alpha = pixel[3]
-                        break
+                if len(pixel) == RGBA_COMPONENT_COUNT and pixel[:3] == rgb:
+                    alpha = pixel[3]
+                    break
 
             # Special handling: magenta (255, 0, 255) should render as white blocks
             if rgb == (255, 0, 255):
@@ -550,15 +549,21 @@ def _detect_alpha_channel_in_animation(animation_data: dict) -> bool:
     # Handle different animation data structures
     if isinstance(animation_data, dict):
         for frame_name, frame_data in animation_data.items():
-            if isinstance(frame_data, dict) and "colors" in frame_data:
-                if _detect_alpha_channel(frame_data["colors"]):
-                    return True
+            if (
+                isinstance(frame_data, dict)
+                and "colors" in frame_data
+                and _detect_alpha_channel(frame_data["colors"])
+            ):
+                return True
     elif isinstance(animation_data, list):
         # Handle list-based animation data
         for frame_data in animation_data:
-            if isinstance(frame_data, dict) and "colors" in frame_data:
-                if _detect_alpha_channel(frame_data["colors"]):
-                    return True
+            if (
+                isinstance(frame_data, dict)
+                and "colors" in frame_data
+                and _detect_alpha_channel(frame_data["colors"])
+            ):
+                return True
     return False
 
 
@@ -2836,9 +2841,10 @@ class FilmStripSprite(BitmappySprite):
             and hasattr(self.parent_scene, "selected_frame")
             and self.parent_scene.selected_animation == animation
             and self.parent_scene.selected_frame == frame_idx
+            and hasattr(self.parent_scene, "canvas")
+            and self.parent_scene.canvas
         ):
-            if hasattr(self.parent_scene, "canvas") and self.parent_scene.canvas:
-                self.parent_scene.canvas.show_frame(animation, frame_idx)
+            self.parent_scene.canvas.show_frame(animation, frame_idx)
 
         LOG.debug(f"FilmStripSprite: Successfully replaced frame {animation}[{frame_idx}]")
         return True
@@ -2880,9 +2886,12 @@ class FilmStripSprite(BitmappySprite):
         self.film_strip_widget.mark_dirty()
 
         # Notify the parent scene about the frame insertion
-        if hasattr(self, "parent_scene") and self.parent_scene:
-            if hasattr(self.parent_scene, "_on_frame_inserted"):
-                self.parent_scene._on_frame_inserted(current_animation, insert_index)
+        if (
+            hasattr(self, "parent_scene")
+            and self.parent_scene
+            and hasattr(self.parent_scene, "_on_frame_inserted")
+        ):
+            self.parent_scene._on_frame_inserted(current_animation, insert_index)
 
         # Select the newly created frame
         self.film_strip_widget.set_current_frame(current_animation, insert_index)
@@ -3420,23 +3429,21 @@ class AnimatedCanvasSprite(BitmappySprite):
             self.canvas_interface.set_current_frame(animation, frame)
 
             # Update the undo/redo manager with the current frame for frame-specific operations
+            # Only track frame selection if we're not in the middle of an undo/redo operation
+            # or creating a frame (which has its own undo tracking)
+            # Also don't track frame selection if we're in the middle of film strip operations
             if (
                 hasattr(self, "parent_scene")
                 and self.parent_scene
                 and hasattr(self.parent_scene, "undo_redo_manager")
+                and not getattr(self.parent_scene, "_applying_undo_redo", False)
+                and not getattr(self.parent_scene, "_creating_frame", False)
+                and not getattr(self.parent_scene, "_creating_animation", False)
             ):
-                # Only track frame selection if we're not in the middle of an undo/redo operation
-                # or creating a frame (which has its own undo tracking)
-                # Also don't track frame selection if we're in the middle of film strip operations
-                if (
-                    not getattr(self.parent_scene, "_applying_undo_redo", False)
-                    and not getattr(self.parent_scene, "_creating_frame", False)
-                    and not getattr(self.parent_scene, "_creating_animation", False)
-                ):
-                    # Track frame selection as a film strip operation instead of global
-                    self.parent_scene.film_strip_operation_tracker.add_frame_selection(
-                        animation, frame
-                    )
+                # Track frame selection as a film strip operation instead of global
+                self.parent_scene.film_strip_operation_tracker.add_frame_selection(
+                    animation, frame
+                )
 
             # Force the canvas to redraw with the new frame
             self.force_redraw()
@@ -6815,16 +6822,19 @@ class BitmapEditorScene(Scene):
                         strip_widget.current_animation = new_name
 
                     # CRITICAL: Update the FilmStripWidget's own animated_sprite
-                    if hasattr(strip_widget, "animated_sprite") and strip_widget.animated_sprite:
-                        if old_name in strip_widget.animated_sprite._animations:
-                            # Rename in the widget's sprite
-                            widget_frames = strip_widget.animated_sprite._animations[old_name]
-                            del strip_widget.animated_sprite._animations[old_name]
-                            strip_widget.animated_sprite._animations[new_name] = widget_frames
+                    if (
+                        hasattr(strip_widget, "animated_sprite")
+                        and strip_widget.animated_sprite
+                        and old_name in strip_widget.animated_sprite._animations
+                    ):
+                        # Rename in the widget's sprite
+                        widget_frames = strip_widget.animated_sprite._animations[old_name]
+                        del strip_widget.animated_sprite._animations[old_name]
+                        strip_widget.animated_sprite._animations[new_name] = widget_frames
 
-                            # Update animation order
-                            if hasattr(strip_widget.animated_sprite, "_animation_order"):
-                                strip_widget.animated_sprite._animation_order = [new_name]
+                        # Update animation order
+                        if hasattr(strip_widget.animated_sprite, "_animation_order"):
+                            strip_widget.animated_sprite._animation_order = [new_name]
 
                             # Update frame manager
                             if (
@@ -6942,28 +6952,32 @@ class BitmapEditorScene(Scene):
         LOG.debug(f"BitmapEditorScene: Frame removed at {animation}[{frame_index}]")
 
         # Adjust selected frame if necessary
-        if hasattr(self, "selected_animation") and self.selected_animation == animation:
-            if hasattr(self, "selected_frame") and self.selected_frame >= frame_index:
-                # If we removed a frame before or at the current position, adjust the selected frame
-                if self.selected_frame > 0:
-                    self.selected_frame -= 1
-                else:
-                    # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
-                    self.selected_frame = 0
+        if (
+            hasattr(self, "selected_animation")
+            and self.selected_animation == animation
+            and hasattr(self, "selected_frame")
+            and self.selected_frame >= frame_index
+        ):
+            # If we removed a frame before or at the current position, adjust the selected frame
+            if self.selected_frame > 0:
+                self.selected_frame -= 1
+            else:
+                # If we were at frame 0 and removed it, stay at frame 0 (which is now the next frame)
+                self.selected_frame = 0
 
-                # Ensure the selected frame is within bounds
-                if (
-                    hasattr(self, "canvas")
-                    and self.canvas
-                    and hasattr(self.canvas, "animated_sprite")
-                ):
-                    if animation in self.canvas.animated_sprite._animations:
-                        max_frame = len(self.canvas.animated_sprite._animations[animation]) - 1
-                        if self.selected_frame > max_frame:
-                            self.selected_frame = max(0, max_frame)
+            # Ensure the selected frame is within bounds
+            if (
+                hasattr(self, "canvas")
+                and self.canvas
+                and hasattr(self.canvas, "animated_sprite")
+                and animation in self.canvas.animated_sprite._animations
+            ):
+                max_frame = len(self.canvas.animated_sprite._animations[animation]) - 1
+                if self.selected_frame > max_frame:
+                    self.selected_frame = max(0, max_frame)
 
-                # Update canvas to show the adjusted frame
-                if hasattr(self, "canvas") and self.canvas:
+            # Update canvas to show the adjusted frame
+            if hasattr(self, "canvas") and self.canvas:
                     LOG.debug(
                         f"BitmapEditorScene: Updating canvas to show adjusted frame {animation}[{self.selected_frame}]"
                     )
@@ -8156,152 +8170,167 @@ class BitmapEditorScene(Scene):
 
         # Check if click is on any slider text box and deactivate others
         clicked_slider = None
-        if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite"):
-            if self.red_slider.text_sprite.rect.collidepoint(event.pos):
-                clicked_slider = "red"
-        if hasattr(self, "green_slider") and hasattr(self.green_slider, "text_sprite"):
-            if self.green_slider.text_sprite.rect.collidepoint(event.pos):
-                clicked_slider = "green"
-        if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "text_sprite"):
-            if self.blue_slider.text_sprite.rect.collidepoint(event.pos):
-                clicked_slider = "blue"
+        if (
+            hasattr(self, "red_slider")
+            and hasattr(self.red_slider, "text_sprite")
+            and self.red_slider.text_sprite.rect.collidepoint(event.pos)
+        ):
+            clicked_slider = "red"
+        if (
+            hasattr(self, "green_slider")
+            and hasattr(self.green_slider, "text_sprite")
+            and self.green_slider.text_sprite.rect.collidepoint(event.pos)
+        ):
+            clicked_slider = "green"
+        if (
+            hasattr(self, "blue_slider")
+            and hasattr(self.blue_slider, "text_sprite")
+            and self.blue_slider.text_sprite.rect.collidepoint(event.pos)
+        ):
+            clicked_slider = "blue"
 
         # Deactivate all slider text boxes except the one clicked (if any)
         # Also commit values when clicking outside of any slider text box
-        if hasattr(self, "red_slider") and hasattr(self.red_slider, "text_sprite"):
-            if self.red_slider.text_sprite.active and (
-                clicked_slider != "red" or clicked_slider is None
-            ):
-                # Commit any uncommitted value before deactivating
-                if not self.red_slider.text_sprite.text.strip():
-                    # If empty, restore original value
-                    self.red_slider.text_sprite.text = str(self.red_slider.original_value)
-                else:
-                    # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
-                    try:
-                        text = self.red_slider.text_sprite.text.strip().lower()
-                        if any(c in "abcdef" for c in text):
-                            # Contains hex characters, parse as hex
-                            new_value = int(text, 16)
-                        else:
-                            # No hex characters, parse as decimal
-                            new_value = int(text)
+        if (
+            hasattr(self, "red_slider")
+            and hasattr(self.red_slider, "text_sprite")
+            and self.red_slider.text_sprite.active
+            and (clicked_slider != "red" or clicked_slider is None)
+        ):
+            # Commit any uncommitted value before deactivating
+            if not self.red_slider.text_sprite.text.strip():
+                # If empty, restore original value
+                self.red_slider.text_sprite.text = str(self.red_slider.original_value)
+            else:
+                # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
+                try:
+                    text = self.red_slider.text_sprite.text.strip().lower()
+                    if any(c in "abcdef" for c in text):
+                        # Contains hex characters, parse as hex
+                        new_value = int(text, 16)
+                    else:
+                        # No hex characters, parse as decimal
+                        new_value = int(text)
 
-                        if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
-                            self.red_slider.value = new_value
-                            # Update original value for future validations
-                            self.red_slider.original_value = new_value
-                            # Convert text to appropriate format based on selected tab
+                    if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
+                        self.red_slider.value = new_value
+                        # Update original value for future validations
+                        self.red_slider.original_value = new_value
+                        # Convert text to appropriate format based on selected tab
+                        LOG.debug(
+                            f"DEBUG: Current slider_input_format: {self.slider_input_format}"
+                        )
+                        if self.slider_input_format == "%X":
+                            self.red_slider.text_sprite.text = f"{new_value:02X}"
                             LOG.debug(
-                                f"DEBUG: Current slider_input_format: {self.slider_input_format}"
+                                f"DEBUG: Converting {new_value} to hex: {self.red_slider.text_sprite.text}"
                             )
-                            if self.slider_input_format == "%X":
-                                self.red_slider.text_sprite.text = f"{new_value:02X}"
-                                LOG.debug(
-                                    f"DEBUG: Converting {new_value} to hex: {self.red_slider.text_sprite.text}"
-                                )
-                            else:
-                                self.red_slider.text_sprite.text = str(new_value)
-                                LOG.debug(
-                                    f"DEBUG: Converting {new_value} to decimal: {self.red_slider.text_sprite.text}"
-                                )
-                            self.red_slider.text_sprite.update_text(
-                                self.red_slider.text_sprite.text
-                            )
-                            self.red_slider.text_sprite.dirty = 2  # Force redraw
                         else:
-                            # Invalid range, restore original
-                            self.red_slider.text_sprite.text = str(self.red_slider.original_value)
-                    except ValueError:
-                        # Invalid input, restore original
+                            self.red_slider.text_sprite.text = str(new_value)
+                            LOG.debug(
+                                f"DEBUG: Converting {new_value} to decimal: {self.red_slider.text_sprite.text}"
+                            )
+                        self.red_slider.text_sprite.update_text(
+                            self.red_slider.text_sprite.text
+                        )
+                        self.red_slider.text_sprite.dirty = 2  # Force redraw
+                    else:
+                        # Invalid range, restore original
                         self.red_slider.text_sprite.text = str(self.red_slider.original_value)
+                except ValueError:
+                    # Invalid input, restore original
+                    self.red_slider.text_sprite.text = str(self.red_slider.original_value)
 
-                self.red_slider.text_sprite.active = False
-                self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
-        if hasattr(self, "green_slider") and hasattr(self.green_slider, "text_sprite"):
-            if self.green_slider.text_sprite.active and (
-                clicked_slider != "green" or clicked_slider is None
-            ):
-                # Commit any uncommitted value before deactivating
-                if not self.green_slider.text_sprite.text.strip():
-                    # If empty, restore original value
+            self.red_slider.text_sprite.active = False
+            self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
+        if (
+            hasattr(self, "green_slider")
+            and hasattr(self.green_slider, "text_sprite")
+            and self.green_slider.text_sprite.active
+            and (clicked_slider != "green" or clicked_slider is None)
+        ):
+            # Commit any uncommitted value before deactivating
+            if not self.green_slider.text_sprite.text.strip():
+                # If empty, restore original value
+                self.green_slider.text_sprite.text = str(self.green_slider.original_value)
+            else:
+                # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
+                try:
+                    text = self.green_slider.text_sprite.text.strip().lower()
+                    if any(c in "abcdef" for c in text):
+                        # Contains hex characters, parse as hex
+                        new_value = int(text, 16)
+                    else:
+                        # No hex characters, parse as decimal
+                        new_value = int(text)
+
+                    if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
+                        self.green_slider.value = new_value
+                        # Update original value for future validations
+                        self.green_slider.original_value = new_value
+                        # Convert text to appropriate format based on selected tab
+                        if self.slider_input_format == "%X":
+                            self.green_slider.text_sprite.text = f"{new_value:02X}"
+                        else:
+                            self.green_slider.text_sprite.text = str(new_value)
+                        self.green_slider.text_sprite.update_text(
+                            self.green_slider.text_sprite.text
+                        )
+                        self.green_slider.text_sprite.dirty = 2  # Force redraw
+                    else:
+                        # Invalid range, restore original
+                        self.green_slider.text_sprite.text = str(
+                            self.green_slider.original_value
+                        )
+                except ValueError:
+                    # Invalid input, restore original
                     self.green_slider.text_sprite.text = str(self.green_slider.original_value)
-                else:
-                    # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
-                    try:
-                        text = self.green_slider.text_sprite.text.strip().lower()
-                        if any(c in "abcdef" for c in text):
-                            # Contains hex characters, parse as hex
-                            new_value = int(text, 16)
-                        else:
-                            # No hex characters, parse as decimal
-                            new_value = int(text)
 
-                        if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
-                            self.green_slider.value = new_value
-                            # Update original value for future validations
-                            self.green_slider.original_value = new_value
-                            # Convert text to appropriate format based on selected tab
-                            if self.slider_input_format == "%X":
-                                self.green_slider.text_sprite.text = f"{new_value:02X}"
-                            else:
-                                self.green_slider.text_sprite.text = str(new_value)
-                            self.green_slider.text_sprite.update_text(
-                                self.green_slider.text_sprite.text
-                            )
-                            self.green_slider.text_sprite.dirty = 2  # Force redraw
-                        else:
-                            # Invalid range, restore original
-                            self.green_slider.text_sprite.text = str(
-                                self.green_slider.original_value
-                            )
-                    except ValueError:
-                        # Invalid input, restore original
-                        self.green_slider.text_sprite.text = str(self.green_slider.original_value)
+            self.green_slider.text_sprite.active = False
+            self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
+        if (
+            hasattr(self, "blue_slider")
+            and hasattr(self.blue_slider, "text_sprite")
+            and self.blue_slider.text_sprite.active
+            and (clicked_slider != "blue" or clicked_slider is None)
+        ):
+            # Commit any uncommitted value before deactivating
+            if not self.blue_slider.text_sprite.text.strip():
+                # If empty, restore original value
+                self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
+            else:
+                # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
+                try:
+                    text = self.blue_slider.text_sprite.text.strip().lower()
+                    if any(c in "abcdef" for c in text):
+                        # Contains hex characters, parse as hex
+                        new_value = int(text, 16)
+                    else:
+                        # No hex characters, parse as decimal
+                        new_value = int(text)
 
-                self.green_slider.text_sprite.active = False
-                self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
-        if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "text_sprite"):
-            if self.blue_slider.text_sprite.active and (
-                clicked_slider != "blue" or clicked_slider is None
-            ):
-                # Commit any uncommitted value before deactivating
-                if not self.blue_slider.text_sprite.text.strip():
-                    # If empty, restore original value
-                    self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
-                else:
-                    # Try to commit the current text value - parse as hex if contains letters, otherwise decimal
-                    try:
-                        text = self.blue_slider.text_sprite.text.strip().lower()
-                        if any(c in "abcdef" for c in text):
-                            # Contains hex characters, parse as hex
-                            new_value = int(text, 16)
+                    if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
+                        self.blue_slider.value = new_value
+                        # Update original value for future validations
+                        self.blue_slider.original_value = new_value
+                        # Convert text to appropriate format based on selected tab
+                        if self.slider_input_format == "%X":
+                            self.blue_slider.text_sprite.text = f"{new_value:02X}"
                         else:
-                            # No hex characters, parse as decimal
-                            new_value = int(text)
-
-                        if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
-                            self.blue_slider.value = new_value
-                            # Update original value for future validations
-                            self.blue_slider.original_value = new_value
-                            # Convert text to appropriate format based on selected tab
-                            if self.slider_input_format == "%X":
-                                self.blue_slider.text_sprite.text = f"{new_value:02X}"
-                            else:
-                                self.blue_slider.text_sprite.text = str(new_value)
-                            self.blue_slider.text_sprite.update_text(
-                                self.blue_slider.text_sprite.text
-                            )
-                            self.blue_slider.text_sprite.dirty = 2  # Force redraw
-                        else:
-                            # Invalid range, restore original
-                            self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
-                    except ValueError:
-                        # Invalid input, restore original
+                            self.blue_slider.text_sprite.text = str(new_value)
+                        self.blue_slider.text_sprite.update_text(
+                            self.blue_slider.text_sprite.text
+                        )
+                        self.blue_slider.text_sprite.dirty = 2  # Force redraw
+                    else:
+                        # Invalid range, restore original
                         self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
+                except ValueError:
+                    # Invalid input, restore original
+                    self.blue_slider.text_sprite.text = str(self.blue_slider.original_value)
 
-                self.blue_slider.text_sprite.active = False
-                self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
+            self.blue_slider.text_sprite.active = False
+            self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
 
         # If a slider text box was clicked, also trigger the slider's normal behavior
         if clicked_slider == "red" and hasattr(self, "red_slider"):
@@ -8448,18 +8477,27 @@ class BitmapEditorScene(Scene):
         self._is_drag_operation = False
 
         # Always release all sliders on mouse up to prevent stickiness
-        if hasattr(self, "red_slider") and hasattr(self.red_slider, "dragging"):
-            if self.red_slider.dragging:
-                self.red_slider.dragging = False
-                self.red_slider.on_left_mouse_button_up_event(event)
-        if hasattr(self, "green_slider") and hasattr(self.green_slider, "dragging"):
-            if self.green_slider.dragging:
-                self.green_slider.dragging = False
-                self.green_slider.on_left_mouse_button_up_event(event)
-        if hasattr(self, "blue_slider") and hasattr(self.blue_slider, "dragging"):
-            if self.blue_slider.dragging:
-                self.blue_slider.dragging = False
-                self.blue_slider.on_left_mouse_button_up_event(event)
+        if (
+            hasattr(self, "red_slider")
+            and hasattr(self.red_slider, "dragging")
+            and self.red_slider.dragging
+        ):
+            self.red_slider.dragging = False
+            self.red_slider.on_left_mouse_button_up_event(event)
+        if (
+            hasattr(self, "green_slider")
+            and hasattr(self.green_slider, "dragging")
+            and self.green_slider.dragging
+        ):
+            self.green_slider.dragging = False
+            self.green_slider.on_left_mouse_button_up_event(event)
+        if (
+            hasattr(self, "blue_slider")
+            and hasattr(self.blue_slider, "dragging")
+            and self.blue_slider.dragging
+        ):
+            self.blue_slider.dragging = False
+            self.blue_slider.on_left_mouse_button_up_event(event)
 
         # Pass to other sprites
         for sprite in self.all_sprites:
@@ -10104,11 +10142,11 @@ pixels = \"\"\"
             and (mod & pygame.KMOD_SHIFT)
             and hasattr(self, "canvas")
             and self.canvas
+            and event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN]
         ):
-            if event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN]:
-                self.log.debug("Ctrl+Shift+Arrow key released - committing panned buffer")
-                self._commit_panned_buffer()
-                return
+            self.log.debug("Ctrl+Shift+Arrow key released - committing panned buffer")
+            self._commit_panned_buffer()
+            return
 
         # Call parent class handler
         super().on_key_up_event(event)
@@ -10162,39 +10200,43 @@ pixels = \"\"\"
                     )
 
                 # Update the film strip's animated sprite frame data as well
-                if hasattr(self, "film_strips") and self.film_strips:
-                    if current_animation in self.film_strips:
-                        film_strip = self.film_strips[current_animation]
-                        if hasattr(film_strip, "animated_sprite") and film_strip.animated_sprite:
-                            # Update the film strip's animated sprite frame data
-                            if (
-                                current_animation in film_strip.animated_sprite._animations
-                                and current_frame
-                                < len(film_strip.animated_sprite._animations[current_animation])
-                            ):
-                                film_strip_frame = film_strip.animated_sprite._animations[
-                                    current_animation
-                                ][current_frame]
-                                if hasattr(film_strip_frame, "pixels"):
-                                    film_strip_frame.pixels = list(self.canvas.pixels)
+                if (
+                    hasattr(self, "film_strips")
+                    and self.film_strips
+                    and current_animation in self.film_strips
+                ):
+                    film_strip = self.film_strips[current_animation]
+                    if (
+                        hasattr(film_strip, "animated_sprite")
+                        and film_strip.animated_sprite
+                        and current_animation in film_strip.animated_sprite._animations
+                        and current_frame
+                        < len(film_strip.animated_sprite._animations[current_animation])
+                    ):
+                        # Update the film strip's animated sprite frame data
+                        film_strip_frame = film_strip.animated_sprite._animations[
+                            current_animation
+                        ][current_frame]
+                        if hasattr(film_strip_frame, "pixels"):
+                            film_strip_frame.pixels = list(self.canvas.pixels)
 
-                                    # Also update the film strip frame's image surface with alpha support
-                                    film_strip_surface = pygame.Surface(
-                                        (self.canvas.pixels_across, self.canvas.pixels_tall),
-                                        pygame.SRCALPHA,
-                                    )
-                                    for y in range(self.canvas.pixels_tall):
-                                        for x in range(self.canvas.pixels_across):
-                                            pixel_num = y * self.canvas.pixels_across + x
-                                            if pixel_num < len(self.canvas.pixels):
-                                                color = self.canvas.pixels[pixel_num]
-                                                film_strip_surface.set_at((x, y), color)
+                            # Also update the film strip frame's image surface with alpha support
+                            film_strip_surface = pygame.Surface(
+                                (self.canvas.pixels_across, self.canvas.pixels_tall),
+                                pygame.SRCALPHA,
+                            )
+                            for y in range(self.canvas.pixels_tall):
+                                for x in range(self.canvas.pixels_across):
+                                    pixel_num = y * self.canvas.pixels_across + x
+                                    if pixel_num < len(self.canvas.pixels):
+                                        color = self.canvas.pixels[pixel_num]
+                                        film_strip_surface.set_at((x, y), color)
 
-                                    # Update the film strip frame's image
-                                    film_strip_frame.image = film_strip_surface
-                                    self.log.debug(
-                                        f"Updated film strip animated sprite frame {current_animation}[{current_frame}] with pixels and image"
-                                    )
+                            # Update the film strip frame's image
+                            film_strip_frame.image = film_strip_surface
+                            self.log.debug(
+                                f"Updated film strip animated sprite frame {current_animation}[{current_frame}] with pixels and image"
+                            )
 
                 # Update the film strip to reflect the pixel data changes
                 self._update_film_strips_for_animated_sprite_update()
@@ -10260,12 +10302,15 @@ pixels = \"\"\"
         # Check if any film strip is in text editing mode and handle text input
         if hasattr(self, "film_strips"):
             for film_strip in self.film_strips.values():
-                if hasattr(film_strip, "editing_animation") and film_strip.editing_animation:
-                    if film_strip.handle_keyboard_input(event):
-                        # If escape was pressed, consume the event to prevent game quit
-                        if event.key == pygame.K_ESCAPE:
-                            return True
-                        return None
+                if (
+                    hasattr(film_strip, "editing_animation")
+                    and film_strip.editing_animation
+                    and film_strip.handle_keyboard_input(event)
+                ):
+                    # If escape was pressed, consume the event to prevent game quit
+                    if event.key == pygame.K_ESCAPE:
+                        return True
+                    return None
 
         # Handle onion skinning keyboard shortcuts
         if event.key == pygame.K_o:
@@ -10753,13 +10798,13 @@ pixels = \"\"\"
                 and hasattr(self, "selected_frame")
                 and self.selected_animation == animation
                 and self.selected_frame == frame
+                and hasattr(self.canvas, "pixels")
             ):
-                if hasattr(self.canvas, "pixels"):
-                    self.canvas.pixels = pixels.copy()
-                    if hasattr(self.canvas, "dirty_pixels"):
-                        self.canvas.dirty_pixels = [True] * len(pixels)
-                    if hasattr(self.canvas, "dirty"):
-                        self.canvas.dirty = 1
+                self.canvas.pixels = pixels.copy()
+                if hasattr(self.canvas, "dirty_pixels"):
+                    self.canvas.dirty_pixels = [True] * len(pixels)
+                if hasattr(self.canvas, "dirty"):
+                    self.canvas.dirty = 1
 
             self.log.debug(f"Applied frame paste to {animation}[{frame}]")
             return True
@@ -12455,106 +12500,109 @@ pixels = \"\"\"
             self._stop_canvas_continuous_movement(controller_id)
 
         # Handle A button release in canvas mode (end controller drag)
-        if event.button == pygame.CONTROLLER_BUTTON_A:
-            if hasattr(self, "controller_drags") and controller_id in self.controller_drags:
-                drag_info = self.controller_drags[controller_id]
-                if drag_info["active"]:
-                    # End the drag operation
-                    drag_info["active"] = False
-                    drag_info["end_time"] = time.time()
-                    drag_info["end_position"] = self.mode_switcher.get_controller_position(
-                        controller_id
+        if (
+            event.button == pygame.CONTROLLER_BUTTON_A
+            and hasattr(self, "controller_drags")
+            and controller_id in self.controller_drags
+        ):
+            drag_info = self.controller_drags[controller_id]
+            if drag_info["active"]:
+                # End the drag operation
+                drag_info["active"] = False
+                drag_info["end_time"] = time.time()
+                drag_info["end_position"] = self.mode_switcher.get_controller_position(
+                    controller_id
+                )
+
+                self.log.debug(
+                    f"DEBUG: Controller {controller_id}: Drag operation drew {len(drag_info['pixels_drawn'])} pixels"
+                )
+
+                # Submit collected pixels for undo/redo functionality
+                if drag_info["pixels_drawn"]:
+                    LOG.debug(
+                        f"Controller {controller_id}: Drag operation completed with {len(drag_info['pixels_drawn'])} pixels drawn"
                     )
 
-                    self.log.debug(
-                        f"DEBUG: Controller {controller_id}: Drag operation drew {len(drag_info['pixels_drawn'])} pixels"
-                    )
+                    # Convert controller drag pixels to undo/redo format
+                    pixel_changes = []
+                    for pixel_info in drag_info["pixels_drawn"]:
+                        position = pixel_info["position"]
+                        color = pixel_info["color"]
+                        old_color = pixel_info.get(
+                            "old_color", (0, 0, 0)
+                        )  # Use stored old color
+                        x, y = position[0], position[1]
 
-                    # Submit collected pixels for undo/redo functionality
-                    if drag_info["pixels_drawn"]:
-                        LOG.debug(
-                            f"Controller {controller_id}: Drag operation completed with {len(drag_info['pixels_drawn'])} pixels drawn"
+                        pixel_changes.append((x, y, old_color, color))
+
+                    # Debug: Show undo stack before merging
+                    if hasattr(self, "undo_redo_manager") and self.undo_redo_manager:
+                        self.log.debug(
+                            f"DEBUG: Undo stack before merging has {len(self.undo_redo_manager.undo_stack)} operations"
                         )
+                        for i, op in enumerate(self.undo_redo_manager.undo_stack):
+                            self.log.debug(
+                                f"DEBUG:   Operation {i}: {op.operation_type} - {op.description}"
+                            )
 
-                        # Convert controller drag pixels to undo/redo format
-                        pixel_changes = []
-                        for pixel_info in drag_info["pixels_drawn"]:
-                            position = pixel_info["position"]
-                            color = pixel_info["color"]
-                            old_color = pixel_info.get(
-                                "old_color", (0, 0, 0)
-                            )  # Use stored old color
-                            x, y = position[0], position[1]
+                    # Absorb any pending single pixel operation from canvas interface
+                    # This merges the initial A button pixel with the drag pixels
+                    if hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
+                        self.log.debug(
+                            f"DEBUG: Absorbing {len(self._current_pixel_changes)} pending pixel(s) from canvas interface"
+                        )
+                        self.log.debug(f"DEBUG: Pending pixels: {self._current_pixel_changes}")
+                        # Add the pending pixels to the beginning of the controller drag pixels
+                        pixel_changes = self._current_pixel_changes + pixel_changes
+                        self.log.debug(
+                            f"DEBUG: Merged pixel_changes now has {len(pixel_changes)} pixels"
+                        )
+                        # Clear the pending pixels to prevent duplicate undo operation
+                        self._current_pixel_changes = []
 
-                            pixel_changes.append((x, y, old_color, color))
-
-                        # Debug: Show undo stack before merging
+                        # Remove the old single pixel entry from the undo stack
+                        # This prevents having two separate undo operations
                         if hasattr(self, "undo_redo_manager") and self.undo_redo_manager:
-                            self.log.debug(
-                                f"DEBUG: Undo stack before merging has {len(self.undo_redo_manager.undo_stack)} operations"
-                            )
-                            for i, op in enumerate(self.undo_redo_manager.undo_stack):
+                            # Pop the most recent operation from the undo stack (the single pixel)
+                            if self.undo_redo_manager.undo_stack:
+                                removed_operation = self.undo_redo_manager.undo_stack.pop()
                                 self.log.debug(
-                                    f"DEBUG:   Operation {i}: {op.operation_type} - {op.description}"
+                                    f"DEBUG: Removed single pixel operation from undo stack: {removed_operation.operation_type}"
                                 )
-
-                        # Absorb any pending single pixel operation from canvas interface
-                        # This merges the initial A button pixel with the drag pixels
-                        if hasattr(self, "_current_pixel_changes") and self._current_pixel_changes:
-                            self.log.debug(
-                                f"DEBUG: Absorbing {len(self._current_pixel_changes)} pending pixel(s) from canvas interface"
-                            )
-                            self.log.debug(f"DEBUG: Pending pixels: {self._current_pixel_changes}")
-                            # Add the pending pixels to the beginning of the controller drag pixels
-                            pixel_changes = self._current_pixel_changes + pixel_changes
-                            self.log.debug(
-                                f"DEBUG: Merged pixel_changes now has {len(pixel_changes)} pixels"
-                            )
-                            # Clear the pending pixels to prevent duplicate undo operation
-                            self._current_pixel_changes = []
-
-                            # Remove the old single pixel entry from the undo stack
-                            # This prevents having two separate undo operations
-                            if hasattr(self, "undo_redo_manager") and self.undo_redo_manager:
-                                # Pop the most recent operation from the undo stack (the single pixel)
-                                if self.undo_redo_manager.undo_stack:
-                                    removed_operation = self.undo_redo_manager.undo_stack.pop()
-                                    self.log.debug(
-                                        f"DEBUG: Removed single pixel operation from undo stack: {removed_operation.operation_type}"
-                                    )
-                                    self.log.debug(
-                                        f"DEBUG: Undo stack after removal has {len(self.undo_redo_manager.undo_stack)} operations"
-                                    )
-                                else:
-                                    self.log.debug("DEBUG: No operations in undo stack to remove")
-                        else:
-                            self.log.debug(
-                                "DEBUG: No pending pixels to absorb from canvas interface"
-                            )
-
-                        # Submit the pixel changes to the undo/redo system
-                        if pixel_changes and hasattr(self, "canvas_operation_tracker"):
-                            # Get current frame information for frame-specific tracking
-                            current_animation = None
-                            current_frame = None
-                            if hasattr(self, "canvas") and self.canvas:
-                                current_animation = getattr(self.canvas, "current_animation", None)
-                                current_frame = getattr(self.canvas, "current_frame", None)
-
-                            # Use frame-specific tracking if we have frame information
-                            if current_animation is not None and current_frame is not None:
-                                self.canvas_operation_tracker.add_frame_pixel_changes(
-                                    current_animation, current_frame, pixel_changes
-                                )
-                                LOG.debug(
-                                    f"Controller {controller_id}: Submitted {len(pixel_changes)} pixel changes for frame {current_animation}[{current_frame}] undo/redo"
+                                self.log.debug(
+                                    f"DEBUG: Undo stack after removal has {len(self.undo_redo_manager.undo_stack)} operations"
                                 )
                             else:
-                                # Fall back to global tracking
-                                self.canvas_operation_tracker.add_pixel_changes(pixel_changes)
-                                LOG.debug(
-                                    f"Controller {controller_id}: Submitted {len(pixel_changes)} pixel changes for global undo/redo"
-                                )
+                                self.log.debug("DEBUG: No operations in undo stack to remove")
+                    else:
+                        self.log.debug(
+                            "DEBUG: No pending pixels to absorb from canvas interface"
+                        )
+
+                    # Submit the pixel changes to the undo/redo system
+                    if pixel_changes and hasattr(self, "canvas_operation_tracker"):
+                        # Get current frame information for frame-specific tracking
+                        current_animation = None
+                        current_frame = None
+                        if hasattr(self, "canvas") and self.canvas:
+                            current_animation = getattr(self.canvas, "current_animation", None)
+                            current_frame = getattr(self.canvas, "current_frame", None)
+
+                        # Use frame-specific tracking if we have frame information
+                        if current_animation is not None and current_frame is not None:
+                            self.canvas_operation_tracker.add_frame_pixel_changes(
+                                current_animation, current_frame, pixel_changes
+                            )
+                            LOG.debug(
+                                f"Controller {controller_id}: Submitted {len(pixel_changes)} pixel changes for frame {current_animation}[{current_frame}] undo/redo"
+                            )
+                        else:
+                            # Fall back to global tracking
+                            self.canvas_operation_tracker.add_pixel_changes(pixel_changes)
+                            LOG.debug(
+                                f"Controller {controller_id}: Submitted {len(pixel_changes)} pixel changes for global undo/redo"
+                            )
 
     # Canvas Mode Implementation Methods
     def _canvas_paint_at_controller_position(self, controller_id: int, force: bool = False) -> None:
@@ -12704,15 +12752,15 @@ pixels = \"\"\"
             old_position != new_position
             and not getattr(self, "_applying_undo_redo", False)
             and not self._is_controller_in_continuous_movement(controller_id)
+            and hasattr(self, "controller_position_operation_tracker")
         ):
-            if hasattr(self, "controller_position_operation_tracker"):
-                # Get current mode for context
-                current_mode = self.mode_switcher.get_controller_mode(controller_id)
-                mode_str = current_mode.value if current_mode else None
+            # Get current mode for context
+            current_mode = self.mode_switcher.get_controller_mode(controller_id)
+            mode_str = current_mode.value if current_mode else None
 
-                self.controller_position_operation_tracker.add_controller_position_change(
-                    controller_id, old_position, new_position, mode_str, mode_str
-                )
+            self.controller_position_operation_tracker.add_controller_position_change(
+                controller_id, old_position, new_position, mode_str, mode_str
+            )
 
         # Update position
         self.mode_switcher.save_controller_position(controller_id, new_position)
@@ -13785,14 +13833,16 @@ pixels = \"\"\"
             self.log.debug(f"DEBUG: Controller {controller_id} switched to mode: {new_mode.value}")
 
             # Track controller mode change for undo/redo
-            if not getattr(self, "_applying_undo_redo", False):
-                if hasattr(self, "controller_position_operation_tracker"):
-                    # Get the old mode before switching
-                    old_mode = self.mode_switcher.get_controller_mode(controller_id)
-                    if old_mode:
-                        self.controller_position_operation_tracker.add_controller_mode_change(
-                            controller_id, old_mode.value, new_mode.value
-                        )
+            if (
+                not getattr(self, "_applying_undo_redo", False)
+                and hasattr(self, "controller_position_operation_tracker")
+            ):
+                # Get the old mode before switching
+                old_mode = self.mode_switcher.get_controller_mode(controller_id)
+                if old_mode:
+                    self.controller_position_operation_tracker.add_controller_mode_change(
+                        controller_id, old_mode.value, new_mode.value
+                    )
 
             self._update_controller_visual_indicator_for_mode(controller_id, new_mode)
         else:
@@ -14051,26 +14101,25 @@ pixels = \"\"\"
         # Collect all active controllers in slider modes
         for controller_id, controller_selection in self.controller_selections.items():
             # Check if controller is active in controller_selections
-            if controller_selection.is_active():
-                if hasattr(self, "mode_switcher"):
-                    controller_mode = self.mode_switcher.get_controller_mode(controller_id)
-                    if controller_mode and controller_mode.value in slider_groups:
-                        # Get controller color
-                        controller_info = None
-                        if hasattr(self, "multi_controller_manager"):
-                            for (
-                                instance_id,
-                                info,
-                            ) in self.multi_controller_manager.controllers.items():
-                                if info.controller_id == controller_id:
-                                    controller_info = info
-                                    break
+            if controller_selection.is_active() and hasattr(self, "mode_switcher"):
+                controller_mode = self.mode_switcher.get_controller_mode(controller_id)
+                if controller_mode and controller_mode.value in slider_groups:
+                    # Get controller color
+                    controller_info = None
+                    if hasattr(self, "multi_controller_manager"):
+                        for (
+                            instance_id,
+                            info,
+                        ) in self.multi_controller_manager.controllers.items():
+                            if info.controller_id == controller_id:
+                                controller_info = info
+                                break
 
-                        if controller_info:
-                            slider_groups[controller_mode.value].append({
-                                "controller_id": controller_id,
-                                "color": controller_info.color,
-                            })
+                    if controller_info:
+                        slider_groups[controller_mode.value].append({
+                            "controller_id": controller_id,
+                            "color": controller_info.color,
+                        })
 
         # Create indicators for each slider with collision avoidance
         for slider_mode, controllers in slider_groups.items():
@@ -14184,18 +14233,21 @@ pixels = \"\"\"
                                     controller_info = info
                                     break
 
-                        if controller_info and animation:
+                        if (
+                            controller_info
+                            and animation
+                            and controller_info.color != (128, 128, 128)
+                        ):
                             # Only include controllers that have been properly initialized (not default gray)
-                            if controller_info.color != (128, 128, 128):
-                                # Group by animation
-                                if animation not in self.film_strip_controller_selections:
-                                    self.film_strip_controller_selections[animation] = []
+                            # Group by animation
+                            if animation not in self.film_strip_controller_selections:
+                                self.film_strip_controller_selections[animation] = []
 
-                                self.film_strip_controller_selections[animation].append({
-                                    "controller_id": controller_id,
-                                    "frame": frame,
-                                    "color": controller_info.color,
-                                })
+                            self.film_strip_controller_selections[animation].append({
+                                "controller_id": controller_id,
+                                "frame": frame,
+                                "color": controller_info.color,
+                            })
 
     def _update_canvas_indicators(self) -> None:
         """Update canvas indicators for controllers in canvas mode."""
@@ -14474,13 +14526,16 @@ pixels = \"\"\"
         manager.assign_color_to_controller(controller_id)
 
         # Initialize to first available animation if not set
-        if not controller_selection.get_animation():
-            if hasattr(self, "film_strips") and self.film_strips:
-                first_animation = list(self.film_strips.keys())[0]
-                controller_selection.set_selection(first_animation, 0)
-                self.log.debug(
-                    f"DEBUG: Controller {controller_id} initialized to '{first_animation}', frame 0"
-                )
+        if (
+            not controller_selection.get_animation()
+            and hasattr(self, "film_strips")
+            and self.film_strips
+        ):
+            first_animation = list(self.film_strips.keys())[0]
+            controller_selection.set_selection(first_animation, 0)
+            self.log.debug(
+                f"DEBUG: Controller {controller_id} initialized to '{first_animation}', frame 0"
+            )
 
         # Update visual collision manager
         self._update_controller_visual_indicator(controller_id)

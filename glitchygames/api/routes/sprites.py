@@ -159,24 +159,23 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
 
         # Render PNG if requested
         png_bytes = None
-        if OUTPUT_FORMAT_PNG in request.output_format:
-            if result.toml_content:
-                # Auto-render all frames if frame_count > 1
-                render_all_frames = result.frame_count > 1
-                render_result = renderer_service.render_from_toml(
-                    result.toml_content,
-                    scale=request.png_scale,
-                    render_all_frames=render_all_frames,
-                )
-                if render_result.success:
-                    response.png_base64 = render_result.png_base64
-                    response.width = render_result.width
-                    response.height = render_result.height
-                    png_bytes = render_result.png_bytes
-                    if render_all_frames and render_result.all_frames_png_base64:
-                        response.all_frames_png_base64 = render_result.all_frames_png_base64
-                        # Convert rendered_frames to API model
-                        response.rendered_frames = [
+        if OUTPUT_FORMAT_PNG in request.output_format and result.toml_content:
+            # Auto-render all frames if frame_count > 1
+            render_all_frames = result.frame_count > 1
+            render_result = renderer_service.render_from_toml(
+                result.toml_content,
+                scale=request.png_scale,
+                render_all_frames=render_all_frames,
+            )
+            if render_result.success:
+                response.png_base64 = render_result.png_base64
+                response.width = render_result.width
+                response.height = render_result.height
+                png_bytes = render_result.png_bytes
+                if render_all_frames and render_result.all_frames_png_base64:
+                    response.all_frames_png_base64 = render_result.all_frames_png_base64
+                    # Convert rendered_frames to API model
+                    response.rendered_frames = [
                             RenderedFrameInfo(
                                 animation_index=rf.animation_index,
                                 frame_index=rf.frame_index,
@@ -269,24 +268,23 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
 
         # Render PNG if requested
         png_bytes = None
-        if OUTPUT_FORMAT_PNG in request.output_format:
-            if result.toml_content:
-                # Auto-render all frames if frame_count > 1
-                render_all_frames = result.frame_count > 1
-                render_result = renderer_service.render_from_toml(
-                    result.toml_content,
-                    scale=request.png_scale,
-                    render_all_frames=render_all_frames,
-                )
-                if render_result.success:
-                    response.png_base64 = render_result.png_base64
-                    response.width = render_result.width
-                    response.height = render_result.height
-                    png_bytes = render_result.png_bytes
-                    if render_all_frames and render_result.all_frames_png_base64:
-                        response.all_frames_png_base64 = render_result.all_frames_png_base64
-                        # Convert rendered_frames to API model
-                        response.rendered_frames = [
+        if OUTPUT_FORMAT_PNG in request.output_format and result.toml_content:
+            # Auto-render all frames if frame_count > 1
+            render_all_frames = result.frame_count > 1
+            render_result = renderer_service.render_from_toml(
+                result.toml_content,
+                scale=request.png_scale,
+                render_all_frames=render_all_frames,
+            )
+            if render_result.success:
+                response.png_base64 = render_result.png_base64
+                response.width = render_result.width
+                response.height = render_result.height
+                png_bytes = render_result.png_bytes
+                if render_all_frames and render_result.all_frames_png_base64:
+                    response.all_frames_png_base64 = render_result.all_frames_png_base64
+                    # Convert rendered_frames to API model
+                    response.rendered_frames = [
                             RenderedFrameInfo(
                                 animation_index=rf.animation_index,
                                 frame_index=rf.frame_index,

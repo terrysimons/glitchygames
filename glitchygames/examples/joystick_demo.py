@@ -608,13 +608,12 @@ class JoystickScene(Scene):
         )
 
         # Keep tabs centered if window size changes dynamically
-        if self.tab_control is not None:
-            if len(self.tab_control.tabs) > 0:
-                total_width = self.tab_control.tab_width * len(self.tab_control.tabs)
-                new_x = (self.screen.get_width() - total_width) // 2
-                if new_x != self.tab_control.rect.x:
-                    self.tab_control.rect.x = new_x
-                    self.tab_control.dirty = 2
+        if self.tab_control is not None and len(self.tab_control.tabs) > 0:
+            total_width = self.tab_control.tab_width * len(self.tab_control.tabs)
+            new_x = (self.screen.get_width() - total_width) // 2
+            if new_x != self.tab_control.rect.x:
+                self.tab_control.rect.x = new_x
+                self.tab_control.dirty = 2
 
     def load_resources(self: Self) -> None:
         """Load the resources.

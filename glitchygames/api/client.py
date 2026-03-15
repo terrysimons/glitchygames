@@ -697,11 +697,14 @@ def main(args: list[str] | None = None) -> int:
                     LOG.info(f"  {filepath}")
 
         # Output TOML to stdout if no output path specified
-        if not parsed_args.output_path and "toml" in output_formats:
-            if response.get("toml_content"):
-                if not parsed_args.quiet:
-                    print("\n--- TOML Content ---")  # noqa: T201
-                print(response["toml_content"])  # noqa: T201
+        if (
+            not parsed_args.output_path
+            and "toml" in output_formats
+            and response.get("toml_content")
+        ):
+            if not parsed_args.quiet:
+                print("\n--- TOML Content ---")  # noqa: T201
+            print(response["toml_content"])  # noqa: T201
 
         return 0
 

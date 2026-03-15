@@ -292,10 +292,13 @@ class TestBitmappyMultiControllerIntegration:
         for event in invalid_events:
             try:
                 # Simulate event processing
-                if hasattr(event, "instance_id") and event.instance_id is not None:
-                    if event.instance_id in self.scene.controller_selections:
-                        # Process event
-                        pass
+                if (
+                    hasattr(event, "instance_id")
+                    and event.instance_id is not None
+                    and event.instance_id in self.scene.controller_selections
+                ):
+                    # Process event
+                    pass
             except (AttributeError, KeyError):
                 # Should handle gracefully
                 LOG.debug("Invalid event handled gracefully: %s", event)

@@ -485,37 +485,41 @@ class FilmStripWidget:
         """
         # If frame.image is marked as stale (during drag), prefer pixels over cached image
         # This ensures film strip sees real-time updates during drag operations
-        if hasattr(frame, "_image_stale") and frame._image_stale:
-            # Prefer pixels if image is stale (will be cleared when drag ends)
-            if hasattr(frame, "pixels") and frame.pixels:
-                pixel_data = frame.pixels
-                if pixel_data:
-                    # Get dimensions from existing image if available, or calculate from pixels
-                    if hasattr(frame, "image") and frame.image:
-                        width, height = frame.image.get_size()
-                    elif hasattr(frame, "_image") and frame._image:
-                        width, height = frame._image.get_size()
-                    else:
-                        # Fallback: calculate from pixel count (assumes square or known aspect)
-                        # This shouldn't normally happen, but handles edge cases
-                        total_pixels = len(pixel_data)
-                        # Try to get dimensions from frame if available
-                        try:
-                            width, height = frame.get_size()
-                        except (AttributeError, TypeError):
-                            # Last resort: assume square (not ideal but prevents crash)
-                            import math
+        # Prefer pixels if image is stale (will be cleared when drag ends)
+        if (
+            hasattr(frame, "_image_stale")
+            and frame._image_stale
+            and hasattr(frame, "pixels")
+            and frame.pixels
+        ):
+            pixel_data = frame.pixels
+            if pixel_data:
+                # Get dimensions from existing image if available, or calculate from pixels
+                if hasattr(frame, "image") and frame.image:
+                    width, height = frame.image.get_size()
+                elif hasattr(frame, "_image") and frame._image:
+                    width, height = frame._image.get_size()
+                else:
+                    # Fallback: calculate from pixel count (assumes square or known aspect)
+                    # This shouldn't normally happen, but handles edge cases
+                    total_pixels = len(pixel_data)
+                    # Try to get dimensions from frame if available
+                    try:
+                        width, height = frame.get_size()
+                    except (AttributeError, TypeError):
+                        # Last resort: assume square (not ideal but prevents crash)
+                        import math
 
-                            width = height = int(math.sqrt(total_pixels))
+                        width = height = int(math.sqrt(total_pixels))
 
-                    # Create a surface with alpha support from the pixel data
-                    frame_surface = pygame.Surface((width, height), pygame.SRCALPHA)
-                    for i, color in enumerate(pixel_data):
-                        if i < width * height:
-                            x = i % width
-                            y = i // width
-                            frame_surface.set_at((x, y), color)
-                    return frame_surface
+                # Create a surface with alpha support from the pixel data
+                frame_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+                for i, color in enumerate(pixel_data):
+                    if i < width * height:
+                        x = i % width
+                        y = i // width
+                        frame_surface.set_at((x, y), color)
+                return frame_surface
 
         # Normal path: use cached image if available
         if hasattr(frame, "image") and frame.image:
@@ -1333,25 +1337,28 @@ class FilmStripWidget:
             return True
 
         # Handle backspace
-        if hasattr(event, "key") and event.key == pygame.K_BACKSPACE:
-            if self.editing_text:
-                self.editing_text = self.editing_text[:-1]
-                # Reset cursor blink to show cursor after typing
-                self.cursor_blink_time = pygame.time.get_ticks()
-                self.cursor_visible = True
-                self.mark_dirty()
-                return True
+        if hasattr(event, "key") and event.key == pygame.K_BACKSPACE and self.editing_text:
+            self.editing_text = self.editing_text[:-1]
+            # Reset cursor blink to show cursor after typing
+            self.cursor_blink_time = pygame.time.get_ticks()
+            self.cursor_visible = True
+            self.mark_dirty()
+            return True
 
         # Handle printable characters
-        if hasattr(event, "unicode") and event.unicode and event.unicode.isprintable():
-            # Limit length to prevent overflow
-            if len(self.editing_text) < ANIMATION_NAME_MAX_LENGTH:  # Reasonable limit
-                self.editing_text += event.unicode
-                # Reset cursor blink to show cursor after typing
-                self.cursor_blink_time = pygame.time.get_ticks()
-                self.cursor_visible = True
-                self.mark_dirty()
-                return True
+        # Limit length to prevent overflow
+        if (
+            hasattr(event, "unicode")
+            and event.unicode
+            and event.unicode.isprintable()
+            and len(self.editing_text) < ANIMATION_NAME_MAX_LENGTH
+        ):
+            self.editing_text += event.unicode
+            # Reset cursor blink to show cursor after typing
+            self.cursor_blink_time = pygame.time.get_ticks()
+            self.cursor_visible = True
+            self.mark_dirty()
+            return True
 
         return False
 
@@ -1389,39 +1396,44 @@ class FilmStripWidget:
         selection_color = None
 
         # Check keyboard selection (white indicator)
-        if hasattr(self, "parent_scene") and self.parent_scene:
-            if (
-                hasattr(self.parent_scene, "selected_animation")
-                and hasattr(self.parent_scene, "selected_frame")
-                and self.parent_scene.selected_animation == animation_name
-                and self.parent_scene.selected_frame == frame_index
-            ):
-                selection_color = (255, 255, 255)  # White for keyboard
+        if (
+            hasattr(self, "parent_scene")
+            and self.parent_scene
+            and hasattr(self.parent_scene, "selected_animation")
+            and hasattr(self.parent_scene, "selected_frame")
+            and self.parent_scene.selected_animation == animation_name
+            and self.parent_scene.selected_frame == frame_index
+        ):
+            selection_color = (255, 255, 255)  # White for keyboard
 
         # Check controller selection (use controller's color)
-        if not selection_color and hasattr(self, "parent_scene") and self.parent_scene:
-            if hasattr(self.parent_scene, "controller_selections"):
-                for (
-                    controller_id,
-                    controller_selection,
-                ) in self.parent_scene.controller_selections.items():
-                    if controller_selection.is_active():
-                        controller_animation, controller_frame = (
-                            controller_selection.get_selection()
-                        )
-                        if (
-                            controller_animation == animation_name
-                            and controller_frame == frame_index
-                        ):
-                            # Get controller color from multi-controller manager singleton
-                            from .multi_controller_manager import MultiControllerManager
+        if (
+            not selection_color
+            and hasattr(self, "parent_scene")
+            and self.parent_scene
+            and hasattr(self.parent_scene, "controller_selections")
+        ):
+            for (
+                controller_id,
+                controller_selection,
+            ) in self.parent_scene.controller_selections.items():
+                if controller_selection.is_active():
+                    controller_animation, controller_frame = (
+                        controller_selection.get_selection()
+                    )
+                    if (
+                        controller_animation == animation_name
+                        and controller_frame == frame_index
+                    ):
+                        # Get controller color from multi-controller manager singleton
+                        from .multi_controller_manager import MultiControllerManager
 
-                            manager = MultiControllerManager.get_instance()
-                            for instance_id, info in manager.controllers.items():
-                                if info.controller_id == controller_id:
-                                    selection_color = info.color
-                                    break
-                            break
+                        manager = MultiControllerManager.get_instance()
+                        for instance_id, info in manager.controllers.items():
+                            if info.controller_id == controller_id:
+                                selection_color = info.color
+                                break
+                        break
 
         # Draw selection border with the appropriate color
         if selection_color:
@@ -1538,10 +1550,14 @@ class FilmStripWidget:
             self._force_redraw = True
 
             # Force canvas redraw to show onion skinning changes
-            if hasattr(self, "parent_scene") and self.parent_scene:
-                if hasattr(self.parent_scene, "canvas") and self.parent_scene.canvas:
-                    self.parent_scene.canvas.force_redraw()
-                    LOG.debug("Forced canvas redraw for onion skinning toggle")
+            if (
+                hasattr(self, "parent_scene")
+                and self.parent_scene
+                and hasattr(self.parent_scene, "canvas")
+                and self.parent_scene.canvas
+            ):
+                self.parent_scene.canvas.force_redraw()
+                LOG.debug("Forced canvas redraw for onion skinning toggle")
 
         except Exception:
             LOG.exception("Failed to toggle onion skinning")
@@ -2000,21 +2016,26 @@ class FilmStripWidget:
         # Get keyboard selection info
         keyboard_animation = ""
         keyboard_frame = -1
-        if hasattr(self, "parent_scene") and self.parent_scene:
-            if hasattr(self.parent_scene, "selected_animation") and hasattr(
-                self.parent_scene, "selected_frame"
-            ):
-                keyboard_animation = self.parent_scene.selected_animation
-                keyboard_frame = self.parent_scene.selected_frame
+        if (
+            hasattr(self, "parent_scene")
+            and self.parent_scene
+            and hasattr(self.parent_scene, "selected_animation")
+            and hasattr(self.parent_scene, "selected_frame")
+        ):
+            keyboard_animation = self.parent_scene.selected_animation
+            keyboard_frame = self.parent_scene.selected_frame
 
         # Get controller selections from the parent scene
         controller_selections = []
-        if hasattr(self, "parent_scene") and self.parent_scene:
-            if hasattr(self.parent_scene, "film_strip_controller_selections"):
-                # Use the pre-filtered controller selections from the parent scene
-                controller_selections = self.parent_scene.film_strip_controller_selections.get(
-                    self.current_animation, []
-                )
+        if (
+            hasattr(self, "parent_scene")
+            and self.parent_scene
+            and hasattr(self.parent_scene, "film_strip_controller_selections")
+        ):
+            # Use the pre-filtered controller selections from the parent scene
+            controller_selections = self.parent_scene.film_strip_controller_selections.get(
+                self.current_animation, []
+            )
 
         # Draw all indicators using the existing system (collision avoidance handles both keyboard and controllers)
         self._draw_multi_controller_indicators(
@@ -2033,51 +2054,56 @@ class FilmStripWidget:
         # Get keyboard selection info
         keyboard_animation = ""
         keyboard_frame = -1
-        if hasattr(self, "parent_scene") and self.parent_scene:
-            if hasattr(self.parent_scene, "selected_animation") and hasattr(
-                self.parent_scene, "selected_frame"
+        if (
+            hasattr(self, "parent_scene")
+            and self.parent_scene
+            and hasattr(self.parent_scene, "selected_animation")
+            and hasattr(self.parent_scene, "selected_frame")
+        ):
+            keyboard_animation = self.parent_scene.selected_animation
+            keyboard_frame = self.parent_scene.selected_frame
+            # Only print if state changed
+            if (
+                hasattr(self.parent_scene, "_last_debug_keyboard_animation")
+                and hasattr(self.parent_scene, "_last_debug_keyboard_frame")
+                and (
+                    self.parent_scene._last_debug_keyboard_animation != keyboard_animation
+                    or self.parent_scene._last_debug_keyboard_frame != keyboard_frame
+                )
             ):
-                keyboard_animation = self.parent_scene.selected_animation
-                keyboard_frame = self.parent_scene.selected_frame
-                # Only print if state changed
-                if (
-                    hasattr(self.parent_scene, "_last_debug_keyboard_animation")
-                    and hasattr(self.parent_scene, "_last_debug_keyboard_frame")
-                    and (
-                        self.parent_scene._last_debug_keyboard_animation != keyboard_animation
-                        or self.parent_scene._last_debug_keyboard_frame != keyboard_frame
-                    )
-                ):
-                    self.parent_scene._last_debug_keyboard_animation = keyboard_animation
-                    self.parent_scene._last_debug_keyboard_frame = keyboard_frame
+                self.parent_scene._last_debug_keyboard_animation = keyboard_animation
+                self.parent_scene._last_debug_keyboard_frame = keyboard_frame
 
         # Get multi-controller selections
         controller_selections = []
-        if hasattr(self, "parent_scene") and self.parent_scene:
-            if hasattr(self.parent_scene, "controller_selections"):
-                for (
-                    controller_id,
-                    controller_selection,
-                ) in self.parent_scene.controller_selections.items():
-                    if controller_selection.is_active():
-                        animation, frame = controller_selection.get_selection()
-                        if animation == self.current_animation:
-                            # Get controller color
-                            controller_info = None
-                            for (
-                                instance_id,
-                                info,
-                            ) in self.parent_scene.multi_controller_manager.controllers.items():
-                                if info.controller_id == controller_id:
-                                    controller_info = info
-                                    break
+        if (
+            hasattr(self, "parent_scene")
+            and self.parent_scene
+            and hasattr(self.parent_scene, "controller_selections")
+        ):
+            for (
+                controller_id,
+                controller_selection,
+            ) in self.parent_scene.controller_selections.items():
+                if controller_selection.is_active():
+                    animation, frame = controller_selection.get_selection()
+                    if animation == self.current_animation:
+                        # Get controller color
+                        controller_info = None
+                        for (
+                            instance_id,
+                            info,
+                        ) in self.parent_scene.multi_controller_manager.controllers.items():
+                            if info.controller_id == controller_id:
+                                controller_info = info
+                                break
 
-                            if controller_info:
-                                controller_selections.append({
-                                    "controller_id": controller_id,
-                                    "frame": frame,
-                                    "color": controller_info.color,
-                                })
+                        if controller_info:
+                            controller_selections.append({
+                                "controller_id": controller_id,
+                                "frame": frame,
+                                "color": controller_info.color,
+                            })
 
         # Draw all indicators
         self._draw_multi_controller_indicators(
@@ -2539,21 +2565,26 @@ class FilmStripWidget:
 
         # Add a horizontal top tab (delete) at the center of the film strip
         # Show delete button if there's more than one animation (to prevent deleting the last strip)
-        if frames and hasattr(self, "parent_scene") and self.parent_scene:
-            if hasattr(self.parent_scene, "canvas") and self.parent_scene.canvas:
-                if hasattr(self.parent_scene.canvas, "animated_sprite"):
-                    animations = list(self.parent_scene.canvas.animated_sprite._animations.keys())
-                    if len(animations) > 1:
-                        # Calculate center x position of the film strip
-                        center_x = self.rect.width // 2
-                        top_tab = FilmStripDeleteTab(
-                            x=center_x - 20,  # Center horizontally (40px wide, so 20px offset)
-                            y=5,  # Position at top of film strip with small margin
-                            width=40,  # Wider than vertical tabs
-                            height=10,  # Shorter than vertical tabs
-                        )
-                        top_tab.set_insertion_type("delete", 0)  # Delete current strip
-                        self.film_tabs.append(top_tab)
+        if (
+            frames
+            and hasattr(self, "parent_scene")
+            and self.parent_scene
+            and hasattr(self.parent_scene, "canvas")
+            and self.parent_scene.canvas
+            and hasattr(self.parent_scene.canvas, "animated_sprite")
+        ):
+            animations = list(self.parent_scene.canvas.animated_sprite._animations.keys())
+            if len(animations) > 1:
+                # Calculate center x position of the film strip
+                center_x = self.rect.width // 2
+                top_tab = FilmStripDeleteTab(
+                    x=center_x - 20,  # Center horizontally (40px wide, so 20px offset)
+                    y=5,  # Position at top of film strip with small margin
+                    width=40,  # Wider than vertical tabs
+                    height=10,  # Shorter than vertical tabs
+                )
+                top_tab.set_insertion_type("delete", 0)  # Delete current strip
+                self.film_tabs.append(top_tab)
 
         # Add a horizontal bottom tab (add) at the center of the film strip
         if frames:  # Only add bottom tab if there are frames
@@ -2882,9 +2913,11 @@ class FilmStripWidget:
             and self.animated_sprite.frame_manager.current_animation == animation_name
         ):
             remaining_frames = len(frames)
-            if remaining_frames > 0:
-                if self.animated_sprite.frame_manager.current_frame >= remaining_frames:
-                    self.animated_sprite.frame_manager.current_frame = max(0, remaining_frames - 1)
+            if (
+                remaining_frames > 0
+                and self.animated_sprite.frame_manager.current_frame >= remaining_frames
+            ):
+                self.animated_sprite.frame_manager.current_frame = max(0, remaining_frames - 1)
 
             LOG.debug(
                 f"FilmStripWidget: After removal - animated sprite current_frame: {self.animated_sprite.frame_manager.current_frame}, frames count: {len(frames)}"

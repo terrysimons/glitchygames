@@ -41,9 +41,11 @@ class TestControllerUndoRedoIntegration:
             try:
                 if button == pygame.CONTROLLER_BUTTON_B:
                     scene._handle_undo()
-                elif button == pygame.CONTROLLER_BUTTON_X:
-                    if getattr(scene, "selected_frame_visible", True):
-                        scene._handle_redo()
+                elif (
+                    button == pygame.CONTROLLER_BUTTON_X
+                    and getattr(scene, "selected_frame_visible", True)
+                ):
+                    scene._handle_redo()
             except (AttributeError, ValueError):
                 # Controller handler should handle exceptions gracefully
                 LOG.debug("Controller %d button press handler error suppressed", controller_id)
