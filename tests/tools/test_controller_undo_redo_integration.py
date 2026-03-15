@@ -81,7 +81,7 @@ class TestControllerUndoRedoIntegration:
         mock_scene.film_strip_operation_tracker.add_frame_added("strip_1", 2, {})
 
         # Verify we have operations to undo
-        assert mock_scene.undo_redo_manager.can_undo() == True
+        assert mock_scene.undo_redo_manager.can_undo()
 
         # Simulate controller B button press
         controller_id = 0
@@ -100,7 +100,7 @@ class TestControllerUndoRedoIntegration:
         mock_scene.undo_redo_manager.undo()
 
         # Verify we have operations to redo
-        assert mock_scene.undo_redo_manager.can_redo() == True
+        assert mock_scene.undo_redo_manager.can_redo()
 
         # Simulate controller X button press
         controller_id = 0
@@ -122,7 +122,7 @@ class TestControllerUndoRedoIntegration:
         mock_scene.undo_redo_manager.undo()
 
         # Verify we have operations to redo
-        assert mock_scene.undo_redo_manager.can_redo() == True
+        assert mock_scene.undo_redo_manager.can_redo()
 
         # Simulate controller X button press with hidden frame
         controller_id = 0
@@ -146,7 +146,7 @@ class TestControllerUndoRedoIntegration:
         mock_scene.film_strip_operation_tracker.add_frame_added("strip_2", 1, {})
 
         # Verify we have operations to undo
-        assert mock_scene.undo_redo_manager.can_undo() == True
+        assert mock_scene.undo_redo_manager.can_undo()
         initial_undo_count = len(mock_scene.undo_redo_manager.undo_stack)
 
         # Simulate controller B button press
@@ -176,7 +176,7 @@ class TestControllerUndoRedoIntegration:
                 break  # Stop if undo fails
 
         # Verify we have operations to redo
-        assert mock_scene.undo_redo_manager.can_redo() == True
+        assert mock_scene.undo_redo_manager.can_redo()
 
         # Simulate controller X button press
         controller_id = 0
@@ -194,7 +194,7 @@ class TestControllerUndoRedoIntegration:
     def test_controller_undo_no_operations(self, mock_scene):
         """Test controller undo when no operations are available."""
         # Verify no operations to undo
-        assert mock_scene.undo_redo_manager.can_undo() == False
+        assert not mock_scene.undo_redo_manager.can_undo()
 
         # Simulate controller B button press
         controller_id = 0
@@ -209,7 +209,7 @@ class TestControllerUndoRedoIntegration:
     def test_controller_redo_no_operations(self, mock_scene):
         """Test controller redo when no operations are available."""
         # Verify no operations to redo
-        assert mock_scene.undo_redo_manager.can_redo() == False
+        assert not mock_scene.undo_redo_manager.can_redo()
 
         # Simulate controller X button press
         controller_id = 0
@@ -233,7 +233,7 @@ class TestControllerUndoRedoIntegration:
         mock_scene.canvas_operation_tracker.add_pixel_changes([(20, 20, (0, 255, 0), (255, 0, 0))])
 
         # Verify we have operations to undo
-        assert mock_scene.undo_redo_manager.can_undo() == True
+        assert mock_scene.undo_redo_manager.can_undo()
 
         # Simulate controller B button press
         controller_id = 0
@@ -257,7 +257,7 @@ class TestControllerUndoRedoIntegration:
             mock_scene.undo_redo_manager.undo()
 
         # Verify we have operations to redo
-        assert mock_scene.undo_redo_manager.can_redo() == True
+        assert mock_scene.undo_redo_manager.can_redo()
 
         # Simulate controller X button press
         controller_id = 0
@@ -304,7 +304,7 @@ class TestControllerUndoRedoIntegration:
         mock_scene.film_strip_operation_tracker.add_frame_selection("strip_1", 3)
 
         # Verify we have operations to undo
-        assert mock_scene.undo_redo_manager.can_undo() == True
+        assert mock_scene.undo_redo_manager.can_undo()
 
         # Simulate controller B button press
         controller_id = 0
@@ -328,7 +328,7 @@ class TestControllerUndoRedoIntegration:
             mock_scene.undo_redo_manager.undo()
 
         # Verify we have operations to redo
-        assert mock_scene.undo_redo_manager.can_redo() == True
+        assert mock_scene.undo_redo_manager.can_redo()
 
         # Simulate controller X button press
         controller_id = 0

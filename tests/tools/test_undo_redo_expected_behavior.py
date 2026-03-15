@@ -253,7 +253,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Perform 5 undos
         for i in range(5):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == 4 - i
             assert mock_scene.get_redo_count() == i + 1
 
@@ -263,7 +263,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Perform 5 redos
         for i in range(5):
-            assert mock_scene.redo() == True
+            assert mock_scene.redo()
             assert mock_scene.get_undo_count() == i + 1
             assert mock_scene.get_redo_count() == 4 - i
 
@@ -303,7 +303,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Perform 7 undos
         for i in range(7):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == 6 - i
             assert mock_scene.get_redo_count() == i + 1
 
@@ -317,7 +317,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Perform 7 redos
         for i in range(7):
-            assert mock_scene.redo() == True
+            assert mock_scene.redo()
             assert mock_scene.get_undo_count() == i + 1
             assert mock_scene.get_redo_count() == 6 - i
 
@@ -360,7 +360,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Perform 10 undos
         for i in range(10):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == initial_undo_count - (i + 1)
             assert mock_scene.get_redo_count() == i + 1
 
@@ -370,7 +370,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Perform 10 redos (to redo the 10 undos we just did)
         for i in range(10):
-            assert mock_scene.redo() == True
+            assert mock_scene.redo()
             assert mock_scene.get_undo_count() == (initial_undo_count - 10) + (i + 1)
             assert mock_scene.get_redo_count() == 10 - (i + 1)  # Start from 10, go to 0
 
@@ -424,7 +424,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Perform 20 undos
         for i in range(20):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == initial_undo_count - (i + 1)
             assert mock_scene.get_redo_count() == i + 1
 
@@ -435,7 +435,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Perform 20 redos
         for i in range(20):
-            assert mock_scene.redo() == True
+            assert mock_scene.redo()
             assert mock_scene.get_undo_count() == (initial_undo_count - 20) + (i + 1)
             assert mock_scene.get_redo_count() == 20 - (i + 1)
 
@@ -461,9 +461,9 @@ class TestExpectedUndoRedoBehavior:
         for i in range(5):
             result = mock_scene.undo()
             if i < 3:
-                assert result == True
+                assert result
             else:
-                assert result == False  # Should fail after 3 undos
+                assert not result  # Should fail after 3 undos
 
         # Verify we're back to original state
         assert mock_scene.get_undo_count() == 0
@@ -483,7 +483,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Undo all 3
         for i in range(3):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
 
         assert mock_scene.get_undo_count() == 0
         assert mock_scene.get_redo_count() == 3
@@ -492,9 +492,9 @@ class TestExpectedUndoRedoBehavior:
         for i in range(5):
             result = mock_scene.redo()
             if i < 3:
-                assert result == True
+                assert result
             else:
-                assert result == False  # Should fail after 3 redos
+                assert not result  # Should fail after 3 redos
 
         # Verify we're back to edited state
         assert mock_scene.get_undo_count() == 3
@@ -519,7 +519,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Undo all operations
         for i in range(6):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == 5 - i
             assert mock_scene.get_redo_count() == i + 1
 
@@ -533,7 +533,7 @@ class TestExpectedUndoRedoBehavior:
 
         # Redo all operations
         for i in range(6):
-            assert mock_scene.redo() == True
+            assert mock_scene.redo()
             assert mock_scene.get_undo_count() == i + 1
             assert mock_scene.get_redo_count() == 5 - i
 

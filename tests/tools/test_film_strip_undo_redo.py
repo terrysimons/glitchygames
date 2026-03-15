@@ -236,7 +236,7 @@ class TestFilmStripUndoRedo:
         assert mock_scene.get_undo_count() == 3
 
         # Undo the frame selection
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == 2
         assert mock_scene.get_redo_count() == 1
 
@@ -255,11 +255,11 @@ class TestFilmStripUndoRedo:
         assert mock_scene.get_undo_count() == 3
 
         # Undo the edit
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == 2
 
         # Undo the frame creation
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == 1
 
     def test_animation_creation_and_frame_operations(self, mock_scene):
@@ -296,15 +296,15 @@ class TestFilmStripUndoRedo:
         initial_undo_count = mock_scene.get_undo_count()
 
         # Undo the edit
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == initial_undo_count - 1
 
         # Undo the frame creation
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == initial_undo_count - 2
 
         # Undo the animation creation
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == initial_undo_count - 3
 
     def test_redo_sequence(self, mock_scene):
@@ -317,17 +317,17 @@ class TestFilmStripUndoRedo:
         initial_undo_count = mock_scene.get_undo_count()
 
         # Undo all operations
-        assert mock_scene.undo() == True
-        assert mock_scene.undo() == True
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
+        assert mock_scene.undo()
+        assert mock_scene.undo()
 
         assert mock_scene.get_undo_count() == initial_undo_count - 3
         assert mock_scene.get_redo_count() == 3
 
         # Redo all operations
-        assert mock_scene.redo() == True
-        assert mock_scene.redo() == True
-        assert mock_scene.redo() == True
+        assert mock_scene.redo()
+        assert mock_scene.redo()
+        assert mock_scene.redo()
 
         assert mock_scene.get_undo_count() == initial_undo_count
         assert mock_scene.get_redo_count() == 0
@@ -370,7 +370,7 @@ class TestFilmStripUndoRedo:
 
         # Undo all operations
         for i in range(5):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == 4 - i
 
     def test_animation_deletion_operations(self, mock_scene):
@@ -385,15 +385,15 @@ class TestFilmStripUndoRedo:
         initial_undo_count = mock_scene.get_undo_count()
 
         # Undo the edit
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == initial_undo_count - 1
 
         # Undo the frame creation
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == initial_undo_count - 2
 
         # Undo the animation creation
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == initial_undo_count - 3
 
     def test_stress_test_many_operations(self, mock_scene):
@@ -409,7 +409,7 @@ class TestFilmStripUndoRedo:
 
         # Undo all operations
         for i in range(30):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == 29 - i
 
     def test_frame_selection_undo_redo(self, mock_scene):
@@ -423,11 +423,11 @@ class TestFilmStripUndoRedo:
         assert mock_scene.get_undo_count() == 2
 
         # Undo frame selection
-        assert mock_scene.undo() == True
+        assert mock_scene.undo()
         assert mock_scene.get_undo_count() == 1
 
         # Redo frame selection
-        assert mock_scene.redo() == True
+        assert mock_scene.redo()
         assert mock_scene.get_undo_count() == 2
 
     def test_operation_descriptions(self, mock_scene):
@@ -459,7 +459,7 @@ class TestFilmStripUndoRedo:
 
         # Undo all operations
         for i in range(50):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == 49 - i
 
     def test_mixed_operation_types(self, mock_scene):
@@ -475,5 +475,5 @@ class TestFilmStripUndoRedo:
 
         # Undo all operations
         for i in range(4):
-            assert mock_scene.undo() == True
+            assert mock_scene.undo()
             assert mock_scene.get_undo_count() == 3 - i

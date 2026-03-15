@@ -116,7 +116,7 @@ class TestControllerDragUndoRedo:
         # Verify pixels were collected in drag info
         drag_info = mock_scene.controller_drags[controller_id]
         assert len(drag_info["pixels_drawn"]) == 4
-        assert drag_info["active"] == True
+        assert drag_info["active"]
 
         # Verify NO undo/redo operations were created (this is the bug!)
         assert len(mock_scene.undo_redo_manager.undo_stack) == 0
@@ -184,7 +184,7 @@ class TestControllerDragUndoRedo:
 
         # Verify drag was ended
         drag_info = mock_scene.controller_drags[controller_id]
-        assert drag_info["active"] == False
+        assert not drag_info["active"]
         assert drag_info["end_time"] is not None
 
         # After fix: Should have 1 undo operation for the entire drag
@@ -265,15 +265,15 @@ class TestControllerDragUndoRedo:
         assert len(operation.redo_data["pixels"]) == 3
 
         # Test undo functionality
-        assert mock_scene.undo_redo_manager.can_undo() == True
+        assert mock_scene.undo_redo_manager.can_undo()
         success = mock_scene.undo_redo_manager.undo()
-        assert success == True
+        assert success
         assert len(mock_scene.undo_redo_manager.undo_stack) == 0
         assert len(mock_scene.undo_redo_manager.redo_stack) == 1
 
         # Test redo functionality
-        assert mock_scene.undo_redo_manager.can_redo() == True
+        assert mock_scene.undo_redo_manager.can_redo()
         success = mock_scene.undo_redo_manager.redo()
-        assert success == True
+        assert success
         assert len(mock_scene.undo_redo_manager.redo_stack) == 0
         assert len(mock_scene.undo_redo_manager.undo_stack) == 1

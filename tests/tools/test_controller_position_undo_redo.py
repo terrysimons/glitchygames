@@ -108,11 +108,11 @@ class TestControllerPositionUndoRedo:
         )
 
         # Verify we can undo
-        assert mock_scene.undo_redo_manager.can_undo() == True
+        assert mock_scene.undo_redo_manager.can_undo()
 
         # Perform undo
         success = mock_scene.undo_redo_manager.undo()
-        assert success == True
+        assert success
 
         # Verify callback was called with undo data
         mock_scene._apply_controller_position_for_undo_redo.assert_called_once_with(
@@ -134,11 +134,11 @@ class TestControllerPositionUndoRedo:
         mock_scene.undo_redo_manager.undo()
 
         # Verify we can redo
-        assert mock_scene.undo_redo_manager.can_redo() == True
+        assert mock_scene.undo_redo_manager.can_redo()
 
         # Perform redo
         success = mock_scene.undo_redo_manager.redo()
-        assert success == True
+        assert success
 
         # Verify callback was called with redo data
         mock_scene._apply_controller_position_for_undo_redo.assert_called_with(
@@ -157,11 +157,11 @@ class TestControllerPositionUndoRedo:
         )
 
         # Verify we can undo
-        assert mock_scene.undo_redo_manager.can_undo() == True
+        assert mock_scene.undo_redo_manager.can_undo()
 
         # Perform undo
         success = mock_scene.undo_redo_manager.undo()
-        assert success == True
+        assert success
 
         # Verify callback was called with undo data
         mock_scene._apply_controller_mode_for_undo_redo.assert_called_once_with(
@@ -183,11 +183,11 @@ class TestControllerPositionUndoRedo:
         mock_scene.undo_redo_manager.undo()
 
         # Verify we can redo
-        assert mock_scene.undo_redo_manager.can_redo() == True
+        assert mock_scene.undo_redo_manager.can_redo()
 
         # Perform redo
         success = mock_scene.undo_redo_manager.redo()
-        assert success == True
+        assert success
 
         # Verify callback was called with redo data
         mock_scene._apply_controller_mode_for_undo_redo.assert_called_with(controller_id, new_mode)
@@ -208,15 +208,15 @@ class TestControllerPositionUndoRedo:
 
         # Test undo sequence
         for i in range(3):
-            assert mock_scene.undo_redo_manager.can_undo() == True
+            assert mock_scene.undo_redo_manager.can_undo()
             success = mock_scene.undo_redo_manager.undo()
-            assert success == True
+            assert success
 
         # Test redo sequence
         for i in range(3):
-            assert mock_scene.undo_redo_manager.can_redo() == True
+            assert mock_scene.undo_redo_manager.can_redo()
             success = mock_scene.undo_redo_manager.redo()
-            assert success == True
+            assert success
 
     def test_controller_position_with_mode_context(self, mock_scene):
         """Test controller position tracking with mode context."""
@@ -252,7 +252,7 @@ class TestControllerPositionUndoRedo:
 
         # Perform undo - should handle error gracefully
         success = mock_scene.undo_redo_manager.undo()
-        assert success == False  # Should return False due to error
+        assert not success  # Should return False due to error
 
     def test_controller_position_operation_descriptions(self, mock_scene):
         """Test that controller position operations have proper descriptions."""
@@ -316,7 +316,7 @@ class TestControllerPositionUndoRedo:
         undo_count = 0
         while mock_scene.undo_redo_manager.can_undo():
             success = mock_scene.undo_redo_manager.undo()
-            assert success == True
+            assert success
             undo_count += 1
 
         assert undo_count == 5
@@ -325,7 +325,7 @@ class TestControllerPositionUndoRedo:
         redo_count = 0
         while mock_scene.undo_redo_manager.can_redo():
             success = mock_scene.undo_redo_manager.redo()
-            assert success == True
+            assert success
             redo_count += 1
 
         assert redo_count == 5
