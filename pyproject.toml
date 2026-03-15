@@ -192,8 +192,6 @@ lint.ignore = [
   "PERF102", # incorrect-dict-iterator
   "PERF401", # manual-list-comprehension
   "PLW2901", # redefined-loop-name
-  "TRY301", # raise-within-try
-  "TRY401", # verbose-log-message
   "S104", # hardcoded-bind-all-interfaces
   "S112", # try-except-continue
   "N806", # non-lowercase-variable-in-function

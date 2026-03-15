@@ -1540,11 +1540,11 @@ def _make_ai_api_call(request: AIRequest, client: object, log: logging.Logger) -
 
         log.critical(f"API call kwargs: {api_kwargs}")
         response = client.chat.completions.create(**api_kwargs)
-    except Exception as e:
+    except Exception:
         end_time = time.time()
         duration = end_time - start_time
         log.exception(f"API call failed after {duration:.2f} seconds")
-        log.exception(f"Exception type: {type(e)}")
+        log.exception("API call failed with exception")
         raise
 
     end_time = time.time()
@@ -11793,7 +11793,7 @@ pixels = \"\"\"
             # Validate that we have color definitions
             if not unique_glyphs:
                 self.log.error("No colors to define - this will cause display issues!")
-                raise ValueError("No colors found in the converted sprite")
+                raise ValueError("No colors found in the converted sprite")  # noqa: TRY301
 
             self.log.info(f"Generated {len(unique_glyphs)} color definitions")
 
@@ -11811,17 +11811,17 @@ pixels = \"\"\"
                 # Check for required sections
                 if "[sprite]" not in content:
                     self.log.error("TOML file missing [sprite] section!")
-                    raise ValueError("Generated TOML file has no [sprite] section")
+                    raise ValueError("Generated TOML file has no [sprite] section")  # noqa: TRY301
 
                 if "[colors]" not in content:
                     self.log.error("TOML file missing [colors] section!")
-                    raise ValueError("Generated TOML file has no [colors] section")
+                    raise ValueError("Generated TOML file has no [colors] section")  # noqa: TRY301
 
                 # Count color definitions by counting [colors."..."] lines
                 color_count = content.count('[colors."')
                 if color_count == 0:
                     self.log.error("TOML file has no color definitions!")
-                    raise ValueError("Generated TOML file has no color definitions")
+                    raise ValueError("Generated TOML file has no color definitions")  # noqa: TRY301
 
                 self.log.info(f"TOML validation passed: {color_count} colors defined")
 

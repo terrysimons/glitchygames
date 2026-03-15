@@ -370,8 +370,8 @@ class MultiControllerConfig:
                 json.dump(config_data, f, indent=2)
 
             return True
-        except Exception as e:
-            log.exception(f"Failed to save config to {config_file}: {e}")
+        except Exception:
+            log.exception(f"Failed to save config to {config_file}")
             return False
 
 

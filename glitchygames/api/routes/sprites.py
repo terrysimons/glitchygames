@@ -213,7 +213,7 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
             detail=f"AI provider unavailable: {e}",
         ) from e
     except Exception as e:
-        LOG.exception(f"Unexpected error: {e}")
+        LOG.exception("Unexpected error")
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {e}",
@@ -322,7 +322,7 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
             detail=f"AI provider unavailable: {e}",
         ) from e
     except Exception as e:
-        LOG.exception(f"Unexpected error: {e}")
+        LOG.exception("Unexpected error")
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {e}",
@@ -455,7 +455,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         )
 
     except Exception as e:
-        LOG.exception(f"Unexpected error extracting APNG frames: {e}")
+        LOG.exception("Unexpected error extracting APNG frames")
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {e}",
