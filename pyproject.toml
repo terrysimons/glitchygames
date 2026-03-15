@@ -176,10 +176,6 @@ lint.ignore = [
   "FBT001", # boolean-type-hint-positional-argument
   "FBT002", # boolean-default-value-positional-argument
   "FBT003", # boolean-positional-value-in-call
-
-  # --- Unused arguments (callback signatures require them) ---
-  "ARG001", # unused-function-argument
-  "ARG005", # unused-lambda-argument
 ]
 lint.exclude = []
 lint.fixable = [
@@ -219,8 +215,8 @@ lint.unfixable = []
 target-version = "py313"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004", "ANN", "PLC2701", "F841", "B007"]
-"glitchygames/tests/**/*.py" = ["PLR2004", "ANN", "PLC2701", "F841", "B007"]
+"tests/**/*.py" = ["PLR2004", "ANN", "ARG001", "ARG005", "PLC2701", "F841", "B007"]
+"glitchygames/tests/**/*.py" = ["PLR2004", "ANN", "ARG001", "ARG005", "PLC2701", "F841", "B007"]
 
 [tool.ruff.format]
 docstring-code-format = true

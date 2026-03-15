@@ -161,18 +161,23 @@ MAX_COLOR_VALUE = 255
 def detect_file_format(filename: str) -> str:
     """Detect file format from filename extension.
 
-    Note: Only TOML format is currently supported. This function exists for
-    compatibility and always returns "toml".
+    Note: Only TOML format is currently supported.
 
     Args:
-        filename: The filename to analyze (unused, kept for API compatibility)
+        filename: The filename to analyze
 
     Returns:
-        Always returns "toml" as this is the only supported format
+        The detected format string (currently only "toml")
+
+    Raises:
+        ValueError: If the file extension is not a supported format
 
     """
-    # Only TOML format is supported
-    return "toml"
+    extension = Path(filename).suffix.lower().lstrip(".")
+    if extension in {"toml", ""}:
+        return "toml"
+    msg = f"Unsupported file format: .{extension} (only TOML is supported)"
+    raise ValueError(msg)
 
 
 def resource_path(*path_segments: str) -> Path:

@@ -622,11 +622,30 @@ def build_refinement_messages(
     if conversation_history:
         messages.extend(conversation_history)
 
+    # Build enhanced user request with hints
+    enhanced_request = user_request
+
+    # Add size hint if detected
+    if include_size_hint:
+        size_hint = get_sprite_size_hint(user_request)
+        if size_hint:
+            width, height = size_hint
+            enhanced_request += (
+                f"\n\nIMPORTANT: Generate sprite at exactly {width}x{height} pixels."
+            )
+
+    # Add animation hint if detected
+    if include_animation_hint and detect_animation_request(user_request):
+        enhanced_request += (
+            "\n\nIMPORTANT: This should be an ANIMATED sprite with multiple frames. "
+            "Use [[animation]] and [[animation.frame]] sections."
+        )
+
     # Add the previous sprite as context with explicit preservation instructions
     refinement_context = (
         f"Here is the current sprite:\n\n"
         f"```toml\n{last_sprite_content}\n```\n\n"
-        f"User's request: {user_request}\n\n"
+        f"User's request: {enhanced_request}\n\n"
         f"CRITICAL INSTRUCTIONS:\n"
         f"1. Return the EXACT same sprite structure with ONLY the changes requested\n"
         f"2. Preserve ALL animation namespaces (film strip labels) that exist\n"

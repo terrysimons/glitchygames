@@ -89,7 +89,7 @@ class TestControllerDragContinuousMovement:
         positions = [(5, 5), (6, 5), (7, 5), (8, 5)]
         position_index = 0
 
-        def mock_get_controller_position(controller_id):
+        def mock_get_controller_position(_controller_id):
             nonlocal position_index
             if position_index < len(positions):
                 pos = positions[position_index]

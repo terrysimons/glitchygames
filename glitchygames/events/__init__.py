@@ -142,7 +142,7 @@ GAME_EVENTS = list(
 GAME_EVENTS.extend([FPSEVENT, GAMEEVENT, MENUEVENT])
 
 
-def dump_cache_info(func: Callable, *args: list, **kwargs: dict) -> Callable[..., None]:
+def dump_cache_info(func: Callable, **kwargs: dict) -> Callable[..., None]:  # noqa: ARG001
     """Dump the cache info for a function.
 
     Returns:

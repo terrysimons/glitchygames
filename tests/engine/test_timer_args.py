@@ -24,7 +24,7 @@ class DummyGame(Scene):
         return parser
 
 
-def test_timer_args_defaults(monkeypatch, mocker):
+def test_timer_args_defaults(mocker):
     """Test that default timer arguments are parsed correctly."""
     # Build a fake argparse result with required fields
     ns = SimpleNamespace(
@@ -51,7 +51,7 @@ def test_timer_args_defaults(monkeypatch, mocker):
     assert opts["log_timer_jitter"] is False
 
 
-def test_timer_args_overrides(monkeypatch, mocker):
+def test_timer_args_overrides(mocker):
     """Test that overridden timer arguments are parsed correctly."""
     ns = SimpleNamespace(
         log_level="INFO",
