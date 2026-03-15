@@ -59,7 +59,7 @@ class Operation:
     redo_data: dict[str, Any]
     context: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate operation data after initialization.
 
         Raises:
@@ -75,7 +75,7 @@ class Operation:
 class UndoRedoManager:
     """Manages undo/redo operations for the Bitmappy editor."""
 
-    def __init__(self, max_history: int = 50):
+    def __init__(self, max_history: int = 50) -> None:
         """Initialize the undo/redo manager.
 
         Args:

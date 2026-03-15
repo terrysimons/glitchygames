@@ -33,7 +33,7 @@ class ControllerSelectionState:
     last_update_time: float = 0.0
     navigation_history: list = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize navigation history if not provided."""
         if self.navigation_history is None:
             self.navigation_history = []
@@ -46,7 +46,7 @@ class ControllerSelection:
     for a single controller.
     """
 
-    def __init__(self, controller_id: int, instance_id: int):
+    def __init__(self, controller_id: int, instance_id: int) -> None:
         """Initialize controller selection state.
 
         Args:

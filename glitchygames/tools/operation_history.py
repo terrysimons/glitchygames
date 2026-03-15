@@ -4,7 +4,7 @@
 import logging
 from typing import Any
 
-from .undo_redo_manager import OperationType
+from .undo_redo_manager import OperationType, UndoRedoManager
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
@@ -15,7 +15,7 @@ class PixelChange:
 
     def __init__(
         self, x: int, y: int, old_color: tuple[int, int, int], new_color: tuple[int, int, int]
-    ):
+    ) -> None:
         """Initialize a pixel change record with position and color data."""
         self.x = x
         self.y = y
@@ -26,7 +26,7 @@ class PixelChange:
 class CanvasOperationTracker:
     """Tracks canvas operations for undo/redo."""
 
-    def __init__(self, undo_redo_manager):
+    def __init__(self, undo_redo_manager: UndoRedoManager) -> None:
         """Initialize the canvas operation tracker with an undo/redo manager."""
         self.undo_redo_manager = undo_redo_manager
         self._current_brush_pixels = []
@@ -211,7 +211,7 @@ class CanvasOperationTracker:
 class FilmStripOperationTracker:
     """Tracks film strip operations for undo/redo."""
 
-    def __init__(self, undo_redo_manager):
+    def __init__(self, undo_redo_manager: UndoRedoManager) -> None:
         """Initialize the film strip operation tracker with an undo/redo manager."""
         self.undo_redo_manager = undo_redo_manager
         LOG.debug("FilmStripOperationTracker initialized")
@@ -419,7 +419,7 @@ class FilmStripOperationTracker:
 class CrossAreaOperationTracker:
     """Tracks cross-area operations (copy/paste between frames/animations)."""
 
-    def __init__(self, undo_redo_manager):
+    def __init__(self, undo_redo_manager: UndoRedoManager) -> None:
         """Initialize the cross-area operation tracker with an undo/redo manager."""
         self.undo_redo_manager = undo_redo_manager
         LOG.debug("CrossAreaOperationTracker initialized")
@@ -496,7 +496,7 @@ class CrossAreaOperationTracker:
 class ControllerPositionOperationTracker:
     """Tracks controller position and mode changes for undo/redo."""
 
-    def __init__(self, undo_redo_manager):
+    def __init__(self, undo_redo_manager: UndoRedoManager) -> None:
         """Initialize the controller position operation tracker."""
         self.undo_redo_manager = undo_redo_manager
         LOG.debug("ControllerPositionOperationTracker initialized")

@@ -94,7 +94,7 @@ blue = {config.getint(section_name, "blue", fallback=0)}
         return False
 
 
-def main():
+def main() -> None:
     """Convert all .ini sprite files to .toml format."""
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Convert INI sprite files to TOML format")

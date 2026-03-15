@@ -51,7 +51,7 @@ class ControllerModeState:
 
     def __init__(
         self, controller_id: int, initial_mode: ControllerMode = ControllerMode.FILM_STRIP
-    ):
+    ) -> None:
         """Initialize the controller mode state for a given controller."""
         self.controller_id = controller_id
         self.current_mode = initial_mode
@@ -138,7 +138,7 @@ class TriggerDetector:
     TRIGGER_THRESHOLD = 0.4  # Lowered from 0.5 to accommodate Linux trigger values
     DEBOUNCE_TIME = 0.1  # 100ms debounce
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the trigger detector with empty state tracking."""
         self.last_trigger_states: dict[int, dict[str, float]] = {}
         self.last_trigger_times: dict[int, dict[str, float]] = {}
@@ -196,7 +196,7 @@ class TriggerDetector:
 class ModeSwitcher:
     """Handles mode switching for controllers."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the mode switcher with empty controller mode tracking."""
         self.controller_modes: dict[int, ControllerModeState] = {}
         self.trigger_detector = TriggerDetector()

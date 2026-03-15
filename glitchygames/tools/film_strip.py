@@ -4,16 +4,19 @@ This module provides a film reel-style interface for selecting and navigating
 between frames in animated sprites, with sprocket separators between animations.
 """
 
-# No typing imports needed
+from __future__ import annotations
 
 import logging
 from copy import deepcopy
-from typing import ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pygame
 from glitchygames.color import RGB_COMPONENT_COUNT
 from glitchygames.fonts import FontManager
-from glitchygames.sprites import AnimatedSprite
+from glitchygames.sprites import AnimatedSprite, SpriteFrame
+
+if TYPE_CHECKING:
+    from glitchygames.tools.bitmappy import AnimatedCanvasSprite
 
 ANIMATION_NAME_MAX_LENGTH = 50
 CURSOR_BLINK_INTERVAL_MS = 530
@@ -74,7 +77,7 @@ class FilmStripWidget:
     # Number of frames to show at a time in the film strip
     FRAMES_PER_VIEW: ClassVar[int] = 4
 
-    def __init__(self, x: int, y: int, width: int, height: int):
+    def __init__(self, x: int, y: int, width: int, height: int) -> None:
         """Initialize the film strip widget."""
         self.rect = pygame.Rect(x, y, width, height)
         self.animated_sprite: AnimatedSprite | None = None
@@ -476,7 +479,7 @@ class FilmStripWidget:
         return max(0, len(frame_durations) - 1)
 
     @staticmethod
-    def _get_frame_image(frame) -> pygame.Surface:
+    def _get_frame_image(frame: SpriteFrame) -> pygame.Surface:
         """Get the image surface for a frame.
 
         Returns:
@@ -557,11 +560,11 @@ class FilmStripWidget:
         ):
             self.parent_canvas.film_strip_sprite.dirty = 1
 
-    def set_parent_canvas(self, canvas):
+    def set_parent_canvas(self, canvas: AnimatedCanvasSprite) -> None:
         """Set the parent canvas for getting current canvas data."""
         self.parent_canvas = canvas
 
-    def mark_dirty(self):
+    def mark_dirty(self) -> None:
         """Mark the film strip widget as needing a re-render."""
         # Force a complete re-render by clearing any cached data
         # This ensures that frame thumbnails and preview are updated
@@ -577,7 +580,9 @@ class FilmStripWidget:
 
             # Note: Not propagating dirty up the parent chain to avoid circular dirty propagation
 
-    def _propagate_dirty_to_sprite_groups(self, sprite, visited=None):
+    def _propagate_dirty_to_sprite_groups(
+        self, sprite: pygame.sprite.DirtySprite, visited: set[int] | None = None
+    ) -> None:
         """Propagate dirty flags to all sprites in the sprite's groups."""
         if visited is None:
             visited = set()
@@ -602,7 +607,7 @@ class FilmStripWidget:
                 # If groups is not iterable or doesn't exist, skip propagation
                 pass
 
-    def _propagate_dirty_up_parent_chain(self, parent):
+    def _propagate_dirty_up_parent_chain(self, parent: pygame.sprite.DirtySprite) -> None:
         """Propagate dirty flags up the parent chain until parent=None or parent=parent."""
         if parent is None:
             return
@@ -1279,7 +1284,7 @@ class FilmStripWidget:
                 return (anim_name, global_selected_frame)
         return None
 
-    def handle_keyboard_input(self, event) -> bool:
+    def handle_keyboard_input(self, event: pygame.event.Event) -> bool:
         """Handle keyboard input for animation renaming.
 
         Args:
@@ -1364,7 +1369,7 @@ class FilmStripWidget:
 
     def render_frame_thumbnail(
         self,
-        frame,
+        frame: SpriteFrame,
         *,
         is_selected: bool = False,
         is_hovered: bool = False,
@@ -1562,11 +1567,13 @@ class FilmStripWidget:
         except Exception:
             LOG.exception("Failed to toggle onion skinning")
 
-    def _get_frame_image_for_rendering(self, frame, *, is_selected: bool):
+    def _get_frame_image_for_rendering(
+        self, frame: SpriteFrame, *, is_selected: bool
+    ) -> pygame.Surface:
         """Get the appropriate frame image for rendering.
 
         Returns:
-            object: The frame image for rendering.
+            pygame.Surface: The frame image for rendering.
 
         """
         # Always use the actual animation frame data, not canvas content
@@ -1581,7 +1588,7 @@ class FilmStripWidget:
 
         return frame_img
 
-    def _draw_scaled_image(self, frame_surface: pygame.Surface, frame_img) -> None:
+    def _draw_scaled_image(self, frame_surface: pygame.Surface, frame_img: pygame.Surface) -> None:
         """Draw a scaled image onto the frame surface."""
         # Calculate scaling to fit within the frame area (leaving some padding)
         max_width = self.frame_width - 8  # Leave 4px padding on each side
@@ -2189,7 +2196,7 @@ class FilmStripWidget:
                 controller_selections.append(selection)
 
         # Sort controllers by color order (Red, Green, Blue, Yellow)
-        def get_color_priority(selection):
+        def get_color_priority(selection: dict[str, Any]) -> int:
             color = selection["color"]
             if color == (255, 0, 0):  # Red
                 return 0
@@ -2671,7 +2678,7 @@ class FilmStripWidget:
             tab.reset_click_state()
             tab.is_hovered = False
 
-    def _insert_frame_at_tab(self, tab: "FilmTabWidget") -> None:
+    def _insert_frame_at_tab(self, tab: FilmTabWidget) -> None:
         """Insert a new frame at the position specified by the tab.
 
         Args:
@@ -3045,7 +3052,7 @@ class FilmTabWidget:
        - Hover effects for better user experience
     """
 
-    def __init__(self, x: int, y: int, width: int = 20, height: int = 30):
+    def __init__(self, x: int, y: int, width: int = 20, height: int = 30) -> None:
         """Initialize the film tab widget.
 
         Args:
@@ -3178,7 +3185,7 @@ class FilmStripDeleteTab:
        - Hover effects for better user experience
     """
 
-    def __init__(self, x: int, y: int, width: int = 40, height: int = 10):
+    def __init__(self, x: int, y: int, width: int = 40, height: int = 10) -> None:
         """Initialize a horizontal film delete tab widget.
 
         Args:
@@ -3303,7 +3310,7 @@ class FilmStripTab:
        - Hover effects for better user experience
     """
 
-    def __init__(self, x: int, y: int, width: int = 40, height: int = 10):
+    def __init__(self, x: int, y: int, width: int = 40, height: int = 10) -> None:
         """Initialize a horizontal film tab widget.
 
         Args:

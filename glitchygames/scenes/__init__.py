@@ -33,7 +33,7 @@ class SceneManager(SceneInterface, events.EventManager):
     log: ClassVar = LOG
     OPTIONS: ClassVar = {}
 
-    def __new__(cls):
+    def __new__(cls) -> Self:
         """Create a new instance or return the existing singleton instance."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)

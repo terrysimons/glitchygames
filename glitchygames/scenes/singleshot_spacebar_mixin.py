@@ -16,7 +16,7 @@ class SpacebarMixin:
     to define what happens when spacebar is released.
     """
 
-    def __init__(self: Self, *args, **kwargs) -> None:
+    def __init__(self: Self, *args: object, **kwargs: object) -> None:
         """Initialize the spacebar mixin."""
         super().__init__(*args, **kwargs)
         self._space_pressed = False

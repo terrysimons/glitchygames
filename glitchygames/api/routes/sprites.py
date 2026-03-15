@@ -176,21 +176,21 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
                     response.all_frames_png_base64 = render_result.all_frames_png_base64
                     # Convert rendered_frames to API model
                     response.rendered_frames = [
-                            RenderedFrameInfo(
-                                animation_index=rf.animation_index,
-                                frame_index=rf.frame_index,
-                                png_base64=rf.png_base64,
-                            )
-                            for rf in render_result.rendered_frames
-                        ]
-                else:
-                    LOG.warning(f"PNG rendering failed: {render_result.error}")
-                    # Only fail if PNG was the only requested format
-                    if request.output_format == [OUTPUT_FORMAT_PNG]:
-                        return SpriteGenerationResponse(
-                            success=False,
-                            error=f"PNG rendering failed: {render_result.error}",
+                        RenderedFrameInfo(
+                            animation_index=rf.animation_index,
+                            frame_index=rf.frame_index,
+                            png_base64=rf.png_base64,
                         )
+                        for rf in render_result.rendered_frames
+                    ]
+            else:
+                LOG.warning(f"PNG rendering failed: {render_result.error}")
+                # Only fail if PNG was the only requested format
+                if request.output_format == [OUTPUT_FORMAT_PNG]:
+                    return SpriteGenerationResponse(
+                        success=False,
+                        error=f"PNG rendering failed: {render_result.error}",
+                    )
 
         # Save files if output_path is specified
         if request.output_path and result.sprite_name:
@@ -285,21 +285,21 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
                     response.all_frames_png_base64 = render_result.all_frames_png_base64
                     # Convert rendered_frames to API model
                     response.rendered_frames = [
-                            RenderedFrameInfo(
-                                animation_index=rf.animation_index,
-                                frame_index=rf.frame_index,
-                                png_base64=rf.png_base64,
-                            )
-                            for rf in render_result.rendered_frames
-                        ]
-                else:
-                    LOG.warning(f"PNG rendering failed: {render_result.error}")
-                    # Only fail if PNG was the only requested format
-                    if request.output_format == [OUTPUT_FORMAT_PNG]:
-                        return SpriteGenerationResponse(
-                            success=False,
-                            error=f"PNG rendering failed: {render_result.error}",
+                        RenderedFrameInfo(
+                            animation_index=rf.animation_index,
+                            frame_index=rf.frame_index,
+                            png_base64=rf.png_base64,
                         )
+                        for rf in render_result.rendered_frames
+                    ]
+            else:
+                LOG.warning(f"PNG rendering failed: {render_result.error}")
+                # Only fail if PNG was the only requested format
+                if request.output_format == [OUTPUT_FORMAT_PNG]:
+                    return SpriteGenerationResponse(
+                        success=False,
+                        error=f"PNG rendering failed: {render_result.error}",
+                    )
 
         # Save files if output_path is specified
         if request.output_path and result.sprite_name:

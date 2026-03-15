@@ -27,7 +27,7 @@ class TerminalCapability:
 class TerminalDetector:
     """Detects terminal color capabilities."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the terminal detector with empty capability cache."""
         self._capability = None
         self._color_support = None
@@ -92,7 +92,7 @@ class TerminalDetector:
 class ColorMapper:
     """Maps RGB colors to terminal color codes."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the color mapper with terminal detection and caching."""
         self.detector = TerminalDetector()
         self._color_cache: dict[tuple[int, int, int], str] = {}
@@ -243,7 +243,7 @@ class ColorMapper:
             return ""
         return "\033[0m"
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear the color cache."""
         self._color_cache.clear()
         self._capability = None

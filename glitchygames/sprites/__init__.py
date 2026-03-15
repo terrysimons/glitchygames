@@ -1637,7 +1637,7 @@ class Singleton:
 
     __instance__ = None
 
-    def __new__(cls: Any, *args, **kwargs) -> Self:
+    def __new__(cls: Any, *args: object, **kwargs: object) -> Self:
         """Create a new instance of the Singleton.
 
         Args:
@@ -1662,7 +1662,7 @@ class SingletonBitmappySprite(BitmappySprite):
 
     __instance__ = None
 
-    def __new__(cls: Any, *args, **kwargs) -> Self:
+    def __new__(cls: Any, *args: object, **kwargs: object) -> Self:
         """Create a new instance of the SingletonBitmappySprite.
 
         Args:
@@ -1712,7 +1712,7 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
 
     __instance__ = None
 
-    def __new__(cls: Any, *args, **kwargs) -> Self:
+    def __new__(cls: Any, *args: object, **kwargs: object) -> Self:
         """Create a new instance of the FocusableSingletonBitmappySprite.
 
         Args:
@@ -1802,7 +1802,7 @@ class SpriteFactory:
         return AnimatedSprite(filename, groups=None)
 
     @staticmethod
-    def _detect_file_format(filename) -> str:
+    def _detect_file_format(filename: str) -> str:
         """Detect file format based on extension.
 
         Returns:
@@ -1819,7 +1819,7 @@ class SpriteFactory:
         return "unknown"
 
     @staticmethod
-    def _analyze_file(filename) -> dict:
+    def _analyze_file(filename: str) -> dict:
         """Analyze file content to determine sprite type.
 
         Currently only supports TOML format. To add new formats:
@@ -1844,7 +1844,7 @@ class SpriteFactory:
         raise ValueError(f"Unsupported format: {file_format}. Only TOML is currently supported.")
 
     @staticmethod
-    def _analyze_toml_file(filename) -> dict:
+    def _analyze_toml_file(filename: str) -> dict:
         """Analyze TOML file content to determine sprite type.
 
         Returns:
@@ -1892,7 +1892,7 @@ class SpriteFactory:
         }
 
     @staticmethod
-    def _get_toml_data(filename) -> dict:
+    def _get_toml_data(filename: str) -> dict:
         """Get raw TOML data from file.
 
         Returns:

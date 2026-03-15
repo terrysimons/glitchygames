@@ -16,6 +16,7 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Self
 
 import pygame
 
@@ -66,13 +67,13 @@ class MultiControllerManager:
     _instance = None
     _initialized = False
 
-    def __new__(cls):
+    def __new__(cls) -> Self:
         """Ensure only one instance exists (singleton pattern)."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the multi-controller manager (only once)."""
         if self._initialized:
             return
@@ -88,11 +89,11 @@ class MultiControllerManager:
         LOG.debug("MultiControllerManager singleton initialized")
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> Self:
         """Get the singleton instance of MultiControllerManager.
 
         Returns:
-            object: The instance.
+            Self: The instance.
 
         """
         if cls._instance is None:
@@ -381,7 +382,7 @@ class MultiControllerManager:
                     self.controllers[instance_id].controller_id,
                 )
 
-    def get_controller_status_summary(self) -> dict[str, any]:
+    def get_controller_status_summary(self) -> dict[str, Any]:
         """Get a summary of all controller statuses.
 
         Returns:

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AnimationScene(Scene):
     """Scene for displaying animated sprites."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the animation scene.
 
         Raises:
@@ -50,7 +50,7 @@ class AnimationScene(Scene):
             logger.exception("Failed to load animation")
             raise
 
-    def update(self, dt=None):
+    def update(self, dt: float | None = None) -> None:
         """Update the scene."""
         super().update()
 
@@ -59,7 +59,7 @@ class AnimationScene(Scene):
             # Default to ~60fps if no dt provided
             self.animated_sprite.update(dt or 0.016)
 
-    def handle_event(self, event):
+    def handle_event(self, event: pygame.event.Event) -> str | None:
         """Handle scene events.
 
         Returns:
@@ -84,7 +84,7 @@ class AnimationScene(Scene):
         return None
 
 
-def main():
+def main() -> None:
     """Run the animation scene demo.
 
     Returns:

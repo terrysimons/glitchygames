@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import secrets
 import time
@@ -670,11 +671,11 @@ class BallSprite(Sprite):
         # Enhanced boundary checking with proper physics
         self._handle_boundary_collisions(log)
 
-    def _handle_boundary_collisions(self: Self, log) -> None:
+    def _handle_boundary_collisions(self: Self, log: logging.Logger) -> None:
         """Handle boundary collisions with enhanced physics.
 
         Args:
-            log: Logger instance for debug output
+            log (logging.Logger): Logger instance for debug output
 
         """
         # Track if any collision occurred for corner detection
@@ -704,11 +705,11 @@ class BallSprite(Sprite):
         if collision_occurred:
             self._handle_corner_collision(log)
 
-    def _handle_top_collision(self: Self, log) -> None:
+    def _handle_top_collision(self: Self, log: logging.Logger) -> None:
         """Handle collision with top boundary with realistic physics.
 
         Args:
-            log: Logger instance for debug output
+            log (logging.Logger): Logger instance for debug output
 
         """
         if hasattr(self, "snd") and self.snd is not None:
@@ -732,11 +733,11 @@ class BallSprite(Sprite):
         log.debug(f"BALL BOUNCE: TOP EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})")
         self._check_bounce_speed_up("wall")
 
-    def _handle_bottom_collision(self: Self, log) -> None:
+    def _handle_bottom_collision(self: Self, log: logging.Logger) -> None:
         """Handle collision with bottom boundary with realistic physics.
 
         Args:
-            log: Logger instance for debug output
+            log (logging.Logger): Logger instance for debug output
 
         """
         if hasattr(self, "snd") and self.snd is not None:
@@ -762,11 +763,11 @@ class BallSprite(Sprite):
         log.debug(f"BALL BOUNCE: BOTTOM EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})")
         self._check_bounce_speed_up("wall")
 
-    def _handle_left_collision(self: Self, log) -> None:
+    def _handle_left_collision(self: Self, log: logging.Logger) -> None:
         """Handle collision with left boundary with realistic physics.
 
         Args:
-            log: Logger instance for debug output
+            log (logging.Logger): Logger instance for debug output
 
         """
         if hasattr(self, "snd") and self.snd is not None:
@@ -790,11 +791,11 @@ class BallSprite(Sprite):
         log.debug(f"BALL BOUNCE: LEFT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})")
         self._check_bounce_speed_up("wall")
 
-    def _handle_right_collision(self: Self, log) -> None:
+    def _handle_right_collision(self: Self, log: logging.Logger) -> None:
         """Handle collision with right boundary with realistic physics.
 
         Args:
-            log: Logger instance for debug output
+            log (logging.Logger): Logger instance for debug output
 
         """
         if hasattr(self, "snd") and self.snd is not None:
@@ -818,11 +819,11 @@ class BallSprite(Sprite):
         log.debug(f"BALL BOUNCE: RIGHT EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})")
         self._check_bounce_speed_up("wall")
 
-    def _handle_corner_collision(self: Self, log) -> None:
+    def _handle_corner_collision(self: Self, log: logging.Logger) -> None:
         """Handle corner collisions with enhanced physics and visual feedback.
 
         Args:
-            log: Logger instance for debug output
+            log (logging.Logger): Logger instance for debug output
 
         """
         # Check if ball is in a corner position - include boundary contact
@@ -869,12 +870,14 @@ class BallSprite(Sprite):
                 self.rect.x = self.screen_width - self.width - 1
                 self.rect.y = self.screen_height - self.height - 1
 
-    def _add_collision_visual_feedback(self: Self, collision_type: str, log) -> None:
+    def _add_collision_visual_feedback(
+        self: Self, collision_type: str, log: logging.Logger
+    ) -> None:
         """Add visual feedback for collision points and bounce directions.
 
         Args:
-            collision_type: Type of collision ("top", "bottom", "left", "right", "corner")
-            log: Logger instance for debug output
+            collision_type (str): Type of collision ("top", "bottom", "left", "right", "corner")
+            log (logging.Logger): Logger instance for debug output
 
         """
         # Visual feedback implementation
@@ -922,11 +925,11 @@ class BallSprite(Sprite):
                 # Ball is overlapping with paddle - adjust position to prevent clipping
                 self._adjust_position_for_paddle_collision(paddle)
 
-    def _adjust_position_for_paddle_collision(self: Self, paddle) -> None:
+    def _adjust_position_for_paddle_collision(self: Self, paddle: Sprite) -> None:
         """Adjust ball position to prevent clipping through paddle and make it bounce.
 
         Args:
-            paddle: The paddle sprite that the ball is colliding with
+            paddle (Sprite): The paddle sprite that the ball is colliding with
 
         """
         # Determine which side of the paddle the ball is on

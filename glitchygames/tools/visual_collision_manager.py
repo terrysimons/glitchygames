@@ -79,7 +79,7 @@ class VisualCollisionManager:
         (0, 25),  # Far bottom
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the visual collision manager."""
         # Location-specific indicator tracking
         self.indicators: dict[int, VisualIndicator] = {}

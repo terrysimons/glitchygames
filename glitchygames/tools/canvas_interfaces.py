@@ -4,15 +4,20 @@ This module defines the abstract interfaces that allow the bitmap editor to work
 with both static BitmappySprites and animated sprites through a unified API.
 """
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import pygame
 
 # Import the default file format constant
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
+
+if TYPE_CHECKING:
+    from glitchygames.sprites import BitmappySprite
 
 LOG = logging.getLogger("game.tools.canvas_interfaces")
 LOG.addHandler(logging.NullHandler())
@@ -54,7 +59,7 @@ class SpriteSerializer(ABC):
     """Abstract base class for sprite serialization."""
 
     @abstractmethod
-    def save(self, sprite: Any, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
+    def save(self, sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Save a sprite to a file.
 
         Args:
@@ -65,7 +70,7 @@ class SpriteSerializer(ABC):
         """
 
     @abstractmethod
-    def load(self, filename: str) -> Any:
+    def load(self, filename: str) -> BitmappySprite | None:
         """Load a sprite from a file.
 
         Args:
@@ -81,7 +86,7 @@ class CanvasRenderer(ABC):
     """Abstract base class for canvas rendering."""
 
     @abstractmethod
-    def render(self, sprite: Any) -> pygame.Surface:
+    def render(self, sprite: BitmappySprite) -> pygame.Surface:
         """Render a sprite to a surface.
 
         Args:
@@ -93,7 +98,7 @@ class CanvasRenderer(ABC):
         """
 
     @abstractmethod
-    def force_redraw(self, sprite: Any) -> pygame.Surface:
+    def force_redraw(self, sprite: BitmappySprite) -> pygame.Surface:
         """Force a complete redraw of the sprite.
 
         Args:
@@ -117,7 +122,7 @@ class CanvasRenderer(ABC):
 class StaticCanvasInterface:
     """Canvas interface implementation for static BitmappySprites."""
 
-    def __init__(self, canvas_sprite):
+    def __init__(self, canvas_sprite: BitmappySprite) -> None:
         """Initialize with a CanvasSprite instance."""
         self.canvas_sprite = canvas_sprite
 
@@ -187,12 +192,12 @@ class StaticSpriteSerializer(SpriteSerializer):
     """Serializer for static BitmappySprites."""
 
     @staticmethod
-    def save(sprite: Any, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
+    def save(sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Save a static sprite to a file."""
         # Delegate to the sprite's save method
         sprite.save(filename, file_format)
 
-    def load(self, filename: str) -> Any:
+    def load(self, filename: str) -> BitmappySprite | None:
         """Load a static sprite from a file."""
         # This will be handled by the CanvasSprite's load method
         # which maintains the existing event callback structure
@@ -201,7 +206,7 @@ class StaticSpriteSerializer(SpriteSerializer):
 class AnimatedCanvasInterface:
     """Canvas interface implementation for animated sprites."""
 
-    def __init__(self, canvas_sprite):
+    def __init__(self, canvas_sprite: BitmappySprite) -> None:
         """Initialize with a CanvasSprite instance."""
         self.canvas_sprite = canvas_sprite
         # Set initial animation using sprite introspection
@@ -464,7 +469,7 @@ class AnimatedCanvasInterface:
                             pass
 
                         class MockTrigger:
-                            def __init__(self, pixel_num, color):
+                            def __init__(self, pixel_num: int, color: tuple[int, int, int]) -> None:
                                 self.pixel_number = pixel_num
                                 self.pixel_color = color
 
@@ -510,12 +515,12 @@ class AnimatedSpriteSerializer(SpriteSerializer):
     """Serializer for animated sprites."""
 
     @staticmethod
-    def save(sprite: Any, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
+    def save(sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
         """Save an animated sprite to a file."""
         # Delegate to the sprite's save method
         sprite.save(filename, file_format)
 
-    def load(self, filename: str) -> Any:
+    def load(self, filename: str) -> BitmappySprite | None:
         """Load an animated sprite from a file."""
         # This will be handled by the CanvasSprite's load method
         # which maintains the existing event callback structure
@@ -524,11 +529,11 @@ class AnimatedSpriteSerializer(SpriteSerializer):
 class AnimatedCanvasRenderer(CanvasRenderer):
     """Renderer for animated sprites."""
 
-    def __init__(self, canvas_sprite):
+    def __init__(self, canvas_sprite: BitmappySprite) -> None:
         """Initialize with a CanvasSprite instance."""
         self.canvas_sprite = canvas_sprite
 
-    def render(self, sprite: Any) -> pygame.Surface:
+    def render(self, sprite: BitmappySprite) -> pygame.Surface:
         """Render an animated sprite to a surface.
 
         Returns:
@@ -538,7 +543,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         # Use the force_redraw method to avoid recursion
         return self.force_redraw(sprite)
 
-    def force_redraw(self, sprite: Any) -> pygame.Surface:
+    def force_redraw(self, sprite: BitmappySprite) -> pygame.Surface:
         """Force a complete redraw of the animated sprite.
 
         Returns:

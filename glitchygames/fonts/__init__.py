@@ -309,7 +309,7 @@ class FontManager(ResourceManager):
             return cls.pygame_font(font_config)
 
     @classmethod
-    def set_font_system(cls, font_system: Literal["pygame", "freetype"]):
+    def set_font_system(cls, font_system: Literal["pygame", "freetype"]) -> None:
         """Set the default font system preference.
 
         Args:

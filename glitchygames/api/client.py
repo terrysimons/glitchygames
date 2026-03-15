@@ -532,7 +532,7 @@ def save_files_locally(
     return saved_files
 
 
-def _handle_extract_frames(parsed_args) -> int:
+def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
     """Handle the --extract-frames command.
 
     Args:

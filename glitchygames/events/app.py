@@ -55,7 +55,7 @@ class AppEventManager(ResourceManager):
             if hasattr(self.game, "on_app_terminating_event"):
                 self.game.on_app_terminating_event(event)
 
-    def __init__(self, game: object):
+    def __init__(self, game: object) -> None:
         """Initialize app manager.
 
         Args:

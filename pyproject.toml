@@ -154,9 +154,6 @@ lint.ignore = [
   "TRY300", # Consider moving this statement to an `else` block
   "PLR6301", # Method could be a function/staticmethod
 
-  # --- Type annotations (pyright handles type checking) ---
-  "ANN", # All annotation rules — pyright is authoritative
-
   # --- Code complexity (game logic is inherently complex) ---
   "PLR1702", # too-many-nested-blocks
   "PLR0912", # too-many-branches
@@ -274,8 +271,8 @@ lint.unfixable = []
 target-version = "py313"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004"]
-"glitchygames/tests/**/*.py" = ["PLR2004"]
+"tests/**/*.py" = ["PLR2004", "ANN"]
+"glitchygames/tests/**/*.py" = ["PLR2004", "ANN"]
 
 [tool.ruff.format]
 docstring-code-format = true

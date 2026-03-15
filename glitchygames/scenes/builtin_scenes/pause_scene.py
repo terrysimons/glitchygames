@@ -13,12 +13,12 @@ from .. import Scene
 class PauseOverlay(Sprite):
     """Semi-transparent overlay for pause screen."""
 
-    def __init__(self: Self, game, screenshot: pygame.Surface) -> None:
+    def __init__(self: Self, game: Scene, screenshot: pygame.Surface) -> None:
         """Initialize the pause overlay.
 
         Args:
-            game: The game instance
-            screenshot: Screenshot of the game when paused
+            game (Scene): The game instance
+            screenshot (pygame.Surface): Screenshot of the game when paused
 
         """
         # Initialize the sprite with the screenshot dimensions
@@ -49,7 +49,7 @@ class PauseOverlay(Sprite):
 class PauseScene(Scene):
     """Pause scene that shows a semi-transparent overlay over the game."""
 
-    def __init__(self: Self, **kwargs) -> None:
+    def __init__(self: Self, **kwargs: object) -> None:
         """Initialize the pause scene.
 
         Args:

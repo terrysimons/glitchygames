@@ -871,43 +871,43 @@ class TextSprite(BitmappySprite):
         self.update_text(text)
 
     @property
-    def x(self):
+    def x(self) -> int:
         """Get the x position."""
         return self._x
 
     @x.setter
-    def x(self, value):
+    def x(self, value: int) -> None:
         """Set the x position."""
         self._x = value
         self.rect.x = value
         self.dirty = 2
 
     @property
-    def y(self):
+    def y(self) -> int:
         """Get the y position."""
         return self._y
 
     @y.setter
-    def y(self, value):
+    def y(self, value: int) -> None:
         """Set the y position."""
         self._y = value
         self.rect.y = value
         self.dirty = 2
 
     @property
-    def text(self):
+    def text(self) -> str:
         """Get the text content."""
         return self._text
 
     @text.setter
-    def text(self, value):
+    def text(self, value: str) -> None:
         """Set the text content."""
         if value != self._text:  # Only update if text has changed
             self._text = str(value)
             self.update_text(self._text)
             self.dirty = 2
 
-    def update(self):
+    def update(self) -> None:
         """Update the sprite."""
         # Handle cursor blinking for active text boxes
         if hasattr(self, "active") and self.active:
@@ -929,7 +929,7 @@ class TextSprite(BitmappySprite):
         if self.dirty:
             self.update_text(self._text)
 
-    def update_text(self, text):
+    def update_text(self, text: str) -> None:
         """Update the text surface."""
         # Check if background is transparent (alpha = 0)
         rgba_length = 4
@@ -1015,7 +1015,7 @@ class TextSprite(BitmappySprite):
         if hasattr(self, "active") and self.active:
             self._draw_cursor(text_rect, font)
 
-    def _draw_cursor(self, text_rect, font):
+    def _draw_cursor(self, text_rect: pygame.Rect, font: pygame.font.Font) -> None:
         """Draw a blinking cursor at the end of the text."""
         if self._cursor_visible:
             try:
@@ -1725,7 +1725,7 @@ class SliderSprite(BitmappySprite):
         self.original_value = self._value
 
         # Add keyboard event handling for text input
-        def handle_text_input(event):
+        def handle_text_input(event: pygame.event.Event) -> None:
             if self.text_sprite.active:
                 if event.key == pygame.K_RETURN:
                     # Handle Enter key
@@ -1806,7 +1806,7 @@ class SliderSprite(BitmappySprite):
         self.text_sprite.on_key_down_event = handle_text_input
 
         # Add mouse click handling to activate text editing
-        def handle_text_click(event):
+        def handle_text_click(event: pygame.event.Event) -> bool:
             if self.text_sprite.rect.collidepoint(event.pos):
                 # Store current value as original for restoration
                 self.original_value = self._value
@@ -1850,12 +1850,12 @@ class SliderSprite(BitmappySprite):
         self.log.info(f"Finished initializing slider {name}, final parent is {self.parent}")
 
     @property
-    def value(self):
+    def value(self) -> int:
         """Get the slider value."""
         return self._value
 
     @value.setter
-    def value(self, new_value):
+    def value(self, new_value: int) -> None:
         """Set the slider value."""
         if hasattr(self, "slider_knob"):  # Only update knob if it exists
             self._value = max(0, min(255, new_value))
@@ -1867,7 +1867,7 @@ class SliderSprite(BitmappySprite):
                 self.text_sprite.text = str(self._value)
                 self.text_sprite.update_text(self.text_sprite.text)
 
-    def update_slider_appearance(self):
+    def update_slider_appearance(self) -> None:
         """Update the slider's gradient appearance based on its color."""
         for x in range(self.width):
             intensity = int((x / self.width) * 255)
@@ -1884,7 +1884,7 @@ class SliderSprite(BitmappySprite):
         # Draw visual indicators for multi-controller system
         self._draw_slider_visual_indicators()
 
-    def _draw_slider_visual_indicators(self):
+    def _draw_slider_visual_indicators(self) -> None:
         """Draw visual indicators for multi-controller system on sliders."""
         if not hasattr(self, "parent") or not self.parent:
             return
@@ -2023,7 +2023,7 @@ class SliderSprite(BitmappySprite):
     #     self.slider_knob.update()
     #     self.text_sprite.update()
 
-    def update_color_well(self):
+    def update_color_well(self) -> None:
         """Update the color well with current value."""
         if hasattr(self.parent, "color_well"):
             if self.name == "R":
@@ -2042,7 +2042,7 @@ class SliderSprite(BitmappySprite):
                 self.parent.alpha_slider.value,
             )
 
-    def on_left_mouse_button_down_event(self, event):
+    def on_left_mouse_button_down_event(self, event: pygame.event.Event) -> None:
         """Handle left mouse button down event."""
         self.log.info(f"Slider {self.name} mouse down event at {event.pos}, rect: {self.rect}")
         if self.rect.collidepoint(event.pos):
@@ -2077,12 +2077,12 @@ class SliderSprite(BitmappySprite):
         else:
             self.log.info(f"Mouse click not on slider {self.name} rect")
 
-    def on_left_mouse_button_up_event(self, event):
+    def on_left_mouse_button_up_event(self, event: pygame.event.Event) -> None:
         """Handle left mouse button up event."""
         self.log.info(f"Slider {self.name} mouse up event")
         self.dragging = False
 
-    def on_mouse_motion_event(self, event):
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
         """Handle mouse motion event."""
         if self.dragging:
             self.log.info(f"Dragging slider {self.name}")
@@ -2113,7 +2113,7 @@ class SliderSprite(BitmappySprite):
             self.text_sprite.update_text(self.text_sprite.text)
             self.text_sprite.dirty = 2  # Force redraw
 
-    def update(self):
+    def update(self) -> None:
         """Update the slider."""
         if self.dirty:
             self.update_slider_appearance()
@@ -2610,7 +2610,7 @@ class Scrollbar:
         total_items: int,
         visible_items: int,
         scroll_offset: float = 0,
-    ):
+    ) -> None:
         """Initialize the scrollbar.
 
         Args:
@@ -2679,7 +2679,7 @@ class Scrollbar:
         """
         return pygame.Rect(self.x, self.thumb_y, self.width, self.thumb_height)
 
-    def update(self, total_items: int, visible_items: int, scroll_offset: float):
+    def update(self, total_items: int, visible_items: int, scroll_offset: float) -> None:
         """Update scrollbar state.
 
         Args:
@@ -2776,7 +2776,7 @@ class Scrollbar:
 
         return False
 
-    def draw(self, surface: pygame.Surface):
+    def draw(self, surface: pygame.Surface) -> None:
         """Draw the scrollbar on the given surface.
 
         Args:
@@ -3580,14 +3580,14 @@ class ConfirmDialog(BitmappySprite):
     def __init__(
         self,
         text: str,
-        confirm_callback,
-        cancel_callback,
-        x=0,
-        y=0,
-        width=300,
-        height=100,
-        groups=None,
-    ):
+        confirm_callback: Callable[[], None] | None,
+        cancel_callback: Callable[[], None] | None,
+        x: int = 0,
+        y: int = 0,
+        width: int = 300,
+        height: int = 100,
+        groups: pygame.sprite.LayeredDirty | None = None,
+    ) -> None:
         """Initialize the confirmation dialog.
 
         Args:
@@ -3629,7 +3629,7 @@ class ConfirmDialog(BitmappySprite):
 
         self.dirty = 2
 
-    def update(self, *args, **kwargs):
+    def update(self, *args: object, **kwargs: object) -> None:
         """Update the dialog."""
         # Check mouse position for hover effects
         mouse_pos = pygame.mouse.get_pos()
@@ -3651,7 +3651,7 @@ class ConfirmDialog(BitmappySprite):
         if self.dirty:
             self.render()
 
-    def render(self):
+    def render(self) -> None:
         """Render the confirmation dialog."""
         # Draw semi-transparent background
         self.image.fill((40, 40, 40))
@@ -3699,7 +3699,7 @@ class ConfirmDialog(BitmappySprite):
 
         self.dirty = 0
 
-    def handle_mouse_down(self, pos):
+    def handle_mouse_down(self, pos: tuple[int, int]) -> bool:
         """Handle mouse down events.
 
         Args:

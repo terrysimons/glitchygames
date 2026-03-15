@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Self
 
@@ -458,11 +459,11 @@ class DeleteAnimationDialogScene(Scene):
         self,
         previous_scene: Scene,
         animation_name: str,
-        on_confirm_callback,
-        on_cancel_callback=None,
+        on_confirm_callback: Callable[[], None],
+        on_cancel_callback: Callable[[], None] | None = None,
         options: dict | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
-    ):
+    ) -> None:
         """Initialize the Delete Animation Dialog Scene.
 
         Args:
@@ -504,7 +505,7 @@ class DeleteAnimationDialogScene(Scene):
         self.dialog.dialog_text_sprite.text_box.text = message
         self.dialog.dialog_text_sprite.border_width = 0
 
-    def setup(self):
+    def setup(self) -> None:
         """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
             "on_left_mouse_button_up_event": self.on_cancel_event
@@ -516,7 +517,7 @@ class DeleteAnimationDialogScene(Scene):
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: pygame.event.Event, trigger: object = None):
+    def on_confirm_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -537,7 +538,7 @@ class DeleteAnimationDialogScene(Scene):
             # Clear the input box to let user try again
             self.dialog.input_box.text = ""
 
-    def on_cancel_event(self, event: pygame.event.Event, trigger: object = None):
+    def on_cancel_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle cancel button click."""
         LOG.info("DeleteAnimationDialog: User cancelled")
         # Call the cancel callback if provided
@@ -574,11 +575,11 @@ class DeleteFrameDialogScene(Scene):
         previous_scene: Scene,
         animation_name: str,
         frame_index: int,
-        on_confirm_callback,
-        on_cancel_callback=None,
+        on_confirm_callback: Callable[[], None],
+        on_cancel_callback: Callable[[], None] | None = None,
         options: dict | None = None,
         groups: pygame.sprite.LayeredDirty | None = None,
-    ):
+    ) -> None:
         """Initialize the Delete Frame Dialog Scene.
 
         Args:
@@ -637,7 +638,7 @@ class DeleteFrameDialogScene(Scene):
         self.second_label.border_width = 0
         self.second_label.background_color = self.dialog.dialog_text_sprite.background_color
 
-    def setup(self):
+    def setup(self) -> None:
         """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
             "on_left_mouse_button_up_event": self.on_cancel_event
@@ -649,7 +650,7 @@ class DeleteFrameDialogScene(Scene):
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: pygame.event.Event, trigger: object = None):
+    def on_confirm_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -669,7 +670,7 @@ class DeleteFrameDialogScene(Scene):
             # Clear the input box to let user try again
             self.dialog.input_box.text = ""
 
-    def on_cancel_event(self, event: pygame.event.Event, trigger: object = None):
+    def on_cancel_event(self, event: pygame.event.Event, trigger: object = None) -> None:
         """Handle cancel button click."""
         LOG.info("DeleteFrameDialog: User cancelled")
         # Call the cancel callback if provided

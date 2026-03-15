@@ -89,11 +89,11 @@ for i in range(5):
 
 
 # Convert RGB colors to hex
-def rgb_to_hex(rgb):
+def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     """Convert RGB tuple to hex color string.
 
     Returns:
-        object: The result.
+        str: The hex color string.
 
     """
     return "#{:02x}{:02x}{:02x}".format(*rgb)

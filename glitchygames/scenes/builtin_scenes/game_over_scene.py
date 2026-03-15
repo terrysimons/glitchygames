@@ -14,7 +14,7 @@ log = logging.getLogger("game")
 class GameOverScene(Scene):
     """Game Over scene that displays when all balls are dead."""
 
-    def __init__(self: Self, **kwargs) -> None:
+    def __init__(self: Self, **kwargs: object) -> None:
         """Initialize the Game Over scene.
 
         Args:
@@ -67,11 +67,11 @@ class GameOverScene(Scene):
         super().update()
         log.debug("GameOverScene update() called")
 
-    def on_key_down_event(self: Self, event) -> None:
+    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key down events for the Game Over scene.
 
         Args:
-            event: The key down event.
+            event (pygame.event.Event): The key down event.
 
         """
         if event.key == pygame.K_SPACE:
@@ -84,11 +84,11 @@ class GameOverScene(Scene):
             # Let the base Scene class handle other keys (like 'q' for quit)
             super().on_key_down_event(event)
 
-    def on_key_up_event(self: Self, event) -> None:
+    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key up events for the Game Over scene.
 
         Args:
-            event: The key up event.
+            event (pygame.event.Event): The key up event.
 
         """
         if event.key == pygame.K_SPACE and self._space_pressed:
@@ -129,7 +129,7 @@ class TextSprite(Sprite):
         position: tuple[int, int],
         color: tuple[int, int, int] = (255, 255, 255),
         font_size: int = 24,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         """Initialize the text sprite.
 

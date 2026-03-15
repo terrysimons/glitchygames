@@ -30,12 +30,12 @@ class MidiEventManager(ResourceManager):
             self.game = game
             self.proxies = [self.game]
 
-        def on_midi_in_event(self: Self, event) -> None:
+        def on_midi_in_event(self: Self, event: pygame.event.Event) -> None:
             """Forward MIDI input events to the game object."""
             if hasattr(self.game, "on_midi_in_event"):
                 self.game.on_midi_in_event(event)
 
-        def on_midi_out_event(self: Self, event) -> None:
+        def on_midi_out_event(self: Self, event: pygame.event.Event) -> None:
             """Forward MIDI output events to the game object."""
             if hasattr(self.game, "on_midi_out_event"):
                 self.game.on_midi_out_event(event)

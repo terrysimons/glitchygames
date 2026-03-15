@@ -19,7 +19,7 @@ class OnionSkinningManager:
     methods to toggle onion skinning on/off for individual frames.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the onion skinning manager."""
         # Track onion skinning state per animation and frame
         # Format: {animation_name: {frame_index: bool}}

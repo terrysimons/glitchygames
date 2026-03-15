@@ -52,7 +52,7 @@ class SpriteGenerationService:
     building prompts, validating responses, and extracting sprite metadata.
     """
 
-    def __init__(self, config: ServiceConfig | None = None):
+    def __init__(self, config: ServiceConfig | None = None) -> None:
         """Initialize the sprite generation service.
 
         Args:
@@ -63,7 +63,7 @@ class SpriteGenerationService:
         self._client = None
         self._ai_module = None
 
-    def _ensure_client(self) -> Any:
+    def _ensure_client(self) -> object:
         """Lazily initialize the AI client.
 
         Returns:

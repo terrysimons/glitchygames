@@ -10,7 +10,7 @@ class AIProviderError(SpriteServiceError):
 
     def __init__(
         self, message: str, provider: str | None = None, original_error: Exception | None = None
-    ):
+    ) -> None:
         """Initialize AIProviderError.
 
         Args:
@@ -27,7 +27,7 @@ class AIProviderError(SpriteServiceError):
 class ValidationError(SpriteServiceError):
     """Error validating sprite data or AI response."""
 
-    def __init__(self, message: str, validation_errors: list[str] | None = None):
+    def __init__(self, message: str, validation_errors: list[str] | None = None) -> None:
         """Initialize ValidationError.
 
         Args:
@@ -44,7 +44,7 @@ class RenderingError(SpriteServiceError):
 
     def __init__(
         self, message: str, sprite_name: str | None = None, original_error: Exception | None = None
-    ):
+    ) -> None:
         """Initialize RenderingError.
 
         Args:

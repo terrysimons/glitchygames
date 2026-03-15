@@ -12,6 +12,10 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
+from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.tools.multi_controller_manager import MultiControllerManager
+from glitchygames.tools.visual_collision_manager import VisualCollisionManager
+
 LOG = logging.getLogger("game.tools.multi_controller_performance")
 
 
@@ -30,7 +34,7 @@ class PerformanceMetrics:
 class PerformanceMonitor:
     """Performance monitoring for multi-controller system."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize performance monitor."""
         self.metrics: dict[str, PerformanceMetrics] = {}
         self.operation_history: dict[str, deque] = {}
@@ -104,7 +108,7 @@ class PerformanceMonitor:
 class CachedPositionManager:
     """Cached position management for visual indicators."""
 
-    def __init__(self, cache_size: int = 1000):
+    def __init__(self, cache_size: int = 1000) -> None:
         """Initialize cached position manager.
 
         Args:
@@ -194,13 +198,13 @@ class CachedPositionManager:
 class MemoryManager:
     """Memory management for multi-controller system."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize memory manager."""
         self.weak_refs: dict[int, weakref.ref] = {}
         self.memory_usage: dict[str, int] = {}
         self.cleanup_threshold = 1000  # Cleanup when this many objects exist
 
-    def register_object(self, obj_id: int, obj: Any) -> None:
+    def register_object(self, obj_id: int, obj: object) -> None:
         """Register an object for memory management.
 
         Args:
@@ -247,7 +251,7 @@ class MemoryManager:
 class OptimizedVisualCollisionManager:
     """Optimized visual collision manager with performance improvements."""
 
-    def __init__(self, base_manager):
+    def __init__(self, base_manager: VisualCollisionManager) -> None:
         """Initialize optimized visual collision manager.
 
         Args:
@@ -390,7 +394,12 @@ class OptimizedVisualCollisionManager:
 class MultiControllerPerformanceOptimizer:
     """Main performance optimizer for multi-controller system."""
 
-    def __init__(self, manager, visual_manager, controller_selections):
+    def __init__(
+        self,
+        manager: MultiControllerManager,
+        visual_manager: VisualCollisionManager,
+        controller_selections: dict[int, ControllerSelection],
+    ) -> None:
         """Initialize performance optimizer.
 
         Args:

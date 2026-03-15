@@ -7,6 +7,8 @@ API with the miniaudio backend.
 
 from __future__ import annotations
 
+import types
+
 try:
     import speech_recognition as sr
 except Exception as exc:  # pragma: no cover - optional
@@ -16,7 +18,7 @@ except Exception as exc:  # pragma: no cover - optional
 class PortAudioMicrophone(sr.AudioSource):  # type: ignore[misc]
     """PortAudio-based microphone wrapping speech_recognition.Microphone."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: object, **kwargs: object) -> None:
         """Initialize the PortAudio microphone wrapper."""
         self._inner = sr.Microphone(*args, **kwargs)
         # Attributes will be populated in __enter__ via the inner source
@@ -42,7 +44,7 @@ class PortAudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         self.SAMPLE_WIDTH = source.SAMPLE_WIDTH
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool | None:
+    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: types.TracebackType | None) -> bool | None:
         """Exit the context manager, closing the inner microphone stream.
 
         Returns:

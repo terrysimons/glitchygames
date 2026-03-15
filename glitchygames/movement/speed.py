@@ -67,7 +67,7 @@ class Speed:
         self.y *= scalar
         return self
 
-    def __radd__(self: Self, other) -> int:
+    def __radd__(self: Self, other: Speed | float) -> int:
         """Add another value to Speed (right addition).
 
         Args:
@@ -90,7 +90,7 @@ class Speed:
         """
         return Speed(-self.x, -self.y, self.increment)
 
-    def __sub__(self: Self, other) -> Speed:
+    def __sub__(self: Self, other: Speed | float) -> Speed:
         """Subtract another Speed object or scalar from this Speed.
 
         Args:
@@ -106,7 +106,7 @@ class Speed:
             return Speed(self.x - other, self.y - other, self.increment)
         return NotImplemented
 
-    def __mul__(self: Self, other) -> Speed:
+    def __mul__(self: Self, other: float) -> Speed:
         """Multiply this Speed by a scalar value.
 
         Args:
@@ -120,7 +120,7 @@ class Speed:
             return Speed(self.x * other, self.y * other, self.increment)
         return NotImplemented
 
-    def __add__(self: Self, other) -> Speed:
+    def __add__(self: Self, other: Speed | float) -> Speed:
         """Add another Speed object or scalar to this Speed.
 
         Args:
@@ -136,7 +136,7 @@ class Speed:
             return Speed(self.x + other, self.y + other, self.increment)
         return NotImplemented
 
-    def __truediv__(self: Self, other) -> Speed:
+    def __truediv__(self: Self, other: float) -> Speed:
         """Divide this Speed by a scalar value.
 
         Args:
@@ -155,7 +155,7 @@ class Speed:
             return Speed(self.x / other, self.y / other, self.increment)
         return NotImplemented
 
-    def __mod__(self: Self, other) -> Speed:
+    def __mod__(self: Self, other: float) -> Speed:
         """Modulo this Speed by a scalar value.
 
         Args:

@@ -46,7 +46,7 @@ class ErrorInfo:
 class MultiControllerErrorHandler:
     """Enhanced error handling for multi-controller system."""
 
-    def __init__(self, log_level: int = logging.INFO):
+    def __init__(self, log_level: int = logging.INFO) -> None:
         """Initialize error handler.
 
         Args:
@@ -378,7 +378,7 @@ class MultiControllerConfig:
 class MultiControllerLogger:
     """Enhanced logging for multi-controller system."""
 
-    def __init__(self, config: MultiControllerConfig):
+    def __init__(self, config: MultiControllerConfig) -> None:
         """Initialize logger.
 
         Args:
@@ -441,7 +441,7 @@ class MultiControllerLogger:
 class MultiControllerValidator:
     """Validation for multi-controller system."""
 
-    def __init__(self, config: MultiControllerConfig):
+    def __init__(self, config: MultiControllerConfig) -> None:
         """Initialize validator.
 
         Args:

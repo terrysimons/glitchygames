@@ -10,7 +10,7 @@ import hashlib
 import logging
 from collections import Counter
 from pathlib import Path
-from typing import Self
+from typing import IO, Self
 
 import pygame
 import toml
@@ -152,36 +152,36 @@ def _convert_pixels_to_rgba_if_needed(
 class FrameManager:
     """Centralized frame state management for animation system."""
 
-    def __init__(self, animated_sprite):
+    def __init__(self, animated_sprite: "AnimatedSprite") -> None:
         """Initialize with reference to the animated sprite."""
         self.animated_sprite = animated_sprite
         self._current_animation = ""
         self._current_frame = 0
         self._observers = []  # Components that need to be notified of frame changes
 
-    def add_observer(self, observer):
+    def add_observer(self, observer: object) -> None:
         """Add an observer that will be notified of frame changes."""
         if observer not in self._observers:
             self._observers.append(observer)
 
-    def remove_observer(self, observer):
+    def remove_observer(self, observer: object) -> None:
         """Remove an observer."""
         if observer in self._observers:
             self._observers.remove(observer)
 
-    def notify_observers(self, change_type, old_value, new_value):
+    def notify_observers(self, change_type: str, old_value: str | int, new_value: str | int) -> None:
         """Notify all observers of a frame change."""
         for observer in self._observers:
             if hasattr(observer, "on_frame_change"):
                 observer.on_frame_change(change_type, old_value, new_value)
 
     @property
-    def current_animation(self):
+    def current_animation(self) -> str:
         """Get the current animation name."""
         return self._current_animation
 
     @current_animation.setter
-    def current_animation(self, value):
+    def current_animation(self, value: str) -> None:
         """Set the current animation and notify observers."""
         if value != self._current_animation:
             old_value = self._current_animation
@@ -190,23 +190,23 @@ class FrameManager:
             self.notify_observers("animation", old_value, value)
 
     @property
-    def current_frame(self):
+    def current_frame(self) -> int:
         """Get the current frame index."""
         return self._current_frame
 
     @current_frame.setter
-    def current_frame(self, value):
+    def current_frame(self, value: int) -> None:
         """Set the current frame and notify observers."""
         if value != self._current_frame:
             old_value = self._current_frame
             self._current_frame = value
             self.notify_observers("frame", old_value, value)
 
-    def set_frame(self, frame_index):
+    def set_frame(self, frame_index: int) -> bool:
         """Set the current frame with bounds checking.
 
         Returns:
-            object: The result.
+            bool: True if the frame was set successfully, False otherwise.
 
         """
         if self._current_animation in self.animated_sprite._animations:
@@ -216,11 +216,11 @@ class FrameManager:
                 return True
         return False
 
-    def set_animation(self, animation_name):
+    def set_animation(self, animation_name: str) -> bool:
         """Set the current animation with validation.
 
         Returns:
-            object: The result.
+            bool: True if the animation was set successfully, False otherwise.
 
         """
         if animation_name in self.animated_sprite._animations:
@@ -228,11 +228,11 @@ class FrameManager:
             return True
         return False
 
-    def get_frame_data(self):
+    def get_frame_data(self) -> object | None:
         """Get the current frame data.
 
         Returns:
-            object: The frame data.
+            The frame data for the current animation and frame, or None if not available.
 
         """
         if (
@@ -242,11 +242,11 @@ class FrameManager:
             return self.animated_sprite._animations[self._current_animation][self._current_frame]
         return None
 
-    def get_frame_count(self):
+    def get_frame_count(self) -> int:
         """Get the number of frames in the current animation.
 
         Returns:
-            object: The frame count.
+            int: The number of frames, or 0 if no current animation.
 
         """
         if self._current_animation in self.animated_sprite._animations:
@@ -373,7 +373,7 @@ class AnimatedSpriteInterface(abc.ABC):
 class SpriteFrame:
     """Represents a single frame of an animated sprite."""
 
-    def __init__(self, surface: pygame.Surface, duration: float = 0.5):
+    def __init__(self, surface: pygame.Surface, duration: float = 0.5) -> None:
         """Initialize a sprite frame.
 
         Args:
@@ -1891,7 +1891,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return pixel_chars
 
     @staticmethod
-    def _write_toml_sprite_section(f, data: dict) -> None:
+    def _write_toml_sprite_section(f: IO[str], data: dict) -> None:
         """Write TOML sprite section."""
         f.write("[sprite]\n")
         f.write(f'name = "{data["sprite"]["name"]}"\n')
@@ -1900,7 +1900,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         f.write("\n")
 
     @staticmethod
-    def _write_toml_animations(f, data: dict) -> None:
+    def _write_toml_animations(f: IO[str], data: dict) -> None:
         """Write TOML animations section."""
         for animation in data["animation"]:
             f.write("[[animation]]\n")
@@ -1917,7 +1917,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f.write('\n"""\n\n')
 
     @staticmethod
-    def _write_toml_colors(f, data: dict, color_order: list | None = None) -> None:
+    def _write_toml_colors(f: IO[str], data: dict, color_order: list | None = None) -> None:
         """Write TOML colors section.
 
         Args:
@@ -1950,7 +1950,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f.write("\n")
 
     @staticmethod
-    def _write_toml_alpha(f, data: dict, preserve_trailing_newline: bool = False) -> None:
+    def _write_toml_alpha(f: IO[str], data: dict, preserve_trailing_newline: bool = False) -> None:
         """Write TOML alpha section if needed."""
         if "alpha" in data:
             f.write("[alpha]\n")

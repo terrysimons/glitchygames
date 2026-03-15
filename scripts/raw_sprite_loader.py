@@ -28,7 +28,7 @@ class BitmappyLegacySprite(Sprite):
 
     log = LOG
 
-    def __init__(self: Self, filename: str, *args, **kwargs) -> None:
+    def __init__(self: Self, filename: str, *args: object, **kwargs: object) -> None:
         """Initialize a BitmappySprite.
 
         Args:

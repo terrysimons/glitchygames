@@ -15,7 +15,7 @@ from .terminal_utils import ColorMapper, TerminalDetector
 class ASCIIRenderer:
     """Renders BitmappySprite objects as colorized ASCII art."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the ASCII renderer with color mapping and terminal detection."""
         self.color_mapper = ColorMapper()
         self.detector = TerminalDetector()
@@ -260,7 +260,7 @@ class ASCIIRenderer:
         self._render_cache[cache_key] = result
         return result
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear the render cache."""
         self._render_cache.clear()
         self.color_mapper.clear_cache()

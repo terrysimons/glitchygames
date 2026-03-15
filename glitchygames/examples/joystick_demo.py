@@ -32,7 +32,7 @@ LOG.setLevel(logging.DEBUG)
 class ShapesSprite(Sprite):
     """A sprite class for drawing shapes."""
 
-    def __init__(self: Self, *args, **kwargs) -> None:
+    def __init__(self: Self, *args: object, **kwargs: object) -> None:
         """Initialize a ShapesSprite.
 
         Args:
@@ -203,7 +203,15 @@ class ShapesSprite(Sprite):
 class TextSprite(Sprite):
     """Text display sprite for rendering joystick information on screen."""
 
-    def __init__(self: Self, background_color=BLACK, alpha=0, x=0, y=0, groups=None, game=None):
+    def __init__(
+        self: Self,
+        background_color: tuple = BLACK,
+        alpha: int = 0,
+        x: int = 0,
+        y: int = 0,
+        groups: pygame.sprite.LayeredDirty | None = None,
+        game: object = None,
+    ) -> None:
         """Initialize the text sprite with position and appearance settings."""
         self.background_color = background_color
         self.alpha = alpha
@@ -273,15 +281,19 @@ class TextSprite(Sprite):
         # Initial render using the textbox implementation
         self.update_textbox()
 
-    def _draw_text(self):
+    def _draw_text(self: Self) -> None:
         """Obsolete text rendering path (removed)."""
         return
 
-    def update(self, filter_controller_index=None, input_mode=None):
+    def update(
+        self: Self, filter_controller_index: int | None = None, input_mode: str | None = None
+    ) -> None:
         """Update the text display."""
         self.update_textbox(filter_controller_index, input_mode)
 
-    def update_textbox(self, filter_controller_index=None, input_mode=None):
+    def update_textbox(
+        self: Self, filter_controller_index: int | None = None, input_mode: str | None = None
+    ) -> None:
         """Update the display using TextBoxSprite.
 
         Args:
@@ -295,14 +307,14 @@ class TextSprite(Sprite):
         if self.text_box is None:
             # Minimal inline helper using freetype via FontManager
             class _InlineTextBox:
-                def __init__(self, start_x: int, start_y: int, line_height: int = 15):
+                def __init__(self, start_x: int, start_y: int, line_height: int = 15) -> None:
                     self.start_x = start_x
                     self.start_y = start_y
                     self.x = start_x
                     self.y = start_y
                     self.line_height = line_height
 
-                def print(self, surface, string: str) -> None:
+                def print(self, surface: pygame.Surface, string: str) -> None:
                     font = FontManager.get_font("freetype")
                     rendered = font.render(string, fgcolor=WHITE, size=10)
                     if isinstance(rendered, tuple):
@@ -585,7 +597,7 @@ class JoystickScene(Scene):
             self.last_controller_count = pygame.joystick.get_count()
         self._rebuild_controller_tabs()
 
-    def update(self):
+    def update(self: Self) -> None:
         """Update the scene."""
         super().update()  # Call parent update
 

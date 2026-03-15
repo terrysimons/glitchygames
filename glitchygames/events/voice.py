@@ -56,7 +56,7 @@ class VoiceEventManager(ResourceManager):
             """Delegate register_command to the voice event manager."""
             self.game.register_command(phrase, callback)
 
-    def __init__(self, logger: logging.Logger | None = None):
+    def __init__(self, logger: logging.Logger | None = None) -> None:
         """Initialize the voice recognition manager.
 
         Args:

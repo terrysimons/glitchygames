@@ -5,7 +5,13 @@ including advanced visual management, performance optimizations, and improved
 user experience.
 """
 
+from __future__ import annotations
+
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from glitchygames.tools.bitmappy import BitmapEditorScene
 
 MAX_CONTROLLER_ACTION_HISTORY = 100
 
@@ -13,7 +19,7 @@ MAX_CONTROLLER_ACTION_HISTORY = 100
 class BitmappyMultiControllerEnhancements:
     """Enhanced multi-controller features for bitmappy."""
 
-    def __init__(self, bitmappy_scene):
+    def __init__(self, bitmappy_scene: BitmapEditorScene) -> None:
         """Initialize enhanced multi-controller features.
 
         Args:
@@ -362,7 +368,7 @@ class BitmappyMultiControllerEnhancements:
         self.controller_groups[group_name] = controller_ids.copy()
         return True
 
-    def execute_group_action(self, group_name: str, action: str, **kwargs) -> bool:
+    def execute_group_action(self, group_name: str, action: str, **kwargs: object) -> bool:
         """Execute action on all controllers in a group.
 
         Args:

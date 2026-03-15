@@ -3,6 +3,7 @@
 
 import logging
 import unicodedata
+from collections.abc import Generator
 
 # Set up logging
 LOG = logging.getLogger("glitchygames.tools.charmap")
@@ -23,11 +24,11 @@ EMOJI_RANGES = [
 ]
 
 
-def is_defined_non_whitespace_printable(ch):
+def is_defined_non_whitespace_printable(ch: str) -> bool:
     """Check if character is defined, non-whitespace, and printable.
 
     Returns:
-        object: True if is defined non whitespace printable, False otherwise.
+        bool: True if is defined non whitespace printable, False otherwise.
 
     """
     if not ch.isprintable():
@@ -41,18 +42,18 @@ def is_defined_non_whitespace_printable(ch):
     return True
 
 
-def is_emoji(ch):
+def is_emoji(ch: str) -> bool:
     """Check if character is an emoji.
 
     Returns:
-        object: True if is emoji, False otherwise.
+        bool: True if is emoji, False otherwise.
 
     """
     cp = ord(ch)
     return any(start <= cp <= end for start, end in EMOJI_RANGES)
 
 
-def unicode_generator_with_priority():
+def unicode_generator_with_priority() -> Generator[str]:
     """Generate Unicode characters with priority ordering.
 
     Yields:

@@ -10,7 +10,7 @@ LOG = logging.getLogger(__name__)
 class ExampleGameObject:
     """Example game object showing how to use the performance manager."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the example game object with position and speed."""
         self.x = 0
         self.y = 0
@@ -37,7 +37,7 @@ class ExampleGameObject:
 
 
 # Example usage in a game loop
-def example_game_loop():
+def example_game_loop() -> None:
     """Demonstrate how to use the performance manager in a game loop."""
     obj = ExampleGameObject()
 

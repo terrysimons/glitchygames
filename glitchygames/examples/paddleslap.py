@@ -428,7 +428,7 @@ class Game(Scene):
         self.next_scene = GameOverScene(options=self.options)
         self.previous_scene = self
 
-    def _spawn_new_ball(self: Self, ball=None) -> None:
+    def _spawn_new_ball(self: Self, ball: BallSprite | None = None) -> None:
         """Spawn a new ball at random location with random direction.
 
         Args:
@@ -523,7 +523,7 @@ class Game(Scene):
         self.balls.append(new_ball)
         self.all_sprites.add(new_ball)
 
-    def _spawn_new_ball_with_speed_check(self: Self, ball) -> None:
+    def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
         """Spawn a new ball based on configurable spawn mode.
 
         Args:

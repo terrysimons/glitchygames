@@ -4,6 +4,8 @@ This service renders sprites to PNG format without requiring a display.
 It uses SDL_VIDEODRIVER=dummy for headless pygame operation.
 """
 
+from __future__ import annotations
+
 import base64
 import io
 import logging
@@ -11,8 +13,13 @@ import os
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from glitchygames.services.config import ServiceConfig
+
+if TYPE_CHECKING:
+    import pygame
+    from glitchygames.sprites.animated import AnimatedSprite
 
 LOG = logging.getLogger("glitchygames.services.renderer")
 
@@ -70,7 +77,7 @@ class RendererService:
 
     _pygame_initialized: bool = False
 
-    def __init__(self, config: ServiceConfig | None = None):
+    def __init__(self, config: ServiceConfig | None = None) -> None:
         """Initialize the renderer service.
 
         Args:
@@ -204,7 +211,7 @@ class RendererService:
             except OSError as unlink_error:
                 LOG.debug("Failed to clean up temporary file %s: %s", temp_path, unlink_error)
 
-    def _render_frame_to_png(self, surface, scale: int = 1) -> tuple[bytes, str]:
+    def _render_frame_to_png(self, surface: pygame.Surface, scale: int = 1) -> tuple[bytes, str]:
         """Render a pygame surface to PNG bytes with no compression.
 
         Args:
@@ -239,7 +246,7 @@ class RendererService:
 
         return png_bytes, png_base64
 
-    def _render_all_frames(self, sprite, scale: int = 1) -> tuple[list[str], list[RenderedFrame]]:
+    def _render_all_frames(self, sprite: AnimatedSprite, scale: int = 1) -> tuple[list[str], list[RenderedFrame]]:
         """Render all frames of an animated sprite to PNG.
 
         Args:
