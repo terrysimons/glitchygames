@@ -194,7 +194,6 @@ lint.ignore = [
   "PERF401", # manual-list-comprehension
   "RUF013", # implicit-optional
   "RUF015", # unnecessary-iterable-allocation-for-first-element
-  "E731", # lambda-assignment
   "PLW2901", # redefined-loop-name
   "PLR1704", # redefined-argument-from-local
   "TRY301", # raise-within-try

@@ -14,7 +14,9 @@ from glitchygames.events import ResourceManager
 try:
     from .voice_backends import get_microphone_backend
 except ImportError:
-    get_microphone_backend = lambda: None  # type: ignore
+
+    def get_microphone_backend() -> None:  # type: ignore[misc]
+        """Return None when voice backends are unavailable."""
 
 # Centralized logger for voice recognition
 LOG: logging.Logger = logging.getLogger("glitchygames.events.voice")
