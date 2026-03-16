@@ -16,7 +16,7 @@ class TestTemplateErrors:
     """Test template error handling."""
 
     def test_build_template_cookiecutter_exception(self, mocker):
-        """Test build template when cookiecutter raises an exception."""
+        """Test build template when cookiecutter raises an error."""
         template_name = 'failing_template'
 
         mock_path = mocker.patch('glitchygames.templates.game.path')
@@ -29,11 +29,11 @@ class TestTemplateErrors:
         mock_template_path.__truediv__ = mocker.Mock(return_value=mock_repo_path)
 
         mock_cookiecutter = mocker.patch('glitchygames.templates.game.cookiecutter')
-        # Make cookiecutter raise an exception
-        mock_cookiecutter.side_effect = Exception('Cookiecutter failed')
+        # Make cookiecutter raise an error
+        mock_cookiecutter.side_effect = RuntimeError('Cookiecutter failed')
 
-        # Should not catch the exception - let it propagate
-        with pytest.raises(Exception, match='Cookiecutter failed'):
+        # Should not catch the error - let it propagate
+        with pytest.raises(RuntimeError, match='Cookiecutter failed'):
             build(template_name)
 
     def test_build_exception_handling(self, mocker):
@@ -76,9 +76,10 @@ class TestTemplateErrors:
         # Should call cookiecutter with local path
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = call_args[0].replace('\\', '/')
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
     def test_build_io_error_handling(self, mocker):
         """Test build when .repo file causes IO error."""

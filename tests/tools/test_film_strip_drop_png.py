@@ -51,16 +51,19 @@ class TestFilmStripDropPNG:
         self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
-            Path(test_file.name).write_bytes(b'fake png data')
+        test_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        test_file_path = Path(test_file.name)
+        test_file.close()
+        test_file_path.write_bytes(b'fake png data')
 
+        try:
             # Create mock drop event
             class MockEvent:
                 def __init__(self, file_path, pos):
                     self.file = file_path
                     self.pos = pos
 
-            event = MockEvent(test_file.name, (50, 50))  # Drop in middle of film strip
+            event = MockEvent(str(test_file_path), (50, 50))  # Drop in middle of film strip
 
             # Test the drop
             result = film_strip_sprite.on_drop_file_event(event)
@@ -68,9 +71,9 @@ class TestFilmStripDropPNG:
             # Verify the drop was handled
             assert result is True
             assert film_strip_widget.mark_dirty.called
-
+        finally:
             # Clean up
-            Path(test_file.name).unlink()
+            test_file_path.unlink(missing_ok=True)
 
     def test_drop_png_on_strip_area(self):
         """Test dropping a PNG on the film strip (not on a frame) inserts new frame."""
@@ -105,16 +108,19 @@ class TestFilmStripDropPNG:
         self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
-            Path(test_file.name).write_bytes(b'fake png data')
+        test_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        test_file_path = Path(test_file.name)
+        test_file.close()
+        test_file_path.write_bytes(b'fake png data')
 
+        try:
             # Create mock drop event
             class MockEvent:
                 def __init__(self, file_path, pos):
                     self.file = file_path
                     self.pos = pos
 
-            event = MockEvent(test_file.name, (50, 50))  # Drop in middle of film strip
+            event = MockEvent(str(test_file_path), (50, 50))  # Drop in middle of film strip
 
             # Test the drop
             result = film_strip_sprite.on_drop_file_event(event)
@@ -123,9 +129,9 @@ class TestFilmStripDropPNG:
             assert result is True
             assert film_strip_widget.animated_sprite.add_frame.called
             assert film_strip_widget.mark_dirty.called
-
+        finally:
             # Clean up
-            Path(test_file.name).unlink()
+            test_file_path.unlink(missing_ok=True)
 
     def test_drop_unsupported_file_type(self):
         """Test dropping an unsupported file type returns False."""
@@ -208,16 +214,19 @@ class TestFilmStripDropPNG:
         self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
-            Path(test_file.name).write_bytes(b'fake png data')
+        test_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        test_file_path = Path(test_file.name)
+        test_file.close()
+        test_file_path.write_bytes(b'fake png data')
 
+        try:
             # Create mock drop event
             class MockEvent:
                 def __init__(self, file_path, pos):
                     self.file = file_path
                     self.pos = pos
 
-            event = MockEvent(test_file.name, (50, 50))
+            event = MockEvent(str(test_file_path), (50, 50))
 
             # Test the drop
             result = film_strip_sprite.on_drop_file_event(event)
@@ -225,6 +234,6 @@ class TestFilmStripDropPNG:
             # Verify the drop was handled and frame was added
             assert result is True
             assert film_strip_widget.animated_sprite.add_frame.called
-
+        finally:
             # Clean up
-            Path(test_file.name).unlink()
+            test_file_path.unlink(missing_ok=True)

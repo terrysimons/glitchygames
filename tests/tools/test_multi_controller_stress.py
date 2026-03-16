@@ -5,6 +5,7 @@ multi-controller system under extreme conditions.
 """
 
 import logging
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -258,6 +259,9 @@ class TestMultiControllerStress:
 
     def test_performance_benchmarks(self):
         """Test performance benchmarks for various operations."""
+        # Windows CI runners can be noticeably slower; allow a bit more slack.
+        is_windows = sys.platform.startswith('win')
+
         # Benchmark controller assignment
         start_time = time.time()
         for i in range(1000):
@@ -267,7 +271,7 @@ class TestMultiControllerStress:
         assignment_time = time.time()
 
         # Should assign quickly
-        assert assignment_time - start_time < 2.0
+        assert assignment_time - start_time < (4.0 if is_windows else 2.0)
 
         # Benchmark visual indicator operations
         visual_start = time.time()
@@ -278,7 +282,7 @@ class TestMultiControllerStress:
         visual_end = time.time()
 
         # Should add quickly
-        assert visual_end - visual_start < 2.0
+        assert visual_end - visual_start < (4.0 if is_windows else 2.0)
 
         # Benchmark collision calculation
         collision_start = time.time()
@@ -294,7 +298,7 @@ class TestMultiControllerStress:
         collision_end = time.time()
 
         # Should calculate collisions quickly
-        assert collision_end - collision_start < 3.0
+        assert collision_end - collision_start < (6.0 if is_windows else 3.0)
 
     def test_error_recovery_stress(self):
         """Test error recovery under stress conditions."""

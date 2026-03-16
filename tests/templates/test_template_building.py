@@ -15,6 +15,9 @@ from tests.mocks.test_mock_factory import create_template_path_mock, create_temp
 class TestTemplateBuilding:
     """Test template building functionality."""
 
+    def _normalize_mock_path(self, path_str: str) -> str:
+        return path_str.replace('\\', '/')
+
     def test_build_local_template(self, mocker):
         """Test build with local template (no .repo file)."""
         template_name = 'test_template'
@@ -35,9 +38,10 @@ class TestTemplateBuilding:
         # Verify cookiecutter was called
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = self._normalize_mock_path(call_args[0])
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
     def test_build_remote_template(self, mocker):
         """Test build with remote template (.repo file exists)."""
@@ -61,9 +65,10 @@ class TestTemplateBuilding:
         # Verify cookiecutter was called with repo URL
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = self._normalize_mock_path(call_args[0])
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
     def test_build_template_with_empty_repo_file(self, mocker):
         """Test build with empty .repo file."""
@@ -86,9 +91,10 @@ class TestTemplateBuilding:
         # Should still call cookiecutter with empty string
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = self._normalize_mock_path(call_args[0])
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
     def test_build_template_with_whitespace_repo_file(self, mocker):
         """Test build with whitespace-only .repo file."""
@@ -111,9 +117,10 @@ class TestTemplateBuilding:
         # Should call cookiecutter with whitespace string
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = self._normalize_mock_path(call_args[0])
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
     def test_build_template_with_multiple_lines_in_repo(self, mocker):
         """Test build with .repo file containing multiple lines."""
@@ -137,9 +144,10 @@ class TestTemplateBuilding:
         # Should use first line only
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = self._normalize_mock_path(call_args[0])
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
     def test_build_template_with_stripped_whitespace(self, mocker):
         """Test build with .repo file containing whitespace that gets stripped."""
@@ -163,9 +171,10 @@ class TestTemplateBuilding:
         # Should use the string as-is (no automatic stripping)
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = self._normalize_mock_path(call_args[0])
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
     def test_build_template_path_operations(self, mocker):
         """Test build template path operations."""
@@ -188,9 +197,10 @@ class TestTemplateBuilding:
         # and that cookiecutter was called with the expected path
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = self._normalize_mock_path(call_args[0])
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
     def test_build_empty_repo_file(self, mocker):
         """Test build with empty .repo file."""
@@ -213,9 +223,10 @@ class TestTemplateBuilding:
         # Should call cookiecutter with empty string
         mock_cookiecutter.assert_called_once()
         call_args = mock_cookiecutter.call_args[0]
+        normalized_path = self._normalize_mock_path(call_args[0])
         # The centralized mock returns a string representation of the mock path
-        assert call_args[0].startswith('MagicMock/path/')
-        assert template_name in call_args[0]
+        assert normalized_path.startswith('MagicMock/path/')
+        assert template_name in normalized_path
 
 
 if __name__ == '__main__':

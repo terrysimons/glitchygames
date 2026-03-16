@@ -68,7 +68,7 @@ class TestAnimatedSpriteGlyphs:
 
         # Verify file was created and contains expected content
         assert toml_file.exists()
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Check TOML structure
         assert 'name = "test_animated_toml"' in content
@@ -110,7 +110,7 @@ class TestAnimatedSpriteGlyphs:
 
         # Verify file was created
         assert toml_file.exists()
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Check TOML structure
         assert '[sprite]' in content
@@ -144,7 +144,7 @@ class TestAnimatedSpriteGlyphs:
         assert toml_file.exists()
 
         # Check TOML content
-        toml_content = toml_file.read_text()
+        toml_content = toml_file.read_text(encoding='utf-8')
 
         # Check that it uses universal character set
         # The actual TOML format uses inline color definitions
@@ -174,7 +174,7 @@ class TestAnimatedSpriteGlyphs:
         toml_file = self.temp_path / 'test_special.toml'
         animated_sprite.save(str(toml_file), 'toml')
 
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Should have sections for the actual characters used
         assert '[colors."."]' in content  # Black
@@ -228,7 +228,7 @@ class TestAnimatedSpriteGlyphs:
         toml_file = self.temp_path / 'test_multiple.toml'
         animated_sprite.save(str(toml_file), 'toml')
 
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Should have animation sections
         assert '[animation]' in content
@@ -253,7 +253,7 @@ class TestAnimatedSpriteGlyphs:
 
         # File should be created
         assert toml_file.exists()
-        content = toml_file.read_text()
+        content = toml_file.read_text(encoding='utf-8')
 
         # Should have animation section but no frame sections
         assert '[animation]' in content

@@ -57,58 +57,58 @@ class TestPNGLoading:
 
     def test_detect_png_file_in_load_function(self):
         """Test that PNG files are detected and converted in _load_sprite_from_file."""
-        # Create a temporary PNG file
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
-            self._mocker.patch('pygame.image.save')
-            # Create a simple test file
-            Path(tmp_png.name).write_bytes(b'fake png data')
+        self._mocker.patch('pygame.image.save')
 
-            try:
-                # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
-                # AnimatedCanvasSprite, so set it directly as a Mock attribute
-                mock_convert = self._mocker.Mock(return_value='mock_converted_file.toml')
-                self.mock_canvas._convert_png_to_bitmappy = mock_convert
+        tmp_png = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        tmp_png_path = Path(tmp_png.name)
+        tmp_png.close()
+        tmp_png_path.write_bytes(b'fake png data')
 
-                # Mock the AnimatedSprite.load method
-                mock_sprite_class = self._mocker.patch('glitchygames.tools.bitmappy.AnimatedSprite')
-                mock_sprite = self._mocker.Mock()
-                mock_sprite._animations = {}  # Add required attribute
-                mock_sprite_class.return_value = mock_sprite
+        try:
+            # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
+            # AnimatedCanvasSprite, so set it directly as a Mock attribute
+            mock_convert = self._mocker.Mock(return_value='mock_converted_file.toml')
+            self.mock_canvas._convert_png_to_bitmappy = mock_convert
 
-                # Call the method
-                result = self.mock_canvas._load_sprite_from_file(tmp_png.name)
+            # Mock the AnimatedSprite.load method
+            mock_sprite_class = self._mocker.patch('glitchygames.tools.bitmappy.AnimatedSprite')
+            mock_sprite = self._mocker.Mock()
+            mock_sprite._animations = {}  # Add required attribute
+            mock_sprite_class.return_value = mock_sprite
 
-                # Verify PNG conversion was called
-                mock_convert.assert_called_once_with(tmp_png.name)
+            # Call the method
+            result = self.mock_canvas._load_sprite_from_file(str(tmp_png_path))
 
-                # Verify AnimatedSprite.load was called with the converted TOML path
-                mock_sprite.load.assert_called_once_with('mock_converted_file.toml')
+            # Verify PNG conversion was called
+            mock_convert.assert_called_once_with(str(tmp_png_path))
 
-                assert result == mock_sprite
+            # Verify AnimatedSprite.load was called with the converted TOML path
+            mock_sprite.load.assert_called_once_with('mock_converted_file.toml')
 
-            finally:
-                # Clean up
-                Path(tmp_png.name).unlink()
+            assert result == mock_sprite
+        finally:
+            # Clean up
+            tmp_png_path.unlink(missing_ok=True)
 
     def test_png_conversion_failure_handling(self):
         """Test that PNG conversion failures are handled gracefully."""
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
-            self._mocker.patch('pygame.image.save')
-            # Create a simple test file
-            Path(tmp_png.name).write_bytes(b'fake png data')
+        self._mocker.patch('pygame.image.save')
 
-            try:
-                # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
-                # AnimatedCanvasSprite, so set it directly as a Mock attribute
-                mock_convert = self._mocker.Mock(return_value=None)
-                self.mock_canvas._convert_png_to_bitmappy = mock_convert
+        tmp_png = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        tmp_png_path = Path(tmp_png.name)
+        tmp_png.close()
+        tmp_png_path.write_bytes(b'fake png data')
 
-                # Should raise an exception
-                with pytest.raises(Exception, match='Failed to convert PNG to bitmappy format'):
-                    self.mock_canvas._load_sprite_from_file(tmp_png.name)
+        try:
+            # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
+            # AnimatedCanvasSprite, so set it directly as a Mock attribute
+            mock_convert = self._mocker.Mock(return_value=None)
+            self.mock_canvas._convert_png_to_bitmappy = mock_convert
 
-            finally:
-                Path(tmp_png.name).unlink()
+            with pytest.raises(ValueError, match='Failed to convert PNG to bitmappy format'):
+                self.mock_canvas._load_sprite_from_file(str(tmp_png_path))
+        finally:
+            tmp_png_path.unlink(missing_ok=True)
 
     def test_non_png_files_passthrough(self):
         """Test that non-PNG files are passed through unchanged."""
@@ -372,32 +372,33 @@ class TestPNGConversionIntegration:
     def test_png_conversion_handles_transparency(self):
         """Test that PNG conversion handles transparent pixels correctly."""
         # Create a PNG with transparency
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
-            self._mocker.patch('pygame.image.save')
-            # Create a simple test file
-            Path(tmp_png.name).write_bytes(b'fake png data')
+        self._mocker.patch('pygame.image.save')
 
-            result = None
-            try:
-                mock_canvas = self._mocker.patch.object(self.mock_scene, 'canvas')
-                mock_canvas.pixels_across = 32
-                mock_canvas.pixels_tall = 32
+        tmp_png = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        tmp_png_path = Path(tmp_png.name)
+        tmp_png.close()
+        tmp_png_path.write_bytes(b'fake png data')
 
-                result = self.mock_scene._convert_png_to_bitmappy(tmp_png.name)
+        result = None
+        try:
+            mock_canvas = self._mocker.patch.object(self.mock_scene, 'canvas')
+            mock_canvas.pixels_across = 32
+            mock_canvas.pixels_tall = 32
 
-                if result and Path(result).exists():
-                    # Load the TOML and check for magenta color (transparency)
-                    content = Path(result).read_text(encoding='utf-8')
+            result = self.mock_scene._convert_png_to_bitmappy(str(tmp_png_path))
 
-                    # Should contain magenta color definition for transparency
-                    assert 'red = 255' in content
-                    assert 'green = 0' in content
-                    assert 'blue = 255' in content
+            if result and Path(result).exists():
+                # Load the TOML and check for magenta color (transparency)
+                content = Path(result).read_text(encoding='utf-8')
 
-            finally:
-                Path(tmp_png.name).unlink()
-                if result and Path(result).exists():
-                    Path(result).unlink()
+                # Should contain magenta color definition for transparency
+                assert 'red = 255' in content
+                assert 'green = 0' in content
+                assert 'blue = 255' in content
+        finally:
+            tmp_png_path.unlink(missing_ok=True)
+            if result and Path(result).exists():
+                Path(result).unlink(missing_ok=True)
 
 
 class TestDragAndDropPNG:
@@ -420,67 +421,64 @@ class TestDragAndDropPNG:
     def test_drag_drop_png_file(self):
         """Test drag and drop of PNG file."""
         # Create a simple PNG
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
-            self._mocker.patch('pygame.image.save')
-            # Create a simple test file
-            Path(tmp_png.name).write_bytes(b'fake png data')
+        self._mocker.patch('pygame.image.save')
 
-            try:
-                # Mock the conversion and loading methods
-                mock_convert = self._mocker.patch.object(
-                    self.mock_scene, '_convert_png_to_bitmappy'
-                )
-                mock_load = self._mocker.patch.object(self.mock_scene, '_load_converted_sprite')
+        tmp_png = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        tmp_png_path = Path(tmp_png.name)
+        tmp_png.close()
+        tmp_png_path.write_bytes(b'fake png data')
 
-                mock_convert.return_value = '/tmp/test.toml'  # noqa: S108
+        try:
+            # Mock the conversion and loading methods
+            mock_convert = self._mocker.patch.object(self.mock_scene, '_convert_png_to_bitmappy')
+            mock_load = self._mocker.patch.object(self.mock_scene, '_load_converted_sprite')
 
-                # Create a mock event with the correct attribute
-                class MockEvent:
-                    def __init__(self, file_path):
-                        self.file = file_path
+            mock_convert.return_value = '/tmp/test.toml'  # noqa: S108
 
-                mock_event = MockEvent(tmp_png.name)
+            # Create a mock event with the correct attribute
+            class MockEvent:
+                def __init__(self, file_path):
+                    self.file = file_path
 
-                # Call the drag and drop handler
-                self.mock_scene.on_drop_file_event(mock_event)
+            mock_event = MockEvent(str(tmp_png_path))
 
-                # Verify conversion was called
-                mock_convert.assert_called_once_with(tmp_png.name)
+            # Call the drag and drop handler
+            self.mock_scene.on_drop_file_event(mock_event)
 
-                # Verify loading was called
-                mock_load.assert_called_once_with('/tmp/test.toml')  # noqa: S108
+            # Verify conversion was called
+            mock_convert.assert_called_once_with(str(tmp_png_path))
 
-            finally:
-                Path(tmp_png.name).unlink()
+            # Verify loading was called
+            mock_load.assert_called_once_with('/tmp/test.toml')  # noqa: S108
+        finally:
+            tmp_png_path.unlink(missing_ok=True)
 
     def test_drag_drop_non_png_file(self):
         """Test drag and drop of non-PNG file."""
         # Create a text file
-        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as tmp_file:
-            tmp_file.write(b'Not a PNG file')
-            tmp_file.flush()
+        tmp_file = tempfile.NamedTemporaryFile(suffix='.txt', delete=False)
+        tmp_file_path = Path(tmp_file.name)
+        tmp_file.close()
+        tmp_file_path.write_bytes(b'Not a PNG file')
 
-            try:
-                # Mock the conversion method (should not be called)
-                mock_convert = self._mocker.patch.object(
-                    self.mock_scene, '_convert_png_to_bitmappy'
-                )
+        try:
+            # Mock the conversion method (should not be called)
+            mock_convert = self._mocker.patch.object(self.mock_scene, '_convert_png_to_bitmappy')
 
-                # Create a mock event with the correct attribute
-                class MockEvent:
-                    def __init__(self, file_path):
-                        self.file = file_path
+            # Create a mock event with the correct attribute
+            class MockEvent:
+                def __init__(self, file_path):
+                    self.file = file_path
 
-                mock_event = MockEvent(tmp_file.name)
+            mock_event = MockEvent(str(tmp_file_path))
 
-                # Call the drag and drop handler
-                self.mock_scene.on_drop_file_event(mock_event)
+            # Call the drag and drop handler
+            self.mock_scene.on_drop_file_event(mock_event)
 
-                # Verify conversion was NOT called
-                mock_convert.assert_not_called()
-
-            finally:
-                Path(tmp_file.name).unlink()
+            # Verify conversion was NOT called
+            mock_convert.assert_not_called()
+        finally:
+            tmp_file_path.unlink(missing_ok=True)
 
 
 class TestColorQuantization:

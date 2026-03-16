@@ -148,7 +148,7 @@ def security_scan(session: nox.Session) -> None:
         '-f',
         'json',
         '-o',
-        '/dev/stdout',
+        'bandit-report.json',
     )
 
     # Run safety check for known vulnerabilities
