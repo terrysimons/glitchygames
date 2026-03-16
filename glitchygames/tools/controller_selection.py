@@ -12,6 +12,7 @@ Features:
 """
 
 import logging
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -58,6 +59,7 @@ class ControllerSelection:
         self.instance_id = instance_id
         self.state = ControllerSelectionState(controller_id=controller_id, instance_id=instance_id)
         self.creation_time = time.time()
+        self._lock = threading.Lock()
 
     def set_animation(self, animation_name: str) -> None:
         """Set the selected animation for this controller.
@@ -100,29 +102,30 @@ class ControllerSelection:
             frame_index: Index of the frame
 
         """
-        animation_changed = self.state.selected_animation != animation_name
-        frame_changed = self.state.selected_frame != frame_index
+        with self._lock:
+            animation_changed = self.state.selected_animation != animation_name
+            frame_changed = self.state.selected_frame != frame_index
 
-        if animation_changed or frame_changed:
-            # Only add to history if we had a previous selection (not initial empty state)
-            if animation_changed and self.state.selected_animation:
-                # Preserve frame index when switching animations
-                self.state.navigation_history.append({
-                    'animation': self.state.selected_animation,
-                    'frame': self.state.selected_frame,
-                    'timestamp': time.time(),
-                })
+            if animation_changed or frame_changed:
+                # Only add to history if we had a previous selection (not initial empty state)
+                if animation_changed and self.state.selected_animation:
+                    # Preserve frame index when switching animations
+                    self.state.navigation_history.append({
+                        'animation': self.state.selected_animation,
+                        'frame': self.state.selected_frame,
+                        'timestamp': time.time(),
+                    })
 
-            self.state.selected_animation = animation_name
-            self.state.selected_frame = frame_index
-            self.state.last_update_time = time.time()
+                self.state.selected_animation = animation_name
+                self.state.selected_frame = frame_index
+                self.state.last_update_time = time.time()
 
-            LOG.debug(
-                "Controller %s selected animation '%s', frame %s",
-                self.controller_id,
-                animation_name,
-                frame_index,
-            )
+                LOG.debug(
+                    "Controller %s selected animation '%s', frame %s",
+                    self.controller_id,
+                    animation_name,
+                    frame_index,
+                )
 
     def get_selection(self) -> tuple[str, int]:
         """Get current selection (animation, frame).
