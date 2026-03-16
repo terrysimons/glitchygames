@@ -212,9 +212,7 @@ class TestVoiceRecognitionManagerPositive:
         mock_mic_cls = mocker.Mock()
         mock_mic_instance = mocker.Mock()
         mock_mic_cls.return_value = mock_mic_instance
-        mocker.patch(
-            'glitchygames.events.voice.get_microphone_backend', return_value=mock_mic_cls
-        )
+        mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=mock_mic_cls)
 
         manager = VoiceEventManager()
         self.voice_managers.append(manager)
@@ -251,9 +249,7 @@ class TestVoiceRecognitionManagerPositive:
         mock_mic_cls = mocker.Mock()
         mock_mic_instance = mocker.Mock()
         mock_mic_cls.return_value = mock_mic_instance
-        mocker.patch(
-            'glitchygames.events.voice.get_microphone_backend', return_value=mock_mic_cls
-        )
+        mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=mock_mic_cls)
 
         manager = VoiceEventManager()
         self.voice_managers.append(manager)
