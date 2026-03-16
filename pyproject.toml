@@ -3,33 +3,33 @@ name = "glitchygames"
 version = "1.0.0"
 description = "Glitchy Games and Tools for Pygame and Python 3"
 authors = [
-    {name = "Terry Simons", email = "terry.simons@gmail.com"},
-    {name = "Rich Saupe", email = "sabadam32@gmail.com"},
+  { name = "Terry Simons", email = "terry.simons@gmail.com" },
+  { name = "Rich Saupe", email = "sabadam32@gmail.com" },
 ]
 maintainers = [
-    {name = "Terry Simons", email = "terry.simons@gmail.com"},
-    {name = "Rich Saupe", email = "sabadam32@gmail.com"},
+  { name = "Terry Simons", email = "terry.simons@gmail.com" },
+  { name = "Rich Saupe", email = "sabadam32@gmail.com" },
 ]
 readme = "README.md"
 license = "BSD-3-Clause"
 requires-python = ">=3.13,<4.0"
 classifiers = [
-    "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent"
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
 ]
 keywords = ["pygame", "game-engine", "pixel-art", "sprite-editor"]
 dependencies = [
-    "tomli-w",
-    "pygame-ce",
-    "cookiecutter",
-    "pyperclip",
-    "aisuite[all]>=0.1.14",
-    "numpy",
-    "miniaudio",
-    "speechrecognition",
-    "bokeh",
-    "backoff",
+  "tomli-w",
+  "pygame-ce",
+  "cookiecutter",
+  "pyperclip",
+  "aisuite[all]>=0.1.14",
+  "numpy",
+  "miniaudio",
+  "speechrecognition",
+  "bokeh",
+  "backoff",
 ]
 
 [project.urls]
@@ -45,40 +45,33 @@ glitchygames-client = "glitchygames.api.client:run"
 
 [project.optional-dependencies]
 docs = [
-    "mkdocs",
-    "mkdocstrings[crystal,python]",
-    "mkdocs-material",
-    "mkdocs-gen-files",
-    "mkdocs-literate-nav",
-    "mkdocs-section-index",
-    "pymdown-extensions",
-    "mkdocs-autorefs",
-    "mkdocs-macros-plugin",
-    "mkdocstrings-python",
+  "mkdocs",
+  "mkdocstrings[crystal,python]",
+  "mkdocs-material",
+  "mkdocs-gen-files",
+  "mkdocs-literate-nav",
+  "mkdocs-section-index",
+  "pymdown-extensions",
+  "mkdocs-autorefs",
+  "mkdocs-macros-plugin",
+  "mkdocstrings-python",
 ]
 dev = [
-    "nox[uv]",
-    "pytest",
-    "pytest-cov",
-    "pytest-xdist",
-    "pytest-benchmark",
-    "pytest-mock",
-    "coverage",
-    "bandit",
-    "safety",
-    "ruff",
-    "pre-commit",
-    "pyright",
-    "pillow",
+  "nox[uv]",
+  "pytest",
+  "pytest-cov",
+  "pytest-xdist",
+  "pytest-benchmark",
+  "pytest-mock",
+  "coverage",
+  "bandit",
+  "safety",
+  "ruff",
+  "pre-commit",
+  "pyright",
+  "pillow",
 ]
-api = [
-    "fastapi",
-    "uvicorn",
-    "pydantic",
-    "httpx",
-    "apng",
-    "pillow",
-]
+api = ["fastapi", "uvicorn", "pydantic", "httpx", "apng", "pillow"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["glitchygames"]
@@ -89,16 +82,23 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 # Exclude examples directory from test collection
-norecursedirs = ["examples", "build", "dist", "*.egg-info", ".git", "__pycache__"]
+norecursedirs = [
+  "examples",
+  "build",
+  "dist",
+  "*.egg-info",
+  ".git",
+  "__pycache__",
+]
 addopts = "-n auto --cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=49"
 filterwarnings = [
-    "error",
-    # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
-    "ignore:aifc was removed:DeprecationWarning",
-    # Third-party: docstring_parser uses deprecated ast nodes (via aisuite)
-    "ignore:ast\\..* is deprecated:DeprecationWarning",
-    # pytest-benchmark warns when xdist is active (benchmarks auto-disabled)
-    "ignore:Benchmarks are automatically disabled:pytest_benchmark.logger.PytestBenchmarkWarning",
+  "error",
+  # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
+  "ignore:aifc was removed:DeprecationWarning",
+  # Third-party: docstring_parser uses deprecated ast nodes (via aisuite)
+  "ignore:ast\\..* is deprecated:DeprecationWarning",
+  # pytest-benchmark warns when xdist is active (benchmarks auto-disabled)
+  "ignore:Benchmarks are automatically disabled:pytest_benchmark.logger.PytestBenchmarkWarning",
 ]
 # Note: All tests run with no_unhandled_events=True to catch unhandled events as bugs
 
@@ -107,29 +107,29 @@ source = ["glitchygames"]
 branch = true
 parallel = true
 omit = [
-    "*/tests/*",
-    "*/examples/*",
-    "*/build/*",
-    "*/dist/*",
-    "*/__pycache__/*",
-    "*/migrations/*"
+  "*/tests/*",
+  "*/examples/*",
+  "*/build/*",
+  "*/dist/*",
+  "*/__pycache__/*",
+  "*/migrations/*",
 ]
 
 [tool.coverage.report]
 show_missing = true
 
 exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
-    "if TYPE_CHECKING:"
+  "pragma: no cover",
+  "def __repr__",
+  "if self.debug:",
+  "if settings.DEBUG",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if 0:",
+  "if __name__ == .__main__.:",
+  "class .*\\bProtocol\\):",
+  "@(abc\\.)?abstractmethod",
+  "if TYPE_CHECKING:",
 ]
 
 [tool.coverage.html]
@@ -140,7 +140,12 @@ preview = true
 line-length = 100
 output-format = "grouped"
 src = ["glitchygames", "tests", "scripts"]
-include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
+include = [
+  "glitchygames/*.py",
+  "tests/**/*.py",
+  "scripts/**/*.py",
+  "noxfile.py",
+]
 target-version = "py313"
 
 [tool.ruff.lint]
@@ -149,30 +154,30 @@ select = ["ALL"]
 ignore = [
   # --- Previously ignored ---
   #"ASYN",
-  "FIX002", # Line contains TODO, consider resolving the issue
-  "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
-  "S311", # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-  "COM812", # Trailing comma missing
-  "G004", # Logging statement uses f-string
-  "ISC002", # Use of implicit string concatenation
-  "ERA001", # Found commented-out code
+  "FIX002",  # Line contains TODO, consider resolving the issue
+  "SLF001",  # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
+  "S311",    # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+  "COM812",  # Trailing comma missing
+  "G004",    # Logging statement uses f-string
+  "ISC002",  # Use of implicit string concatenation
+  "ERA001",  # Found commented-out code
   "PLR0911", # Too many return statements
-  "C901", # Function is too complex
-  "EM102", # Exception must not use an f-string literal, assign to variable first
-  "TRY003", # Avoid specifying long messages outside the exception class
-  "ARG002", # Unused method argument
-  "TD003", # Missing issue link on the line following this TODO
+  "C901",    # Function is too complex
+  "EM102",   # Exception must not use an f-string literal, assign to variable first
+  "TRY003",  # Avoid specifying long messages outside the exception class
+  "ARG002",  # Unused method argument
+  "TD003",   # Missing issue link on the line following this TODO
   "PLR0913", # Too many arguments to function call
-  "TD002", # Missing author in TODO
+  "TD002",   # Missing author in TODO
   "PLR0917", # Too many positional arguments
   "PLR0904", # Too many public methods
-  "CPY001", # Missing copyright notice at top of file
-  "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
-  "EM101", # Exception must not use a string literal, assign to variable first
-  "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
-  "D203", # Incorrect blank line before class (conflicts with D211)
-  "D213", # Multi-line summary second line (conflicts with D212)
-  "TRY300", # Consider moving this statement to an `else` block
+  "CPY001",  # Missing copyright notice at top of file
+  "B019",    # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
+  "EM101",   # Exception must not use a string literal, assign to variable first
+  "ISC001",  # Use of implicit string concatenation (this conflicts with ruff format)
+  "D203",    # Incorrect blank line before class (conflicts with D211)
+  "D213",    # Multi-line summary second line (conflicts with D212)
+  "TRY300",  # Consider moving this statement to an `else` block
   "PLR6301", # Method could be a function/staticmethod
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
 ]
@@ -180,10 +185,24 @@ fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "PLR2004", "ANN", "ARG001", "ARG005", "PLC2701", "F841", "B007", "S101"
+  "PLR2004",
+  "ANN",
+  "ARG001",
+  "ARG005",
+  "PLC2701",
+  "F841",
+  "B007",
+  "S101",
 ]
 "glitchygames/tests/**/*.py" = [
-    "PLR2004", "ANN", "ARG001", "ARG005", "PLC2701", "F841", "B007", "S101"
+  "PLR2004",
+  "ANN",
+  "ARG001",
+  "ARG005",
+  "PLC2701",
+  "F841",
+  "B007",
+  "S101",
 ]
 
 [tool.ruff.format]
@@ -209,9 +228,7 @@ known-first-party = ["glitchygames"]
 [tool.pyright]
 typeCheckingMode = "basic"
 include = ["glitchygames", "tests", "scripts"]
-exclude = [
-    "**/__pycache__",
-]
+exclude = ["**/__pycache__"]
 defineConstant = { DEBUG = true }
 # stubPath = "src/stubs"
 
@@ -222,8 +239,13 @@ executionEnvironments = [
   # { root = "src/web", pythonVersion = "3.5", pythonPlatform = "Windows", extraPaths = [ "src/service_libs" ] },
   # { root = "src/sdk", pythonVersion = "3.0", extraPaths = [ "src/backend" ] },
   # { root = "src/tests", extraPaths = ["src/tests/e2e", "src/sdk" ]},
-  { root = "glitchygames", extraPaths = [ "scripts", "tests" ]},
-  { root = "tests", extraPaths = [ "." ]}
+  { root = "glitchygames", extraPaths = [
+    "scripts",
+    "tests",
+  ] },
+  { root = "tests", extraPaths = [
+    ".",
+  ] },
 ]
 # Re-enable these incrementally as type issues are fixed
 reportMissingImports = "warning"

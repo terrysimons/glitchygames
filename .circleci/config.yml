@@ -311,5 +311,3 @@ workflows:
       - build-and-test-windows:
           context:
             - SAFETY_API_KEY
-
-

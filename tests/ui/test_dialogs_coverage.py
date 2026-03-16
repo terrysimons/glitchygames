@@ -67,15 +67,17 @@ class TestGetExamplesDir:
         """Test _get_examples_dir returns a Path object."""
         result = _get_examples_dir()
         assert isinstance(result, Path)
-        assert str(result).endswith('examples/resources/sprites')
+        # Use Path parts for cross-platform compatibility
+        assert result.parts[-3:] == ('examples', 'resources', 'sprites')
 
     def test_pyinstaller_bundle_path(self, mocker):
         """Test _get_examples_dir with PyInstaller _MEIPASS."""
-        mocker.patch.object(sys, '_MEIPASS', '/tmp/bundle', create=True)  # noqa: S108
+        bundle_path = Path('/tmp/bundle')  # noqa: S108
+        mocker.patch.object(sys, '_MEIPASS', str(bundle_path), create=True)
         result = _get_examples_dir()
         assert isinstance(result, Path)
-        assert '/tmp/bundle' in str(result)  # noqa: S108
-        assert 'examples/resources/sprites' in str(result)
+        assert bundle_path in result.parents or result.parts[1] == 'tmp'
+        assert result.parts[-3:] == ('examples', 'resources', 'sprites')
 
 
 class TestGetSavePath:
@@ -90,9 +92,9 @@ class TestGetSavePath:
         """Test _get_save_path with 'example:' prefix."""
         result = _get_save_path('example:test.toml')
         assert isinstance(result, Path)
-        assert str(result).endswith('test.toml')
-        # Should be in the examples directory
-        assert 'examples/resources/sprites' in str(result)
+        assert result.name == 'test.toml'
+        # Should be in the examples directory (cross-platform check)
+        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
 
 
 class TestGetLoadPath:
@@ -107,15 +109,15 @@ class TestGetLoadPath:
         """Test _get_load_path with 'example:' prefix."""
         result = _get_load_path('example:test.toml')
         assert isinstance(result, Path)
-        assert str(result).endswith('test.toml')
-        assert 'examples/resources/sprites' in str(result)
+        assert result.name == 'test.toml'
+        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
 
     def test_examples_prefix(self):
         """Test _get_load_path with 'examples:' prefix."""
         result = _get_load_path('examples:heart.toml')
         assert isinstance(result, Path)
-        assert str(result).endswith('heart.toml')
-        assert 'examples/resources/sprites' in str(result)
+        assert result.name == 'heart.toml'
+        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
 
 
 class TestDialogSceneSetupCleanupDismiss:

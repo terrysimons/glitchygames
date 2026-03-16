@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -78,6 +80,8 @@ class TestFastTimerInit:
 
     def test_windows_timer_1ms_on_non_windows(self):
         """Test that windows_timer_1ms flag is ignored on non-Windows platforms."""
+        if sys.platform.startswith('win'):
+            pytest.skip('This test only applies on non-Windows platforms')
         timer = FastTimer(windows_timer_1ms=True)
         # On non-Windows (macOS/Linux), _win_period_on should remain False
         assert timer._win_period_on is False

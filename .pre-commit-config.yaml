@@ -21,3 +21,33 @@ repos:
       types: [python]
       # stages: [pre-commit, push]
       pass_filenames: false
+
+# YAML linting for all YAML/YML files (including CI configs)
+- repo: https://github.com/adrienverge/yamllint
+  rev: v1.35.1
+  hooks:
+    - id: yamllint
+      args: [--strict]
+
+# CircleCI config validation
+- repo: local
+  hooks:
+    - id: circleci-config-validate
+      name: circleci config validate
+      files: ^\.circleci/config\.yml$
+      language: system
+      entry: circleci config validate
+      pass_filenames: false
+
+# TOML linting and formatting
+- repo: https://github.com/ComPWA/taplo-pre-commit
+  rev: v0.9.3
+  hooks:
+    - id: taplo-lint
+    - id: taplo-format
+
+# GitHub Actions workflow linting
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.7.7
+  hooks:
+    - id: actionlint
