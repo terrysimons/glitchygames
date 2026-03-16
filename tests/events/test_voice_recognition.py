@@ -201,31 +201,28 @@ class TestVoiceRecognitionManagerPositive:
         assert manager.commands == {}
         assert not manager.is_listening
 
-    @pytest.mark.skipif(
-        not SPEECH_RECOGNITION_AVAILABLE, reason='speech_recognition is not installed'
-    )
-    def test_voice_manager_initialization_with_real_speech_recognition(self):
-        """Test that VoiceRecognitionManager initializes correctly with real speech recognition.
+    def test_voice_manager_initialization_with_mocked_backend(self, mocker):
+        """Test that VoiceRecognitionManager initializes correctly with a microphone backend."""
+        mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
+        mock_sr = mocker.patch('glitchygames.events.voice.sr')
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
 
-        This test will FAIL until speech recognition dependencies are installed.
-        """
-        # This test should fail when speech recognition is not available
-        # and pass when it is available
-        try:
-            manager = VoiceEventManager()
-            self.voice_managers.append(manager)  # Track for cleanup
+        # Mock a microphone backend class that probes successfully
+        mock_mic_cls = mocker.Mock()
+        mock_mic_instance = mocker.Mock()
+        mock_mic_cls.return_value = mock_mic_instance
+        mocker.patch(
+            'glitchygames.events.voice.get_microphone_backend', return_value=mock_mic_cls
+        )
 
-            # If we get here, speech recognition is importable
-            assert manager is not None
-            if not manager.has_microphone():
-                pytest.skip('Microphone backend not available; skipping')
-            assert manager.recognizer is not None
-            assert manager.is_available(), 'Voice recognition should be available'
+        manager = VoiceEventManager()
+        self.voice_managers.append(manager)
 
-        except (ImportError, AttributeError) as exc:
-            # ImportError: speech_recognition not installed
-            # AttributeError: PyAudio not installed (raised by sr.Microphone)
-            pytest.skip(f'Speech recognition dependency not available: {exc}')
+        assert manager is not None
+        assert manager.recognizer is not None
+        assert manager.microphone is not None
+        assert manager.is_available()
 
     @pytest.mark.skipif(SPEECH_RECOGNITION_AVAILABLE, reason='speech_recognition is installed')
     def test_voice_manager_initialization_without_speech_recognition_expected(self):
@@ -243,30 +240,27 @@ class TestVoiceRecognitionManagerPositive:
         )
         assert not manager.is_available(), 'Voice recognition should not be available'
 
-    @pytest.mark.skipif(
-        not SPEECH_RECOGNITION_AVAILABLE, reason='speech_recognition is not installed'
-    )
-    def test_start_listening_with_real_speech_recognition(self):
-        """Test that speech recognition is available and can be initialized.
+    def test_start_listening_with_mocked_backend(self, mocker):
+        """Test that speech recognition initializes recognizer and microphone correctly."""
+        mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
+        mock_sr = mocker.patch('glitchygames.events.voice.sr')
+        mock_sr.Recognizer = mocker.Mock()
+        mock_sr.Microphone = mocker.Mock()
 
-        This test verifies that speech recognition dependencies are installed and working.
-        We don't actually start listening to avoid hanging in the test environment.
-        """
-        try:
-            manager = VoiceEventManager()
-            self.voice_managers.append(manager)  # Track for cleanup
+        # Mock a microphone backend that probes successfully
+        mock_mic_cls = mocker.Mock()
+        mock_mic_instance = mocker.Mock()
+        mock_mic_cls.return_value = mock_mic_instance
+        mocker.patch(
+            'glitchygames.events.voice.get_microphone_backend', return_value=mock_mic_cls
+        )
 
-            if not manager.is_available():
-                pytest.skip('Voice microphone backend not available (e.g., PortAudio); skipping')
-            # If available, recognizer and microphone should be present
-            assert manager.recognizer is not None, 'Recognizer should be available'
-            assert manager.microphone is not None, 'Microphone should be available'
-            # Don't actually start listening to avoid hanging in tests
+        manager = VoiceEventManager()
+        self.voice_managers.append(manager)
 
-        except (ImportError, AttributeError) as exc:
-            # ImportError: speech_recognition not installed
-            # AttributeError: PyAudio not installed (raised by sr.Microphone)
-            pytest.skip(f'Speech recognition dependency not available: {exc}')
+        assert manager.recognizer is not None, 'Recognizer should be available'
+        assert manager.microphone is not None, 'Microphone should be available'
+        assert manager.is_available()
 
     @pytest.mark.skipif(SPEECH_RECOGNITION_AVAILABLE, reason='speech_recognition is installed')
     def test_start_listening_without_speech_recognition_expected(self):
@@ -597,32 +591,26 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
     Tests behavior when speech recognition IS available.
     """
 
-    @pytest.mark.skipif(
-        not SPEECH_RECOGNITION_AVAILABLE, reason='speech_recognition is not installed'
-    )
-    def test_voice_recognition_setup_with_real_dependencies(self, mocker):
-        """Test that voice recognition setup works with real speech recognition dependencies.
-
-        This test will FAIL until speech recognition dependencies are installed.
-        """
+    def test_voice_recognition_setup_with_mocked_dependencies(self, mocker):
+        """Test that voice recognition setup works when speech recognition is available."""
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        # Create scene instance
+
+        # Mock VoiceEventManager so it doesn't probe real hardware
+        mock_voice_manager = mocker.Mock()
+        mock_voice_manager.is_available.return_value = True
+        mock_voice_manager.has_microphone.return_value = True
+        mock_voice_cls = mocker.patch(
+            'glitchygames.tools.bitmappy.VoiceEventManager', return_value=mock_voice_manager
+        )
+
         scene = BitmapEditorScene({})
         scene.log = mocker.Mock()
 
-        try:
-            # Call the setup method
-            scene._setup_voice_recognition()
+        scene._setup_voice_recognition()
 
-            if not scene.voice_manager or not scene.voice_manager.has_microphone():
-                pytest.skip('Microphone backend not available; skipping')
-            assert scene.voice_manager is not None
-            assert scene.voice_manager.is_available()
-
-        except (ImportError, AttributeError) as exc:
-            # ImportError: speech_recognition not installed
-            # AttributeError: PyAudio not installed (raised by sr.Microphone)
-            pytest.skip(f'Speech recognition dependency not available: {exc}')
+        mock_voice_cls.assert_called_once()
+        assert scene.voice_manager is not None
+        assert scene.voice_manager.is_available()
 
     def test_voice_recognition_setup_without_speech_recognition_expected(self, mocker):
         """Test that voice recognition setup handles missing speech recognition gracefully.
@@ -630,6 +618,8 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         This test should pass when speech recognition is not available.
         """
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
+        mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
+        mocker.patch('glitchygames.tools.bitmappy.VoiceEventManager', new=None)
         # Create scene instance
         scene = BitmapEditorScene({})
         scene.log = mocker.Mock()

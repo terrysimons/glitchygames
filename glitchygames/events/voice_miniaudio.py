@@ -107,20 +107,23 @@ class MiniaudioMicrophone(sr.AudioSource):
         """
         self.stream = _BlockingByteStream()
 
-        def _callback(frames: bytes) -> None:
-            # miniaudio provides raw bytes in the requested format
-            if self.stream:
-                self.stream.write(frames)
+        def _capture_generator():
+            """Generator that receives captured audio data and writes to the stream."""
+            while True:
+                data = yield
+                if self.stream and data:
+                    self.stream.write(bytes(data))
 
         # Configure capture device
         self._device = mi.CaptureDevice(
-            callback=_callback,
+            input_format=mi.SampleFormat.SIGNED16,
+            nchannels=self.CHANNELS,
             sample_rate=self.SAMPLE_RATE,
-            channels=self.CHANNELS,
-            format=mi.SampleFormat.SIGNED16,
             device_id=self.device_index,
         )
-        self._device.start()
+        generator = _capture_generator()
+        next(generator)  # Prime the generator
+        self._device.start(generator)
         return self
 
     def __exit__(

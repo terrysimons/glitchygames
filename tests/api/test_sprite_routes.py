@@ -16,13 +16,17 @@ from glitchygames.services.sprite_generation_service import GenerationResult
 
 
 @pytest.fixture
-def client():
+def client(mocker):
     """Create a test client for the API.
+
+    Mocks the RendererService initialization in the lifespan to avoid
+    requiring a real display (e.g. in CI/headless environments).
 
     Returns:
         object: The result.
 
     """
+    mocker.patch('glitchygames.services.RendererService')
     return TestClient(app)
 
 
