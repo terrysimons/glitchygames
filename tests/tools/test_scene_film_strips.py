@@ -10,10 +10,14 @@ ANIMATION_COUNT = 3
 class TestSceneFilmStrips:
     """Test the new scene-based film strip system."""
 
-    def test_scene_film_strips_creation(self, mock_pygame_patches):
+    def test_scene_film_strips_creation(self, mock_pygame_patches, mocker):
         """Test that scene creates film strips correctly."""
         # Create mock animated sprite
         mock_sprite = MockFactory.create_animated_sprite_mock()
+
+        # Mock _setup_menu_bar to avoid real pygame sprite group operations
+        # which are not safe under parallel test execution
+        mocker.patch.object(bitmappy.BitmapEditorScene, '_setup_menu_bar')
 
         # Create scene with mock sprite (using centralized mocks)
         scene = bitmappy.BitmapEditorScene(
@@ -36,12 +40,16 @@ class TestSceneFilmStrips:
             assert scene.film_strips[anim_name] is not None
             assert scene.film_strip_sprites[anim_name] is not None
 
-    def test_scene_film_strips_multiple_animations(self, mock_pygame_patches):
+    def test_scene_film_strips_multiple_animations(self, mock_pygame_patches, mocker):
         """Test scene with multiple animations."""
         # Create mock sprite with multiple animations
         mock_sprite = MockFactory.create_animated_sprite_mock()
         mock_sprite._animations['walk'] = mock_sprite._animations['idle'].copy()
         mock_sprite._animations['jump'] = mock_sprite._animations['idle'].copy()
+
+        # Mock _setup_menu_bar to avoid real pygame sprite group operations
+        # which are not safe under parallel test execution
+        mocker.patch.object(bitmappy.BitmapEditorScene, '_setup_menu_bar')
 
         # Create scene (using centralized mocks)
         scene = bitmappy.BitmapEditorScene(
