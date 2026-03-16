@@ -197,7 +197,7 @@ class TestSpeedTruediv:
         """Test division of Speed by zero raises ZeroDivisionError."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
         with pytest.raises(ZeroDivisionError, match='Cannot divide Speed by zero'):
-            speed / 0
+            _result = speed / 0
 
     def test_truediv_with_non_numeric_returns_not_implemented(self):
         """Test division with non-numeric type returns NotImplemented."""
@@ -228,7 +228,7 @@ class TestSpeedMod:
         """Test modulo of Speed by zero raises ZeroDivisionError."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
         with pytest.raises(ZeroDivisionError, match='Cannot modulo Speed by zero'):
-            speed % 0
+            _result = speed % 0
 
     def test_mod_with_non_numeric_returns_not_implemented(self):
         """Test modulo with non-numeric type returns NotImplemented."""

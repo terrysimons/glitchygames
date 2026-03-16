@@ -187,8 +187,14 @@ jobs:
 workflows:
   build-and-test:
     jobs:
-      - build-and-test-linux
-      - build-and-test-macos
-      - build-and-test-windows
+      - build-and-test-linux:
+          context:
+            - SAFETY_API_KEY
+      - build-and-test-macos:
+          context:
+            - SAFETY_API_KEY
+      - build-and-test-windows:
+          context:
+            - SAFETY_API_KEY
 
 
