@@ -90,7 +90,7 @@ norecursedirs = [
   ".git",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=65"
+addopts = "-n auto --cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=72"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
