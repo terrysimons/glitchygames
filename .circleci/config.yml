@@ -52,11 +52,10 @@ commands:
           paths:
             - .venv
 
-  install-and-test-with-uv-posix:
+  install-deps-posix:
     steps:
       - run:
-          no_output_timeout: 60m
-          name: "Install + Test (uv)"
+          name: "Install uv and dependencies"
           command: |
             set -euo pipefail
 
@@ -73,7 +72,62 @@ commands:
             # Reproducible, lockfile-based install
             uv sync --frozen --extra dev --extra docs
 
-            uv run nox
+  nox-format:
+    steps:
+      - run:
+          name: "Format check"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s format
+
+  nox-lint:
+    steps:
+      - run:
+          name: "Lint (ruff)"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s lint
+
+  nox-static-analysis:
+    steps:
+      - run:
+          name: "Static analysis (pyright)"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s static_analysis
+
+  nox-lint-docs:
+    steps:
+      - run:
+          name: "Lint docs (mkdocs)"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s lint_docs
+
+  nox-test:
+    steps:
+      - run:
+          name: "Tests (pytest + coverage)"
+          no_output_timeout: 30m
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s test
+
+  nox-security-scan:
+    steps:
+      - run:
+          name: "Security scan (bandit + safety)"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s security_scan
+
+  nox-performance-test:
+    steps:
+      - run:
+          name: "Performance benchmarks"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s performance_test
 
   restore-uv-cache-windows:
     steps:
@@ -129,9 +183,16 @@ jobs:
 
       - restore-uv-cache-posix
       - restore-venv-posix
-      - install-and-test-with-uv-posix
+      - install-deps-posix
       - save-venv-posix
       - save-uv-cache-posix
+      - nox-format
+      - nox-lint
+      - nox-static-analysis
+      - nox-lint-docs
+      - nox-test
+      - nox-security-scan
+      - nox-performance-test
 
   build-and-test-macos:
     macos:
@@ -143,9 +204,16 @@ jobs:
 
       - restore-uv-cache-posix
       - restore-venv-posix
-      - install-and-test-with-uv-posix
+      - install-deps-posix
       - save-venv-posix
       - save-uv-cache-posix
+      - nox-format
+      - nox-lint
+      - nox-static-analysis
+      - nox-lint-docs
+      - nox-test
+      - nox-security-scan
+      - nox-performance-test
 
   build-and-test-windows:
     executor:
@@ -158,8 +226,7 @@ jobs:
       - restore-uv-cache-windows
       - restore-venv-windows
       - run:
-          no_output_timeout: 60m
-          name: "Install + Test (uv)"
+          name: "Install uv and dependencies"
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
@@ -176,10 +243,58 @@ jobs:
 
             # Reproducible, lockfile-based install
             uv sync --frozen --extra dev --extra docs
-
-            uv run nox
       - save-venv-windows
       - save-uv-cache-windows
+      - run:
+          name: "Format check"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s format
+      - run:
+          name: "Lint (ruff)"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s lint
+      - run:
+          name: "Static analysis (pyright)"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s static_analysis
+      - run:
+          name: "Lint docs (mkdocs)"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s lint_docs
+      - run:
+          name: "Tests (pytest + coverage)"
+          no_output_timeout: 30m
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s test
+      - run:
+          name: "Security scan (bandit + safety)"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s security_scan
+      - run:
+          name: "Performance benchmarks"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s performance_test
 
 
 # Invoke jobs via workflows

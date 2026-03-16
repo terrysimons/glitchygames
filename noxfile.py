@@ -10,12 +10,7 @@ nox.options.default_venv_backend = 'uv'
 
 
 def _lint_code(session: nox.Session) -> None:
-    """Lint the project."""
-    session.run(
-        'pyright',
-    )
-
-    # Lint code
+    """Lint the project with ruff."""
     session.run(
         'ruff',
         'check',
@@ -23,20 +18,6 @@ def _lint_code(session: nox.Session) -> None:
         'glitchygames',
         'scripts',
         'tests',
-    )
-
-
-def _lint_docs(session: nox.Session) -> None:
-    """Lint the docs."""
-    # Install with all extras into the nox session venv.
-    # Update this if new [project.optional-dependencies] sections are added.
-    session.install('.[api,dev,docs]')
-
-    # Lint docs
-    session.run(
-        'mkdocs',
-        'build',
-        '--strict',
     )
 
 
@@ -105,13 +86,36 @@ def _format(session: nox.Session) -> None:
 
 @nox.session(python=['3.13'], reuse_venv=False)
 def lint(session: nox.Session) -> None:
-    """Lint the project."""
+    """Lint the project with ruff."""
     # Install with all extras into the nox session venv.
     # Update this if new [project.optional-dependencies] sections are added.
     session.install('.[api,dev,docs]')
 
     _lint_code(session)
-    _lint_docs(session)
+
+
+@nox.session(python=['3.13'], reuse_venv=False)
+def static_analysis(session: nox.Session) -> None:
+    """Run static type analysis with pyright."""
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
+
+    session.run('pyright')
+
+
+@nox.session(python=['3.13'], reuse_venv=False)
+def lint_docs(session: nox.Session) -> None:
+    """Lint documentation with mkdocs strict build."""
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
+
+    session.run(
+        'mkdocs',
+        'build',
+        '--strict',
+    )
 
 
 @nox.session(python=['3.13'], reuse_venv=False)
