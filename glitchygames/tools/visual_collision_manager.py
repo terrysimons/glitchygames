@@ -313,7 +313,8 @@ class VisualCollisionManager:
             return
 
         # Group indicators by position for the specific location
-        for controller_id, indicator in indicators_dict.items():
+        # Snapshot to avoid RuntimeError from concurrent modification
+        for controller_id, indicator in list(indicators_dict.items()):
             if indicator.is_visible:
                 position = indicator.position
                 collision_groups = self._get_collision_groups_for_location(location_type)
@@ -322,8 +323,9 @@ class VisualCollisionManager:
                 collision_groups[position].append(controller_id)
 
         # Apply collision avoidance for groups with multiple indicators
+        # Snapshot the items to avoid RuntimeError from concurrent dict modification
         collision_groups = self._get_collision_groups_for_location(location_type)
-        for position, controller_ids in collision_groups.items():
+        for position, controller_ids in list(collision_groups.items()):
             if len(controller_ids) > 1:
                 self._apply_collision_avoidance(position, controller_ids, location_type)
 

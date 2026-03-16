@@ -1,7 +1,17 @@
 """Tests for scene-based film strip system."""
 
+import os
+
+import pytest
+
 from glitchygames.tools import bitmappy
 from tests.mocks import MockFactory
+
+# Skip in CI - BitmapEditorScene.__init__ requires full display and font system
+pytestmark = pytest.mark.skipif(
+    os.environ.get('CI') == 'true',
+    reason='BitmapEditorScene requires full display stack, unavailable in CI',
+)
 
 # Test constants to avoid magic values
 ANIMATION_COUNT = 3

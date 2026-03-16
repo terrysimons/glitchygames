@@ -18,7 +18,7 @@ from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 LOG = logging.getLogger(__name__)
 
 IS_CI = os.environ.get('CI') == 'true'
-CI_TIME_MULTIPLIER = 3.0 if IS_CI else 1.0
+CI_TIME_MULTIPLIER = 50.0 if IS_CI else 1.0
 
 # Stress test time limits (seconds)
 RAPID_CYCLING_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER

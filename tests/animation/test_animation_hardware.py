@@ -5,6 +5,7 @@ and hardware, providing multiple layers of verification to quickly identify
 where rendering problems occur in the pipeline.
 """
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -19,6 +20,12 @@ from glitchygames.sprites import SpriteFactory
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tests.mocks.test_mock_factory import MockFactory
+
+# Skip all hardware tests in CI environments (headless, no GPU)
+pytestmark = pytest.mark.skipif(
+    os.environ.get('CI') == 'true',
+    reason='Hardware rendering tests require a display and GPU, unavailable in CI',
+)
 
 
 def get_resource_path(filename: str) -> str:

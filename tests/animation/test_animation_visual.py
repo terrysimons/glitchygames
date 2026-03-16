@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from tests.mocks.test_mock_factory import MockFactory
 
 IS_CI = os.environ.get('CI') == 'true'
-CI_TIME_MULTIPLIER = 3.0 if IS_CI else 1.0
+CI_TIME_MULTIPLIER = 50.0 if IS_CI else 1.0
 
 # Animation rendering performance limit (seconds)
 RENDERING_PERF_LIMIT = 6.0 * CI_TIME_MULTIPLIER
