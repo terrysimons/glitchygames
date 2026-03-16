@@ -138,11 +138,9 @@ jobs:
       xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
     resource_class: macos.m1.medium.gen1
 
-
     steps:
-      # Commands will execute in macOS container
-      # with Xcode 14.3.1 installed
       - checkout
+
       - restore-uv-cache-posix
       - restore-venv-posix
       - install-and-test-with-uv-posix
