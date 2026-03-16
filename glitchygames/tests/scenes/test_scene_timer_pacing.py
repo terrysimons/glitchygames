@@ -3,7 +3,12 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from unittest.mock import Mock
+
+# Add project root so imports from top-level tests/ work
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tests.mocks.test_mock_factory import MockFactory
 

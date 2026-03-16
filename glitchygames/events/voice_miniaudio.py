@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     import types
+    from collections.abc import Generator
 
 try:
     import miniaudio as mi
@@ -107,7 +108,7 @@ class MiniaudioMicrophone(sr.AudioSource):
         """
         self.stream = _BlockingByteStream()
 
-        def _capture_generator():
+        def _capture_generator() -> Generator[None, bytes | None]:
             """Generator that receives captured audio data and writes to the stream."""
             while True:
                 data = yield

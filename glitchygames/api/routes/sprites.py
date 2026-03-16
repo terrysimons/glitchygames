@@ -7,6 +7,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
+from glitchygames.api.dependencies import (
+    get_renderer_service,
+    get_sprite_generation_service,
+)
 from glitchygames.api.models import (
     OUTPUT_FORMAT_PNG,
     OUTPUT_FORMAT_TOML,
@@ -21,12 +25,7 @@ from glitchygames.api.models import (
 from glitchygames.services import (
     AIProviderError,
     RendererService,
-    ServiceConfig,
     SpriteGenerationService,
-)
-from glitchygames.api.dependencies import (
-    get_renderer_service,
-    get_sprite_generation_service,
 )
 
 LOG = logging.getLogger('glitchygames.api.sprites')
@@ -72,6 +71,9 @@ def _save_sprite_files(
 
     Returns:
         List of saved file paths
+
+    Raises:
+        HTTPException: If the output path is absolute or resolves outside the allowed root.
 
     """
     saved_files = []

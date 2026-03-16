@@ -26,7 +26,7 @@ def client(mocker):
         object: The result.
 
     """
-    mocker.patch('glitchygames.services.RendererService')
+    mocker.patch('glitchygames.services.renderer_service.RendererService')
     return TestClient(app)
 
 
@@ -299,6 +299,10 @@ class TestOutputDirFunctionality:
     ):
         """Test generating sprite saves files when output_dir specified."""
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Point ALLOWED_OUTPUT_ROOT at the temp dir so relative paths resolve there
+            temp_root = Path(temp_dir).resolve()
+            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+
             mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
             mock_gen_service = mocker.MagicMock()
             mock_gen_service.generate_sprite.return_value = mock_generation_result
@@ -311,7 +315,7 @@ class TestOutputDirFunctionality:
                 json={
                     'prompt': '16x16 red heart',
                     'output_format': ['toml', 'png'],
-                    'output_path': temp_dir,
+                    'output_path': 'hearts',
                 },
             )
 
@@ -322,7 +326,7 @@ class TestOutputDirFunctionality:
             assert len(data['saved_files']) == 2  # TOML and PNG
 
             # Verify files were actually created
-            output_path = Path(temp_dir)
+            output_path = temp_root / 'hearts'
             toml_files = list(output_path.glob('*.toml'))
             png_files = list(output_path.glob('*.png'))
             assert len(toml_files) == 1
@@ -331,8 +335,8 @@ class TestOutputDirFunctionality:
     def test_generate_sprite_creates_output_dir(self, client, mock_generation_result, mocker):
         """Test that output_dir is created if it doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Create a path to a subdirectory that doesn't exist
-            new_subdir = Path(temp_dir) / 'new_sprites' / 'hearts'
+            temp_root = Path(temp_dir).resolve()
+            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
 
             mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
             mock_gen_service = mocker.MagicMock()
@@ -345,7 +349,7 @@ class TestOutputDirFunctionality:
                 json={
                     'prompt': '16x16 red heart',
                     'output_format': ['toml'],
-                    'output_path': str(new_subdir),
+                    'output_path': 'new_sprites/hearts',
                 },
             )
 
@@ -355,6 +359,7 @@ class TestOutputDirFunctionality:
             assert data['saved_files'] is not None
 
             # Verify directory was created
+            new_subdir = temp_root / 'new_sprites' / 'hearts'
             assert new_subdir.exists()
             assert new_subdir.is_dir()
 
@@ -363,6 +368,9 @@ class TestOutputDirFunctionality:
     ):
         """Test refining sprite saves files when output_dir specified."""
         with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir).resolve()
+            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+
             mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
             mock_gen_service = mocker.MagicMock()
             mock_gen_service.refine_sprite.return_value = mock_generation_result
@@ -376,7 +384,7 @@ class TestOutputDirFunctionality:
                     'prompt': 'make it blue',
                     'current_toml': "[sprite]\nname = 'test'",
                     'output_format': ['toml', 'png'],
-                    'output_path': temp_dir,
+                    'output_path': 'refined',
                 },
             )
 
@@ -386,7 +394,7 @@ class TestOutputDirFunctionality:
             assert data['saved_files'] is not None
 
             # Verify files were actually created
-            output_path = Path(temp_dir)
+            output_path = temp_root / 'refined'
             assert any(output_path.iterdir())
 
 

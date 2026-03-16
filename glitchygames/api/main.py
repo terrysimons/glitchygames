@@ -39,7 +39,7 @@ LOG = logging.getLogger('glitchygames.api')
 
 
 @asynccontextmanager
-async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:  # noqa: ARG001, RUF029
+async def lifespan(application: FastAPI) -> AsyncGenerator[None]:  # noqa: ARG001, RUF029
     """Manage application startup and shutdown lifecycle."""
     LOG.info('Starting GlitchyGames Sprite Generation API')
 

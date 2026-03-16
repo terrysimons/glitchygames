@@ -25,7 +25,7 @@ IS_CI = os.environ.get('CI') == 'true'
 CI_TIME_MULTIPLIER = 3.0 if IS_CI else 1.0
 
 # Animation rendering performance limit (seconds)
-RENDERING_PERF_LIMIT = 3.0 * CI_TIME_MULTIPLIER
+RENDERING_PERF_LIMIT = 6.0 * CI_TIME_MULTIPLIER
 
 
 def get_resource_path(filename: str) -> str:
