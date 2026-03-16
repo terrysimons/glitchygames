@@ -194,16 +194,6 @@ fixable = ["ALL"]
   "B007",
   "S101",
 ]
-"glitchygames/tests/**/*.py" = [
-  "PLR2004",
-  "ANN",
-  "ARG001",
-  "ARG005",
-  "PLC2701",
-  "F841",
-  "B007",
-  "S101",
-]
 
 [tool.ruff.format]
 docstring-code-format = true
