@@ -1,0 +1,19 @@
+---
+extends: default
+
+rules:
+  # CircleCI config uses long lines for cache keys with template expressions
+  line-length:
+    max: 200
+  # Allow truthy values like 'on' commonly used in CI configs
+  truthy:
+    check-keys: false
+  # Allow inline comments
+  comments:
+    min-spaces-from-content: 1
+  # Not all YAML files start with ---
+  document-start: disable
+  # mkdocs.yml uses non-standard indentation that yamllint flags incorrectly
+  indentation:
+    spaces: consistent
+    indent-sequences: whatever
