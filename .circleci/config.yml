@@ -11,15 +11,98 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.13.7"
+    default: "3.13.12"
   XCODE_LATEST_VERSION:
     type: string
     default: "16.4.0"
 
 orbs:
-  win: circleci/windows@5.1.0
+  win: circleci/windows@5.1.1
   macos: circleci/macos@2.5.4
   jira: circleci/jira@2.2.0
+  slack: circleci/slack@6.1.3
+
+commands:
+  restore-uv-cache-posix:
+    steps:
+      - restore_cache:
+          keys:
+            - uv-cache-v1-{{ arch }}-{{ checksum "uv.lock" }}
+            - uv-cache-v1-{{ arch }}-
+
+  save-uv-cache-posix:
+    steps:
+      - save_cache:
+          key: uv-cache-v1-{{ arch }}-{{ checksum "uv.lock" }}
+          paths:
+            - ~/.cache/uv
+            - ~/.local/share/uv
+
+  restore-venv-posix:
+    steps:
+      - restore_cache:
+          keys:
+            - venv-v1-{{ arch }}-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-{{ checksum "uv.lock" }}
+            - venv-v1-{{ arch }}-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-
+
+  save-venv-posix:
+    steps:
+      - save_cache:
+          key: venv-v1-{{ arch }}-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-{{ checksum "uv.lock" }}
+          paths:
+            - .venv
+
+  install-and-test-with-uv-posix:
+    steps:
+      - run:
+          no_output_timeout: 60m
+          name: "Install + Test (uv)"
+          command: |
+            set -euo pipefail
+
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+
+            uv --version
+            python --version
+
+            # Use the requested interpreter (download if needed on this executor)
+            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+            uv venv --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+
+            # Reproducible, lockfile-based install
+            uv sync --frozen --extra dev --extra docs
+
+            uv run nox
+
+  restore-uv-cache-windows:
+    steps:
+      - restore_cache:
+          keys:
+            - uv-cache-v1-windows-{{ checksum "uv.lock" }}
+            - uv-cache-v1-windows-
+
+  save-uv-cache-windows:
+    steps:
+      - save_cache:
+          key: uv-cache-v1-windows-{{ checksum "uv.lock" }}
+          paths:
+            - C:\Users\circleci\AppData\Local\uv\cache
+            - C:\Users\circleci\AppData\Local\uv\python
+
+  restore-venv-windows:
+    steps:
+      - restore_cache:
+          keys:
+            - venv-v1-windows-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-{{ checksum "uv.lock" }}
+            - venv-v1-windows-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-
+
+  save-venv-windows:
+    steps:
+      - save_cache:
+          key: venv-v1-windows-py<< pipeline.parameters.PYTHON_LATEST_VERSION >>-{{ checksum "uv.lock" }}
+          paths:
+            - .venv
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
@@ -37,39 +120,11 @@ jobs:
     steps:
       - checkout
 
-      - run:
-          no_output_timeout: 60m
-          name: "Build and Test Linux"
-          command: |
-            # rm -rf ~/.pyenv
-            # git clone https://github.com/pyenv/pyenv.git ~/.pyenv
-            # cd ~/.pyenv && src/configure && make -C src
-            # echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-            # echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-            # echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-            # source ~/.bashrc
-            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
-            echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
-            source ~/.bashrc
-            cd /home/circleci/.pyenv/plugins/python-build/../.. && git pull && cd -
-
-            echo "Path: $PATH"
-            echo "Pyenv: "
-            echo $(which pyenv)
-            echo "Building Python ${PYTHON_LATEST_VERSION}"
-
-            # pyenv update
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
-            pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
-
-            python --version
-            pyenv versions
-
-            pip install -e .
-            poetry install --extras docs
-            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
-            cd ~/project
-            nox
+      - restore-uv-cache-posix
+      - restore-venv-posix
+      - install-and-test-with-uv-posix
+      - save-venv-posix
+      - save-uv-cache-posix
 
   build-and-test-macos:
     macos:
@@ -81,48 +136,11 @@ jobs:
       # Commands will execute in macOS container
       # with Xcode 14.3.1 installed
       - checkout
-      - run:
-          no_output_timeout: 60m
-          name: "Build and Test macOS"
-          command: |
-            # rm -rf ~/.pyenv
-            # git clone https://github.com/pyenv/pyenv.git ~/.pyenv
-            # echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
-            # cd ~/.pyenv && src/configure && make -C src
-            # echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-            # echo 'PATH="$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-            # echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-            # echo 'POETRY_HOME="$HOME/.poetry"' >> ~/.bashrc
-            # source ~/.bashrc
-            curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
-            echo 'PATH="$HOME/.poetry/bin:$PATH"' >> ~/.bashrc
-            source ~/.bashrc
-            cd /home/circleci/.pyenv/plugins/python-build/../.. && git pull && cd -
-
-            echo "Path: $PATH"
-            echo "Pyenv: "
-            echo $(which pyenv)
-            echo "Building Python ${PYTHON_LATEST_VERSION}"
-
-            # pyenv update
-            brew update && brew upgrade pyenv
-            PYTHON_CONFIGURE_OPTS="--enable-shared" pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
-            pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
-
-            python --version
-            pyenv versions
-            # curl -sSL https://install.python-poetry.org | POETRY_HOME=${HOME}/.poetry python3 -
-
-            pip install -e .
-            poetry install --extras docs
-            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
-            cd ~/project
-            nox
-
-      # - run: echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
-      # - run: echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
-      # - run: echo 'eval "$(pyenv init -)"' >> ~/.zshrc
-      # - run: source ~/.zshrc
+      - restore-uv-cache-posix
+      - restore-venv-posix
+      - install-and-test-with-uv-posix
+      - save-venv-posix
+      - save-uv-cache-posix
 
   build-and-test-windows:
     executor:
@@ -132,27 +150,31 @@ jobs:
     steps:
       - checkout
 
+      - restore-uv-cache-windows
+      - restore-venv-windows
       - run:
           no_output_timeout: 60m
-          name: "Build and Test Windows"
+          name: "Install + Test (uv)"
+          shell: powershell.exe
           command: |
-            # choco install -y python3 --version=3.11.5 --allow-multiple-versions
-            # choco install -y python3 --version=3.10.13 --allow-multiple-versions
-            choco install -y python313
-            # choco install pyenv-win --force -y
-            Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
-            refreshenv
-            # pyenv update
-            # pyenv install -f << pipeline.parameters.PYTHON_LATEST_VERSION >>
-            # pyenv global << pipeline.parameters.PYTHON_LATEST_VERSION >> << pipeline.parameters.PYTHON_LATEST_VERSION >>
-            # pyenv versions
-            (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
-            set PATH=%PATH%;%USERPROFILE%\AppData\Roaming\pypoetry\venv\Scripts
-            refreshenv
-            pip install -e .
-            poetry install --extras docs
-            pip install "nox" "nox-poetry" "pytest" "ruff" "pre-commit" "poetry-plugin-export" "pyright"
-            nox
+            $ErrorActionPreference = "Stop"
+
+            # Install uv
+            irm https://astral.sh/uv/install.ps1 | iex
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+
+            uv --version
+
+            # Provision Python + env
+            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+            uv venv --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+
+            # Reproducible, lockfile-based install
+            uv sync --frozen --extra dev --extra docs
+
+            uv run nox
+      - save-venv-windows
+      - save-uv-cache-windows
 
 
 # Invoke jobs via workflows
