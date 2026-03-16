@@ -1,5 +1,7 @@
 """Nox session definitions for linting, testing, security scanning, and benchmarks."""
 
+import os
+
 import nox
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
@@ -153,6 +155,10 @@ def security_scan(session: nox.Session) -> None:
 
     # Run safety check for known vulnerabilities
     # Exclude .venv and .nox to avoid scanning third-party packages
+    if not os.getenv('SAFETY_API_KEY'):
+        session.log('SAFETY_API_KEY not set; skipping Safety scan.')
+        return
+
     session.run(
         'safety',
         'scan',
