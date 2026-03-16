@@ -14,7 +14,7 @@ parameters:
     default: "3.13.12"
   XCODE_LATEST_VERSION:
     type: string
-    default: "26.2.0"
+    default: "26.3.0"
 
 orbs:
   win: circleci/windows@5.1.1
@@ -197,7 +197,7 @@ jobs:
   build-and-test-macos:
     macos:
       xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
-    resource_class: macos.m4.medium
+    resource_class: m4pro.medium
 
     steps:
       - checkout
