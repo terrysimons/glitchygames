@@ -5,6 +5,7 @@ multi-controller system under extreme conditions.
 """
 
 import logging
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -16,6 +17,17 @@ from glitchygames.tools.multi_controller_manager import MultiControllerManager
 from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 
 LOG = logging.getLogger(__name__)
+
+IS_CI = os.environ.get('CI') == 'true'
+CI_TIME_MULTIPLIER = 3.0 if IS_CI else 1.0
+
+# Stress test time limits (seconds)
+RAPID_CYCLING_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
+NAVIGATION_HISTORY_TIME_LIMIT = 5.0 * CI_TIME_MULTIPLIER
+COLLISION_ADD_TIME_LIMIT = 2.0 * CI_TIME_MULTIPLIER
+COLLISION_UPDATE_TIME_LIMIT = 3.0 * CI_TIME_MULTIPLIER
+CONCURRENT_OPS_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
+RESILIENCE_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
 
 
 class TestMultiControllerStress:
@@ -83,8 +95,7 @@ class TestMultiControllerStress:
                 time.sleep(0.0001)  # Very small delay
         end_time = time.time()
 
-        # Should complete quickly
-        assert end_time - start_time < 10.0
+        assert end_time - start_time < RAPID_CYCLING_TIME_LIMIT
 
         # Verify final states
         for i in range(4):
@@ -105,8 +116,7 @@ class TestMultiControllerStress:
             self.controller_selections[0].set_selection(f'animation_{i % 100}', i % 50)
         end_time = time.time()
 
-        # Should complete quickly
-        assert end_time - start_time < 5.0
+        assert end_time - start_time < NAVIGATION_HISTORY_TIME_LIMIT
 
         # Verify navigation history
         history = self.controller_selections[0].get_navigation_history()
@@ -130,8 +140,7 @@ class TestMultiControllerStress:
             )
         end_time = time.time()
 
-        # Should complete quickly
-        assert end_time - start_time < 2.0
+        assert end_time - start_time < COLLISION_ADD_TIME_LIMIT
 
         # Verify collision avoidance was applied
         assert (100, 100) in self.visual_manager.film_strip_collision_groups
@@ -144,8 +153,7 @@ class TestMultiControllerStress:
                 self.visual_manager.update_controller_position(i, (100 + i, 100 + i))
         update_end = time.time()
 
-        # Should update quickly
-        assert update_end - update_start < 3.0
+        assert update_end - update_start < COLLISION_UPDATE_TIME_LIMIT
 
     def test_concurrent_operations_stress(self):
         """Test concurrent operations on multiple controllers."""
@@ -178,8 +186,7 @@ class TestMultiControllerStress:
                 future.result()
         end_time = time.time()
 
-        # Should complete within reasonable time
-        assert end_time - start_time < 10.0
+        assert end_time - start_time < CONCURRENT_OPS_TIME_LIMIT
 
         # Verify all controllers are still functional
         for i in range(8):
@@ -355,8 +362,7 @@ class TestMultiControllerStress:
 
         end_time = time.time()
 
-        # Should complete within reasonable time
-        assert end_time - start_time < 10.0
+        assert end_time - start_time < RESILIENCE_TIME_LIMIT
 
         # Verify final state
         for i in range(10):

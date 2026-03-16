@@ -21,6 +21,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tests.mocks.test_mock_factory import MockFactory
 
+IS_CI = os.environ.get('CI') == 'true'
+CI_TIME_MULTIPLIER = 3.0 if IS_CI else 1.0
+
+# Animation rendering performance limit (seconds)
+RENDERING_PERF_LIMIT = 3.0 * CI_TIME_MULTIPLIER
+
 
 def get_resource_path(filename: str) -> str:
     """Get the full path to a resource file.
@@ -44,6 +50,8 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 MIN_FRAME_COUNT = 2
 MAX_FRAME_DURATION = 10
+MAX_TIMING_TEST_FRAMES = 5
+PERF_TEST_CAPTURE_COUNT = 10
 
 
 class AnimationTestScene(Scene):
@@ -57,7 +65,7 @@ class AnimationTestScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         # Initialize with minimal options
-        options = {'width': 800, 'height': 600, 'fullscreen': False}
+        options = {'width': SCREEN_WIDTH, 'height': SCREEN_HEIGHT, 'fullscreen': False}
         super().__init__(options=options, groups=groups)
 
         # Set up the scene
@@ -66,7 +74,7 @@ class AnimationTestScene(Scene):
         self.animation_file = animation_file
         self.animated_sprite = None
         self.frame_captures = []  # Store pixel data for each frame
-        self.test_surface = pygame.Surface((800, 600))
+        self.test_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
 
         # Load the animated sprite
         self._load_animated_sprite()
@@ -263,7 +271,7 @@ class TestAnimationVisual:
         # Test timing by manually advancing frames and verifying content changes
         frame_contents = []
 
-        for i in range(min(5, len(frames))):  # Test first 5 frames
+        for i in range(min(MAX_TIMING_TEST_FRAMES, len(frames))):
             # Set frame
             if hasattr(scene.animated_sprite, 'set_frame'):
                 scene.animated_sprite.set_frame(i)
@@ -354,7 +362,7 @@ class TestAnimationVisual:
         start_time = time.time()
 
         # Simulate multiple frame captures
-        for _ in range(10):
+        for _ in range(PERF_TEST_CAPTURE_COUNT):
             scene.capture_frame_pixels()
 
         end_time = time.time()
@@ -363,12 +371,8 @@ class TestAnimationVisual:
         # Adjust performance threshold for headless environments and mock environments
         # In CI/headless environments, rendering is much slower due to software rendering
         # Mock environments also run slower due to fallback sprite drawing
-        is_headless = os.environ.get('DISPLAY') is None or os.environ.get('CI') == 'true'
-        max_time = 10.0 if is_headless else 3.0  # Increased for mock environment
-
-        # Verify performance is acceptable
-        assert total_time < max_time, (
-            f'Frame capture should be fast: {total_time:.3f}s (max: {max_time}s)'
+        assert total_time < RENDERING_PERF_LIMIT, (
+            f'Frame capture should be fast: {total_time:.3f}s (max: {RENDERING_PERF_LIMIT}s)'
         )
 
     def test_animation_screen_integration(self):
