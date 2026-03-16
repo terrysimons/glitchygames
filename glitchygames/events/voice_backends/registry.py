@@ -26,7 +26,7 @@ def get_microphone_backend() -> type[object] | None:
     """
     # Prefer miniaudio backend
     try:
-        from .voice_miniaudio import MiniaudioMicrophone  # pyright: ignore[reportMissingImports]
+        from ..voice_miniaudio import MiniaudioMicrophone  # pyright: ignore[reportMissingImports]
 
         # Light probe: try to instantiate; if fails, skip
         try:
@@ -46,7 +46,7 @@ def get_microphone_backend() -> type[object] | None:
             return PortAudioMicrophone
         except (OSError, RuntimeError):
             LOG.debug('PortAudioMicrophone probe failed')
-    except ImportError:
+    except (ImportError, RuntimeError):
         LOG.debug('voice_portaudio module not available')
 
     return None

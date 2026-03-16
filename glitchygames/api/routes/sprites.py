@@ -24,10 +24,18 @@ from glitchygames.services import (
     ServiceConfig,
     SpriteGenerationService,
 )
+from glitchygames.api.dependencies import (
+    get_renderer_service,
+    get_sprite_generation_service,
+)
 
 LOG = logging.getLogger('glitchygames.api.sprites')
 
 PNG_IHDR_MINIMUM_BYTES = 24
+
+# Base directory under which all sprite files will be saved.
+# All requested output paths are resolved relative to this directory.
+ALLOWED_OUTPUT_ROOT = (Path.cwd() / 'sprite_outputs').resolve()
 
 router = APIRouter(prefix='/sprites', tags=['sprites'])
 
@@ -39,8 +47,9 @@ def _get_services() -> tuple[SpriteGenerationService, RendererService]:
         Tuple of (SpriteGenerationService, RendererService)
 
     """
-    config = ServiceConfig.from_env()
-    return SpriteGenerationService(config), RendererService(config)
+    sprite_service = get_sprite_generation_service()
+    renderer_service = get_renderer_service()
+    return sprite_service, renderer_service
 
 
 def _save_sprite_files(
@@ -67,8 +76,24 @@ def _save_sprite_files(
     """
     saved_files = []
 
+    # Normalize and validate the requested output path to prevent writing
+    # outside the allowed root directory.
+    requested_path = Path(output_path)
+    if requested_path.is_absolute():
+        raise HTTPException(
+            status_code=400,
+            detail='Absolute output paths are not allowed.',
+        )
+
+    save_dir = (ALLOWED_OUTPUT_ROOT / requested_path).resolve()
+    # Ensure the resolved save_dir is within the allowed root
+    if save_dir != ALLOWED_OUTPUT_ROOT and ALLOWED_OUTPUT_ROOT not in save_dir.parents:
+        raise HTTPException(
+            status_code=400,
+            detail='Invalid output path.',
+        )
+
     # Create directory if it doesn't exist
-    save_dir = Path(output_path)
     save_dir.mkdir(parents=True, exist_ok=True)
     LOG.info(f'Saving sprite files to: {save_dir}')
 
