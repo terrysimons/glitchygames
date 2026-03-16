@@ -17,13 +17,16 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.ui.dialogs import (
+# Save REAL LayeredDirty before mock_pygame_patches replaces it with a Mock.
+_RealLayeredDirty = pygame.sprite.LayeredDirty
+
+from glitchygames.ui.dialogs import (  # noqa: E402
     _get_examples_dir,
     _get_load_path,
     _get_save_path,
     _process_example_filename,
 )
-from tests.mocks import MockFactory
+from tests.mocks import MockFactory  # noqa: E402
 
 
 class TestProcessExampleFilename:
@@ -132,7 +135,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene setup configures button callbacks."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -149,7 +152,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene cleanup sets next_scene to self."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -162,7 +165,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene dismiss returns to previous scene."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -176,7 +179,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene on_cancel_event dismisses dialog."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -191,7 +194,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene on_input_box_submit_event."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -206,7 +209,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene on_mouse_button_up_event activates input."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -220,7 +223,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene on_key_up_event with Tab activates input."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -235,7 +238,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene on_key_up_event when input is active."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -252,7 +255,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene on_key_down_event when input is active."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -269,7 +272,7 @@ class TestDialogSceneSetupCleanupDismiss:
         """Test InputConfirmationDialogScene on_key_down_event when input is inactive."""
         from glitchygames.ui.dialogs import InputConfirmationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         mock_previous.all_sprites = []
 
@@ -277,7 +280,7 @@ class TestDialogSceneSetupCleanupDismiss:
         scene.dialog.input_box.active = False
         # The inactive branch calls super().on_key_up_event which may try to
         # iterate all_sprites, so provide proper mock
-        scene.all_sprites = pygame.sprite.LayeredDirty()
+        scene.all_sprites = _RealLayeredDirty()
         event = mocker.Mock()
         event.key = pygame.K_a
         # Should call super().on_key_up_event - just verify it doesn't raise
@@ -296,7 +299,7 @@ class TestDeleteAnimationDialogScene:
         """Test DeleteAnimationDialogScene initialization."""
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         confirm_callback = mocker.Mock()
         cancel_callback = mocker.Mock()
@@ -316,7 +319,7 @@ class TestDeleteAnimationDialogScene:
         """Test confirm with matching animation name calls callback."""
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         confirm_callback = mocker.Mock()
 
@@ -336,7 +339,7 @@ class TestDeleteAnimationDialogScene:
         """Test confirm with non-matching name clears input."""
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         confirm_callback = mocker.Mock()
 
@@ -356,7 +359,7 @@ class TestDeleteAnimationDialogScene:
         """Test cancel event calls cancel callback."""
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         cancel_callback = mocker.Mock()
 
@@ -376,7 +379,7 @@ class TestDeleteAnimationDialogScene:
         """Test cancel event without callback doesn't raise."""
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
 
         dialog = DeleteAnimationDialogScene(
@@ -394,7 +397,7 @@ class TestDeleteAnimationDialogScene:
         """Test DeleteAnimationDialogScene key down when input is active."""
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
 
         dialog = DeleteAnimationDialogScene(
@@ -416,7 +419,7 @@ class TestDeleteAnimationDialogScene:
         """Test DeleteAnimationDialogScene key up when input is active."""
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
 
         dialog = DeleteAnimationDialogScene(
@@ -437,7 +440,7 @@ class TestDeleteAnimationDialogScene:
         """Test DeleteAnimationDialogScene key up with Tab activates input."""
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
 
         dialog = DeleteAnimationDialogScene(
@@ -470,7 +473,7 @@ class TestDeleteFrameDialogScene:
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
 
         dialog = DeleteFrameDialogScene(
@@ -491,7 +494,7 @@ class TestDeleteFrameDialogScene:
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         confirm_callback = mocker.Mock()
 
@@ -516,7 +519,7 @@ class TestDeleteFrameDialogScene:
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         confirm_callback = mocker.Mock()
 
@@ -541,7 +544,7 @@ class TestDeleteFrameDialogScene:
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
         cancel_callback = mocker.Mock()
 
@@ -566,7 +569,7 @@ class TestDeleteFrameDialogScene:
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
 
         dialog = DeleteFrameDialogScene(
@@ -592,7 +595,7 @@ class TestDeleteFrameDialogScene:
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
 
         dialog = DeleteFrameDialogScene(
@@ -618,7 +621,7 @@ class TestDeleteFrameDialogScene:
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
-        mock_groups = mocker.Mock()
+        mock_groups = _RealLayeredDirty()
         mock_previous = mocker.Mock()
 
         dialog = DeleteFrameDialogScene(

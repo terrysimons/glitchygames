@@ -126,7 +126,7 @@ def test(session: nox.Session) -> None:
     session.install('.[api,dev,docs]')
 
     # Run tests with coverage
-    session.run('pytest')
+    session.run('pytest', '-vvvvv', '--log-cli-level', 'DEBUG')
     session.run('coverage', 'report')
     session.run('coverage', 'html')
     session.run('coverage', 'xml')

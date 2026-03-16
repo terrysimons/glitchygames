@@ -22,7 +22,10 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.ui import (
+# Save REAL LayeredDirty before mock_pygame_patches replaces it with a Mock.
+_RealLayeredDirty = pygame.sprite.LayeredDirty
+
+from glitchygames.ui import (  # noqa: E402
     ButtonSprite,
     CheckboxSprite,
     ColorWellSprite,
@@ -33,8 +36,8 @@ from glitchygames.ui import (
     TextBoxSprite,
     TextSprite,
 )
-from glitchygames.ui.widgets import InputBox
-from tests.mocks import MockFactory
+from glitchygames.ui.widgets import InputBox  # noqa: E402
+from tests.mocks import MockFactory  # noqa: E402
 
 # Test constants
 TEST_X = 10
@@ -55,7 +58,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_left_mouse_drag_event(self, mocker):
         """Test MenuBar on_left_mouse_drag_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -71,7 +74,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_left_mouse_drop_event(self, mocker):
         """Test MenuBar on_left_mouse_drop_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -85,7 +88,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_middle_mouse_drag_event(self, mocker):
         """Test MenuBar on_middle_mouse_drag_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -99,7 +102,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_middle_mouse_drop_event(self, mocker):
         """Test MenuBar on_middle_mouse_drop_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -113,7 +116,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_mouse_drag_event(self, mocker):
         """Test MenuBar on_mouse_drag_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -128,7 +131,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_mouse_drop_event(self, mocker):
         """Test MenuBar on_mouse_drop_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -143,7 +146,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_mouse_motion_event(self, mocker):
         """Test MenuBar on_mouse_motion_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -157,7 +160,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_right_mouse_drag_event(self, mocker):
         """Test MenuBar on_right_mouse_drag_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -171,7 +174,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_right_mouse_drop_event(self, mocker):
         """Test MenuBar on_right_mouse_drop_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -185,7 +188,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_mouse_wheel_event(self, mocker):
         """Test MenuBar on_mouse_wheel_event handler."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -199,7 +202,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_update_with_menu_items(self, mocker):
         """Test MenuBar update with menu items blits them."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -222,7 +225,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_update_with_focus(self, mocker):
         """Test MenuBar update draws focus border when focused."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,
@@ -236,7 +239,7 @@ class TestMenuBarEventHandlers:
 
     def test_menubar_add_menu_item_with_menu(self, mocker):
         """Test MenuBar add_menu_item with explicit menu parameter."""
-        groups = mocker.Mock()
+        groups = _RealLayeredDirty()
         menubar = MenuBar(
             x=0,
             y=0,

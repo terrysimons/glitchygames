@@ -113,10 +113,33 @@ class MockSurface(pygame.Surface):
         """Return a copy of this surface.
 
         Returns:
-            object: The result.
+            MockSurface: A new MockSurface with the same pixel data.
 
         """
-        return self
+        new_surface = MockSurface(self.get_size(), flags=self.get_flags())
+        new_surface.blit(self, (0, 0))
+        return new_surface
+
+    def __copy__(self):
+        """Support copy.copy() by delegating to copy().
+
+        Returns:
+            MockSurface: A shallow copy.
+
+        """
+        return self.copy()
+
+    def __deepcopy__(self, memo):
+        """Support copy.deepcopy() by creating a new MockSurface with copied pixel data.
+
+        Returns:
+            MockSurface: A deep copy.
+
+        """
+        new_surface = MockSurface(self.get_size(), flags=self.get_flags())
+        new_surface.blit(self, (0, 0))
+        memo[id(self)] = new_surface
+        return new_surface
 
     def set_at(self, pos, color):
         """Set pixel color at position.
