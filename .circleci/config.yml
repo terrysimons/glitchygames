@@ -67,7 +67,7 @@ commands:
 
             # Use the requested interpreter (download if needed on this executor)
             uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
-            uv venv --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+            uv venv --clear --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
 
             # Reproducible, lockfile-based install
             uv sync --frozen --extra dev --extra docs
@@ -239,7 +239,7 @@ jobs:
 
             # Provision Python + env
             uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
-            uv venv --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+            uv venv --clear --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
 
             # Reproducible, lockfile-based install
             uv sync --frozen --extra dev --extra docs
