@@ -59,9 +59,8 @@ class TestPNGLoading:
         """Test that PNG files are detected and converted in _load_sprite_from_file."""
         self._mocker.patch('pygame.image.save')
 
-        tmp_png = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-        tmp_png_path = Path(tmp_png.name)
-        tmp_png.close()
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+            tmp_png_path = Path(tmp_png.name)
         tmp_png_path.write_bytes(b'fake png data')
 
         try:
@@ -94,9 +93,8 @@ class TestPNGLoading:
         """Test that PNG conversion failures are handled gracefully."""
         self._mocker.patch('pygame.image.save')
 
-        tmp_png = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-        tmp_png_path = Path(tmp_png.name)
-        tmp_png.close()
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+            tmp_png_path = Path(tmp_png.name)
         tmp_png_path.write_bytes(b'fake png data')
 
         try:
@@ -374,9 +372,8 @@ class TestPNGConversionIntegration:
         # Create a PNG with transparency
         self._mocker.patch('pygame.image.save')
 
-        tmp_png = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-        tmp_png_path = Path(tmp_png.name)
-        tmp_png.close()
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+            tmp_png_path = Path(tmp_png.name)
         tmp_png_path.write_bytes(b'fake png data')
 
         result = None
@@ -423,9 +420,8 @@ class TestDragAndDropPNG:
         # Create a simple PNG
         self._mocker.patch('pygame.image.save')
 
-        tmp_png = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-        tmp_png_path = Path(tmp_png.name)
-        tmp_png.close()
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_png:
+            tmp_png_path = Path(tmp_png.name)
         tmp_png_path.write_bytes(b'fake png data')
 
         try:
@@ -456,9 +452,8 @@ class TestDragAndDropPNG:
     def test_drag_drop_non_png_file(self):
         """Test drag and drop of non-PNG file."""
         # Create a text file
-        tmp_file = tempfile.NamedTemporaryFile(suffix='.txt', delete=False)
-        tmp_file_path = Path(tmp_file.name)
-        tmp_file.close()
+        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as tmp_file:
+            tmp_file_path = Path(tmp_file.name)
         tmp_file_path.write_bytes(b'Not a PNG file')
 
         try:

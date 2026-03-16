@@ -51,9 +51,8 @@ class TestFilmStripDropPNG:
         self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
-        test_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-        test_file_path = Path(test_file.name)
-        test_file.close()
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
+            test_file_path = Path(test_file.name)
         test_file_path.write_bytes(b'fake png data')
 
         try:
@@ -108,9 +107,8 @@ class TestFilmStripDropPNG:
         self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
-        test_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-        test_file_path = Path(test_file.name)
-        test_file.close()
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
+            test_file_path = Path(test_file.name)
         test_file_path.write_bytes(b'fake png data')
 
         try:
@@ -214,9 +212,8 @@ class TestFilmStripDropPNG:
         self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
-        test_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-        test_file_path = Path(test_file.name)
-        test_file.close()
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
+            test_file_path = Path(test_file.name)
         test_file_path.write_bytes(b'fake png data')
 
         try:
