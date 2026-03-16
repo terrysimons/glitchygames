@@ -110,7 +110,7 @@ def run() -> None:
     """
     import uvicorn
 
-    host = os.environ.get('GLITCHYGAMES_HOST', '0.0.0.0')  # noqa: S104
+    host = os.environ.get('GLITCHYGAMES_HOST', '127.0.0.1')
     port = int(os.environ.get('GLITCHYGAMES_PORT', '8000'))
     reload = os.environ.get('GLITCHYGAMES_RELOAD', 'false').lower() == 'true'
 

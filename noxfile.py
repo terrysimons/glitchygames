@@ -138,15 +138,13 @@ def security_scan(session: nox.Session) -> None:
     session.install('.[api,dev,docs]')
 
     # Run bandit security scan
-    # Exclude test dirs (B101 assert false positives) and skip B104 (0.0.0.0 bind is intentional)
+    # Exclude test dirs (B101 assert false positives)
     session.run(
         'bandit',
         '-r',
         'glitchygames',
         '--exclude',
         'glitchygames/tests',
-        '-s',
-        'B104',
         '-f',
         'json',
         '-o',

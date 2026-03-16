@@ -90,7 +90,7 @@ uv run bitmappy --target-fps=120
 FastAPI-based server for AI sprite generation, sprite rendering, and APNG frame extraction.
 
 ```bash
-# Start the server (default: http://0.0.0.0:8000)
+# Start the server (default: http://127.0.0.1:8000)
 uv run glitchygames-server
 
 # Docs available at http://localhost:8000/docs
@@ -109,7 +109,7 @@ uv run glitchygames-server
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `GLITCHYGAMES_HOST` | Bind address | `0.0.0.0` |
+| `GLITCHYGAMES_HOST` | Bind address | `127.0.0.1` |
 | `GLITCHYGAMES_PORT` | Bind port | `8000` |
 | `GLITCHYGAMES_RELOAD` | Enable auto-reload | `false` |
 
