@@ -4,6 +4,8 @@ This module defines numeric constants for color formats, channel values,
 transparency thresholds, and named color tuples derived from the default palette.
 """
 
+from typing import cast
+
 from .palette import Default
 
 # --- Color format constants ---
@@ -25,12 +27,16 @@ ALPHA_TRANSPARENCY_THRESHOLD = 128
 MAGENTA_TRANSPARENCY_KEY = (255, 0, 255)
 
 _default_colors: Default = Default()
-YELLOW = _default_colors.YELLOW
-PURPLE = _default_colors.PURPLE
-BLUE = _default_colors.BLUE
-GREEN = _default_colors.GREEN
-WHITE = _default_colors.WHITE
-BLACK = _default_colors.BLACK
-BLACKLUCENT = _default_colors.BLACKLUCENT
-BLUELUCENT = _default_colors.BLUELUCENT
-RED = _default_colors.RED
+
+# Default palette always has valid colors for these indices.
+# get_color() can return None for invalid indices, but these are known-good.
+_ColorTuple = tuple[int, int, int]
+YELLOW: _ColorTuple = cast('_ColorTuple', _default_colors.YELLOW)
+PURPLE: _ColorTuple = cast('_ColorTuple', _default_colors.PURPLE)
+BLUE: _ColorTuple = cast('_ColorTuple', _default_colors.BLUE)
+GREEN: _ColorTuple = cast('_ColorTuple', _default_colors.GREEN)
+WHITE: _ColorTuple = cast('_ColorTuple', _default_colors.WHITE)
+BLACK: _ColorTuple = cast('_ColorTuple', _default_colors.BLACK)
+BLACKLUCENT: _ColorTuple = cast('_ColorTuple', _default_colors.BLACKLUCENT)
+BLUELUCENT: _ColorTuple = cast('_ColorTuple', _default_colors.BLUELUCENT)
+RED: _ColorTuple = cast('_ColorTuple', _default_colors.RED)

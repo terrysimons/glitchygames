@@ -65,8 +65,10 @@ def supported_events(like: str = '.*') -> list:
     """
     # Get a list of all of the events
     # by name, but ignore duplicates.
-    event_names = (pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS))
-    event_names: set[str] = set(event_names) - set('Unknown')
+    event_name_generator = (
+        pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS)
+    )
+    event_names: set[str] = set(event_name_generator) - set('Unknown')
 
     # Pygame 2.5.1 and maybe others have a bug where the event name lookup
     # is wrong.
@@ -145,14 +147,17 @@ GAME_EVENTS.extend([FPSEVENT, GAMEEVENT, MENUEVENT])
 def dump_cache_info(func: Callable, **kwargs: dict) -> Callable[..., None]:  # noqa: ARG001
     """Dump the cache info for a function.
 
+    Expects a @functools.cache-decorated callable with cache_info().
+
     Returns:
         Callable[..., None]: The result.
 
     """
 
     def wrapper(game: Scene, *args: list, **kwargs: dict) -> None:
-        cache_info: Any = func.cache_info()
-        LOG.debug(f'Cache Info: {func.__name__} {cache_info}')
+        cache_info = getattr(func, 'cache_info', None)
+        if cache_info is not None:
+            LOG.debug(f'Cache Info: {func.__name__} {cache_info()}')
         func(game, *args, **kwargs)
 
     return wrapper
@@ -312,7 +317,7 @@ class HashableEvent(collections.UserDict):
     which allows us to extend them with additional information.
     """
 
-    def __init__(self: Self, type: pygame.event, *args: list, **attributes: dict) -> Self:  # noqa: A002
+    def __init__(self: Self, type: int, *args: list, **attributes: dict) -> Self:  # noqa: A002
         """Create a hashable event.
 
         Pygames events are not hashable by default.

@@ -134,7 +134,7 @@ class TestSpriteInitialization:
         sprite.break_when = [Sprite]
         sprite.break_when.append('test')
 
-        assert 'test' in sprite.break_when
+        assert 'test' in sprite.break_when  # type: ignore[reportOperatorIssue]
 
 
 class TestSpriteProperties:

@@ -31,7 +31,9 @@ class AnimationGame(Scene):
     NAME = 'Animation Scene Demo'
     log = LOG
 
-    def __init__(self: Self, options: dict, groups: pygame.sprite.Group | None = None) -> None:
+    def __init__(
+        self: Self, options: dict, groups: pygame.sprite.AbstractGroup | None = None
+    ) -> None:
         """Initialize the animation game."""
         if groups is None:
             groups = pygame.sprite.LayeredDirty()

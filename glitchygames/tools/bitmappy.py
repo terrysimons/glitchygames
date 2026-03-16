@@ -19,6 +19,9 @@ from typing import TYPE_CHECKING, ClassVar, Self
 
 import pygame
 
+if TYPE_CHECKING:
+    import numpy as np
+
 # Try to import aisuite, but don't fail if it's not available
 try:
     import aisuite as ai
@@ -1836,8 +1839,12 @@ def _select_relevant_training_examples(
         list: The result.
 
     """
-    if len(ai_training_state['data']) <= max_examples:
-        return ai_training_state['data']
+    training_data = ai_training_state['data']
+    if not isinstance(training_data, list):
+        return []
+
+    if len(training_data) <= max_examples:
+        return training_data
 
     user_lower = user_request.lower()
     requested_size = get_sprite_size_hint(user_request)
@@ -1847,7 +1854,7 @@ def _select_relevant_training_examples(
     )
 
     scored_examples = []
-    for example in ai_training_state['data']:
+    for example in training_data:
         score = _score_training_example(
             example,
             user_lower,
@@ -11924,7 +11931,7 @@ pixels = \"\"\"
 
     def _sample_png_colors(
         self,
-        pixel_array: object,
+        pixel_array: np.ndarray,
         width: int,
         height: int,
         *,
@@ -12097,7 +12104,7 @@ pixels = \"\"\"
 
     def _generate_pixel_string(
         self,
-        pixel_array: object,
+        pixel_array: np.ndarray,
         width: int,
         height: int,
         *,

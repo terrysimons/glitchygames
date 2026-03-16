@@ -90,7 +90,7 @@ norecursedirs = [
   ".git",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=49"
+addopts = "-n auto --cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=65"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -247,29 +247,30 @@ executionEnvironments = [
     ".",
   ] },
 ]
-# Re-enable these incrementally as type issues are fixed
-reportMissingImports = "warning"
+reportMissingImports = "error"
 reportMissingTypeStubs = false
-reportPossiblyUnboundVariable = "warning"
-reportPrivateImportUsage = "warning"
-reportRedeclaration = "warning"
-reportUnnecessaryTypeIgnoreComment = "warning"
-# These remain disabled until targeted cleanup is done
+reportPossiblyUnboundVariable = "error"
+reportPrivateImportUsage = "error"
+reportRedeclaration = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+# Enabled — small error count, fix now
+reportAbstractUsage = "error"
+reportAssignmentType = "error"
+reportFunctionMemberAccess = "error"
+reportIndexIssue = "error"
+reportOperatorIssue = "error"
+reportOptionalIterable = "error"
+reportOptionalSubscript = "error"
+# Deferred — medium error count, fix soon
+reportCallIssue = false
+reportGeneralTypeIssues = false
+reportReturnType = false
+# Deferred — large error count, fix later
+reportArgumentType = false
 reportAttributeAccessIssue = false
 reportIncompatibleMethodOverride = false
-reportReturnType = false
-reportArgumentType = false
-reportAbstractUsage = false
-reportGeneralTypeIssues = false
-reportOptionalMemberAccess = false
-reportCallIssue = false
-reportOptionalIterable = false
 reportIncompatibleVariableOverride = false
-reportOptionalSubscript = false
-reportIndexIssue = false
-reportAssignmentType = false
-reportOperatorIssue = false
-reportFunctionMemberAccess = false
+reportOptionalMemberAccess = false
 
 [build-system]
 requires = ["hatchling"]

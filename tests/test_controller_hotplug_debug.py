@@ -53,7 +53,7 @@ def _monitor_controller_events(duration: float) -> None:
         if current_count != getattr(test_controller_hotplug, 'last_count', 0):
             last_count = getattr(test_controller_hotplug, 'last_count', 0)
             LOG.debug(f'Controller count changed: {last_count} -> {current_count}')
-            test_controller_hotplug.last_count = current_count
+            test_controller_hotplug.last_count = current_count  # type: ignore[reportFunctionMemberAccess]
 
         time.sleep(0.1)
 

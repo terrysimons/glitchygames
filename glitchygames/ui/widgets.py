@@ -2899,12 +2899,12 @@ class MultiLineTextBox(BitmappySprite):
         self.scroll_offset = 0
         # Calculate line height - handle both pygame.font and pygame.freetype
         if hasattr(self.font, 'get_linesize'):
-            line_height = self.font.get_linesize()
+            line_height: int = self.font.get_linesize()
         else:
             # For freetype fonts, use the size attribute (it's a float, not a tuple)
-            line_height = self.font.size if hasattr(self.font, 'size') else 24
+            line_height = int(getattr(self.font, 'size', 24))
         # Account for top/bottom padding (5px each = 10px total)
-        self.visible_lines = int((self.height - 10) // line_height)
+        self.visible_lines = (self.height - 10) // line_height
 
         # Create scrollbar component
         scrollbar_width = 8

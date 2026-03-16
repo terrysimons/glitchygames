@@ -274,7 +274,7 @@ class GameEngine(events.EventManager):
         except AttributeError:
             cls.log.info('Game does not implement arguments.  Add a def args(parser) class method.')
 
-        args: argparse.ArgumentParser = parser.parse_args()
+        args: argparse.Namespace = parser.parse_args()
 
         # Set the logging level
         logging.basicConfig(
@@ -1450,7 +1450,7 @@ class GameEngine(events.EventManager):
             event_data (dict): The event data.
 
         """
-        event: events.HashableEvent = event_data.copy()
+        event: dict = event_data.copy()
         event['subtype'] = event_subtype
         pygame.event.post(events.HashableEvent(events.GAMEEVENT, event))
         self.log.debug(f'Posted Event: {event}')

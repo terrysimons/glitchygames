@@ -52,7 +52,7 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
                 if instance_id is not None and hasattr(
                     pygame.joystick.Joystick, 'from_instance_id'
                 ):
-                    self.joystick = pygame.joystick.Joystick.from_instance_id(self._id)
+                    self.joystick = pygame.joystick.Joystick.from_instance_id(self._id)  # type: ignore[reportFunctionMemberAccess]
                 else:
                     self.joystick = pygame.joystick.Joystick(joystick_id)
             except pygame.error:

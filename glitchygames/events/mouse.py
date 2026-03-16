@@ -559,7 +559,7 @@ class MousePointer:
         """
         super().__init__()
 
-        self.pos = pos
+        self.pos: list[int] = list(pos)
         self.size = size
         self.rect = pygame.Rect(self.pos, self.size)
 

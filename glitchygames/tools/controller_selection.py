@@ -31,7 +31,7 @@ class ControllerSelectionState:
     controller_fill_direction: str = 'HORIZONTAL'  # HORIZONTAL or VERTICAL
     is_active: bool = False
     last_update_time: float = 0.0
-    navigation_history: list = None
+    navigation_history: list | None = None
 
     def __post_init__(self) -> None:
         """Initialize navigation history if not provided."""

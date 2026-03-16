@@ -108,7 +108,7 @@ def process_events():
             f'📊 Controller count changed: {getattr(process_events, "last_count", 0)}'
             f' → {current_count}'
         )
-        process_events.last_count = current_count
+        process_events.last_count = current_count  # type: ignore[reportFunctionMemberAccess]
 
     time.sleep(0.1)
 

@@ -1228,6 +1228,10 @@ class BitmappySprite(Sprite):
         if pixels_tall is None:
             pixels_tall = getattr(self, 'pixels_tall', self.height)
 
+        # These are guaranteed to be int after the fallbacks above
+        pixels_across = int(pixels_across)
+        pixels_tall = int(pixels_tall)
+
         pixel_rows = []
         for y in range(pixels_tall):
             row = ''

@@ -10,14 +10,7 @@ import time
 from collections.abc import Callable
 
 from glitchygames.events import ResourceManager
-
-try:
-    from .voice_backends import get_microphone_backend
-except ImportError:
-
-    def get_microphone_backend() -> None:
-        """Return None when voice backends are unavailable."""
-
+from glitchygames.events.voice_backends import get_microphone_backend
 
 # Centralized logger for voice recognition
 LOG: logging.Logger = logging.getLogger('glitchygames.events.voice')

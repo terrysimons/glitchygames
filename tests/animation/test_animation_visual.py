@@ -59,7 +59,7 @@ class AnimationTestScene(Scene):
 
     NAME = 'Animation Visual Test Scene'
 
-    def __init__(self, animation_file: str, groups: pygame.sprite.Group | None = None):
+    def __init__(self, animation_file: str, groups: pygame.sprite.AbstractGroup | None = None):
         """Initialize the test scene with an animated sprite."""
         if groups is None:
             groups = pygame.sprite.LayeredDirty()

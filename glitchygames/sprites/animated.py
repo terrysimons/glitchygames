@@ -32,7 +32,7 @@ try:
     from glitchygames.tools.bitmappy import detect_file_format
 except ImportError:
     # Fallback if bitmappy module is not available
-    def detect_file_format(_filename: str) -> str:
+    def detect_file_format(filename: str) -> str:  # noqa: ARG001
         """Detect file format based on extension.
 
         Currently only supports TOML format. To add new formats:

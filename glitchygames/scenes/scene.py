@@ -843,14 +843,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.all_sprites.clear(screen, self.background)
         self.rects = self.all_sprites.draw(screen)
 
-    def sprites_at_position(self: Self, pos: tuple) -> list[pygame.sprite.Sprite] | None:
+    def sprites_at_position(self: Self, pos: tuple) -> list[pygame.sprite.Sprite]:
         """Return the sprites at a given position.
 
         Args:
             pos (tuple): The position to check.
 
         Returns:
-            list[pygame.sprite.Sprite] | None: The sprites at the given position.
+            list[pygame.sprite.Sprite]: The sprites at the given position.
 
         """
         mouse = MousePointer(pos=pos)

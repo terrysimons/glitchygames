@@ -82,11 +82,11 @@ class KeyboardEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
 
             """
-            keys_down: tuple = (
+            keys_down: tuple = tuple(
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
             )
 
-            event['keys_down'] = keys_down
+            event['keys_down'] = keys_down  # type: ignore[reportIndexIssue]
 
             self.game.on_key_chord_down_event(event, keys_down)
 
@@ -97,7 +97,7 @@ class KeyboardEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
 
             """
-            keys_down: tuple = (
+            keys_down: tuple = tuple(
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
             )
 
