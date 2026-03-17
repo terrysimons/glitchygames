@@ -126,7 +126,10 @@ def test(session: nox.Session) -> None:
     session.install('.[api,dev,docs]')
 
     # Run tests with coverage
+    # In CI, cap xdist workers to reduce resource pressure and prevent
+    # SQLite coverage DB corruption from too many parallel writers.
     session.run('pytest', '-vvvvv', '--log-cli-level', 'DEBUG')
+    session.run('coverage', 'combine')
     session.run('coverage', 'report')
     session.run('coverage', 'html')
     session.run('coverage', 'xml')
