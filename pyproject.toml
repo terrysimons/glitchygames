@@ -63,7 +63,6 @@ dev = [
   "pytest-xdist",
   "pytest-benchmark",
   "pytest-mock",
-  "coverage",
   "bandit",
   "safety",
   "ruff",
@@ -90,7 +89,7 @@ norecursedirs = [
   ".git",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=72"
+addopts = "-n auto --cov=glitchygames --cov-fail-under=85 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13

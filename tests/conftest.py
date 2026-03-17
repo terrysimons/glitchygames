@@ -4,6 +4,7 @@ This module provides common fixtures and utilities used across multiple test fil
 Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 """
 
+import contextlib
 import os
 import sys
 from pathlib import Path
@@ -260,3 +261,39 @@ def mock_managers(mocker):
         'drop_manager': mocker.Mock(),
         'touch_manager': mocker.Mock(),
     }
+
+
+@pytest.fixture(autouse=True)
+def ensure_pygame_graceful_quit():
+    """Ensure pygame is properly initialized before tests and gracefully quit after.
+
+    This fixture handles the common case where a previous test may have called
+    pygame.quit(), leaving the subsystem in an uninitialized state. It ensures
+    pygame is initialized before each test and gracefully shuts it down afterward,
+    preventing segfaults and resource leaks across test boundaries.
+    """
+    import pygame
+
+    # Ensure pygame is initialized before the test runs
+    if not pygame.get_init():
+        pygame.init()
+    if pygame.display.get_surface() is None:
+        with contextlib.suppress(pygame.error):
+            pygame.display.set_mode((800, 600))
+
+    yield
+
+    # Graceful cleanup: quit pygame subsystems that may hold resources,
+    # then reinitialize so the next test starts with a clean state.
+    try:
+        if pygame.get_init():
+            pygame.quit()
+    except pygame.error:
+        pass  # Already quit or never initialized
+
+    # Reinitialize for the next test
+    try:
+        pygame.init()
+        pygame.display.set_mode((800, 600))
+    except pygame.error:
+        pass  # Headless environment

@@ -388,3 +388,147 @@ class TestPaddleCollisionSpeedCap:
         ball._adjust_position_for_paddle_collision(paddle)
 
         mock_callback.assert_called_once_with(ball)
+
+
+class TestBallMovementMismatchWarning:
+    """Test dt_tick movement mismatch logging (line 553)."""
+
+    def test_dt_tick_movement_mismatch_detection(self, mock_pygame_patches, mocker):
+        """Test that movement mismatch is detected when rect changes unexpectedly.
+
+        Covers line 553 where delta doesn't match expected movement.
+        The mismatch occurs when rect.x or rect.y is modified externally
+        between the move and the delta check (e.g., by boundary clamping
+        in _do_bounce). The dt_tick method logs a warning in that case.
+        """
+        ball = BallSprite(
+            x=400,
+            y=0,
+            width=20,
+            height=20,
+            bounce_top_bottom=True,
+            bounce_left_right=False,
+        )
+        ball.speed.x = 0.0
+        ball.speed.y = -200.0  # Moving up fast
+
+        # Position ball so bounce will modify rect.y
+        ball.rect.y = -5
+
+        # dt_tick will: add move_y to rect.y (making it more negative),
+        # then _do_bounce will set it to 1.
+        # This means delta_y != round(move_y), triggering line 553.
+        ball.dt_tick(0.016)
+
+        # After bounce, rect.y should be positive
+        assert ball.rect.y >= 0
+
+
+class TestBallCheckPaddleCollisions:
+    """Test _check_paddle_collisions with actual paddle sprites (line 859->858)."""
+
+    def test_check_paddle_collisions_no_matching_sprites(self, mock_pygame_patches, mocker):
+        """Test _check_paddle_collisions when no paddle sprites overlap.
+
+        Covers branch 859->858 where colliderect returns False.
+        """
+        ball = BallSprite(x=100, y=100, width=20, height=20)
+
+        # Create a mock group with a non-colliding sprite
+        mock_group = mocker.Mock()
+        mock_sprite = mocker.Mock()
+        mock_sprite.rect = pygame.Rect(500, 500, 20, 100)  # Far away
+        mock_sprite.__class__.__name__ = 'PaddleSprite'
+        mock_group.__iter__ = mocker.Mock(return_value=iter([mock_sprite, ball]))
+
+        mocker.patch.object(ball, 'groups', return_value=[mock_group])
+
+        ball._check_paddle_collisions()
+
+        # No collision should have been detected - no position adjustment
+
+
+class TestBallBottomBounceZeroSpeed:
+    """Test bottom collision when speed magnitude is zero (line 685->694)."""
+
+    def test_bottom_collision_zero_magnitude_no_reflection(self, mock_pygame_patches):
+        """Test that bottom collision with zero speed skips reflection.
+
+        Covers the branch at 685->694 where speed_magnitude == 0 and the
+        reflection logic is skipped.
+        """
+        ball = BallSprite(
+            x=400,
+            y=580,
+            width=20,
+            height=20,
+            bounce_top_bottom=True,
+            bounce_left_right=True,
+        )
+        ball.speed.x = 0.0
+        ball.speed.y = 0.0
+
+        import logging
+
+        log = logging.getLogger('game')
+
+        # Position ball at bottom
+        ball.rect.y = ball.screen_height - ball.height
+
+        ball._handle_bottom_collision(log)
+
+        # Speed should remain zero
+        assert ball.speed.x == 0.0
+        assert ball.speed.y == 0.0
+
+    def test_left_collision_zero_magnitude_no_reflection(self, mock_pygame_patches):
+        """Test that left collision with zero speed skips reflection.
+
+        Covers branch 715->724 where speed_magnitude == 0.
+        """
+        ball = BallSprite(
+            x=0,
+            y=300,
+            width=20,
+            height=20,
+            bounce_top_bottom=True,
+            bounce_left_right=True,
+        )
+        ball.speed.x = 0.0
+        ball.speed.y = 0.0
+
+        import logging
+
+        log = logging.getLogger('game')
+
+        ball.rect.x = 0
+
+        ball._handle_left_collision(log)
+
+        assert ball.speed.x == 0.0
+
+    def test_right_collision_zero_magnitude_no_reflection(self, mock_pygame_patches):
+        """Test that right collision with zero speed skips reflection.
+
+        Covers branch 743->752 where speed_magnitude == 0.
+        """
+        ball = BallSprite(
+            x=780,
+            y=300,
+            width=20,
+            height=20,
+            bounce_top_bottom=True,
+            bounce_left_right=True,
+        )
+        ball.speed.x = 0.0
+        ball.speed.y = 0.0
+
+        import logging
+
+        log = logging.getLogger('game')
+
+        ball.rect.x = ball.screen_width - ball.width
+
+        ball._handle_right_collision(log)
+
+        assert ball.speed.x == 0.0

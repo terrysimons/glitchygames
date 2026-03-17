@@ -1,10 +1,11 @@
 """Coverage tests for event stub classes in glitchygames/events/core.py.
 
 This module tests all event stub classes that raise UnhandledEventError
-when their methods are invoked, covering WindowEventStubs, JoystickEventStubs,
-AppEventStubs, FontEventStubs, MIDIEventStubs, and MouseEventStubs.
+when their methods are invoked, covering all EventStubs classes.
 """
 
+import abc
+import logging
 import sys
 from pathlib import Path
 
@@ -17,10 +18,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.events import HashableEvent, UnhandledEventError
 from glitchygames.events.core import (
     AppEventStubs,
+    AudioEventStubs,
+    ControllerEventStubs,
+    DropEventStubs,
     FontEventStubs,
+    GameEventStubs,
     JoystickEventStubs,
+    KeyboardEventStubs,
     MidiEventStubs,
     MouseEventStubs,
+    TextEventStubs,
+    TouchEventStubs,
     WindowEventStubs,
 )
 
@@ -434,3 +442,468 @@ class TestMouseEventStubsFocusUnfocus:
         trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(100, 200), button=3)
         with pytest.raises(UnhandledEventError):
             stub.on_right_mouse_drop_event(event, trigger)
+
+    def test_on_left_mouse_button_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_left_mouse_button_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEBUTTONUP, pos=(100, 200), button=1)
+        with pytest.raises(UnhandledEventError):
+            stub.on_left_mouse_button_up_event(event)
+
+    def test_on_middle_mouse_button_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_middle_mouse_button_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEBUTTONUP, pos=(100, 200), button=2)
+        with pytest.raises(UnhandledEventError):
+            stub.on_middle_mouse_button_up_event(event)
+
+    def test_on_right_mouse_button_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_right_mouse_button_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEBUTTONUP, pos=(100, 200), button=3)
+        with pytest.raises(UnhandledEventError):
+            stub.on_right_mouse_button_up_event(event)
+
+    def test_on_left_mouse_button_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_left_mouse_button_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(100, 200), button=1)
+        with pytest.raises(UnhandledEventError):
+            stub.on_left_mouse_button_down_event(event)
+
+    def test_on_middle_mouse_button_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_middle_mouse_button_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(100, 200), button=2)
+        with pytest.raises(UnhandledEventError):
+            stub.on_middle_mouse_button_down_event(event)
+
+    def test_on_right_mouse_button_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_right_mouse_button_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(100, 200), button=3)
+        with pytest.raises(UnhandledEventError):
+            stub.on_right_mouse_button_down_event(event)
+
+    def test_on_mouse_scroll_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_mouse_scroll_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEWHEEL, y=-1)
+        with pytest.raises(UnhandledEventError):
+            stub.on_mouse_scroll_down_event(event)
+
+    def test_on_mouse_scroll_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_mouse_scroll_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEWHEEL, y=1)
+        with pytest.raises(UnhandledEventError):
+            stub.on_mouse_scroll_up_event(event)
+
+    def test_on_mouse_wheel_event_raises(self, mock_pygame_patches, mocker):
+        """on_mouse_wheel_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(MouseEventStubs)
+        event = HashableEvent(pygame.MOUSEWHEEL, y=1, x=0, flipped=False)
+        with pytest.raises(UnhandledEventError):
+            stub.on_mouse_wheel_event(event)
+
+
+class TestAudioEventStubs:
+    """Test AudioEventStubs methods raise UnhandledEventError."""
+
+    def test_on_audio_device_added_event_raises(self, mock_pygame_patches, mocker):
+        """on_audio_device_added_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(AudioEventStubs)
+        event = HashableEvent(pygame.AUDIODEVICEADDED, which=0, iscapture=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_audio_device_added_event(event)
+
+    def test_on_audio_device_removed_event_raises(self, mock_pygame_patches, mocker):
+        """on_audio_device_removed_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(AudioEventStubs)
+        event = HashableEvent(pygame.AUDIODEVICEREMOVED, which=0, iscapture=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_audio_device_removed_event(event)
+
+
+class TestControllerEventStubs:
+    """Test ControllerEventStubs methods raise UnhandledEventError."""
+
+    def test_on_controller_axis_motion_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_axis_motion_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERAXISMOTION, joy=0, axis=0, value=100)
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_axis_motion_event(event)
+
+    def test_on_controller_button_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_button_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERBUTTONDOWN, joy=0, button=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_button_down_event(event)
+
+    def test_on_controller_button_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_button_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERBUTTONUP, joy=0, button=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_button_up_event(event)
+
+    def test_on_controller_device_added_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_device_added_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERDEVICEADDED, device_index=0, guid='guid')
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_device_added_event(event)
+
+    def test_on_controller_device_remapped_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_device_remapped_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERDEVICEREMAPPED, device_index=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_device_remapped_event(event)
+
+    def test_on_controller_device_removed_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_device_removed_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERDEVICEREMOVED, instance_id=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_device_removed_event(event)
+
+    def test_on_controller_touchpad_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_touchpad_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERTOUCHPADDOWN, instance_id=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_touchpad_down_event(event)
+
+    def test_on_controller_touchpad_motion_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_touchpad_motion_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERTOUCHPADMOTION, instance_id=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_touchpad_motion_event(event)
+
+    def test_on_controller_touchpad_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_controller_touchpad_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(ControllerEventStubs)
+        event = HashableEvent(pygame.CONTROLLERTOUCHPADUP, instance_id=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_controller_touchpad_up_event(event)
+
+
+class TestDropEventStubs:
+    """Test DropEventStubs methods raise UnhandledEventError."""
+
+    def test_on_drop_begin_event_raises(self, mock_pygame_patches, mocker):
+        """on_drop_begin_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(DropEventStubs)
+        event = HashableEvent(pygame.DROPBEGIN)
+        with pytest.raises(UnhandledEventError):
+            stub.on_drop_begin_event(event)
+
+    def test_on_drop_file_event_raises(self, mock_pygame_patches, mocker):
+        """on_drop_file_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(DropEventStubs)
+        event = HashableEvent(pygame.DROPFILE, file='test.txt')
+        with pytest.raises(UnhandledEventError):
+            stub.on_drop_file_event(event)
+
+    def test_on_drop_text_event_raises(self, mock_pygame_patches, mocker):
+        """on_drop_text_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(DropEventStubs)
+        event = HashableEvent(pygame.DROPTEXT, text='hello')
+        with pytest.raises(UnhandledEventError):
+            stub.on_drop_text_event(event)
+
+    def test_on_drop_complete_event_raises(self, mock_pygame_patches, mocker):
+        """on_drop_complete_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(DropEventStubs)
+        event = HashableEvent(pygame.DROPCOMPLETE)
+        with pytest.raises(UnhandledEventError):
+            stub.on_drop_complete_event(event)
+
+
+class TestTouchEventStubs:
+    """Test TouchEventStubs methods raise UnhandledEventError."""
+
+    def test_on_touch_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_touch_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(TouchEventStubs)
+        event = HashableEvent(pygame.FINGERDOWN, finger_id=0, x=0.5, y=0.5)
+        with pytest.raises(UnhandledEventError):
+            stub.on_touch_down_event(event)
+
+    def test_on_touch_motion_event_raises(self, mock_pygame_patches, mocker):
+        """on_touch_motion_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(TouchEventStubs)
+        event = HashableEvent(pygame.FINGERMOTION, finger_id=0, x=0.5, y=0.5)
+        with pytest.raises(UnhandledEventError):
+            stub.on_touch_motion_event(event)
+
+    def test_on_touch_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_touch_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(TouchEventStubs)
+        event = HashableEvent(pygame.FINGERUP, finger_id=0, x=0.5, y=0.5)
+        with pytest.raises(UnhandledEventError):
+            stub.on_touch_up_event(event)
+
+    def test_on_multi_touch_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_multi_touch_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(TouchEventStubs)
+        event = HashableEvent(pygame.FINGERDOWN, touch_id=0, x=0.5, y=0.5)
+        with pytest.raises(UnhandledEventError):
+            stub.on_multi_touch_down_event(event)
+
+    def test_on_multi_touch_motion_event_raises(self, mock_pygame_patches, mocker):
+        """on_multi_touch_motion_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(TouchEventStubs)
+        event = HashableEvent(pygame.FINGERMOTION, touch_id=0, x=0.5, y=0.5)
+        with pytest.raises(UnhandledEventError):
+            stub.on_multi_touch_motion_event(event)
+
+    def test_on_multi_touch_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_multi_touch_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(TouchEventStubs)
+        event = HashableEvent(pygame.FINGERUP, touch_id=0, x=0.5, y=0.5)
+        with pytest.raises(UnhandledEventError):
+            stub.on_multi_touch_up_event(event)
+
+
+class TestGameEventStubs:
+    """Test GameEventStubs methods raise UnhandledEventError."""
+
+    def test_on_active_event_raises(self, mock_pygame_patches, mocker):
+        """on_active_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.ACTIVEEVENT, gain=1, state=1)
+        with pytest.raises(UnhandledEventError):
+            stub.on_active_event(event)
+
+    def test_on_fps_event_raises(self, mock_pygame_patches, mocker):
+        """on_fps_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.USEREVENT + 1, fps=60)
+        with pytest.raises(UnhandledEventError):
+            stub.on_fps_event(event)
+
+    def test_on_game_event_raises(self, mock_pygame_patches, mocker):
+        """on_game_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.USEREVENT + 2, action='test')
+        with pytest.raises(UnhandledEventError):
+            stub.on_game_event(event)
+
+    def test_on_menu_item_event_raises(self, mock_pygame_patches, mocker):
+        """on_menu_item_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.USEREVENT + 3, menu_item='test')
+        with pytest.raises(UnhandledEventError):
+            stub.on_menu_item_event(event)
+
+    def test_on_sys_wm_event_raises(self, mock_pygame_patches, mocker):
+        """on_sys_wm_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.SYSWMEVENT)
+        with pytest.raises(UnhandledEventError):
+            stub.on_sys_wm_event(event)
+
+    def test_on_user_event_raises(self, mock_pygame_patches, mocker):
+        """on_user_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.USEREVENT, code=1)
+        with pytest.raises(UnhandledEventError):
+            stub.on_user_event(event)
+
+    def test_on_video_expose_event_raises(self, mock_pygame_patches, mocker):
+        """on_video_expose_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.VIDEOEXPOSE)
+        with pytest.raises(UnhandledEventError):
+            stub.on_video_expose_event(event)
+
+    def test_on_video_resize_event_raises(self, mock_pygame_patches, mocker):
+        """on_video_resize_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.VIDEORESIZE, size=(800, 600), w=800, h=600)
+        with pytest.raises(UnhandledEventError):
+            stub.on_video_resize_event(event)
+
+    def test_on_quit_event_raises(self, mock_pygame_patches, mocker):
+        """on_quit_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.QUIT)
+        with pytest.raises(UnhandledEventError):
+            stub.on_quit_event(event)
+
+    def test_on_render_device_reset_event_raises(self, mock_pygame_patches, mocker):
+        """on_render_device_reset_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.RENDER_DEVICE_RESET)
+        with pytest.raises(UnhandledEventError):
+            stub.on_render_device_reset_event(event)
+
+    def test_on_render_targets_reset_event_raises(self, mock_pygame_patches, mocker):
+        """on_render_targets_reset_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.RENDER_TARGETS_RESET)
+        with pytest.raises(UnhandledEventError):
+            stub.on_render_targets_reset_event(event)
+
+    def test_on_clipboard_update_event_raises(self, mock_pygame_patches, mocker):
+        """on_clipboard_update_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.CLIPBOARDUPDATE)
+        with pytest.raises(UnhandledEventError):
+            stub.on_clipboard_update_event(event)
+
+    def test_on_locale_changed_event_raises(self, mock_pygame_patches, mocker):
+        """on_locale_changed_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(GameEventStubs)
+        event = HashableEvent(pygame.LOCALECHANGED)
+        with pytest.raises(UnhandledEventError):
+            stub.on_locale_changed_event(event)
+
+
+class TestKeyboardEventStubs:
+    """Test KeyboardEventStubs methods raise UnhandledEventError."""
+
+    def test_on_key_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_key_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(KeyboardEventStubs)
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
+        with pytest.raises(UnhandledEventError):
+            stub.on_key_down_event(event)
+
+    def test_on_key_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_key_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(KeyboardEventStubs)
+        event = HashableEvent(pygame.KEYUP, key=pygame.K_a, mod=0)
+        with pytest.raises(UnhandledEventError):
+            stub.on_key_up_event(event)
+
+    def test_on_key_chord_up_event_raises(self, mock_pygame_patches, mocker):
+        """on_key_chord_up_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(KeyboardEventStubs)
+        event = HashableEvent(pygame.KEYUP, key=pygame.K_a, mod=0)
+        keys = [pygame.K_LCTRL, pygame.K_a]
+        with pytest.raises(UnhandledEventError):
+            stub.on_key_chord_up_event(event, tuple(keys))
+
+    def test_on_key_chord_down_event_raises(self, mock_pygame_patches, mocker):
+        """on_key_chord_down_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(KeyboardEventStubs)
+        event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
+        keys = [pygame.K_LCTRL, pygame.K_a]
+        with pytest.raises(UnhandledEventError):
+            stub.on_key_chord_down_event(event, tuple(keys))
+
+
+class TestTextEventStubs:
+    """Test TextEventStubs methods raise UnhandledEventError."""
+
+    def test_on_text_editing_event_raises(self, mock_pygame_patches, mocker):
+        """on_text_editing_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(TextEventStubs)
+        event = HashableEvent(pygame.TEXTEDITING, text='hello', start=0, length=5)
+        with pytest.raises(UnhandledEventError):
+            stub.on_text_editing_event(event)
+
+    def test_on_text_input_event_raises(self, mock_pygame_patches, mocker):
+        """on_text_input_event should raise UnhandledEventError."""
+        mocker.patch('glitchygames.events.core.LOG.error')
+        stub = _create_stub_with_options(TextEventStubs)
+        event = HashableEvent(pygame.TEXTINPUT, text='a')
+        with pytest.raises(UnhandledEventError):
+            stub.on_text_input_event(event)
+
+
+class TestEventInterfaceSubclassHook:
+    """Test EventInterface.__subclasshook__ edge cases."""
+
+    def test_subclasshook_with_non_callable_attribute(self, mock_pygame_patches, mocker):
+        """Test __subclasshook__ when attribute exists but is not callable (line 511)."""
+        from glitchygames.events.core import EventInterface
+
+        # Create a concrete ABC subclass with a non-callable attribute
+        class TestInterface(EventInterface):
+            log = logging.getLogger('test')
+
+            @abc.abstractmethod
+            def test_method(self):
+                pass
+
+        class ConcreteClass(abc.ABC):  # noqa: B024
+            test_method = 42  # Non-callable attribute
+
+        # __subclasshook__ is called internally by issubclass
+        result = TestInterface.__subclasshook__(ConcreteClass)
+        assert result is True  # Attribute exists, counts as implemented
+
+    def test_subclasshook_with_unimplemented_method(self, mock_pygame_patches, mocker):
+        """Test __subclasshook__ when abstract method is NOT implemented (lines 514-515)."""
+        from glitchygames.events.core import EventInterface
+
+        class TestInterface(EventInterface):
+            log = logging.getLogger('test')
+
+            @abc.abstractmethod
+            def required_method(self):
+                pass
+
+        class IncompleteClass(abc.ABC):
+            @abc.abstractmethod
+            def required_method(self):
+                pass
+
+        # IncompleteClass still has required_method as abstract
+        result = TestInterface.__subclasshook__(IncompleteClass)
+        assert result is False

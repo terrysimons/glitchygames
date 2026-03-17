@@ -119,9 +119,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         mock_font = mocker.Mock()
         mock_font.get_rect.return_value = mock_rect
         mock_font.render.return_value = (real_surface, mock_rect)
-        mocker.patch(
-            'glitchygames.fonts.font_manager.FontManager.get_font', return_value=mock_font
-        )
+        mocker.patch('glitchygames.fonts.font_manager.FontManager.get_font', return_value=mock_font)
 
     def _create_mock_sprite_with_frames(self):
         """Create a mock sprite with frames using centralized mocks.

@@ -112,6 +112,14 @@ commands:
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uv run nox -s test
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+          destination: test-results
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html
 
   nox-security-scan:
     steps:
@@ -281,6 +289,14 @@ jobs:
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             uv run nox -s test
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+          destination: test-results
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html
       - run:
           name: "Security scan (bandit + safety)"
           shell: powershell.exe

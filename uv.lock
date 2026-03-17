@@ -882,7 +882,6 @@ api = [
 ]
 dev = [
     { name = "bandit" },
-    { name = "coverage" },
     { name = "nox", extra = ["uv"] },
     { name = "pillow" },
     { name = "pre-commit" },
@@ -916,7 +915,6 @@ requires-dist = [
     { name = "bandit", marker = "extra == 'dev'" },
     { name = "bokeh" },
     { name = "cookiecutter" },
-    { name = "coverage", marker = "extra == 'dev'" },
     { name = "fastapi", marker = "extra == 'api'" },
     { name = "httpx", marker = "extra == 'api'" },
     { name = "miniaudio" },
