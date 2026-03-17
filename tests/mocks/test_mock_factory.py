@@ -25,6 +25,8 @@ class MockSurface(pygame.Surface):
         """Initialize MockSurface with pygame compatibility."""
         if not pygame.get_init():
             pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 600))
 
         # Validate dimensions to prevent invalid surface creation
         if args:

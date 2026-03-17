@@ -4,10 +4,16 @@ This module provides common fixtures and utilities used across multiple test fil
 Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 """
 
+import os
 import sys
 from pathlib import Path
 
 import pytest
+
+# Use dummy SDL video driver in CI to prevent segfaults in headless environments.
+# This must be set before pygame is imported/initialized in any test worker.
+if os.environ.get('CI') == 'true' and 'SDL_VIDEODRIVER' not in os.environ:
+    os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent))
