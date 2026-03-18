@@ -108,7 +108,7 @@ commands:
     steps:
       - run:
           name: "Tests (pytest + coverage)"
-          no_output_timeout: 30m
+          no_output_timeout: 60m
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uv run nox -s test
@@ -177,7 +177,7 @@ jobs:
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
 
-    resource_class: large
+    resource_class: medium
 
     steps:
       - checkout
@@ -205,7 +205,7 @@ jobs:
   build-and-test-macos:
     macos:
       xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
-    resource_class: m4pro.large
+    resource_class: m4pro.medium
 
     steps:
       - checkout
@@ -226,7 +226,7 @@ jobs:
   build-and-test-windows:
     executor:
       name: win/default
-      size: large
+      size: medium
 
     steps:
       - checkout
@@ -283,7 +283,7 @@ jobs:
             uv run nox -s lint_docs
       - run:
           name: "Tests (pytest + coverage)"
-          no_output_timeout: 30m
+          no_output_timeout: 60m
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
