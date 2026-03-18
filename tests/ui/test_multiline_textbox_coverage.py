@@ -22,7 +22,7 @@ from tests.mocks.test_mock_factory import MockFactory
 def _key_mock() -> Mock:
     """Return the pygame.key mock for attribute access.
 
-    mock_pygame_patches replaces pygame.key with a Mock, but pyright
+    mock_pygame_patches replaces pygame.key with a Mock, but basedpyright
     sees the real module type. This helper provides proper typing.
     """
     return pygame.key

@@ -302,7 +302,7 @@ class SceneManager(SceneInterface, events.EventManager):
             frame_start_ns = timer.ns_now() if timer is not None else 0
 
             now: float = time.perf_counter()
-            self.dt: float = now - previous_time
+            self.dt = now - previous_time
             previous_time = now
 
             # Start timing ONLY the actual processing (after tick_clock)
@@ -348,7 +348,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         now: float = time.perf_counter()
-        self.dt: float = now - previous_time
+        self.dt = now - previous_time
         return current_time, now
 
     def stop(self: Self) -> None:

@@ -91,7 +91,7 @@ commands:
   nox-static-analysis:
     steps:
       - run:
-          name: "Static analysis (pyright)"
+          name: "Static analysis (basedpyright)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uv run nox -s static_analysis
@@ -268,7 +268,7 @@ jobs:
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             uv run nox -s lint
       - run:
-          name: "Static analysis (pyright)"
+          name: "Static analysis (basedpyright)"
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"

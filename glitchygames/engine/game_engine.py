@@ -67,10 +67,10 @@ class GameEngine(events.EventManager):
     log: logging.Logger = LOG
     game: object = None
 
-    try:
-        icon: pygame.Surface = pygame.image.load(Path(ASSET_PATH) / 'glitch.png')
-    except FileNotFoundError:
-        icon = pygame.Surface((32, 32))
+    _icon_path = Path(ASSET_PATH) / 'glitch.png'
+    icon: pygame.Surface = (
+        pygame.image.load(_icon_path) if _icon_path.exists() else pygame.Surface((32, 32))
+    )
 
     NAME: Literal['Boilerplate Adventures'] = 'Boilerplate Adventures'
     VERSION: Literal['1.0'] = '1.0'
@@ -109,7 +109,7 @@ class GameEngine(events.EventManager):
             icon_path: Path = Path(icon)
 
             with contextlib.suppress(FileNotFoundError):
-                GameEngine.icon: pygame.Surface = pygame.image.load(icon_path)
+                GameEngine.icon = pygame.image.load(icon_path)
 
     @classmethod
     def args(cls: Any, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

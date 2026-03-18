@@ -21,6 +21,10 @@ This module targets uncovered areas of the widgets module including:
 import math
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from unittest.mock import Mock
 
 import pygame
 import pytest
@@ -1780,9 +1784,9 @@ class TestMultiLineTextBoxKeyHandling:
         if 'key_mock' in self._mock_pygame_patches:
             self._mock_pygame_patches['key_mock'].get_mods.return_value = mods_value
         else:
-            # Fallback: access the mock attribute via getattr to satisfy type checker
-            key_module = pygame.key
-            key_module.get_mods.return_value = mods_value
+            # Fallback: pygame.key is mocked in tests, so cast to access mock attributes
+            key_mock = cast('Mock', pygame.key.get_mods)
+            key_mock.return_value = mods_value
 
     def test_key_down_inactive_returns(self, text_box, mocker):
         """Test key_down_event returns when not active."""

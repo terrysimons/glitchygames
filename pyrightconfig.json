@@ -1,0 +1,65 @@
+{
+  "typeCheckingMode": "basic",
+  "include": ["glitchygames", "tests", "scripts"],
+  "exclude": ["**/__pycache__"],
+  "defineConstant": { "DEBUG": true },
+  "pythonVersion": "3.13",
+  "pythonPlatform": "All",
+
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": false,
+  "reportPossiblyUnboundVariable": "error",
+  "reportPrivateImportUsage": "error",
+  "reportRedeclaration": "error",
+  "reportUnnecessaryTypeIgnoreComment": "error",
+
+  // Enabled — small error count, fix now
+  "reportAbstractUsage": "error",
+  "reportAssignmentType": "error",
+  "reportFunctionMemberAccess": "error",
+  "reportIndexIssue": "error",
+  "reportOperatorIssue": "error",
+  "reportOptionalIterable": "error",
+  "reportOptionalSubscript": "error",
+
+  // Deferred — medium error count, fix soon
+  "reportCallIssue": false,
+  "reportGeneralTypeIssues": false,
+  "reportReturnType": false,
+
+  // Deferred — large error count, fix later
+  "reportArgumentType": false,
+  "reportAttributeAccessIssue": false,
+  "reportIncompatibleMethodOverride": false,
+  "reportIncompatibleVariableOverride": false,
+  "reportOptionalMemberAccess": false,
+
+  "executionEnvironments": [
+    {
+      "root": "glitchygames",
+      "extraPaths": ["scripts", "tests"]
+    },
+    {
+      "root": "tests",
+      "extraPaths": ["."],
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportUnannotatedClassAttribute": false,
+      "reportAny": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportUnusedParameter": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false
+    }
+  ]
+}

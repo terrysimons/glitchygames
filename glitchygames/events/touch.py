@@ -33,7 +33,7 @@ class TouchEventManager(ResourceManager):
             try:
                 self.proxies: list = [self.game, pygame._sdl2.touch]
             except AttributeError:
-                self.proxies: list = [self.game]
+                self.proxies = [self.game]
 
         def on_touch_down_event(self: Self, event: pygame.event.Event) -> None:
             """Handle finger down events.

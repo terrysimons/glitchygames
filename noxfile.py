@@ -96,12 +96,12 @@ def lint(session: nox.Session) -> None:
 
 @nox.session(python=['3.13'], reuse_venv=False)
 def static_analysis(session: nox.Session) -> None:
-    """Run static type analysis with pyright."""
+    """Run static type analysis with basedpyright."""
     # Install with all extras into the nox session venv.
     # Update this if new [project.optional-dependencies] sections are added.
     session.install('.[api,dev,docs]')
 
-    session.run('pyright')
+    session.run('basedpyright')
 
 
 @nox.session(python=['3.13'], reuse_venv=False)

@@ -67,7 +67,7 @@ dev = [
   "safety",
   "ruff",
   "pre-commit",
-  "pyright",
+  "basedpyright",
   "pillow",
 ]
 api = ["fastapi", "uvicorn", "pydantic", "httpx", "apng", "pillow"]
@@ -218,52 +218,7 @@ convention = "google"
 [tool.ruff.lint.isort]
 known-first-party = ["glitchygames"]
 
-[tool.pyright]
-typeCheckingMode = "basic"
-include = ["glitchygames", "tests", "scripts"]
-exclude = ["**/__pycache__"]
-defineConstant = { DEBUG = true }
-# stubPath = "src/stubs"
-
-pythonVersion = "3.13"
-pythonPlatform = "All"
-
-executionEnvironments = [
-  # { root = "src/web", pythonVersion = "3.5", pythonPlatform = "Windows", extraPaths = [ "src/service_libs" ] },
-  # { root = "src/sdk", pythonVersion = "3.0", extraPaths = [ "src/backend" ] },
-  # { root = "src/tests", extraPaths = ["src/tests/e2e", "src/sdk" ]},
-  { root = "glitchygames", extraPaths = [
-    "scripts",
-    "tests",
-  ] },
-  { root = "tests", extraPaths = [
-    ".",
-  ] },
-]
-reportMissingImports = "error"
-reportMissingTypeStubs = false
-reportPossiblyUnboundVariable = "error"
-reportPrivateImportUsage = "error"
-reportRedeclaration = "error"
-reportUnnecessaryTypeIgnoreComment = "error"
-# Enabled — small error count, fix now
-reportAbstractUsage = "error"
-reportAssignmentType = "error"
-reportFunctionMemberAccess = "error"
-reportIndexIssue = "error"
-reportOperatorIssue = "error"
-reportOptionalIterable = "error"
-reportOptionalSubscript = "error"
-# Deferred — medium error count, fix soon
-reportCallIssue = false
-reportGeneralTypeIssues = false
-reportReturnType = false
-# Deferred — large error count, fix later
-reportArgumentType = false
-reportAttributeAccessIssue = false
-reportIncompatibleMethodOverride = false
-reportIncompatibleVariableOverride = false
-reportOptionalMemberAccess = false
+## basedpyright config lives in pyrightconfig.json (supports per-environment overrides)
 
 [build-system]
 requires = ["hatchling"]
