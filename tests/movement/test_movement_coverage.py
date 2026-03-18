@@ -14,53 +14,53 @@ class TestSpeed:
         speed = Speed()
         assert speed.x == 0
         assert speed.y == 0
-        assert speed.increment == 0.2
+        assert speed.increment == pytest.approx(0.2)
 
     def test_init_custom(self):
         speed = Speed(x=100.0, y=50.0, increment=0.5)
-        assert speed.x == 100.0
-        assert speed.y == 50.0
-        assert speed.increment == 0.5
+        assert speed.x == pytest.approx(100.0)
+        assert speed.y == pytest.approx(50.0)
+        assert speed.increment == pytest.approx(0.5)
 
     def test_speed_up(self):
         speed = Speed(x=10.0, y=5.0, increment=1.0)
         speed.speed_up()
-        assert speed.x == 11.0
-        assert speed.y == 6.0
+        assert speed.x == pytest.approx(11.0)
+        assert speed.y == pytest.approx(6.0)
 
     def test_speed_up_horizontal_positive(self):
         speed = Speed(x=10.0, y=0.0, increment=2.0)
         speed.speed_up_horizontal()
-        assert speed.x == 12.0
+        assert speed.x == pytest.approx(12.0)
 
     def test_speed_up_horizontal_negative(self):
         speed = Speed(x=-10.0, y=0.0, increment=2.0)
         speed.speed_up_horizontal()
-        assert speed.x == -12.0
+        assert speed.x == pytest.approx(-12.0)
 
     def test_speed_up_vertical_positive(self):
         speed = Speed(x=0.0, y=10.0, increment=2.0)
         speed.speed_up_vertical()
-        assert speed.y == 12.0
+        assert speed.y == pytest.approx(12.0)
 
     def test_speed_up_vertical_negative(self):
         speed = Speed(x=0.0, y=-10.0, increment=2.0)
         speed.speed_up_vertical()
-        assert speed.y == -12.0
+        assert speed.y == pytest.approx(-12.0)
 
     def test_imul(self):
         speed = Speed(x=10.0, y=5.0)
         speed *= 2.0
-        assert speed.x == 20.0
-        assert speed.y == 10.0
+        assert speed.x == pytest.approx(20.0)
+        assert speed.y == pytest.approx(10.0)
 
     def test_mul(self):
         speed = Speed(x=10.0, y=5.0)
         result = speed * 3.0
-        assert result.x == 30.0
-        assert result.y == 15.0
+        assert result.x == pytest.approx(30.0)
+        assert result.y == pytest.approx(15.0)
         # Original unchanged
-        assert speed.x == 10.0
+        assert speed.x == pytest.approx(10.0)
 
     def test_mul_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
@@ -71,14 +71,14 @@ class TestSpeed:
         speed1 = Speed(x=10.0, y=5.0)
         speed2 = Speed(x=3.0, y=2.0)
         result = speed1 + speed2
-        assert result.x == 13.0
-        assert result.y == 7.0
+        assert result.x == pytest.approx(13.0)
+        assert result.y == pytest.approx(7.0)
 
     def test_add_scalar(self):
         speed = Speed(x=10.0, y=5.0)
         result = speed + 2.0
-        assert result.x == 12.0
-        assert result.y == 7.0
+        assert result.x == pytest.approx(12.0)
+        assert result.y == pytest.approx(7.0)
 
     def test_add_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
@@ -88,7 +88,7 @@ class TestSpeed:
     def test_radd(self):
         speed = Speed(x=10.0, y=5.0)
         result = 3.0 + speed
-        assert result == 8.0  # 3.0 + speed.y
+        assert result == pytest.approx(8.0)  # 3.0 + speed.y
 
     def test_radd_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
@@ -98,22 +98,22 @@ class TestSpeed:
     def test_neg(self):
         speed = Speed(x=10.0, y=-5.0, increment=0.5)
         result = -speed
-        assert result.x == -10.0
-        assert result.y == 5.0
-        assert result.increment == 0.5
+        assert result.x == pytest.approx(-10.0)
+        assert result.y == pytest.approx(5.0)
+        assert result.increment == pytest.approx(0.5)
 
     def test_sub_speed(self):
         speed1 = Speed(x=10.0, y=5.0)
         speed2 = Speed(x=3.0, y=2.0)
         result = speed1 - speed2
-        assert result.x == 7.0
-        assert result.y == 3.0
+        assert result.x == pytest.approx(7.0)
+        assert result.y == pytest.approx(3.0)
 
     def test_sub_scalar(self):
         speed = Speed(x=10.0, y=5.0)
         result = speed - 2.0
-        assert result.x == 8.0
-        assert result.y == 3.0
+        assert result.x == pytest.approx(8.0)
+        assert result.y == pytest.approx(3.0)
 
     def test_sub_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
@@ -123,8 +123,8 @@ class TestSpeed:
     def test_truediv(self):
         speed = Speed(x=10.0, y=6.0)
         result = speed / 2.0
-        assert result.x == 5.0
-        assert result.y == 3.0
+        assert result.x == pytest.approx(5.0)
+        assert result.y == pytest.approx(3.0)
 
     def test_truediv_zero(self):
         speed = Speed(x=10.0, y=5.0)
@@ -165,19 +165,19 @@ class TestHorizontal:
     def test_init(self):
         speed = Speed(x=100.0, y=50.0)
         horizontal = Horizontal(speed)
-        assert horizontal.current_speed == 100.0
+        assert horizontal.current_speed == pytest.approx(100.0)
 
     def test_left(self):
         speed = Speed(x=100.0, y=50.0)
         horizontal = Horizontal(speed)
         horizontal.left()
-        assert horizontal.current_speed == -100.0
+        assert horizontal.current_speed == pytest.approx(-100.0)
 
     def test_right(self):
         speed = Speed(x=100.0, y=50.0)
         horizontal = Horizontal(speed)
         horizontal.right()
-        assert horizontal.current_speed == 100.0
+        assert horizontal.current_speed == pytest.approx(100.0)
 
     def test_stop(self):
         speed = Speed(x=100.0, y=50.0)
@@ -199,19 +199,19 @@ class TestVertical:
     def test_init(self):
         speed = Speed(x=100.0, y=50.0)
         vertical = Vertical(speed)
-        assert vertical.current_speed == 50.0
+        assert vertical.current_speed == pytest.approx(50.0)
 
     def test_up(self):
         speed = Speed(x=100.0, y=50.0)
         vertical = Vertical(speed)
         vertical.up()
-        assert vertical.current_speed == -50.0
+        assert vertical.current_speed == pytest.approx(-50.0)
 
     def test_down(self):
         speed = Speed(x=100.0, y=50.0)
         vertical = Vertical(speed)
         vertical.down()
-        assert vertical.current_speed == 50.0
+        assert vertical.current_speed == pytest.approx(50.0)
 
     def test_stop(self):
         speed = Speed(x=100.0, y=50.0)

@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 import pygame
-import pytest  # noqa: F401  # used by fixtures
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -385,7 +385,7 @@ class TestSceneUpdateWithFilmStrip:
         scene.update()
 
         # Film strip should have _last_dt set and update called
-        assert film_strip._last_dt == 0.016
+        assert film_strip._last_dt == pytest.approx(0.016)
         # update() is called both in dirty loop and film strip loop
         assert film_strip.update.call_count >= 1
 

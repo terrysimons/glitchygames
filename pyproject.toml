@@ -189,6 +189,10 @@ fixable = ["ALL"]
   "ARG001",
   "ARG005",
   "PLC2701",
+  "PLC2801", # Tests may call dunder methods directly to verify they work
+  "D102",    # Test method names are self-documenting
+  "DOC201",  # Test helper return docs unnecessary
+  "RET504",  # Explicit assignment before return aids test readability
   "F841",
   "B007",
   "S101",

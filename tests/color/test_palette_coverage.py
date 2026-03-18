@@ -78,7 +78,9 @@ class TestPaletteUtility:
         # Create palette data
         config_data = {'colors': 2, '0': {'r': 255, 'g': 0, 'b': 0}}
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.palette', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.palette', delete=False, encoding='utf-8'
+        ) as tmp_file:
             tmp_path = Path(tmp_file.name)
 
         try:
@@ -89,7 +91,9 @@ class TestPaletteUtility:
 
     def test_load_palette_from_file(self):
         # Create a valid palette file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.palette', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.palette', delete=False, encoding='utf-8'
+        ) as tmp_file:
             tmp_file.write('[default]\ncolors = 1\n[0]\nred = 128\ngreen = 64\nblue = 32\n')
             tmp_path = Path(tmp_file.name)
 
@@ -101,7 +105,9 @@ class TestPaletteUtility:
             tmp_path.unlink(missing_ok=True)
 
     def test_parse_rgb_data_in_file(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+        ) as tmp_file:
             tmp_file.write('255,0,0,255\n0,255,0,255\n255,0,0,255\n')
             tmp_path = Path(tmp_file.name)
 

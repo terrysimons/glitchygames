@@ -1289,7 +1289,7 @@ class TestCanvasRendererHoverEffects:
 
 
 class TestCanvasRendererDrawIndicatorsOnlyPath:
-    """Test the _redraw_animated_sprite path that calls _draw_controller_indicators_only (line 679)."""
+    """Test _redraw_animated_sprite path calling _draw_controller_indicators_only."""
 
     def test_redraw_animated_sprite_with_hidden_selected_frame(self, mocker):
         """Test that _redraw_animated_sprite calls _draw_controller_indicators_only when hidden.

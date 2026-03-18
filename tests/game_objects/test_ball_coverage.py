@@ -8,6 +8,7 @@ Targets uncovered lines: 345->exit, 381-382, 392->exit, 421, 466,
 import math
 
 import pygame
+import pytest
 
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 
@@ -478,8 +479,8 @@ class TestBallBottomBounceZeroSpeed:
         ball._handle_bottom_collision(log)
 
         # Speed should remain zero
-        assert ball.speed.x == 0.0
-        assert ball.speed.y == 0.0
+        assert ball.speed.x == pytest.approx(0.0)
+        assert ball.speed.y == pytest.approx(0.0)
 
     def test_left_collision_zero_magnitude_no_reflection(self, mock_pygame_patches):
         """Test that left collision with zero speed skips reflection.
@@ -505,7 +506,7 @@ class TestBallBottomBounceZeroSpeed:
 
         ball._handle_left_collision(log)
 
-        assert ball.speed.x == 0.0
+        assert ball.speed.x == pytest.approx(0.0)
 
     def test_right_collision_zero_magnitude_no_reflection(self, mock_pygame_patches):
         """Test that right collision with zero speed skips reflection.
@@ -531,4 +532,4 @@ class TestBallBottomBounceZeroSpeed:
 
         ball._handle_right_collision(log)
 
-        assert ball.speed.x == 0.0
+        assert ball.speed.x == pytest.approx(0.0)

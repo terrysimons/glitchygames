@@ -226,12 +226,12 @@ class TestCheckTruncatedPixelData:
     """Test _check_truncated_pixel_data."""
 
     def test_no_pixel_data(self):
-        is_valid, msg = _check_truncated_pixel_data('[sprite]\nname = "test"')
+        is_valid, _msg = _check_truncated_pixel_data('[sprite]\nname = "test"')
         assert is_valid is True
 
     def test_valid_pixel_data(self):
         content = '[sprite]\npixels = """\nABCDEFGHIJKLMNOP\nABCDEFGHIJKLMNOP\n"""'
-        is_valid, msg = _check_truncated_pixel_data(content)
+        is_valid, _msg = _check_truncated_pixel_data(content)
         assert is_valid is True
 
     def test_truncated_pixel_data(self):
@@ -247,12 +247,12 @@ class TestCheckMixedFormat:
 
     def test_static_only(self):
         content = '[sprite]\nname = "test"\npixels = "AB"'
-        is_valid, msg = _check_mixed_format(content)
+        is_valid, _msg = _check_mixed_format(content)
         assert is_valid is True
 
     def test_animated_only(self):
         content = '[sprite]\nname = "test"\n[[animation]]\nnamespace = "idle"'
-        is_valid, msg = _check_mixed_format(content)
+        is_valid, _msg = _check_mixed_format(content)
         assert is_valid is True
 
     def test_mixed_format_invalid(self):
@@ -266,27 +266,27 @@ class TestValidateAiResponse:
     """Test validate_ai_response."""
 
     def test_empty_response(self):
-        is_valid, msg = validate_ai_response('')
+        is_valid, _msg = validate_ai_response('')
         assert is_valid is False
 
     def test_error_message(self):
-        is_valid, msg = validate_ai_response('I apologize, I cannot generate that sprite.')
+        is_valid, _msg = validate_ai_response('I apologize, I cannot generate that sprite.')
         assert is_valid is False
 
     def test_markdown_code_blocks(self):
-        is_valid, msg = validate_ai_response('```toml\n[sprite]\n```')
+        is_valid, _msg = validate_ai_response('```toml\n[sprite]\n```')
         assert is_valid is False
 
     def test_missing_sprite_section(self):
-        is_valid, msg = validate_ai_response('[colors."A"]\nred = 255')
+        is_valid, _msg = validate_ai_response('[colors."A"]\nred = 255')
         assert is_valid is False
 
     def test_missing_colors_section(self):
-        is_valid, msg = validate_ai_response('[sprite]\nname = "test"\npixels = "A"')
+        is_valid, _msg = validate_ai_response('[sprite]\nname = "test"\npixels = "A"')
         assert is_valid is False
 
     def test_comma_separated_colors(self):
-        is_valid, msg = validate_ai_response(
+        is_valid, _msg = validate_ai_response(
             '[sprite]\nname="test"\n[colors."A"]\nred = 255, green = 0'
         )
         assert is_valid is False
@@ -295,13 +295,13 @@ class TestValidateAiResponse:
         content = (
             '[sprite]\nname = "test"\npixels = "A"\n[colors."A"]\nred = 255\ngreen = 0\nblue = 0'
         )
-        is_valid, msg = validate_ai_response(content)
+        is_valid, _msg = validate_ai_response(content)
         assert is_valid is True
 
     def test_error_phrase_with_toml_structure(self):
         # Has error phrase but also has TOML structure - should pass
         content = '[sprite]\nname = "I apologize sprite"\n[colors."A"]\nred = 255'
-        is_valid, msg = validate_ai_response(content)
+        is_valid, _msg = validate_ai_response(content)
         assert is_valid is True
 
 
@@ -309,7 +309,7 @@ class TestCleanAiResponse:
     """Test clean_ai_response."""
 
     def test_empty(self):
-        assert clean_ai_response('') == ''
+        assert not clean_ai_response('')
 
     def test_none(self):
         assert clean_ai_response(None) is None

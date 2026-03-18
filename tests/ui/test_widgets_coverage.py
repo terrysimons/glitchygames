@@ -1782,7 +1782,7 @@ class TestMultiLineTextBoxKeyHandling:
         else:
             # Fallback: access the mock attribute via getattr to satisfy type checker
             key_module = pygame.key
-            getattr(key_module, 'get_mods').return_value = mods_value
+            key_module.get_mods.return_value = mods_value
 
     def test_key_down_inactive_returns(self, text_box, mocker):
         """Test key_down_event returns when not active."""

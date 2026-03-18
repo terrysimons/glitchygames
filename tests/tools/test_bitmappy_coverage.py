@@ -60,19 +60,19 @@ def clear_pixel_cache():
 
 @pytest.fixture
 def pygame_mocks(mocker):
-    """Set up pygame mocks for sprite tests."""  # noqa: DOC201
+    """Set up pygame mocks for sprite tests."""
     return MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
 
 @pytest.fixture
 def mock_groups():
-    """Create a mock LayeredDirty group for sprite initialization."""  # noqa: DOC201
+    """Create a mock LayeredDirty group for sprite initialization."""
     return pygame.sprite.LayeredDirty()
 
 
 @pytest.fixture
 def mock_logger():
-    """Create a logger for testing AI-related functions."""  # noqa: DOC201
+    """Create a logger for testing AI-related functions."""
     return logging.getLogger('test.ai_functions')
 
 
@@ -1082,7 +1082,7 @@ class TestFilmStripSpriteGetFramePixelData:
     """Tests for FilmStripSprite._get_frame_pixel_data method."""
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups, animated_sprite=None):
-        """Create a FilmStripSprite with mocked dependencies."""  # noqa: DOC201
+        """Create a FilmStripSprite with mocked dependencies."""
         from glitchygames.tools.bitmappy import FilmStripSprite
 
         widget = MagicMock()
@@ -1510,7 +1510,7 @@ class TestAnimatedCanvasSpriteDragMethods:
     """Tests for AnimatedCanvasSprite drag-related methods."""
 
     def _make_canvas_sprite(self, pygame_mocks, mock_groups):
-        """Create an AnimatedCanvasSprite with mocked dependencies."""  # noqa: DOC201
+        """Create an AnimatedCanvasSprite with mocked dependencies."""
         from glitchygames.tools.bitmappy import AnimatedCanvasSprite
 
         animated_sprite = MagicMock()
