@@ -42,7 +42,7 @@ def renderer_without_color(mocker):
 
 
 class TestExtractColorsFromTOML:
-    """Test ASCIIRenderer._extract_colors_from_toml method."""
+    """Test ASCIIRenderer.extract_colors_from_toml method."""
 
     def test_extract_basic_rgb_colors(self):
         """Test extraction of basic RGB color mappings."""
@@ -53,7 +53,7 @@ class TestExtractColorsFromTOML:
                 '@': {'red': 0, 'green': 255, 'blue': 0},
             }
         }
-        colors = renderer._extract_colors_from_toml(toml_data)
+        colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['#'] == (255, 0, 0, 255)
         assert colors['@'] == (0, 255, 0, 255)
 
@@ -65,7 +65,7 @@ class TestExtractColorsFromTOML:
                 '.': {'red': 255, 'green': 0, 'blue': 255},
             }
         }
-        colors = renderer._extract_colors_from_toml(toml_data)
+        colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['.'] == (255, 0, 255, 0)
 
     def test_extract_explicit_alpha(self):
@@ -76,7 +76,7 @@ class TestExtractColorsFromTOML:
                 '#': {'red': 100, 'green': 100, 'blue': 100, 'alpha': 127},
             }
         }
-        colors = renderer._extract_colors_from_toml(toml_data)
+        colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['#'] == (100, 100, 100, 127)
 
     def test_extract_alpha_via_a_key(self):
@@ -87,14 +87,14 @@ class TestExtractColorsFromTOML:
                 '#': {'red': 50, 'green': 50, 'blue': 50, 'a': 64},
             }
         }
-        colors = renderer._extract_colors_from_toml(toml_data)
+        colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['#'] == (50, 50, 50, 64)
 
     def test_extract_no_colors_section(self):
         """Test extraction with no colors section returns empty dict."""
         renderer = ASCIIRenderer()
         toml_data = {'sprite': {'name': 'test'}}
-        colors = renderer._extract_colors_from_toml(toml_data)
+        colors = renderer.extract_colors_from_toml(toml_data)
         assert colors == {}
 
     def test_extract_skips_invalid_color_entries(self):
@@ -107,7 +107,7 @@ class TestExtractColorsFromTOML:
                 '%': 'not_a_dict',  # Not a dict at all
             }
         }
-        colors = renderer._extract_colors_from_toml(toml_data)
+        colors = renderer.extract_colors_from_toml(toml_data)
         assert '#' in colors
         assert '@' not in colors
         assert '%' not in colors
@@ -120,12 +120,12 @@ class TestExtractColorsFromTOML:
                 '#': {'red': 0, 'green': 0, 'blue': 0},
             }
         }
-        colors = renderer._extract_colors_from_toml(toml_data)
+        colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['#'][3] == 255
 
 
 class TestExtractPixelsFromTOML:
-    """Test ASCIIRenderer._extract_pixels_from_toml method."""
+    """Test ASCIIRenderer.extract_pixels_from_toml method."""
 
     def test_extract_static_sprite_pixels(self):
         """Test extraction of pixels from a static sprite."""
@@ -133,7 +133,7 @@ class TestExtractPixelsFromTOML:
         toml_data = {
             'sprite': {'name': 'test', 'pixels': '##\n##'},
         }
-        pixels = renderer._extract_pixels_from_toml(toml_data)
+        pixels = renderer.extract_pixels_from_toml(toml_data)
         assert pixels == '##\n##'
 
     def test_extract_animated_sprite_first_frame(self):
@@ -150,52 +150,52 @@ class TestExtractPixelsFromTOML:
                 }
             ]
         }
-        pixels = renderer._extract_pixels_from_toml(toml_data)
+        pixels = renderer.extract_pixels_from_toml(toml_data)
         assert pixels == 'AB\nCD'
 
     def test_extract_returns_none_when_no_pixels(self):
         """Test that None is returned when no pixels data exists."""
         renderer = ASCIIRenderer()
         toml_data = {'sprite': {'name': 'test'}}
-        pixels = renderer._extract_pixels_from_toml(toml_data)
+        pixels = renderer.extract_pixels_from_toml(toml_data)
         assert pixels is None
 
     def test_extract_returns_none_for_empty_data(self):
         """Test that None is returned for completely empty data."""
         renderer = ASCIIRenderer()
-        pixels = renderer._extract_pixels_from_toml({})
+        pixels = renderer.extract_pixels_from_toml({})
         assert pixels is None
 
     def test_extract_returns_none_for_empty_animation(self):
         """Test that None is returned when animation list is empty."""
         renderer = ASCIIRenderer()
         toml_data = {'animation': []}
-        pixels = renderer._extract_pixels_from_toml(toml_data)
+        pixels = renderer.extract_pixels_from_toml(toml_data)
         assert pixels is None
 
     def test_extract_returns_none_for_animation_no_frames(self):
         """Test that None is returned when animation has no frames."""
         renderer = ASCIIRenderer()
         toml_data = {'animation': [{'namespace': 'walk', 'frame': []}]}
-        pixels = renderer._extract_pixels_from_toml(toml_data)
+        pixels = renderer.extract_pixels_from_toml(toml_data)
         assert pixels is None
 
 
 class TestColorizePixels:
-    """Test ASCIIRenderer._colorize_pixels method."""
+    """Test ASCIIRenderer.colorize_pixels method."""
 
     def test_colorize_returns_raw_pixels_without_color_support(self, renderer_without_color):
         """Test that pixels are returned unmodified without color support."""
         pixels = '##\n##'
         colors = {'#': (255, 0, 0, 255)}
-        result = renderer_without_color._colorize_pixels(pixels, colors)
+        result = renderer_without_color.colorize_pixels(pixels, colors)
         assert result == pixels
 
     def test_colorize_opaque_pixels(self, renderer_with_color):
         """Test colorization of fully opaque pixels."""
         pixels = '#'
         colors = {'#': (255, 0, 0, 255)}
-        result = renderer_with_color._colorize_pixels(pixels, colors)
+        result = renderer_with_color.colorize_pixels(pixels, colors)
         # Should contain color code, block char, and reset code
         assert '\033[38;2;255;0;0m' in result
         assert '\033[0m' in result
@@ -204,7 +204,7 @@ class TestColorizePixels:
         """Test colorization of fully transparent pixels (alpha=0)."""
         pixels = '.'
         colors = {'.': (255, 0, 255, 0)}
-        result = renderer_with_color._colorize_pixels(pixels, colors)
+        result = renderer_with_color.colorize_pixels(pixels, colors)
         # Transparent pixels use light grey (192, 192, 192)
         assert '\033[38;2;192;192;192m' in result
 
@@ -213,7 +213,7 @@ class TestColorizePixels:
         pixels = '#'
         # Alpha = 50, which is below ALPHA_TRANSPARENCY_THRESHOLD (128)
         colors = {'#': (200, 100, 50, 50)}
-        result = renderer_with_color._colorize_pixels(pixels, colors)
+        result = renderer_with_color.colorize_pixels(pixels, colors)
         # Should use transparency char with adjusted colors
         assert '\033[' in result
         assert '\033[0m' in result
@@ -223,7 +223,7 @@ class TestColorizePixels:
         pixels = '#'
         # Alpha = 200, above ALPHA_TRANSPARENCY_THRESHOLD but below 255
         colors = {'#': (200, 100, 50, 200)}
-        result = renderer_with_color._colorize_pixels(pixels, colors)
+        result = renderer_with_color.colorize_pixels(pixels, colors)
         # Should use pixel char with alpha-adjusted color
         adjusted_r = int(200 * (200 / 255))
         adjusted_g = int(100 * (200 / 255))
@@ -237,7 +237,7 @@ class TestColorizePixels:
             '#': (255, 0, 0, 255),
             '@': (0, 255, 0, 255),
         }
-        result = renderer_with_color._colorize_pixels(pixels, colors)
+        result = renderer_with_color.colorize_pixels(pixels, colors)
         lines = result.split('\n')
         assert len(lines) == 2
 
@@ -245,7 +245,7 @@ class TestColorizePixels:
         """Test that unmapped characters are handled via _colorize_non_mapped_char."""
         pixels = 'X'
         colors = {'#': (255, 0, 0, 255)}
-        result = renderer_with_color._colorize_pixels(pixels, colors)
+        result = renderer_with_color.colorize_pixels(pixels, colors)
         # 'X' is not in colors, should pass through
         assert 'X' in result
 

@@ -9,6 +9,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.events.core import HashableEvent
 from glitchygames.sprites import Sprite
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -56,10 +57,10 @@ class TestSpriteEventHandlers:
         sprite = Sprite(x=0, y=0, width=10, height=10)
 
         # Test mouse button event handlers
-        event = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(5, 5))
+        event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(5, 5))
         sprite.on_mouse_button_down_event(event)
 
-        event = pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=(5, 5))
+        event = HashableEvent(pygame.MOUSEBUTTONUP, button=1, pos=(5, 5))
         sprite.on_mouse_button_up_event(event)
 
     def test_mouse_button_event_handlers_with_callbacks(self, mocker):
@@ -109,7 +110,7 @@ class TestSpriteEventHandlers:
         sprite = Sprite(x=0, y=0, width=10, height=10)
 
         # Test mouse drag event handlers
-        event = pygame.event.Event(pygame.MOUSEMOTION, buttons=(1, 0, 0), pos=(5, 5))
+        event = HashableEvent(pygame.MOUSEMOTION, buttons=(1, 0, 0), pos=(5, 5))
         sprite.on_mouse_motion_event(event)
 
     def test_mouse_scroll_event_handlers(self):
@@ -117,15 +118,15 @@ class TestSpriteEventHandlers:
         sprite = Sprite(x=0, y=0, width=10, height=10)
 
         # Test mouse scroll event handlers
-        event = pygame.event.Event(pygame.MOUSEWHEEL, x=1, y=1)
-        sprite.on_mouse_wheel_event(event, trigger=None)
+        event = HashableEvent(pygame.MOUSEWHEEL, x=1, y=1)
+        sprite.on_mouse_wheel_event(event)
 
     def test_mouse_chord_event_handlers(self):
         """Test mouse chord event handlers."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
 
         # Test mouse chord event handlers
-        event = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(5, 5))
+        event = HashableEvent(pygame.MOUSEBUTTONDOWN, button=1, pos=(5, 5))
         sprite.on_mouse_button_down_event(event)
 
     def test_mouse_drag_drop_event_handlers(self):

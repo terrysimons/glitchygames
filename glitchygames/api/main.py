@@ -23,6 +23,7 @@ import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,7 +40,7 @@ LOG = logging.getLogger('glitchygames.api')
 
 
 @asynccontextmanager
-async def lifespan(application: FastAPI) -> AsyncGenerator[None]:  # noqa: ARG001, RUF029
+async def lifespan(application: Any) -> AsyncGenerator[None]:  # noqa: ARG001, RUF029
     """Manage application startup and shutdown lifecycle."""
     LOG.info('Starting GlitchyGames Sprite Generation API')
 
@@ -54,14 +55,14 @@ async def lifespan(application: FastAPI) -> AsyncGenerator[None]:  # noqa: ARG00
     LOG.info('Shutting down GlitchyGames Sprite Generation API')
 
 
-def create_app() -> FastAPI:
+def create_app() -> Any:
     """Create and configure the FastAPI application.
 
     Returns:
         Configured FastAPI application
 
     """
-    application = FastAPI(
+    application: Any = FastAPI(
         title='GlitchyGames Sprite Generation API',
         description=(
             'Generate pixel art sprites using AI. Supports static and animated sprites '
@@ -85,7 +86,7 @@ def create_app() -> FastAPI:
 
     # Add CORS middleware
     application.add_middleware(
-        CORSMiddleware,
+        CORSMiddleware,  # ty: ignore[invalid-argument-type]
         allow_origins=['*'],  # Configure appropriately for production
         allow_credentials=True,
         allow_methods=['*'],

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:  # pragma: no cover
     import argparse  # pragma: no cover
@@ -13,7 +13,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 import pygame
 
-from glitchygames.events import WINDOW_EVENTS, ResourceManager, WindowEvents
+from glitchygames.events import WINDOW_EVENTS, HashableEvent, ResourceManager, WindowEvents
 
 LOG = logging.getLogger('game.window')
 LOG.addHandler(logging.NullHandler())
@@ -34,10 +34,11 @@ class WindowEventManager(ResourceManager):
             """
             super().__init__(game)
 
-            self.game = game
+            self.game: Any = game
             self.proxies = [self.game]
 
-        def on_window_close_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_close_event(self: Self, event: HashableEvent) -> None:
             """Handle the window close event.
 
             Args:
@@ -46,7 +47,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_close_event(event)
 
-        def on_window_enter_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_enter_event(self: Self, event: HashableEvent) -> None:
             """Handle the window enter event.
 
             Args:
@@ -55,7 +57,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_enter_event(event)
 
-        def on_window_exposed_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_exposed_event(self: Self, event: HashableEvent) -> None:
             """Handle the window exposed event.
 
             Args:
@@ -64,7 +67,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_exposed_event(event)
 
-        def on_window_focus_gained_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_focus_gained_event(self: Self, event: HashableEvent) -> None:
             """Handle the window focus gained event.
 
             Args:
@@ -73,7 +77,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_focus_gained_event(event)
 
-        def on_window_focus_lost_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_focus_lost_event(self: Self, event: HashableEvent) -> None:
             """Handle the window focus lost event.
 
             Args:
@@ -82,7 +87,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_focus_lost_event(event)
 
-        def on_window_hidden_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_hidden_event(self: Self, event: HashableEvent) -> None:
             """Handle the window hidden event.
 
             Args:
@@ -91,7 +97,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_hidden_event(event)
 
-        def on_window_hit_test_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_hit_test_event(self: Self, event: HashableEvent) -> None:
             """Handle the window hit test event.
 
             Args:
@@ -100,7 +107,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_hit_test_event(event)
 
-        def on_window_leave_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_leave_event(self: Self, event: HashableEvent) -> None:
             """Handle the window leave event.
 
             Args:
@@ -109,7 +117,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_leave_event(event)
 
-        def on_window_maximized_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_maximized_event(self: Self, event: HashableEvent) -> None:
             """Handle the window maximized event.
 
             Args:
@@ -118,7 +127,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_maximized_event(event)
 
-        def on_window_minimized_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_minimized_event(self: Self, event: HashableEvent) -> None:
             """Handle the window minimized event.
 
             Args:
@@ -127,7 +137,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_minimized_event(event)
 
-        def on_window_moved_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_moved_event(self: Self, event: HashableEvent) -> None:
             """Handle the window moved event.
 
             Args:
@@ -136,7 +147,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_moved_event(event)
 
-        def on_window_resized_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_resized_event(self: Self, event: HashableEvent) -> None:
             """Handle the window resized event.
 
             Args:
@@ -145,7 +157,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_resized_event(event)
 
-        def on_window_restored_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_restored_event(self: Self, event: HashableEvent) -> None:
             """Handle the window restored event.
 
             Args:
@@ -154,7 +167,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_restored_event(event)
 
-        def on_window_shown_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_shown_event(self: Self, event: HashableEvent) -> None:
             """Handle the window shown event.
 
             Args:
@@ -163,7 +177,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_shown_event(event)
 
-        def on_window_size_changed_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_size_changed_event(self: Self, event: HashableEvent) -> None:
             """Handle the window size changed event.
 
             Args:
@@ -172,7 +187,8 @@ class WindowEventManager(ResourceManager):
             """
             self.game.on_window_size_changed_event(event)
 
-        def on_window_take_focus_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_window_take_focus_event(self: Self, event: HashableEvent) -> None:
             """Handle the window take focus event.
 
             Args:

@@ -10,13 +10,14 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 import pygame
 
+from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputDialog
 
@@ -68,7 +69,7 @@ def _get_examples_dir() -> Path:
     # Use the same logic as resource_path but defined here to avoid circular imports
     if hasattr(sys, '_MEIPASS'):
         # Running in PyInstaller bundle
-        base_path = Path(sys._MEIPASS)
+        base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
         return base_path.joinpath('glitchygames', 'examples', 'resources', 'sprites')
     # Running in normal Python environment
     # dialogs.py is in glitchygames/ui, so go up to glitchygames/, then to examples/
@@ -138,8 +139,8 @@ class InputConfirmationDialogScene(Scene):
     def __init__(
         self: Self,
         previous_scene: Scene,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the Input Confirmation Dialog Scene.
 
@@ -156,12 +157,13 @@ class InputConfirmationDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
-        self.previous_scene = previous_scene
+        self.previous_scene: Any = previous_scene
 
         # Create dialog with its own sprite group
         dialog_width = self.screen_width // 2
         dialog_height = self.screen_height // 2
 
+        assert self.screen is not None
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=self.DIALOG_TEXT,  # Use this instance's DIALOG_TEXT
@@ -179,6 +181,7 @@ class InputConfirmationDialogScene(Scene):
         self.dialog.dialog_text_sprite.text_box.text = self.DIALOG_TEXT
         self.dialog.dialog_text_sprite.border_width = 0
 
+    @override
     def setup(self: Self) -> None:
         """Set up the scene.
 
@@ -196,6 +199,7 @@ class InputConfirmationDialogScene(Scene):
 
         self.dialog.add(self.all_sprites)
 
+    @override
     def cleanup(self: Self) -> None:
         """Cleanup the scene.
 
@@ -225,7 +229,7 @@ class InputConfirmationDialogScene(Scene):
         for sprite in self.previous_scene.all_sprites:
             sprite.dirty = 1
 
-    def on_cancel_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_cancel_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle the cancel event.
 
         Args:
@@ -237,7 +241,7 @@ class InputConfirmationDialogScene(Scene):
         self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
         self.dismiss()
 
-    def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle confirm events."""
         self.log.info(f'Confirm: event: {event}, trigger: {trigger}')
         # Get the text from input box before dismissing
@@ -261,23 +265,27 @@ class InputConfirmationDialogScene(Scene):
 
 
         """
-        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
+        input_box_name = getattr(control, 'name', '')
+        input_box_text = getattr(control, 'text', '')
+        self.log.info(f'{self.name} Got text input from: {input_box_name}: {input_box_text}')
 
-    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[reportIncompatibleVariableOverride]
         """Handle the mouse button up event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (HashableEvent): The pygame event.
 
 
         """
         self.dialog.input_box.activate()
 
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle the key up event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (HashableEvent): The pygame event.
 
 
         """
@@ -288,11 +296,12 @@ class InputConfirmationDialogScene(Scene):
         else:
             super().on_key_up_event(event)
 
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle the key down event.
 
         Args:
-            event (pygame.event.Event): The pygame event.
+            event (HashableEvent): The pygame event.
 
 
         """
@@ -314,8 +323,8 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
     def __init__(
         self: Self,
         previous_scene: Scene,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the New Canvas Dialog Scene.
 
@@ -331,7 +340,8 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
             groups = pygame.sprite.LayeredDirty()
         super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
 
-    def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    @override
+    def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle the confirm event.
 
         Args:
@@ -363,8 +373,8 @@ class LoadDialogScene(InputConfirmationDialogScene):
     def __init__(
         self: Self,
         previous_scene: Scene,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the Load Dialog Scene.
 
@@ -381,7 +391,8 @@ class LoadDialogScene(InputConfirmationDialogScene):
 
         super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
 
-    def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    @override
+    def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle the confirm event.
 
         Args:
@@ -414,8 +425,8 @@ class SaveDialogScene(InputConfirmationDialogScene):
     def __init__(
         self: Self,
         previous_scene: Scene,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the Save Dialog Scene.
 
@@ -432,7 +443,8 @@ class SaveDialogScene(InputConfirmationDialogScene):
 
         super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
 
-    def on_confirm_event(self: Self, event: pygame.event.Event, trigger: object) -> None:
+    @override
+    def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle the confirm event.
 
         Args:
@@ -464,8 +476,8 @@ class DeleteAnimationDialogScene(Scene):
         animation_name: str,
         on_confirm_callback: Callable[[], None],
         on_cancel_callback: Callable[[], None] | None = None,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the Delete Animation Dialog Scene.
 
@@ -482,7 +494,7 @@ class DeleteAnimationDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
-        self.previous_scene = previous_scene
+        self.previous_scene: Any = previous_scene
         self.animation_name = animation_name
         self.on_confirm_callback = on_confirm_callback
         self.on_cancel_callback = on_cancel_callback
@@ -493,6 +505,7 @@ class DeleteAnimationDialogScene(Scene):
 
         message = f"Type '{animation_name}' to confirm deletion:"
 
+        assert self.screen is not None
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=message,
@@ -508,6 +521,7 @@ class DeleteAnimationDialogScene(Scene):
         self.dialog.dialog_text_sprite.text_box.text = message
         self.dialog.dialog_text_sprite.border_width = 0
 
+    @override
     def setup(self) -> None:
         """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
@@ -520,7 +534,7 @@ class DeleteAnimationDialogScene(Scene):
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: pygame.event.Event, trigger: object = None) -> None:
+    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -529,36 +543,37 @@ class DeleteAnimationDialogScene(Scene):
         if typed_text == self.animation_name:
             LOG.info(f"DeleteAnimationDialog: User confirmed deletion of '{self.animation_name}'")
             # Call the callback if provided
-            if self.on_confirm_callback:
-                self.on_confirm_callback()
+            self.on_confirm_callback()
             # Return to previous scene
-            self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
+            self.scene_manager.switch_to_scene(self.previous_scene)
         else:
             LOG.warning(
                 f"DeleteAnimationDialog: Typed name '{typed_text}'"
-                f" does not match '{self.animation_name}'"
+                + f" does not match '{self.animation_name}'"
             )
             # Could show an error message here, but for now just do nothing
             # Clear the input box to let user try again
             self.dialog.input_box.text = ''
 
-    def on_cancel_event(self, event: pygame.event.Event, trigger: object = None) -> None:
+    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:
         """Handle cancel button click."""
         LOG.info('DeleteAnimationDialog: User cancelled')
         # Call the cancel callback if provided
         if self.on_cancel_callback:
             self.on_cancel_callback()
         # Return to previous scene
-        self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
+        self.scene_manager.switch_to_scene(self.previous_scene)
 
-    def on_key_down_event(self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_down_event(self, event: HashableEvent) -> None:
         """Handle the key down event."""
         if self.dialog.input_box.active:
             self.dialog.on_key_down_event(event)
         else:
             super().on_key_down_event(event)
 
-    def on_key_up_event(self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_up_event(self, event: HashableEvent) -> None:
         """Handle the key up event."""
         if self.dialog.input_box.active:
             self.dialog.on_key_up_event(event)
@@ -581,8 +596,8 @@ class DeleteFrameDialogScene(Scene):
         frame_index: int,
         on_confirm_callback: Callable[[], None],
         on_cancel_callback: Callable[[], None] | None = None,
-        options: dict | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the Delete Frame Dialog Scene.
 
@@ -600,7 +615,7 @@ class DeleteFrameDialogScene(Scene):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
-        self.previous_scene = previous_scene
+        self.previous_scene: Any = previous_scene
         self.animation_name = animation_name
         self.frame_index = frame_index
         self.on_confirm_callback = on_confirm_callback
@@ -613,6 +628,7 @@ class DeleteFrameDialogScene(Scene):
         message1 = f"Delete this frame from '{animation_name}'?"
         message2 = "Type 'YES' to confirm:"
 
+        assert self.screen is not None
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=message1,
@@ -631,17 +647,20 @@ class DeleteFrameDialogScene(Scene):
         # Add second label for the confirmation prompt
         from glitchygames.ui import TextSprite
 
+        dialog_text_rect = self.dialog.dialog_text_sprite.rect
+        assert dialog_text_rect is not None
         self.second_label = TextSprite(
             text=message2,
-            x=self.dialog.dialog_text_sprite.rect.x,
-            y=self.dialog.dialog_text_sprite.rect.y + 30,  # Position below first label
-            width=self.dialog.dialog_text_sprite.rect.width,
+            x=int(dialog_text_rect.x),
+            y=int(dialog_text_rect.y) + 30,  # Position below first label
+            width=int(dialog_text_rect.width),
             height=20,
             groups=self.all_sprites,
         )
-        self.second_label.border_width = 0
+        self.second_label.border_width = 0  # type: ignore[attr-defined]
         self.second_label.background_color = self.dialog.dialog_text_sprite.background_color
 
+    @override
     def setup(self) -> None:
         """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
@@ -654,7 +673,7 @@ class DeleteFrameDialogScene(Scene):
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: pygame.event.Event, trigger: object = None) -> None:
+    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -663,36 +682,37 @@ class DeleteFrameDialogScene(Scene):
         if typed_text == 'YES':
             LOG.info(
                 f'DeleteFrameDialog: User confirmed deletion of'
-                f' frame {self.frame_index}'
-                f" from '{self.animation_name}'"
+                + f' frame {self.frame_index}'
+                + f" from '{self.animation_name}'"
             )
             # Call the callback if provided
-            if self.on_confirm_callback:
-                self.on_confirm_callback()
+            self.on_confirm_callback()
             # Return to previous scene
-            self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
+            self.scene_manager.switch_to_scene(self.previous_scene)
         else:
             LOG.warning(f"DeleteFrameDialog: Typed text '{typed_text}' does not match 'YES'")
             # Clear the input box to let user try again
             self.dialog.input_box.text = ''
 
-    def on_cancel_event(self, event: pygame.event.Event, trigger: object = None) -> None:
+    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:
         """Handle cancel button click."""
         LOG.info('DeleteFrameDialog: User cancelled')
         # Call the cancel callback if provided
         if self.on_cancel_callback:
             self.on_cancel_callback()
         # Return to previous scene
-        self.game_engine.scene_manager.switch_to_scene(self.previous_scene)
+        self.scene_manager.switch_to_scene(self.previous_scene)
 
-    def on_key_down_event(self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_down_event(self, event: HashableEvent) -> None:
         """Handle the key down event."""
         if self.dialog.input_box.active:
             self.dialog.on_key_down_event(event)
         else:
             super().on_key_down_event(event)
 
-    def on_key_up_event(self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_up_event(self, event: HashableEvent) -> None:
         """Handle the key up event."""
         if self.dialog.input_box.active:
             self.dialog.on_key_up_event(event)

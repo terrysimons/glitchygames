@@ -26,14 +26,6 @@ class TestSceneEvents:
         # Reset singleton state for clean test
         SceneManager._reset()
 
-        # Create a mock game scene class for the engine
-        class MockGameScene(Scene):
-            NAME = 'MockGameScene'
-            VERSION = '1.0'
-
-            def __init__(self, options=None, groups=None):
-                super().__init__(options=options, groups=groups)
-
         # Create a simple scene manager for testing (centralized mocks handle pygame)
         self.scene_manager = SceneManager()
 

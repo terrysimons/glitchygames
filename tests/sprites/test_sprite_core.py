@@ -77,6 +77,7 @@ class TestSpriteInitialization:
             groups=groups,
         )
 
+        assert sprite.rect is not None
         assert sprite.rect.x == SPRITE_X
         assert sprite.rect.y == SPRITE_Y
         assert sprite.rect.width == SPRITE_WIDTH
@@ -110,14 +111,14 @@ class TestSpriteInitialization:
     def test_sprite_breakpoints_enabled_empty_list(self):
         """Test sprite breakpoints with empty list."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
-        sprite.break_when = []
+        sprite.break_when = []  # type: ignore[invalid-assignment]
 
         assert sprite.break_when == []
 
     def test_sprite_breakpoints_enabled_with_specific_type(self):
         """Test sprite breakpoints with specific type."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
-        sprite.break_when = [Sprite]
+        sprite.break_when = [Sprite]  # type: ignore[invalid-assignment]
 
         assert sprite.break_when == [Sprite]
 
@@ -131,8 +132,8 @@ class TestSpriteInitialization:
     def test_break_when_specific_type_appends(self):
         """Test that break_when appends specific type."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
-        sprite.break_when = [Sprite]
-        sprite.break_when.append('test')
+        sprite.break_when = [Sprite]  # type: ignore[invalid-assignment]
+        sprite.break_when.append('test')  # type: ignore[unresolved-attribute]
 
         assert 'test' in sprite.break_when  # type: ignore[reportOperatorIssue]
 

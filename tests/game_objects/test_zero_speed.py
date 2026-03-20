@@ -102,6 +102,7 @@ def _run_continuous_speedup_scenarios(ball):
 
     LOG.debug('10. Test movement over many iterations with zero speed:')
     ball.speed = Speed(0.0, 0.0)
+    assert ball.rect is not None
     ball.rect.x = 100
     ball.rect.y = 100
     LOG.debug(f'   Initial position: ({ball.rect.x}, {ball.rect.y})')
@@ -225,4 +226,4 @@ def test_zero_speed_scenarios(mocker):
 
 
 if __name__ == '__main__':
-    test_zero_speed_scenarios()
+    test_zero_speed_scenarios()  # type: ignore[missing-argument]

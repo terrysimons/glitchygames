@@ -28,7 +28,7 @@ class TestBitmappyFunctionality:
         assert callable(bitmappy.BitmapPixelSprite)
         assert callable(bitmappy.FilmStripSprite)
         assert callable(bitmappy.AnimatedCanvasSprite)
-        assert callable(bitmappy.MiniView)
+        assert callable(bitmappy.MiniView)  # type: ignore[unresolved-attribute]
         assert callable(bitmappy.BitmapEditorScene)
 
     def test_bitmappy_exceptions(self, mock_pygame_patches):
@@ -63,7 +63,7 @@ class TestBitmappyFunctionality:
         assert callable(bitmappy.BitmapPixelSprite)
         assert callable(bitmappy.FilmStripSprite)
         assert callable(bitmappy.AnimatedCanvasSprite)
-        assert callable(bitmappy.MiniView)
+        assert callable(bitmappy.MiniView)  # type: ignore[unresolved-attribute]
 
     def test_bitmappy_scene_inheritance(self, mock_pygame_patches):
         """Test bitmappy scene inheritance."""

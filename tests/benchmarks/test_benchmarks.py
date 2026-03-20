@@ -55,6 +55,7 @@ class TestBallPhysicsBenchmarks:
 
         """
         ball = BallSprite()
+        assert ball.rect is not None
         ball.rect.x = 400
         ball.rect.y = 300
         ball.speed.x = 200.0
@@ -97,6 +98,7 @@ class TestBallPhysicsBenchmarks:
         """Benchmark boundary collision detection when ball hits a wall."""
         ball = self._create_ball_at_center()
         # Position ball at top boundary to trigger bounce
+        assert ball.rect is not None
         ball.rect.y = 0
         ball.speed.y = -100.0
 

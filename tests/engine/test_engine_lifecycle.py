@@ -132,7 +132,7 @@ class TestEngineLifecycle:
         mock_parse_args.return_value = mock_game_args
 
         # Create engine with mock game
-        engine = GameEngine(game=MockGame)
+        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
 
         # Use centralized mock factory for joystick manager
         mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
@@ -191,7 +191,7 @@ class TestEngineLifecycle:
         mock_parse_args.return_value = mock_game_args
 
         # Create engine with mock game
-        engine = GameEngine(game=MockGame)
+        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
 
         # Use centralized mock factory for joystick manager
         mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
@@ -256,7 +256,7 @@ class TestEngineLifecycle:
         mock_parse_args.return_value = mock_game_args
 
         # Create engine with mock game
-        engine = GameEngine(game=MockGame)
+        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
 
         # Use centralized mock factory for joystick manager
         mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
@@ -319,7 +319,7 @@ class TestEngineLifecycle:
         mock_parse_args.return_value = mock_game_args
 
         # Create engine with mock game
-        engine = GameEngine(game=MockGame)
+        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
 
         # Use centralized mock factory for joystick manager
         mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
@@ -382,7 +382,7 @@ class TestEngineLifecycle:
         mock_parse_args.return_value = mock_game_args
 
         # Create engine with mock game
-        engine = GameEngine(game=MockGame)
+        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
 
         # Use centralized mock factory for joystick manager
         mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)
@@ -445,7 +445,7 @@ class TestEngineLifecycle:
         mock_parse_args.return_value = mock_game_args
 
         # Create engine with mock game
-        engine = GameEngine(game=MockGame)
+        engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
 
         # Use centralized mock factory for joystick manager
         mock_joystick_manager_instance = MockFactory.create_joystick_manager_mock(joystick_count=0)

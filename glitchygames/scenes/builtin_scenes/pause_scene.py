@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Pause scene for paddleslap game."""
 
-from typing import Self
+from typing import Any, Self, override
 
 import pygame
 
 from glitchygames.color import WHITE
+from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
@@ -39,6 +40,7 @@ class PauseOverlay(Sprite):
 
         # Blit the screenshot first, then overlay, then text
         self.image = screenshot.copy()
+        assert self.image is not None
         self.image.blit(self.overlay, (0, 0))
         self.image.blit(text_surface, text_rect)
 
@@ -49,7 +51,7 @@ class PauseOverlay(Sprite):
 class PauseScene(Scene):
     """Pause scene that shows a semi-transparent overlay over the game."""
 
-    def __init__(self: Self, **kwargs: object) -> None:
+    def __init__(self: Self, **kwargs: Any) -> None:
         """Initialize the pause scene.
 
         Args:
@@ -60,6 +62,7 @@ class PauseScene(Scene):
         self.overlay = None
         self._space_pressed = False
 
+    @override
     def setup(self: Self) -> None:
         """Set up the pause scene."""
         super().setup()
@@ -76,12 +79,14 @@ class PauseScene(Scene):
             screenshot = pygame.Surface((self.screen_width, self.screen_height))
             screenshot.fill((0, 0, 0))
 
+        assert self.scene_manager.game_engine is not None
         self.overlay = PauseOverlay(self.scene_manager.game_engine.game, screenshot)
         self.all_sprites.add(self.overlay)
 
         self.log.info('Pause scene setup complete')
 
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events for the pause scene.
 
         Args:
@@ -97,7 +102,8 @@ class PauseScene(Scene):
         else:
             super().on_key_down_event(event)
 
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle key up events for the pause scene.
 
         Args:

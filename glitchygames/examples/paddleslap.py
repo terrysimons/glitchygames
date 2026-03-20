@@ -11,7 +11,7 @@ import math
 import random
 import secrets
 import time
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, cast, override
 
 if TYPE_CHECKING:
     import argparse
@@ -27,6 +27,7 @@ from glitchygames.game_objects.ball import BallSpawnMode, SpeedUpMode
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
 from glitchygames.movement import Speed
+from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
@@ -55,11 +56,11 @@ class TextSprite(Sprite):
 
     def __init__(
         self: Self,
-        background_color: tuple = BLACKLUCENT,
+        background_color: tuple[int, int, int] = BLACKLUCENT,
         alpha: int = 0,
         x: int = 0,
         y: int = 0,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
     ) -> None:
         """Initialize the text sprite.
 
@@ -72,9 +73,9 @@ class TextSprite(Sprite):
 
         """
         if groups is None:
-            groups = pygame.sprite.LayeredDirty()
+            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
-        super().__init__(x, y, 0, 0, groups=groups)
+        super().__init__(x, y, 0, 0, groups=groups)  # type: ignore[arg-type]
         self.background_color = background_color
         self.alpha = alpha
         self.x = x
@@ -84,6 +85,7 @@ class TextSprite(Sprite):
         self.image = pygame.Surface((400, 400))
         self.screen = pygame.display.get_surface()
 
+        assert self.image is not None
         if not alpha:
             self.image.set_colorkey(self.background_color)
             self.image.convert()
@@ -107,6 +109,7 @@ class TextSprite(Sprite):
             self.image.set_alpha(self.alpha)
 
         self.rect = self.image.get_rect()
+        assert self.rect is not None
         self.rect.x += x
         self.rect.y += y
         self.font_manager = FontManager()
@@ -121,9 +124,9 @@ class TextSprite(Sprite):
             def __init__(
                 self: Self,
                 font_controller: FontManager,
-                pos: tuple,
+                pos: tuple[int, int],
                 line_height: int = 15,
-                groups: pygame.sprite.LayeredDirty | None = None,
+                groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
             ) -> None:
                 """Initialize the text sprite.
 
@@ -136,16 +139,16 @@ class TextSprite(Sprite):
 
                 """
                 if groups is None:
-                    groups = pygame.sprite.LayeredDirty()
+                    groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
-                super().__init__(pos[0], pos[1], 0, 0, groups=groups)
+                super().__init__(pos[0], pos[1], 0, 0, groups=groups)  # type: ignore[arg-type]
                 self.image = None
                 self.start_pos = pos
                 self.rect = pygame.Rect(pos, (640, 480))
                 self.line_height = line_height
 
-                pygame.freetype.set_default_resolution(font_controller.font_dpi)
-                self.font = pygame.freetype.SysFont(
+                pygame.freetype.set_default_resolution(font_controller.font_dpi)  # type: ignore[attr-defined]
+                self.font = pygame.freetype.SysFont(  # type: ignore[attr-defined]
                     name=font_controller.font, size=font_controller.font_size
                 )
 
@@ -157,11 +160,11 @@ class TextSprite(Sprite):
                     string (str): The string to print.
 
                 """
-                (self.image, self.rect) = self.font.render(string, WHITE)
+                (self.image, self.rect) = self.font.render(string, WHITE)  # type: ignore[union-attr]
                 # self.image
-                surface.blit(self.image, self.rect.center)
-                self.rect.center = surface.get_rect().center
-                self.rect.y += self.line_height
+                surface.blit(self.image, self.rect.center)  # type: ignore[union-attr, arg-type]
+                self.rect.center = surface.get_rect().center  # type: ignore[union-attr]
+                self.rect.y += self.line_height  # type: ignore[union-attr]
 
             def reset(self: Self) -> None:
                 """Reset the text box.
@@ -170,17 +173,25 @@ class TextSprite(Sprite):
                     None
 
                 """
+                assert self.rect is not None
                 self.rect.center = self.start_pos
 
             def indent(self: Self) -> None:
+                assert self.rect is not None
                 self.rect.x += 10
 
             def unindent(self: Self) -> None:
+                assert self.rect is not None
                 self.rect.x -= 10
 
-        self.text_box = TextBox(font_controller=self.font_manager, pos=self.rect.center)
+        assert self.rect is not None
+        self.text_box = TextBox(
+            font_controller=self.font_manager,
+            pos=(int(self.rect.centerx), int(self.rect.centery)),
+        )
         self.dirty = 2
 
+    @override
     def update(self: Self) -> None:
         """Update the text sprite.
 
@@ -188,6 +199,7 @@ class TextSprite(Sprite):
             None
 
         """
+        assert self.image is not None
         self.image.fill(self.background_color)
 
         self.text_box.reset()
@@ -202,7 +214,9 @@ class Game(Scene):
     VERSION = '1.1'
 
     def __init__(
-        self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
+        self: Self,
+        options: dict[str, object],
+        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
     ) -> None:
         """Initialize the Game.
 
@@ -212,9 +226,9 @@ class Game(Scene):
 
         """
         if groups is None:
-            groups = pygame.sprite.LayeredDirty()
+            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
-        super().__init__(options=options, groups=groups)
+        super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
         # FPS will be set by command line arguments or default to 60
         self._space_pressed = False
 
@@ -223,7 +237,7 @@ class Game(Scene):
         random.seed(seed)
         log.info(f'Random seed set to: {seed}')
 
-        v_center = self.screen_height / 2
+        v_center = self.screen_height // 2
         self.player1 = VerticalPaddle(
             'Player 1',
             (20, 100),  # Smaller paddle - 100 pixels tall
@@ -240,7 +254,7 @@ class Game(Scene):
             400,  # 400 pixels per second
             collision_sound=SFX.SLAP,
         )
-        self.balls = []
+        self.balls: list[BallSprite] = []
         self.last_ball_spawn_time = 0.0  # Track when we last spawned a ball
         self.ball_spawn_cooldown = 2.0  # Minimum 2 seconds between ball spawns
         # Per-pair collision cooldown to prevent duplicate collision processing
@@ -277,9 +291,9 @@ class Game(Scene):
             # 250 pixels/sec horizontal, 125 pixels/sec vertical
             ball.speed = Speed(250.0, 125.0)
             # Add collision cooldown tracking
-            ball.collision_cooldowns = {}
+            ball.collision_cooldowns = {}  # type: ignore[attr-defined]
             # Set up paddle collision callback for ball spawn (with speed limit check)
-            ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
+            ball.on_paddle_collision = self._spawn_new_ball_with_speed_check  # type: ignore[attr-defined]
             self.balls.append(ball)
 
         for ball in self.balls:
@@ -288,8 +302,11 @@ class Game(Scene):
             blue = secrets.randbelow(256)
             ball.color = (red, green, blue)
 
-        self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
+        self.all_sprites = pygame.sprite.LayeredDirty(
+            (self.player1, self.player2, *self.balls)
+        )
 
+        assert self.screen is not None
         self.all_sprites.clear(self.screen, self.background)
 
     @classmethod
@@ -316,6 +333,7 @@ class Game(Scene):
             choices=['paddle_only', 'wall_only', 'ball_only', 'frequent', 'rare', 'none'],
         )
 
+    @override
     def setup(self: Self) -> None:
         """Set up the game.
 
@@ -328,6 +346,7 @@ class Game(Scene):
             self.target_fps = 60
         pygame.key.set_repeat(1)
 
+    @override
     def dt_tick(self: Self, dt: float) -> None:
         """Update the game.
 
@@ -341,34 +360,38 @@ class Game(Scene):
         # Debug log ball positions and speeds before update
         for i, ball in enumerate(self.balls):
             if ball.alive():
+                assert ball.rect is not None
                 # Track trajectory over time to detect curving
                 if not hasattr(ball, '_debug_positions'):
-                    ball._debug_positions = []
+                    ball._debug_positions = []  # type: ignore[attr-defined]
 
-                ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))
+                ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
 
                 # Keep only last positions for trajectory analysis
-                if len(ball._debug_positions) > DEBUG_TRAJECTORY_HISTORY_SIZE:
-                    ball._debug_positions.pop(0)
+                if len(ball._debug_positions) > DEBUG_TRAJECTORY_HISTORY_SIZE:  # type: ignore[attr-defined]
+                    ball._debug_positions.pop(0)  # type: ignore[attr-defined]
 
                 # Check for upward curving pattern
-                if len(ball._debug_positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:
-                    positions = ball._debug_positions
+                if len(ball._debug_positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:  # type: ignore[attr-defined]
+                    positions = cast(
+                        list[tuple[int, int, float, float]],
+                        ball._debug_positions,  # type: ignore[attr-defined]
+                    )
                     # Calculate if ball is curving upward
-                    y_positions = [pos[1] for pos in positions]
+                    y_positions: list[int] = [pos[1] for pos in positions]
                     if len(set(y_positions)) > 1:  # Only if Y is changing
-                        y_trend = y_positions[-1] - y_positions[0]
+                        y_trend: int = y_positions[-1] - y_positions[0]
                         if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
                             log.debug(
                                 f'BALL {i + 1} UPWARD CURVE DETECTED: '
-                                f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
-                                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
+                                + f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
+                                + f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
                             )
 
                 log.debug(
                     f'BALL {i + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
-                    f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
+                    + f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                    + f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
                 )
 
         for sprite in self.all_sprites:
@@ -377,12 +400,14 @@ class Game(Scene):
         # Debug log ball positions and speeds after update
         for i, ball in enumerate(self.balls):
             if ball.alive():
+                assert ball.rect is not None
                 log.debug(
                     f'BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
-                    f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
+                    + f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                    + f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
                 )
 
+    @override
     def update(self: Self) -> None:
         """Update the game.
 
@@ -390,22 +415,25 @@ class Game(Scene):
             None
 
         """
+        assert self.player1.rect is not None
+        assert self.player2.rect is not None
         for i, ball in enumerate(self.balls):
             if not ball.alive():
                 continue
 
+            assert ball.rect is not None
             # Debug log ball state before collision checks
             log.debug(
                 f'BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
-                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                f'paddle1_rect=({self.player1.rect.x},'
-                f'{self.player1.rect.y},'
-                f'{self.player1.rect.width},'
-                f'{self.player1.rect.height}) '
-                f'paddle2_rect=({self.player2.rect.x},'
-                f'{self.player2.rect.y},'
-                f'{self.player2.rect.width},'
-                f'{self.player2.rect.height})'
+                + f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                + f'paddle1_rect=({self.player1.rect.x},'
+                + f'{self.player1.rect.y},'
+                + f'{self.player1.rect.width},'
+                + f'{self.player1.rect.height}) '
+                + f'paddle2_rect=({self.player2.rect.x},'
+                + f'{self.player2.rect.y},'
+                + f'{self.player2.rect.width},'
+                + f'{self.player2.rect.height})'
             )
 
             # Paddle collision handling is now done in BallSprite._check_paddle_collisions()
@@ -454,6 +482,7 @@ class Game(Scene):
             speed_up_interval=1.0,  # Not used for paddle-only mode
         )
 
+        assert new_ball.rect is not None
         # Position the ball based on spawn mode
         if self.ball_spawn_mode & BallSpawnMode.RANDOM_POSITION:
             # Spawn at random location between the paddles and within top/bottom boundaries
@@ -476,6 +505,7 @@ class Game(Scene):
                 min_distance = 100  # Minimum distance from other balls
                 too_close = False
                 for existing_ball in self.balls:
+                    assert existing_ball.rect is not None
                     dx = spawn_x - existing_ball.rect.centerx
                     dy = spawn_y - existing_ball.rect.centery
                     distance = math.sqrt(dx * dx + dy * dy)
@@ -526,9 +556,9 @@ class Game(Scene):
         else:
             new_ball.color = WHITE
         # Add collision cooldown tracking
-        new_ball.collision_cooldowns = {}
+        new_ball.collision_cooldowns = {}  # type: ignore[attr-defined]
         # Set up paddle collision callback for ball spawn (with speed limit check)
-        new_ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
+        new_ball.on_paddle_collision = self._spawn_new_ball_with_speed_check  # type: ignore[attr-defined]
 
         # Add to balls list and sprite group
         self.balls.append(new_ball)
@@ -552,8 +582,8 @@ class Game(Scene):
             if current_time - self.last_ball_spawn_time < cooldown:
                 log.debug(
                     f'Ball spawn cooldown active '
-                    f'({current_time - self.last_ball_spawn_time:.1f}s'
-                    f' < {cooldown}s), not spawning'
+                    + f'({current_time - self.last_ball_spawn_time:.1f}s'
+                    + f' < {cooldown}s), not spawning'
                 )
                 return
 
@@ -618,7 +648,7 @@ class Game(Scene):
                     continue
 
                 # Play collision sound
-                if hasattr(ball1, 'snd') and ball1.snd is not None:
+                if hasattr(ball1, 'snd') and ball1.snd is not None:  # type: ignore[reportUnnecessaryComparison]
                     ball1.snd.play()
 
                 # Collision normal (unit vector from ball1 center to ball2 center)
@@ -663,10 +693,12 @@ class Game(Scene):
             Tuple of (dx, dy, distance, collision_distance).
 
         """
-        dx = ball2.rect.centerx - ball1.rect.centerx
-        dy = ball2.rect.centery - ball1.rect.centery
+        assert ball1.rect is not None
+        assert ball2.rect is not None
+        dx = float(ball2.rect.centerx - ball1.rect.centerx)
+        dy = float(ball2.rect.centery - ball1.rect.centery)
         distance = math.sqrt(dx * dx + dy * dy)
-        collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
+        collision_distance = int(ball1.rect.width // 2 + ball2.rect.width // 2)
         return dx, dy, distance, collision_distance
 
     @staticmethod
@@ -686,7 +718,7 @@ class Game(Scene):
 
         log.debug(
             f'BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, '
-            f'ball2 speed before={ball2_speed_before:.2f}'
+            + f'ball2 speed before={ball2_speed_before:.2f}'
         )
 
         # Decompose velocities into normal and tangential components
@@ -715,9 +747,9 @@ class Game(Scene):
 
         log.debug(
             f'BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, '
-            f'ball2 speed after={ball2_speed_after:.2f}, '
-            f'energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, '
-            f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}'
+            + f'ball2 speed after={ball2_speed_after:.2f}, '
+            + f'energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, '
+            + f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}'
         )
 
     @staticmethod
@@ -741,6 +773,8 @@ class Game(Scene):
         distance: float,
     ) -> None:
         """Separate overlapping balls to prevent sticking."""
+        assert ball1.rect is not None
+        assert ball2.rect is not None
         overlap = collision_distance - distance
         separation_distance = max(overlap + 2.0, 3.0)
         half_separation = separation_distance * 0.5
@@ -765,11 +799,12 @@ class Game(Scene):
         ball2.rect.x += round(separation_x)
         ball2.rect.y += round(separation_y)
 
-    def on_controller_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle controller button down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         if event.button in {pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN}:
@@ -778,11 +813,12 @@ class Game(Scene):
 
         self.log.info(f'GOT on_controller_button_down_event: {event}')
 
-    def on_controller_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle controller button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         player = self.player1 if event.instance_id == 0 else self.player2
@@ -793,11 +829,12 @@ class Game(Scene):
 
         self.log.info(f'GOT on_controller_button_up_event: {event}')
 
-    def on_controller_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller axis motion events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         player = self.player1 if event.instance_id == 0 else self.player2
@@ -810,11 +847,12 @@ class Game(Scene):
                 player.down()
             self.log.info(f'GOT on_controller_axis_motion_event: {event}')
 
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # Handle specific key presses instead of scanning all keys
@@ -823,30 +861,31 @@ class Game(Scene):
             self._space_pressed = True
         elif event.key == pygame.K_w:
             log.debug(
-                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}'
+                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}'  # type: ignore[reportPrivateUsage]
             )
             self.player1.up()
         elif event.key == pygame.K_s:
             log.debug(
-                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}'
+                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}'  # type: ignore[reportPrivateUsage]
             )
             self.player1.down()
         elif event.key == pygame.K_UP:
             log.debug(
-                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}'
+                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}'  # type: ignore[reportPrivateUsage]
             )
             self.player2.up()
         elif event.key == pygame.K_DOWN:
             log.debug(
-                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}'
+                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}'  # type: ignore[reportPrivateUsage]
             )
             self.player2.down()
 
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         if event.key == pygame.K_SPACE and self._space_pressed:

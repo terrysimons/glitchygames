@@ -19,12 +19,12 @@ import functools
 import inspect
 import logging
 import re
-from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, KeysView, ValuesView
 
     from glitchygames.scenes import Scene
 
@@ -41,7 +41,7 @@ LOG: logging.Logger = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
 
 
-def supported_events(like: str = '.*') -> list:
+def supported_events(like: str = '.*') -> list[int]:
     """Return a list of supported events.
 
     This method is crucial for allowing the game engine
@@ -94,7 +94,7 @@ def supported_events(like: str = '.*') -> list:
         'UNKNOWN': 'K_UNKNOWN',
     }
 
-    event_list = []
+    event_list: list[int] = []
 
     for event_name in list(event_names):
         # If there's a patched event name, use it, otherwise use event_name
@@ -144,7 +144,7 @@ GAME_EVENTS = list(
 GAME_EVENTS.extend([FPSEVENT, GAMEEVENT, MENUEVENT])
 
 
-def dump_cache_info(func: Callable, **kwargs: dict) -> Callable[..., None]:  # noqa: ARG001
+def dump_cache_info(func: Callable[..., Any], **kwargs: Any) -> Callable[..., None]:  # noqa: ARG001
     """Dump the cache info for a function.
 
     Expects a @functools.cache-decorated callable with cache_info().
@@ -154,10 +154,10 @@ def dump_cache_info(func: Callable, **kwargs: dict) -> Callable[..., None]:  # n
 
     """
 
-    def wrapper(game: Scene, *args: list, **kwargs: dict) -> None:
+    def wrapper(game: Scene, *args: Any, **kwargs: Any) -> None:
         cache_info = getattr(func, 'cache_info', None)
         if cache_info is not None:
-            LOG.debug(f'Cache Info: {func.__name__} {cache_info()}')
+            LOG.debug(f'Cache Info: {func.__name__} {cache_info()}')  # ty: ignore[unresolved-attribute]
         func(game, *args, **kwargs)
 
     return wrapper
@@ -165,7 +165,7 @@ def dump_cache_info(func: Callable, **kwargs: dict) -> Callable[..., None]:  # n
 
 @dump_cache_info
 @functools.cache
-def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: dict) -> NoReturn:
+def unhandled_event(game: Scene, event: HashableEvent, *args: Any, **kwargs: Any) -> None:
     """Handle unhandled events.
 
     This method is called when an event is not handled by
@@ -204,7 +204,7 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: list, **kwargs: di
     if no_unhandled_events is None:
         LOG.error(
             'Error: no_unhandled_events is missing from the game options. '
-            "This shouldn't be possible."
+            + "This shouldn't be possible."
         )
 
 
@@ -239,19 +239,19 @@ class ResourceManager:
     which can be gotten to from anywhere, since it's a singleton.
     """
 
-    log: logging.Logger = LOG
+    log: ClassVar[logging.Logger] = LOG
 
-    __instances__: ClassVar = {}
+    __instances__: ClassVar[dict[type, Any]] = {}
 
-    def __new__(cls: Any, *args: list, **kwargs: dict) -> object:
+    def __new__(cls: type[Self], *_args: Any, **_kwargs: Any) -> Self:
         """Create a new instance of the class.
 
         This method is called when a new instance of the class
 
         Args:
             cls: The class.
-            *args: The positional arguments.
-            **kwargs: The keyword arguments.
+            *_args: The positional arguments.
+            **_kwargs: The keyword arguments.
 
         Returns:
             The new instance of the class.
@@ -260,8 +260,8 @@ class ResourceManager:
         if cls not in cls.__instances__:
             cls.__instances__[cls] = object.__new__(cls)
             LOG.debug(f'Created Resource Manager: {cls}')
-            cls.__instances__[cls].args = args
-            cls.__instances__[cls].kwargs = kwargs
+            cls.__instances__[cls].args = _args
+            cls.__instances__[cls].kwargs = _kwargs
 
         return cls.__instances__[cls]
 
@@ -273,9 +273,9 @@ class ResourceManager:
 
         """
         super().__init__()
-        self.proxies = []
+        self.proxies: list[Any] = []
 
-    def __getattr__(self: Self, attr: str) -> Callable:
+    def __getattr__(self: Self, attr: str) -> Callable[..., Any]:
         """Get an attribute.
 
         This method is called when an attribute is not found.
@@ -302,7 +302,7 @@ class ResourceManager:
 
 
 # Note, we can't subclass HashableEvent because it's a C type.
-class HashableEvent(collections.UserDict):
+class HashableEvent(collections.UserDict[str, Any]):
     """Hashable event class.
 
     Hashable events are cacheable, so we can mitigate some of the
@@ -317,7 +317,7 @@ class HashableEvent(collections.UserDict):
     which allows us to extend them with additional information.
     """
 
-    def __init__(self: Self, type: int, *args: list, **attributes: dict) -> Self:  # noqa: A002
+    def __init__(self: Self, type: int, *args: Any, **attributes: Any) -> None:  # noqa: A002
         """Create a hashable event.
 
         Pygames events are not hashable by default.
@@ -333,14 +333,16 @@ class HashableEvent(collections.UserDict):
         self.__hash = hash((self.type, tuple(self.__dict__.keys())))
 
     @property
-    def dict(self: Self) -> dict:
+    def dict(self: Self) -> dict[str, Any]:  # ty: ignore[invalid-type-form]
         """Return the dictionary representation of the object."""
         return self.__dict__
 
+    @override
     def __setitem__(self: Self, key: str, item: object) -> None:
         """Set an item in the object."""
         self.__dict__[key] = item
 
+    @override
     def __getitem__(self: Self, key: str) -> object:
         """Get an item from the object.
 
@@ -350,6 +352,7 @@ class HashableEvent(collections.UserDict):
         """
         return self.__dict__[key]
 
+    @override
     def __len__(self: Self) -> int:
         """Return the length of the object.
 
@@ -359,14 +362,17 @@ class HashableEvent(collections.UserDict):
         """
         return len(self.__dict__)
 
-    def __delitem__(self: Self, key: str) -> NoReturn:
+    @override
+    def __delitem__(self: Self, key: str) -> None:
         """Delete an item from the object."""
         del self.__dict__[key]
 
+    @override
     def clear(self: Self) -> None:
         """Clear the object."""
         return self.__dict__.clear()
 
+    @override
     def copy(self: Self) -> Self:
         """Shallow copy the object.
 
@@ -374,7 +380,9 @@ class HashableEvent(collections.UserDict):
             Self: The result.
 
         """
-        return self.__dict__.copy()
+        clone = self.__class__.__new__(self.__class__)
+        clone.__dict__.update(self.__dict__)
+        return clone
 
     def has_key(self: Self, k: str) -> bool:
         """Return True if the key is in the object.
@@ -385,28 +393,32 @@ class HashableEvent(collections.UserDict):
         """
         return k in self.__dict__
 
-    def update(self: Self, *args: list, **kwargs: dict) -> None:
+    @override
+    def update(self: Self, *args: Any, **kwargs: Any) -> None:
         """Update the object."""
         return self.__dict__.update(*args, **kwargs)
 
-    def keys(self: Self) -> list:
+    @override
+    def keys(self: Self) -> KeysView[str]:
         """Return the keys of the object.
 
         Returns:
-            list: The result.
+            KeysView[str]: The result.
 
         """
         return self.__dict__.keys()
 
-    def values(self: Self) -> list:
+    @override
+    def values(self: Self) -> ValuesView[Any]:
         """Return the values of the object.
 
         Returns:
-            list: The result.
+            ValuesView[Any]: The result.
 
         """
         return self.__dict__.values()
 
+    @override
     def __hash__(self: Self) -> int:
         """Return the hash of the object.
 
@@ -416,16 +428,34 @@ class HashableEvent(collections.UserDict):
         """
         return self.__hash
 
-    def __eq__(self: Self, other: Self) -> bool:
+    _comparing_ids: ClassVar[set[int]] = set()
+
+    @override
+    def __eq__(self: Self, other: object) -> bool:
         """Return True if the objects are equal.
 
         Returns:
             bool: The comparison result.
 
         """
-        return self.type == other.type and self.__dict__ == other.__dict__
+        if self is other:
+            return True
+        if not isinstance(other, HashableEvent):
+            return NotImplemented
+        if self.type != other.type:
+            return False
+        # Guard against infinite recursion when __dict__ contains HashableEvent values
+        self_id = id(self)
+        if self_id in HashableEvent._comparing_ids:
+            return True
+        HashableEvent._comparing_ids.add(self_id)
+        try:
+            return self.__dict__ == other.__dict__
+        finally:
+            HashableEvent._comparing_ids.discard(self_id)
 
-    def __ne__(self: Self, other: Self) -> bool:
+    @override
+    def __ne__(self: Self, other: object) -> bool:
         """Return the opposite of __eq__.
 
         Returns:
@@ -434,6 +464,7 @@ class HashableEvent(collections.UserDict):
         """
         return not self.__eq__(other)
 
+    @override
     def __repr__(self: Self) -> str:
         """Return a string representation of the object.
 
@@ -443,6 +474,7 @@ class HashableEvent(collections.UserDict):
         """
         return f'{self.__class__.__name__}({self.__dict__})'
 
+    @override
     def __str__(self: Self) -> str:
         """Return a string representation of the object.
 
@@ -452,6 +484,7 @@ class HashableEvent(collections.UserDict):
         """
         return f'{self.__class__.__name__}({self.__dict__})'
 
+    @override
     def __copy__(self: Self) -> Self:
         """Shallow copy the object.
 
@@ -461,7 +494,7 @@ class HashableEvent(collections.UserDict):
         """
         return self.__class__(**self.__dict__)
 
-    def __deepcopy__(self: Self, memo: dict) -> Self:
+    def __deepcopy__(self: Self, memo: dict[int, Any]) -> Self:  # ty: ignore[invalid-type-form]
         """Deep copy the object.
 
         Returns:
@@ -470,7 +503,8 @@ class HashableEvent(collections.UserDict):
         """
         return self.__copy__()
 
-    def __reduce__(self: Self) -> tuple:
+    @override
+    def __reduce__(self: Self) -> tuple[Any, ...]:
         """Reduce the object to a picklable form.
 
         Returns:
@@ -479,18 +513,40 @@ class HashableEvent(collections.UserDict):
         """
         return (self.__class__, (), self.__dict__)
 
-    def __setstate__(self: Self, state: dict) -> None:
+    def __setstate__(self: Self, state: dict[str, Any]) -> None:  # ty: ignore[invalid-type-form]
         """Set the state of the object."""
         self.__dict__.update(state)
         self.__hash = hash((self.type, self.__dict__))
+
+    def __getattr__(self: Self, name: str) -> Any:
+        """Allow dynamic attribute access for event fields.
+
+        HashableEvent stores event attributes in __dict__ via the constructor.
+        This method satisfies the type checker for dynamic attribute access
+        like event.button, event.axis, event.instance_id, etc.
+
+        Args:
+            name: The attribute name.
+
+        Returns:
+            The attribute value.
+
+        Raises:
+            AttributeError: If the attribute is not found.
+
+        """
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
 
 # We intentionally don't implement any methods here.
 class EventInterface(abc.ABC):  # noqa: B024
     """Abstract base class for event interfaces."""
 
+    log: ClassVar[logging.Logger] = LOG
+
     @classmethod
-    def __subclasshook__(cls, subclass: object) -> bool:
+    @override
+    def __subclasshook__(cls, subclass: type[Any]) -> bool:
         """Override the default __subclasshook__ to create an interface.
 
         Returns:
@@ -499,10 +555,11 @@ class EventInterface(abc.ABC):  # noqa: B024
         """
         # Note: This accounts for under/dunder methods in addition to regular methods.
         interface_attributes = set(cls.__abstractmethods__)
-        subclass_attributes = set(subclass.__abstractmethods__)
+        abstract_methods = getattr(subclass, '__abstractmethods__', frozenset[str]())
+        subclass_attributes: set[str] = set(abstract_methods)
 
         interface_is_implemented = False
-        methods = []
+        methods: list[bool] = []
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
@@ -554,7 +611,7 @@ class AudioEventStubs(AudioEvents):
     """Mixin for audio events."""
 
     @functools.cache
-    def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:
+    def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle audio device added events.
 
         Args:
@@ -565,7 +622,7 @@ class AudioEventStubs(AudioEvents):
         return unhandled_event(self, event)
 
     @functools.cache
-    def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:
+    def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle audio device removed events.
 
         Args:
@@ -675,7 +732,7 @@ class ControllerEventStubs(ControllerEvents):
     """Mixin for controller events."""
 
     @functools.cache
-    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller axis motion events.
 
         Args:
@@ -686,7 +743,7 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller button down events.
 
         Args:
@@ -697,7 +754,7 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller button up events.
 
         Args:
@@ -708,7 +765,7 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_device_added_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_added_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller device added events.
 
         Args:
@@ -719,7 +776,7 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller device remapped events.
 
         Args:
@@ -730,7 +787,7 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller device removed events.
 
         Args:
@@ -741,7 +798,7 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_touchpad_down_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_touchpad_down_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller touchpad down events.
 
         Args:
@@ -752,7 +809,7 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_touchpad_motion_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_touchpad_motion_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller touchpad motion events.
 
         Args:
@@ -763,7 +820,7 @@ class ControllerEventStubs(ControllerEvents):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_controller_touchpad_up_event(self: Self, event: HashableEvent) -> None:
+    def on_controller_touchpad_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller touchpad up events.
 
         Args:
@@ -1466,7 +1523,7 @@ class KeyboardEvents(EventInterface):
         # KEYUP            key, mod
 
     @abc.abstractmethod
-    def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list) -> None:
+    def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle key chord up events.
 
         Args:
@@ -1477,7 +1534,7 @@ class KeyboardEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list) -> None:
+    def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle key chord down events.
 
         Args:
@@ -1515,7 +1572,7 @@ class KeyboardEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list) -> None:
+    def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle key chord up events.
 
         Args:
@@ -1527,7 +1584,7 @@ class KeyboardEventStubs(EventInterface):
         unhandled_event(self, event, keys)
 
     @functools.cache
-    def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list) -> None:
+    def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle key chord down events.
 
         Args:
@@ -1759,7 +1816,7 @@ class MouseEvents(EventInterface):
         # MOUSEMOTION      pos, rel, buttons
 
     @abc.abstractmethod
-    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle mouse drag events.
 
         Args:
@@ -1770,7 +1827,7 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle mouse drop events.
 
         Args:
@@ -1781,7 +1838,7 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle left mouse drag events.
 
         Args:
@@ -1792,7 +1849,7 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle left mouse drop events.
 
         Args:
@@ -1803,29 +1860,33 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_middle_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_middle_mouse_drag_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent
+    ) -> None:
         """Handle middle mouse drag events.
 
         Args:
             event (HashableEvent): The event to handle.
-            trigger (object): The object that triggered the event.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_middle_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_middle_mouse_drop_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent
+    ) -> None:
         """Handle middle mouse drop events.
 
         Args:
             event (HashableEvent): The event to handle.
-            trigger (object): The object that triggered the event.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle right mouse drag events.
 
         Args:
@@ -1836,7 +1897,7 @@ class MouseEvents(EventInterface):
         # Synthesized event.
 
     @abc.abstractmethod
-    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle right mouse drop events.
 
         Args:
@@ -1995,7 +2056,7 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event)
 
     @functools.cache
-    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle mouse drag events.
 
         Args:
@@ -2007,7 +2068,7 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle mouse drop events.
 
         Args:
@@ -2019,7 +2080,7 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle left mouse drag events.
 
         Args:
@@ -2031,7 +2092,7 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle left mouse drop events.
 
         Args:
@@ -2043,31 +2104,35 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_middle_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_middle_mouse_drag_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent
+    ) -> None:
         """Handle middle mouse drag events.
 
         Args:
             event (HashableEvent): The event to handle.
-            trigger (object): The object that triggered the event.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_middle_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_middle_mouse_drop_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent
+    ) -> None:
         """Handle middle mouse drop events.
 
         Args:
             event (HashableEvent): The event to handle.
-            trigger (object): The object that triggered the event.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle right mouse drag events.
 
         Args:
@@ -2079,7 +2144,7 @@ class MouseEventStubs(EventInterface):
         unhandled_event(self, event, trigger)
 
     @functools.cache
-    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: object) -> None:
+    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle right mouse drop events.
 
         Args:
@@ -2670,7 +2735,7 @@ class AllEventStubs(
 class EventManager(ResourceManager):
     """Root event manager."""
 
-    log: logging.Logger = LOG
+    log: ClassVar[logging.Logger] = LOG
     # Interiting from object is default in Python 3.
     # Linters complain if you do it.
     #
@@ -2691,7 +2756,7 @@ class EventManager(ResourceManager):
             """
             super().__init__()
             # No proxies for the root class.
-            self.proxies = []
+            self.proxies: list[Any] = []
 
             # This is used for leave objects which
             # don't have their own proxies.
@@ -2700,7 +2765,7 @@ class EventManager(ResourceManager):
             # will not have this.
             self.event_source = event_source
 
-        def unhandled_event(self: Self, *args: list, **kwargs: dict) -> None:
+        def unhandled_event(self: Self, *args: Any, **kwargs: Any) -> None:
             """Handle unhandled events.
 
             Args:
@@ -2713,14 +2778,14 @@ class EventManager(ResourceManager):
 
             event = kwargs.get('event')
 
-            event_trigger: dict | None = kwargs.get('trigger')
+            event_trigger: dict[str, Any] | None = kwargs.get('trigger')
 
             self.log.debug(
                 f'Unhandled Event {event_handler}: '
-                f'{self.event_source}->{event} Event Trigger: {event_trigger}'
+                + f'{self.event_source}->{event} Event Trigger: {event_trigger}'
             )
 
-        def __getattr__(self: Self, attr: str) -> Callable:
+        def __getattr__(self: Self, attr: str) -> Callable[..., Any]:
             """Get an attribute.
 
             This method is called when an attribute is not found.

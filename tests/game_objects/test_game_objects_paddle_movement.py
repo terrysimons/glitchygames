@@ -50,6 +50,7 @@ class TestPaddleBasicFunctionality(BasePaddleTest):
         )
 
         assert paddle.name == 'test_paddle'
+        assert paddle.rect is not None
         assert paddle.rect.x == POS_100
         assert paddle.rect.y == POS_200
         assert paddle.width == SIZE_50
@@ -148,6 +149,7 @@ class TestPaddleMovement(BasePaddleTest):
 
         # Set up movement
         paddle._move.current_speed = 3
+        assert paddle.rect is not None
         original_x = paddle.rect.x
 
         paddle.move_horizontal()
@@ -169,6 +171,7 @@ class TestPaddleMovement(BasePaddleTest):
 
         # Set up movement
         paddle._move.current_speed = 4
+        assert paddle.rect is not None
         original_y = paddle.rect.y
 
         paddle.move_vertical()
@@ -198,6 +201,7 @@ class TestPaddleBoundaryDetection(BasePaddleTest):
         # Test bottom boundary:
         # paddle at y=380 with speed=5 would go to y=385,
         # which is > screen_height=400
+        assert paddle.rect is not None
         paddle.rect.y = 380  # 20px from bottom (height=20)
         paddle.rect.height = SIZE_20  # Ensure height is set correctly
         paddle.rect.bottom = 400  # Set bottom to 400 (y + height)
@@ -224,6 +228,7 @@ class TestPaddleBoundaryDetection(BasePaddleTest):
         )
 
         # Test at top - paddle at y=0 with speed=-5 would go to y=-5, which is < 0
+        assert paddle.rect is not None
         paddle.rect.y = 0
         paddle.rect.top = 0  # Set top to 0
         paddle._move.current_speed = -5  # Moving up
@@ -252,6 +257,7 @@ class TestPaddleBoundaryDetection(BasePaddleTest):
         paddle.screen = self._create_mock_screen(left=0)
 
         # Test at left - paddle at x=0 with speed=5 would go to x=-5, which is < screen.left=0
+        assert paddle.rect is not None
         paddle.rect.x = 0
         paddle._move.current_speed = -5  # Moving left
         assert paddle.is_at_left_of_screen() is True
@@ -279,6 +285,7 @@ class TestPaddleBoundaryDetection(BasePaddleTest):
 
         # Test at right - paddle at x=750 with speed=5 would go to x=755,
         # which is > screen.right=800
+        assert paddle.rect is not None
         paddle.rect.x = 750  # 50 pixels from right (width=50)
         paddle.rect.right = 800  # Set right to 800
         paddle._move.current_speed = 5  # Moving right
@@ -305,6 +312,7 @@ class TestHorizontalPaddle(BasePaddleTest):
         )
 
         assert paddle.name == 'horizontal_paddle'
+        assert paddle.rect is not None
         assert paddle.rect.x == POS_200
         assert paddle.rect.y == POS_300
         assert paddle.width == SIZE_100
@@ -359,6 +367,7 @@ class TestVerticalPaddle(BasePaddleTest):
         )
 
         assert paddle.name == 'vertical_paddle'
+        assert paddle.rect is not None
         assert paddle.rect.x == POS_200
         assert paddle.rect.y == POS_300
         assert paddle.width == SIZE_20
@@ -412,6 +421,7 @@ class TestPaddleIntegration(BasePaddleTest):
 
         # Test movement
         paddle._move.current_speed = 3
+        assert paddle.rect is not None
         original_x = paddle.rect.x
         paddle.move_horizontal()
         assert paddle.rect.x == original_x + 3
@@ -436,6 +446,7 @@ class TestPaddleIntegration(BasePaddleTest):
 
         # Test movement
         paddle._move.current_speed = 4
+        assert paddle.rect is not None
         original_y = paddle.rect.y
         paddle.move_vertical()
         assert paddle.rect.y == original_y + 4
@@ -458,6 +469,7 @@ class TestPaddleIntegration(BasePaddleTest):
         )
 
         h_paddle.screen = self._create_mock_screen(left=0, right=800)
+        assert h_paddle.rect is not None
         h_paddle.rect.left = 0  # Set left to 0
         h_paddle.rect.right = SIZE_100  # Set right to width
         h_paddle._move.current_speed = -5  # Moving left
@@ -474,6 +486,7 @@ class TestPaddleIntegration(BasePaddleTest):
         )
 
         v_paddle.screen = self._create_mock_screen(top=0)
+        assert v_paddle.rect is not None
         v_paddle.rect.y = 0
         v_paddle.rect.top = 0  # Set top to 0
         v_paddle._move.current_speed = -5  # Moving up

@@ -329,7 +329,7 @@ class TestDeleteAnimationDialogScene:
             on_confirm_callback=confirm_callback,
             groups=mock_groups,
         )
-        dialog.game_engine = mocker.Mock()
+        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
         dialog.dialog.input_box.text = 'idle'
         event = mocker.Mock()
         dialog.on_confirm_event(event)
@@ -370,7 +370,7 @@ class TestDeleteAnimationDialogScene:
             on_cancel_callback=cancel_callback,
             groups=mock_groups,
         )
-        dialog.game_engine = mocker.Mock()
+        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
         event = mocker.Mock()
         dialog.on_cancel_event(event)
         cancel_callback.assert_called_once()
@@ -389,7 +389,7 @@ class TestDeleteAnimationDialogScene:
             on_cancel_callback=None,
             groups=mock_groups,
         )
-        dialog.game_engine = mocker.Mock()
+        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
         event = mocker.Mock()
         dialog.on_cancel_event(event)
 
@@ -505,7 +505,7 @@ class TestDeleteFrameDialogScene:
             on_confirm_callback=confirm_callback,
             groups=mock_groups,
         )
-        dialog.game_engine = mocker.Mock()
+        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
         dialog.dialog.input_box.text = 'YES'
         event = mocker.Mock()
         dialog.on_confirm_event(event)
@@ -556,7 +556,7 @@ class TestDeleteFrameDialogScene:
             on_cancel_callback=cancel_callback,
             groups=mock_groups,
         )
-        dialog.game_engine = mocker.Mock()
+        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
         event = mocker.Mock()
         dialog.on_cancel_event(event)
         cancel_callback.assert_called_once()

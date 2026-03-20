@@ -151,15 +151,15 @@ class TestHashableEvent:
         # Test __getstate__
         state = event.__getstate__()
         assert isinstance(state, dict)
-        assert state['type'] == pygame.MOUSEBUTTONDOWN
-        assert state['button'] == 1
-        assert state['pos'] == (100, 100)
+        assert state['type'] == pygame.MOUSEBUTTONDOWN  # type: ignore[index]
+        assert state['button'] == 1  # type: ignore[index]
+        assert state['pos'] == (100, 100)  # type: ignore[index]
 
         # Test __setstate__ with simple values to avoid hash issues
         # We'll just test that __getstate__ works and returns the expected structure
-        assert state['type'] == pygame.MOUSEBUTTONDOWN
-        assert state['button'] == 1
-        assert state['pos'] == (100, 100)
+        assert state['type'] == pygame.MOUSEBUTTONDOWN  # type: ignore[index]
+        assert state['button'] == 1  # type: ignore[index]
+        assert state['pos'] == (100, 100)  # type: ignore[index]
 
     def test_hashable_event_init_with_type(self, mock_pygame_patches):
         """Test HashableEvent.__init__ with type parameter."""
@@ -172,7 +172,7 @@ class TestHashableEvent:
         """Test HashableEvent.__init__ without type parameter."""
         # Test HashableEvent initialization without type (should raise TypeError)
         with pytest.raises(TypeError):
-            HashableEvent()
+            HashableEvent()  # type: ignore[missing-argument]
 
     def test_hashable_event_delattr(self, mock_pygame_patches):
         """Test HashableEvent.__delattr__ method."""
@@ -189,8 +189,8 @@ class TestHashableEvent:
     def test_hashable_event_setattr(self, mock_pygame_patches):
         """Test HashableEvent.__setattr__ method."""
         event = HashableEvent(type=1)
-        event.new_attr = 'new_value'
-        assert event.new_attr == 'new_value'
+        event.new_attr = 'new_value'  # type: ignore[unresolved-attribute]
+        assert event.new_attr == 'new_value'  # type: ignore[unresolved-attribute]
 
     def test_hashable_event_eq(self, mock_pygame_patches):
         """Test HashableEvent.__eq__ method."""
@@ -350,7 +350,7 @@ class TestEventManager:
         # Create EventManager with empty proxies list
         event_manager = EventManager()
         event_manager.proxies = []
-        event_manager.log = mocker.Mock()
+        type(event_manager).log = mocker.Mock()
 
         # EventManager uses ResourceManager.__getattr__ which raises AttributeError
         # when no proxies exist (but doesn't log in this case due to a bug in the implementation)
@@ -372,14 +372,14 @@ class TestEventManager:
                 raise AttributeError('Proxy method not found')
 
         event_manager.proxies = [FailingProxy()]
-        event_manager.log = mocker.Mock()
+        type(event_manager).log = mocker.Mock()
 
         # EventManager uses ResourceManager.__getattr__ which tries proxies
         # When proxy raises AttributeError, it logs and re-raises
         with pytest.raises(AttributeError):
             _ = event_manager.test_method
 
-        assert event_manager.log.error.called
+        assert event_manager.log.error.called  # type: ignore[unresolved-attribute]
 
 
 class TestResourceManager:
@@ -438,7 +438,7 @@ class TestResourceManager:
     def test_resource_manager_init_without_game(self, mock_pygame_patches):
         """Test ResourceManager.__init__ without game parameter."""
         with pytest.raises(TypeError):
-            ResourceManager()
+            ResourceManager()  # type: ignore[missing-argument]
 
     def test_resource_manager_register(self, mock_pygame_patches, mocker):
         """Test ResourceManager.register method."""

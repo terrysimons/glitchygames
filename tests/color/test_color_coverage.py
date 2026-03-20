@@ -4,6 +4,7 @@ import configparser
 import json
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 from pygame import Color
@@ -26,7 +27,7 @@ from glitchygames.color import (
     YELLOW,
     Default,
 )
-from glitchygames.color.palette import ColorPalette, PaletteUtility, System, Vga
+from glitchygames.color.palette import ColorLike, ColorPalette, PaletteUtility, System, Vga
 
 
 class TestColorConstantsCoverage:
@@ -71,7 +72,7 @@ class TestColorPaletteCoverage:
 
     def test_color_palette_initialization_with_colors(self):
         """Test ColorPalette initialization with colors list."""
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         palette = ColorPalette(colors=colors)
 
         assert palette._colors == colors
@@ -97,7 +98,7 @@ class TestColorPaletteCoverage:
 
     def test_get_color_with_valid_index(self):
         """Test get_color with valid palette index."""
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         palette = ColorPalette(colors=colors)
 
         result = palette.get_color(1)
@@ -105,7 +106,7 @@ class TestColorPaletteCoverage:
 
     def test_get_color_with_invalid_index(self):
         """Test get_color with invalid palette index."""
-        colors = [(255, 0, 0), (0, 255, 0)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors)
 
         result = palette.get_color(5)  # Index out of range
@@ -127,19 +128,20 @@ class TestColorPaletteCoverage:
 
     def test_set_color_with_valid_index(self):
         """Test set_color with valid palette index."""
-        colors = [(255, 0, 0), (0, 255, 0)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors)
 
         palette.set_color(0, (128, 128, 128))
-        assert palette._colors[0] == (128, 128, 128)
+        assert palette._colors[0] == (128, 128, 128)  # type: ignore[not-subscriptable]
 
     def test_set_color_with_invalid_index(self):
         """Test set_color with invalid palette index (should append)."""
-        colors = [(255, 0, 0), (0, 255, 0)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors)
 
         palette.set_color(5, (128, 128, 128))
-        assert palette._colors[2] == (128, 128, 128)
+        assert palette._colors[2] == (128, 128, 128)  # type: ignore[not-subscriptable]
+        assert palette._colors is not None
         assert len(palette._colors) == 3
 
 
@@ -288,7 +290,7 @@ class TestSystemPaletteCoverage:
         # Manually set the _size attribute that would be set by parent __init__
         system._size = 0
 
-        mock_init.assert_called_once_with(filename=SYSTEM)
+        mock_init.assert_called_once_with(colors=[], filename=SYSTEM)
         assert isinstance(system, ColorPalette)
 
     def test_system_palette_colors(self, mocker):
@@ -329,7 +331,7 @@ class TestVgaPaletteCoverage:
 
         vga = Vga()
 
-        mock_init.assert_called_once_with(filename=VGA)
+        mock_init.assert_called_once_with(colors=[], filename=VGA)
         assert isinstance(vga, ColorPalette)
 
 
@@ -346,7 +348,7 @@ class TestColorPaletteEdgeCasesCoverage:
 
     def test_get_color_boundary_conditions(self):
         """Test get_color with boundary conditions."""
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         palette = ColorPalette(colors=colors)
 
         # Test exact boundary
@@ -359,16 +361,17 @@ class TestColorPaletteEdgeCasesCoverage:
 
     def test_set_color_boundary_conditions(self):
         """Test set_color with boundary conditions."""
-        colors = [(255, 0, 0), (0, 255, 0)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors)
 
         # Test exact boundary - index 0 should be within _size (1)
         palette.set_color(0, (128, 128, 128))  # Last valid index
-        assert palette._colors[0] == (128, 128, 128)
+        assert palette._colors[0] == (128, 128, 128)  # type: ignore[not-subscriptable]
 
         # Test beyond boundary - should append
         palette.set_color(1, (64, 64, 64))  # Beyond current size
-        assert palette._colors[2] == (64, 64, 64)  # Appends at index 2
+        assert palette._colors[2] == (64, 64, 64)  # type: ignore[not-subscriptable]  # Appends at index 2
+        assert palette._colors is not None
         assert len(palette._colors) == 3
 
     def test_parse_rgb_data_with_empty_file(self, mocker):
@@ -411,7 +414,7 @@ class TestColorPaletteEdgeCasesCoverage:
 
     def test_color_palette_with_colors_and_filename(self):
         """Test ColorPalette with both colors and filename provided."""
-        colors = [(255, 0, 0), (0, 255, 0)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors, filename='test')
 
         # Should use colors since it's provided

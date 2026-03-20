@@ -193,15 +193,15 @@ def mock_game(mocker):
 
 
 @pytest.fixture
-def mock_game_with_args(mock_game):
+def mock_game_with_args(mock_game: type[Scene]):
     """Create a mock game that properly handles command line arguments.
 
     Returns:
-        object: The result.
+        type[Scene]: A Scene subclass with args support.
 
     """
 
-    class MockGameWithArgs(mock_game):
+    class MockGameWithArgs(mock_game):  # ty: ignore[unsupported-base]
         """Mock game that properly handles command line arguments."""
 
         @classmethod

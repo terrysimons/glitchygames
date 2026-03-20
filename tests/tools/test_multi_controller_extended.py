@@ -259,7 +259,7 @@ class TestControllerSelectionEdgeCases:
 
         # Should maintain chronological order
         for i in range(len(history) - 1):
-            assert history[i]['timestamp'] <= history[i + 1]['timestamp']
+            assert history[i]['timestamp'] <= history[i + 1]['timestamp']  # type: ignore[reportGeneralTypeIssues]
 
     def test_state_cloning_edge_cases(self):
         """Test state cloning with various scenarios."""

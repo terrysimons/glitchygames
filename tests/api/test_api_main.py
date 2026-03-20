@@ -2,6 +2,7 @@
 
 Tests cover: create_app factory, run() entry point, and lifespan context manager.
 """
+# pyright: reportMissingImports=false
 
 import pytest
 

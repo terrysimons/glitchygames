@@ -1,4 +1,5 @@
 """Tests for sprite generation API routes."""
+# pyright: reportMissingImports=false, reportMissingModuleSource=false
 
 import tempfile
 from pathlib import Path

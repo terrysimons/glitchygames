@@ -40,6 +40,7 @@ class TestFilmTabWidget(FilmStripTestBase):
         assert tab.y == TAB_Y
         assert tab.width == TAB_WIDTH
         assert tab.height == TAB_HEIGHT
+        assert tab.rect is not None
         assert tab.rect.x == TAB_X
         assert tab.rect.y == TAB_Y
         assert tab.rect.width == TAB_WIDTH
@@ -193,6 +194,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         # Get the first tab
         if film_strip.film_tabs:
             first_tab = film_strip.film_tabs[0]
+            assert first_tab.rect is not None
             tab_pos = (first_tab.rect.centerx, first_tab.rect.centery)
 
             # Test tab click handling
@@ -221,6 +223,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         # Get the first tab
         if film_strip.film_tabs:
             first_tab = film_strip.film_tabs[0]
+            assert first_tab.rect is not None
             tab_pos = (first_tab.rect.centerx, first_tab.rect.centery)
 
             # Test tab hover handling
@@ -535,7 +538,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
 
         # Get sorted frame keys for the test animation
         frame_keys = sorted([
-            k for k in frame_layouts if isinstance(k, tuple) and k[0] == 'test_anim'
+            k for k in frame_layouts if k[0] == 'test_anim'
         ])
 
         # Test spacing between consecutive frames (after the first)
@@ -593,7 +596,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
 
         # Get sorted frame keys for the test animation
         frame_keys = sorted([
-            k for k in frame_layouts if isinstance(k, tuple) and k[0] == 'test_anim'
+            k for k in frame_layouts if k[0] == 'test_anim'
         ])
 
         # Test that spacing formula is correct

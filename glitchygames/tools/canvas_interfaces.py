@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast, override
 
 import pygame
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 
 if TYPE_CHECKING:
     from glitchygames.sprites import BitmappySprite
+    from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 LOG = logging.getLogger('game.tools.canvas_interfaces')
 LOG.addHandler(logging.NullHandler())
@@ -140,9 +141,9 @@ class CanvasRenderer(ABC):
 class StaticCanvasInterface:
     """Canvas interface implementation for static BitmappySprites."""
 
-    def __init__(self, canvas_sprite: BitmappySprite) -> None:
+    def __init__(self, canvas_sprite: Any) -> None:  # noqa: ANN401
         """Initialize with a CanvasSprite instance."""
-        self.canvas_sprite = canvas_sprite
+        self.canvas_sprite: Any = canvas_sprite
 
     def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
         """Get the current pixel data as a list of RGBA tuples.
@@ -212,11 +213,13 @@ class StaticSpriteSerializer(SpriteSerializer):
     """Serializer for static BitmappySprites."""
 
     @staticmethod
-    def save(sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
+    @override
+    def save(sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:  # type: ignore[override]
         """Save a static sprite to a file."""
         # Delegate to the sprite's save method
         sprite.save(filename, file_format)
 
+    @override
     def load(self, filename: str) -> BitmappySprite | None:
         """Load a static sprite from a file."""
         # This will be handled by the CanvasSprite's load method
@@ -226,28 +229,27 @@ class StaticSpriteSerializer(SpriteSerializer):
 class AnimatedCanvasInterface:
     """Canvas interface implementation for animated sprites."""
 
-    def __init__(self, canvas_sprite: BitmappySprite) -> None:
+    def __init__(self, canvas_sprite: Any) -> None:  # noqa: ANN401
         """Initialize with a CanvasSprite instance."""
-        self.canvas_sprite = canvas_sprite
+        self.canvas_sprite: Any = canvas_sprite
         # Set initial animation using sprite introspection
         if hasattr(canvas_sprite, 'animated_sprite') and canvas_sprite.animated_sprite:
-            if canvas_sprite.animated_sprite._animations:
-                if (
-                    hasattr(canvas_sprite.animated_sprite, '_animation_order')
-                    and canvas_sprite.animated_sprite._animation_order
-                ):
+            animated: AnimatedSprite = canvas_sprite.animated_sprite
+            if animated.animations:
+                animation_order = animated.animation_order
+                if animation_order:
                     # Use the first animation in the file order
-                    self.current_animation = canvas_sprite.animated_sprite._animation_order[0]
+                    self.current_animation: str = animation_order[0]
                 else:
-                    # Fall back to the first key in _animations
+                    # Fall back to the first key in animations
                     self.current_animation = next(
-                        iter(canvas_sprite.animated_sprite._animations.keys())
+                        iter(animated.animations.keys())
                     )
             else:
                 self.current_animation = ''
         else:
             self.current_animation = ''
-        self.current_frame = 0
+        self.current_frame: int = 0
 
     def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
         """Get the current pixel data as a list of RGBA tuples.
@@ -256,8 +258,10 @@ class AnimatedCanvasInterface:
             list[tuple[int, int, int, int]]: The pixel data.
 
         """
+        pixels: list[tuple[int, ...]]
         if hasattr(self.canvas_sprite, 'animated_sprite'):
-            frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
+            animated: AnimatedSprite = self.canvas_sprite.animated_sprite
+            frame: SpriteFrame = animated.animations[self.current_animation][
                 self.current_frame
             ]
             pixels = frame.get_pixel_data()
@@ -265,10 +269,10 @@ class AnimatedCanvasInterface:
             pixels = self.canvas_sprite.pixels.copy()
 
         # Ensure all pixels are RGBA format
-        rgba_pixels = []
+        rgba_pixels: list[tuple[int, int, int, int]] = []
         for pixel in pixels:
             if len(pixel) == RGBA_COMPONENT_COUNT:
-                rgba_pixels.append(pixel)
+                rgba_pixels.append((pixel[0], pixel[1], pixel[2], pixel[3]))
             else:
                 # Convert RGB to RGBA with full opacity
                 rgba_pixels.append((pixel[0], pixel[1], pixel[2], 255))
@@ -278,7 +282,8 @@ class AnimatedCanvasInterface:
     def set_pixel_data(self, pixels: list[tuple[int, int, int, int]]) -> None:
         """Set the pixel data from a list of RGBA tuples."""
         if hasattr(self.canvas_sprite, 'animated_sprite'):
-            frame = self.canvas_sprite.animated_sprite._animations[self.current_animation][
+            animated: AnimatedSprite = self.canvas_sprite.animated_sprite
+            frame: SpriteFrame = animated.animations[self.current_animation][
                 self.current_frame
             ]
             frame.set_pixel_data(pixels)
@@ -305,22 +310,22 @@ class AnimatedCanvasInterface:
 
         """
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
-            pixel_num = y * self.canvas_sprite.pixels_across + x
+            pixel_num: int = y * self.canvas_sprite.pixels_across + x
             if hasattr(self.canvas_sprite, 'animated_sprite'):
                 # Get the current frame from the canvas (not the animated sprite)
-                current_animation = self.canvas_sprite.current_animation
-                current_frame_index = self.canvas_sprite.current_frame
+                current_animation: str = self.canvas_sprite.current_animation
+                current_frame_index: int = self.canvas_sprite.current_frame
 
                 # Access the frame through the animated sprite's frames property
-                if current_animation in self.canvas_sprite.animated_sprite.frames:
-                    frame = self.canvas_sprite.animated_sprite._animations[current_animation][
-                        current_frame_index
-                    ]
-                    pixel = frame.get_pixel_data()[pixel_num]
-                    if len(pixel) == RGBA_COMPONENT_COUNT:
-                        return pixel
-                    return (pixel[0], pixel[1], pixel[2], 255)
-            pixel = self.canvas_sprite.pixels[pixel_num]
+                animated = cast('AnimatedSprite', self.canvas_sprite.animated_sprite)
+                if current_animation in animated.frames:
+                    frame = animated.animations[current_animation][current_frame_index]
+                    frame_pixel_data = frame.get_pixel_data()
+                    frame_pixel = frame_pixel_data[pixel_num]
+                    if len(frame_pixel) == RGBA_COMPONENT_COUNT:
+                        return (frame_pixel[0], frame_pixel[1], frame_pixel[2], frame_pixel[3])
+                    return (frame_pixel[0], frame_pixel[1], frame_pixel[2], 255)
+            pixel: tuple[int, ...] = self.canvas_sprite.pixels[pixel_num]
             if len(pixel) == RGBA_COMPONENT_COUNT:
                 return pixel
             return (pixel[0], pixel[1], pixel[2], 255)
@@ -404,7 +409,7 @@ class AnimatedCanvasInterface:
 
         self._update_frame_pixel_data(pixel_num, color)
 
-    def _get_old_pixel_color(self, pixel_num: int) -> tuple | None:
+    def _get_old_pixel_color(self, pixel_num: int) -> tuple[int, ...] | None:
         """Get the old color of a pixel for undo tracking.
 
         Returns:
@@ -412,13 +417,14 @@ class AnimatedCanvasInterface:
 
         """
         if hasattr(self.canvas_sprite, 'animated_sprite'):
-            current_animation = self.canvas_sprite.current_animation
-            current_frame_index = self.canvas_sprite.current_frame
-            if current_animation in self.canvas_sprite.animated_sprite.frames:
-                frame = self.canvas_sprite.animated_sprite._animations[current_animation][
+            current_animation: str = self.canvas_sprite.current_animation
+            current_frame_index: int = self.canvas_sprite.current_frame
+            animated: AnimatedSprite = self.canvas_sprite.animated_sprite
+            if current_animation in animated.frames:
+                frame: SpriteFrame = animated.animations[current_animation][
                     current_frame_index
                 ]
-                frame_pixels = frame.get_pixel_data()
+                frame_pixels: list[tuple[int, ...]] = frame.get_pixel_data()
                 return frame_pixels[pixel_num]
             return None
         return self.canvas_sprite.pixels[pixel_num]
@@ -441,8 +447,8 @@ class AnimatedCanvasInterface:
             if drag_info.get('active', False) and len(drag_info.get('pixels_drawn', [])) > 0:
                 LOG.debug(
                     'Controller drag active with pixels'
-                    ' for controller %s, skipping'
-                    ' canvas interface tracking',
+                    + ' for controller %s, skipping'
+                    + ' canvas interface tracking',
                     controller_id,
                 )
                 return True
@@ -452,11 +458,11 @@ class AnimatedCanvasInterface:
         self,
         x: int,
         y: int,
-        old_color: tuple | None,
+        old_color: tuple[int, ...] | None,
         color: tuple[int, int, int] | tuple[int, int, int, int],
     ) -> None:
         """Collect pixel changes for undo/redo tracking."""
-        parent_scene = self.canvas_sprite.parent_scene
+        parent_scene: Any = self.canvas_sprite.parent_scene
 
         # Ensure tracking structures exist
         if not hasattr(parent_scene, '_current_pixel_changes'):
@@ -470,7 +476,9 @@ class AnimatedCanvasInterface:
         # If the same pixel was already changed in this drag, replace the old entry
         # This prevents unbounded growth during long drags on the same pixels
         pixel_key = (x, y)
-        pixel_changes_dict = parent_scene._current_pixel_changes_dict
+        pixel_changes_dict: dict[tuple[int, int], Any] = cast(
+            'dict[tuple[int, int], Any]', parent_scene._current_pixel_changes_dict
+        )
 
         # Store or update the pixel change (keeps original old_color, updates new_color)
         if pixel_key in pixel_changes_dict:
@@ -505,7 +513,7 @@ class AnimatedCanvasInterface:
             LOG.debug(f'Canvas interface pixel changes: {len(pixel_changes_dict)} unique pixels')
 
         # Start a timer for single clicks (if this is the first pixel)
-        if len(parent_scene._current_pixel_changes_dict) == 1:
+        if len(pixel_changes_dict) == 1:
             import time
 
             parent_scene._pixel_change_timer = time.time()
@@ -518,23 +526,21 @@ class AnimatedCanvasInterface:
     ) -> None:
         """Update the pixel data in the frame or static sprite."""
         if hasattr(self.canvas_sprite, 'animated_sprite'):
-            current_animation = self.canvas_sprite.current_animation
-            current_frame_index = self.canvas_sprite.current_frame
+            current_animation: str = self.canvas_sprite.current_animation
+            current_frame_index: int = self.canvas_sprite.current_frame
 
             # Access the frame through the animated sprite's frames property
-            if current_animation in self.canvas_sprite.animated_sprite.frames:
-                frame = self.canvas_sprite.animated_sprite._animations[current_animation][
+            animated: AnimatedSprite = self.canvas_sprite.animated_sprite
+            if current_animation in animated.frames:
+                frame: SpriteFrame = animated.animations[current_animation][
                     current_frame_index
                 ]
                 frame_pixels = frame.get_pixel_data()
-                frame_pixels[pixel_num] = color
+                frame_pixels[pixel_num] = cast(tuple[int, int, int, int], color)
                 frame.set_pixel_data(frame_pixels)
 
                 # Clear the surface cache for this frame so it gets regenerated
-                if hasattr(self.canvas_sprite.animated_sprite, '_surface_cache'):
-                    cache_key = f'{current_animation}_{current_frame_index}'
-                    if cache_key in self.canvas_sprite.animated_sprite._surface_cache:
-                        del self.canvas_sprite.animated_sprite._surface_cache[cache_key]
+                animated.clear_surface_cache()
 
                 # Mark canvas as dirty so it will redraw
                 self.canvas_sprite.dirty_pixels[pixel_num] = True
@@ -584,11 +590,13 @@ class AnimatedSpriteSerializer(SpriteSerializer):
     """Serializer for animated sprites."""
 
     @staticmethod
-    def save(sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:
+    @override
+    def save(sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:  # type: ignore[override]
         """Save an animated sprite to a file."""
         # Delegate to the sprite's save method
         sprite.save(filename, file_format)
 
+    @override
     def load(self, filename: str) -> BitmappySprite | None:
         """Load an animated sprite from a file."""
         # This will be handled by the CanvasSprite's load method
@@ -598,10 +606,11 @@ class AnimatedSpriteSerializer(SpriteSerializer):
 class AnimatedCanvasRenderer(CanvasRenderer):
     """Renderer for animated sprites."""
 
-    def __init__(self, canvas_sprite: BitmappySprite) -> None:
+    def __init__(self, canvas_sprite: Any) -> None:  # noqa: ANN401
         """Initialize with a CanvasSprite instance."""
-        self.canvas_sprite = canvas_sprite
+        self.canvas_sprite: Any = canvas_sprite
 
+    @override
     def render(self, sprite: BitmappySprite) -> pygame.Surface:
         """Render an animated sprite to a surface.
 
@@ -612,6 +621,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         # Use the force_redraw method to avoid recursion
         return self.force_redraw(sprite)
 
+    @override
     def force_redraw(self, sprite: BitmappySprite) -> pygame.Surface:
         """Force a complete redraw of the animated sprite.
 
@@ -632,15 +642,16 @@ class AnimatedCanvasRenderer(CanvasRenderer):
 
     def _redraw_animated_sprite(self) -> None:
         """Redraw the canvas with animated sprite data."""
-        current_animation = self.canvas_sprite.current_animation
-        current_frame = self.canvas_sprite.current_frame
-        frames = self.canvas_sprite.animated_sprite.frames
+        current_animation: str = self.canvas_sprite.current_animation
+        current_frame: int = self.canvas_sprite.current_frame
+        animated: AnimatedSprite = self.canvas_sprite.animated_sprite
+        frames: dict[str, list[SpriteFrame]] = animated.frames
 
         LOG.debug(f'DEBUG: current_animation={current_animation}, current_frame={current_frame}')
         LOG.debug(f'DEBUG: frames keys={list(frames.keys()) if frames else "None"}')
         LOG.debug(
             f'DEBUG: frames[current_animation] length='
-            f'{len(frames[current_animation]) if current_animation in frames else "N/A"}'
+            + f'{len(frames[current_animation]) if current_animation in frames else "N/A"}'
         )
 
         if current_animation not in frames or current_frame >= len(frames[current_animation]):
@@ -683,7 +694,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             self._draw_pixel_grid_borders(frame_pixels, border_thickness)
 
     def _render_onion_layers(
-        self, frames: dict, current_animation: str, current_frame: int
+        self, frames: dict[str, list[SpriteFrame]], current_animation: str, current_frame: int
     ) -> None:
         """Render onion skinning layers onto the canvas."""
         from .onion_skinning import get_onion_skinning_manager
@@ -722,7 +733,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         # Blit the accumulated onion layers onto the main canvas
         self.canvas_sprite.image.blit(onion_accumulator, (0, 0))
 
-    def _get_frame_pixel_data(self, frame: object) -> list:
+    def _get_frame_pixel_data(
+        self, frame: SpriteFrame,
+    ) -> list[tuple[int, ...]]:
         """Get pixel data from a frame object.
 
         Returns:
@@ -737,7 +750,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             [(255, 0, 255)] * (self.canvas_sprite.pixels_across * self.canvas_sprite.pixels_tall),
         )
 
-    def _render_onion_frame(self, frame_pixels: list, alpha: int) -> pygame.Surface:
+    def _render_onion_frame(
+        self,
+        frame_pixels: list[tuple[int, ...]],
+        alpha: int,
+    ) -> pygame.Surface:
         """Render a single onion skinning frame.
 
         Returns:
@@ -780,8 +797,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         return frame_surface
 
     def _get_current_frame_pixels(
-        self, frames: dict, current_animation: str, current_frame: int
-    ) -> list:
+        self,
+        frames: dict[str, list[SpriteFrame]],
+        current_animation: str,
+        current_frame: int,
+    ) -> list[tuple[int, ...]]:
         """Get pixel data for the current frame, accounting for panning.
 
         Returns:
@@ -799,15 +819,15 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             frame_pixels = self.canvas_sprite.pixels
             LOG.debug(
                 f'DEBUG: Using panned canvas pixels: '
-                f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}'
+                + f'{len(frame_pixels)} pixels, '
+                + f'first few: {frame_pixels[:3]}'
             )
         elif hasattr(frame, 'get_pixel_data'):
             frame_pixels = frame.get_pixel_data()
             LOG.debug(
                 f'DEBUG: Using frame.get_pixel_data(): '
-                f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}'
+                + f'{len(frame_pixels)} pixels, '
+                + f'first few: {frame_pixels[:3]}'
             )
         else:
             frame_pixels = getattr(
@@ -818,12 +838,14 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             )
             LOG.debug(
                 f'DEBUG: Using fallback frame pixels: '
-                f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}'
+                + f'{len(frame_pixels)} pixels, '
+                + f'first few: {frame_pixels[:3]}'
             )
         return frame_pixels
 
-    def _draw_pixel_on_canvas(self, pixel: tuple, x: int, y: int) -> None:
+    def _draw_pixel_on_canvas(
+        self, pixel: tuple[int, ...], x: int, y: int,
+    ) -> None:
         """Draw a single pixel on the canvas, handling RGB/RGBA conversion."""
         if len(pixel) == RGBA_COMPONENT_COUNT:
             pygame.draw.rect(
@@ -840,7 +862,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 (x, y, self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height),
             )
 
-    def _draw_visible_frame_pixels(self, frame_pixels: list) -> None:
+    def _draw_visible_frame_pixels(
+        self, frame_pixels: list[tuple[int, ...]],
+    ) -> None:
         """Draw all visible frame pixels with controller indicators."""
         for i, pixel in enumerate(frame_pixels):
             x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
@@ -882,7 +906,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     self.canvas_sprite.pixel_height,
                 )
 
-    def _draw_controller_indicators_only(self, frame_pixels: list) -> None:
+    def _draw_controller_indicators_only(
+        self, frame_pixels: list[tuple[int, ...]],
+    ) -> None:
         """Draw only controller indicators (selected frame is hidden)."""
         for i in range(len(frame_pixels)):
             x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
@@ -904,7 +930,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     self.canvas_sprite.pixel_height,
                 )
 
-    def _draw_pixel_grid_borders(self, frame_pixels: list, border_thickness: int) -> None:
+    def _draw_pixel_grid_borders(
+        self,
+        frame_pixels: list[tuple[int, ...]],
+        border_thickness: int,
+    ) -> None:
         """Draw grid borders on the canvas."""
         for i in range(len(frame_pixels)):
             x = (i % self.canvas_sprite.pixels_across) * self.canvas_sprite.pixel_width
@@ -919,7 +949,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 border_thickness,
             )
 
-    def _redraw_static_pixels(self, pixels: list) -> None:
+    def _redraw_static_pixels(
+        self, pixels: list[tuple[int, int, int] | tuple[int, int, int, int]],
+    ) -> None:
         """Redraw the canvas with static pixel data."""
         self.canvas_sprite.image.fill(self.canvas_sprite.background_color)
         border_thickness = self.canvas_sprite.border_thickness
@@ -997,6 +1029,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 1,  # 1px border thickness
             )
 
+    @override
     def get_pixel_size(self) -> tuple[int, int]:
         """Get the size of individual pixels in the renderer.
 
@@ -1006,7 +1039,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         """
         return (self.canvas_sprite.pixel_width, self.canvas_sprite.pixel_height)
 
-    def _get_controller_scene(self) -> object | None:
+    def _get_controller_scene(self) -> Any | None:  # noqa: ANN401
         """Get the parent scene if it has controller support.
 
         Returns:
@@ -1015,7 +1048,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         """
         if not (hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene):
             return None
-        scene = self.canvas_sprite.parent_scene
+        scene: Any = self.canvas_sprite.parent_scene
         if hasattr(scene, 'controller_selections') and hasattr(scene, 'mode_switcher'):
             return scene
         return None

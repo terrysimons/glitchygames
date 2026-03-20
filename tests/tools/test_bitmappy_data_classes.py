@@ -168,7 +168,7 @@ class TestMockEvent:
     def test_mock_event_requires_text(self):
         """Test MockEvent raises error without text field."""
         with pytest.raises(ValueError, match='validation error'):
-            MockEvent()
+            MockEvent()  # type: ignore[missing-argument]
 
 
 class TestAIRequest:
@@ -260,6 +260,7 @@ class TestAIRequestState:
             conversation_history=history,
             last_sprite_content='[sprite]\nname = "cat"',
         )
+        assert state.conversation_history is not None
         assert len(state.conversation_history) == 3
         assert state.last_sprite_content is not None
 
@@ -270,6 +271,7 @@ class TestAIRequestState:
             original_prompt='Create a slime',
             training_examples=examples,
         )
+        assert state.training_examples is not None
         assert len(state.training_examples) == 1
 
 

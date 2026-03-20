@@ -410,24 +410,24 @@ class TestMousePointerProperties:
 
     def test_mouse_pointer_x_getter(self, mock_pygame_patches):
         """MousePointer.x should return the x coordinate from pos."""
-        pointer = MousePointer(pos=[50, 75])
+        pointer = MousePointer(pos=(50, 75))
         assert pointer.x == 50
 
     def test_mouse_pointer_x_setter(self, mock_pygame_patches):
         """MousePointer.x setter should update the x coordinate in pos."""
-        pointer = MousePointer(pos=[50, 75])
+        pointer = MousePointer(pos=(50, 75))
         pointer.x = 100
         assert pointer.pos[0] == 100
         assert pointer.x == 100
 
     def test_mouse_pointer_y_getter(self, mock_pygame_patches):
         """MousePointer.y should return the y coordinate from pos."""
-        pointer = MousePointer(pos=[50, 75])
+        pointer = MousePointer(pos=(50, 75))
         assert pointer.y == 75
 
     def test_mouse_pointer_y_setter(self, mock_pygame_patches):
         """MousePointer.y setter should update the y coordinate in pos."""
-        pointer = MousePointer(pos=[50, 75])
+        pointer = MousePointer(pos=(50, 75))
         pointer.y = 200
         assert pointer.pos[1] == 200
         assert pointer.y == 200

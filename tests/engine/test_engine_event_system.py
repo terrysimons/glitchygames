@@ -97,7 +97,7 @@ class TestEngineEventSystem:
         mock_process_events.return_value = None
 
         # Test that process_events can be called
-        engine.process_events(mock_events)
+        engine.process_events(mock_events)  # type: ignore[too-many-positional-arguments]
 
         # Verify the method was called
         mock_process_events.assert_called_once_with(mock_events)

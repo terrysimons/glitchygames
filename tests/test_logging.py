@@ -29,6 +29,7 @@ def test_logging():
         ball = BallSprite()
         ball.speed.x = 100.0
         ball.speed.y = 50.0
+        assert ball.rect is not None
         ball.rect.x = 100
         ball.rect.y = 100
 

@@ -26,7 +26,7 @@ class TestPaddleslapExample:
     def setup_method(self):
         """Set up test fixtures using centralized mocks."""
         # Create mock options
-        self.mock_options = {
+        self.mock_options: dict[str, object] = {
             'balls': 1,
             'fps': 60,
             'resolution': '800x600',

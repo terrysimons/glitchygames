@@ -47,6 +47,7 @@ class TestFilmStripAddDeleteFunctionality:
         tab = FilmStripTab(x=10, y=20, width=40, height=10)
 
         # Assert
+        assert tab.rect is not None
         assert tab.rect.x == TEST_SIZE_10
         assert tab.rect.y == TEST_SIZE_20
         assert tab.rect.width == TEST_SIZE_40
@@ -62,6 +63,7 @@ class TestFilmStripAddDeleteFunctionality:
         delete_tab = FilmStripDeleteTab(x=10, y=20, width=40, height=10)
 
         # Assert
+        assert delete_tab.rect is not None
         assert delete_tab.rect.x == TEST_SIZE_10
         assert delete_tab.rect.y == TEST_SIZE_20
         assert delete_tab.rect.width == TEST_SIZE_40

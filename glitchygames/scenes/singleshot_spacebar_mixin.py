@@ -33,7 +33,9 @@ class SpacebarMixin:
             self._space_pressed = True
         else:
             # Let the parent class handle other keys
-            super().on_key_down_event(event)
+            parent_handler = getattr(super(), 'on_key_down_event', None)
+            if callable(parent_handler):
+                parent_handler(event)
 
     def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle key up events for spacebar action.
@@ -48,7 +50,9 @@ class SpacebarMixin:
             self.on_spacebar_release()
         else:
             # Let the parent class handle other keys
-            super().on_key_up_event(event)
+            parent_handler = getattr(super(), 'on_key_up_event', None)
+            if callable(parent_handler):
+                parent_handler(event)
 
     def on_spacebar_release(self: Self) -> None:
         """Handle spacebar release.

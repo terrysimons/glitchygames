@@ -208,4 +208,5 @@ class TestRendererServiceTempFileError:
         mocker.patch('tempfile.NamedTemporaryFile', side_effect=OSError('disk full'))
         result = service.render_from_toml('[sprite]\nname = "test"')
         assert result.success is False
+        assert result.error is not None
         assert 'temporary file' in result.error.lower()

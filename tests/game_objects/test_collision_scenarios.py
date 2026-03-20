@@ -44,6 +44,7 @@ class TestWallCollisions:
         # Setup: Ball moving up towards top wall
         ball = BallSprite()
         ball.speed = Speed(SPEED_3_0, SPEED_NEG_2_0)  # Moving up and right
+        assert ball.rect is not None
         ball.rect.y = 0  # At top wall (triggers bounce condition)
 
         # Action: Trigger top wall collision
@@ -59,6 +60,7 @@ class TestWallCollisions:
         # Setup: Ball moving down towards bottom wall
         ball = BallSprite()
         ball.speed = Speed(SPEED_3_0, SPEED_2_0)  # Moving down and right
+        assert ball.rect is not None
         ball.rect.y = 430  # At bottom wall (430 + 20 = 450 >= 450)
         ball.screen_height = 450
         ball.height = 20  # Set ball height for collision calculation
@@ -76,6 +78,7 @@ class TestWallCollisions:
         ball = BallSprite()
         ball.speed = Speed(SPEED_3_0, SPEED_4_0)  # Magnitude = 5.0
         initial_magnitude = math.sqrt(SPEED_3_0**2 + SPEED_4_0**2)
+        assert ball.rect is not None
         ball.rect.y = 1  # Near top wall
 
         # Action: Trigger wall collision
@@ -90,6 +93,7 @@ class TestWallCollisions:
         # Setup: Ball with horizontal and vertical movement
         ball = BallSprite()
         ball.speed = Speed(SPEED_5_0, SPEED_NEG_3_0)  # Moving right and up
+        assert ball.rect is not None
         ball.rect.y = 0  # At top wall (triggers bounce condition)
 
         # Action: Trigger wall collision
@@ -233,30 +237,32 @@ class TestBallToBallCollisions:
         # Setup: Two balls with collision cooldown
         ball1 = BallSprite()
         ball2 = BallSprite()
-        ball1.collision_cooldowns = {}
-        ball2.collision_cooldowns = {}
+        ball1.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
+        ball2.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
 
         current_time = time.time()
         ball1_id = id(ball1)
         ball2_id = id(ball2)
 
         # Action: Set cooldown
-        ball1.collision_cooldowns[ball2_id] = current_time
-        ball2.collision_cooldowns[ball1_id] = current_time
+        ball1.collision_cooldowns[ball2_id] = current_time  # type: ignore[unresolved-attribute]
+        ball2.collision_cooldowns[ball1_id] = current_time  # type: ignore[unresolved-attribute]
 
         # Expected: Cooldown prevents immediate re-collision
-        assert ball2_id in ball1.collision_cooldowns
-        assert ball1_id in ball2.collision_cooldowns
+        assert ball2_id in ball1.collision_cooldowns  # type: ignore[unresolved-attribute]
+        assert ball1_id in ball2.collision_cooldowns  # type: ignore[unresolved-attribute]
 
         # Check cooldown is active (within 2 seconds)
-        assert ball1.collision_cooldowns[ball2_id] > current_time - SPEED_2_0_SEPARATION
-        assert ball2.collision_cooldowns[ball1_id] > current_time - SPEED_2_0_SEPARATION
+        assert ball1.collision_cooldowns[ball2_id] > current_time - SPEED_2_0_SEPARATION  # type: ignore[unresolved-attribute]
+        assert ball2.collision_cooldowns[ball1_id] > current_time - SPEED_2_0_SEPARATION  # type: ignore[unresolved-attribute]
 
     def test_ball_to_ball_collision_separation(self, mock_pygame_patches):
         """Test balls separate after collision to prevent sticking."""
         # Setup: Two overlapping balls
         ball1 = BallSprite()
         ball2 = BallSprite()
+        assert ball1.rect is not None
+        assert ball2.rect is not None
         ball1.rect.x = 100
         ball1.rect.y = 100
         ball2.rect.x = 105  # Overlapping
@@ -306,6 +312,7 @@ class TestIntegrationCollisions:
         # Setup: Ball that will hit wall, then paddle, then another ball
         ball = BallSprite()
         ball.speed = Speed(SPEED_3_0, SPEED_NEG_2_0)  # Moving right and up
+        assert ball.rect is not None
         ball.rect.y = 0  # At top wall (triggers bounce condition)
 
         # Action 1: Wall collision
@@ -338,6 +345,7 @@ class TestIntegrationCollisions:
 
         # Action: Simulate various collisions
         # Ball1 hits wall
+        assert ball1.rect is not None
         ball1.rect.y = 0  # At top wall (triggers bounce condition)
         ball1._do_bounce()
 
@@ -359,6 +367,7 @@ class TestIntegrationCollisions:
         # Setup: Ball at boundary with extreme speed
         ball = BallSprite()
         ball.speed = Speed(SPEED_10_0, SPEED_NEG_1_0)  # Very fast horizontal with vertical movement
+        assert ball.rect is not None
         ball.rect.y = 0  # At top boundary (triggers bounce condition)
 
         # Action: Wall collision

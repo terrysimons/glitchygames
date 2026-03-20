@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 import secrets
 import time
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, override
 
 if TYPE_CHECKING:
     import logging
@@ -168,7 +168,7 @@ class BallSprite(Sprite):
         y: int = 0,
         width: int = 20,
         height: int = 20,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
         collision_sound: str | None = None,
         *,
         bounce_top_bottom: bool = True,
@@ -194,10 +194,11 @@ class BallSprite(Sprite):
 
         """
         if groups is None:
-            groups = pygame.sprite.LayeredDirty()
+            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
-        super().__init__(x=x, y=y, width=width, height=height, groups=groups)
+        super().__init__(x=x, y=y, width=width, height=height, groups=groups)  # type: ignore[arg-type]
         self.use_gfxdraw = True
+        assert self.image is not None
         self.image.convert()
         self.image.set_colorkey(0)
         self.direction = 0
@@ -236,7 +237,7 @@ class BallSprite(Sprite):
         return self._color
 
     @color.setter
-    def color(self: Self, new_color: tuple) -> None:
+    def color(self: Self, new_color: tuple[int, int, int]) -> None:
         """Set the color of the ball.
 
         Args:
@@ -244,6 +245,7 @@ class BallSprite(Sprite):
 
         """
         self._color = new_color
+        assert self.image is not None
         pygame.draw.circle(self.image, self._color, (self.width // 2, self.height // 2), 5, 0)
 
     def reset(self: Self) -> None:
@@ -253,6 +255,7 @@ class BallSprite(Sprite):
             None
 
         """
+        assert self.rect is not None
         # Set position directly to rect, maintaining consistency
         self.rect.x = secrets.randbelow(700) + 50  # 50-749 range
         self.rect.y = secrets.randbelow(375) + 25  # 25-399 range
@@ -477,6 +480,7 @@ class BallSprite(Sprite):
         """
         self._check_bounce_speed_up('paddle')
 
+    @override
     def dt_tick(self: Self, dt: float) -> None:
         """Update the ball with delta time.
 
@@ -484,6 +488,7 @@ class BallSprite(Sprite):
             dt (float): The delta time.
 
         """
+        assert self.rect is not None
         # Use centralized performance manager for adaptive clamping
         from glitchygames.performance import performance_manager
 
@@ -509,8 +514,8 @@ class BallSprite(Sprite):
             new_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
             log.debug(
                 f'BALL SPEED CHANGE: old=({old_speed_x:.3f},{old_speed_y:.3f}) '
-                f'new=({self.speed.x:.3f},{self.speed.y:.3f}) '
-                f'magnitude_change={new_magnitude - old_magnitude:.3f}'
+                + f'new=({self.speed.x:.3f},{self.speed.y:.3f}) '
+                + f'magnitude_change={new_magnitude - old_magnitude:.3f}'
             )
 
         # Calculate movement
@@ -526,8 +531,8 @@ class BallSprite(Sprite):
         if abs(move_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
             log.debug(
                 f'BALL MOVE: speed=({self.speed.x:.3f},{self.speed.y:.3f}) dt={dt:.6f} '
-                f'move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) '
-                f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}'
+                + f'move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) '
+                + f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}'
             )
 
         # Use proper rounding to avoid precision loss from integer truncation
@@ -543,17 +548,17 @@ class BallSprite(Sprite):
         if abs(delta_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
             log.debug(
                 f'BALL MOVE: final_pos=({self.rect.x},{self.rect.y}) '
-                f'delta=({delta_x},{delta_y}) '
-                f'expected_move=({round(move_x)},{round(move_y)}) '
-                f'actual_move=({delta_x},{delta_y})'
+                + f'delta=({delta_x},{delta_y}) '
+                + f'expected_move=({round(move_x)},{round(move_y)}) '
+                + f'actual_move=({delta_x},{delta_y})'
             )
 
             # Check if movement matches expectation
             if delta_x != round(move_x) or delta_y != round(move_y):
                 log.debug(
                     f'BALL MOVE WARNING: Movement mismatch! '
-                    f'Expected=({round(move_x)},{round(move_y)}) '
-                    f'Actual=({delta_x},{delta_y})'
+                    + f'Expected=({round(move_x)},{round(move_y)}) '
+                    + f'Actual=({delta_x},{delta_y})'
                 )
 
         # Ensure the ball is marked as dirty for redrawing
@@ -575,6 +580,7 @@ class BallSprite(Sprite):
         # if self.rect.y > self.screen_height or self.rect.y < 0:
         #     self.reset()
 
+    @override
     def update(self: Self) -> None:
         """Update the ball.
 
@@ -592,14 +598,15 @@ class BallSprite(Sprite):
             None
 
         """
+        assert self.rect is not None
         import logging
 
         log = logging.getLogger('game')
         log.debug(
             f'BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) '
-            f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
-            f'screen=({self.screen_width},{self.screen_height}) '
-            f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}'
+            + f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
+            + f'screen=({self.screen_width},{self.screen_height}) '
+            + f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}'
         )
 
         # Enhanced boundary checking with proper physics
@@ -612,6 +619,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
+        assert self.rect is not None
         # Track if any collision occurred for corner detection
         collision_occurred = False
 
@@ -646,7 +654,8 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        if hasattr(self, 'snd') and self.snd is not None:
+        assert self.rect is not None
+        if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
         # Enhanced positioning to prevent clipping (historic +1 padding expected by tests)
@@ -674,7 +683,8 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        if hasattr(self, 'snd') and self.snd is not None:
+        assert self.rect is not None
+        if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
         # Enhanced positioning to prevent clipping (historic -1 padding expected by tests)
@@ -704,7 +714,8 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        if hasattr(self, 'snd') and self.snd is not None:
+        assert self.rect is not None
+        if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
         # Enhanced positioning to prevent clipping (keep historic +1 padding)
@@ -732,7 +743,8 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        if hasattr(self, 'snd') and self.snd is not None:
+        assert self.rect is not None
+        if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
         # Enhanced positioning to prevent clipping (keep historic -1 padding)
@@ -760,6 +772,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
+        assert self.rect is not None
         # Check if ball is in a corner position - include boundary contact
         in_top_left = self.rect.y <= 0 and self.rect.x <= 0
         in_top_right = self.rect.y <= 0 and self.rect.x + self.width >= self.screen_width
@@ -772,8 +785,8 @@ class BallSprite(Sprite):
         if in_top_left or in_top_right or in_bottom_left or in_bottom_right:
             log.debug(
                 f'BALL CORNER COLLISION:'
-                f' {in_top_left=} {in_top_right=}'
-                f' {in_bottom_left=} {in_bottom_right=}'
+                + f' {in_top_left=} {in_top_right=}'
+                + f' {in_bottom_left=} {in_bottom_right=}'
             )
 
             # Enhanced corner physics - both X and Y components are reflected
@@ -816,6 +829,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
+        assert self.rect is not None
         # Visual feedback implementation
         # This could include:
         # - Particle effects at collision point
@@ -854,11 +868,13 @@ class BallSprite(Sprite):
             and sprite != self
         ]
 
+        assert self.rect is not None
         # Check collision with each paddle
         for paddle in paddle_sprites:
+            assert paddle.rect is not None
             if self.rect.colliderect(paddle.rect):
                 # Ball is overlapping with paddle - adjust position to prevent clipping
-                self._adjust_position_for_paddle_collision(paddle)
+                self._adjust_position_for_paddle_collision(paddle)  # type: ignore[arg-type]
 
     def _adjust_position_for_paddle_collision(self: Self, paddle: Sprite) -> None:
         """Adjust ball position to prevent clipping through paddle and make it bounce.
@@ -867,6 +883,8 @@ class BallSprite(Sprite):
             paddle (Sprite): The paddle sprite that the ball is colliding with
 
         """
+        assert self.rect is not None
+        assert paddle.rect is not None
         # Determine which side of the paddle the ball is on
         ball_center_x = self.rect.centerx
         paddle_center_x = paddle.rect.centerx
@@ -883,8 +901,9 @@ class BallSprite(Sprite):
             self.speed.x = abs(self.speed.x)
 
         # Play collision sound if paddle has one
-        if hasattr(paddle, 'snd') and paddle.snd:
-            paddle.snd.play()
+        paddle_sound = getattr(paddle, 'snd', None)
+        if paddle_sound is not None:
+            paddle_sound.play()
 
         # Check for paddle bounce speed-up (this triggers ball spawn)
         self._check_bounce_speed_up('paddle')
@@ -899,8 +918,9 @@ class BallSprite(Sprite):
             self.speed.y *= scale_factor
 
         # Notify the game that a paddle collision occurred (for ball spawn)
-        if hasattr(self, 'on_paddle_collision'):
-            self.on_paddle_collision(self)
+        collision_callback = getattr(self, 'on_paddle_collision', None)
+        if callable(collision_callback):
+            collision_callback(self)
 
         # Mark ball as dirty for redraw
         self.dirty = 2

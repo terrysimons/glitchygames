@@ -59,6 +59,7 @@ class TestBallLinearSpeedUp:
         initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
 
         # Simulate wall bounce
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 

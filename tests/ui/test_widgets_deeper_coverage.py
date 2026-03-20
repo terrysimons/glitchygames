@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Save REAL LayeredDirty before mock_pygame_patches replaces it with a Mock.
 _RealLayeredDirty = pygame.sprite.LayeredDirty
 
+from glitchygames.events.core import HashableEvent  # noqa: E402
 from glitchygames.ui import (  # noqa: E402
     ButtonSprite,
     CheckboxSprite,
@@ -132,6 +133,7 @@ class TestTextSpriteProperties:
             groups=groups,
         )
         text_sprite.x = 50
+        assert text_sprite.rect is not None
         assert text_sprite.rect.x == 50
         assert text_sprite.dirty == 2
 
@@ -147,6 +149,7 @@ class TestTextSpriteProperties:
             groups=groups,
         )
         text_sprite.y = 50
+        assert text_sprite.rect is not None
         assert text_sprite.rect.y == 50
         assert text_sprite.dirty == 2
 
@@ -192,7 +195,7 @@ class TestTextSpriteProperties:
             text='test',
             groups=groups,
         )
-        event = pygame.event.Event(pygame.MOUSEMOTION, pos=(15, 25))
+        event = HashableEvent(pygame.MOUSEMOTION, pos=(15, 25))
         # Should not raise
         text_sprite.on_mouse_motion_event(event)
 
@@ -256,6 +259,7 @@ class TestButtonSpritePropertySetters:
             groups=groups,
         )
         button.x = 100
+        assert button.rect is not None
         assert button.rect.x == 100
         assert button.dirty == 1
 
@@ -271,6 +275,7 @@ class TestButtonSpritePropertySetters:
             groups=groups,
         )
         button.y = 100
+        assert button.rect is not None
         assert button.rect.y == 100
         assert button.dirty == 1
 
@@ -1485,6 +1490,7 @@ class TestSliderKnobSpriteInit:
             groups=None,
         )
         assert knob.value == 0
+        assert knob.rect is not None
         assert knob.rect.x == TEST_X
         assert knob.rect.y == TEST_Y
 
@@ -1580,12 +1586,9 @@ class TestSliderTextClickOutside:
         )
         # Force text_sprite to have a real rect
         slider.text_sprite.rect = pygame.Rect(TEST_X + 260, TEST_Y, 30, 9)
-        # Create a simple object with pos attribute as a tuple
-
-        class SimpleEvent:
-            pos = (9999, 9999)
-
-        result = slider.text_sprite.on_left_mouse_button_down_event(SimpleEvent())
+        # Create a hashable event with pos attribute outside the text sprite rect
+        offscreen_event = HashableEvent(pygame.MOUSEBUTTONDOWN, pos=(9999, 9999), button=1)
+        result = slider.text_sprite.on_left_mouse_button_down_event(offscreen_event)
         assert result is False
 
 

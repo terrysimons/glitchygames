@@ -16,12 +16,13 @@ import collections
 import logging
 import tomllib
 from pathlib import Path
-from typing import Any, ClassVar, NoReturn, Self, cast
+from typing import Any, ClassVar, NoReturn, Self, cast, override
 
 import pygame
 import tomli_w
 
 from glitchygames.events import MouseEvents
+from glitchygames.events.core import HashableEvent
 from glitchygames.interfaces import SpriteInterface
 
 # Import animated sprite classes
@@ -61,11 +62,11 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
 
     log = LOG
 
-    def __init__(self: Self, groups: pygame.sprite.LayeredDirty | None = None) -> None:
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty[Any] | None = None) -> None:
         """Initialize a RootSprite.
 
         Args:
-            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+            groups (pygame.sprite.LayeredDirty[Any] | None): The sprite groups to add the sprite to.
 
         """
         if groups is None:
@@ -82,12 +83,15 @@ class Sprite(RootSprite):
     log = LOG
     USE_GFXDRAW: ClassVar = False
     PROXIES: ClassVar = [pygame.sprite]
-    SPRITE_BREAKPOINTS: ClassVar = None  # None means no breakpoints.  Empty list means all.
-    SPRITE_COUNTERS: ClassVar = collections.OrderedDict()
+    # None means no breakpoints.  Empty list means all.
+    SPRITE_BREAKPOINTS: ClassVar[list[str] | None] = None
+    SPRITE_COUNTERS: ClassVar[
+        collections.OrderedDict[str, dict[str, int]]
+    ] = collections.OrderedDict()
     SPRITE_COUNT = 0
 
     @classmethod
-    def break_when(cls: Any, sprite_type: object | None = None) -> None:
+    def break_when(cls: type[Sprite], sprite_type: object | None = None) -> None:
         """Register a breakpoint for a sprite type.
 
         Args:
@@ -98,7 +102,7 @@ class Sprite(RootSprite):
         # None means disabled.
         # [] means any.
         if cls.SPRITE_BREAKPOINTS is None:
-            cls.SPRITE_BREAKPOINTS = []
+            cls.SPRITE_BREAKPOINTS = []  # pyright: ignore[reportConstantRedefinition]
 
         # If none, break always.
         if sprite_type is not None:
@@ -115,7 +119,7 @@ class Sprite(RootSprite):
         height: int,
         name: str | None = None,
         parent: object | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize a Sprite.
 
@@ -135,18 +139,23 @@ class Sprite(RootSprite):
         super().__init__(groups)
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((width, height))
+        assert self.image is not None
         self.rect = self.image.get_rect()
 
         self.dt = 0
         self.dt_timer = 0
 
+        assert self.rect is not None
         self.rect.x = x
         self.rect.y = y
         self.rect.width = int(width)
         self.rect.height = int(height)
 
         self.name = name
-        self.parent = parent
+        # Typed as Any so widget subclasses can access parent-specific attributes
+        # without needing casts. The actual parent type is enforced by each widget's
+        # __init__ parameter (using Protocol types like _SliderParent, _HasRect, etc.)
+        self.parent: Any = parent
         self.proxies = [self]
 
         # For debugging sanity.
@@ -160,10 +169,11 @@ class Sprite(RootSprite):
             self.log.error(f'{type(self)} has 0 Height')
 
         # Sprites can register callbacks for any event type.
-        self.callbacks = {}
+        self.callbacks: dict[str, Any] = {}
 
         # Each sprite maintains a reference to the screen.
         self.screen = pygame.display.get_surface()
+        assert self.screen is not None, 'Display surface must be initialized before creating sprites'
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 
@@ -181,7 +191,7 @@ class Sprite(RootSprite):
             self.SPRITE_COUNTERS[my_type] = collections.OrderedDict()
             self.SPRITE_COUNTERS[my_type]['count'] = 1
             self.SPRITE_COUNTERS[my_type]['pixels'] = 0
-        self.SPRITE_COUNT += 1
+        self.SPRITE_COUNT += 1  # pyright: ignore[reportConstantRedefinition]
 
         # None means disabled.
         if self.SPRITE_BREAKPOINTS is not None:
@@ -208,7 +218,8 @@ class Sprite(RootSprite):
             int: The width of the sprite.
 
         """
-        return self.rect.width
+        assert self.rect is not None, 'rect must be set before accessing width'
+        return int(self.rect.width)
 
     @width.setter
     def width(self: Self, new_width: int) -> None:
@@ -218,6 +229,7 @@ class Sprite(RootSprite):
             new_width (int): The new width of the sprite.
 
         """
+        assert self.rect is not None, 'rect must be set before setting width'
         self.rect.width = new_width
         self.dirty = 1 if not self.dirty else self.dirty
 
@@ -229,7 +241,8 @@ class Sprite(RootSprite):
             int: The height of the sprite.
 
         """
-        return self.rect.height
+        assert self.rect is not None, 'rect must be set before accessing height'
+        return int(self.rect.height)
 
     @height.setter
     def height(self: Self, new_height: int) -> None:
@@ -239,6 +252,7 @@ class Sprite(RootSprite):
             new_height (int): The new height of the sprite.
 
         """
+        assert self.rect is not None, 'rect must be set before setting height'
         self.rect.height = new_height
         self.dirty = 1 if not self.dirty else self.dirty
 
@@ -252,10 +266,11 @@ class Sprite(RootSprite):
         self.dt = dt
         self.dt_timer += self.dt
 
+    @override
     def update(self: Self) -> None:
         """Update the sprite."""
 
-    def on_joy_axis_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick axis motion event.
 
         Args:
@@ -265,7 +280,7 @@ class Sprite(RootSprite):
         # JOYAXISMOTION    joy, axis, value
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_joy_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick button down event.
 
         Args:
@@ -275,7 +290,7 @@ class Sprite(RootSprite):
         # JOYBUTTONDOWN    joy, button
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_joy_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick button up event.
 
         Args:
@@ -285,7 +300,7 @@ class Sprite(RootSprite):
         # JOYBUTTONUP      joy, button
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_joy_hat_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_hat_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick hat motion event.
 
         Args:
@@ -295,7 +310,7 @@ class Sprite(RootSprite):
         # JOYHATMOTION     joy, hat, value
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_joy_ball_motion_event(self: Self, event: pygame.event.Event) -> None:
+    def on_joy_ball_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle a joystick ball motion event.
 
         Args:
@@ -305,38 +320,42 @@ class Sprite(RootSprite):
         # JOYBALLMOTION    joy, ball, rel
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_mouse_motion_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse motion event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEMOTION      pos, rel, buttons
         self.log.debug(f'Mouse Motion Event: {type(self)}: {event}')
 
-    def on_mouse_focus_event(self: Self, event: pygame.event.Event, old_focus: object) -> None:
+    @override
+    def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
         """Handle a mouse focus event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            old_focus (object): The old focus.
+            event (HashableEvent): The event to handle.
+            entering_focus (object): The object entering focus.
 
         """
         # Custom Event
-        self.log.debug(f'Mouse Focus Event: {type(self)}: {event}, Old Focus: {old_focus}')
+        self.log.debug(f'Mouse Focus Event: {type(self)}: {event}, Entering Focus: {entering_focus}')
 
-    def on_mouse_unfocus_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_mouse_unfocus_event(self: Self, event: HashableEvent, leaving_focus: object = None) -> None:
         """Handle a mouse unfocus event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
+            leaving_focus (object): The object leaving focus.
 
         """
         # Custom Event
         self.log.debug(f'Mouse Unfocus Event: {type(self)}: {event}')
 
-    def on_mouse_enter_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_enter_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse enter event.
 
         Args:
@@ -346,7 +365,7 @@ class Sprite(RootSprite):
         # Custom Event
         self.log.debug(f'Mouse Enter Event: {type(self)}: {event}')
 
-    def on_mouse_exit_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_exit_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse exit event.
 
         Args:
@@ -357,7 +376,7 @@ class Sprite(RootSprite):
         self.log.debug(f'Mouse Exit Event: {type(self)}: {event}')
 
     def on_mouse_drag_down_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: object | None
     ) -> None:
         """Handle a mouse drag down event.
 
@@ -369,7 +388,7 @@ class Sprite(RootSprite):
         self.log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_left_mouse_drag_down_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: object | None
     ) -> None:
         """Handle a left mouse drag down event.
 
@@ -383,7 +402,7 @@ class Sprite(RootSprite):
         )
 
     def on_left_mouse_drag_up_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: object | None
     ) -> None:
         """Handle a left mouse drag up event.
 
@@ -397,7 +416,7 @@ class Sprite(RootSprite):
         )
 
     def on_middle_mouse_drag_down_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: object | None
     ) -> None:
         """Handle a middle mouse drag down event.
 
@@ -411,7 +430,7 @@ class Sprite(RootSprite):
         )
 
     def on_middle_mouse_drag_up_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: object | None
     ) -> None:
         """Handle a middle mouse drag up event.
 
@@ -425,7 +444,7 @@ class Sprite(RootSprite):
         )
 
     def on_right_mouse_drag_down_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: object | None
     ) -> None:
         """Handle a right mouse drag down event.
 
@@ -439,7 +458,7 @@ class Sprite(RootSprite):
         )
 
     def on_right_mouse_drag_up_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: object | None
     ) -> None:
         """Handle a right mouse drag up event.
 
@@ -452,7 +471,7 @@ class Sprite(RootSprite):
             f'Right Mouse Drag Up Event: {type(self)}: event: {event}, trigger: {trigger}'
         )
 
-    def on_mouse_drag_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_drag_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse drag up event.
 
         Args:
@@ -461,21 +480,23 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'Mouse Drag Up Event: {type(self)}: {event}')
 
-    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse button up event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_left_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a left mouse button up event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -487,21 +508,23 @@ class Sprite(RootSprite):
         else:
             self.log.debug(f'{type(self)}: Left Mouse Button Up Event: {event} @ {self}')
 
-    def on_middle_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_middle_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a middle mouse button up event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
         self.log.debug(f'{type(self)}: Middle Mouse Button Up Event: {event}')
 
-    def on_right_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_right_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a right mouse button up event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONUP    pos, button
@@ -512,21 +535,23 @@ class Sprite(RootSprite):
         else:
             self.log.debug(f'{type(self)}: Right Mouse Button Up Event: {event} @ {self}')
 
-    def on_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse button down event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: {event} @ {self}')
 
-    def on_left_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a left mouse button down event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -539,21 +564,23 @@ class Sprite(RootSprite):
         else:
             self.log.debug(f'{type(self)}: Left Mouse Button Down Event: {event} @ {self}')
 
-    def on_middle_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_middle_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a middle mouse button down event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: Middle Mouse Button Down Event: {event}')
 
-    def on_right_mouse_button_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_right_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a right mouse button down event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN  pos, button
@@ -564,27 +591,29 @@ class Sprite(RootSprite):
         else:
             self.log.debug(f'{type(self)}: Right Mouse Button Down Event: {event} @ self')
 
-    def on_mouse_scroll_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_mouse_scroll_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse scroll down event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: Mouse Scroll Down Event: {event}')
 
-    def on_mouse_scroll_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_mouse_scroll_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse scroll up event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         # MOUSEBUTTONDOWN  pos, button
         self.log.debug(f'{type(self)}: Mouse Scroll Up Event: {event}')
 
-    def on_mouse_chord_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_chord_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse chord up event.
 
         Args:
@@ -593,7 +622,7 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event}')
 
-    def on_mouse_chord_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_mouse_chord_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse chord down event.
 
         Args:
@@ -602,7 +631,7 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event}')
 
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle a key down event.
 
         Args:
@@ -612,7 +641,7 @@ class Sprite(RootSprite):
         # KEYDOWN          unicode, key, mod
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a key up event.
 
         Args:
@@ -622,27 +651,27 @@ class Sprite(RootSprite):
         # KEYUP            key, mod
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_key_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+    def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle a key chord down event.
 
         Args:
             event (pygame.event.Event): The event to handle.
-            keys (list): The keys that were pressed.
+            keys (list[int]): The keys that were pressed.
 
         """
         self.log.debug(f'{type(self)}: {event}, {keys}')
 
-    def on_key_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+    def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle a key chord up event.
 
         Args:
             event (pygame.event.Event): The event to handle.
-            keys (list): The keys that were pressed.
+            keys (list[int]): The keys that were pressed.
 
         """
         self.log.debug(f'{type(self)} KEYCHORDUP: {event}, {keys}')
 
-    def on_quit_event(self: Self, event: pygame.event.Event) -> None:
+    def on_quit_event(self: Self, event: HashableEvent) -> None:
         """Handle a quit event.
 
         Args:
@@ -651,9 +680,12 @@ class Sprite(RootSprite):
         """
         # QUIT             none
         self.log.debug(f'{type(self)}: {event}')
-        self.terminate()
+        # terminate() is provided by Scene subclasses via SceneInterface,
+        # not directly on Sprite. Cast to Any to allow dynamic dispatch.
+        game: Any = self
+        game.terminate()  # ty: ignore[unresolved-attribute]
 
-    def on_active_event(self: Self, event: pygame.event.Event) -> None:
+    def on_active_event(self: Self, event: HashableEvent) -> None:
         """Handle an active event.
 
         Args:
@@ -663,7 +695,7 @@ class Sprite(RootSprite):
         # ACTIVEEVENT      gain, state
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_video_resize_event(self: Self, event: pygame.event.Event) -> None:
+    def on_video_resize_event(self: Self, event: HashableEvent) -> None:
         """Handle a video resize event.
 
         Args:
@@ -673,7 +705,7 @@ class Sprite(RootSprite):
         # VIDEORESIZE      size, w, h
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_video_expose_event(self: Self, event: pygame.event.Event) -> None:
+    def on_video_expose_event(self: Self, event: HashableEvent) -> None:
         """Handle a video expose event.
 
         Args:
@@ -683,7 +715,7 @@ class Sprite(RootSprite):
         # VIDEOEXPOSE      none
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_sys_wm_event(self: Self, event: pygame.event.Event) -> None:
+    def on_sys_wm_event(self: Self, event: HashableEvent) -> None:
         """Handle a sys wm event.
 
         Args:
@@ -693,7 +725,7 @@ class Sprite(RootSprite):
         # SYSWMEVENT
         self.log.debug(f'{type(self)}: {event}')
 
-    def on_user_event(self: Self, event: pygame.event.Event) -> None:
+    def on_user_event(self: Self, event: HashableEvent) -> None:
         """Handle a user event.
 
         Args:
@@ -703,107 +735,115 @@ class Sprite(RootSprite):
         # USEREVENT        code
         self.log.debug(f'{type(self)}: {event}')
 
+    @override
     def on_left_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a left mouse drag event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_middle_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a middle mouse drag event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_right_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a right mouse drag event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_left_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a left mouse drop event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_middle_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a middle mouse drop event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_right_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a right mouse drop event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         self.log.debug(f'{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}')
 
-    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+    @override
+    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a mouse drag event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         self.log.debug(f'{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}')
 
-    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+    @override
+    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a mouse drop event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         self.log.debug(f'{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}')
 
-    def on_mouse_wheel_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+    @override
+    def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse wheel event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}')
+        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self}')
 
     # def __getattr__(self: Self,attr):
     #    import pdb; pdb.set_trace()
@@ -817,6 +857,7 @@ class Sprite(RootSprite):
     #        except AttributeError:
     #            log.error(f'No proxies for {type(self)}.{attr}')
 
+    @override
     def __str__(self: Self) -> str:
         """Return a string representation of the sprite.
 
@@ -830,7 +871,7 @@ class Sprite(RootSprite):
 class BitmappySprite(Sprite):
     """A sprite that loads from a Bitmappy config file."""
 
-    DEBUG = False
+    DEBUG: bool = False
     DEFAULT_SURFACE_W = 42
     DEFAULT_SURFACE_H = 42
     DEFAULT_SURFACE = pygame.Surface((DEFAULT_SURFACE_W, DEFAULT_SURFACE_H))
@@ -848,8 +889,8 @@ class BitmappySprite(Sprite):
         filename: str | None = None,
         *,
         focusable: bool = False,
-        parent: object = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        parent: object | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Subclass to load sprite files.
 
@@ -874,31 +915,36 @@ class BitmappySprite(Sprite):
         super().__init__(
             x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups
         )
-        self.filename = filename or ''
-        self.focusable = focusable
+        self.filename: str = filename or ''
+        self.focusable: bool = focusable
+        self.active: bool = False
         # self.width = width
         # self.height = height
 
         # Initialize pixel data attributes
-        self.pixels = []
-        self.pixels_across = width
-        self.pixels_tall = height
+        self.pixels: list[tuple[int, ...]] = []
+        self.pixels_across: int = width
+        self.pixels_tall: int = height
 
         # Try to load a file if one was specified, otherwise
         # if a width and height is specified, make a surface.
         if filename:
             (self.image, self.rect, self.name) = self.load(filename=filename)
-            self.width = self.rect.width
-            self.height = self.rect.height
+            assert self.rect is not None
+            self.width = self.rect.width  # ty: ignore[invalid-assignment]
+            self.height = self.rect.height  # ty: ignore[invalid-assignment]
 
         elif self.width and self.height:
             self.image = pygame.Surface((self.width, self.height))
+            assert self.image is not None
             self.image.convert()
         else:
             raise pygame.error(f"Can't create Surface(({self.width}, {self.height})).")
 
+        assert self.image is not None
         self.rect = self.image.get_rect()
         self.parent = parent
+        assert self.rect is not None
         self.rect.x = x
         self.rect.y = y
         self.proxies = [self.parent]
@@ -920,20 +966,24 @@ class BitmappySprite(Sprite):
             # Get the current frame surface from the animated sprite
             current_frame = animated_sprite.get_current_frame()
             if current_frame and hasattr(current_frame, 'surface'):
-                self.image = current_frame.surface
+                self.image = cast('pygame.Surface', current_frame.surface)  # type: ignore[attr-defined]
             else:
                 # Fallback: create surface from animated sprite's image
+                assert animated_sprite.image is not None, 'AnimatedSprite must have an image'
                 self.image = animated_sprite.image.copy()
 
+            assert self.image is not None
             self.rect = self.image.get_rect()
             self.name = animated_sprite.name
-            self.width = self.rect.width
-            self.height = self.rect.height
+            assert self.rect is not None
+            self.width = self.rect.width  # ty: ignore[invalid-assignment]
+            self.height = self.rect.height  # ty: ignore[invalid-assignment]
 
-            return (self.image, self.rect, self.name)
+            return (self.image, self.rect, self.name)  # ty: ignore[invalid-return-type]
         except ValueError as e:
             # If factory fails, fall back to old static-only loading
             self.log.debug(f'Factory failed, falling back to static-only loading: {e}')
+            assert filename is not None, 'filename must be provided for static-only loading'
             return self._load_static_only(filename)
 
     @staticmethod
@@ -945,7 +995,7 @@ class BitmappySprite(Sprite):
 
         """
         raise ValueError(
-            f'File {filename} contains animated sprite data. '
+            f'File {filename} contains animated sprite data. ' +
             f'Use AnimatedSprite class instead of BitmappySprite.'
         )
 
@@ -962,7 +1012,7 @@ class BitmappySprite(Sprite):
         self.log.debug(f'=== Starting static-only load from {filename} ===')
 
         # Detect file format and handle accordingly
-        file_format = SpriteFactory._detect_file_format(filename)
+        file_format = SpriteFactory.detect_file_format(filename)
 
         if file_format == 'toml':
             return self._load_static_toml(filename)
@@ -997,11 +1047,11 @@ class BitmappySprite(Sprite):
             self.log.debug(f'Sprite name: {name}')
 
             # Get pixel data
-            pixel_text = data['sprite']['pixels']
+            pixel_text = str(data['sprite']['pixels'])
             self.log.debug(f'Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}')
 
             # Split into rows and process each row
-            rows = []
+            rows: list[str] = []
             for i, raw_row in enumerate(pixel_text.split('\n')):
                 row = raw_row.strip()
                 if row:  # Only add non-empty rows
@@ -1016,13 +1066,13 @@ class BitmappySprite(Sprite):
             self.log.debug(f'Calculated dimensions: {width}x{height}')
 
             # Get color definitions
-            color_map = {}
+            color_map: dict[str, Any] = {}
             if 'colors' in data:
                 for color_key, color_data in data['colors'].items():
                     red = color_data['red']
                     green = color_data['green']
                     blue = color_data['blue']
-                    color_map[color_key] = (red, green, blue)
+                    color_map[str(color_key)] = (red, green, blue)
                     self.log.debug(f"Color map entry: '{color_key}' -> RGB({red}, {green}, {blue})")
 
             self.log.debug(f'Total colors in map: {len(color_map)}')
@@ -1040,11 +1090,11 @@ class BitmappySprite(Sprite):
             raise
         else:
             # Return the successfully loaded sprite data
-            return (image, rect, name)
+            return (image, rect, str(name))
 
     @classmethod
     def inflate(
-        cls: Any, width: int, height: int, pixels: list, color_map: dict
+        cls: Any, width: int, height: int, pixels: list[str], color_map: dict[str, Any]
     ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 
@@ -1064,7 +1114,7 @@ class BitmappySprite(Sprite):
         image = pygame.Surface((width, height))
         image.convert()
 
-        raw_pixels = []
+        raw_pixels: list[Any] = []
         for y, row in enumerate(pixels):
             for x, pixel in enumerate(row):
                 color = color_map[pixel]
@@ -1126,7 +1176,7 @@ class BitmappySprite(Sprite):
             self.log.exception('Error in save')
             raise
 
-    def deflate(self: Self, file_format: str = 'toml') -> dict:
+    def deflate(self: Self, file_format: str = 'toml') -> dict[str, Any]:
         """Deflate a sprite to a configuration format.
 
         Currently only supports TOML format. To add new formats:
@@ -1208,7 +1258,10 @@ class BitmappySprite(Sprite):
             return config
 
     def _process_pixel_rows(
-        self, color_map: dict, pixels_across: int | None = None, pixels_tall: int | None = None
+        self,
+        color_map: dict[str, Any],
+        pixels_across: int | None = None,
+        pixels_tall: int | None = None,
     ) -> list[str]:
         """Process pixels into rows of characters.
 
@@ -1224,15 +1277,15 @@ class BitmappySprite(Sprite):
 
         """
         if pixels_across is None:
-            pixels_across = getattr(self, 'pixels_across', self.width)
+            pixels_across = int(getattr(self, 'pixels_across', self.width))
         if pixels_tall is None:
-            pixels_tall = getattr(self, 'pixels_tall', self.height)
+            pixels_tall = int(getattr(self, 'pixels_tall', self.height))
 
         # These are guaranteed to be int after the fallbacks above
-        pixels_across = int(pixels_across)
-        pixels_tall = int(pixels_tall)
+        assert pixels_across is not None, 'pixels_across must be set'
+        assert pixels_tall is not None, 'pixels_tall must be set'
 
-        pixel_rows = []
+        pixel_rows: list[str] = []
         for y in range(pixels_tall):
             row = ''
             for x in range(pixels_across):
@@ -1250,7 +1303,9 @@ class BitmappySprite(Sprite):
             self.log.debug(f"Row {y}: '{row}' (len={len(row)})")
         return pixel_rows
 
-    def _generate_pixel_rows(self, color_map: dict | None = None) -> tuple[list[str], dict]:
+    def _generate_pixel_rows(
+        self, color_map: dict[str, Any] | None = None
+    ) -> tuple[list[str], dict[str, Any]]:
         """Generate pixel rows from the sprite's pixel data.
 
         Args:
@@ -1264,18 +1319,19 @@ class BitmappySprite(Sprite):
             color_map = self._create_color_map()
 
         # Process pixels into rows
-        pixel_rows = []
+        pixel_rows: list[str] = []
         # Use height and width if pixels_tall/pixels_across not available
-        pixels_tall = getattr(self, 'pixels_tall', self.height)
-        pixels_across = getattr(self, 'pixels_across', self.width)
+        pixels_tall: int = getattr(self, 'pixels_tall', self.height)
+        pixels_across: int = getattr(self, 'pixels_across', self.width)
 
         for y in range(pixels_tall):
-            row = ''
+            row: str = ''
             for x in range(pixels_across):
                 pixel_index = y * pixels_across + x
                 if pixel_index < len(self.pixels):
                     pixel_color = self.pixels[pixel_index]
-                    row += color_map.get(pixel_color, '.')
+                    matched_char: str = cast('str', color_map.get(pixel_color, '.'))  # type: ignore[arg-type]
+                    row += matched_char
                 else:
                     row += '.'  # Default character for missing pixels
             pixel_rows.append(row)
@@ -1283,8 +1339,8 @@ class BitmappySprite(Sprite):
         return pixel_rows, color_map
 
     def _create_toml_config(
-        self, pixel_rows: list[str] | None = None, color_map: dict | None = None
-    ) -> dict:
+        self, pixel_rows: list[str] | None = None, color_map: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Create TOML configuration.
 
         Args:
@@ -1327,7 +1383,7 @@ class BitmappySprite(Sprite):
         """
         raise ValueError(f'Unsupported format: {file_format}')
 
-    def _create_color_map(self: Self) -> dict:
+    def _create_color_map(self: Self) -> dict[str, Any]:
         """Create a color map from the sprite's pixels.
 
         Returns:
@@ -1339,7 +1395,7 @@ class BitmappySprite(Sprite):
 
         # Get unique colors from the pixels list
         unique_colors = set(self.pixels)
-        color_map = {}
+        color_map: dict[str, Any] = {}
 
         # Filter out dangerous characters that could break file formats
         dangerous_chars = {'\n', '\r', '\t', '\0', '\b', '\f', '\v', '\a'}
@@ -1364,7 +1420,7 @@ class BitmappySprite(Sprite):
 
         return color_map
 
-    def _inflate_toml(self: Self, filename: str) -> dict:
+    def _inflate_toml(self: Self, filename: str) -> dict[str, Any]:
         """Inflate a sprite from a TOML file.
 
         Args:
@@ -1387,11 +1443,11 @@ class BitmappySprite(Sprite):
             self.log.debug(f'Sprite name: {name}')
 
             # Get pixel data
-            pixel_text = data['sprite']['pixels']
+            pixel_text = str(data['sprite']['pixels'])
             self.log.debug(f'Raw pixel text ({len(pixel_text)} bytes):\n{pixel_text}')
 
             # Split into rows and process each row
-            rows = []
+            rows: list[str] = []
             for i, raw_row in enumerate(pixel_text.split('\n')):
                 row = raw_row.strip()
                 if row:  # Only add non-empty rows
@@ -1406,19 +1462,19 @@ class BitmappySprite(Sprite):
             self.log.debug(f'Calculated dimensions: {width}x{height}')
 
             # Get color definitions
-            color_map = {}
+            color_map: dict[str, Any] = {}
             if 'colors' in data:
                 for color_key, color_data in data['colors'].items():
                     red = color_data['red']
                     green = color_data['green']
                     blue = color_data['blue']
-                    color_map[color_key] = (red, green, blue)
+                    color_map[str(color_key)] = (red, green, blue)
                     self.log.debug(f"Color map entry: '{color_key}' -> RGB({red}, {green}, {blue})")
 
             self.log.debug(f'Total colors in map: {len(color_map)}')
 
             # Convert rows to pixels
-            pixels = []
+            pixels: list[tuple[int, int, int]] = []
             for row in rows:
                 for char in row:
                     if char in color_map:
@@ -1427,13 +1483,13 @@ class BitmappySprite(Sprite):
                         # Default color for unknown characters
                         pixels.append((255, 0, 255))
 
-            return {'pixels': pixels, 'width': width, 'height': height, 'name': name}
+            return {'pixels': pixels, 'width': width, 'height': height, 'name': str(name)}
 
         except Exception:
             self.log.exception('Error in TOML inflate')
             raise
 
-    def inflate_from_file(self: Self, filename: str) -> dict:
+    def inflate_from_file(self: Self, filename: str) -> dict[str, Any]:
         """Inflate a sprite from a file.
 
         Args:
@@ -1447,135 +1503,145 @@ class BitmappySprite(Sprite):
 
         """
         # Detect file format and handle accordingly
-        file_format = SpriteFactory._detect_file_format(filename)
+        file_format = SpriteFactory.detect_file_format(filename)
 
         if file_format == 'toml':
             return self._inflate_toml(filename)
         raise ValueError(f'Unsupported format: {file_format}')
 
+    @override
     def on_left_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a left mouse drag event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         self.log.debug(f'{type(self)}: Left Mouse Drag Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_middle_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a middle mouse drag event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_right_mouse_drag_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a right mouse drag event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_left_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a left mouse drop event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         self.log.debug(f'{type(self)}: Left Mouse Drop Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_middle_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a middle mouse drop event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
 
+    @override
     def on_right_mouse_drop_event(
-        self: Self, event: pygame.event.Event, trigger: object | None
+        self: Self, event: HashableEvent, trigger: HashableEvent
     ) -> None:
         """Handle a right mouse drop event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         self.log.debug(f'{type(self)}: Right Mouse Drop Event: {event} @ {self} for {trigger}')
 
-    def on_mouse_drag_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+    @override
+    def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a mouse drag event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drag.
 
         """
         self.log.debug(f'{type(self)}: Mouse Drag Event: {event} @ {self} for {trigger}')
 
-    def on_mouse_drop_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+    @override
+    def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a mouse drop event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
+            trigger (HashableEvent): The event that triggered the drop.
 
         """
         self.log.debug(f'{type(self)}: Mouse Drop Event: {event} @ {self} for {trigger}')
 
-    def on_mouse_wheel_event(self: Self, event: pygame.event.Event, trigger: object | None) -> None:
+    @override
+    def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse wheel event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            trigger (object | None): The object that triggered the event.
+            event (HashableEvent): The event to handle.
 
         """
-        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self} for {trigger}')
+        self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self}')
 
-    def on_mouse_chord_down_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+    @override
+    def on_mouse_chord_down_event(self: Self, event: HashableEvent, keys: list[int]) -> None:  # type: ignore[override]
         """Handle a mouse chord down event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            keys (list): The keys that were pressed.
+            event (HashableEvent): The event to handle.
+            keys (list[int]): The keys that were pressed.
 
         """
         self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event} @ {self} for {keys}')
 
-    def on_mouse_chord_up_event(self: Self, event: pygame.event.Event, keys: list) -> None:
+    @override
+    def on_mouse_chord_up_event(self: Self, event: HashableEvent, keys: list[int]) -> None:  # type: ignore[override]
         """Handle a mouse chord up event.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-            keys (list): The keys that were pressed.
+            event (HashableEvent): The event to handle.
+            keys (list[int]): The keys that were pressed.
 
         """
         self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}')
 
-    def _render_animated_str(self: Self, toml_data: dict) -> str:
+    def _render_animated_str(self: Self, toml_data: dict[str, Any]) -> str:
         """Render an animated sprite's TOML data to a colorized ASCII string.
 
         Args:
@@ -1587,7 +1653,7 @@ class BitmappySprite(Sprite):
         """
         from glitchygames.tools.ascii_renderer import ASCIIRenderer
 
-        output_lines = []
+        output_lines: list[str] = []
 
         # Show sprite header once
         if 'sprite' in toml_data and 'name' in toml_data['sprite']:
@@ -1598,8 +1664,9 @@ class BitmappySprite(Sprite):
             ))
 
         # Show all animations and frames
-        for anim_idx, animation in enumerate(toml_data['animation']):
-            namespace = animation.get('namespace', f'animation_{anim_idx}')
+        animations: list[dict[str, Any]] = list(toml_data['animation'])
+        for anim_idx, animation in enumerate(animations):
+            namespace: str = animation.get('namespace', f'animation_{anim_idx}')
             output_lines.extend((
                 f'# Namespace: {namespace}',
                 '',
@@ -1609,7 +1676,8 @@ class BitmappySprite(Sprite):
                 output_lines.extend(('# No frames found in this animation', ''))
                 continue
 
-            for frame_idx, frame in enumerate(animation['frame']):
+            frames: list[dict[str, Any]] = list(animation['frame'])
+            for frame_idx, frame in enumerate(frames):
                 output_lines.append(f'# Frame {frame_idx}:')
 
                 if 'pixels' not in frame:
@@ -1617,7 +1685,7 @@ class BitmappySprite(Sprite):
                     continue
 
                 # Create a temporary sprite data for this frame
-                frame_data = {
+                frame_data: dict[str, Any] = {
                     'sprite': {
                         'name': toml_data.get('sprite', {}).get('name', 'unnamed'),
                         'pixels': frame['pixels'],
@@ -1632,6 +1700,7 @@ class BitmappySprite(Sprite):
 
         return '\n'.join(output_lines)
 
+    @override
     def __str__(self: Self) -> str:
         """Return a colorized ASCII representation of the sprite.
 
@@ -1667,7 +1736,7 @@ class Singleton:
 
     __instance__ = None
 
-    def __new__(cls: Any, *args: object, **kwargs: object) -> Self:
+    def __new__(cls: Any, *args: object, **kwargs: object) -> Self:  # type: ignore[reportGeneralTypeIssues]
         """Create a new instance of the Singleton.
 
         Args:
@@ -1682,7 +1751,7 @@ class Singleton:
             cls.__instance__ = object.__new__(cls)
         cls.__instance__.args = args
         cls.__instance__.kwargs = kwargs
-        return cast('Singleton', cls.__instance__)
+        return cast('Singleton', cls.__instance__)  # type: ignore[return-value]
 
 
 # This is a root class for sprites that should be singletons, like
@@ -1692,12 +1761,8 @@ class SingletonBitmappySprite(BitmappySprite):
 
     __instance__ = None
 
-    def __new__(cls: Any, *args: object, **kwargs: object) -> Self:
+    def __new__(cls: Any, *_args: Any, **_kwargs: Any) -> Self:  # type: ignore[reportGeneralTypeIssues]
         """Create a new instance of the SingletonBitmappySprite.
-
-        Args:
-            *args: The arguments to pass to the constructor.
-            **kwargs: The keyword arguments to pass to the constructor.
 
         Returns:
             SingletonBitmappySprite: The instance of the SingletonBitmappySprite.
@@ -1705,9 +1770,7 @@ class SingletonBitmappySprite(BitmappySprite):
         """
         if cls.__instance__ is None:
             cls.__instance__ = object.__new__(cls)
-        cls.__instance__.args = args
-        cls.__instance__.kwargs = kwargs
-        return cast('SingletonBitmappySprite', cls.__instance__)
+        return cast('SingletonBitmappySprite', cls.__instance__)  # type: ignore[return-value]
 
     def __init__(
         self: Self,
@@ -1716,7 +1779,7 @@ class SingletonBitmappySprite(BitmappySprite):
         width: int = 32,
         height: int = 32,
         name: str | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the SingletonBitmappySprite.
 
@@ -1726,7 +1789,7 @@ class SingletonBitmappySprite(BitmappySprite):
             width (int): The width of the sprite.
             height (int): The height of the sprite.
             name (str): The name of the sprite.
-            groups (pygame.sprite.LayeredDirty): The sprite groups to add the sprite to.
+            groups (pygame.sprite.LayeredDirty[Any]): The sprite groups.
 
         """
         if groups is None:
@@ -1742,22 +1805,16 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
 
     __instance__ = None
 
-    def __new__(cls: Any, *args: object, **kwargs: object) -> Self:
+    def __new__(cls: Any, *_args: Any, **_kwargs: Any) -> Self:  # type: ignore[reportGeneralTypeIssues]
         """Create a new instance of the FocusableSingletonBitmappySprite.
 
-        Args:
-            *args: The arguments to pass to the constructor.
-            **kwargs: The keyword arguments to pass to the constructor.
-
         Returns:
-            FocusableSingletonBitmappySprite: The instance of the FocusableSingletonBitmappySprite.
+            FocusableSingletonBitmappySprite: The instance.
 
         """
         if cls.__instance__ is None:
             cls.__instance__ = object.__new__(cls)
-        cls.__instance__.args = args
-        cls.__instance__.kwargs = kwargs
-        return cast('FocusableSingletonBitmappySprite', cls.__instance__)
+        return cast('FocusableSingletonBitmappySprite', cls.__instance__)  # type: ignore[return-value]
 
     def __init__(
         self: Self,
@@ -1766,7 +1823,7 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
         width: int = 32,
         height: int = 32,
         name: str | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the FocusableSingletonBitmappySprite.
 
@@ -1776,7 +1833,7 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
             width (int): The width of the sprite.
             height (int): The height of the sprite.
             name (str): The name of the sprite.
-            groups (pygame.sprite.LayeredDirty): The sprite groups to add the sprite to.
+            groups (pygame.sprite.LayeredDirty[Any]): The sprite groups.
 
         """
         if groups is None:
@@ -1832,7 +1889,7 @@ class SpriteFactory:
         return AnimatedSprite(filename, groups=None)
 
     @staticmethod
-    def _detect_file_format(filename: str) -> str:
+    def detect_file_format(filename: str) -> str:
         """Detect file format based on extension.
 
         Returns:
@@ -1849,7 +1906,7 @@ class SpriteFactory:
         return 'unknown'
 
     @staticmethod
-    def _analyze_file(filename: str) -> dict:
+    def _analyze_file(filename: str) -> dict[str, Any]:
         """Analyze file content to determine sprite type.
 
         Currently only supports TOML format. To add new formats:
@@ -1866,7 +1923,7 @@ class SpriteFactory:
             ValueError: If the file format is not supported.
 
         """
-        file_format = SpriteFactory._detect_file_format(filename)
+        file_format = SpriteFactory.detect_file_format(filename)
 
         if file_format == 'toml':
             return SpriteFactory._analyze_toml_file(filename)
@@ -1874,7 +1931,7 @@ class SpriteFactory:
         raise ValueError(f'Unsupported format: {file_format}. Only TOML is currently supported.')
 
     @staticmethod
-    def _analyze_toml_file(filename: str) -> dict:
+    def _analyze_toml_file(filename: str) -> dict[str, Any]:
         """Analyze TOML file content to determine sprite type.
 
         Returns:
@@ -1922,7 +1979,7 @@ class SpriteFactory:
         }
 
     @staticmethod
-    def _get_toml_data(filename: str) -> dict:
+    def _get_toml_data(filename: str) -> dict[str, Any]:
         """Get raw TOML data from file.
 
         Returns:
@@ -1933,7 +1990,7 @@ class SpriteFactory:
             return tomllib.load(f)
 
     @staticmethod
-    def _determine_type(analysis: dict) -> str:
+    def _determine_type(analysis: dict[str, Any]) -> str:
         """Determine sprite type based on file analysis.
 
         Returns:
@@ -1975,14 +2032,14 @@ class SpriteFactory:
 
         """
         if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
-            SpriteFactory._save_animated_sprite(sprite, filename, file_format)
+            SpriteFactory._save_animated_sprite(sprite, filename, file_format)  # type: ignore[arg-type]
         else:  # It's a BitmappySprite
-            SpriteFactory._save_static_sprite(sprite, filename, file_format)
+            SpriteFactory._save_static_sprite(sprite, filename, file_format)  # type: ignore[arg-type]
 
     @staticmethod
     def _save_static_sprite(sprite: BitmappySprite, filename: str, file_format: str) -> None:
         """Save a static sprite to a file."""
-        sprite._save(filename, file_format)
+        sprite._save(filename, file_format)  # pyright: ignore[reportPrivateUsage]
 
     @staticmethod
     def _save_animated_sprite(sprite: AnimatedSprite, filename: str, file_format: str) -> None:
@@ -1991,7 +2048,7 @@ class SpriteFactory:
 
 
 # Add helper methods to BitmappySprite for AI training data extraction
-def _get_pixel_string(self: Self) -> str:
+def _get_pixel_string(self: BitmappySprite) -> str:
     """Get pixel data as a string for AI training.
 
     Returns:
@@ -2017,11 +2074,11 @@ def _get_pixel_string(self: Self) -> str:
     return pixel_string
 
 
-def _get_color_map(self: Self) -> dict:
+def _get_color_map(self: BitmappySprite) -> dict[str, Any]:
     """Get color mapping for AI training.
 
     Returns:
-        dict: The color map.
+        dict[str, Any]: The color map.
 
     """
     if not hasattr(self, 'pixels') or not self.pixels:
@@ -2029,7 +2086,7 @@ def _get_color_map(self: Self) -> dict:
 
     # Get unique colors and create mapping
     unique_colors = list(set(self.pixels))
-    color_map = {}
+    color_map: dict[str, Any] = {}
 
     max_colors = 8  # Limit to 8 colors
     for i, color in enumerate(unique_colors):
@@ -2044,5 +2101,5 @@ def _get_color_map(self: Self) -> dict:
 
 
 # Add methods to BitmappySprite class
-BitmappySprite._get_pixel_string = _get_pixel_string
-BitmappySprite._get_color_map = _get_color_map
+BitmappySprite._get_pixel_string = _get_pixel_string  # type: ignore[attr-defined]
+BitmappySprite._get_color_map = _get_color_map  # type: ignore[attr-defined]

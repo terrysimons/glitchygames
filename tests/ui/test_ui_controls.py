@@ -62,6 +62,7 @@ class TestSliderSpriteFunctionality:
         slider = SliderSprite(x=10, y=20, width=200, height=20, name='TestSlider')
 
         # Assert
+        assert slider.rect is not None
         assert slider.rect.x == SLIDER_X
         assert slider.rect.y == SLIDER_Y
         assert slider.rect.width == SLIDER_WIDTH
@@ -180,6 +181,7 @@ class TestCheckboxSpriteFunctionality:
         checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name='TestCheckbox')
 
         # Assert
+        assert checkbox.rect is not None
         assert checkbox.rect.x == CHECKBOX_X
         assert checkbox.rect.y == CHECKBOX_Y
         assert checkbox.rect.width == CHECKBOX_WIDTH
@@ -332,6 +334,7 @@ class TestColorWellSpriteFunctionality:
         colorwell = ColorWellSprite(x=10, y=20, width=50, height=30, name='TestColorWell')
 
         # Assert
+        assert colorwell.rect is not None
         assert colorwell.rect.x == COLORWELL_X
         assert colorwell.rect.y == COLORWELL_Y
         assert colorwell.rect.width == COLORWELL_WIDTH

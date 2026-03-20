@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Bitrot Adventures."""
 
+from __future__ import annotations
+
 import argparse
 import logging
-from typing import NoReturn, Self
+from typing import Self
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
@@ -29,7 +31,7 @@ class BitrotAdventures(Scene):
     NAME = 'Bitrot Adventures'
     VERSION = '0.0.0'
 
-    def __init__(self: Self, options: dict[str, str]) -> Self:
+    def __init__(self: Self, options: dict[str, str]) -> None:
         """Initialize the scene.
 
         Args:
@@ -40,6 +42,7 @@ class BitrotAdventures(Scene):
 
         self.dirty = 1
         # draw a pixel to the screen
+        assert self.screen is not None
         self.screen.fill((255, 0, 0))
         self.dirty = 1
         self.rects = self.screen.get_rect()
@@ -57,7 +60,7 @@ class BitrotAdventures(Scene):
     # before adding new options to ensure that you haven't
     # clobbered an existing option.
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls: type[BitrotAdventures], parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Game specific command line arguments.
 
         Returns:
@@ -68,7 +71,7 @@ class BitrotAdventures(Scene):
         return parser
 
 
-def main() -> NoReturn:
+def main() -> None:
     """Run the game."""
     # Note that the Scene (BitrotAdventures) is
     # passed in uninitialized - the engine

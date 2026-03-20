@@ -14,9 +14,17 @@ Features:
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
 
 LOG = logging.getLogger('game.tools.controller_selection')
+
+
+class NavigationEntry(TypedDict):
+    """A single navigation history entry."""
+
+    animation: str
+    frame: int
+    timestamp: float
 
 
 @dataclass
@@ -31,7 +39,7 @@ class ControllerSelectionState:
     controller_fill_direction: str = 'HORIZONTAL'  # HORIZONTAL or VERTICAL
     is_active: bool = False
     last_update_time: float = 0.0
-    navigation_history: list | None = None
+    navigation_history: list[NavigationEntry] | None = None
 
     def __post_init__(self) -> None:
         """Initialize navigation history if not provided."""
@@ -68,6 +76,7 @@ class ControllerSelection:
         """
         if self.state.selected_animation != animation_name:
             # Preserve frame index when switching animations
+            assert self.state.navigation_history is not None
             self.state.navigation_history.append({
                 'animation': self.state.selected_animation,
                 'frame': self.state.selected_frame,
@@ -107,6 +116,7 @@ class ControllerSelection:
             # Only add to history if we had a previous selection (not initial empty state)
             if animation_changed and self.state.selected_animation:
                 # Preserve frame index when switching animations
+                assert self.state.navigation_history is not None
                 self.state.navigation_history.append({
                     'animation': self.state.selected_animation,
                     'frame': self.state.selected_frame,
@@ -241,6 +251,7 @@ class ControllerSelection:
             target_frame = 0
 
         # Check if we have a previous selection for this animation
+        assert self.state.navigation_history is not None
         for history_entry in reversed(self.state.navigation_history):
             if history_entry['animation'] == new_animation:
                 # Use the frame from the last time we were on this animation
@@ -266,17 +277,19 @@ class ControllerSelection:
         """
         return time.time() - self.state.last_update_time
 
-    def get_navigation_history(self) -> list:
+    def get_navigation_history(self) -> list[NavigationEntry]:
         """Get the navigation history.
 
         Returns:
             List of navigation history entries
 
         """
+        assert self.state.navigation_history is not None
         return self.state.navigation_history.copy()
 
     def clear_navigation_history(self) -> None:
         """Clear the navigation history."""
+        assert self.state.navigation_history is not None
         self.state.navigation_history.clear()
 
     def get_state_summary(self) -> dict[str, Any]:
@@ -294,7 +307,7 @@ class ControllerSelection:
             'is_active': self.state.is_active,
             'last_update_time': self.state.last_update_time,
             'activity_age': self.get_activity_age(),
-            'navigation_history_count': len(self.state.navigation_history),
+            'navigation_history_count': len(self.state.navigation_history) if self.state.navigation_history is not None else 0,
             'creation_time': self.creation_time,
         }
 
@@ -304,6 +317,7 @@ class ControllerSelection:
         self.state.selected_frame = 0
         self.state.is_active = False
         self.state.last_update_time = time.time()
+        assert self.state.navigation_history is not None
         self.state.navigation_history.clear()
         LOG.debug('Controller %s reset to default state', self.controller_id)
 

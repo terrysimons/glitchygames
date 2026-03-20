@@ -67,11 +67,16 @@ class MultiControllerErrorHandler:
         self.auto_recovery_enabled = True
 
         # Error handlers
-        self.error_handlers: dict[str, Callable] = {}
-        self.recovery_handlers: dict[str, Callable] = {}
+        self.error_handlers: dict[str, Callable[..., Any]] = {}
+        self.recovery_handlers: dict[str, Callable[..., Any]] = {}
 
         # Setup default handlers
         self._setup_default_handlers()
+
+    def _setup_default_handlers(self) -> None:
+        """Set up default error and recovery handlers."""
+        # Default handlers are registered here as needed
+        # Subclasses can override to add custom handlers
 
     def handle_error(
         self,
@@ -234,7 +239,7 @@ class MultiControllerErrorHandler:
         self.logger.info(f'Attempting to recover from invalid value: {error_info.message}')
         return True
 
-    def register_error_handler(self, error_type: str, handler: Callable) -> None:
+    def register_error_handler(self, error_type: str, handler: Callable[..., Any]) -> None:
         """Register a custom error handler.
 
         Args:
@@ -244,7 +249,7 @@ class MultiControllerErrorHandler:
         """
         self.error_handlers[error_type] = handler
 
-    def register_recovery_handler(self, error_key: str, handler: Callable) -> None:
+    def register_recovery_handler(self, error_key: str, handler: Callable[..., Any]) -> None:
         """Register a custom recovery handler.
 
         Args:
@@ -462,7 +467,7 @@ class MultiControllerValidator:
         """
         return 0 <= controller_id < self.config.max_controllers
 
-    def validate_position(self, position: tuple) -> bool:
+    def validate_position(self, position: tuple[int | float, ...]) -> bool:
         """Validate position tuple.
 
         Args:
@@ -472,13 +477,9 @@ class MultiControllerValidator:
             True if valid
 
         """
-        if not isinstance(position, tuple) or len(position) != POSITION_TUPLE_LENGTH:
-            return False
+        return len(position) == POSITION_TUPLE_LENGTH
 
-        x, y = position
-        return isinstance(x, (int, float)) and isinstance(y, (int, float))
-
-    def validate_color(self, color: tuple) -> bool:
+    def validate_color(self, color: tuple[int, ...]) -> bool:
         """Validate color tuple.
 
         Args:
@@ -488,11 +489,11 @@ class MultiControllerValidator:
             True if valid
 
         """
-        if not isinstance(color, tuple) or len(color) != RGB_COMPONENT_COUNT:
+        if len(color) != RGB_COMPONENT_COUNT:
             return False
 
-        r, g, b = color
-        return all(0 <= c <= MAX_COLOR_CHANNEL_VALUE for c in [r, g, b])
+        red, green, blue = color[0], color[1], color[2]
+        return all(0 <= channel <= MAX_COLOR_CHANNEL_VALUE for channel in [red, green, blue])
 
     def validate_animation_name(self, animation_name: str) -> bool:
         """Validate animation name.
@@ -504,7 +505,7 @@ class MultiControllerValidator:
             True if valid
 
         """
-        return isinstance(animation_name, str) and len(animation_name) > 0
+        return len(animation_name) > 0
 
     def validate_frame_index(self, frame_index: int) -> bool:
         """Validate frame index.
@@ -516,4 +517,4 @@ class MultiControllerValidator:
             True if valid
 
         """
-        return isinstance(frame_index, int) and frame_index >= 0
+        return frame_index >= 0

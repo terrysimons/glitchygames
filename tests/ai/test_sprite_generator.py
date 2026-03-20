@@ -175,9 +175,9 @@ class TestResponseCleaning:
 
         result = clean_ai_response(content)
 
-        assert '```' not in result
-        assert '[sprite]' in result
-        assert 'name = "test"' in result
+        assert '```' not in result  # type: ignore[unsupported-operator]
+        assert '[sprite]' in result  # type: ignore[unsupported-operator]
+        assert 'name = "test"' in result  # type: ignore[unsupported-operator]
 
     def test_remove_backticks_only(self):
         """Test removal of code fences."""
@@ -185,8 +185,8 @@ class TestResponseCleaning:
 
         result = clean_ai_response(content)
 
-        assert '```' not in result
-        assert '[sprite]' in result
+        assert '```' not in result  # type: ignore[unsupported-operator]
+        assert '[sprite]' in result  # type: ignore[unsupported-operator]
 
     def test_remove_leading_text(self):
         """Test removal of leading explanatory text."""
@@ -194,8 +194,9 @@ class TestResponseCleaning:
 
         result = clean_ai_response(content)
 
+        assert result is not None
         assert result.startswith('[sprite]')
-        assert "Here's your sprite" not in result
+        assert "Here's your sprite" not in result  # type: ignore[unsupported-operator]
 
     def test_preserve_valid_toml(self):
         """Test that valid TOML is preserved."""

@@ -95,8 +95,8 @@ class TestControllerHotplugEdgeCases:
         # Set up controller
         self.manager._handle_controller_connect(0)
         controller_id = self.manager.assign_controller(0)
-        self.controller_selections[controller_id] = ControllerSelection(controller_id, 0)
-        self.controller_selections[controller_id].activate()
+        self.controller_selections[controller_id] = ControllerSelection(controller_id, 0)  # type: ignore[arg-type]
+        self.controller_selections[controller_id].activate()  # type: ignore[arg-type]
         self.manager.activate_controller(0)
 
         # Start operations
@@ -194,7 +194,7 @@ class TestNavigationBoundaryCases:
 
         # Should maintain chronological order
         for i in range(len(history) - 1):
-            assert history[i]['timestamp'] <= history[i + 1]['timestamp']
+            assert history[i]['timestamp'] <= history[i + 1]['timestamp']  # type: ignore[reportGeneralTypeIssues]
 
     def test_concurrent_navigation(self):
         """Test concurrent navigation operations."""
@@ -477,19 +477,19 @@ class TestErrorRecoveryEdgeCases:
 
         for invalid_id in invalid_ids:
             # These should not crash
-            assert not self.manager.is_controller_active(invalid_id)
-            assert self.manager.get_controller_info(invalid_id) is None
-            assert self.visual_manager.get_final_position(invalid_id) == (0, 0)
+            assert not self.manager.is_controller_active(invalid_id)  # type: ignore[arg-type]
+            assert self.manager.get_controller_info(invalid_id) is None  # type: ignore[arg-type]
+            assert self.visual_manager.get_final_position(invalid_id) == (0, 0)  # type: ignore[arg-type]
 
             # These should handle gracefully
-            self.visual_manager.remove_controller_indicator(invalid_id)
-            self.visual_manager.update_controller_position(invalid_id, (0, 0))
+            self.visual_manager.remove_controller_indicator(invalid_id)  # type: ignore[arg-type]
+            self.visual_manager.update_controller_position(invalid_id, (0, 0))  # type: ignore[arg-type]
 
     def test_operations_with_corrupted_state(self):
         """Test operations with corrupted internal state."""
         # Corrupt manager state
-        self.manager.controllers[999] = 'invalid_object'
-        self.manager.assigned_controllers[999] = 'invalid_object'
+        self.manager.controllers[999] = 'invalid_object'  # type: ignore[arg-type]
+        self.manager.assigned_controllers[999] = 'invalid_object'  # type: ignore[arg-type]
 
         # System raises AttributeError when accessing corrupted state
         # because is_controller_active expects a ControllerInfo with .status
@@ -508,7 +508,7 @@ class TestErrorRecoveryEdgeCases:
 
         # Corrupt the indicator position
         if 0 in self.visual_manager.indicators:
-            self.visual_manager.indicators[0].position = 'invalid'
+            self.visual_manager.indicators[0].position = 'invalid'  # type: ignore[invalid-assignment]
 
         # get_final_position unpacks position as tuple — corrupted data raises ValueError
         with pytest.raises(ValueError, match='too many values to unpack'):
@@ -521,8 +521,8 @@ class TestErrorRecoveryEdgeCases:
         original_assigned = self.manager.assigned_controllers.copy()
 
         # Corrupt data
-        self.manager.controllers = None
-        self.manager.assigned_controllers = None
+        self.manager.controllers = None  # type: ignore[invalid-assignment]
+        self.manager.assigned_controllers = None  # type: ignore[invalid-assignment]
 
         # System should handle gracefully
         try:

@@ -25,11 +25,11 @@ class Vertical:
         self.speed = speed
         self.current_speed = self.speed.y
 
-    def _change_speed(self: Self, value: int) -> None:
+    def _change_speed(self: Self, value: float) -> None:
         """Change the current speed.
 
         Args:
-            value (int): The value to change the speed by.
+            value (float): The value to change the speed by.
 
         """
         self.current_speed = value

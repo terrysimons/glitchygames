@@ -12,7 +12,7 @@ DEFAULT_FILE_FORMAT = 'toml'
 original_glyphs = '.aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ0123456789@'
 
 # Get all Unicode letters that aren't already in the original set
-unicode_letters = set()
+unicode_letters: set[str] = set()
 for i in range(0x10FFFF + 1):  # Full Unicode range
     try:
         char = chr(i)

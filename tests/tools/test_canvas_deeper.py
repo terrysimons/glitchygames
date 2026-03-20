@@ -13,6 +13,7 @@ Targets areas NOT covered by test_canvas_interfaces_coverage.py:
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -55,7 +56,7 @@ class TestAnimatedCanvasInterfaceGetPixelAtWithAnimatedSprite:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        pixels = [RED] * PIXEL_COUNT
+        pixels = cast(list[tuple[int, ...]], [RED] * PIXEL_COUNT)
         pixels[0] = BLUE
         frame.set_pixel_data(pixels)
         animated_sprite.add_animation('idle', [frame])
@@ -114,7 +115,8 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([MAGENTA] * PIXEL_COUNT)
+        magenta_pixels = cast(list[tuple[int, ...]], [MAGENTA] * PIXEL_COUNT)
+        frame.set_pixel_data(magenta_pixels)
         animated_sprite.add_animation('idle', [frame])
         animated_sprite.set_animation('idle')
 
@@ -145,7 +147,8 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([MAGENTA] * PIXEL_COUNT)
+        magenta_pixels = cast(list[tuple[int, ...]], [MAGENTA] * PIXEL_COUNT)
+        frame.set_pixel_data(magenta_pixels)
         animated_sprite.add_animation('idle', [frame])
         animated_sprite.set_animation('idle')
         # Pre-populate cache
@@ -177,7 +180,8 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([MAGENTA] * PIXEL_COUNT)
+        magenta_pixels = cast(list[tuple[int, ...]], [MAGENTA] * PIXEL_COUNT)
+        frame.set_pixel_data(magenta_pixels)
         animated_sprite.add_animation('idle', [frame])
         animated_sprite.set_animation('idle')
 
@@ -223,7 +227,8 @@ class TestAnimatedCanvasInterfaceGetOldPixelColor:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([BLUE] * PIXEL_COUNT)
+        blue_pixels = cast(list[tuple[int, ...]], [BLUE] * PIXEL_COUNT)
+        frame.set_pixel_data(blue_pixels)
         animated_sprite.add_animation('idle', [frame])
         animated_sprite.set_animation('idle')
 

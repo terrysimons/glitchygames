@@ -1,9 +1,16 @@
 """Sprite generation endpoints for the GlitchyGames API."""
 
+from __future__ import annotations
+
 import base64
 import io
 import logging
+from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import apng as apng_types
 
 from fastapi import APIRouter, HTTPException
 
@@ -36,7 +43,7 @@ PNG_IHDR_MINIMUM_BYTES = 24
 # All requested output paths are resolved relative to this directory.
 ALLOWED_OUTPUT_ROOT = (Path.cwd() / 'sprite_outputs').resolve()
 
-router = APIRouter(prefix='/sprites', tags=['sprites'])
+router: Any = APIRouter(prefix='/sprites', tags=['sprites'])
 
 
 def _get_services() -> tuple[SpriteGenerationService, RendererService]:
@@ -57,7 +64,7 @@ def _save_sprite_files(
     toml_content: str | None,
     png_bytes: bytes | None,
     rendered_frames: list[RenderedFrameInfo] | None,
-    output_format: list[str],
+    output_format: Sequence[str],
 ) -> list[str]:
     """Save sprite files to the specified directory.
 
@@ -76,7 +83,7 @@ def _save_sprite_files(
         HTTPException: If the output path is absolute or resolves outside the allowed root.
 
     """
-    saved_files = []
+    saved_files: list[str] = []
 
     # Normalize and validate the requested output path to prevent writing
     # outside the allowed root directory.
@@ -357,7 +364,9 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
         ) from e
 
 
-def _extract_single_frame(png: object, control: object, index: int) -> tuple[ApngFrameInfo, int]:
+def _extract_single_frame(
+    png: apng_types.PNG, control: apng_types.FrameControl | None, index: int
+) -> tuple[ApngFrameInfo, int]:
     """Extract a single frame and its metadata from an APNG frame pair.
 
     Args:
@@ -378,17 +387,17 @@ def _extract_single_frame(png: object, control: object, index: int) -> tuple[Apn
     # Calculate frame delay in milliseconds
     # APNG stores delay as delay_num/delay_den seconds
     if control is not None:
-        delay_num = control.delay if hasattr(control, 'delay') else 100
-        delay_den = control.delay_den if hasattr(control, 'delay_den') else 1000
+        delay_num: int = control.delay
+        delay_den: int = control.delay_den
         if delay_den == 0:
             delay_den = 1000
-        delay_ms = int((delay_num / delay_den) * 1000)
+        delay_ms: int = int((delay_num / delay_den) * 1000)
 
         # Get frame dimensions and offsets
-        frame_width = control.width if hasattr(control, 'width') else 0
-        frame_height = control.height if hasattr(control, 'height') else 0
-        x_offset = control.x_offset if hasattr(control, 'x_offset') else 0
-        y_offset = control.y_offset if hasattr(control, 'y_offset') else 0
+        frame_width: int = control.width  # ty: ignore[invalid-assignment]
+        frame_height: int = control.height  # ty: ignore[invalid-assignment]
+        x_offset: int = control.x_offset
+        y_offset: int = control.y_offset
     else:
         # Default values if no control chunk
         delay_ms = 100
@@ -472,7 +481,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
 
         # Parse the APNG
         try:
-            apng = APNG.from_bytes(apng_bytes)
+            apng: APNG = APNG.from_bytes(apng_bytes)
         except (ValueError, OSError) as e:
             LOG.warning(f'Failed to parse APNG: {e}')
             return ApngExtractResponse(
@@ -481,10 +490,10 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
             )
 
         # Extract frames and metadata
-        frames_info = []
-        total_duration_ms = 0
-        canvas_width = None
-        canvas_height = None
+        frames_info: list[ApngFrameInfo] = []
+        total_duration_ms: int = 0
+        canvas_width: int | None = None
+        canvas_height: int | None = None
 
         for index, (png, control) in enumerate(apng.frames):
             frame_info, delay_ms = _extract_single_frame(png, control, index)
@@ -502,7 +511,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
 
         LOG.info(
             f'Extracted {len(frames_info)} frames from APNG '
-            f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)'
+            + f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)'
         )
 
         return ApngExtractResponse(

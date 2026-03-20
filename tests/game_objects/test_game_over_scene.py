@@ -60,10 +60,10 @@ class TestGameOverScene:
 
         # Simulate the scene manager's _setup_new_scene method
         if hasattr(mock_scene_manager, 'game_engine') and mock_scene_manager.game_engine:
-            game_over_scene.game_engine = mock_scene_manager.game_engine
+            game_over_scene.game_engine = mock_scene_manager.game_engine  # type: ignore[unresolved-attribute]
 
         # Verify the game engine reference was set
-        assert game_over_scene.game_engine == mock_game_engine
+        assert game_over_scene.game_engine == mock_game_engine  # type: ignore[unresolved-attribute]
 
     def test_game_over_scene_key_handling(self, mocker):
         """Test that Game Over scene handles key events correctly.

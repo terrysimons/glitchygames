@@ -44,6 +44,7 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
 
         # Test rect properties
+        assert strip.rect is not None
         assert strip.rect.x == WIDGET_X
         assert strip.rect.y == WIDGET_Y
         assert strip.rect.width == WIDGET_WIDTH
@@ -140,8 +141,8 @@ class TestFilmStripFunctionality:
         frames_without_duration = []
         for _ in range(ANIMATION_COUNT):
             frame = type('Frame', (), {})()  # Simple object with no duration attribute
-            frame.image = mocker.Mock()
-            frame.image.get_size.return_value = (32, 32)
+            frame.image = mocker.Mock()  # type: ignore[unresolved-attribute]
+            frame.image.get_size.return_value = (32, 32)  # type: ignore[unresolved-attribute]
             # No duration attribute
             frames_without_duration.append(frame)
 
@@ -170,10 +171,10 @@ class TestFilmStripFunctionality:
         # Create a frame without image but with pixel data
         # Production code calls frame.get_size() after get_pixel_data(), so both are needed
         frame = type('Frame', (), {})()
-        frame.get_pixel_data = mocker.Mock(return_value=[(255, 0, 0)] * 100)  # 10x10 red pixels
-        frame.get_size = mocker.Mock(return_value=(10, 10))
+        frame.get_pixel_data = mocker.Mock(return_value=[(255, 0, 0)] * 100)  # type: ignore[unresolved-attribute]
+        frame.get_size = mocker.Mock(return_value=(10, 10))  # type: ignore[unresolved-attribute]
 
-        result = film_strip.FilmStripWidget._get_frame_image(frame)
+        result = film_strip.FilmStripWidget._get_frame_image(frame)  # type: ignore[arg-type]
         assert result is not None  # Should return a surface
 
     def test_get_frame_image_no_image_no_pixel_data(self, mock_pygame_patches):
@@ -182,7 +183,7 @@ class TestFilmStripFunctionality:
         frame = type('Frame', (), {})()
         # No get_pixel_data method
 
-        result = film_strip.FilmStripWidget._get_frame_image(frame)
+        result = film_strip.FilmStripWidget._get_frame_image(frame)  # type: ignore[arg-type]
         assert result is None  # Should return None
 
     def test_update_layout_with_parent_canvas(self, mock_pygame_patches, mocker):
@@ -265,6 +266,7 @@ class TestFilmStripFunctionality:
 
         # Should calculate height based on number of animations
         strip._update_height()
+        assert strip.rect is not None
         assert strip.rect.height > 0
 
     def test_update_height_with_parent_canvas(self, mock_pygame_patches, mocker):

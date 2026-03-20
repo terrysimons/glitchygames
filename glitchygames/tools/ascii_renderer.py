@@ -5,7 +5,7 @@ This module provides ASCII rendering capabilities for displaying
 BitmappySprite objects with colorized terminal output.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from glitchygames.color import ALPHA_TRANSPARENCY_THRESHOLD, MAX_COLOR_CHANNEL_VALUE
 
@@ -45,7 +45,7 @@ class ASCIIRenderer:
         # Always render pixels as a solid block; color comes from the pixel's mapped RGB
         return '█'
 
-    def _extract_colors_from_toml(
+    def extract_colors_from_toml(
         self, toml_data: dict[str, Any]
     ) -> dict[str, tuple[int, int, int, int]]:
         """Extract color mappings from TOML data with alpha channel support.
@@ -57,10 +57,10 @@ class ASCIIRenderer:
             Dict mapping characters to RGBA tuples
 
         """
-        colors = {}
+        colors: dict[str, tuple[int, int, int, int]] = {}
 
         if 'colors' in toml_data:
-            colors_section = toml_data['colors']
+            colors_section: dict[str, Any] = toml_data['colors']
 
             for key, value in colors_section.items():
                 if (
@@ -69,22 +69,23 @@ class ASCIIRenderer:
                     and 'green' in value
                     and 'blue' in value
                 ):
-                    r = int(value['red'])
-                    g = int(value['green'])
-                    b = int(value['blue'])
+                    color_data = cast('dict[str, int]', value)
+                    r: int = color_data['red']
+                    g: int = color_data['green']
+                    b: int = color_data['blue']
 
                     # Check for magenta transparency (255, 0, 255) = alpha 0
                     if r == MAX_COLOR_CHANNEL_VALUE and g == 0 and b == MAX_COLOR_CHANNEL_VALUE:
-                        a = 0  # Fully transparent
+                        a: int = 0  # Fully transparent
                     else:
                         # Default alpha to 255 (opaque) if not specified
-                        a = int(value.get('alpha', value.get('a', 255)))
+                        a = color_data.get('alpha', color_data.get('a', 255))
 
                     colors[key] = (r, g, b, a)
 
         return colors
 
-    def _extract_pixels_from_toml(self, toml_data: dict[str, Any]) -> str | None:
+    def extract_pixels_from_toml(self, toml_data: dict[str, Any]) -> str | None:
         """Extract pixels string from TOML data.
 
         Args:
@@ -108,7 +109,7 @@ class ASCIIRenderer:
 
         return None
 
-    def _colorize_pixels(self, pixels: str, colors: dict[str, tuple[int, int, int, int]]) -> str:
+    def colorize_pixels(self, pixels: str, colors: dict[str, tuple[int, int, int, int]]) -> str:
         """Colorize pixels string with terminal colors and alpha channel support.
 
         Args:
@@ -123,7 +124,7 @@ class ASCIIRenderer:
             return pixels
 
         lines = pixels.strip().split('\n')
-        colorized_lines = []
+        colorized_lines: list[str] = []
 
         for line in lines:
             colorized_line = ''
@@ -247,14 +248,14 @@ class ASCIIRenderer:
             return self._render_cache[cache_key]
 
         # Extract data
-        colors = self._extract_colors_from_toml(sprite_data)
-        pixels = self._extract_pixels_from_toml(sprite_data)
+        colors = self.extract_colors_from_toml(sprite_data)
+        pixels = self.extract_pixels_from_toml(sprite_data)
 
         if not pixels:
             return 'No pixels data found'
 
         # Build output
-        output_lines = []
+        output_lines: list[str] = []
 
         # Add sprite section
         if 'sprite' in sprite_data:
@@ -266,7 +267,7 @@ class ASCIIRenderer:
 
             if pixels:
                 output_lines.append('pixels = """')
-                colorized_pixels = self._colorize_pixels(pixels, colors)
+                colorized_pixels = self.colorize_pixels(pixels, colors)
                 output_lines.extend((colorized_pixels, '"""'))
 
         # Skip colors section - just show the colorized pixels

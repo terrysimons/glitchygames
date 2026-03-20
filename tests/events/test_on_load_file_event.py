@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
-from mocks.test_mock_factory import MockFactory, create_10x10_sprite_mock
+from mocks.test_mock_factory import MockFactory, create_10x10_sprite_mock  # type: ignore[unresolved-import]
 
 
 class TestOnLoadFileEvent:
@@ -392,12 +392,12 @@ pixels = \"\"\"
             self.scene.canvas.mini_view = mocker.Mock()
             self.scene.canvas.mini_view.pixels_across = 8
             self.scene.canvas.mini_view.pixels_tall = 8
-            self.scene.canvas.live_preview = mocker.Mock()
-            self.scene.canvas.film_strip = mocker.Mock()
-            self.scene.canvas.film_strip_sprite = mocker.Mock()
+            self.scene.canvas.live_preview = mocker.Mock()  # type: ignore[invalid-assignment]
+            self.scene.canvas.film_strip = mocker.Mock()  # type: ignore[invalid-assignment]
+            self.scene.canvas.film_strip_sprite = mocker.Mock()  # type: ignore[invalid-assignment]
 
             # Ensure the mock film_strip has the set_animated_sprite method
-            self.scene.canvas.film_strip.set_animated_sprite = mocker.Mock()
+            self.scene.canvas.film_strip.set_animated_sprite = mocker.Mock()  # type: ignore[unresolved-attribute]
 
             # Mock helper methods to prevent real loading
             mock_load_sprite = mocker.patch.object(self.scene.canvas, '_load_sprite_from_file')
@@ -550,7 +550,7 @@ pixels = \"\"\"
             mocker.patch.object(self.scene.canvas, '_update_canvas_from_current_frame')
 
             # Call the method with string parameter
-            self.scene.canvas.on_load_file_event(sprite_file)
+            self.scene.canvas.on_load_file_event(sprite_file)  # type: ignore[invalid-argument-type]
 
             # Verify file format was detected
             mock_detect.assert_called_once_with(sprite_file)

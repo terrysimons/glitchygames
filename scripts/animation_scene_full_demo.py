@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
@@ -32,13 +32,15 @@ class AnimationGame(Scene):
     log = LOG
 
     def __init__(
-        self: Self, options: dict, groups: pygame.sprite.AbstractGroup | None = None
+        self: Self,
+        options: dict[str, Any],
+        groups: pygame.sprite.AbstractGroup[Any] | None = None,
     ) -> None:
         """Initialize the animation game."""
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        super().__init__(options=options, groups=groups)
+        super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
 
         # Set up the scene
         self.background_color = (20, 20, 40)
@@ -48,8 +50,10 @@ class AnimationGame(Scene):
         self._load_animated_sprite()
 
         # Clear the screen with background
+        assert self.screen is not None
         self.all_sprites.clear(self.screen, self.background)
 
+    @override
     def update(self: Self) -> None:
         """Update the scene."""
         super().update()
@@ -97,6 +101,8 @@ class AnimationGame(Scene):
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.all_sprites)
             self.animated_sprite.play()
             # Center on screen dynamically
+            assert self.animated_sprite.rect is not None
+            assert self.screen is not None
             self.animated_sprite.rect.center = self.screen.get_rect().center
             self.log.info(
                 f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)'
@@ -107,7 +113,7 @@ class AnimationGame(Scene):
             raise
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(cls: type[AnimationGame], parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Add game-specific arguments to the global parser.
 
         Returns:

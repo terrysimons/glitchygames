@@ -110,6 +110,7 @@ class TestPauseScreen:
         assert pause_scene == mock_pause_scene, 'Expected pause scene to be created'
 
         # Simulate resuming from pause
+        assert pause_scene is not None
         pause_scene.on_key_down_event(space_down_event)
 
         # Check if resume was triggered
@@ -188,6 +189,7 @@ class TestPauseScreenIntegration:
 
         # Simulate resume
         pause_scene = scene_manager.active_scene
+        assert pause_scene is not None
         pause_scene.on_key_down_event(space_down_event)
         assert pause_scene.next_scene is not None, 'Expected resume to work'
 

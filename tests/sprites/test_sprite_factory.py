@@ -153,12 +153,12 @@ class TestSpriteFactory:
 
     def test_detect_file_format_default(self):
         """Test detecting default file format."""
-        format_type = SpriteFactory._detect_file_format('test.toml')
+        format_type = SpriteFactory.detect_file_format('test.toml')
         assert format_type == 'toml'
 
     def test_detect_file_format_unknown(self):
         """Test detecting unknown file format."""
-        format_type = SpriteFactory._detect_file_format('test.unknown')
+        format_type = SpriteFactory.detect_file_format('test.unknown')
         assert format_type == 'unknown'
 
     def test_load_sprite_invalid_file(self, mocker):

@@ -47,6 +47,7 @@ class TestBallSpriteInitialization:
         assert ball.width == SIZE_20
         assert ball.height == SIZE_20
         # Position is set by reset() during initialization, so it will be random
+        assert ball.rect is not None
         assert POS_50 <= ball.rect.x <= POS_749  # Reset sets random position in this range
         assert POS_25 <= ball.rect.y <= POS_399  # Reset sets random position in this range
         assert ball.use_gfxdraw is True
@@ -72,6 +73,7 @@ class TestBallSpriteInitialization:
         )
 
         # Position is set by reset() during initialization, so it will be random
+        assert ball.rect is not None
         assert POS_50 <= ball.rect.x <= POS_749  # Reset sets random position in this range
         assert POS_25 <= ball.rect.y <= POS_399  # Reset sets random position in this range
         assert ball.width == SIZE_30
@@ -136,6 +138,7 @@ class TestBallSpriteColor:
         # draw.circle is called twice - once during initialization and once in setter
         assert mock_draw_circle.call_count == SPEED_2
         # Check the last call (the setter call)
+        assert ball.image is not None
         mock_draw_circle.assert_any_call(ball.image, (0, 255, 0), (10, 10), 5, 0)
 
 
@@ -151,6 +154,7 @@ class TestBallSpriteBounce:
         """Test ball bounces off top wall."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
+        assert ball.rect is not None
         ball.rect.y = -5  # Above screen
         ball.speed.y = -2
         ball.snd = mocker.Mock()
@@ -167,6 +171,7 @@ class TestBallSpriteBounce:
         ball = BallSprite()
         ball.screen_height = 600
         ball.height = 20
+        assert ball.rect is not None
         ball.rect.y = 590  # Below screen
         ball.speed.y = 2
         ball.snd = mocker.Mock()
@@ -182,6 +187,7 @@ class TestBallSpriteBounce:
         """Test ball bounces without sound when no sound loaded."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
+        assert ball.rect is not None
         ball.rect.y = -5
         ball.speed.y = -2
         # No snd attribute set
@@ -195,6 +201,7 @@ class TestBallSpriteBounce:
         """Test ball doesn't bounce when not at walls."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
+        assert ball.rect is not None
         ball.rect.y = 100
         ball.speed.y = 2
         original_speed = ball.speed.y
@@ -217,6 +224,7 @@ class TestBallSpriteReset:
         """Test ball reset sets random position within bounds."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
+        assert ball.rect is not None
         original_x = ball.rect.x
         original_y = ball.rect.y
 
@@ -312,6 +320,7 @@ class TestBallSpriteUpdate:
         """Test ball update moves the ball."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
+        assert ball.rect is not None
         ball.rect.x = 100
         ball.rect.y = 100
         ball.speed.x = 2
@@ -328,6 +337,7 @@ class TestBallSpriteUpdate:
         """Test ball bounces off left wall."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
+        assert ball.rect is not None
         ball.rect.x = -25  # Left of screen (less than -width)
         ball.direction = 45
         ball.speed.x = -2
@@ -346,6 +356,7 @@ class TestBallSpriteUpdate:
         ball = BallSprite()
         ball.screen_width = 800
         ball.width = 20
+        assert ball.rect is not None
         ball.rect.x = 810  # Right of screen
         ball.direction = 45
         ball.speed.x = 2
@@ -362,6 +373,7 @@ class TestBallSpriteUpdate:
         """Test ball resets when exiting screen."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
+        assert ball.rect is not None
         ball.rect.x = 1000  # Way off screen
         ball.rect.y = 100
 
@@ -373,6 +385,7 @@ class TestBallSpriteUpdate:
         """Test ball does NOT kill when exiting screen vertically (only horizontal exits kill)."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
+        assert ball.rect is not None
         ball.rect.x = 100
         ball.rect.y = 1000  # Way off screen
         ball.screen_height = 600  # Set screen height so ball is off screen
@@ -411,6 +424,7 @@ class TestBallSpriteIntegration:
         assert ball.dirty == SPEED_2
 
         # Update should move ball
+        assert ball.rect is not None
         original_x = ball.rect.x
         original_y = ball.rect.y
         ball.dt_tick(0.016)  # Use dt_tick instead of update
@@ -428,6 +442,7 @@ class TestBallSpriteIntegration:
         )
 
         ball = BallSprite(collision_sound='bounce.wav')
+        assert ball.rect is not None
         ball.rect.y = -5  # Trigger top wall bounce
         ball.speed.y = -2
 

@@ -54,6 +54,7 @@ class TestHorizontalPaddleUpdate:
         paddle.screen = self._create_mock_screen(left=0)
 
         # Position paddle so is_at_left_of_screen returns True
+        assert paddle.rect is not None
         paddle.rect.x = 0
         paddle._move.current_speed = -5  # Moving left
 
@@ -68,6 +69,7 @@ class TestHorizontalPaddleUpdate:
         paddle.screen = self._create_mock_screen(right=SCREEN_WIDTH)
 
         # Position paddle so is_at_right_of_screen returns True
+        assert paddle.rect is not None
         paddle.rect.x = SCREEN_WIDTH - SIZE_100
         paddle.rect.right = SCREEN_WIDTH
         paddle._move.current_speed = 5  # Moving right
@@ -83,6 +85,7 @@ class TestHorizontalPaddleUpdate:
         paddle.screen = self._create_mock_screen(left=0, right=SCREEN_WIDTH)
 
         # Position paddle in middle of screen
+        assert paddle.rect is not None
         paddle.rect.x = POS_200
         paddle.rect.left = POS_200
         paddle.rect.right = POS_200 + SIZE_100
@@ -156,6 +159,7 @@ class TestHorizontalPaddleDtTick:
             speed=5,
         )
         paddle.right()  # Start moving right
+        assert paddle.rect is not None
         original_x = paddle.rect.x
 
         # Use a large enough dt so that round(speed * dt) > 0
@@ -176,6 +180,7 @@ class TestHorizontalPaddleDtTick:
             speed=5,
         )
         paddle.stop()
+        assert paddle.rect is not None
         original_x = paddle.rect.x
 
         paddle.dt_tick(0.016)
@@ -207,6 +212,7 @@ class TestVerticalPaddleUpdate:
         paddle.screen_height = SCREEN_HEIGHT
 
         # Position paddle above top boundary
+        assert paddle.rect is not None
         paddle.rect.y = -10
         paddle.up()  # Moving up
 
@@ -221,6 +227,7 @@ class TestVerticalPaddleUpdate:
         paddle.screen_height = SCREEN_HEIGHT
 
         # Position paddle below bottom boundary
+        assert paddle.rect is not None
         paddle.rect.y = SCREEN_HEIGHT + 10
         paddle.rect.height = SIZE_100
         paddle.down()  # Moving down

@@ -15,10 +15,11 @@ as the core color management functionality is not exercised.
 import configparser
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pytest
 
-from glitchygames.color.palette import ColorPalette, PaletteUtility
+from glitchygames.color.palette import ColorLike, ColorPalette, PaletteUtility
 
 
 class TestColorPaletteCoverage:
@@ -26,7 +27,7 @@ class TestColorPaletteCoverage:
 
     def test_color_palette_initialization_with_colors(self):
         """Test ColorPalette initialization with colors list."""
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         palette = ColorPalette(colors)
 
         assert palette._colors == colors
@@ -68,7 +69,7 @@ class TestColorPaletteCoverage:
 
     def test_get_color_valid_index(self):
         """Test get_color with valid index."""
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         palette = ColorPalette(colors)
 
         result = palette.get_color(1)
@@ -76,7 +77,7 @@ class TestColorPaletteCoverage:
 
     def test_get_color_invalid_index(self):
         """Test get_color with invalid index."""
-        colors = [(255, 0, 0), (0, 255, 0)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors)
 
         result = palette.get_color(5)
@@ -91,19 +92,20 @@ class TestColorPaletteCoverage:
 
     def test_set_color_valid_index(self):
         """Test set_color with valid index."""
-        colors = [(255, 0, 0), (0, 255, 0)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors)
 
         palette.set_color(0, (128, 128, 128))  # Use index 0 instead of 1
-        assert palette._colors[0] == (128, 128, 128)
+        assert palette._colors[0] == (128, 128, 128)  # type: ignore[not-subscriptable]
 
     def test_set_color_invalid_index(self):
         """Test set_color with invalid index (appends to list)."""
-        colors = [(255, 0, 0), (0, 255, 0)]
+        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors)
 
         palette.set_color(5, (128, 128, 128))
-        assert palette._colors[2] == (128, 128, 128)
+        assert palette._colors[2] == (128, 128, 128)  # type: ignore[not-subscriptable]
+        assert palette._colors is not None
         expected_length = 3
         assert len(palette._colors) == expected_length
 

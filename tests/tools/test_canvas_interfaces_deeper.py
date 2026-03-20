@@ -13,6 +13,7 @@ Targets uncovered areas NOT covered by test_canvas_interfaces_coverage.py:
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -57,7 +58,7 @@ class TestAnimatedCanvasInterfaceGetPixelAtAnimated:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        pixel_data = [RED] * PIXEL_COUNT
+        pixel_data = cast(list[tuple[int, ...]], [RED] * PIXEL_COUNT)
         frame.set_pixel_data(pixel_data)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
@@ -78,7 +79,7 @@ class TestAnimatedCanvasInterfaceGetPixelAtAnimated:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        pixel_data = [RED_RGB] * PIXEL_COUNT
+        pixel_data = cast(list[tuple[int, ...]], [RED_RGB] * PIXEL_COUNT)
         frame.set_pixel_data(pixel_data)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
@@ -127,7 +128,7 @@ class TestAnimatedCanvasInterfaceGetOldPixelColor:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        pixel_data = [GREEN] * PIXEL_COUNT
+        pixel_data = cast(list[tuple[int, ...]], [GREEN] * PIXEL_COUNT)
         frame.set_pixel_data(pixel_data)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
@@ -182,7 +183,8 @@ class TestAnimatedCanvasInterfaceUpdateFramePixelData:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([MAGENTA] * PIXEL_COUNT)
+        magenta_pixels = cast(list[tuple[int, ...]], [MAGENTA] * PIXEL_COUNT)
+        frame.set_pixel_data(magenta_pixels)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
         del canvas_sprite.on_pixel_update_event  # Remove to test without event
@@ -208,7 +210,8 @@ class TestAnimatedCanvasInterfaceUpdateFramePixelData:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([MAGENTA] * PIXEL_COUNT)
+        magenta_pixels = cast(list[tuple[int, ...]], [MAGENTA] * PIXEL_COUNT)
+        frame.set_pixel_data(magenta_pixels)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
 
@@ -390,7 +393,7 @@ class TestAnimatedCanvasRendererMethods:
         mocker.patch.object(renderer, '_draw_hover_effects')
 
         result = renderer.force_redraw(canvas_sprite)
-        renderer._redraw_static_pixels.assert_called_once()
+        renderer._redraw_static_pixels.assert_called_once()  # type: ignore[unresolved-attribute]
         assert result is canvas_sprite.image
 
     def test_get_pixel_size_returns_tuple(self, mocker):

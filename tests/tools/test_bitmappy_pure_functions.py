@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -243,7 +244,9 @@ class TestConvertSpritToAlphaFormat:
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
         _convert_sprite_to_alpha_format(sprite_data)
-        assert 'alpha' not in sprite_data['colors']['#']
+        colors = sprite_data['colors']
+        assert isinstance(colors, dict)
+        assert 'alpha' not in colors['#']
 
 
 class TestConvertColorsToRgba:
@@ -350,14 +353,14 @@ class TestBuildColorToGlyphMap:
         """Test that a single unique color maps to the first sprite glyph."""
         from glitchygames.sprites import SPRITE_GLYPHS
 
-        pixels = [(255, 0, 0), (255, 0, 0)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (255, 0, 0)])
         result = _build_color_to_glyph_map(pixels)
         assert len(result) == 1
         assert result[255, 0, 0] == SPRITE_GLYPHS[0]
 
     def test_multiple_colors_map_to_different_glyphs(self):
         """Test that different colors get different glyphs."""
-        pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         result = _build_color_to_glyph_map(pixels)
         assert len(result) == 3
         glyph_values = list(result.values())
@@ -370,7 +373,7 @@ class TestBuildColorToGlyphMap:
 
     def test_rgba_pixels_stripped_to_rgb(self):
         """Test that RGBA pixels are mapped by their RGB components."""
-        pixels = [(255, 0, 0, 128), (255, 0, 0, 255)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 128), (255, 0, 0, 255)])
         result = _build_color_to_glyph_map(pixels)
         # Both should map to the same glyph since RGB is the same
         assert len(result) == 1
@@ -378,7 +381,7 @@ class TestBuildColorToGlyphMap:
 
     def test_duplicate_colors_not_repeated(self):
         """Test that duplicate colors only produce one mapping entry."""
-        pixels = [(10, 20, 30)] * 100
+        pixels = cast(list[tuple[int, ...]], [(10, 20, 30)] * 100)
         result = _build_color_to_glyph_map(pixels)
         assert len(result) == 1
 
@@ -388,34 +391,34 @@ class TestBuildAsciiGrid:
 
     def test_simple_2x2_grid(self):
         """Test building a 2x2 ASCII grid."""
-        pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
-        color_map = {
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)])
+        color_map = cast(dict[tuple[int, ...], str], {
             (255, 0, 0): '#',
             (0, 255, 0): '.',
             (0, 0, 255): '@',
             (255, 255, 0): '*',
-        }
+        })
         result = _build_ascii_grid(pixels, 2, 2, color_map)
         assert result == '#.\n@*'
 
     def test_single_pixel_grid(self):
         """Test building a 1x1 grid."""
-        pixels = [(0, 0, 0)]
-        color_map = {(0, 0, 0): '#'}
+        pixels = cast(list[tuple[int, ...]], [(0, 0, 0)])
+        color_map = cast(dict[tuple[int, ...], str], {(0, 0, 0): '#'})
         result = _build_ascii_grid(pixels, 1, 1, color_map)
         assert result == '#'
 
     def test_unmapped_color_uses_space(self):
         """Test that colors not in the map produce a space character."""
-        pixels = [(255, 0, 0), (99, 99, 99)]
-        color_map = {(255, 0, 0): '#'}
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (99, 99, 99)])
+        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 0): '#'})
         result = _build_ascii_grid(pixels, 2, 1, color_map)
         assert result == '# '
 
     def test_rgba_pixels_use_rgb_for_lookup(self):
         """Test that RGBA pixels use their RGB portion for map lookup."""
-        pixels = [(255, 0, 0, 128), (0, 255, 0, 200)]
-        color_map = {(255, 0, 0): '#', (0, 255, 0): '.'}
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 128), (0, 255, 0, 200)])
+        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 0): '#', (0, 255, 0): '.'})
         result = _build_ascii_grid(pixels, 2, 1, color_map)
         assert result == '#.'
 
@@ -426,8 +429,8 @@ class TestBuildAsciiGrid:
 
     def test_width_larger_than_pixels(self):
         """Test that grid handles fewer pixels than width*height gracefully."""
-        pixels = [(255, 0, 0)]
-        color_map = {(255, 0, 0): '#'}
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0)])
+        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 0): '#'})
         result = _build_ascii_grid(pixels, 2, 1, color_map)
         assert result == '#'
 
@@ -437,29 +440,29 @@ class TestBuildRendererColorDict:
 
     def test_rgb_pixels_get_default_alpha_255(self):
         """Test that RGB-only pixels get alpha=255 in the renderer dict."""
-        pixels = [(100, 150, 200)]
-        color_map = {(100, 150, 200): '#'}
+        pixels = cast(list[tuple[int, ...]], [(100, 150, 200)])
+        color_map = cast(dict[tuple[int, ...], str], {(100, 150, 200): '#'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['#'] == (100, 150, 200, 255)
 
     def test_rgba_pixels_preserve_alpha(self):
         """Test that RGBA pixels preserve their alpha value."""
-        pixels = [(100, 150, 200, 64)]
-        color_map = {(100, 150, 200): '#'}
+        pixels = cast(list[tuple[int, ...]], [(100, 150, 200, 64)])
+        color_map = cast(dict[tuple[int, ...], str], {(100, 150, 200): '#'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['#'] == (100, 150, 200, 64)
 
     def test_magenta_rendered_as_white(self):
         """Test that magenta (255, 0, 255) is rendered as white."""
-        pixels = [(255, 0, 255)]
-        color_map = {(255, 0, 255): '.'}
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 255)])
+        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 255): '.'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['.'] == (255, 255, 255, 255)
 
     def test_magenta_with_alpha_rendered_as_white_with_alpha(self):
         """Test that magenta RGBA pixel renders as white with the pixel's alpha."""
-        pixels = [(255, 0, 255, 0)]
-        color_map = {(255, 0, 255): '.'}
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 255, 0)])
+        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 255): '.'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['.'] == (255, 255, 255, 0)
 
@@ -470,8 +473,8 @@ class TestBuildRendererColorDict:
 
     def test_multiple_colors(self):
         """Test building renderer dict with multiple colors."""
-        pixels = [(255, 0, 0), (0, 255, 0)]
-        color_map = {(255, 0, 0): '#', (0, 255, 0): '.'}
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0)])
+        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 0): '#', (0, 255, 0): '.'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['#'] == (255, 0, 0, 255)
         assert result['.'] == (0, 255, 0, 255)
@@ -487,7 +490,7 @@ class TestRenderFrameToAscii:
         frame.get_size.return_value = (2, 1)
 
         renderer = mocker.Mock()
-        renderer._colorize_pixels.return_value = 'colorized output'
+        renderer.colorize_pixels.return_value = 'colorized output'
 
         result = _render_frame_to_ascii(frame, renderer)
         assert result == 'colorized output'
@@ -508,7 +511,7 @@ class TestRenderFrameToAscii:
         frame.get_size.return_value = (1, 1)
 
         renderer = mocker.Mock()
-        renderer._colorize_pixels.side_effect = AttributeError('no _colorize_pixels')
+        renderer.colorize_pixels.side_effect = AttributeError('no _colorize_pixels')
 
         result = _render_frame_to_ascii(frame, renderer)
         # Should get the plain ASCII grid as fallback
@@ -989,7 +992,7 @@ class TestRenderStaticSpriteAscii:
         sprite._animations = {'idle': [frame]}
 
         renderer = mocker.Mock()
-        renderer._colorize_pixels.return_value = 'output'
+        renderer.colorize_pixels.return_value = 'output'
 
         _render_static_sprite_ascii(sprite, renderer)
         # Verify frame was accessed

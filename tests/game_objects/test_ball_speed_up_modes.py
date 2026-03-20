@@ -51,6 +51,7 @@ def _test_wall_bounce_logarithmic():
     )
     LOG.debug(f'   Initial speed: {ball.speed.x:.2f}')
 
+    assert ball.rect is not None
     ball.rect.y = 0
     ball._do_bounce()
     LOG.debug(f'   After top bounce: {ball.speed.x:.2f}')
@@ -88,6 +89,7 @@ def _test_combined_logarithmic():
     ball.dt_tick(0.2)
     LOG.debug(f'   After 0.2s continuous: {ball.speed.x:.2f}')
 
+    assert ball.rect is not None
     ball.rect.y = 0
     ball._do_bounce()
     LOG.debug(f'   After wall bounce: {ball.speed.x:.2f}')
@@ -111,6 +113,7 @@ def _test_all_logarithmic_combined():
     ball.on_paddle_bounce()
     LOG.debug(f'   After paddle: {ball.speed.x:.2f}')
 
+    assert ball.rect is not None
     ball.rect.y = 0
     ball._do_bounce()
     LOG.debug(f'   After wall: {ball.speed.x:.2f}')
@@ -175,4 +178,4 @@ def test_speed_up_modes(mocker):
 
 
 if __name__ == '__main__':
-    test_speed_up_modes()
+    test_speed_up_modes()  # type: ignore[missing-argument]

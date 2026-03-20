@@ -17,11 +17,11 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
+def main() -> int:
     """Run the animation demo.
 
     Returns:
-        object: The result.
+        int: Exit code (0 for success, 1 for failure).
 
     """
     # Initialize pygame
@@ -44,11 +44,13 @@ def main() -> None:
         animated_sprite.play()
 
         # Calculate scaled size based on original sprite size
+        assert animated_sprite.image is not None
         original_size = animated_sprite.image.get_size()
         scaled_size = (original_size[0] * scale_factor, original_size[1] * scale_factor)
 
         # Set up the sprite rect for the scaled size and center it on screen
         animated_sprite.rect = pygame.Rect(0, 0, scaled_size[0], scaled_size[1])
+        assert animated_sprite.rect is not None
         animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
 
         logger.info(f'Loaded: {animated_sprite.name} ({animated_sprite.frame_count} frames)')
@@ -86,6 +88,8 @@ def main() -> None:
 
         # Scale the current frame for display
         current_frame = animated_sprite.image
+        assert current_frame is not None
+        assert scaled_size is not None
         scaled_frame = pygame.transform.scale(current_frame, scaled_size)
 
         # Calculate position to center the scaled frame on screen

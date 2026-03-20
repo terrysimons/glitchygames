@@ -37,11 +37,11 @@ class TestSceneManagerGetattr:
         """Test __getattr__ proxies on_*_event calls to active scene."""
         manager = SceneManager()
         scene = Scene()
-        scene.on_custom_test_event = mocker.Mock()
+        scene.on_custom_test_event = mocker.Mock()  # type: ignore[unresolved-attribute]
         manager.active_scene = scene
 
         handler = manager.on_custom_test_event
-        assert handler is scene.on_custom_test_event
+        assert handler is scene.on_custom_test_event  # type: ignore[unresolved-attribute]
 
     def test_getattr_raises_for_non_event_attributes(self, mock_pygame_patches, mocker):
         """Test __getattr__ raises AttributeError for non-event attributes."""
@@ -107,7 +107,7 @@ class TestSceneManagerShouldPostFpsEvent:
     def test_should_post_fps_event_true(self, mock_pygame_patches, mocker):
         """Test returns True when enough time has elapsed."""
         manager = SceneManager()
-        manager.OPTIONS = {'fps_log_interval_ms': 1000}
+        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
 
         # 1 second elapsed, interval is 500ms (half of 1000)
         result = manager._should_post_fps_event(current_time=2.0, previous_fps_time=1.0)
@@ -116,7 +116,7 @@ class TestSceneManagerShouldPostFpsEvent:
     def test_should_post_fps_event_false(self, mock_pygame_patches, mocker):
         """Test returns False when not enough time has elapsed."""
         manager = SceneManager()
-        manager.OPTIONS = {'fps_log_interval_ms': 1000}
+        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
 
         # 0.1 second elapsed, interval is 500ms
         result = manager._should_post_fps_event(current_time=1.1, previous_fps_time=1.0)
@@ -324,6 +324,7 @@ class TestSceneRender:
         mock_draw = mocker.patch.object(scene.all_sprites, 'draw', return_value=[])
         mock_clear = mocker.patch.object(scene.all_sprites, 'clear')
 
+        assert scene.screen is not None
         scene.render(scene.screen)
         mock_clear.assert_called_once()
         mock_draw.assert_called_once_with(scene.screen)

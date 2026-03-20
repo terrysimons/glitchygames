@@ -38,6 +38,7 @@ def test_paddle_movement():
 
     for direction in directions:
         # Reset paddle position
+        assert paddle.rect is not None
         paddle.rect.y = 300
 
         # Set movement direction

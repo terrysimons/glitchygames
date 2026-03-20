@@ -18,6 +18,7 @@ Targets areas NOT covered by test_animated_coverage.py:
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -431,7 +432,7 @@ class TestSpriteFrameEdgeCases:
         surface = pygame.Surface((2, 2))
         frame = SpriteFrame(surface)
         # 8 pixels for a 2x2 (4 pixel) surface
-        large_pixels = [(255, 0, 0, 255)] * 8
+        large_pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255)] * 8)
         frame.set_pixel_data(large_pixels)
         # Should store all pixels but only set surface pixels up to width*height
         assert len(frame.pixels) == 8

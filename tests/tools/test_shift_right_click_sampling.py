@@ -69,8 +69,8 @@ class TestShiftRightClickSampling:
 
         # Ensure rect has real int coordinates since pygame.Surface is mocked
         # and get_rect() returns Mock attributes instead of real ints
-        self.film_strip_sprite.rect.x = 100
-        self.film_strip_sprite.rect.y = 100
+        self.film_strip_sprite.rect.x = 100  # type: ignore[invalid-assignment]
+        self.film_strip_sprite.rect.y = 100  # type: ignore[invalid-assignment]
 
     def test_regular_right_click_samples_pixel_data(self, mocker):
         """Test that regular right-click samples from pixel data (RGBA)."""

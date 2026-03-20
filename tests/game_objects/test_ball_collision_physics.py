@@ -30,10 +30,11 @@ class TestBallCollisionPhysics:
             speed_up_multiplier=1.0,
             speed_up_interval=1.0,
         )
+        assert ball.rect is not None
         ball.rect.x = x
         ball.rect.y = y
         ball.speed = Speed(speed_x, speed_y)
-        ball.collision_cooldowns = {}
+        ball.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
         return ball
 
     def _simulate_collision(self, ball1, ball2):

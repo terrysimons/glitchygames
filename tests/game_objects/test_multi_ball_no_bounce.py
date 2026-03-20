@@ -25,6 +25,7 @@ def _create_no_bounce_balls(num_balls, screen_width=800, screen_height=600):
             bounce_top_bottom=False,
             bounce_left_right=False,
         )
+        assert ball.rect is not None
         ball.rect.x = random.randint(100, screen_width - 100)
         ball.rect.y = random.randint(100, screen_height - 100)
         ball.speed.x = random.uniform(-300, 300)

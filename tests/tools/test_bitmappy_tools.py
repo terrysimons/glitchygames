@@ -1,6 +1,7 @@
 """Tests for bitmappy tool operations: alpha blending, color calculations, scoring."""
 
 import logging
+from typing import cast
 
 import pytest
 
@@ -123,22 +124,22 @@ class TestPixelsHaveAlpha:
 
     def test_rgb_pixels_no_alpha(self):
         """Test that RGB-only pixels report no alpha."""
-        pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         assert _pixels_have_alpha(pixels) is False
 
     def test_rgba_opaque_pixels_no_alpha(self):
         """Test that fully opaque RGBA pixels report no alpha."""
-        pixels = [(255, 0, 0, 255), (0, 255, 0, 255)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255), (0, 255, 0, 255)])
         assert _pixels_have_alpha(pixels) is False
 
     def test_rgba_with_transparency(self):
         """Test that RGBA pixels with transparency are detected."""
-        pixels = [(255, 0, 0, 128), (0, 255, 0, 255)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 128), (0, 255, 0, 255)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_fully_transparent_pixel(self):
         """Test detection of fully transparent pixel."""
-        pixels = [(255, 0, 0, 0)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 0)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_empty_pixel_list(self):
@@ -147,7 +148,7 @@ class TestPixelsHaveAlpha:
 
     def test_mixed_rgb_and_rgba(self):
         """Test with mix of RGB and RGBA pixels."""
-        pixels = [(255, 0, 0), (0, 255, 0, 100)]
+        pixels: list[tuple[int, ...]] = [(255, 0, 0), (0, 255, 0, 100)]
         assert _pixels_have_alpha(pixels) is True
 
 
@@ -160,7 +161,7 @@ class TestSpriteHasPerPixelAlpha:
         class DummySprite:
             pass
 
-        assert _sprite_has_per_pixel_alpha(DummySprite()) is False
+        assert _sprite_has_per_pixel_alpha(DummySprite()) is False  # type: ignore[invalid-argument-type]
 
     def test_sprite_with_opaque_frames(self, mocker):
         """Test sprite with only opaque pixels returns False."""
@@ -259,7 +260,7 @@ class TestCalculateAnimationDuration:
 
     def test_static_sprite(self):
         """Test that static sprites return zero duration."""
-        total_duration, is_looped = _calculate_animation_duration(object(), 'static')
+        total_duration, is_looped = _calculate_animation_duration(object(), 'static')  # type: ignore[invalid-argument-type]
         assert total_duration == pytest.approx(0.0)
         assert is_looped is False
 

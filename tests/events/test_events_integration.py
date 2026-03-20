@@ -70,7 +70,7 @@ class TestEventIntegration:
 
         # Create a proper pygame event with dict attribute
         pygame_event = pygame.event.Event(pygame.CONTROLLERAXISMOTION, axis=0, value=0.5)
-        pygame_event.dict = {'type': pygame.CONTROLLERAXISMOTION, 'axis': 0, 'value': 0.5}
+        pygame_event.dict = {'type': pygame.CONTROLLERAXISMOTION, 'axis': 0, 'value': 0.5}  # type: ignore[invalid-assignment]
 
         mocker.patch('pygame.event.get', return_value=[pygame_event])
         result = engine.process_events()
@@ -149,7 +149,7 @@ class TestEventIntegration:
         engine = GameEngine(game=scene)
 
         # Set up the scene manager to delegate to our scene
-        engine.scene_manager.game = scene
+        engine.scene_manager.game = scene  # type: ignore[unresolved-attribute]
 
         # Set up the audio manager to delegate to the scene
         from glitchygames.events.audio import AudioEventManager
@@ -160,7 +160,7 @@ class TestEventIntegration:
         def scene_audio_handler(event):
             return scene.on_audio_device_added_event(event)
 
-        engine.scene_manager.on_audio_device_added_event = scene_audio_handler
+        engine.scene_manager.on_audio_device_added_event = scene_audio_handler  # type: ignore[unresolved-attribute]
 
         # Create multiple HashableEvents
         events = [

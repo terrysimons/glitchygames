@@ -71,7 +71,7 @@ class TestMultiControllerErrorHandler:
     @pytest.fixture(autouse=True)
     def _setup_handler(self):
         """Create handler with the missing method patched."""
-        MultiControllerErrorHandler._setup_default_handlers = lambda self: None
+        MultiControllerErrorHandler._setup_default_handlers = lambda self: None  # type: ignore[invalid-assignment]
         self.handler = MultiControllerErrorHandler()
         yield
         # Clean up the monkey-patched method
@@ -409,8 +409,8 @@ class TestMultiControllerValidator:
         """Test validating invalid positions."""
         assert self.validator.validate_position((100,)) is False
         assert self.validator.validate_position((100, 200, 300)) is False
-        assert self.validator.validate_position([100, 200]) is False
-        assert self.validator.validate_position(('a', 'b')) is False
+        assert self.validator.validate_position([100, 200]) is False  # type: ignore[arg-type]
+        assert self.validator.validate_position(('a', 'b')) is False  # type: ignore[arg-type]
 
     def test_validate_color_valid(self):
         """Test validating valid colors."""
@@ -424,7 +424,7 @@ class TestMultiControllerValidator:
         assert self.validator.validate_color((-1, 0, 0)) is False
         assert self.validator.validate_color((255, 0)) is False
         assert self.validator.validate_color((255, 0, 0, 0)) is False
-        assert self.validator.validate_color([255, 0, 0]) is False
+        assert self.validator.validate_color([255, 0, 0]) is False  # type: ignore[arg-type]
 
     def test_validate_animation_name_valid(self):
         """Test validating valid animation names."""
@@ -435,7 +435,7 @@ class TestMultiControllerValidator:
     def test_validate_animation_name_invalid(self):
         """Test validating invalid animation names."""
         assert self.validator.validate_animation_name('') is False
-        assert self.validator.validate_animation_name(123) is False
+        assert self.validator.validate_animation_name(123) is False  # type: ignore[arg-type]
 
     def test_validate_frame_index_valid(self):
         """Test validating valid frame indices."""
@@ -446,5 +446,5 @@ class TestMultiControllerValidator:
     def test_validate_frame_index_invalid(self):
         """Test validating invalid frame indices."""
         assert self.validator.validate_frame_index(-1) is False
-        assert self.validator.validate_frame_index(1.5) is False
-        assert self.validator.validate_frame_index('0') is False
+        assert self.validator.validate_frame_index(1.5) is False  # type: ignore[arg-type]
+        assert self.validator.validate_frame_index('0') is False  # type: ignore[arg-type]

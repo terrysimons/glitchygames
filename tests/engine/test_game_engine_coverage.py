@@ -19,6 +19,7 @@ Targets uncovered areas NOT covered by existing test files:
 """
 
 import sys
+from collections import OrderedDict
 from pathlib import Path
 
 import pygame
@@ -897,16 +898,16 @@ class TestGameEngineDel:
 
         # Set up some sprite counters
         Sprite.SPRITE_COUNT = 5
-        Sprite.SPRITE_COUNTERS = {
+        Sprite.SPRITE_COUNTERS = OrderedDict({
             'TestSprite': {'created': 3, 'destroyed': 2},
-        }
+        })
 
         # Trigger __del__ via del statement
         del engine
 
         # Clean up
         Sprite.SPRITE_COUNT = 0
-        Sprite.SPRITE_COUNTERS = {}
+        Sprite.SPRITE_COUNTERS = OrderedDict()
 
 
 class TestGameEngineTimerBackendError:

@@ -37,7 +37,7 @@ class PerformanceMonitor:
     def __init__(self) -> None:
         """Initialize performance monitor."""
         self.metrics: dict[str, PerformanceMetrics] = {}
-        self.operation_history: dict[str, deque] = {}
+        self.operation_history: dict[str, deque[float]] = {}
         self.lock = threading.Lock()
 
     def record_operation(self, operation: str, duration: float) -> None:
@@ -200,7 +200,7 @@ class MemoryManager:
 
     def __init__(self) -> None:
         """Initialize memory manager."""
-        self.weak_refs: dict[int, weakref.ref] = {}
+        self.weak_refs: dict[int, weakref.ref[Any]] = {}
         self.memory_usage: dict[str, int] = {}
         self.cleanup_threshold = 1000  # Cleanup when this many objects exist
 
@@ -222,7 +222,7 @@ class MemoryManager:
 
         """
         cleaned_count = 0
-        dead_objects = []
+        dead_objects: list[int] = []
 
         for obj_id, weak_ref in self.weak_refs.items():
             if weak_ref() is None:
@@ -470,7 +470,7 @@ class MultiControllerPerformanceOptimizer:
 
         """
         cleaned_count = 0
-        inactive_controllers = []
+        inactive_controllers: list[int] = []
 
         for controller_id, selection in self.controller_selections.items():
             if not selection.is_active():

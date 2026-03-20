@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import sys
 import time
+from typing import Any
 
 LOG = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class FastTimer:
             try:
                 import ctypes
 
-                ctypes.windll.winmm.timeEndPeriod(1)
+                ctypes.windll.winmm.timeEndPeriod(1)  # ty: ignore[unresolved-attribute]
             except (OSError, AttributeError) as timer_error:
                 LOG.debug('Windows timer resolution cleanup failed: %s', timer_error)
 
@@ -175,16 +176,19 @@ class FastTimer:
                 return now
 
 
-def create_timer(timer_type: str | None, options: dict | None = None) -> PygameTimer | FastTimer:
+def create_timer(
+    timer_type: str | None, options: dict[str, Any] | None = None
+) -> PygameTimer | FastTimer:
     """Create a timer backend instance based on the given type string.
 
     Returns:
         PygameTimer | FastTimer: The created timer backend.
 
     """
-    tt = (timer_type or (options or {}).get('timer_backend') or 'pygame').lower()
+    opts: dict[str, Any] = options or {}
+    tt: str = (timer_type or opts.get('timer_backend', 'pygame')).lower()
     if tt == 'fast':
-        sleep_gran_ns = (options or {}).get('sleep_granularity_ns', 1_000_000)
-        windows_1ms = bool((options or {}).get('windows_timer_1ms', False))
+        sleep_gran_ns: int = int(opts.get('sleep_granularity_ns', 1_000_000))
+        windows_1ms: bool = bool(opts.get('windows_timer_1ms'))
         return FastTimer(sleep_granularity_ns=sleep_gran_ns, windows_timer_1ms=windows_1ms)
     return PygameTimer()

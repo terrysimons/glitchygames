@@ -4,14 +4,14 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import argparse
 
 import pygame
 
-from glitchygames.events import KEYBOARD_EVENTS, KeyboardEvents, ResourceManager
+from glitchygames.events import KEYBOARD_EVENTS, HashableEvent, KeyboardEvents, ResourceManager
 
 log = logging.getLogger('game.keyboard')
 log.addHandler(logging.NullHandler())
@@ -31,11 +31,12 @@ class KeyboardEventManager(ResourceManager):
 
             """
             super().__init__(game=game)
-            self.keys = {}
-            self.game = game
+            self.keys: dict[Any, Any] = {}
+            self.game: Any = game
             self.proxies = [self.game, pygame.key]
 
-        def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_key_down_event(self: Self, event: HashableEvent) -> None:
             """Handle key down events.
 
             Args:
@@ -60,7 +61,8 @@ class KeyboardEventManager(ResourceManager):
             self.game.on_key_down_event(event)
             self.on_key_chord_down_event(event)
 
-        def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_key_up_event(self: Self, event: HashableEvent) -> None:
             """Handle key up events.
 
             Args:
@@ -75,29 +77,39 @@ class KeyboardEventManager(ResourceManager):
             self.game.on_key_up_event(event)
             self.on_key_chord_up_event(event)
 
-        def on_key_chord_down_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_key_chord_down_event(
+            self: Self, event: HashableEvent, keys: list[int] | None = None
+        ) -> None:
             """Handle key chord down events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (HashableEvent): The event to handle.
+                keys (list[int] | None): The keys in the chord
+                    (computed internally if not provided).
 
             """
-            keys_down: tuple = tuple(
+            keys_down: tuple[Any, ...] = tuple(
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
             )
 
-            event['keys_down'] = keys_down  # type: ignore[reportIndexIssue]
+            event['keys_down'] = keys_down
 
             self.game.on_key_chord_down_event(event, keys_down)
 
-        def on_key_chord_up_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_key_chord_up_event(
+            self: Self, event: HashableEvent, keys: list[int] | None = None
+        ) -> None:
             """Handle key chord up events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
+                event (HashableEvent): The event to handle.
+                keys (list[int] | None): The keys in the chord
+                    (computed internally if not provided).
 
             """
-            keys_down: tuple = tuple(
+            keys_down: tuple[Any, ...] = tuple(
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
             )
 

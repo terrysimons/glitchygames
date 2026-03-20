@@ -854,6 +854,7 @@ class TestCalculateScrollOffset:
         frames = sprite._animations['idle']
         offset = widget._calculate_scroll_offset(9, frames)
         frame_width = widget.frame_width + widget.frame_spacing
+        assert widget.rect is not None
         max_scroll = max(0, len(frames) * frame_width - widget.rect.width)
         assert offset <= max_scroll
 
@@ -1000,6 +1001,7 @@ class TestUpdateHeightMultipleAnimations:
         widget._update_height()
         # Calculate expected height for 5 animations (the max)
         expected_height = (widget.animation_label_height + widget.frame_height + 20) * 5 + 20
+        assert widget.rect is not None
         assert widget.rect.height == expected_height
 
     def test_update_height_with_parent_canvas(self, mocker):

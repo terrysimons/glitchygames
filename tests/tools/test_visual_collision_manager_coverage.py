@@ -174,7 +174,7 @@ class TestGetCollisionGroupsForLocationDefault:
     def test_unknown_location_returns_default_groups(self):
         """Test that unknown location type returns default collision_groups (line 347)."""
         # Pass None location type to hit the default return
-        result = self.manager._get_collision_groups_for_location(None)
+        result = self.manager._get_collision_groups_for_location(None)  # type: ignore[arg-type]
 
         assert result is self.manager.collision_groups
 
@@ -353,6 +353,6 @@ class TestGetIndicatorsByLocationDefault:
         )
 
         # Pass None to trigger the default return
-        result = self.manager.get_indicators_by_location(None)
+        result = self.manager.get_indicators_by_location(None)  # type: ignore[arg-type]
 
         assert result is self.manager.indicators

@@ -459,7 +459,7 @@ class TestMenuItemAddMenu:
         item = MenuItem(x=x, y=y, width=width, height=height, name=name)
         # MenuItem.add_menu references self.x which isn't set by Sprite.__init__
         # This is needed for the add_menu path to work
-        item.x = x
+        item.x = x  # type: ignore[unresolved-attribute]
         return item
 
     def test_add_menu_first_item(self, mocker):
@@ -501,6 +501,7 @@ class TestMenuItemAddMenu:
         parent_item.add_menu(sub_item)
 
         # After adding menu, rect should have been resized
+        assert parent_item.rect is not None
         assert parent_item.rect.width == parent_item.menu_down_rect.width
         assert parent_item.rect.height == parent_item.menu_down_rect.height
 
@@ -540,6 +541,7 @@ class TestTextSpritePropertyAccessors:
         )
         text_sprite.x = 50
         assert text_sprite.x == 50
+        assert text_sprite.rect is not None
         assert text_sprite.rect.x == 50
         assert text_sprite.dirty == 2
 
@@ -561,6 +563,7 @@ class TestTextSpritePropertyAccessors:
         )
         text_sprite.y = 100
         assert text_sprite.y == 100
+        assert text_sprite.rect is not None
         assert text_sprite.rect.y == 100
         assert text_sprite.dirty == 2
 
@@ -705,6 +708,7 @@ class TestButtonSpriteExtended:
         button = ButtonSprite(x=10, y=20, width=100, height=40, name='TestBtn')
         button.x = 50
         assert button.x == 50
+        assert button.rect is not None
         assert button.rect.x == 50
         assert button.dirty == 1
 
@@ -717,6 +721,7 @@ class TestButtonSpriteExtended:
         button = ButtonSprite(x=10, y=20, width=100, height=40, name='TestBtn')
         button.y = 80
         assert button.y == 80
+        assert button.rect is not None
         assert button.rect.y == 80
         assert button.dirty == 1
 

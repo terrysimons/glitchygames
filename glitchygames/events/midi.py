@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
@@ -13,7 +13,7 @@ from glitchygames.events import MIDI_EVENTS
 if TYPE_CHECKING:
     import argparse
 
-from glitchygames.events import MidiEvents, ResourceManager
+from glitchygames.events import HashableEvent, MidiEvents, ResourceManager
 
 log = logging.getLogger('game.midi')
 log.addHandler(logging.NullHandler())
@@ -28,15 +28,17 @@ class MidiEventManager(ResourceManager):
         def __init__(self: Self, game: object) -> None:
             """Initialize the MIDI event proxy with a game object."""
             super().__init__(game)
-            self.game = game
+            self.game: Any = game
             self.proxies = [self.game]
 
-        def on_midi_in_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_midi_in_event(self: Self, event: HashableEvent) -> None:
             """Forward MIDI input events to the game object."""
             if hasattr(self.game, 'on_midi_in_event'):
                 self.game.on_midi_in_event(event)
 
-        def on_midi_out_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_midi_out_event(self: Self, event: HashableEvent) -> None:
             """Forward MIDI output events to the game object."""
             if hasattr(self.game, 'on_midi_out_event'):
                 self.game.on_midi_out_event(event)

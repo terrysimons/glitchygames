@@ -167,7 +167,7 @@ class TestOnKeyDownEvent:
         scene.on_key_down_event(event)
 
         # Scene-level key events should not be called
-        scene._handle_scene_key_events.assert_not_called()
+        scene._handle_scene_key_events.assert_not_called()  # type: ignore[unresolved-attribute]
 
 
 class TestHandleFocusedSpriteEvents:

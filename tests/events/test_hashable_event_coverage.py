@@ -247,12 +247,12 @@ class TestHashableEventMiscMethods:
         assert len(event) == 0
 
     def test_copy_returns_dict_copy(self, mock_pygame_patches):
-        """copy() should return a shallow copy of the internal __dict__."""
+        """copy() should return a shallow copy as a HashableEvent."""
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_a)
         copied = event.copy()
-        assert isinstance(copied, dict)
-        assert 'key' in copied
-        assert copied['key'] == pygame.K_a
+        assert isinstance(copied, HashableEvent)
+        assert hasattr(copied, 'key')
+        assert copied.key == pygame.K_a
 
     def test_hash_is_consistent(self, mock_pygame_patches):
         """hash() should return a consistent value for the same event."""

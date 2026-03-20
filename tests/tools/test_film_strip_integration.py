@@ -67,6 +67,9 @@ class TestFilmStripIntegration(FilmStripTestBase):
         first_film_strip_sprite = next(iter(scene.film_strip_sprites.values()))
 
         # Check that film strip is positioned to the right of canvas
+        assert first_film_strip.rect is not None
+        assert scene.canvas.rect is not None
+        assert first_film_strip_sprite.rect is not None
         assert first_film_strip.rect.x >= scene.canvas.rect.right
         assert first_film_strip.rect.y == scene.canvas.rect.y
 
@@ -83,6 +86,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
         first_film_strip = next(iter(scene.film_strips.values()))
 
         # Minimum width
+        assert first_film_strip.rect is not None
         assert first_film_strip.rect.width >= MIN_FILM_STRIP_WIDTH
         assert first_film_strip.rect.width > 0
 
@@ -102,6 +106,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
+        assert film_strip.rect is not None
         assert film_strip.rect.height > 0
 
         # Height should be reasonable for the number of animations
@@ -155,6 +160,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
         film_strip_sprite = next(iter(scene.film_strip_sprites.values()))
 
         # Create mock click event
+        assert film_strip_sprite.rect is not None
         mock_event = self._mocker.Mock()
         mock_event.pos = (
             film_strip_sprite.rect.x + CLICK_OFFSET,
@@ -542,6 +548,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
         film_strip_widget = next(iter(scene.film_strips.values()))
 
         # Create mock event
+        assert film_strip_sprite.rect is not None
         mock_event = self._mocker.Mock()
         mock_event.pos = (
             film_strip_sprite.rect.x + CLICK_OFFSET,

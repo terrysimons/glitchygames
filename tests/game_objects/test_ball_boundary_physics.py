@@ -37,6 +37,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
 
         # Simulate movement that would go past top boundary
+        assert ball.rect is not None
         ball.rect.y = -5  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
 
@@ -56,6 +57,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, 50.0)  # Moving down
 
         # Simulate movement that would go past bottom boundary
+        assert ball.rect is not None
         ball.rect.y = 600  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
 
@@ -75,6 +77,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(-50.0, 100.0)  # Moving left
 
         # Simulate movement that would go past left boundary
+        assert ball.rect is not None
         ball.rect.x = -5  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
 
@@ -94,6 +97,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(50.0, 100.0)  # Moving right
 
         # Simulate movement that would go past right boundary
+        assert ball.rect is not None
         ball.rect.x = 800  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
 
@@ -115,6 +119,7 @@ class TestBallBoundaryPhysics:
         initial_speed_y = ball.speed.y
 
         # Simulate movement past boundary
+        assert ball.rect is not None
         ball.rect.y = -5
         ball.dt_tick(0.016)
 
@@ -129,6 +134,7 @@ class TestBallBoundaryPhysics:
         )
         ball.speed = Speed(-50.0, -50.0)  # Moving up-left
 
+        assert ball.rect is not None
         ball.rect.x = -5
         ball.rect.y = -5
         ball.dt_tick(0.016)
@@ -152,6 +158,7 @@ class TestBallBoundaryPhysics:
         # Test with very high speed that could cause clipping
         ball.speed = Speed(1000.0, 1000.0)  # Very fast movement
 
+        assert ball.rect is not None
         initial_x = ball.rect.x
         initial_y = ball.rect.y
 
@@ -177,6 +184,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
         initial_speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
 
+        assert ball.rect is not None
         ball.rect.y = -5
         ball.dt_tick(0.016)
 
@@ -198,6 +206,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(0.0, -100.0)  # Moving straight up
 
         # Simulate multiple frames of bouncing
+        assert ball.rect is not None
         for _ in range(10):
             ball.rect.y = -5  # Past boundary
             ball.dt_tick(0.016)
@@ -221,6 +230,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
         initial_speed_y = abs(ball.speed.y)
 
+        assert ball.rect is not None
         ball.rect.y = -5
         ball.dt_tick(0.016)
 
@@ -239,6 +249,7 @@ class TestBallBoundaryPhysics:
         )
         ball.speed = Speed(0.0, 0.0)  # Zero speed
 
+        assert ball.rect is not None
         ball.rect.y = -5  # Past boundary
         ball.dt_tick(0.016)
 
@@ -261,6 +272,7 @@ class TestBallBoundaryPhysics:
         # Mock the sound
         ball.snd = mocker.Mock()
 
+        assert ball.rect is not None
         ball.rect.y = -5
         ball.dt_tick(0.016)
 
@@ -281,6 +293,7 @@ class TestBallBoundaryPhysics:
         mock_log = mocker.Mock()
         mock_logger.return_value = mock_log
 
+        assert ball.rect is not None
         ball.rect.y = -5
         ball.dt_tick(0.016)
 

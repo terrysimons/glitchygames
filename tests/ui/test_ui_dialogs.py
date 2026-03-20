@@ -13,6 +13,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.events.core import HashableEvent
 from glitchygames.ui.dialogs import (
     InputConfirmationDialogScene,
     LoadDialogScene,
@@ -196,14 +197,14 @@ class TestSaveDialogScene:
         scene = SaveDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate filename input
-        scene.on_text_input_event('n')
-        scene.on_text_input_event('e')
-        scene.on_text_input_event('w')
-        scene.on_text_input_event('_')
-        scene.on_text_input_event('f')
-        scene.on_text_input_event('i')
-        scene.on_text_input_event('l')
-        scene.on_text_input_event('e')
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='n'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='e'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='w'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='_'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='f'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='i'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='l'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='e'))
 
         # Assert: should handle filename input
         assert scene is not None
@@ -262,10 +263,10 @@ class TestNewCanvasDialogScene:
         scene = NewCanvasDialogScene(previous_scene=mocker.Mock(), groups=mock_groups)
 
         # Act: simulate dimension input
-        scene.on_text_input_event('1')
-        scene.on_text_input_event('0')
-        scene.on_text_input_event('2')
-        scene.on_text_input_event('4')
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='1'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='0'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='2'))
+        scene.on_text_input_event(HashableEvent(pygame.TEXTINPUT, text='4'))
 
         # Assert: should handle dimension input
         assert scene is not None

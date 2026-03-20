@@ -129,7 +129,7 @@ class TestCharacterLimitEnforcement:
 
         # Create frame with all colors
         frame = SpriteFrame(pygame.Surface((8, 8)))
-        pixels = [colors[i] for i in range(64)]  # 8x8 = 64 pixels
+        pixels: list[tuple[int, ...]] = [colors[i] for i in range(64)]  # 8x8 = 64 pixels
 
         frame.set_pixel_data(pixels)
         animated_sprite.add_animation('test_anim', [frame])
@@ -140,7 +140,8 @@ class TestCharacterLimitEnforcement:
         assert toml_file.exists()
 
         # Test with 65 colors (should fail)
-        frame.set_pixel_data([*colors, (255, 255, 255)])  # Add one more color
+        overflow_pixels: list[tuple[int, ...]] = [*colors, (255, 255, 255)]  # Add one more color
+        frame.set_pixel_data(overflow_pixels)
 
         with pytest.raises(ValueError, match='Too many colors'):
             animated_sprite.save(str(toml_file), 'toml')
@@ -202,7 +203,8 @@ class TestCharacterLimitEnforcement:
             colors1.append((r, g, b))
 
         frame1 = SpriteFrame(pygame.Surface((33, 1)))
-        frame1.set_pixel_data(colors1)  # Use all 33 colors
+        colors1_pixels: list[tuple[int, ...]] = colors1
+        frame1.set_pixel_data(colors1_pixels)  # Use all 33 colors
         animated_sprite.add_animation('anim1', [frame1])
 
         # Create second animation with 32 different colors (offset to avoid overlap)
@@ -214,7 +216,8 @@ class TestCharacterLimitEnforcement:
             colors2.append((r, g, b))
 
         frame2 = SpriteFrame(pygame.Surface((32, 1)))
-        frame2.set_pixel_data(colors2)  # Use all 32 colors
+        colors2_pixels: list[tuple[int, ...]] = colors2
+        frame2.set_pixel_data(colors2_pixels)  # Use all 32 colors
         animated_sprite.add_animation('anim2', [frame2])
 
         # Total unique colors should be 65 (should fail)

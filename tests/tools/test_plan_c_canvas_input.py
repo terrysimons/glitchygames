@@ -81,6 +81,7 @@ class TestCanvasInputHandling:
         # Test that controller is in canvas mode and position is tracked
         assert self.mode_switcher.get_controller_mode(self.controller_id) == ControllerMode.CANVAS
         position_data = self.mode_switcher.get_controller_position(self.controller_id)
+        assert position_data is not None
         assert position_data.position == (10, 10)
 
         # Test that canvas mode has correct location type
@@ -124,6 +125,7 @@ class TestCanvasInputHandling:
 
         # Test that controller position is properly tracked
         position_data = self.mode_switcher.get_controller_position(self.controller_id)
+        assert position_data is not None
         assert position_data.position == (15, 15)
         assert position_data.is_valid
 
@@ -209,4 +211,5 @@ class TestCanvasInputHandling:
         # Verify positions are tracked separately
         for controller_id in controllers:
             position_data = self.mode_switcher.get_controller_position(controller_id)
+            assert position_data is not None
             assert position_data.position == (controller_id * 5, controller_id * 5)

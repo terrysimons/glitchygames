@@ -281,6 +281,7 @@ class TestBitmappyPlanCIntegration:
 
         # Current position is for CANVAS mode (default (0,0))
         current_position = self.mode_switcher.get_controller_position(self.controller_id)
+        assert current_position is not None
         assert current_position.position == (0, 0)
 
         # FILM_STRIP position is preserved and accessible via mode state

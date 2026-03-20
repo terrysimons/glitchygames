@@ -93,6 +93,7 @@ class TestMultiLineTextBoxCursorBoundaries:
             y_offset: Y offset from textbox top edge
 
         """
+        assert textbox.rect is not None
         mock_event = mocker.Mock()
         mock_event.pos = (textbox.rect.x + x_offset, textbox.rect.y + y_offset)
         textbox.on_left_mouse_button_down_event(mock_event)

@@ -685,6 +685,7 @@ class TestTrackControllerDragPixel:
         mock_editor.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
         mock_editor._track_controller_drag_pixel(0, (3, 4), (255, 0, 0), (0, 0, 0))
         pixels = mock_editor.controller_drags[0]['pixels_drawn']
+        assert isinstance(pixels, list)
         assert len(pixels) == 1
         assert pixels[0]['position'] == (3, 4)
         assert pixels[0]['color'] == (255, 0, 0)

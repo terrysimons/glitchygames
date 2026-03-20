@@ -2,10 +2,9 @@
 
 import argparse
 import logging
-from typing import Self
+from typing import Any, ClassVar, Self, override
 
 from glitchygames.events import GameEvents, HashableEvent, ResourceManager
-from glitchygames.scenes import Scene
 
 LOG = logging.getLogger(__name__)
 
@@ -13,14 +12,14 @@ LOG = logging.getLogger(__name__)
 class GameEventManager(ResourceManager, GameEvents):
     """Manager for game events."""
 
-    log: logging.Logger = LOG
+    log: ClassVar[logging.Logger] = LOG
 
     class GameEventProxy(ResourceManager):
         """Game event proxy."""
 
-        log: logging.Logger = LOG
+        log: ClassVar[logging.Logger] = LOG
 
-        def __init__(self: Self, game: Scene) -> None:
+        def __init__(self: Self, game: object) -> None:
             """Initialize the game proxy.
 
             Args:
@@ -28,8 +27,8 @@ class GameEventManager(ResourceManager, GameEvents):
 
             """
             super().__init__(game=game)
-            self.game: Scene = game
-            self.proxies: list = [self.game]
+            self.game: Any = game
+            self.proxies: list[Any] = [self.game]
 
         def on_active_event(self: Self, event: HashableEvent) -> None:
             """Handle active event.
@@ -161,7 +160,7 @@ class GameEventManager(ResourceManager, GameEvents):
             # LOCALECHANGED
             self.game.on_locale_changed_event(event=event)
 
-    def __init__(self: Self, game: Scene) -> None:
+    def __init__(self: Self, game: object) -> None:
         """Initialize the game event manager.
 
         Args:
@@ -173,66 +172,79 @@ class GameEventManager(ResourceManager, GameEvents):
             GameEventManager.GameEventProxy(game=game)
         ]
 
+    @override
     def on_active_event(self: Self, event: HashableEvent) -> None:
         """Handle active event."""
         for proxy in self.proxies:
             proxy.on_active_event(event)
 
+    @override
     def on_clipboard_update_event(self: Self, event: HashableEvent) -> None:
         """Handle clipboard update event."""
         for proxy in self.proxies:
             proxy.on_clipboard_update_event(event)
 
+    @override
     def on_fps_event(self: Self, event: HashableEvent) -> None:
         """Handle fps event."""
         for proxy in self.proxies:
             proxy.on_fps_event(event)
 
+    @override
     def on_game_event(self: Self, event: HashableEvent) -> None:
         """Handle game event."""
         for proxy in self.proxies:
             proxy.on_game_event(event)
 
+    @override
     def on_locale_changed_event(self: Self, event: HashableEvent) -> None:
         """Handle locale changed event."""
         for proxy in self.proxies:
             proxy.on_locale_changed_event(event)
 
+    @override
     def on_menu_item_event(self: Self, event: HashableEvent) -> None:
         """Handle menu item event."""
         for proxy in self.proxies:
             proxy.on_menu_item_event(event)
 
+    @override
     def on_quit_event(self: Self, event: HashableEvent) -> None:
         """Handle quit event."""
         for proxy in self.proxies:
             proxy.on_quit_event(event)
 
+    @override
     def on_render_device_reset_event(self: Self, event: HashableEvent) -> None:
         """Handle render device reset event."""
         for proxy in self.proxies:
             proxy.on_render_device_reset_event(event)
 
+    @override
     def on_render_targets_reset_event(self: Self, event: HashableEvent) -> None:
         """Handle render targets reset event."""
         for proxy in self.proxies:
             proxy.on_render_targets_reset_event(event)
 
+    @override
     def on_sys_wm_event(self: Self, event: HashableEvent) -> None:
         """Handle sys wm event."""
         for proxy in self.proxies:
             proxy.on_sys_wm_event(event)
 
+    @override
     def on_user_event(self: Self, event: HashableEvent) -> None:
         """Handle user event."""
         for proxy in self.proxies:
             proxy.on_user_event(event)
 
+    @override
     def on_video_expose_event(self: Self, event: HashableEvent) -> None:
         """Handle video expose event."""
         for proxy in self.proxies:
             proxy.on_video_expose_event(event)
 
+    @override
     def on_video_resize_event(self: Self, event: HashableEvent) -> None:
         """Handle video resize event."""
         for proxy in self.proxies:

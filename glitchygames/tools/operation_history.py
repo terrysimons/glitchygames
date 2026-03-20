@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Operation history tracking for undo/redo system."""
 
+from __future__ import annotations
+
 import logging
+from collections.abc import Sequence
 from typing import Any
 
 from .undo_redo_manager import OperationType, UndoRedoManager
+
+# Type alias for pixel change tuples: (x, y, old_color, new_color)
+type PixelChangeTuple = tuple[int, int, tuple[int, int, int], tuple[int, int, int]]
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
@@ -29,7 +35,7 @@ class CanvasOperationTracker:
     def __init__(self, undo_redo_manager: UndoRedoManager) -> None:
         """Initialize the canvas operation tracker with an undo/redo manager."""
         self.undo_redo_manager = undo_redo_manager
-        self._current_brush_pixels = []
+        self._current_brush_pixels: list[PixelChangeTuple] = []
         LOG.debug('CanvasOperationTracker initialized')
 
     def add_pixel_changes(
@@ -45,7 +51,7 @@ class CanvasOperationTracker:
             return
 
         # Convert to PixelChange objects for consistency
-        pixel_changes = []
+        pixel_changes: list[PixelChange] = []
         for x, y, old_color, new_color in pixels:
             pixel_changes.append(PixelChange(x, y, old_color, new_color))
 
@@ -162,7 +168,9 @@ class CanvasOperationTracker:
 
         LOG.debug(f'Tracked flood fill: {description}')
 
-    def add_frame_pixel_changes(self, animation: str, frame: int, pixels: list) -> None:
+    def add_frame_pixel_changes(
+        self, animation: str, frame: int, pixels: Sequence[PixelChange | PixelChangeTuple]
+    ) -> None:
         """Add pixel changes for a specific frame.
 
         Args:
@@ -175,7 +183,7 @@ class CanvasOperationTracker:
             return
 
         # Convert to consistent format
-        pixel_changes = []
+        pixel_changes: list[PixelChangeTuple] = []
         for pixel in pixels:
             if isinstance(pixel, PixelChange):
                 pixel_changes.append((pixel.x, pixel.y, pixel.old_color, pixel.new_color))

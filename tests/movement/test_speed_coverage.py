@@ -40,7 +40,7 @@ class TestSpeedRadd:
         """Test right addition with non-numeric type returns NotImplemented."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
         # Use direct dunder call since operators don't expose NotImplemented
-        result = Speed.__radd__(speed, 'not a number')
+        result = Speed.__radd__(speed, 'not a number')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
 
@@ -107,7 +107,7 @@ class TestSpeedSub:
     def test_sub_with_non_numeric_returns_not_implemented(self):
         """Test subtraction with non-numeric type returns NotImplemented."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
-        result = Speed.__sub__(speed, 'not a number')
+        result = Speed.__sub__(speed, 'not a number')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_sub_does_not_mutate_original(self):
@@ -124,13 +124,13 @@ class TestSpeedMulNotImplemented:
     def test_mul_with_non_numeric_returns_not_implemented(self):
         """Test multiplication with non-numeric type returns NotImplemented."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
-        result = Speed.__mul__(speed, 'not a number')
+        result = Speed.__mul__(speed, 'not a number')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_mul_with_list_returns_not_implemented(self):
         """Test multiplication with list type returns NotImplemented."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
-        result = Speed.__mul__(speed, [1, 2, 3])
+        result = Speed.__mul__(speed, [1, 2, 3])  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
 
@@ -164,7 +164,7 @@ class TestSpeedAdd:
     def test_add_with_non_numeric_returns_not_implemented(self):
         """Test addition with non-numeric type returns NotImplemented."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
-        result = Speed.__add__(speed, 'not a number')
+        result = Speed.__add__(speed, 'not a number')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_add_does_not_mutate_original(self):
@@ -202,7 +202,7 @@ class TestSpeedTruediv:
     def test_truediv_with_non_numeric_returns_not_implemented(self):
         """Test division with non-numeric type returns NotImplemented."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
-        result = Speed.__truediv__(speed, 'not a number')
+        result = Speed.__truediv__(speed, 'not a number')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
 
@@ -233,7 +233,7 @@ class TestSpeedMod:
     def test_mod_with_non_numeric_returns_not_implemented(self):
         """Test modulo with non-numeric type returns NotImplemented."""
         speed = Speed(x=SPEED_X, y=SPEED_Y, increment=SPEED_INCREMENT)
-        result = Speed.__mod__(speed, 'not a number')
+        result = Speed.__mod__(speed, 'not a number')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
 

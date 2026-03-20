@@ -65,6 +65,7 @@ class TestSliderSpriteFunctionality:
         )
 
         # Assert
+        assert slider.rect is not None
         assert slider.rect.x == TEST_X_POS
         assert slider.rect.y == TEST_Y_POS
         assert slider.rect.width == TEST_WIDTH
@@ -402,6 +403,7 @@ class TestColorWellSpriteFunctionality:
         )
 
         # Assert
+        assert color_well.rect is not None
         assert color_well.rect.x == TEST_COLOR_WELL_X
         assert color_well.rect.y == TEST_COLOR_WELL_Y
         assert color_well.rect.width == TEST_COLOR_WELL_WIDTH

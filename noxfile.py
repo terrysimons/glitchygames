@@ -105,6 +105,16 @@ def static_analysis(session: nox.Session) -> None:
 
 
 @nox.session(python=['3.13'], reuse_venv=False)
+def ty_check(session: nox.Session) -> None:
+    """Run static type analysis with ty (Astral's type checker)."""
+    # Install with all extras into the nox session venv.
+    # Update this if new [project.optional-dependencies] sections are added.
+    session.install('.[api,dev,docs]')
+
+    session.run('ty', 'check')
+
+
+@nox.session(python=['3.13'], reuse_venv=False)
 def lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
     # Install with all extras into the nox session venv.

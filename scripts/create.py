@@ -34,7 +34,8 @@ def main() -> None:
     args = get_args()
 
     if args.list:
-        [LOG.info(x) for x in templates.get_templates()]
+        for template_name in templates.get_templates():
+            LOG.info(template_name)
     elif args.template == 'pong':
         templates.build('pong')
 

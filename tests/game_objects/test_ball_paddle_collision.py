@@ -24,7 +24,7 @@ class TestBallPaddleCollision:
 
         group = pygame.sprite.Group()
 
-        ball = BallSprite(x=100, y=100, groups=group)
+        ball = BallSprite(x=100, y=100, groups=group)  # type: ignore[invalid-argument-type]
         paddle = VerticalPaddle(
             'Test Paddle',
             (20, 100),
@@ -32,10 +32,11 @@ class TestBallPaddleCollision:
             (255, 255, 255),
             400,
             collision_sound='test.wav',
-            groups=group,
+            groups=group,  # type: ignore[invalid-argument-type]
         )
 
         # Position ball so it overlaps with paddle
+        assert ball.rect is not None
         ball.rect.x = 55  # Overlaps with paddle at x=50, width=20
         ball.rect.y = 75  # Within paddle's y range
 
@@ -55,6 +56,7 @@ class TestBallPaddleCollision:
         paddle.rect.centerx = 60
 
         # Position ball so it's on the left side of paddle
+        assert ball.rect is not None
         ball.rect.centerx = 55  # Left of paddle center
         ball.rect.right = 65  # Overlapping with paddle
 
@@ -75,6 +77,7 @@ class TestBallPaddleCollision:
         paddle.rect.centerx = 60
 
         # Position ball so it's on the right side of paddle
+        assert ball.rect is not None
         ball.rect.centerx = 65  # Right of paddle center
         ball.rect.left = 55  # Overlapping with paddle
 
@@ -82,7 +85,7 @@ class TestBallPaddleCollision:
         ball._adjust_position_for_paddle_collision(paddle)
 
         # Ball should be positioned to the right of paddle
-        assert ball.rect.left == paddle.rect.right
+        assert ball.rect is not None and paddle.rect is not None and ball.rect.left == paddle.rect.right
 
     def test_no_collision_when_not_overlapping(self, mocker):
         """Test that no adjustment occurs when ball and paddle don't overlap."""
@@ -99,6 +102,7 @@ class TestBallPaddleCollision:
         group.add(ball, paddle)
 
         # Position ball so it doesn't overlap with paddle
+        assert ball.rect is not None
         ball.rect.x = 100  # Far from paddle at x=50
         ball.rect.y = 75
 
@@ -114,7 +118,7 @@ class TestBallPaddleCollision:
 
         group = pygame.sprite.Group()
 
-        ball = BallSprite(x=100, y=100, groups=group)
+        ball = BallSprite(x=100, y=100, groups=group)  # type: ignore[invalid-argument-type]
         paddle = VerticalPaddle(
             'Test Paddle',
             (20, 100),
@@ -122,10 +126,11 @@ class TestBallPaddleCollision:
             (255, 255, 255),
             400,
             collision_sound='test.wav',
-            groups=group,
+            groups=group,  # type: ignore[invalid-argument-type]
         )
 
         # Position ball so it overlaps with paddle
+        assert ball.rect is not None
         ball.rect.x = 55  # Overlaps with paddle at x=50, width=20
         ball.rect.y = 75  # Within paddle's y range
 
@@ -137,7 +142,7 @@ class TestBallPaddleCollision:
         ball._adjust_position_for_paddle_collision(paddle)
 
         # Ball should be positioned to the right of paddle
-        assert ball.rect.left == paddle.rect.right
+        assert ball.rect is not None and paddle.rect is not None and ball.rect.left == paddle.rect.right
         # Ball should bounce (X speed should be positive after hitting right side)
         assert ball.speed.x > 0
         # Y speed should be unchanged

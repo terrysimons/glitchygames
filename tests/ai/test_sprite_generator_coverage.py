@@ -317,12 +317,13 @@ class TestCleanAiResponse:
     def test_remove_code_fences(self):
         content = '```toml\n[sprite]\nname = "test"\n```'
         result = clean_ai_response(content)
-        assert '```' not in result
-        assert '[sprite]' in result
+        assert '```' not in result  # type: ignore[unsupported-operator]
+        assert '[sprite]' in result  # type: ignore[unsupported-operator]
 
     def test_remove_leading_text(self):
         content = 'Here is your sprite:\n[sprite]\nname = "test"'
         result = clean_ai_response(content)
+        assert result is not None
         assert result.startswith('[sprite]')
 
     def test_clean_content(self):

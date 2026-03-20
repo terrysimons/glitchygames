@@ -8,6 +8,7 @@ preview click, height updates, frame management, error handling, and rendering.
 import math
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -42,6 +43,7 @@ class TestFilmStripWidgetInit:
     def test_init_sets_rect(self):
         """Test initialization sets correct rect."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
+        assert widget.rect is not None
         assert widget.rect.x == WIDGET_X
         assert widget.rect.y == WIDGET_Y
         assert widget.rect.width == WIDGET_WIDTH
@@ -668,6 +670,7 @@ class TestFilmStripUpdateHeight:
     def test_update_height_no_sprite(self):
         """Test _update_height with no sprite does nothing."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
+        assert widget.rect is not None
         original_height = widget.rect.height
         widget._update_height()
         assert widget.rect.height == original_height
@@ -694,6 +697,7 @@ class TestFilmStripUpdateHeight:
         widget.animated_sprite = sprite
         widget._update_height()
         # Height should be proportional to number of animations
+        assert widget.rect is not None
         assert widget.rect.height > 100
 
     def test_update_height_max_five_animations(self):
@@ -707,6 +711,7 @@ class TestFilmStripUpdateHeight:
         widget._update_height()
         # Height should be capped at 5 animations worth
         five_height = (20 + 64 + 20) * 5 + 20
+        assert widget.rect is not None
         assert widget.rect.height == five_height
 
     def test_update_height_with_parent_canvas(self, mocker):
@@ -725,6 +730,8 @@ class TestFilmStripUpdateHeight:
         widget.parent_canvas = parent_canvas
 
         widget._update_height()
+        assert film_strip_sprite.rect is not None
+        assert widget.rect is not None
         assert film_strip_sprite.rect.height == widget.rect.height
         assert film_strip_sprite.dirty == 1
 
@@ -910,8 +917,9 @@ class TestFilmStripGetFrameImage:
         """Test _get_frame_image rebuilds from pixels when stale."""
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
         frame = SpriteFrame(surface)
-        frame._image_stale = True
-        frame.pixels = [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE)
+        frame._image_stale = True  # type: ignore[unresolved-attribute]
+        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE))
+        frame.pixels = pixel_data
         result = FilmStripWidget._get_frame_image(frame)
         assert result is not None
         assert result.get_size() == (SURFACE_SIZE, SURFACE_SIZE)
@@ -1043,6 +1051,7 @@ class TestFilmStripHandleClick:
     def test_handle_click_on_strip_background(self, widget_with_sprite, mocker):
         """Test handle_click on strip background selects strip."""
         # Click within strip rect but not on a frame, label, or preview
+        assert widget_with_sprite.rect is not None
         pos = (widget_with_sprite.rect.x + 5, widget_with_sprite.rect.y + 5)
         result = widget_with_sprite.handle_click(pos)
         # Should return the strip animation and frame
@@ -1547,6 +1556,7 @@ class TestFilmStripDeleteTab:
     def test_init(self):
         """Test FilmStripDeleteTab initialization."""
         tab = FilmStripDeleteTab(x=100, y=5, width=40, height=10)
+        assert tab.rect is not None
         assert tab.rect.x == 100
         assert tab.rect.y == 5
         assert tab.rect.width == 40

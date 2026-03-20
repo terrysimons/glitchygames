@@ -1,7 +1,8 @@
 {
-  "typeCheckingMode": "basic",
+  "typeCheckingMode": "strict",
   "include": ["glitchygames", "tests", "scripts"],
   "exclude": ["**/__pycache__"],
+  "stubPath": "typings",
   "defineConstant": { "DEBUG": true },
   "pythonVersion": "3.13",
   "pythonPlatform": "All",
@@ -13,6 +14,11 @@
   "reportRedeclaration": "error",
   "reportUnnecessaryTypeIgnoreComment": "error",
 
+  "reportImplicitOverride": "error",
+  "reportDeprecated": "error",
+  "reportImplicitStringConcatenation": "error",
+  "reportUninitializedInstanceVariable": "error",
+
   // Enabled — small error count, fix now
   "reportAbstractUsage": "error",
   "reportAssignmentType": "error",
@@ -23,31 +29,36 @@
   "reportOptionalSubscript": "error",
 
   // Deferred — medium error count, fix soon
-  "reportCallIssue": false,
-  "reportGeneralTypeIssues": false,
-  "reportReturnType": false,
+  "reportCallIssue": true,
+  "reportGeneralTypeIssues": true,
+  "reportReturnType": true,
 
   // Deferred — large error count, fix later
-  "reportArgumentType": false,
-  "reportAttributeAccessIssue": false,
-  "reportIncompatibleMethodOverride": false,
-  "reportIncompatibleVariableOverride": false,
-  "reportOptionalMemberAccess": false,
+  "reportArgumentType": true,
+  "reportAttributeAccessIssue": true,
+  "reportIncompatibleMethodOverride": true,
+  "reportIncompatibleVariableOverride": true,
+  "reportOptionalMemberAccess": true,
 
   "executionEnvironments": [
     {
       "root": "glitchygames",
-      "extraPaths": ["scripts", "tests"]
+      "extraPaths": ["scripts"]
     },
     {
       "root": "tests",
       "extraPaths": ["."],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
       "reportUnknownMemberType": false,
       "reportUnknownVariableType": false,
       "reportUnknownArgumentType": false,
       "reportUnknownParameterType": false,
-      "reportUnannotatedClassAttribute": false,
-      "reportAny": false,
       "reportPrivateUsage": false,
       "reportAttributeAccessIssue": false,
       "reportOptionalMemberAccess": false,
@@ -55,11 +66,11 @@
       "reportUnusedCallResult": false,
       "reportImplicitOverride": false,
       "reportImplicitStringConcatenation": false,
-      "reportUnusedParameter": false,
       "reportMissingParameterType": false,
       "reportUninitializedInstanceVariable": false,
       "reportUnknownLambdaType": false,
-      "reportUnusedVariable": false
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
     }
   ]
 }

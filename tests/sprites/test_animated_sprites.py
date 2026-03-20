@@ -3,6 +3,7 @@
 import shutil
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -417,7 +418,8 @@ class TestSpriteFactorySave:
 
         # Add a frame
         frame = SpriteFrame(pygame.Surface((2, 2)))
-        frame.set_pixel_data([(255, 0, 0)] * 4)
+        red_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)
+        frame.set_pixel_data(red_pixels)
         sprite.add_animation('test_anim', [frame])
 
         # Save via factory should work in TOML format

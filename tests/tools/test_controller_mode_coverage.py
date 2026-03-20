@@ -176,6 +176,7 @@ class TestModeSwitcherEdgeCases:
         switcher.save_controller_position(0, (100, 200), frame=5, animation='walk')
 
         position = switcher.get_controller_position(0)
+        assert position is not None
         assert position.position == (100, 200)
         assert position.frame == 5
         assert position.animation == 'walk'

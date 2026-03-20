@@ -20,7 +20,7 @@ from glitchygames.services.config import ServiceConfig
 if TYPE_CHECKING:
     import pygame
 
-    from glitchygames.sprites.animated import AnimatedSprite
+    from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 LOG = logging.getLogger('glitchygames.services.renderer')
 
@@ -76,7 +76,7 @@ class RendererService:
     to render TOML sprites to PNG images.
     """
 
-    _pygame_initialized: bool = False
+    pygame_initialized: bool = False
 
     def __init__(self, config: ServiceConfig | None = None) -> None:
         """Initialize the renderer service.
@@ -94,7 +94,7 @@ class RendererService:
 
         This is done once per process using a class variable.
         """
-        if cls._pygame_initialized:
+        if cls.pygame_initialized:
             return
 
         # Set headless mode before importing/initializing pygame
@@ -107,7 +107,7 @@ class RendererService:
         # Create a dummy display surface (required even in headless mode)
         pygame.display.set_mode((1, 1), pygame.HIDDEN)
 
-        cls._pygame_initialized = True
+        cls.pygame_initialized = True
         LOG.info('Pygame initialized in headless mode')
 
     def render_from_toml(
@@ -185,7 +185,7 @@ class RendererService:
             else:
                 LOG.info(
                     f'Skipping frame rendering: render_all_frames={render_all_frames}, '
-                    f'frame_count={frame_count}'
+                    + f'frame_count={frame_count}'
                 )
 
             return RenderResult(
@@ -248,7 +248,7 @@ class RendererService:
         return png_bytes, png_base64
 
     def _get_frame_surface(
-        self, sprite: AnimatedSprite, sprite_frame: object, *, has_frame_manager: bool
+        self, sprite: AnimatedSprite, sprite_frame: SpriteFrame, *, has_frame_manager: bool
     ) -> pygame.Surface | None:
         """Get the surface for a single sprite frame.
 
@@ -280,7 +280,7 @@ class RendererService:
     def _render_animation_frames(
         self,
         sprite: AnimatedSprite,
-        all_animations: dict,
+        all_animations: dict[str, list[SpriteFrame]],
         scale: int,
         *,
         has_frame_manager: bool,
@@ -297,20 +297,20 @@ class RendererService:
             Tuple of (flat list of base64 PNGs, list of RenderedFrame with indices)
 
         """
-        frames_base64 = []
-        rendered_frames = []
+        frames_base64: list[str] = []
+        rendered_frames: list[RenderedFrame] = []
 
         for animation_index, (animation_name, frames) in enumerate(all_animations.items()):
             LOG.debug(f"Animation '{animation_name}' has {len(frames)} frames")
 
             if has_frame_manager:
                 # Set current animation via frame_manager
-                sprite.frame_manager._current_animation = animation_name
+                sprite.frame_manager.current_animation = animation_name
 
             for frame_index, sprite_frame in enumerate(frames):
                 if has_frame_manager:
                     # Set current frame via frame_manager
-                    sprite.frame_manager._current_frame = frame_index
+                    sprite.frame_manager.current_frame = frame_index
 
                 frame_surface = self._get_frame_surface(
                     sprite, sprite_frame, has_frame_manager=has_frame_manager
@@ -329,7 +329,7 @@ class RendererService:
                 else:
                     LOG.warning(
                         f'Could not get surface for frame {frame_index} '
-                        f"of animation '{animation_name}'"
+                        + f"of animation '{animation_name}'"
                     )
 
         return frames_base64, rendered_frames
@@ -347,11 +347,11 @@ class RendererService:
             Tuple of (flat list of base64 PNGs, list of RenderedFrame with indices)
 
         """
-        # Use public 'frames' property if available, fallback to _animations
+        # Use public 'frames' property if available, fallback to animation_data
         if hasattr(sprite, 'frames'):
             all_animations = sprite.frames
-        elif hasattr(sprite, '_animations'):
-            all_animations = sprite._animations
+        elif hasattr(sprite, 'animation_data'):
+            all_animations = sprite.animation_data
         else:
             LOG.debug('Sprite has no frames or _animations attribute')
             return [], []
@@ -378,8 +378,9 @@ class RendererService:
         finally:
             # Restore original state
             if has_frame_manager and original_animation is not None:
-                sprite.frame_manager._current_animation = original_animation
-                sprite.frame_manager._current_frame = original_frame
+                sprite.frame_manager.current_animation = original_animation
+                assert original_frame is not None
+                sprite.frame_manager.current_frame = original_frame
 
         LOG.debug(f'Rendered {len(frames_base64)} total frames')
         return frames_base64, rendered_frames

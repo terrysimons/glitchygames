@@ -56,6 +56,7 @@ class TestInputDialogUpdate:
     def test_update_fills_background(self, mocker):
         """Test that update fills the image with black background."""
         dialog = _create_input_dialog(mocker)
+        assert dialog.image is not None
         mock_fill = mocker.patch.object(dialog.image, 'fill')
         mock_blit = mocker.patch.object(dialog.image, 'blit')
         mocker.patch('pygame.draw.rect')
@@ -67,6 +68,7 @@ class TestInputDialogUpdate:
     def test_update_draws_border(self, mocker):
         """Test that update draws a gray border rectangle."""
         dialog = _create_input_dialog(mocker)
+        assert dialog.image is not None
         mocker.patch.object(dialog.image, 'fill')
         mocker.patch.object(dialog.image, 'blit')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
@@ -78,6 +80,7 @@ class TestInputDialogUpdate:
     def test_update_blits_all_components(self, mocker):
         """Test that update blits all nested components to the image."""
         dialog = _create_input_dialog(mocker)
+        assert dialog.image is not None
         mocker.patch.object(dialog.image, 'fill')
         mock_blit = mocker.patch.object(dialog.image, 'blit')
         mocker.patch('pygame.draw.rect')
@@ -90,6 +93,7 @@ class TestInputDialogUpdate:
     def test_update_marks_components_dirty(self, mocker):
         """Test that update sets dirty=1 on nested components."""
         dialog = _create_input_dialog(mocker)
+        assert dialog.image is not None
         mocker.patch.object(dialog.image, 'fill')
         mocker.patch.object(dialog.image, 'blit')
         mocker.patch('pygame.draw.rect')
@@ -220,6 +224,7 @@ class TestInputDialogMouseButtonUpEvent:
         dialog = _create_input_dialog(mocker)
 
         # Position within the input box rect
+        assert dialog.input_box.rect is not None
         input_box_center_x = dialog.input_box.rect.centerx
         input_box_center_y = dialog.input_box.rect.centery
 

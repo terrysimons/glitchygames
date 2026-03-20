@@ -322,6 +322,7 @@ class TestConfirmDialogUpdate:
         dialog = _create_confirm_dialog(mocker)
 
         # Mock mouse position over yes button (relative to dialog)
+        assert dialog.rect is not None
         yes_center_x = dialog.yes_button_rect.centerx + dialog.rect.x
         yes_center_y = dialog.yes_button_rect.centery + dialog.rect.y
         mocker.patch.object(pygame.mouse, 'get_pos', return_value=(yes_center_x, yes_center_y))
@@ -337,6 +338,7 @@ class TestConfirmDialogUpdate:
         """Test update detects mouse hovering over No button."""
         dialog = _create_confirm_dialog(mocker)
 
+        assert dialog.rect is not None
         no_center_x = dialog.no_button_rect.centerx + dialog.rect.x
         no_center_y = dialog.no_button_rect.centery + dialog.rect.y
         mocker.patch.object(pygame.mouse, 'get_pos', return_value=(no_center_x, no_center_y))

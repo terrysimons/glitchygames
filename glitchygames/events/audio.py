@@ -6,11 +6,11 @@ This is a simple audio manager that can be used to manage audio.
 
 import argparse
 import logging
-from typing import Self
+from typing import Any, Self, override
 
 import pygame
 
-from glitchygames.events import AUDIO_EVENTS, AudioEvents, ResourceManager
+from glitchygames.events import AUDIO_EVENTS, AudioEvents, HashableEvent, ResourceManager
 
 log = logging.getLogger('game.audio')
 log.addHandler(logging.NullHandler())
@@ -31,10 +31,11 @@ class AudioEventManager(ResourceManager):
             """
             super().__init__(game)
 
-            self.game = game
+            self.game: Any = game
             self.proxies = [self.game, pygame.mixer]
 
-        def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:
             """Handle audio device added event.
 
             Args:
@@ -43,7 +44,8 @@ class AudioEventManager(ResourceManager):
             """
             self.game.on_audio_device_added_event(event)
 
-        def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:
             """Handle audio device removed event.
 
             Args:
@@ -90,6 +92,6 @@ class AudioEventManager(ResourceManager):
             The argument parser.
 
         """
-        _group: argparse._ArgumentGroup = parser.add_argument_group('Sound Mixer Options')
+        _group = parser.add_argument_group('Sound Mixer Options')
 
         return parser

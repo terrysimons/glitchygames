@@ -55,7 +55,7 @@ class TestControllerModeState:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.mode_state = ControllerModeState(ControllerMode.FILM_STRIP)
+        self.mode_state = ControllerModeState(ControllerMode.FILM_STRIP)  # type: ignore[arg-type]
 
     def test_initial_state(self):
         """Test initial state of ControllerModeState."""
@@ -391,6 +391,7 @@ class TestModeSwitcher:
         self.mode_switcher.save_controller_position(controller_id, (10, 20), 5, 'test_anim')
 
         position = self.mode_switcher.get_controller_position(controller_id)
+        assert position is not None
         assert position.position == (10, 20)
         assert position.frame == 5
         assert position.animation == 'test_anim'

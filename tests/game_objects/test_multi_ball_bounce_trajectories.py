@@ -26,6 +26,7 @@ def _create_bouncing_balls(num_balls, screen_width=800, screen_height=600):
             bounce_top_bottom=True,
             bounce_left_right=True,
         )
+        assert ball.rect is not None
         ball.rect.x = random.randint(50, screen_width - 50)
         ball.rect.y = random.randint(50, screen_height - 50)
         ball.speed.x = random.uniform(-200, 200)
@@ -227,8 +228,9 @@ def test_multi_ball_bounce_trajectories():
     else:
         LOG.info(f'  Only {final_alive}/{num_balls} balls survived')
 
-    if results['total_bounces'] > 0:
-        LOG.info(f'  Bouncing is working ({results["total_bounces"]} total bounces)')
+    total_bounces = int(results['total_bounces'])
+    if total_bounces > 0:
+        LOG.info(f'  Bouncing is working ({total_bounces} total bounces)')
     else:
         LOG.debug('  No bounces detected - bouncing may be disabled')
 
@@ -236,7 +238,7 @@ def test_multi_ball_bounce_trajectories():
 
     # Assert that the test completed successfully
     assert final_alive > 0, 'At least one ball should survive'
-    assert results['total_bounces'] > 0, 'Bouncing should be working'
+    assert total_bounces > 0, 'Bouncing should be working'
 
     LOG.info('\nTest completed successfully')
 

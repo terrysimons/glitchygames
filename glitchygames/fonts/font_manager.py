@@ -7,14 +7,57 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, Self, cast, override, runtime_checkable
 
 if TYPE_CHECKING:
     import argparse
 
 import pygame
 
-from glitchygames.events import FontEvents, ResourceManager
+
+@runtime_checkable
+class GameFont(Protocol):
+    """Protocol describing the font interface used throughout GlitchyGames.
+
+    Both pygame.font.Font and pygame.freetype.Font satisfy this protocol.
+    """
+
+    def render(
+        self,
+        text: str,
+        fgcolor: tuple[int, ...] = ...,
+        bgcolor: tuple[int, ...] | None = None,
+        **kwargs: Any,
+    ) -> pygame.Surface | tuple[pygame.Surface, pygame.Rect]:
+        """Render text to a surface."""
+        ...
+
+    def render_to(
+        self,
+        surf: pygame.Surface,
+        dest: tuple[int, int],
+        text: str,
+        fgcolor: tuple[int, ...] = ...,
+        **kwargs: Any,
+    ) -> pygame.Rect:
+        """Render text directly onto a surface."""
+        ...
+
+    def get_rect(self, text: str, **kwargs: Any) -> pygame.Rect:
+        """Get the bounding rectangle for rendered text."""
+        ...
+
+    def get_linesize(self) -> int:
+        """Get the line height for the font."""
+        ...
+
+    def size(self, text: str) -> tuple[int, int]:
+        """Get the size of rendered text."""
+        ...
+
+
+from glitchygames.events import FontEvents, ResourceManager  # noqa: E402
+from glitchygames.events.core import HashableEvent  # noqa: E402
 
 log = logging.getLogger('game.fonts')
 log.addHandler(logging.NullHandler())
@@ -44,9 +87,9 @@ class FontManager(ResourceManager):
 
     """
 
-    OPTIONS: ClassVar = {}
-    RENDER_CACHE: ClassVar = {}
-    _font_cache: ClassVar = {}
+    OPTIONS: ClassVar[dict[str, Any]] = {}
+    RENDER_CACHE: ClassVar[dict[str, Any]] = {}
+    _font_cache: ClassVar[dict[str, GameFont]] = {}
 
     class FontProxy(FontEvents, ResourceManager):
         """A font proxy."""
@@ -59,10 +102,11 @@ class FontManager(ResourceManager):
 
             """
             super().__init__(game=game)
-            self.game = game
-            self.proxies = [self.game, pygame.freetype]
+            self.game: Any = game
+            self.proxies: list[Any] = [self.game, pygame.freetype]  # type: ignore[attr-defined]
 
-        def on_font_changed_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_font_changed_event(self: Self, event: HashableEvent) -> None:
             """Handle font changed event.
 
             Args:
@@ -79,32 +123,33 @@ class FontManager(ResourceManager):
 
         """
         super().__init__(game=game)
+        self.game: Any = game
 
         # Register pygame.freetype if available
         try:
-            pygame.freetype.init()
-            log.info(f'Freetype Font Cache Size: {pygame.freetype.get_cache_size()}')
+            pygame.freetype.init()  # type: ignore[attr-defined]
+            log.info(f'Freetype Font Cache Size: {pygame.freetype.get_cache_size()}')  # type: ignore[attr-defined]
             log.info(
-                f'Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}'
+                f'Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}'  # type: ignore[attr-defined]
             )
         except AttributeError:
             log.warning('pygame.freetype not available, using pygame.font instead')
             pygame.font.init()
 
         # Set up the default options.
-        FontManager.OPTIONS['font_name'] = game.OPTIONS['font_name']
-        FontManager.OPTIONS['font_size'] = game.OPTIONS['font_size']
-        FontManager.OPTIONS['font_bold'] = game.OPTIONS['font_bold']
-        FontManager.OPTIONS['font_italic'] = game.OPTIONS['font_italic']
-        FontManager.OPTIONS['font_antialias'] = game.OPTIONS['font_antialias']
-        FontManager.OPTIONS['font_dpi'] = game.OPTIONS['font_dpi']
+        FontManager.OPTIONS['font_name'] = self.game.OPTIONS['font_name']  # ty: ignore[unresolved-attribute]
+        FontManager.OPTIONS['font_size'] = self.game.OPTIONS['font_size']  # ty: ignore[unresolved-attribute]
+        FontManager.OPTIONS['font_bold'] = self.game.OPTIONS['font_bold']  # ty: ignore[unresolved-attribute]
+        FontManager.OPTIONS['font_italic'] = self.game.OPTIONS['font_italic']  # ty: ignore[unresolved-attribute]
+        FontManager.OPTIONS['font_antialias'] = self.game.OPTIONS['font_antialias']  # ty: ignore[unresolved-attribute]
+        FontManager.OPTIONS['font_dpi'] = self.game.OPTIONS['font_dpi']  # ty: ignore[unresolved-attribute]
 
         # Set font system based on command line argument
-        font_system = game.OPTIONS.get('font_system', 'freetype')
+        font_system: str = self.game.OPTIONS.get('font_system', 'freetype')  # ty: ignore[unresolved-attribute]
         FontManager.OPTIONS['use_freetype'] = font_system == 'freetype'
         log.info(f'Font system initialized: {font_system}')
 
-        pygame.freetype.set_default_resolution(FontManager.OPTIONS['font_dpi'])
+        pygame.freetype.set_default_resolution(FontManager.OPTIONS['font_dpi'])  # type: ignore[attr-defined]
 
         # Ideas:
         #
@@ -134,7 +179,7 @@ class FontManager(ResourceManager):
 
         # Set up proxies based on available font system
         try:
-            self.proxies = [FontManager.FontProxy(game=game), pygame.freetype]
+            self.proxies: list[Any] = [FontManager.FontProxy(game=game), pygame.freetype]  # type: ignore[attr-defined]
         except AttributeError:
             # Fallback to pygame.font if freetype is not available
             self.proxies = [FontManager.FontProxy(game=game), pygame.font]
@@ -173,8 +218,8 @@ class FontManager(ResourceManager):
     # We can also use a config file to specify the font path.
     @classmethod
     def font(
-        cls, font_config: dict | None = None
-    ) -> pygame.freetype.Font | pygame.freetype.SysFont:
+        cls, font_config: dict[str, Any] | None = None
+    ) -> GameFont:
         """Return a font object.
 
         If the font requested can't be found then bitstream_vera will be loaded instead.
@@ -189,7 +234,7 @@ class FontManager(ResourceManager):
             font_config (dict | None): The font configuration.
 
         Returns:
-            pygame.freetype.Font | pygame.freetype.SysFont
+            GameFont
 
         """
         if not font_config:
@@ -212,8 +257,11 @@ class FontManager(ResourceManager):
         log.info(f'Font Size: {font_config["font_size"]}')
 
         try:
-            font = pygame.freetype.SysFont(
-                name=font_config['font_name'], size=font_config['font_size']
+            loaded_font: GameFont = cast(
+                'GameFont',
+                pygame.freetype.SysFont(  # type: ignore[attr-defined]
+                    name=font_config['font_name'], size=font_config['font_size']
+                ),
             )
         except (TypeError, FileNotFoundError):
             # Note: Not sure why but pygame.freetype.SysFont doesn't
@@ -233,21 +281,24 @@ class FontManager(ResourceManager):
             # File "pygame/freetype.py", line 73, in constructor
             # TypeError: not a file object
             font_path = Path(__file__).parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
-            font = pygame.freetype.Font(file=font_path, size=12)
+            loaded_font = cast(
+                'GameFont',
+                pygame.freetype.Font(file=font_path, size=12),  # type: ignore[attr-defined]
+            )
 
         # Cache the result
-        FontManager._font_cache[cache_key] = font
-        return font
+        FontManager._font_cache[cache_key] = loaded_font
+        return loaded_font
 
     @classmethod
-    def pygame_font(cls, font_config: dict | None = None) -> pygame.font.Font:
+    def pygame_font(cls, font_config: dict[str, Any] | None = None) -> GameFont:
         """Return a regular pygame font object for compatibility with UI components.
 
         Args:
             font_config (dict | None): The font configuration.
 
         Returns:
-            pygame.font.Font: A regular pygame font object.
+            GameFont: A regular pygame font object.
 
         """
         if not font_config:
@@ -268,21 +319,24 @@ class FontManager(ResourceManager):
 
         try:
             # Try to load system font
-            font = pygame.font.SysFont(font_config['font_name'], font_config['font_size'])
+            loaded_font: GameFont = cast(
+                'GameFont',
+                pygame.font.SysFont(font_config['font_name'], font_config['font_size']),
+            )
         except (TypeError, FileNotFoundError):
             # Fall back to default font
-            font = pygame.font.Font(None, font_config['font_size'])
+            loaded_font = cast('GameFont', pygame.font.Font(None, font_config['font_size']))
 
         # Cache the result
-        FontManager._font_cache[cache_key] = font
-        return font
+        FontManager._font_cache[cache_key] = loaded_font
+        return loaded_font
 
     @classmethod
     def get_font(
         cls,
         font_system: Literal['pygame', 'freetype'] | None = None,
-        font_config: dict | None = None,
-    ) -> pygame.font.Font | pygame.freetype.Font:
+        font_config: dict[str, Any] | None = None,
+    ) -> GameFont:
         """Get a font object, choosing between pygame.font and pygame.freetype.
 
         Args:
@@ -294,7 +348,10 @@ class FontManager(ResourceManager):
 
         """
         if font_system is None:
-            use_freetype = FontManager.OPTIONS.get('use_freetype', True)  # Default to freetype
+            # Default to freetype
+            use_freetype: bool = bool(
+                FontManager.OPTIONS.get('use_freetype', True)
+            )
         else:
             use_freetype = font_system == 'freetype'
 
@@ -343,15 +400,25 @@ class FontManager(ResourceManager):
             dict: Information about both font systems.
 
         """
-        config = {'font_size': size}
+        config: dict[str, Any] = {'font_size': size}
 
         # Get pygame.font
         pygame_font = cls.get_font('pygame', config)
-        pygame_surface = pygame_font.render(text, True, (255, 255, 255))  # noqa: FBT003
+        pygame_render_result = pygame_font.render(text, fgcolor=(255, 255, 255))
+        pygame_surface: pygame.Surface = (  # ty: ignore[invalid-assignment]
+            pygame_render_result[0]
+            if isinstance(pygame_render_result, tuple)
+            else pygame_render_result
+        )
 
         # Get pygame.freetype
         freetype_font = cls.get_font('freetype', config)
-        freetype_surface, _ = freetype_font.render(text, (255, 255, 255))
+        freetype_render_result = freetype_font.render(text, fgcolor=(255, 255, 255))
+        freetype_surface: pygame.Surface = (  # ty: ignore[invalid-assignment]
+            freetype_render_result[0]
+            if isinstance(freetype_render_result, tuple)
+            else freetype_render_result
+        )
 
         return {
             'pygame': {

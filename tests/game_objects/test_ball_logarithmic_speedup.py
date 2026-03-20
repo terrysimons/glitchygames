@@ -81,6 +81,7 @@ class TestBallLogarithmicSpeedUp:
         initial_y = ball.speed.y
 
         # Simulate wall bounce
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 
@@ -102,6 +103,7 @@ class TestBallLogarithmicSpeedUp:
         initial_y = ball.speed.y
 
         # Simulate wall bounce
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 
@@ -124,6 +126,7 @@ class TestBallLogarithmicSpeedUp:
         initial_y = ball.speed.y
 
         # Simulate wall bounce
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 

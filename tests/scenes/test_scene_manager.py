@@ -10,7 +10,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.scenes import Scene, SceneManager
+from glitchygames.scenes import SceneManager
 from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
@@ -25,14 +25,6 @@ class TestSceneManager:
         """Set up test fixtures."""
         # Reset singleton state for clean test
         SceneManager._reset()
-
-        # Create a mock game scene class for the engine
-        class MockGameScene(Scene):
-            NAME = 'MockGameScene'
-            VERSION = '1.0'
-
-            def __init__(self, options=None, groups=None):
-                super().__init__(options=options, groups=groups)
 
         # Create a simple scene manager for testing (centralized mocks handle pygame)
         self.scene_manager = SceneManager()
@@ -211,7 +203,7 @@ class TestSceneManager:
 
         # Test registering game event (may not exist in all implementations)
         with contextlib.suppress(AttributeError):
-            scene_manager.register_game_event('test_event', mock_callback)
+            scene_manager.register_game_event('test_event', mock_callback)  # type: ignore[invalid-argument-type]
 
     def test_scene_manager_getattr(self):
         """Test SceneManager __getattr__ method."""
@@ -259,7 +251,7 @@ class TestSceneManager:
         scene_manager = self.scene_manager
 
         # Set up proper OPTIONS structure
-        scene_manager.OPTIONS = {'fps_log_interval_ms': FPS_REFRESH_RATE}
+        scene_manager.OPTIONS = {'fps_log_interval_ms': FPS_REFRESH_RATE}  # type: ignore[invalid-assignment]
 
         # Test FPS event posting logic
         current_time = 1.0

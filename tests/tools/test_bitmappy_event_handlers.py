@@ -33,7 +33,9 @@ def _ensure_pygame_init():
     """Ensure pygame is initialized for all tests in this module."""
     if not pygame.get_init():  # pragma: no branch
         pygame.init()
-    if pygame.display.get_surface() is None:  # pragma: no branch
+    # get_surface() returns None before set_mode() despite stubs saying Surface
+    surface: pygame.Surface | None = pygame.display.get_surface()
+    if surface is None:  # pragma: no branch
         pygame.display.set_mode((800, 600))
 
 

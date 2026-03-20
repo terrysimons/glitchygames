@@ -57,7 +57,7 @@ class HardwareAnimationTestScene(Scene):
 
     NAME = 'Hardware Animation Test Scene'
 
-    def __init__(self, animation_file: str, groups: pygame.sprite.AbstractGroup | None = None):
+    def __init__(self, animation_file: str, groups: pygame.sprite.LayeredDirty | None = None):
         """Initialize the test scene with an animated sprite."""
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -86,6 +86,8 @@ class HardwareAnimationTestScene(Scene):
         if hasattr(self.animated_sprite, 'play'):
             self.animated_sprite.play()
         # Center on screen
+        assert self.animated_sprite.rect is not None
+        assert self.screen is not None
         self.animated_sprite.rect.center = self.screen.get_rect().center
 
     def update(self) -> None:
@@ -106,6 +108,7 @@ class HardwareAnimationTestScene(Scene):
         """
         # Get the actual display surface that hardware reads
         display_surface = pygame.display.get_surface()
+        assert display_surface is not None
 
         # Extract pixel data from hardware buffer
         width, height = display_surface.get_size()
@@ -125,6 +128,7 @@ class HardwareAnimationTestScene(Scene):
 
         """
         # Clear the test surface
+        assert self.background_color is not None
         self.test_surface.fill(self.background_color)
 
         # Update the scene first
@@ -159,6 +163,8 @@ class HardwareAnimationTestScene(Scene):
         else:
             return []
 
+        assert surface is not None
+
         # Extract pixel data from the sprite surface
         width, height = surface.get_size()
         pixels = []
@@ -177,11 +183,14 @@ class HardwareAnimationTestScene(Scene):
 
         """
         display_surface = pygame.display.get_surface()
+        assert display_surface is not None
+        assert self.animated_sprite is not None
+        assert self.animated_sprite.rect is not None
         sprite_rect = self.animated_sprite.rect
 
         pixels = []
-        for y in range(sprite_rect.top, sprite_rect.bottom):
-            for x in range(sprite_rect.left, sprite_rect.right):
+        for y in range(int(sprite_rect.top), int(sprite_rect.bottom)):
+            for x in range(int(sprite_rect.left), int(sprite_rect.right)):
                 if 0 <= x < display_surface.get_width() and 0 <= y < display_surface.get_height():
                     color = display_surface.get_at((x, y))
                     pixels.append((color.r, color.g, color.b))
@@ -194,6 +203,8 @@ class HardwareAnimationTestScene(Scene):
         self.update()
 
         # Draw to the actual display
+        assert self.screen is not None
+        assert self.background_color is not None
         self.screen.fill(self.background_color)
         self.all_sprites.draw(self.screen)
 
@@ -272,9 +283,11 @@ class TestAnimationHardware:
         sprite_area_hardware = scene.get_sprite_area_from_hardware_buffer()
         sprite_area_surface = []
 
+        assert scene.animated_sprite is not None
+        assert scene.animated_sprite.rect is not None
         sprite_rect = scene.animated_sprite.rect
-        for y in range(sprite_rect.top, sprite_rect.bottom):
-            for x in range(sprite_rect.left, sprite_rect.right):
+        for y in range(int(sprite_rect.top), int(sprite_rect.bottom)):
+            for x in range(int(sprite_rect.left), int(sprite_rect.right)):
                 if 0 <= x < SCREEN_WIDTH and 0 <= y < SCREEN_HEIGHT:
                     pixel_index = y * SCREEN_WIDTH + x
                     if pixel_index < len(surface_pixels):
@@ -369,6 +382,8 @@ class TestAnimationHardware:
         scene.force_display_update()
 
         # Get sprite position and size
+        assert scene.animated_sprite is not None
+        assert scene.animated_sprite.rect is not None
         sprite_rect = scene.animated_sprite.rect
 
         # Verify sprite is within screen bounds

@@ -142,6 +142,7 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Simulate wall bounce with linear speed-up
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 
@@ -165,6 +166,7 @@ class TestBallDirectionPreservation:
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
         # Simulate wall bounce with logarithmic X speed-up
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 

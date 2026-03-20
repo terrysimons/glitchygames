@@ -114,7 +114,7 @@ class MultiControllerManager:
         self.last_scan_time = current_time
 
         # Get all connected controllers
-        connected_instance_ids = []
+        connected_instance_ids: list[int] = []
         for i in range(pygame.joystick.get_count()):
             try:
                 joystick = pygame.joystick.Joystick(i)
@@ -344,7 +344,7 @@ class MultiControllerManager:
             List of active controller instance IDs
 
         """
-        active_controllers = []
+        active_controllers: list[int] = []
         for instance_id, controller_info in self.controllers.items():
             if controller_info.status == ControllerStatus.ACTIVE:
                 active_controllers.append(instance_id)
@@ -362,7 +362,7 @@ class MultiControllerManager:
     def cleanup_inactive_controllers(self) -> None:
         """Clean up controllers that have been inactive for too long."""
         current_time = time.time()
-        inactive_controllers = []
+        inactive_controllers: list[int] = []
 
         for instance_id, controller_info in self.controllers.items():
             if (
@@ -389,20 +389,22 @@ class MultiControllerManager:
             Dictionary with controller status information
 
         """
-        summary = {
-            'total_connected': len(self.controllers),
-            'total_assigned': len(self.assigned_controllers),
-            'active_controllers': len(self.get_active_controllers()),
-            'controllers': {},
-        }
+        controllers_detail: dict[int, dict[str, Any]] = {}
 
         for instance_id, controller_info in self.controllers.items():
-            summary['controllers'][instance_id] = {
+            controllers_detail[instance_id] = {
                 'controller_id': controller_info.controller_id,
                 'status': controller_info.status.value,
                 'color': controller_info.color,
                 'assigned_time': controller_info.assigned_time,
                 'last_activity': controller_info.last_activity,
             }
+
+        summary: dict[str, Any] = {
+            'total_connected': len(self.controllers),
+            'total_assigned': len(self.assigned_controllers),
+            'active_controllers': len(self.get_active_controllers()),
+            'controllers': controllers_detail,
+        }
 
         return summary

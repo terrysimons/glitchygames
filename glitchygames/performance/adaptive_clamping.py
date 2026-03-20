@@ -1,9 +1,11 @@
 """Adaptive delta time adjustment based on performance."""
 
+from __future__ import annotations
+
 import logging
 import operator
 import time
-from typing import Self
+from typing import Any, Self
 
 LOG = logging.getLogger(__name__)
 
@@ -52,18 +54,20 @@ class AdaptiveClamping:
         """Ensure only one instance exists (singleton pattern)."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-        return cls._instance
+        return cls._instance  # type: ignore[return-value]
 
     def __init__(self: Self) -> None:
         """Initialize the adaptive clamping system."""
         if not self._initialized:
-            self._dt_history = []
+            self._dt_history: list[float] = []
+            self._fps_history: list[float] = []
+            self._fps_histogram: dict[str, int] = {}
             # Track performance per scene:
             # {scene_name: {'fps_history': [], 'fps_histogram': {},
             #  'frame_times': [], 'statistical_aggregates': {}}}
-            self._scene_data = {}
+            self._scene_data: dict[str, dict[str, Any]] = {}
             self._last_performance_log_time = 0.0
-            self._fps_log_interval_ms = 1000.0  # Default 1 second
+            self._fps_log_interval_ms: float | None = 1000.0  # Default 1 second
             self._current_scene = None
             self._target_fps = 0.0  # 0 means unlimited FPS
             # Percentage of frames to trim from both tails when summarizing FPS.
@@ -122,8 +126,8 @@ class AdaptiveClamping:
             ):
                 LOG.info(
                     f'Adjusted dt from {dt * 1000:.1f}ms to '
-                    f'{adjusted_dt * 1000:.1f}ms per frame '
-                    f'(avg_fps={avg_fps:.1f})'
+                    + f'{adjusted_dt * 1000:.1f}ms per frame '
+                    + f'(avg_fps={avg_fps:.1f})'
                 )
                 self._last_performance_log_time = current_time
 
@@ -235,7 +239,7 @@ class AdaptiveClamping:
             else:
                 scene_data['fps_histogram'][fps_int] = 1
 
-    def get_statistical_aggregates(self: Self, scene_name: str | None = None) -> dict:
+    def get_statistical_aggregates(self: Self, scene_name: str | None = None) -> dict[str, Any]:
         """Get statistical aggregates for 5 9s reliability analysis.
 
         Args:
@@ -317,7 +321,7 @@ class AdaptiveClamping:
         ):  # Keep last 10,000 FPS readings (~83s at 120fps, ~42s at 240fps)
             self._fps_history.pop(0)
 
-    def get_performance_stats(self: Self) -> dict:
+    def get_performance_stats(self: Self) -> dict[str, Any]:
         """Get current performance statistics.
 
         Returns:
@@ -345,7 +349,7 @@ class AdaptiveClamping:
         self._fps_histogram = {}
         LOG.info('Reset performance tracking')
 
-    def get_shutdown_stats(self: Self) -> dict:
+    def get_shutdown_stats(self: Self) -> dict[str, Any]:
         """Get comprehensive performance statistics for shutdown reporting.
 
         Returns:
@@ -353,15 +357,17 @@ class AdaptiveClamping:
 
         """
         # Aggregate all scene data for global report
-        all_fps_history = []
+        all_fps_history: list[float] = []
         for scene_data in self._scene_data.values():
-            all_fps_history.extend(scene_data['fps_history'])
+            fps_history_list: list[float] = scene_data['fps_history']
+            all_fps_history.extend(fps_history_list)
 
         if not all_fps_history:
             return {'message': 'Not enough data'}
 
         # Calculate basic stats
-        fps_values = [fps for fps in all_fps_history if fps > 0]  # Filter out invalid FPS
+        # Filter out invalid FPS
+        fps_values: list[float] = [fps for fps in all_fps_history if fps > 0]
         if not fps_values:
             return {'message': 'No valid FPS data collected'}
 
@@ -372,6 +378,7 @@ class AdaptiveClamping:
         # Calculate percentiles (drop top and bottom self._trim_percent)
         trim_ratio = max(0.0, min(self._trim_percent, 49.9)) / 100.0
         drop_count = int(total_frames * trim_ratio)
+        trimmed_fps: list[float]
         if drop_count == 0:
             trimmed_fps = fps_values
         else:
@@ -382,7 +389,7 @@ class AdaptiveClamping:
             )
 
         # Create histogram from trimmed FPS data to match the percentage calculations
-        fps_histogram = {}
+        fps_histogram: dict[str, int] = {}
         if trimmed_fps:
             # Count FPS values in the trimmed data
             for fps in trimmed_fps:
@@ -406,14 +413,14 @@ class AdaptiveClamping:
             'performance_grade': self._calculate_performance_grade(trimmed_fps),
         }
 
-    def get_per_scene_shutdown_stats(self: Self) -> dict:
+    def get_per_scene_shutdown_stats(self: Self) -> dict[str, Any]:
         """Get comprehensive performance statistics per scene for shutdown reporting.
 
         Returns:
             dict: Per-scene performance statistics with histogram data.
 
         """
-        per_scene_stats = {}
+        per_scene_stats: dict[str, Any] = {}
 
         for scene_name, scene_data in self._scene_data.items():
             # Filter out "Unknown" scenes
@@ -427,7 +434,7 @@ class AdaptiveClamping:
                 continue
 
             # Calculate basic stats for this scene
-            fps_values = [fps for fps in fps_history if fps > 0]
+            fps_values: list[float] = [fps for fps in fps_history if fps > 0]
             if not fps_values:
                 per_scene_stats[scene_name] = {'message': 'No valid FPS data collected'}
                 continue
@@ -439,6 +446,7 @@ class AdaptiveClamping:
             # Calculate percentiles (drop top and bottom self._trim_percent)
             trim_ratio = max(0.0, min(self._trim_percent, 49.9)) / 100.0
             drop_count = int(total_frames * trim_ratio)
+            trimmed_fps: list[float]
             if drop_count == 0:
                 trimmed_fps = fps_values
             else:
@@ -449,7 +457,7 @@ class AdaptiveClamping:
                 )
 
             # Create histogram from trimmed FPS data to match the percentage calculations
-            scene_histogram = {}
+            scene_histogram: dict[str, int] = {}
             if trimmed_fps:
                 # Count FPS values in the trimmed data
                 for fps in trimmed_fps:
@@ -517,7 +525,7 @@ class AdaptiveClamping:
             return 'D (Poor)'  # 70%+ of target
         return 'F (Very Poor)'  # <70% of target
 
-    def get_spare_time_stats(self: Self, scene_name: str | None = None) -> dict:
+    def get_spare_time_stats(self: Self, scene_name: str | None = None) -> dict[str, Any]:
         """Calculate spare time statistics for capped frame rates.
 
         Args:
@@ -530,6 +538,7 @@ class AdaptiveClamping:
         if self._target_fps == 0:
             return {'message': 'Not applicable for unlimited FPS'}
 
+        frame_times: list[float]
         if scene_name:
             # Get frame times for specific scene
             if scene_name not in self._scene_data:
@@ -541,7 +550,8 @@ class AdaptiveClamping:
             # Aggregate frame times from all scenes for global report
             frame_times = []
             for scene_data in self._scene_data.values():
-                frame_times.extend(scene_data['frame_times'])
+                scene_frame_times: list[float] = scene_data['frame_times']
+                frame_times.extend(scene_frame_times)
             if not frame_times:
                 return {'message': 'No frame time data available'}
 
@@ -560,8 +570,8 @@ class AdaptiveClamping:
 
     def _log_fps_stats(
         self: Self,
-        stats: dict,
-        spare_stats: dict,
+        stats: dict[str, Any],
+        spare_stats: dict[str, Any],
     ) -> None:
         """Log FPS statistics and spare time information.
 
@@ -592,18 +602,18 @@ class AdaptiveClamping:
             LOG.info(f'⏱️  Average Frame Time: {spare_stats["avg_frame_time_ms"]:.1f}ms per-tick')
             LOG.info(
                 f'⏱️  Spare Time: {spare_stats["avg_spare_time_ms"]:.1f}ms'
-                f' per-tick ({spare_stats["spare_capacity_percent"]:.1f}%'
-                f' of scheduled capacity)'
+                + f' per-tick ({spare_stats["spare_capacity_percent"]:.1f}%'
+                + f' of scheduled capacity)'
             )
             LOG.info(
                 f'🎨 Draw Time: {spare_stats["avg_frame_time_ms"]:.1f}ms'
-                f' per-tick ({(100 - spare_stats["spare_capacity_percent"]):.1f}%'
-                f' of scheduled capacity)'
+                + f' per-tick ({(100 - spare_stats["spare_capacity_percent"]):.1f}%'
+                + f' of scheduled capacity)'
             )
             LOG.info(f'🔄 Could Tick: {spare_stats["could_tick_times"]:.1f}x faster')
 
     @staticmethod
-    def _log_fps_histogram(fps_histogram: dict, trimmed_frames: int) -> None:
+    def _log_fps_histogram(fps_histogram: dict[str, int], trimmed_frames: int) -> None:
         """Log FPS histogram in bell curve arrangement.
 
         Args:
@@ -615,7 +625,7 @@ class AdaptiveClamping:
         max_count = max(fps_histogram.values())
 
         # Build bucket list with percentages
-        all_buckets = []
+        all_buckets: list[tuple[str, int, float]] = []
         for bucket, count in fps_histogram.items():
             percentage = (count / trimmed_frames) * 100 if trimmed_frames > 0 else 0
             all_buckets.append((bucket, count, percentage))
@@ -625,8 +635,8 @@ class AdaptiveClamping:
         all_buckets.sort(key=operator.itemgetter(1), reverse=True)
 
         # Rearrange to bell curve: highest in center, tapering off
-        left_side = []
-        right_side = []
+        left_side: list[tuple[str, int, float]] = []
+        right_side: list[tuple[str, int, float]] = []
         for i, bucket_entry in enumerate(all_buckets):
             if i % 2 == 0:
                 left_side.append(bucket_entry)
@@ -644,12 +654,7 @@ class AdaptiveClamping:
             bar_length = int((count / max_count) * max_bar_length) if max_count > 0 else 0
             bar_length = min(bar_length, max_bar_length)
             bar = '█' * bar_length
-            if isinstance(bucket, str):
-                fps_range = f'{bucket:>3s} FPS'
-            elif isinstance(bucket, tuple):
-                fps_range = f'{bucket[0]:3d}-{bucket[1]:3d} FPS'
-            else:
-                fps_range = f'{bucket:3d}-{bucket + 4:3d} FPS'
+            fps_range = f'{bucket:>3s} FPS'
             LOG.info(f'  {fps_range:15s} {count:5d} frames ({percentage:5.1f}%) {bar}')
 
     def print_shutdown_report(self: Self) -> None:

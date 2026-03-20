@@ -25,14 +25,6 @@ class TestSceneLifecycle:
         # Reset singleton state for clean test
         SceneManager._reset()
 
-        # Create a mock game scene class for the engine
-        class MockGameScene(Scene):
-            NAME = 'MockGameScene'
-            VERSION = '1.0'
-
-            def __init__(self, options=None, groups=None):
-                super().__init__(options=options, groups=groups)
-
         # Create a simple scene manager for testing (centralized mocks handle pygame)
         self.scene_manager = SceneManager()
 
@@ -109,24 +101,24 @@ class TestSceneLifecycle:
         scene2 = Scene()
 
         # Set some state on scene1
-        scene1.custom_data = 'test_data'
+        scene1.custom_data = 'test_data'  # type: ignore[unresolved-attribute]
 
         # Switch to scene1
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
-        assert scene1.custom_data == 'test_data'
+        assert scene1.custom_data == 'test_data'  # type: ignore[unresolved-attribute]
 
         # Transition to scene2
         manager.switch_to_scene(scene2)
         assert manager.active_scene == scene2
 
         # Scene1 should retain its state
-        assert scene1.custom_data == 'test_data'
+        assert scene1.custom_data == 'test_data'  # type: ignore[unresolved-attribute]
 
         # Transition back to scene1
         manager.switch_to_scene(scene1)
         assert manager.active_scene == scene1
-        assert scene1.custom_data == 'test_data'
+        assert scene1.custom_data == 'test_data'  # type: ignore[unresolved-attribute]
 
     def test_scene_lifecycle_with_custom_methods(self):
         """Test scene lifecycle with custom methods."""

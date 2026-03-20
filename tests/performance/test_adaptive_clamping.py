@@ -49,6 +49,7 @@ class TestAdaptiveClampingSingleton:
         assert instance._dt_history == []
         assert instance._scene_data == {}
         assert math.isclose(instance._last_performance_log_time, 0.0, abs_tol=1e-9)
+        assert instance._fps_log_interval_ms is not None
         assert math.isclose(instance._fps_log_interval_ms, 1000.0)
         assert instance._current_scene is None
         assert math.isclose(instance._target_fps, 0.0, abs_tol=1e-9)

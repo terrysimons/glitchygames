@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import types
@@ -18,12 +18,12 @@ if TYPE_CHECKING:
 try:
     import miniaudio as mi
 except ImportError:  # pragma: no cover - optional dependency
-    mi = None
+    mi = None  # ty: ignore[invalid-assignment]
 
 try:
     import speech_recognition as sr
 except ImportError:  # pragma: no cover - test environments may skip
-    sr = None
+    sr = None  # ty: ignore[invalid-assignment]
 
 
 class _BlockingByteStream:
@@ -72,7 +72,7 @@ class _BlockingByteStream:
             self._cv.notify_all()
 
 
-class MiniaudioMicrophone(sr.AudioSource):
+class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[union-attr]
     """Miniaudio-based microphone compatible with speech_recognition.AudioSource."""
 
     def __init__(
@@ -97,8 +97,9 @@ class MiniaudioMicrophone(sr.AudioSource):
         self.CHUNK = chunk_size
         self.SAMPLE_WIDTH = sample_width  # bytes per sample
         self.stream: _BlockingByteStream | None = None
-        self._device: mi.CaptureDevice | None = None  # pyright: ignore[reportInvalidTypeForm]
+        self._device: Any = None
 
+    @override
     def __enter__(self) -> Self:
         """Enter the context manager, starting audio capture.
 
@@ -116,18 +117,19 @@ class MiniaudioMicrophone(sr.AudioSource):
                     self.stream.write(bytes(data))
 
         # Configure capture device
-        self._device = mi.CaptureDevice(
-            input_format=mi.SampleFormat.SIGNED16,
+        self._device = mi.CaptureDevice(  # type: ignore[union-attr]
+            input_format=mi.SampleFormat.SIGNED16,  # type: ignore[union-attr]
             nchannels=self.CHANNELS,
             sample_rate=self.SAMPLE_RATE,
             device_id=self.device_index,
         )
         generator = _capture_generator()
         next(generator)  # Prime the generator
-        self._device.start(generator)
+        self._device.start(generator)  # ty: ignore[invalid-argument-type]
         return self
 
-    def __exit__(
+    @override
+    def __exit__(  # ty: ignore[invalid-method-override]
         self,
         exc_type: type[BaseException] | None,
         exc: BaseException | None,

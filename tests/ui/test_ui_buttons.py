@@ -120,6 +120,7 @@ class TestButtonSpriteFunctionality:
         btn = ButtonSprite(x=10, y=20, width=100, height=40, name='TestButton')
 
         # Assert
+        assert btn.rect is not None
         assert btn.rect.x == BUTTON_X
         assert btn.rect.y == BUTTON_Y
         assert btn.rect.width == BUTTON_WIDTH

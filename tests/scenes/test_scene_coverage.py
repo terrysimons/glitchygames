@@ -685,7 +685,7 @@ class TestLogJitterStats:
     def test_log_jitter_stats_handles_exception_gracefully(self, mock_pygame_patches, mocker):
         """Test that _log_jitter_stats handles exceptions without crashing."""
         manager = SceneManager()
-        manager.fps_log_interval_ms = 'invalid'  # Will cause ValueError in float()
+        manager.fps_log_interval_ms = 'invalid'  # type: ignore[invalid-assignment]  # Will cause ValueError in float()
 
         mock_timer = mocker.Mock()
         mock_timer.ns_now.return_value = 1_000_000_000
@@ -750,7 +750,7 @@ class TestHandleFramePacing:
     def test_handle_frame_pacing_with_timer(self, mock_pygame_patches, mocker):
         """Test frame pacing delegates to timer when available."""
         manager = SceneManager()
-        manager.OPTIONS = {'log_timer_jitter': False}
+        type(manager).OPTIONS = {'log_timer_jitter': False}
 
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 2_000_000
@@ -770,7 +770,7 @@ class TestHandleFramePacing:
     def test_handle_frame_pacing_with_timer_and_jitter_logging(self, mock_pygame_patches, mocker):
         """Test frame pacing calls jitter logging when enabled."""
         manager = SceneManager()
-        manager.OPTIONS = {'log_timer_jitter': True}
+        type(manager).OPTIONS = {'log_timer_jitter': True}
         manager.fps_log_interval_ms = 100_000
 
         mock_timer = mocker.Mock()
@@ -1082,7 +1082,7 @@ class TestSceneManagerShouldPostFpsEvent:
     def test_should_post_fps_event_true(self, mock_pygame_patches, mocker):
         """Test returns True when time exceeds half the log interval."""
         manager = SceneManager()
-        manager.OPTIONS = {'fps_log_interval_ms': 1000}
+        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
 
         # 600ms has passed, half of 1000ms = 500ms
         result = manager._should_post_fps_event(current_time=1.0, previous_fps_time=0.4)
@@ -1091,7 +1091,7 @@ class TestSceneManagerShouldPostFpsEvent:
     def test_should_post_fps_event_false(self, mock_pygame_patches, mocker):
         """Test returns False when time does not exceed half the log interval."""
         manager = SceneManager()
-        manager.OPTIONS = {'fps_log_interval_ms': 1000}
+        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
 
         # Only 100ms has passed, half of 1000ms = 500ms
         result = manager._should_post_fps_event(current_time=1.0, previous_fps_time=0.9)

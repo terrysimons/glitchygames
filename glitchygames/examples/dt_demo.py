@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -12,6 +12,7 @@ import pygame
 
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
+from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 
 # Adapted from:
@@ -26,19 +27,21 @@ class Game(Scene):
     VERSION = '1.0'
 
     def __init__(
-        self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
+        self: Self,
+        options: dict[str, object],
+        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
     ) -> None:
         """Initialize the Game.
 
         Args:
-            options (dict): The options passed to the game.
+            options (dict[str, object]): The options passed to the game.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
 
         """
         if groups is None:
-            groups = pygame.sprite.LayeredDirty()
+            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
-        super().__init__(options=options, groups=groups)
+        super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
         self.font = pygame.font.SysFont('Calibri', 40)
         self.rect_pos = 0
         # Pixels per second; use a visible speed
@@ -68,6 +71,7 @@ class Game(Scene):
     # def setup(self):
     #     self.target_fps = 30
 
+    @override
     def dt_tick(self: Self, dt: float) -> None:
         """Update the scene.
 
@@ -87,12 +91,14 @@ class Game(Scene):
             self.dt_timer += dt
             self.rect_pos += self.velocity * dt
 
+    @override
     def update(self: Self) -> None:
         """Update the scene.
 
         This method will get called automatically by the GameEngine class.
 
         """
+        assert self.screen is not None
         self.screen.fill((0, 0, 0))
 
         if self.rect_pos > self.screen_width and not self.passed:
@@ -115,11 +121,12 @@ class Game(Scene):
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            event (HashableEvent): The event to handle.
 
         """
         pressed_keys = pygame.key.get_pressed()

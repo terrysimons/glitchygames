@@ -166,6 +166,7 @@ class TestBallBoundaryCollisions:
         ball.speed.y = 100.0  # Moving downward
 
         # Position ball at bottom boundary
+        assert ball.rect is not None
         ball.rect.y = ball.screen_height - ball.height
 
         ball._do_bounce()
@@ -181,6 +182,7 @@ class TestBallBoundaryCollisions:
         ball.speed.y = 50.0
 
         # Position ball at left boundary
+        assert ball.rect is not None
         ball.rect.x = 0
 
         ball._do_bounce()
@@ -195,6 +197,7 @@ class TestBallBoundaryCollisions:
         ball.speed.x = -100.0
         ball.speed.y = 50.0
 
+        assert ball.rect is not None
         ball.rect.x = 0
 
         ball._do_bounce()
@@ -210,6 +213,7 @@ class TestBallBoundaryCollisions:
         ball.speed.y = 50.0
 
         # Position ball at right boundary
+        assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
 
         ball._do_bounce()
@@ -222,6 +226,7 @@ class TestBallBoundaryCollisions:
         ball.speed.x = 100.0
         ball.speed.y = 50.0
 
+        assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
 
         ball._do_bounce()
@@ -255,6 +260,7 @@ class TestCornerCollisions:
         ball.speed.x = -100.0  # Moving left
         ball.speed.y = -100.0  # Moving up
 
+        assert ball.rect is not None
         ball.rect.x = 0
         ball.rect.y = 0
 
@@ -270,6 +276,7 @@ class TestCornerCollisions:
         ball.speed.x = 100.0  # Moving right
         ball.speed.y = -100.0  # Moving up
 
+        assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
         ball.rect.y = 0
 
@@ -284,6 +291,7 @@ class TestCornerCollisions:
         ball.speed.x = -100.0
         ball.speed.y = 100.0
 
+        assert ball.rect is not None
         ball.rect.x = 0
         ball.rect.y = ball.screen_height - ball.height
 
@@ -298,6 +306,7 @@ class TestCornerCollisions:
         ball.speed.x = 100.0
         ball.speed.y = 100.0
 
+        assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
         ball.rect.y = ball.screen_height - ball.height
 
@@ -316,6 +325,7 @@ class TestDtTickMovementMismatch:
         ball.speed.x = 200.0
         ball.speed.y = 100.0
 
+        assert ball.rect is not None
         original_x = ball.rect.x
         original_y = ball.rect.y
 
@@ -342,6 +352,7 @@ class TestPaddleCollisionSpeedCap:
         ball.speed.y = 1000.0
 
         # Position ball overlapping with paddle
+        assert ball.rect is not None
         ball.rect.x = 95
         ball.rect.y = 100
 
@@ -363,6 +374,7 @@ class TestPaddleCollisionSpeedCap:
         ball.speed.y = 50.0
 
         # Ball center is to the right of paddle center
+        assert ball.rect is not None
         ball.rect.x = 130
         ball.rect.y = 100
 
@@ -375,7 +387,7 @@ class TestPaddleCollisionSpeedCap:
         ball = BallSprite(x=100, y=100, width=20, height=20)
 
         mock_callback = mocker.Mock()
-        ball.on_paddle_collision = mock_callback
+        ball.on_paddle_collision = mock_callback  # type: ignore[unresolved-attribute]
 
         paddle = mocker.Mock()
         paddle.rect = pygame.Rect(120, 90, 20, 100)
@@ -383,6 +395,7 @@ class TestPaddleCollisionSpeedCap:
 
         ball.speed.x = 100.0
         ball.speed.y = 50.0
+        assert ball.rect is not None
         ball.rect.x = 130
         ball.rect.y = 100
 
@@ -414,6 +427,7 @@ class TestBallMovementMismatchWarning:
         ball.speed.y = -200.0  # Moving up fast
 
         # Position ball so bounce will modify rect.y
+        assert ball.rect is not None
         ball.rect.y = -5
 
         # dt_tick will: add move_y to rect.y (making it more negative),
@@ -474,6 +488,7 @@ class TestBallBottomBounceZeroSpeed:
         log = logging.getLogger('game')
 
         # Position ball at bottom
+        assert ball.rect is not None
         ball.rect.y = ball.screen_height - ball.height
 
         ball._handle_bottom_collision(log)
@@ -502,6 +517,7 @@ class TestBallBottomBounceZeroSpeed:
 
         log = logging.getLogger('game')
 
+        assert ball.rect is not None
         ball.rect.x = 0
 
         ball._handle_left_collision(log)
@@ -528,6 +544,7 @@ class TestBallBottomBounceZeroSpeed:
 
         log = logging.getLogger('game')
 
+        assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
 
         ball._handle_right_collision(log)

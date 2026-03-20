@@ -80,7 +80,7 @@ class TestCharmapFunctionality:
 
         # Test None input - should raise AttributeError
         with pytest.raises(AttributeError):
-            charmap.is_defined_non_whitespace_printable(None)
+            charmap.is_defined_non_whitespace_printable(None)  # type: ignore[arg-type]
 
     def test_max_chars_constant(self, mock_pygame_patches):
         """Test max_chars constant."""

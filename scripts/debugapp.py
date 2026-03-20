@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     import argparse
@@ -25,13 +25,15 @@ BitmappySprite.DEBUG = True
 class IntroScene(Scene):
     """The intro scene."""
 
-    def __init__(self: Self) -> Self:
+    def __init__(self: Self) -> None:
         """Initialize the intro scene."""
         super().__init__()
-        self.screen = pygame.display.get_surface()
-        self.screen_width = self.screen.get_width()
-        self.screen_height = self.screen.get_height()
-        self.all_sprites = pygame.sprite.LayeredDirty()
+        screen = pygame.display.get_surface()
+        assert screen is not None
+        self.screen: pygame.Surface = screen
+        self.screen_width: int = self.screen.get_width()
+        self.screen_height: int = self.screen.get_height()
+        self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty()
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -44,11 +46,11 @@ class Game(Scene):
     VERSION = '1.0'
     log = LOG
 
-    def __init__(self: Self, options: dict) -> Self:
+    def __init__(self: Self, options: dict[str, Any]) -> None:
         """Initialize the Game.
 
         Args:
-            options (dict): The options passed to the game.
+            options (dict[str, Any]): The options passed to the game.
 
         """
         super().__init__(options=options)
@@ -58,7 +60,7 @@ class Game(Scene):
         self.next_scene = IntroScene()
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+    def args(cls: type[Game], parser: argparse.ArgumentParser) -> None:
         """Add arguments to the parser.
 
         Args:

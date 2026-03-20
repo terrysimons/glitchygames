@@ -9,6 +9,8 @@ Tests complex scenarios involving:
 - Mixed undo/redo operations
 """
 
+from typing import cast
+
 import pygame
 import pytest
 
@@ -72,7 +74,8 @@ class TestFilmStripUndoRedo:
 
                 # Create initial animation with one frame
                 frame1 = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-                frame1.pixels = [(255, 0, 0)] * (32 * 32)  # Red frame
+                pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * (32 * 32))  # Red frame
+                frame1.pixels = pixel_data
 
                 sprite._animations = {'strip_1': [frame1]}
 

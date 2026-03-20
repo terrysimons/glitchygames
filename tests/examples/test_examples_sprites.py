@@ -76,7 +76,7 @@ class TestExamplesSprites:
 
             except (ValueError, FileNotFoundError, AttributeError) as e:
                 # Log expected errors and record as failed
-                self.log.warning(f'Failed to load sprite {sprite_file.name}: {e}')
+                self.log.warning(f'Failed to load sprite {sprite_file.name}: {e}')  # type: ignore[unresolved-attribute]
                 failed_count += 1
                 results.append((sprite_file.name, 'FAILED', str(e)))
             except (TypeError, KeyError, OSError) as e:
@@ -110,6 +110,7 @@ class TestExamplesSprites:
                 sprite = SpriteFactory.load_sprite(filename=str(sprite_file))
 
                 # Test pixel integrity
+                assert sprite.image is not None
                 original_pixels = self._extract_pixel_data(sprite.image)
 
                 # Draw to test surface
@@ -133,7 +134,7 @@ class TestExamplesSprites:
 
             except (ValueError, FileNotFoundError, AttributeError) as e:
                 # Log expected errors and skip
-                self.log.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')
+                self.log.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')  # type: ignore[unresolved-attribute]
                 continue
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
@@ -164,6 +165,7 @@ class TestExamplesSprites:
 
             try:
                 sprite = SpriteFactory.load_sprite(filename=str(sprite_file))
+                assert sprite.image is not None
                 width, height = sprite.image.get_size()
 
                 # Check dimensions are reasonable
@@ -181,7 +183,7 @@ class TestExamplesSprites:
 
             except (ValueError, FileNotFoundError, AttributeError) as e:
                 # Log expected errors and skip
-                self.log.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')
+                self.log.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')  # type: ignore[unresolved-attribute]
                 continue
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
@@ -230,7 +232,7 @@ class TestExamplesSprites:
 
             except (ValueError, FileNotFoundError, AttributeError) as e:
                 # Log expected errors and skip
-                self.log.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')
+                self.log.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')  # type: ignore[unresolved-attribute]
                 continue
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors
@@ -262,6 +264,7 @@ class TestExamplesSprites:
                 load_time = time.time() - start_time
 
                 # Time the rendering
+                assert sprite.image is not None
                 start_time = time.time()
                 test_surface = pygame.Surface(sprite.image.get_size())
                 test_surface.blit(sprite.image, (0, 0))
@@ -277,7 +280,7 @@ class TestExamplesSprites:
 
             except (ValueError, FileNotFoundError, AttributeError) as e:
                 # Log expected errors and skip
-                self.log.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')
+                self.log.warning(f'Skipping sprite {sprite_file.name} due to expected error: {e}')  # type: ignore[unresolved-attribute]
                 continue
             except (TypeError, KeyError, OSError) as e:
                 # Fail fast on unexpected errors

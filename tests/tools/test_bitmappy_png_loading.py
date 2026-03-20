@@ -3,6 +3,7 @@
 import tempfile
 import tomllib
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -40,17 +41,18 @@ class TestPNGLoading:
 
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
         mocker.patch.object(AnimatedCanvasSprite, '__init__', return_value=None)
-        self.mock_canvas = AnimatedCanvasSprite()
+        self.mock_canvas = AnimatedCanvasSprite()  # type: ignore[missing-argument]
         self.mock_canvas.log = mocker.Mock()
         self.mock_canvas.pixels_across = 32
         self.mock_canvas.pixels_tall = 32
-        self.mock_canvas.pixels = [(255, 255, 255)] * (32 * 32)  # White pixels
+        canvas_pixel_data = cast(list[tuple[int, ...]], [(255, 255, 255)] * (32 * 32))  # White pixels
+        self.mock_canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         self.mock_canvas.on_load_file_event = mocker.Mock()
         self.mock_canvas._update_border_thickness = mocker.Mock()
         self.mock_canvas.force_redraw = mocker.Mock()
         self.mock_canvas.parent = self.mock_scene
         # Attributes needed by __str__ and __repr__ inherited from parent classes
-        self.mock_canvas.filename = None
+        self.mock_canvas.filename = None  # type: ignore[invalid-assignment]
         self.mock_canvas.name = 'test_canvas'
 
         self.mock_scene.all_sprites = [self.mock_canvas]
@@ -67,7 +69,7 @@ class TestPNGLoading:
             # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
             # AnimatedCanvasSprite, so set it directly as a Mock attribute
             mock_convert = self._mocker.Mock(return_value='mock_converted_file.toml')
-            self.mock_canvas._convert_png_to_bitmappy = mock_convert
+            self.mock_canvas._convert_png_to_bitmappy = mock_convert  # type: ignore[invalid-assignment]
 
             # Mock the AnimatedSprite.load method
             mock_sprite_class = self._mocker.patch('glitchygames.tools.bitmappy.AnimatedSprite')
@@ -101,7 +103,7 @@ class TestPNGLoading:
             # _convert_png_to_bitmappy is defined on BitmapEditorScene, not
             # AnimatedCanvasSprite, so set it directly as a Mock attribute
             mock_convert = self._mocker.Mock(return_value=None)
-            self.mock_canvas._convert_png_to_bitmappy = mock_convert
+            self.mock_canvas._convert_png_to_bitmappy = mock_convert  # type: ignore[invalid-assignment]
 
             with pytest.raises(ValueError, match='Failed to convert PNG to bitmappy format'):
                 self.mock_canvas._load_sprite_from_file(str(tmp_png_path))
@@ -198,7 +200,7 @@ class TestTOMLNormalization:
         config_data = 'invalid_data'
 
         # Should return original data on error
-        result = _normalize_toml_data(config_data)
+        result = _normalize_toml_data(config_data)  # type: ignore[invalid-argument-type]
         assert result == config_data
 
 
@@ -439,7 +441,7 @@ class TestDragAndDropPNG:
             mock_event = MockEvent(str(tmp_png_path))
 
             # Call the drag and drop handler
-            self.mock_scene.on_drop_file_event(mock_event)
+            self.mock_scene.on_drop_file_event(mock_event)  # type: ignore[invalid-argument-type]
 
             # Verify conversion was called
             mock_convert.assert_called_once_with(str(tmp_png_path))
@@ -468,7 +470,7 @@ class TestDragAndDropPNG:
             mock_event = MockEvent(str(tmp_file_path))
 
             # Call the drag and drop handler
-            self.mock_scene.on_drop_file_event(mock_event)
+            self.mock_scene.on_drop_file_event(mock_event)  # type: ignore[invalid-argument-type]
 
             # Verify conversion was NOT called
             mock_convert.assert_not_called()
@@ -496,7 +498,7 @@ class TestColorQuantization:
 
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
         mocker.patch.object(AnimatedCanvasSprite, '__init__', return_value=None)
-        self.mock_canvas = AnimatedCanvasSprite()
+        self.mock_canvas = AnimatedCanvasSprite()  # type: ignore[missing-argument]
         self.mock_canvas.log = mocker.Mock()
         self.mock_canvas.pixels_across = 32
         self.mock_canvas.pixels_tall = 32
@@ -784,7 +786,7 @@ blue = 0
     def test_color_quantization_handles_edge_cases(self):
         """Test quantization with edge cases like single color."""
         # Test with single color
-        single_color_pixels = [(255, 0, 0)] * (32 * 32)
+        single_color_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * (32 * 32))
 
         expected_toml = """[sprite]
 name = "current_frame"
@@ -991,16 +993,17 @@ blue = 255
 
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
         self._mocker.patch.object(AnimatedCanvasSprite, '__init__', return_value=None)
-        canvas = AnimatedCanvasSprite()
+        canvas = AnimatedCanvasSprite()  # type: ignore[missing-argument]
         canvas.log = self._mocker.Mock()
         canvas.pixels_across = 32
         canvas.pixels_tall = 32
-        canvas.pixels = [(255, 255, 255)] * (32 * 32)
+        canvas_pixel_data = cast(list[tuple[int, ...]], [(255, 255, 255)] * (32 * 32))
+        canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         canvas.parent_scene = scene
         # Mock required methods and attributes
         canvas.force_redraw = self._mocker.Mock()
         canvas._copy_sprite_to_canvas = self._mocker.Mock()
-        canvas._update_mini_view_from_current_frame = self._mocker.Mock()
+        canvas._update_mini_view_from_current_frame = self._mocker.Mock()  # type: ignore[unresolved-attribute]
         canvas.dirty = 1
 
         # Create a mock loaded sprite with description
@@ -1028,16 +1031,17 @@ blue = 255
 
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
         self._mocker.patch.object(AnimatedCanvasSprite, '__init__', return_value=None)
-        canvas = AnimatedCanvasSprite()
+        canvas = AnimatedCanvasSprite()  # type: ignore[missing-argument]
         canvas.log = self._mocker.Mock()
         canvas.pixels_across = 32
         canvas.pixels_tall = 32
-        canvas.pixels = [(255, 255, 255)] * (32 * 32)
+        canvas_pixel_data = cast(list[tuple[int, ...]], [(255, 255, 255)] * (32 * 32))
+        canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         canvas.parent_scene = scene
         # Mock required methods and attributes
         canvas.force_redraw = self._mocker.Mock()
         canvas._copy_sprite_to_canvas = self._mocker.Mock()
-        canvas._update_mini_view_from_current_frame = self._mocker.Mock()
+        canvas._update_mini_view_from_current_frame = self._mocker.Mock()  # type: ignore[unresolved-attribute]
         canvas.dirty = 1
 
         # Create a mock loaded sprite with empty description
@@ -1065,16 +1069,17 @@ blue = 255
 
         # Create a real AnimatedCanvasSprite instance with mocked dependencies
         self._mocker.patch.object(AnimatedCanvasSprite, '__init__', return_value=None)
-        canvas = AnimatedCanvasSprite()
+        canvas = AnimatedCanvasSprite()  # type: ignore[missing-argument]
         canvas.log = self._mocker.Mock()
         canvas.pixels_across = 32
         canvas.pixels_tall = 32
-        canvas.pixels = [(255, 255, 255)] * (32 * 32)
+        canvas_pixel_data = cast(list[tuple[int, ...]], [(255, 255, 255)] * (32 * 32))
+        canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         canvas.parent_scene = scene
         # Mock required methods and attributes
         canvas.force_redraw = self._mocker.Mock()
         canvas._copy_sprite_to_canvas = self._mocker.Mock()
-        canvas._update_mini_view_from_current_frame = self._mocker.Mock()
+        canvas._update_mini_view_from_current_frame = self._mocker.Mock()  # type: ignore[unresolved-attribute]
         canvas.dirty = 1
 
         # Create a mock loaded sprite with whitespace-only description

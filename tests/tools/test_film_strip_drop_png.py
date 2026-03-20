@@ -36,10 +36,10 @@ class TestFilmStripDropPNG:
 
         # Create film strip sprite
         film_strip_sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=100, height=100)
-        film_strip_sprite.rect = self._mocker.Mock()
-        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=True)
-        film_strip_sprite.rect.x = 0
-        film_strip_sprite.rect.y = 0
+        film_strip_sprite.rect = self._mocker.Mock()  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=True)  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.x = 0  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.y = 0  # type: ignore[invalid-assignment]
 
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
@@ -65,7 +65,7 @@ class TestFilmStripDropPNG:
             event = MockEvent(str(test_file_path), (50, 50))  # Drop in middle of film strip
 
             # Test the drop
-            result = film_strip_sprite.on_drop_file_event(event)
+            result = film_strip_sprite.on_drop_file_event(event)  # type: ignore[invalid-argument-type]
 
             # Verify the drop was handled
             assert result is True
@@ -92,10 +92,10 @@ class TestFilmStripDropPNG:
 
         # Create film strip sprite
         film_strip_sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=100, height=100)
-        film_strip_sprite.rect = self._mocker.Mock()
-        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=True)
-        film_strip_sprite.rect.x = 0
-        film_strip_sprite.rect.y = 0
+        film_strip_sprite.rect = self._mocker.Mock()  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=True)  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.x = 0  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.y = 0  # type: ignore[invalid-assignment]
 
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
@@ -121,7 +121,7 @@ class TestFilmStripDropPNG:
             event = MockEvent(str(test_file_path), (50, 50))  # Drop in middle of film strip
 
             # Test the drop
-            result = film_strip_sprite.on_drop_file_event(event)
+            result = film_strip_sprite.on_drop_file_event(event)  # type: ignore[invalid-argument-type]
 
             # Verify the drop was handled
             assert result is True
@@ -138,10 +138,10 @@ class TestFilmStripDropPNG:
 
         # Create film strip sprite
         film_strip_sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=100, height=100)
-        film_strip_sprite.rect = self._mocker.Mock()
-        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=True)
-        film_strip_sprite.rect.x = 0
-        film_strip_sprite.rect.y = 0
+        film_strip_sprite.rect = self._mocker.Mock()  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=True)  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.x = 0  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.y = 0  # type: ignore[invalid-assignment]
 
         # Create mock drop event with unsupported file
         class MockEvent:
@@ -152,7 +152,7 @@ class TestFilmStripDropPNG:
         event = MockEvent('test.txt', (50, 50))  # Text file, not image
 
         # Test the drop
-        result = film_strip_sprite.on_drop_file_event(event)
+        result = film_strip_sprite.on_drop_file_event(event)  # type: ignore[invalid-argument-type]
 
         # Verify the drop was rejected
         assert result is False
@@ -164,8 +164,8 @@ class TestFilmStripDropPNG:
 
         # Create film strip sprite
         film_strip_sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=100, height=100)
-        film_strip_sprite.rect = self._mocker.Mock()
-        film_strip_sprite.rect.collidepoint = self._mocker.Mock(
+        film_strip_sprite.rect = self._mocker.Mock()  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.collidepoint = self._mocker.Mock(  # type: ignore[invalid-assignment]
             return_value=False
         )  # Outside bounds
 
@@ -178,7 +178,7 @@ class TestFilmStripDropPNG:
         event = MockEvent('test.png', (200, 200))  # Outside film strip
 
         # Test the drop
-        result = film_strip_sprite.on_drop_file_event(event)
+        result = film_strip_sprite.on_drop_file_event(event)  # type: ignore[invalid-argument-type]
 
         # Verify the drop was rejected
         assert result is False
@@ -197,10 +197,10 @@ class TestFilmStripDropPNG:
 
         # Create film strip sprite
         film_strip_sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=100, height=100)
-        film_strip_sprite.rect = self._mocker.Mock()
-        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=True)
-        film_strip_sprite.rect.x = 0
-        film_strip_sprite.rect.y = 0
+        film_strip_sprite.rect = self._mocker.Mock()  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.collidepoint = self._mocker.Mock(return_value=True)  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.x = 0  # type: ignore[invalid-assignment]
+        film_strip_sprite.rect.y = 0  # type: ignore[invalid-assignment]
 
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
@@ -226,7 +226,7 @@ class TestFilmStripDropPNG:
             event = MockEvent(str(test_file_path), (50, 50))
 
             # Test the drop
-            result = film_strip_sprite.on_drop_file_event(event)
+            result = film_strip_sprite.on_drop_file_event(event)  # type: ignore[invalid-argument-type]
 
             # Verify the drop was handled and frame was added
             assert result is True

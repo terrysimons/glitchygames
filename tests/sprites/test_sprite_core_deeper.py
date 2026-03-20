@@ -32,6 +32,7 @@ Targets areas NOT covered by test_sprite_core_coverage.py:
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -66,18 +67,21 @@ class TestSpriteCoordinateAccess:
     def test_rect_x_is_settable(self):
         """Test rect.x can be set directly."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
+        assert sprite.rect is not None
         sprite.rect.x = 42
         assert sprite.rect.x == 42
 
     def test_rect_y_is_settable(self):
         """Test rect.y can be set directly."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
+        assert sprite.rect is not None
         sprite.rect.y = 99
         assert sprite.rect.y == 99
 
     def test_initial_coordinates(self):
         """Test sprite initializes with correct coordinates."""
         sprite = Sprite(x=15, y=25, width=10, height=10)
+        assert sprite.rect is not None
         assert sprite.rect.x == 15
         assert sprite.rect.y == 25
 
@@ -149,10 +153,10 @@ class TestSpriteOnQuitCallsTerminate:
     def test_on_quit_event_calls_terminate_via_mock(self, mocker):
         """Test on_quit_event invokes terminate method."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
-        sprite.terminate = mocker.Mock()
+        sprite.terminate = mocker.Mock()  # type: ignore[unresolved-attribute]
         event = mocker.Mock()
         sprite.on_quit_event(event)
-        sprite.terminate.assert_called_once()
+        sprite.terminate.assert_called_once()  # type: ignore[unresolved-attribute]
 
 
 class TestBitmappySpriteCreateColorMapRGBA:
@@ -277,7 +281,7 @@ blue = 0
 
 
 class TestSpriteFactoryDetectFileFormat:
-    """Test SpriteFactory._detect_file_format."""
+    """Test SpriteFactory.detect_file_format."""
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
@@ -286,22 +290,22 @@ class TestSpriteFactoryDetectFileFormat:
 
     def test_detect_toml_format(self):
         """Test detecting TOML file format."""
-        result = SpriteFactory._detect_file_format('sprite.toml')
+        result = SpriteFactory.detect_file_format('sprite.toml')
         assert result == 'toml'
 
     def test_detect_unknown_format_returns_unknown(self):
         """Test unknown extension returns 'unknown'."""
-        result = SpriteFactory._detect_file_format('sprite.xyz')
+        result = SpriteFactory.detect_file_format('sprite.xyz')
         assert result == 'unknown'
 
     def test_detect_yaml_format(self):
         """Test detecting YAML file format."""
-        result = SpriteFactory._detect_file_format('sprite.yaml')
+        result = SpriteFactory.detect_file_format('sprite.yaml')
         assert result == 'yaml'
 
     def test_detect_yml_format(self):
         """Test detecting YML file format."""
-        result = SpriteFactory._detect_file_format('sprite.yml')
+        result = SpriteFactory.detect_file_format('sprite.yml')
         assert result == 'yaml'
 
 
@@ -336,6 +340,7 @@ blue = 255
         toml_file.write_text(toml_content)
 
         sprite = BitmappySprite(x=5, y=10, filename=str(toml_file))
+        assert sprite.rect is not None
         assert sprite.rect.x == 5
         assert sprite.rect.y == 10
         assert sprite.name is not None
@@ -468,6 +473,7 @@ class TestBitmappySpriteInitRealPygame:
     def test_bitmappy_sprite_init_with_width_height(self):
         """Test BitmappySprite init with width and height creates surface (lines 871-896)."""
         sprite = BitmappySprite(x=5, y=10, width=16, height=16)
+        assert sprite.rect is not None
         assert sprite.rect.x == 5
         assert sprite.rect.y == 10
         assert sprite.width == 16
@@ -512,6 +518,7 @@ blue = 255
         toml_file.write_text(toml_content)
 
         sprite = BitmappySprite(x=3, y=7, filename=str(toml_file))
+        assert sprite.rect is not None
         assert sprite.rect.x == 3
         assert sprite.rect.y == 7
         assert sprite.name == 'init_file_test'
@@ -1231,7 +1238,7 @@ class TestGetPixelString:
         """Test _get_pixel_string returns empty string when no pixels."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         sprite.pixels = []
-        result = sprite._get_pixel_string()
+        result = sprite._get_pixel_string()  # type: ignore[unresolved-attribute]
         assert not result
 
     def test_get_pixel_string_with_pixels(self):
@@ -1240,7 +1247,7 @@ class TestGetPixelString:
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
         sprite.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
-        result = sprite._get_pixel_string()
+        result = sprite._get_pixel_string()  # type: ignore[unresolved-attribute]
         # Should be 2 rows of 2 dots with newline between
         assert result == '..\n..'
 
@@ -1251,7 +1258,7 @@ class TestGetPixelString:
         sprite.pixels_tall = 2
         # Only 2 pixels but 2x2=4 expected
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
-        result = sprite._get_pixel_string()
+        result = sprite._get_pixel_string()  # type: ignore[unresolved-attribute]
         # Should still produce full grid with dots for missing pixels
         assert result == '..\n..'
 
@@ -1260,7 +1267,7 @@ class TestGetPixelString:
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         if hasattr(sprite, 'pixels'):
             del sprite.pixels
-        result = sprite._get_pixel_string()
+        result = sprite._get_pixel_string()  # type: ignore[unresolved-attribute]
         assert not result
 
 
@@ -1276,14 +1283,14 @@ class TestGetColorMap:
         """Test _get_color_map returns empty dict when no pixels."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         sprite.pixels = []
-        result = sprite._get_color_map()
+        result = sprite._get_color_map()  # type: ignore[unresolved-attribute]
         assert result == {}
 
     def test_get_color_map_with_pixels(self):
         """Test _get_color_map returns color entries."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=1)
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
-        result = sprite._get_color_map()
+        result = sprite._get_color_map()  # type: ignore[unresolved-attribute]
         assert len(result) == 2
         # Each entry should have red, green, blue keys
         for value in result.values():
@@ -1296,7 +1303,7 @@ class TestGetColorMap:
         sprite = BitmappySprite(x=0, y=0, width=10, height=10)
         # 12 unique colors, should be capped at 8
         sprite.pixels = [(i * 20, 0, 0) for i in range(12)]
-        result = sprite._get_color_map()
+        result = sprite._get_color_map()  # type: ignore[unresolved-attribute]
         assert len(result) <= 8
 
     def test_get_color_map_no_pixels_attr(self):
@@ -1304,7 +1311,7 @@ class TestGetColorMap:
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         if hasattr(sprite, 'pixels'):
             del sprite.pixels
-        result = sprite._get_color_map()
+        result = sprite._get_color_map()  # type: ignore[unresolved-attribute]
         assert result == {}
 
 
@@ -1322,7 +1329,8 @@ class TestBitmappySpriteDeflatePixelsTruncated:
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
         # 10 pixels for 2x2=4 expected - should truncate
-        sprite.pixels = [(255, 0, 0)] * 10
+        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 10)
+        sprite.pixels = pixel_data
         config = sprite.deflate(file_format='toml')
         assert 'sprite' in config
         assert config['sprite']['name'] == 'trunc'
@@ -1345,7 +1353,7 @@ class TestBitmappySpriteGeneratePixelRowsWithColorMap:
 
         # Provide a pre-built color map (inverted: color->char)
         color_map = {(255, 0, 0): 'R', (0, 255, 0): 'G'}
-        rows, _returned_map = sprite._generate_pixel_rows(color_map=color_map)
+        rows, _returned_map = sprite._generate_pixel_rows(color_map=color_map)  # type: ignore[invalid-argument-type]
         assert len(rows) == 2
         # Rows should use 'R' and 'G' characters
         assert 'R' in rows[0]

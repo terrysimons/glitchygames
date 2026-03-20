@@ -7,7 +7,7 @@ from cookiecutter.main import cookiecutter
 path = Path(__file__).parent
 
 
-def get_templates() -> list:
+def get_templates() -> list[str]:
     """Return a list of templates.
 
     Returns:

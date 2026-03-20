@@ -289,7 +289,7 @@ class TestDeleteFrameDialogSetup:
             on_cancel_callback=None,
             groups=mock_groups,
         )
-        dialog.game_engine = mocker.Mock()
+        dialog.game_engine = mocker.Mock()  # type: ignore[unresolved-attribute]
         event = mocker.Mock()
         dialog.on_cancel_event(event)  # Should not raise
 

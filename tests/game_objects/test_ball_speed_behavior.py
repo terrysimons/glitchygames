@@ -160,6 +160,7 @@ class TestBallSpeedBehavior:
         initial_x = abs(ball.speed.x)  # Use absolute value since direction might change
 
         # Position ball to hit top boundary
+        assert ball.rect is not None
         ball.rect.y = 1
         ball.speed.y = -100  # Moving up
 

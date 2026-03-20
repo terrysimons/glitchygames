@@ -52,7 +52,7 @@ class MockSurface(pygame.Surface):
                     args = (default_surface_size, default_surface_size, *args[2:])
 
         # Initialize the parent pygame.Surface
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)  # type: ignore[no-matching-overload]
         self._surface = self  # For compatibility with existing code
         self._mock_path = '/mock/surface/path.png'  # Default mock path for PathLike protocol
 
@@ -74,7 +74,7 @@ class MockSurface(pygame.Surface):
         """
         return self
 
-    def blit(self, source, dest, area=None, special_flags=0):
+    def blit(self, source, dest, area=None, special_flags=0):  # type: ignore[invalid-method-override]
         """Delegate blit to the parent surface.
 
         Returns:
@@ -578,6 +578,8 @@ class MockFactory:
             animation_name: mock_frames,
             'timing_demo': mock_frames,  # Add timing_demo animation for tests
         }
+        # Expose animation_data as public alias (mirrors AnimatedSprite.animation_data property)
+        mock_sprite.animation_data = mock_sprite._animations
 
         # Only add "idle" if it's specifically requested
         if animation_name == 'idle':
@@ -602,6 +604,12 @@ class MockFactory:
 
         # Add frames attribute that canvas_interfaces.py expects
         mock_sprite.frames = mock_sprite._animations
+
+        # Add animation_order attribute that canvas_interfaces.py expects
+        mock_sprite.animation_order = list(mock_sprite._animations.keys())
+
+        # Add clear_surface_cache method that canvas_interfaces.py expects
+        mock_sprite.clear_surface_cache = Mock()
 
         # Add missing attributes (must be set before _configure_sprite_methods)
         mock_sprite._surface_cache = {}
@@ -1133,7 +1141,7 @@ class MockFactory:
         MockSurfaceClass.__module__ = 'pygame'
 
         # Store the class for isinstance checks
-        MockFactory._surface_class = MockSurfaceClass
+        MockFactory._surface_class = MockSurfaceClass  # type: ignore[unresolved-attribute]
 
         return MockSurfaceClass
 
@@ -1149,29 +1157,29 @@ class MockFactory:
         screen = MockSurface((width, height))
 
         # Override methods to return expected values
-        screen.get_width = Mock(return_value=width)
-        screen.get_height = Mock(return_value=height)
-        screen.get_size = Mock(return_value=(width, height))
+        screen.get_width = Mock(return_value=width)  # type: ignore[invalid-assignment]
+        screen.get_height = Mock(return_value=height)  # type: ignore[invalid-assignment]
+        screen.get_size = Mock(return_value=(width, height))  # type: ignore[invalid-assignment]
 
         # Provide surface methods that Scene class calls
-        screen.convert = Mock(return_value=screen)
-        screen.convert_alpha = Mock(return_value=screen)
-        screen.blit = Mock(return_value=None)
-        screen.fill = Mock(return_value=None)
-        screen.copy = Mock(return_value=screen)
-        screen.set_at = Mock(return_value=None)
-        screen.get_at = Mock(return_value=pygame.Color(0, 0, 0, 255))
+        screen.convert = Mock(return_value=screen)  # type: ignore[invalid-assignment]
+        screen.convert_alpha = Mock(return_value=screen)  # type: ignore[invalid-assignment]
+        screen.blit = Mock(return_value=None)  # type: ignore[invalid-assignment]
+        screen.fill = Mock(return_value=None)  # type: ignore[invalid-assignment]
+        screen.copy = Mock(return_value=screen)  # type: ignore[invalid-assignment]
+        screen.set_at = Mock(return_value=None)  # type: ignore[invalid-assignment]
+        screen.get_at = Mock(return_value=pygame.Color(0, 0, 0, 255))  # type: ignore[invalid-assignment]
 
         # Provide a minimal screen rect-like attributes used by paddles
-        screen.left = 0
-        screen.right = width
-        screen.top = 0
-        screen.bottom = height
+        screen.left = 0  # type: ignore[unresolved-attribute]
+        screen.right = width  # type: ignore[unresolved-attribute]
+        screen.top = 0  # type: ignore[unresolved-attribute]
+        screen.bottom = height  # type: ignore[unresolved-attribute]
 
         # Add get_rect method that returns a mock with center attribute
         rect_mock = Mock()
         rect_mock.center = (width // 2, height // 2)
-        screen.get_rect = Mock(return_value=rect_mock)
+        screen.get_rect = Mock(return_value=rect_mock)  # type: ignore[invalid-assignment]
 
         return screen
 
@@ -1551,7 +1559,7 @@ class MockFactory:
 
             # Create a real rect for the text
             text_rect = pygame.Rect(0, 0, width, height)
-            surface.get_rect = Mock(return_value=text_rect)
+            surface.get_rect = Mock(return_value=text_rect)  # type: ignore[invalid-assignment]
 
             # Handle different return types (surface vs (surface, rect))
             if 'fgcolor' in kwargs or len(args) >= MIN_ARGS_FOR_FGCOLOR:
@@ -1874,7 +1882,7 @@ def create_template_path_mock(template_name: str = 'test_template') -> Mock:
         def __repr__(self):
             return f"MockPath('{self._template_name}')"
 
-    return MockPath(template_name)
+    return MockPath(template_name)  # type: ignore[invalid-return-type]
 
 
 def create_template_repo_file_mock(repo_url: str | None = None) -> Mock:

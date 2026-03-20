@@ -98,7 +98,7 @@ class TestMiniaudioMicrophone:
         from glitchygames.events.voice_miniaudio import MiniaudioMicrophone
 
         original_mi = voice_mod.mi
-        voice_mod.mi = None
+        voice_mod.mi = None  # type: ignore[assignment]
         try:
             with pytest.raises(RuntimeError, match='miniaudio is not installed'):
                 MiniaudioMicrophone()

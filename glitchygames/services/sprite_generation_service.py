@@ -6,7 +6,7 @@ interface for generating and refining sprites from text prompts.
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from glitchygames.ai.sprite_generator import (
     build_refinement_messages,
@@ -63,7 +63,7 @@ class SpriteGenerationService:
         self._client = None
         self._ai_module = None
 
-    def _ensure_client(self) -> object:
+    def _ensure_client(self) -> Any:
         """Lazily initialize the AI client.
 
         Returns:
@@ -138,14 +138,14 @@ class SpriteGenerationService:
 
         # Build enhanced prompt with all hints
         enhanced_prompt = prompt
-        hints = []
+        hints: list[str] = []
 
         if width and height:
             hints.append(f'{width}x{height} pixels')
 
         # Add animation hints if specified
         if frame_count or film_strip_count or animation_duration:
-            animation_parts = []
+            animation_parts: list[str] = []
             if film_strip_count and film_strip_count > 1:
                 animation_parts.append(f'{film_strip_count} film strips')
             if frame_count:
@@ -176,8 +176,8 @@ class SpriteGenerationService:
                 max_tokens=8192,
             )
 
-            raw_content = response.choices[0].message.content
-            LOG.debug(f'Raw AI response length: {len(raw_content)} chars')
+            raw_content: str | None = response.choices[0].message.content
+            LOG.debug(f'Raw AI response length: {len(raw_content or "")} chars')
 
         except Exception as e:
             LOG.exception('AI API call failed')
@@ -187,8 +187,22 @@ class SpriteGenerationService:
                 original_error=e,
             ) from e
 
+        if raw_content is None:
+            return GenerationResult(
+                success=False,
+                error='AI returned empty response',
+            )
+
         # Clean and validate the response
         cleaned_content = clean_ai_response(raw_content)
+
+        if cleaned_content is None:
+            return GenerationResult(
+                success=False,
+                error='AI response was empty after cleaning',
+                raw_response=raw_content,
+            )
+
         is_valid, error_message = validate_ai_response(cleaned_content)
 
         if not is_valid:
@@ -204,7 +218,7 @@ class SpriteGenerationService:
 
         LOG.info(
             f'Successfully generated sprite: {sprite_name} '
-            f'(animated={is_animated}, frames={frame_count})'
+            + f'(animated={is_animated}, frames={frame_count})'
         )
 
         return GenerationResult(
@@ -254,8 +268,8 @@ class SpriteGenerationService:
                 max_tokens=8192,
             )
 
-            raw_content = response.choices[0].message.content
-            LOG.debug(f'Raw AI response length: {len(raw_content)} chars')
+            raw_content: str | None = response.choices[0].message.content
+            LOG.debug(f'Raw AI response length: {len(raw_content or "")} chars')
 
         except Exception as e:
             LOG.exception('AI API call failed')
@@ -265,8 +279,22 @@ class SpriteGenerationService:
                 original_error=e,
             ) from e
 
+        if raw_content is None:
+            return GenerationResult(
+                success=False,
+                error='AI returned empty response',
+            )
+
         # Clean and validate the response
         cleaned_content = clean_ai_response(raw_content)
+
+        if cleaned_content is None:
+            return GenerationResult(
+                success=False,
+                error='AI response was empty after cleaning',
+                raw_response=raw_content,
+            )
+
         is_valid, error_message = validate_ai_response(cleaned_content)
 
         if not is_valid:
@@ -282,7 +310,7 @@ class SpriteGenerationService:
 
         LOG.info(
             f'Successfully refined sprite: {sprite_name} '
-            f'(animated={is_animated}, frames={frame_count})'
+            + f'(animated={is_animated}, frames={frame_count})'
         )
 
         return GenerationResult(
@@ -321,18 +349,18 @@ class SpriteGenerationService:
 
         if is_animated:
             # Count frames across all animations
-            animations = data.get('animation', [])
+            animations: Any = data.get('animation', [])
             if isinstance(animations, list):
-                for anim in animations:
-                    if isinstance(anim, dict) and 'frame' in anim:
-                        frames = anim.get('frame', [])
-                        if isinstance(frames, list):
-                            frame_count = max(frame_count, len(frames))
+                for animation in cast(list[Any], animations):
+                    animation_dict = cast(dict[str, Any], animation)
+                    if isinstance(animation, dict) and 'frame' in animation_dict:
+                        animation_frames = cast(list[Any], animation_dict.get('frame', []))
+                        frame_count = max(frame_count, len(animation_frames))
             elif isinstance(animations, dict):
                 # Single animation
-                frames = animations.get('frame', [])
-                if isinstance(frames, list):
-                    frame_count = len(frames)
+                animation_single = cast(dict[str, Any], animations)
+                single_frames = cast(list[Any], animation_single.get('frame', []))
+                frame_count = len(single_frames)
 
         return sprite_name, is_animated, frame_count
 

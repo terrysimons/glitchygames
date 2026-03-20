@@ -26,14 +26,6 @@ class TestSceneRendering:
         # Reset singleton state for clean test
         SceneManager._reset()
 
-        # Create a mock game scene class for the engine
-        class MockGameScene(Scene):
-            NAME = 'MockGameScene'
-            VERSION = '1.0'
-
-            def __init__(self, options=None, groups=None):
-                super().__init__(options=options, groups=groups)
-
         # Create a simple scene manager for testing (centralized mocks handle pygame)
         self.scene_manager = SceneManager()
 
@@ -44,7 +36,7 @@ class TestSceneRendering:
 
     def test_scene_rendering(self, mocker):
         """Test basic scene rendering."""
-        scene = Scene('test_scene')
+        scene = Scene('test_scene')  # type: ignore[invalid-argument-type]
 
         # Mock render method
         scene.render = mocker.Mock()
@@ -60,7 +52,7 @@ class TestSceneRendering:
 
     def test_scene_rendering_with_surface(self, mocker):
         """Test scene rendering with surface."""
-        scene = Scene('test_scene')
+        scene = Scene('test_scene')  # type: ignore[invalid-argument-type]
 
         # Mock render method
         scene.render = mocker.Mock()

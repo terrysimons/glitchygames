@@ -97,6 +97,7 @@ class TestBallCombinedSpeedUp:
         assert ball.speed.y == pytest.approx(initial_y)
 
         # Test wall bounce (Y speed-up)
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 
@@ -120,6 +121,7 @@ class TestBallCombinedSpeedUp:
         ball.on_paddle_bounce()
 
         # Test wall bounce linear
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 
@@ -177,6 +179,7 @@ class TestBallCombinedSpeedUp:
         assert ball.speed.y == pytest.approx(initial_y * 1.3)
 
         # Test wall bounce logarithmic Y
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 
@@ -203,6 +206,7 @@ class TestBallCombinedSpeedUp:
         assert initial_direction == pytest.approx(new_direction)
 
         # Test wall bounce (logarithmic X)
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
 
@@ -246,6 +250,7 @@ class TestBallCombinedSpeedUp:
         assert ball.speed.y == pytest.approx(150.0)
 
         # Simulate wall hit (Y speed-up)
+        assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
         ball._do_bounce()
         assert ball.speed.x == pytest.approx(100.0 * 1.2)  # Unchanged

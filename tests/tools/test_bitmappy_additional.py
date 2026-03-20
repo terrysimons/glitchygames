@@ -7,6 +7,7 @@ FilmStripSprite helpers, AnimatedCanvasSprite methods, and more.
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import pytest
 
@@ -1089,46 +1090,46 @@ class TestSpriteHasPerPixelAlpha:
         class FakeSprite:
             pass
 
-        assert _sprite_has_per_pixel_alpha(FakeSprite()) is False
+        assert _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type] is False
 
     def test_opaque_pixels_only(self):
         """Test sprite with only opaque pixels."""
 
         class FakeFrame:
-            def get_pixel_data(self):
-                return [(0, 0, 0, 255), (255, 255, 255, 255)]
+            def get_pixel_data(self) -> list[tuple[int, ...]]:
+                return cast(list[tuple[int, ...]], [(0, 0, 0, 255), (255, 255, 255, 255)])
 
         class FakeSprite:
             def __init__(self):
                 self._animations = {'idle': [FakeFrame()]}
 
-        assert _sprite_has_per_pixel_alpha(FakeSprite()) is False
+        assert _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type] is False
 
     def test_has_transparent_pixel(self):
         """Test sprite with a transparent pixel."""
 
         class FakeFrame:
-            def get_pixel_data(self):
-                return [(0, 0, 0, 128)]
+            def get_pixel_data(self) -> list[tuple[int, ...]]:
+                return cast(list[tuple[int, ...]], [(0, 0, 0, 128)])
 
         class FakeSprite:
             def __init__(self):
                 self._animations = {'idle': [FakeFrame()]}
 
-        assert _sprite_has_per_pixel_alpha(FakeSprite()) is True
+        assert _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type] is True
 
     def test_rgb_only_pixels(self):
         """Test sprite with RGB-only pixels (no alpha channel)."""
 
         class FakeFrame:
-            def get_pixel_data(self):
-                return [(0, 0, 0), (255, 255, 255)]
+            def get_pixel_data(self) -> list[tuple[int, ...]]:
+                return cast(list[tuple[int, ...]], [(0, 0, 0), (255, 255, 255)])
 
         class FakeSprite:
             def __init__(self):
                 self._animations = {'idle': [FakeFrame()]}
 
-        assert _sprite_has_per_pixel_alpha(FakeSprite()) is False
+        assert _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type] is False
 
 
 # ---------------------------------------------------------------------------
@@ -1252,20 +1253,20 @@ class TestBuildColorToGlyphMap:
 
     def test_single_color(self):
         """Test mapping a single color."""
-        pixels = [(0, 0, 0), (0, 0, 0)]
+        pixels = cast(list[tuple[int, ...]], [(0, 0, 0), (0, 0, 0)])
         result = _build_color_to_glyph_map(pixels)
         assert len(result) == 1
         assert (0, 0, 0) in result
 
     def test_multiple_colors(self):
         """Test mapping multiple colors."""
-        pixels = [(0, 0, 0), (255, 0, 0), (0, 255, 0)]
+        pixels = cast(list[tuple[int, ...]], [(0, 0, 0), (255, 0, 0), (0, 255, 0)])
         result = _build_color_to_glyph_map(pixels)
         assert len(result) == 3
 
     def test_rgba_reduced_to_rgb(self):
         """Test that RGBA pixels are reduced to RGB for mapping."""
-        pixels = [(0, 0, 0, 255), (0, 0, 0, 128)]
+        pixels = cast(list[tuple[int, ...]], [(0, 0, 0, 255), (0, 0, 0, 128)])
         result = _build_color_to_glyph_map(pixels)
         # Both reduce to (0, 0, 0) so only one entry
         assert len(result) == 1
@@ -1286,13 +1287,13 @@ class TestBuildAsciiGrid:
 
     def test_simple_grid(self):
         """Test building a simple 2x2 grid."""
-        pixels = [(0, 0, 0), (255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        color_map = {
+        pixels = cast(list[tuple[int, ...]], [(0, 0, 0), (255, 0, 0), (0, 255, 0), (0, 0, 255)])
+        color_map = cast(dict[tuple[int, ...], str], {
             (0, 0, 0): '#',
             (255, 0, 0): 'R',
             (0, 255, 0): 'G',
             (0, 0, 255): 'B',
-        }
+        })
         result = _build_ascii_grid(pixels, 2, 2, color_map)
         assert result == '#R\nGB'
 
@@ -1312,22 +1313,22 @@ class TestBuildRendererColorDict:
 
     def test_rgb_to_rgba_mapping(self):
         """Test that RGB colors get alpha 255 in renderer dict."""
-        pixels = [(100, 200, 50)]
-        color_map = {(100, 200, 50): '#'}
+        pixels = cast(list[tuple[int, ...]], [(100, 200, 50)])
+        color_map = cast(dict[tuple[int, ...], str], {(100, 200, 50): '#'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['#'] == (100, 200, 50, 255)
 
     def test_magenta_mapped_to_white(self):
         """Test that magenta is mapped to white in renderer dict."""
-        pixels = [(255, 0, 255)]
-        color_map = {(255, 0, 255): '.'}
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 255)])
+        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 255): '.'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['.'] == (255, 255, 255, 255)
 
     def test_rgba_alpha_preserved(self):
         """Test that RGBA alpha is preserved in renderer dict."""
-        pixels = [(100, 200, 50, 128)]
-        color_map = {(100, 200, 50): '#'}
+        pixels = cast(list[tuple[int, ...]], [(100, 200, 50, 128)])
+        color_map = cast(dict[tuple[int, ...], str], {(100, 200, 50): '#'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['#'] == (100, 200, 50, 128)
 
@@ -1503,10 +1504,10 @@ class TestCompositeFramesWithAlpha:
             def get_size(self):
                 return (2, 2)
 
-            def get_pixel_data(self):
-                return [(100, 100, 100, 255)] * 4
+            def get_pixel_data(self) -> list[tuple[int, ...]]:
+                return cast(list[tuple[int, ...]], [(100, 100, 100, 255)] * 4)
 
-        result = _composite_frames_with_alpha([FakeFrame()])
+        result = _composite_frames_with_alpha([FakeFrame()])  # type: ignore[invalid-argument-type]
         assert len(result) == 4
         # All pixels should be blended
         for pixel in result:

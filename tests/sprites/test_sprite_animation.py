@@ -157,7 +157,7 @@ class TestSpriteFrame:
         # Create a mock surface for the frame using centralized mocks
         mock_surface = MockFactory.create_pygame_surface_mock(32, 32)
         frame = SpriteFrame(surface=mock_surface, duration=0.5)
-        pixel_data = [(255, 0, 0), (0, 255, 0)]
+        pixel_data: list[tuple[int, ...]] = [(255, 0, 0), (0, 255, 0)]
 
         frame.set_pixel_data(pixel_data)
         assert frame.get_pixel_data() == pixel_data
@@ -239,11 +239,11 @@ class TestAnimatedSprite:
         sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test looping property
-        sprite.looping = True
-        assert sprite.looping
+        sprite.looping = True  # type: ignore[unresolved-attribute]
+        assert sprite.looping  # type: ignore[unresolved-attribute]
 
-        sprite.looping = False
-        assert not sprite.looping
+        sprite.looping = False  # type: ignore[unresolved-attribute]
+        assert not sprite.looping  # type: ignore[unresolved-attribute]
 
     def test_animated_sprite_surface_caching(self):
         """Test surface caching."""
@@ -259,7 +259,7 @@ class TestAnimatedSprite:
         sprite = AnimatedSprite(filename=STATIC_TOML)
 
         # Test animation order
-        sprite.animation_order = ['walk', 'run']
+        sprite.animation_order = ['walk', 'run']  # type: ignore[invalid-assignment]
         assert sprite.animation_order == ['walk', 'run']
 
     def test_animated_sprite_frame_observers(self, mocker):

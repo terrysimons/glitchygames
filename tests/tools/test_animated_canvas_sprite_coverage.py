@@ -7,6 +7,7 @@ operations, and rendering state management.
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -57,7 +58,8 @@ def _make_animated_sprite_with_frames(animation_name='idle', frame_count=3, fram
         frame = SpriteFrame(surface)
         # Each frame gets a slightly different color to distinguish them
         color = (frame_index * 50, frame_index * 30, frame_index * 20, 255)
-        frame.set_pixel_data([color] * pixel_count)
+        frame_pixels = cast(list[tuple[int, ...]], [color] * pixel_count)
+        frame.set_pixel_data(frame_pixels)
         frames.append(frame)
     animated_sprite.add_animation(animation_name, frames)
     animated_sprite.set_animation(animation_name)
@@ -239,7 +241,7 @@ class TestUpdateBorderThickness:
     def test_border_thickness_change_clears_pixel_cache(self, mocker):
         """Test that changing border thickness clears BitmapPixelSprite.PIXEL_CACHE."""
         # Set up initial cache entry
-        BitmapPixelSprite.PIXEL_CACHE['test_key'] = 'test_value'
+        BitmapPixelSprite.PIXEL_CACHE['test_key'] = 'test_value'  # type: ignore[invalid-assignment]
 
         canvas, _ = _make_canvas(
             mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16
@@ -398,7 +400,8 @@ class TestNextAnimation:
         # Add a second animation
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+        red_rgba_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+        frame.set_pixel_data(red_rgba_pixels)
         animated_sprite.add_animation('walk', [frame])
 
         canvas.current_animation = 'idle'
@@ -410,7 +413,8 @@ class TestNextAnimation:
         canvas, animated_sprite = _make_canvas(mocker, animation_name='idle')
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+        red_rgba_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+        frame.set_pixel_data(red_rgba_pixels)
         animated_sprite.add_animation('walk', [frame])
 
         canvas.current_animation = 'walk'
@@ -425,7 +429,8 @@ class TestNextAnimation:
         for _ in range(3):
             surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
             frame = SpriteFrame(surface)
-            frame.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+            red_rgba_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+            frame.set_pixel_data(red_rgba_pixels)
             frames.append(frame)
         animated_sprite.add_animation('walk', frames)
 
@@ -441,7 +446,8 @@ class TestNextAnimation:
         for _ in range(2):
             surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
             frame = SpriteFrame(surface)
-            frame.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+            red_rgba_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+            frame.set_pixel_data(red_rgba_pixels)
             frames.append(frame)
         animated_sprite.add_animation('walk', frames)
 
@@ -463,7 +469,8 @@ class TestPreviousAnimation:
         canvas, animated_sprite = _make_canvas(mocker, animation_name='idle')
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+        red_rgba_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+        frame.set_pixel_data(red_rgba_pixels)
         animated_sprite.add_animation('walk', [frame])
 
         canvas.current_animation = 'walk'
@@ -475,7 +482,8 @@ class TestPreviousAnimation:
         canvas, animated_sprite = _make_canvas(mocker, animation_name='idle')
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+        red_rgba_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+        frame.set_pixel_data(red_rgba_pixels)
         animated_sprite.add_animation('walk', [frame])
 
         canvas.current_animation = 'idle'
@@ -706,7 +714,8 @@ class TestGetCurrentFramePixels:
         canvas, animated_sprite = _make_canvas(mocker, frame_count=1)
         # Set frame pixels as RGB
         frame = animated_sprite._animations['idle'][0]
-        frame.set_pixel_data([RED_RGB] * PIXEL_COUNT)
+        red_rgb_pixels = cast(list[tuple[int, ...]], [RED_RGB] * PIXEL_COUNT)
+        frame.set_pixel_data(red_rgb_pixels)
         canvas.current_frame = 0
 
         pixels = canvas._get_current_frame_pixels()
@@ -729,7 +738,8 @@ class TestGetCurrentFramePixels:
         canvas, animated_sprite = _make_canvas(mocker, frame_count=3)
         # Set frame 1 with a distinct color
         frame = animated_sprite._animations['idle'][1]
-        frame.set_pixel_data([GREEN_RGBA] * PIXEL_COUNT)
+        green_rgba_pixels = cast(list[tuple[int, ...]], [GREEN_RGBA] * PIXEL_COUNT)
+        frame.set_pixel_data(green_rgba_pixels)
 
         canvas.current_frame = 1
         pixels = canvas._get_current_frame_pixels()
@@ -890,7 +900,8 @@ class TestCopyPasteFrame:
         """Test copy_current_frame stores pixel data in clipboard."""
         canvas, animated_sprite = _make_canvas(mocker, frame_count=1)
         frame = animated_sprite._animations['idle'][0]
-        frame.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+        red_rgba_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+        frame.set_pixel_data(red_rgba_pixels)
 
         canvas.copy_current_frame()
         assert hasattr(canvas, '_clipboard')
@@ -901,7 +912,8 @@ class TestCopyPasteFrame:
         canvas, animated_sprite = _make_canvas(mocker, frame_count=2)
         # Set frame 0 to red
         frame_0 = animated_sprite._animations['idle'][0]
-        frame_0.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+        frame_0_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+        frame_0.set_pixel_data(frame_0_pixels)
 
         # Copy frame 0
         canvas.current_frame = 0
@@ -945,7 +957,8 @@ class TestIsSingleFrameAnimation:
         canvas, animated_sprite = _make_canvas(mocker, frame_count=1)
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([RED_RGBA] * PIXEL_COUNT)
+        red_rgba_pixels = cast(list[tuple[int, ...]], [RED_RGBA] * PIXEL_COUNT)
+        frame.set_pixel_data(red_rgba_pixels)
         animated_sprite.add_animation('walk', [frame])
         assert canvas._is_single_frame_animation() is False
 

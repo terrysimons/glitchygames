@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     import argparse
@@ -35,19 +35,21 @@ class GameScene(Scene):
 
     """
 
-    def __init__(self: Self, groups: pygame.sprite.Group | None = None) -> None:
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty[Any] | None = None) -> None:
         """Initialize the intro scene.
 
         Args:
-            groups (pygame.sprite.Group | None): The sprite groups to add the sprite to.
+            groups (pygame.sprite.LayeredDirty[Any] | None): The sprite groups.
 
         """
         if groups is None:
-            groups = pygame.sprite.Group()
+            groups = pygame.sprite.LayeredDirty()
 
         super().__init__(groups=groups)
-        self.all_sprites = groups
-        self.screen = pygame.display.get_surface()
+        self.all_sprites: pygame.sprite.LayeredDirty[Any] = groups
+        screen = pygame.display.get_surface()
+        assert screen is not None
+        self.screen: pygame.Surface = screen
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 
@@ -61,7 +63,7 @@ class GameScene(Scene):
 
         self.menu_icon = MenuItem(
             name=None,
-            filename=resource_path('glitchygames', 'assets', 'raspberry.toml'),
+            filename=str(resource_path('glitchygames', 'assets', 'raspberry.toml')),
             x=0,
             y=0,
             width=16,
@@ -72,6 +74,7 @@ class GameScene(Scene):
         # but the menu code needs to know that we're
         # trying to draw an icon.
         self.menu_icon.name = None
+        assert self.menu_icon.rect is not None
 
         self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
 
@@ -95,7 +98,7 @@ class GameScene(Scene):
         self.save_menu_item = MenuItem(
             name='Save',
             x=self.menu_icon.width + 5,
-            y=self.menu_icon.rect.y,
+            y=int(self.menu_icon.rect.y),
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,
@@ -103,7 +106,7 @@ class GameScene(Scene):
         self.load_menu_item = MenuItem(
             name='Load',
             x=self.menu_icon.width + self.save_menu_item.width + 5,
-            y=self.menu_icon.rect.y,
+            y=int(self.menu_icon.rect.y),
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,
@@ -111,7 +114,7 @@ class GameScene(Scene):
         self.quit_menu_item = MenuItem(
             name='Quit',
             x=self.menu_icon.width + self.save_menu_item.width + self.load_menu_item.width + 5,
-            y=self.menu_icon.rect.y,
+            y=int(self.menu_icon.rect.y),
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,
@@ -128,17 +131,18 @@ class GameScene(Scene):
 
         button_width = self.screen_width // 2 // 2
         button_height = self.screen_height // 2 // 2
+        screen_rect = self.screen.get_rect()
         self.button = ButtonSprite(
-            x=(self.screen.get_rect().centerx - button_width) // 4,
-            y=(self.screen.get_rect().centery - button_height) // 4,
+            x=(screen_rect.centerx - button_width) // 4,
+            y=(screen_rect.centery - button_height) // 4,
             width=button_width,
             height=button_height,
             name='Buttony McButtonface',
             groups=self.all_sprites,
         )
 
-        self.button.x = self.screen.get_rect().centerx // 2
-        self.button.y = self.screen.get_rect().centery // 2
+        self.button.x = screen_rect.centerx // 2
+        self.button.y = screen_rect.centery // 2
 
         # self.button.border_color = (0, 255, 0)
         # self.button.background_color = (255, 0, 255)
@@ -170,11 +174,11 @@ class Game(Scene):
     NAME = 'Compound Sprite Demo'
     VERSION = '1.0'
 
-    def __init__(self: Self, options: dict) -> None:
+    def __init__(self: Self, options: dict[str, Any]) -> None:
         """Initialize the game.
 
         Args:
-            options (dict): The options passed to the game.
+            options (dict[str, Any]): The options passed to the game.
 
         """
         super().__init__(options=options)
@@ -185,7 +189,7 @@ class Game(Scene):
         self.next_scene = GameScene()
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+    def args(cls: type[Game], parser: argparse.ArgumentParser) -> None:
         """Add arguments to the argument parser.
 
         Args:

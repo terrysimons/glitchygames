@@ -52,7 +52,7 @@ class TestAnimatedCanvasInterfaces:
         surface = pygame.Surface((8, 8))
         frame = SpriteFrame(surface)
         # Set pixel data for the frame
-        pixel_data = [
+        pixel_data: list[tuple[int, ...]] = [
             (255, 0, 0) if i % 2 == 0 else (0, 255, 0) for i in range(64)
         ]  # Red/Green pattern
         frame.set_pixel_data(pixel_data)
@@ -192,7 +192,7 @@ class TestAnimatedCanvasInterfaceEdgeCases:
         surface = pygame.Surface((4, 4))
         frame = SpriteFrame(surface)
         # Set pixel data for the frame
-        pixel_data = [
+        pixel_data: list[tuple[int, ...]] = [
             (255, 0, 0) if i % 2 == 0 else (0, 255, 0) for i in range(16)
         ]  # Red/Green pattern
         frame.set_pixel_data(pixel_data)

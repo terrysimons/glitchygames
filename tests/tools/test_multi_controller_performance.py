@@ -57,6 +57,7 @@ class TestPerformanceMonitor:
         self.monitor.record_operation('test_op', 0.2)
 
         stats = self.monitor.get_operation_stats('test_op')
+        assert stats is not None
         assert stats.operation_count == 3
         assert stats.total_time == pytest.approx(0.6)
         assert stats.average_time == pytest.approx(0.2)
@@ -116,6 +117,7 @@ class TestPerformanceMonitor:
         after = time.time()
 
         stats = self.monitor.get_operation_stats('test_op')
+        assert stats is not None
         assert before <= stats.last_operation <= after
 
 

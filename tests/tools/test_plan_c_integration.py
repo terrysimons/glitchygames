@@ -329,6 +329,7 @@ class TestPlanCIntegration:
 
         # Verify current position (should be film strip position)
         film_position = self.mode_switcher.get_controller_position(controller_id)
+        assert film_position is not None
         assert film_position.position == (10, 20)
         assert film_position.frame == 5
         assert film_position.animation == 'animation1'

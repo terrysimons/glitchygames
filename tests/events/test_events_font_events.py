@@ -437,7 +437,7 @@ class TestFontManagerCoverage:
         proxy = ConcreteFontProxy(self.mock_game)
 
         assert proxy.game == self.mock_game
-        assert pygame.freetype in proxy.proxies
+        assert pygame.freetype in proxy.proxies  # ty: ignore[possibly-missing-submodule]
 
     def test_font_method_freetype_success(self, mock_pygame_patches, mocker):
         """Test font method with successful freetype loading."""

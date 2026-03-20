@@ -7,6 +7,7 @@ and the __str__ method.
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -69,11 +70,13 @@ class TestSpriteCoordinateProperties:
     def test_x_property_getter(self):
         """Test that x returns rect.x."""
         sprite = Sprite(x=SPRITE_X, y=SPRITE_Y, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
+        assert sprite.rect is not None
         assert sprite.rect.x == SPRITE_X
 
     def test_y_property_getter(self):
         """Test that y returns rect.y."""
         sprite = Sprite(x=SPRITE_X, y=SPRITE_Y, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
+        assert sprite.rect is not None
         assert sprite.rect.y == SPRITE_Y
 
     def test_width_setter_marks_dirty(self):
@@ -187,7 +190,7 @@ class TestSpriteEventHandlerStubs:
 
     def test_on_mouse_focus_event(self, sprite, mock_event):
         """Test on_mouse_focus_event does not raise."""
-        sprite.on_mouse_focus_event(mock_event, old_focus=None)
+        sprite.on_mouse_focus_event(mock_event, entering_focus=None)
 
     def test_on_mouse_unfocus_event(self, sprite, mock_event):
         """Test on_mouse_unfocus_event does not raise."""
@@ -335,7 +338,7 @@ class TestSpriteEventHandlerStubs:
 
     def test_on_mouse_wheel_event(self, sprite, mock_event):
         """Test on_mouse_wheel_event does not raise."""
-        sprite.on_mouse_wheel_event(mock_event, trigger=None)
+        sprite.on_mouse_wheel_event(mock_event)
 
 
 class TestSpriteCallbackHandlers:
@@ -427,10 +430,10 @@ class TestSpriteQuitEvent:
     def test_on_quit_event_calls_terminate(self, mocker):
         """Test on_quit_event calls terminate method."""
         sprite = Sprite(x=0, y=0, width=10, height=10)
-        sprite.terminate = mocker.Mock()
+        sprite.terminate = mocker.Mock()  # type: ignore[unresolved-attribute]
         event = mocker.Mock()
         sprite.on_quit_event(event)
-        sprite.terminate.assert_called_once()
+        sprite.terminate.assert_called_once()  # type: ignore[unresolved-attribute]
 
 
 class TestSpriteStr:
@@ -471,6 +474,7 @@ class TestSpriteBreakWhen:
         """Test break_when with specific type appends to the list."""
         Sprite.SPRITE_BREAKPOINTS = None
         Sprite.break_when(sprite_type=Sprite)
+        assert Sprite.SPRITE_BREAKPOINTS is not None
         assert len(Sprite.SPRITE_BREAKPOINTS) == 1
 
 
@@ -485,6 +489,7 @@ class TestBitmappySpriteBasics:
     def test_bitmappy_sprite_init_with_dimensions(self):
         """Test BitmappySprite initialization with width and height."""
         sprite = BitmappySprite(x=10, y=20, width=32, height=32)
+        assert sprite.rect is not None
         assert sprite.rect.x == 10
         assert sprite.rect.y == 20
         assert sprite.width == 32
@@ -601,7 +606,8 @@ class TestBitmappySpriteDeflate:
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
-        sprite.pixels = [(255, 0, 0)] * 10  # 10 pixels, expected 4
+        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 10)  # 10 pixels, expected 4
+        sprite.pixels = pixel_data
         sprite.name = 'test'
         config = sprite.deflate(file_format='toml')
         assert 'sprite' in config
@@ -716,7 +722,7 @@ class TestBitmappySpriteEventHandlers:
     def test_bitmappy_on_mouse_wheel_event(self, bitmappy_sprite, mocker):
         """Test BitmappySprite on_mouse_wheel_event does not raise."""
         event = mocker.Mock()
-        bitmappy_sprite.on_mouse_wheel_event(event, trigger=None)
+        bitmappy_sprite.on_mouse_wheel_event(event)
 
     def test_bitmappy_on_mouse_chord_down_event(self, bitmappy_sprite, mocker):
         """Test BitmappySprite on_mouse_chord_down_event does not raise."""
@@ -746,7 +752,7 @@ class TestSingletonPattern:
     def test_singleton_stores_args(self):
         """Test that Singleton stores args and kwargs."""
         instance = Singleton('arg1', key='value')
-        assert instance.kwargs == {'key': 'value'}
+        assert instance.kwargs == {'key': 'value'}  # type: ignore[unresolved-attribute]
 
 
 class TestBitmappySpriteInflateFromFile:
@@ -762,7 +768,7 @@ class TestBitmappySpriteInflateFromFile:
         sprite = BitmappySprite(x=0, y=0, width=10, height=10)
         # Mock _detect_file_format to return unsupported format
         mocker.patch(
-            'glitchygames.sprites.core.SpriteFactory._detect_file_format',
+            'glitchygames.sprites.core.SpriteFactory.detect_file_format',
             return_value='json',
         )
         with pytest.raises(ValueError, match='Unsupported format'):
@@ -772,7 +778,7 @@ class TestBitmappySpriteInflateFromFile:
         """Test _load_static_only raises on unsupported format."""
         sprite = BitmappySprite(x=0, y=0, width=10, height=10)
         mocker.patch(
-            'glitchygames.sprites.core.SpriteFactory._detect_file_format',
+            'glitchygames.sprites.core.SpriteFactory.detect_file_format',
             return_value='json',
         )
         with pytest.raises(ValueError, match='Unsupported file format'):

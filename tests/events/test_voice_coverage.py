@@ -87,7 +87,7 @@ class TestProbeMicrophoneBackend:
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         result = manager._probe_microphone_backend(mock_mic_cls)
 
@@ -101,7 +101,7 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'FakeBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         result = manager._probe_microphone_backend(mock_mic_cls)
 
@@ -122,7 +122,7 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'TestBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         result = manager._probe_microphone_backend(mock_mic_cls)
 
@@ -141,7 +141,7 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'SimpleBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         result = manager._probe_microphone_backend(mock_mic_cls)
 
@@ -159,12 +159,12 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'CustomBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         manager._probe_microphone_backend(mock_mic_cls)
 
-        manager.log.info.assert_called_once()
-        assert 'CustomBackend' in manager.log.info.call_args[0][0]
+        manager.log.info.assert_called_once()  # type: ignore[unresolved-attribute]
+        assert 'CustomBackend' in manager.log.info.call_args[0][0]  # type: ignore[unresolved-attribute]
 
     def test_probe_oserror_logs_exception_with_backend_name(self, mocker):
         """Test probing logs exception with backend name on failure."""
@@ -174,12 +174,12 @@ class TestProbeMicrophoneBackend:
         mock_mic_cls.__name__ = 'FailingBackend'
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         manager._probe_microphone_backend(mock_mic_cls)
 
-        manager.log.exception.assert_called_once()
-        assert 'FailingBackend' in manager.log.exception.call_args[0][0]
+        manager.log.exception.assert_called_once()  # type: ignore[unresolved-attribute]
+        assert 'FailingBackend' in manager.log.exception.call_args[0][0]  # type: ignore[unresolved-attribute]
 
 
 class TestSetupMicrophone:
@@ -192,19 +192,19 @@ class TestSetupMicrophone:
         mock_sr.Microphone.side_effect = OSError('No audio device')
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         manager._setup_microphone()
 
         assert manager.microphone is None
-        manager.log.error.assert_called_once()
+        manager.log.error.assert_called_once()  # type: ignore[unresolved-attribute]
 
     def test_setup_microphone_not_available(self, mocker):
         """Test _setup_microphone when speech recognition is not available."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         manager._setup_microphone()
 
@@ -217,12 +217,12 @@ class TestSetupMicrophone:
         mock_sr.Microphone.side_effect = AttributeError('missing attribute')
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         manager._setup_microphone()
 
         assert manager.microphone is None
-        manager.log.error.assert_called_once()
+        manager.log.error.assert_called_once()  # type: ignore[unresolved-attribute]
 
     def test_setup_microphone_success(self, mocker):
         """Test _setup_microphone succeeds when microphone initializes properly."""
@@ -232,12 +232,12 @@ class TestSetupMicrophone:
         mock_sr.Microphone.return_value = mock_microphone
 
         manager = VoiceEventManager.__new__(VoiceEventManager)
-        manager.log = mocker.Mock()
+        type(manager).log = mocker.Mock()
 
         manager._setup_microphone()
 
         assert manager.microphone is mock_microphone
-        manager.log.info.assert_called_once()
+        manager.log.info.assert_called_once()  # type: ignore[unresolved-attribute]
 
 
 class TestListenLoop:

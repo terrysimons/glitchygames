@@ -209,7 +209,7 @@ class TestBitmapPixelSpritePixelColor:
         assert default_pixel_sprite.pixel_color[0] == 10
         assert default_pixel_sprite.pixel_color[1] == 20
         assert default_pixel_sprite.pixel_color[2] == 30
-        assert default_pixel_sprite.pixel_color[3] == 255
+        assert default_pixel_sprite.pixel_color[3] == 255  # type: ignore[index-out-of-bounds]
 
 
 class TestBitmapPixelSpriteUpdate:
@@ -275,6 +275,7 @@ class TestBitmapPixelSpriteUpdate:
 
     def test_update_preserves_rect_position(self, default_pixel_sprite):
         """Test that update preserves the sprite rect position."""
+        assert default_pixel_sprite.rect is not None
         default_pixel_sprite.rect.x = 50
         default_pixel_sprite.rect.y = 75
         default_pixel_sprite.pixel_color = (200, 100, 50, 255)
@@ -424,12 +425,14 @@ class TestScrollArrowSpriteInit:
     def test_init_custom_position(self, pygame_mocks, mock_groups):
         """Test initialization with custom x and y coordinates."""
         sprite = ScrollArrowSprite(x=100, y=200, width=20, height=20, groups=mock_groups)
+        assert sprite.rect is not None
         assert sprite.rect.x == 100
         assert sprite.rect.y == 200
 
     def test_init_custom_dimensions(self, pygame_mocks, mock_groups):
         """Test initialization with custom width and height."""
         sprite = ScrollArrowSprite(x=0, y=0, width=30, height=40, groups=mock_groups)
+        assert sprite.image is not None
         assert sprite.image.get_width() == 30
         assert sprite.image.get_height() == 40
 
@@ -470,6 +473,7 @@ class TestScrollArrowSpriteDrawArrow:
             x=0, y=0, width=20, height=20, groups=mock_groups, direction='up'
         )
         # Corner pixel should be white (255, 255, 255) since arrow doesn't cover it
+        assert sprite.image is not None
         corner_color = sprite.image.get_at((0, 0))
         assert corner_color[0] == 255
         assert corner_color[1] == 255

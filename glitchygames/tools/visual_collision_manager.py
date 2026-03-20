@@ -15,7 +15,7 @@ import logging
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pygame
 
@@ -252,7 +252,7 @@ class VisualCollisionManager:
         return self.indicators.get(controller_id)
 
     def get_indicators_for_position(
-        self, position: tuple[int, int], location_type: LocationType = None
+        self, position: tuple[int, int], location_type: LocationType | None = None
     ) -> list[VisualIndicator]:
         """Get all indicators at a specific position.
 
@@ -290,7 +290,7 @@ class VisualCollisionManager:
 
         return indicators
 
-    def _update_collision_groups(self, location_type: LocationType = None) -> None:
+    def _update_collision_groups(self, location_type: LocationType | None = None) -> None:
         """Update collision groups based on current positions."""
         if location_type is None:
             # Update all location types
@@ -525,7 +525,7 @@ class VisualCollisionManager:
         self.position_cache.clear()
         LOG.debug('Cleared all indicators')
 
-    def get_collision_summary(self) -> dict[str, any]:
+    def get_collision_summary(self) -> dict[str, Any]:
         """Get a summary of collision groups and positioning.
 
         Returns:

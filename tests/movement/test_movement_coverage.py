@@ -64,7 +64,7 @@ class TestSpeed:
 
     def test_mul_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
-        result = speed.__mul__('invalid')
+        result = speed.__mul__('invalid')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_add_speed(self):
@@ -82,7 +82,7 @@ class TestSpeed:
 
     def test_add_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
-        result = speed.__add__('invalid')
+        result = speed.__add__('invalid')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_radd(self):
@@ -92,7 +92,7 @@ class TestSpeed:
 
     def test_radd_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
-        result = speed.__radd__('invalid')
+        result = speed.__radd__('invalid')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_neg(self):
@@ -117,7 +117,7 @@ class TestSpeed:
 
     def test_sub_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
-        result = speed.__sub__('invalid')
+        result = speed.__sub__('invalid')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_truediv(self):
@@ -133,7 +133,7 @@ class TestSpeed:
 
     def test_truediv_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
-        result = speed.__truediv__('invalid')
+        result = speed.__truediv__('invalid')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_mod(self):
@@ -149,7 +149,7 @@ class TestSpeed:
 
     def test_mod_not_implemented(self):
         speed = Speed(x=10.0, y=5.0)
-        result = speed.__mod__('invalid')
+        result = speed.__mod__('invalid')  # type: ignore[invalid-argument-type]
         assert result is NotImplemented
 
     def test_apply_dt(self):

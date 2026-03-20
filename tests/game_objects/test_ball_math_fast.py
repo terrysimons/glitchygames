@@ -227,15 +227,19 @@ def test_ball_math_fast():
 
     # Check for mathematical stability
     LOG.debug('\nMathematical stability check:')
-    final_magnitude = math.sqrt(results['speed_x'] ** 2 + results['speed_y'] ** 2)
-    magnitude_change = abs(final_magnitude - results['initial_magnitude'])
+    final_speed_x = float(results['speed_x'])
+    final_speed_y = float(results['speed_y'])
+    initial_mag = float(results['initial_magnitude'])
+    final_magnitude = math.sqrt(final_speed_x ** 2 + final_speed_y ** 2)
+    magnitude_change = abs(final_magnitude - initial_mag)
     LOG.debug(f'  Speed magnitude change: {magnitude_change:.6f}')
 
     _check_position_bounds(results, screen_width, screen_height, ball_width, ball_height)
-    _check_finite_values(results['speed_x'], results['speed_y'], results['x'], results['y'])
+    _check_finite_values(final_speed_x, final_speed_y, results['x'], results['y'])
 
     # Assert that the test completed successfully
-    assert results['bounce_count'] >= 0, 'Bounce count should be non-negative'
+    bounce_count = int(results['bounce_count'])
+    assert bounce_count >= 0, 'Bounce count should be non-negative'
     assert len(results['magnitude_samples']) > 0, 'Should have magnitude samples'
 
     # Check for mathematical stability (no excessive drift)

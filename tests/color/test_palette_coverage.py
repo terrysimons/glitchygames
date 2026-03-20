@@ -3,18 +3,17 @@
 import configparser
 import tempfile
 from pathlib import Path
-
 import pytest
 from pygame import Color
 
-from glitchygames.color.palette import ColorPalette, PaletteUtility, System, Vga
+from glitchygames.color.palette import ColorLike, ColorPalette, PaletteUtility, System, Vga
 
 
 class TestColorPalette:
     """Test ColorPalette class."""
 
     def test_init_with_colors(self):
-        colors = [Color(255, 0, 0), Color(0, 255, 0)]
+        colors: list[ColorLike] = [Color(255, 0, 0), Color(0, 255, 0)]
         palette = ColorPalette(colors=colors)
         assert palette._size == 1  # len - 1
 
@@ -23,13 +22,13 @@ class TestColorPalette:
         assert palette._size == 0
 
     def test_get_color_valid_index(self):
-        colors = [Color(255, 0, 0), Color(0, 255, 0), Color(0, 0, 255)]
+        colors: list[ColorLike] = [Color(255, 0, 0), Color(0, 255, 0), Color(0, 0, 255)]
         palette = ColorPalette(colors=colors)
         assert palette.get_color(0) == Color(255, 0, 0)
         assert palette.get_color(1) == Color(0, 255, 0)
 
     def test_get_color_out_of_range(self):
-        colors = [Color(255, 0, 0), Color(0, 255, 0)]
+        colors: list[ColorLike] = [Color(255, 0, 0), Color(0, 255, 0)]
         palette = ColorPalette(colors=colors)
         # Index > size returns None
         result = palette.get_color(5)
@@ -41,16 +40,16 @@ class TestColorPalette:
         assert result == (255, 0, 255)
 
     def test_set_color_existing_index(self):
-        colors = [Color(255, 0, 0), Color(0, 255, 0)]
+        colors: list[ColorLike] = [Color(255, 0, 0), Color(0, 255, 0)]
         palette = ColorPalette(colors=colors)
         palette.set_color(0, Color(128, 128, 128))
-        assert palette._colors[0] == Color(128, 128, 128)
+        assert palette._colors[0] == Color(128, 128, 128)  # type: ignore[not-subscriptable]
 
     def test_set_color_appends(self):
-        colors = [Color(255, 0, 0)]
+        colors: list[ColorLike] = [Color(255, 0, 0)]
         palette = ColorPalette(colors=colors)
         palette.set_color(5, Color(0, 0, 255))
-        assert Color(0, 0, 255) in palette._colors
+        assert Color(0, 0, 255) in palette._colors  # type: ignore[unsupported-operator]
 
 
 class TestPaletteUtility:
@@ -68,7 +67,7 @@ class TestPaletteUtility:
         assert colors[1].g == 255
 
     def test_create_palette_data(self):
-        colors = [Color(255, 0, 0, 255), Color(0, 255, 0, 255)]
+        colors: list[Color] = [Color(255, 0, 0, 255), Color(0, 255, 0, 255)]
         config = PaletteUtility.create_palette_data(colors)
         assert config['default']['colors'] == '2'
         assert config['0']['red'] == '255'

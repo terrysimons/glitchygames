@@ -8,6 +8,7 @@ import logging
 import sys
 import tomllib
 from pathlib import Path
+from typing import Any
 
 import httpx
 from apng import APNG, PNG
@@ -140,7 +141,7 @@ def create_parser() -> argparse.ArgumentParser:
 def extract_apng_frames(
     server_url: str,
     apng_path: str,
-) -> dict:
+) -> dict[str, Any]:
     """Extract frames and metadata from an APNG file.
 
     Args:
@@ -181,7 +182,7 @@ def generate_sprite(
     animation_duration: float | None = None,
     png_scale: int = 1,
     model: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Generate a sprite via the API.
 
     Args:
@@ -206,7 +207,7 @@ def generate_sprite(
     # Default frame_count to 1
     effective_frame_count = frame_count or 1
 
-    payload = {
+    payload: dict[str, str | list[str] | int | float] = {
         'prompt': prompt,
         'output_format': output_formats,
         'png_scale': png_scale,
@@ -245,7 +246,7 @@ def display_sprite_ascii(toml_content: str) -> None:
     try:
         sprite_data = tomllib.loads(toml_content)
         renderer = ASCIIRenderer()
-        colors = renderer._extract_colors_from_toml(sprite_data)
+        colors = renderer.extract_colors_from_toml(sprite_data)
 
         # Check if it's an animated sprite
         if sprite_data.get('animation'):
@@ -260,14 +261,14 @@ def display_sprite_ascii(toml_content: str) -> None:
                     pixels = frame.get('pixels', '')
                     if pixels:
                         print(f'\n--- Frame {frame_index} ---')  # noqa: T201
-                        colorized = renderer._colorize_pixels(pixels, colors)
+                        colorized = renderer.colorize_pixels(pixels, colors)
                         print(colorized)  # noqa: T201
         else:
             # Static sprite
-            pixels = renderer._extract_pixels_from_toml(sprite_data)
+            pixels = renderer.extract_pixels_from_toml(sprite_data)
             if pixels:
                 print('\n=== Sprite Preview ===')  # noqa: T201
-                colorized = renderer._colorize_pixels(pixels, colors)
+                colorized = renderer.colorize_pixels(pixels, colors)
                 print(colorized)  # noqa: T201
 
         print()  # noqa: T201  # Empty line after output
@@ -294,8 +295,8 @@ def create_apng_from_frames(
 
     for frame_base64 in frames_base64:
         frame_bytes = base64.b64decode(frame_base64)
-        # Create PNG from bytes
-        png = PNG.from_bytes(frame_bytes)
+        # Create PNG from bytes (apng library lacks type stubs)
+        png: PNG = PNG.from_bytes(frame_bytes)
         # Add frame with delay (delay is in milliseconds, APNG uses delay/delay_den)
         apng.append(png, delay=frame_delay_ms, delay_den=1000)
 
@@ -394,7 +395,7 @@ def _save_extracted_frames(
     """
     from PIL import Image, PngImagePlugin
 
-    saved_paths = []
+    saved_paths: list[str] = []
     for frame_name, animation_index_str, frame_index_str, frame_base64 in frame_entries:
         frame_path = extracted_dir / f'{frame_name}.png'
         frame_image = Image.open(io.BytesIO(base64.b64decode(frame_base64)))
@@ -403,7 +404,7 @@ def _save_extracted_frames(
         if extract_scale > 1:
             frame_image = frame_image.resize(
                 (frame_image.width * extract_scale, frame_image.height * extract_scale),
-                Image.NEAREST,
+                Image.Resampling.NEAREST,
             )
 
         # Create PNG metadata
@@ -426,7 +427,7 @@ def _save_extracted_frames(
 
 
 def save_files_locally(
-    response: dict,
+    response: dict[str, Any],
     output_path: str,
     output_formats: list[str],
     animation_duration: float | None = None,
@@ -452,13 +453,13 @@ def save_files_locally(
         List of saved file paths
 
     """
-    saved_files = []
+    saved_files: list[str] = []
     base_output_dir = Path(output_path)
     base_output_dir.mkdir(parents=True, exist_ok=True)
 
-    sprite_name = response.get('sprite_name', 'sprite')
+    sprite_name: str = response.get('sprite_name', 'sprite')
     # Sanitize sprite name for directory/filename
-    safe_name = ''.join(c if c.isalnum() or c in '-_' else '_' for c in sprite_name)
+    safe_name: str = ''.join(c if c.isalnum() or c in '-_' else '_' for c in sprite_name)
     if not safe_name:
         safe_name = 'sprite'
 
@@ -476,8 +477,8 @@ def save_files_locally(
 
     # Save APNG and extracted frames if animation frames are available
     if response.get('all_frames_png_base64'):
-        frames = response['all_frames_png_base64']
-        rendered_frames = response.get('rendered_frames', [])
+        frames: list[str] = response['all_frames_png_base64']
+        rendered_frames: list[dict[str, Any]] = response.get('rendered_frames', [])
         frame_count = len(frames)
 
         # Calculate frame delay for APNG
@@ -499,7 +500,7 @@ def save_files_locally(
 
         if rendered_frames:
             # Use rendered_frames for proper animation-#-frame-#.png naming
-            frame_entries = [
+            frame_entries: list[tuple[str, str, str, str]] = [
                 (
                     (
                         f'animation-{info.get("animation_index", 0)}'
@@ -507,7 +508,7 @@ def save_files_locally(
                     ),
                     str(info.get('animation_index', 0)),
                     str(info.get('frame_index', 0)),
-                    info.get('png_base64', ''),
+                    str(info.get('png_base64', '')),
                 )
                 for info in rendered_frames
             ]
@@ -542,7 +543,7 @@ def save_files_locally(
     return saved_files
 
 
-def _log_extraction_metadata(response: dict) -> None:
+def _log_extraction_metadata(response: dict[str, Any]) -> None:
     """Log metadata from an APNG extraction response.
 
     Args:
@@ -555,11 +556,11 @@ def _log_extraction_metadata(response: dict) -> None:
     if response.get('total_duration_ms'):
         LOG.info(f'  Total duration: {response.get("total_duration_ms")}ms')
     if response.get('loop_count') is not None:
-        loops = response.get('loop_count')
+        loops: int | None = response.get('loop_count')
         LOG.info(f'  Loop count: {"infinite" if loops == 0 else loops}')
 
 
-def _save_apng_extracted_frames(response: dict, output_path: str, apng_path: str) -> None:
+def _save_apng_extracted_frames(response: dict[str, Any], output_path: str, apng_path: str) -> None:
     """Save extracted APNG frames to the output directory.
 
     Args:
@@ -572,7 +573,7 @@ def _save_apng_extracted_frames(response: dict, output_path: str, apng_path: str
     output_dir.mkdir(parents=True, exist_ok=True)
 
     apng_name = Path(apng_path).stem
-    saved_files = []
+    saved_files: list[str] = []
 
     for frame_info in response.get('frames', []):
         frame_path = output_dir / f'{apng_name}_frame_{frame_info["index"]:03d}.png'

@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock
 
 import pygame
@@ -87,7 +88,7 @@ class TestSpriteHasPerPixelAlpha:
     def test_no_animations_attribute(self):
         """Sprite without _animations returns False."""
         sprite = object()
-        assert _sprite_has_per_pixel_alpha(sprite) is False
+        assert _sprite_has_per_pixel_alpha(sprite) is False  # type: ignore[invalid-argument-type]
 
     def test_empty_animations(self):
         """Sprite with empty _animations returns False."""
@@ -170,32 +171,32 @@ class TestPixelsHaveAlpha:
 
     def test_rgb_pixels_no_alpha(self):
         """RGB-only pixels return False."""
-        pixels = [(255, 0, 0), (0, 255, 0)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0)])
         assert _pixels_have_alpha(pixels) is False
 
     def test_rgba_all_opaque(self):
         """All-opaque RGBA pixels return False."""
-        pixels = [(255, 0, 0, 255), (0, 255, 0, 255)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255), (0, 255, 0, 255)])
         assert _pixels_have_alpha(pixels) is False
 
     def test_rgba_with_transparency(self):
         """Non-opaque RGBA pixel returns True."""
-        pixels = [(255, 0, 0, 255), (0, 255, 0, 127)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255), (0, 255, 0, 127)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_single_fully_transparent_pixel(self):
         """Single pixel with alpha=0 returns True."""
-        pixels = [(0, 0, 0, 0)]
+        pixels = cast(list[tuple[int, ...]], [(0, 0, 0, 0)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_mixed_rgb_and_rgba(self):
         """Mix of RGB and RGBA pixels, only RGBA checked for alpha."""
-        pixels = [(255, 0, 0), (0, 0, 0, 200)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 0, 0, 200)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_alpha_254_detected(self):
         """Alpha=254 (just below opaque) returns True."""
-        pixels = [(100, 100, 100, 254)]
+        pixels = cast(list[tuple[int, ...]], [(100, 100, 100, 254)])
         assert _pixels_have_alpha(pixels) is True
 
 
@@ -210,7 +211,7 @@ class TestGetSpriteColorCount:
     def test_no_color_map_attributes(self):
         """Sprite with neither color_map nor _color_map returns 0."""
         sprite = object()
-        assert _get_sprite_color_count(sprite) == 0
+        assert _get_sprite_color_count(sprite) == 0  # type: ignore[invalid-argument-type]
 
     def test_color_map_attribute(self):
         """Sprite with color_map returns its length."""
@@ -1069,6 +1070,7 @@ class TestScrollArrowSprite:
     def test_default_dimensions(self, pygame_mocks, mock_groups):
         """Default dimensions are 20x20."""
         arrow = ScrollArrowSprite(groups=mock_groups)
+        assert arrow.rect is not None
         assert arrow.rect.width == 20
         assert arrow.rect.height == 20
 

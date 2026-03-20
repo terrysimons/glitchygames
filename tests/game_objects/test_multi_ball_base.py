@@ -55,6 +55,7 @@ class MultiBallTestBase:
                 bounce_top_bottom=True,
                 bounce_left_right=True,
             )
+            assert ball.rect is not None
             ball.rect.x = random.randint(50, 750)
             ball.rect.y = random.randint(50, 550)
             ball.speed.x = random.uniform(-150, 150)

@@ -34,6 +34,7 @@ def _create_random_balls(num_balls):
             bounce_top_bottom=True,
             bounce_left_right=True,
         )
+        assert ball.rect is not None
         ball.rect.x = random.randint(100, 700)
         ball.rect.y = random.randint(100, 500)
         ball.speed.x = random.uniform(-150, 150)

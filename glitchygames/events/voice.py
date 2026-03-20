@@ -8,6 +8,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from typing import Any, ClassVar
 
 from glitchygames.events import ResourceManager
 from glitchygames.events.voice_backends import get_microphone_backend
@@ -22,8 +23,8 @@ try:
 
     SPEECH_RECOGNITION_AVAILABLE = True
 except ImportError:
-    sr = None
-    SPEECH_RECOGNITION_AVAILABLE = False
+    sr = None  # ty: ignore[invalid-assignment]
+    SPEECH_RECOGNITION_AVAILABLE = False  # pyright: ignore[reportConstantRedefinition]
 
 
 class VoiceEventManager(ResourceManager):
@@ -32,7 +33,7 @@ class VoiceEventManager(ResourceManager):
     class VoiceEventProxy(ResourceManager):
         """Proxy for voice manager operations (consistency with other managers)."""
 
-        log: logging.Logger = LOG
+        log: ClassVar[logging.Logger] = LOG
 
         def __init__(self, game: 'VoiceEventManager') -> None:
             """Initialize the voice event proxy with a voice event manager."""
@@ -60,7 +61,7 @@ class VoiceEventManager(ResourceManager):
 
         """
         super().__init__(game=self)
-        self.log = logger or logging.getLogger(__name__)
+        self.log = logger or logging.getLogger(__name__)  # type: ignore[misc]  # instance override of ClassVar is intentional
         self.is_listening = False
         self.listen_thread = None
         self.commands: dict[str, Callable[[], None]] = {}
@@ -70,8 +71,8 @@ class VoiceEventManager(ResourceManager):
 
         # Initialize speech recognition components if available
         if SPEECH_RECOGNITION_AVAILABLE:
-            self.recognizer = sr.Recognizer()
-            self.microphone = None
+            self.recognizer: Any = sr.Recognizer()  # type: ignore[union-attr]
+            self.microphone: Any = None
             # Select a backend microphone class
             mic_cls = get_microphone_backend()
             if mic_cls is not None:
@@ -124,7 +125,7 @@ class VoiceEventManager(ResourceManager):
             return
 
         try:
-            self.microphone = sr.Microphone()
+            self.microphone = sr.Microphone()  # type: ignore[union-attr]
             self.log.info('Microphone initialized successfully')
         except (OSError, AttributeError):
             self.log.error('Failed to initialize microphone')  # noqa: TRY400
@@ -208,15 +209,15 @@ class VoiceEventManager(ResourceManager):
                         text = self.recognizer.recognize_google(audio).lower()
                         self.log.info(f"Recognized speech: '{text}'")
                         self._process_command(text)
-                    except sr.UnknownValueError:
+                    except sr.UnknownValueError:  # type: ignore[union-attr]
                         # Speech was unintelligible, continue listening
                         self.log.debug('Could not understand audio')
-                    except sr.RequestError:
+                    except sr.RequestError:  # type: ignore[union-attr]
                         self.log.error('Speech recognition service error')  # noqa: TRY400
                         # Wait a bit before trying again
                         time.sleep(2)
 
-                except sr.WaitTimeoutError:
+                except sr.WaitTimeoutError:  # type: ignore[union-attr]
                     # Timeout is normal, continue listening
                     continue
                 except OSError:

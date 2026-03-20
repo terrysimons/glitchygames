@@ -9,6 +9,7 @@ AnimatedCanvasRenderer force_redraw paths, and renderer helper methods.
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -262,7 +263,8 @@ class TestAnimatedCanvasInterfacePixelOps:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        frame.set_pixel_data([MAGENTA] * PIXEL_COUNT)
+        magenta_pixels = cast(list[tuple[int, ...]], [MAGENTA] * PIXEL_COUNT)
+        frame.set_pixel_data(magenta_pixels)
         animated_sprite.add_animation('idle', [frame])
         animated_sprite.set_animation('idle')
 
@@ -1175,7 +1177,7 @@ class TestCanvasRendererDrawIndicatorsOnly:
         # Mock _draw_plus_indicator
         mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
 
-        frame_pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        frame_pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)])
 
         renderer._draw_controller_indicators_only(frame_pixels)
 
@@ -1210,7 +1212,7 @@ class TestCanvasRendererVisibleFrameWithControllerIndicator:
         mock_draw_pixel = mocker.patch.object(renderer, '_draw_pixel_on_canvas')
         mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
 
-        frame_pixels = [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)]
+        frame_pixels = cast(list[tuple[int, ...]], [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)])
 
         renderer._draw_visible_frame_pixels(frame_pixels)
 
@@ -1248,7 +1250,7 @@ class TestCanvasRendererStaticPixelsWithController:
         mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
 
-        pixels = [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)]
+        pixels: list[tuple[int, int, int] | tuple[int, int, int, int]] = [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)]
 
         renderer._redraw_static_pixels(pixels)
 
@@ -1362,7 +1364,7 @@ class TestCanvasRendererOnionSkinRGBA:
         renderer = AnimatedCanvasRenderer(canvas_sprite)
 
         # Call _render_onion_frame with RGBA pixels
-        frame_pixels = [(255, 0, 0, 128), (0, 255, 0, 255), (0, 0, 255, 64), (255, 255, 0, 200)]
+        frame_pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 128), (0, 255, 0, 255), (0, 0, 255, 64), (255, 255, 0, 200)])
         alpha = 128  # 50% onion transparency
 
         result = renderer._render_onion_frame(frame_pixels, alpha)
@@ -1532,4 +1534,4 @@ class TestCanvasSetPixelControllerDragPath:
         interface.set_pixel_at(0, 0, (255, 0, 0))
 
         # _collect_pixel_change should NOT be called since _should_track returns False
-        interface._collect_pixel_change.assert_not_called()
+        interface._collect_pixel_change.assert_not_called()  # type: ignore[unresolved-attribute]

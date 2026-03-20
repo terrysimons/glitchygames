@@ -1,10 +1,11 @@
 """Game Over scene for the paddleslap game."""
 
 import logging
-from typing import Self
+from typing import Any, Self, override
 
 import pygame
 
+from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 
@@ -14,7 +15,7 @@ log = logging.getLogger('game')
 class GameOverScene(Scene):
     """Game Over scene that displays when all balls are dead."""
 
-    def __init__(self: Self, **kwargs: object) -> None:
+    def __init__(self: Self, **kwargs: Any) -> None:
         """Initialize the Game Over scene.
 
         Args:
@@ -27,6 +28,7 @@ class GameOverScene(Scene):
         # Don't set next_scene to self - this causes infinite loops
         # The scene will stay active until user input changes it
 
+    @override
     def setup(self: Self) -> None:
         """Set up the Game Over scene.
 
@@ -56,6 +58,7 @@ class GameOverScene(Scene):
         self.all_sprites.add(subtitle)
         log.info('GameOverScene setup() completed')
 
+    @override
     def update(self: Self) -> None:
         """Update the Game Over scene.
 
@@ -67,11 +70,12 @@ class GameOverScene(Scene):
         super().update()
         log.debug('GameOverScene update() called')
 
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events for the Game Over scene.
 
         Args:
-            event (pygame.event.Event): The key down event.
+            event (HashableEvent): The key down event.
 
         """
         if event.key == pygame.K_SPACE:
@@ -84,11 +88,12 @@ class GameOverScene(Scene):
             # Let the base Scene class handle other keys (like 'q' for quit)
             super().on_key_down_event(event)
 
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle key up events for the Game Over scene.
 
         Args:
-            event (pygame.event.Event): The key up event.
+            event (HashableEvent): The key up event.
 
         """
         if event.key == pygame.K_SPACE and self._space_pressed:
@@ -99,6 +104,7 @@ class GameOverScene(Scene):
             # Let the base Scene class handle other keys
             super().on_key_up_event(event)
 
+    @override
     def resume(self: Self) -> None:
         """Resume by creating a new game instance.
 
@@ -129,7 +135,7 @@ class TextSprite(Sprite):
         position: tuple[int, int],
         color: tuple[int, int, int] = (255, 255, 255),
         font_size: int = 24,
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         """Initialize the text sprite.
 

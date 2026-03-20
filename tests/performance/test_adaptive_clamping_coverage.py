@@ -534,7 +534,7 @@ class TestLogFpsHistogram:
         fps_histogram = {60: 50, 65: 30, 70: 20}
         trimmed_frames = 100
 
-        AdaptiveClamping._log_fps_histogram(fps_histogram, trimmed_frames)
+        AdaptiveClamping._log_fps_histogram(fps_histogram, trimmed_frames)  # type: ignore[invalid-argument-type]
 
         call_args_list = [call.args[0] for call in mock_log.info.call_args_list]
         assert any('FPS Distribution' in arg for arg in call_args_list)
@@ -546,7 +546,7 @@ class TestLogFpsHistogram:
         fps_histogram = {(55, 59): 20, (60, 64): 60, (65, 69): 20}
         trimmed_frames = 100
 
-        AdaptiveClamping._log_fps_histogram(fps_histogram, trimmed_frames)
+        AdaptiveClamping._log_fps_histogram(fps_histogram, trimmed_frames)  # type: ignore[invalid-argument-type]
 
         call_args_list = [call.args[0] for call in mock_log.info.call_args_list]
         assert any('FPS Distribution' in arg for arg in call_args_list)

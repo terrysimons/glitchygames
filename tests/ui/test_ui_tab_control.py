@@ -43,6 +43,7 @@ class TestTabControlSpriteFunctionality:
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
         # Assert
+        assert tab_control.rect is not None
         assert tab_control.rect.x == TEST_X_POS
         assert tab_control.rect.y == TEST_Y_POS
         assert tab_control.rect.width == TEST_WIDTH
@@ -150,6 +151,7 @@ class TestTabControlSpriteFunctionality:
         # Test tab position calculations
         # The actual implementation may have different positioning logic
         # We'll test the basic properties instead of specific calculations
+        assert tab_control.rect is not None
         assert tab_control.rect.width == TEST_WIDTH
         assert tab_control.rect.height == TEST_HEIGHT
         assert len(tab_control.tabs) == TEST_TAB_COUNT
@@ -226,6 +228,7 @@ class TestTabControlSpriteFunctionality:
         tab_control = TabControlSprite(x=10, y=20, width=100, height=30, parent=parent)
 
         # Assert
+        assert tab_control.rect is not None
         assert tab_control.rect.x == TEST_X_POS
         assert tab_control.rect.y == TEST_Y_POS
         assert tab_control.rect.width == TEST_WIDTH

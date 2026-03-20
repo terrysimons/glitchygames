@@ -59,7 +59,7 @@ class AnimationTestScene(Scene):
 
     NAME = 'Animation Visual Test Scene'
 
-    def __init__(self, animation_file: str, groups: pygame.sprite.AbstractGroup | None = None):
+    def __init__(self, animation_file: str, groups: pygame.sprite.LayeredDirty | None = None):
         """Initialize the test scene with an animated sprite."""
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
@@ -89,6 +89,8 @@ class AnimationTestScene(Scene):
         if hasattr(self.animated_sprite, 'play'):
             self.animated_sprite.play()
         # Center on screen
+        assert self.animated_sprite.rect is not None
+        assert self.screen is not None
         self.animated_sprite.rect.center = self.screen.get_rect().center
 
     def update(self) -> None:
@@ -107,6 +109,7 @@ class AnimationTestScene(Scene):
 
         """
         # Clear the test surface
+        assert self.background_color is not None
         self.test_surface.fill(self.background_color)
 
         # Update the scene first
@@ -140,6 +143,8 @@ class AnimationTestScene(Scene):
             surface = self.animated_sprite.image
         else:
             return []
+
+        assert surface is not None
 
         # Extract pixel data from the sprite surface
         width, height = surface.get_size()
@@ -196,10 +201,12 @@ class TestAnimationVisual:
         background_color = scene.background_color
 
         # For very small sprites, we might need to check the sprite area specifically
+        assert scene.animated_sprite is not None
+        assert scene.animated_sprite.rect is not None
         sprite_rect = scene.animated_sprite.rect
         sprite_pixels = []
-        for y in range(sprite_rect.top, sprite_rect.bottom):
-            for x in range(sprite_rect.left, sprite_rect.right):
+        for y in range(int(sprite_rect.top), int(sprite_rect.bottom)):
+            for x in range(int(sprite_rect.left), int(sprite_rect.right)):
                 if 0 <= x < SCREEN_WIDTH and 0 <= y < SCREEN_HEIGHT:
                     pixel_index = y * SCREEN_WIDTH + x
                     if pixel_index < len(initial_pixels):
@@ -210,6 +217,8 @@ class TestAnimationVisual:
         # Check if sprite has any visible content
         if len(sprite_non_bg) == 0:
             # Check if sprite image has any non-transparent pixels
+            assert scene.animated_sprite is not None
+            assert scene.animated_sprite.image is not None
             sprite_image = scene.animated_sprite.image
             sprite_surface_pixels = []
             for y in range(sprite_image.get_height()):
@@ -384,9 +393,12 @@ class TestAnimationVisual:
         assert len(screen_pixels) > 0, 'Screen should have pixel data'
 
         # Test that sprite is positioned correctly
+        assert scene.animated_sprite is not None
+        assert scene.animated_sprite.rect is not None
         sprite_rect = scene.animated_sprite.rect
         assert sprite_rect.x > 0, 'Sprite should be positioned on screen'
         assert sprite_rect.y > 0, 'Sprite should be positioned on screen'
+        assert scene.screen is not None
         assert sprite_rect.right < scene.screen.get_width(), 'Sprite should fit on screen'
         assert sprite_rect.bottom < scene.screen.get_height(), 'Sprite should fit on screen'
 
@@ -405,6 +417,7 @@ class TestAnimationVisual:
         frame_durations = []
 
         for frame in frames:
+            assert frame.image is not None
             surface = frame.image
             frame_sizes.append(surface.get_size())
             frame_durations.append(frame.duration)

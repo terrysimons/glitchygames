@@ -4,6 +4,7 @@ Tests cover: _save_sprite_files edge cases, _extract_png_dimensions,
 _extract_single_frame, generate/refine with AI provider errors,
 PNG render failure paths, and path traversal protection.
 """
+# pyright: reportMissingImports=false
 
 import base64
 import struct

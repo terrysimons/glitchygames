@@ -77,7 +77,7 @@ def unicode_generator_with_priority() -> Generator[str]:
     #     "➊","➋","➌","➍","➎","➏","➐","➑","➒","➓"
     # ]
 
-    handled_chars = set()
+    handled_chars: set[str] = set()
 
     # # 1. Print regional indicator letters first
     # for ch in ordered_letters:

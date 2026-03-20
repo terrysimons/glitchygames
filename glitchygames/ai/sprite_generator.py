@@ -6,7 +6,7 @@ sprite generation in the TOML format used by GlitchyGames.
 
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
 
@@ -203,17 +203,18 @@ def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
     lines.append('')
 
     # Add colors
-    colors = example.get('colors', {})
+    colors: dict[str, Any] = example.get('colors', {})
     for char, color_data in sorted(colors.items()):
         lines.append(f'[colors."{char}"]')
         if isinstance(color_data, dict):
+            color_dict = cast('dict[str, int]', color_data)
             lines.extend((
-                f'red = {color_data.get("red", 0)}',
-                f'green = {color_data.get("green", 0)}',
-                f'blue = {color_data.get("blue", 0)}',
+                f'red = {color_dict.get("red", 0)}',
+                f'green = {color_dict.get("green", 0)}',
+                f'blue = {color_dict.get("blue", 0)}',
             ))
-            if 'alpha' in color_data and color_data['alpha'] != MAX_COLOR_CHANNEL_VALUE:
-                lines.append(f'alpha = {color_data["alpha"]}')
+            if 'alpha' in color_dict and color_dict['alpha'] != MAX_COLOR_CHANNEL_VALUE:
+                lines.append(f'alpha = {color_dict["alpha"]}')
         lines.append('')
 
     return '\n'.join(lines)
@@ -233,54 +234,57 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
     ))
 
     # Add animations
-    animations = example.get('animations', [])
+    animations: list[Any] = example.get('animations', [])
     for anim in animations:
         if not isinstance(anim, dict):
             continue
 
+        anim_dict = cast('dict[str, Any]', anim)
         lines.extend([
             '[[animation]]',
-            f'namespace = "{anim.get("namespace", "default")}"',
-            f'frame_interval = {anim.get("frame_interval", 0.5)}',
-            f'loop = {str(anim.get("loop", True)).lower()}',
+            f'namespace = "{anim_dict.get("namespace", "default")}"',
+            f'frame_interval = {anim_dict.get("frame_interval", 0.5)}',
+            f'loop = {str(anim_dict.get("loop", True)).lower()}',
             '',
         ])
 
         # Add frames
-        frames = anim.get('frame', [])
+        frames: list[Any] = anim_dict.get('frame', [])
         for frame in frames:
             if not isinstance(frame, dict):
                 continue
 
+            frame_dict = cast('dict[str, Any]', frame)
             lines.extend((
                 '[[animation.frame]]',
-                f'namespace = "{anim.get("namespace", "default")}"',
-                f'frame_index = {frame.get("frame_index", 0)}',
+                f'namespace = "{anim_dict.get("namespace", "default")}"',
+                f'frame_index = {frame_dict.get("frame_index", 0)}',
             ))
 
             # Handle pixels
-            pixels = frame.get('pixels', '')
+            pixels: str = frame_dict.get('pixels', '')
             if '\n' in pixels:
                 lines.append(f'pixels = """\n{pixels}\n"""')
             else:
                 lines.append(f'pixels = "{pixels}"')
 
-            if 'frame_interval' in frame:
-                lines.append(f'frame_interval = {frame["frame_interval"]}')
+            if 'frame_interval' in frame_dict:
+                lines.append(f'frame_interval = {frame_dict["frame_interval"]}')
             lines.append('')
 
     # Add colors
-    colors = example.get('colors', {})
+    colors: dict[str, Any] = example.get('colors', {})
     for char, color_data in sorted(colors.items()):
         lines.append(f'[colors."{char}"]')
         if isinstance(color_data, dict):
+            anim_color_dict = cast('dict[str, int]', color_data)
             lines.extend((
-                f'red = {color_data.get("red", 0)}',
-                f'green = {color_data.get("green", 0)}',
-                f'blue = {color_data.get("blue", 0)}',
+                f'red = {anim_color_dict.get("red", 0)}',
+                f'green = {anim_color_dict.get("green", 0)}',
+                f'blue = {anim_color_dict.get("blue", 0)}',
             ))
-            if 'alpha' in color_data and color_data['alpha'] != MAX_COLOR_CHANNEL_VALUE:
-                lines.append(f'alpha = {color_data["alpha"]}')
+            if 'alpha' in anim_color_dict and anim_color_dict['alpha'] != MAX_COLOR_CHANNEL_VALUE:
+                lines.append(f'alpha = {anim_color_dict["alpha"]}')
         lines.append('')
 
     return '\n'.join(lines)
@@ -472,7 +476,7 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
     return True, ''
 
 
-def clean_ai_response(content: str) -> str:
+def clean_ai_response(content: str | None) -> str | None:
     """Clean markdown and formatting from AI response.
 
     Args:

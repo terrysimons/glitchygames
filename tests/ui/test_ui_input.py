@@ -60,6 +60,7 @@ class TestInputBoxFunctionality:
         )
 
         # Assert
+        assert inputbox.rect is not None
         assert inputbox.rect.x == TEST_INPUT_X_POS
         assert inputbox.rect.y == TEST_INPUT_Y_POS
         assert inputbox.rect.width == TEST_INPUT_WIDTH

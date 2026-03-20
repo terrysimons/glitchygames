@@ -4,6 +4,7 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Any, override
 
 import pygame
 
@@ -33,7 +34,7 @@ class AnimationScene(Scene):
         super().__init__()
 
         # Create sprite group for the scene
-        self.groups = pygame.sprite.LayeredDirty()
+        self.groups: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty()
 
         # Load the animated sprite from foo.toml
         foo_toml_path = Path(__file__).parent.parent / 'foo.toml'
@@ -41,6 +42,7 @@ class AnimationScene(Scene):
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.groups)
             self.animated_sprite.play()
+            assert self.animated_sprite.rect is not None
             self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
             logger.info(
                 f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)'
@@ -50,6 +52,7 @@ class AnimationScene(Scene):
             logger.exception('Failed to load animation')
             raise
 
+    @override
     def update(self, dt: float | None = None) -> None:
         """Update the scene."""
         super().update()
@@ -84,11 +87,11 @@ class AnimationScene(Scene):
         return None
 
 
-def main() -> None:
+def main() -> int:
     """Run the animation scene demo.
 
     Returns:
-        object: The result.
+        int: Exit code (0 for success).
 
     """
     # Initialize pygame
@@ -120,6 +123,8 @@ def main() -> None:
         # Update and render
         scene.update(dt)
         screen.fill((20, 20, 40))
+        assert scene.animated_sprite.image is not None
+        assert scene.animated_sprite.rect is not None
         screen.blit(scene.animated_sprite.image, scene.animated_sprite.rect)
         pygame.display.flip()
 

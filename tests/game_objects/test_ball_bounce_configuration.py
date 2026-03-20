@@ -45,6 +45,7 @@ class TestBallBounceConfiguration:
         ball = BallSprite(bounce_top_bottom=True, bounce_left_right=False)
 
         # Test top bounce
+        assert ball.rect is not None
         ball.rect.y = 0
         ball.speed.y = -100.0  # Moving up
         initial_speed_x = ball.speed.x
@@ -73,6 +74,7 @@ class TestBallBounceConfiguration:
         ball = BallSprite(bounce_top_bottom=False, bounce_left_right=True)
 
         # Test left bounce
+        assert ball.rect is not None
         ball.rect.x = 0
         ball.speed.x = -100.0  # Moving left
         initial_speed_y = ball.speed.y
@@ -101,6 +103,7 @@ class TestBallBounceConfiguration:
         ball = BallSprite(bounce_top_bottom=False, bounce_left_right=False)
 
         # Test that no bouncing occurs
+        assert ball.rect is not None
         original_x, original_y = ball.rect.x, ball.rect.y
         original_speed_x, original_speed_y = ball.speed.x, ball.speed.y
 
@@ -117,6 +120,7 @@ class TestBallBounceConfiguration:
         ball = BallSprite(bounce_left_right=False)
 
         # Move ball off screen
+        assert ball.rect is not None
         ball.rect.x = ball.screen_width + 10
 
         # Should be alive before dt_tick
@@ -133,6 +137,7 @@ class TestBallBounceConfiguration:
         ball = BallSprite(bounce_left_right=True)
 
         # Move ball to edge
+        assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
         ball.speed.x = 100.0  # Moving right
 
@@ -153,6 +158,7 @@ class TestBallBounceConfiguration:
         ball = BallSprite(bounce_top_bottom=True, bounce_left_right=True)
 
         # Test top bounce - should reverse Y direction
+        assert ball.rect is not None
         ball.rect.y = 0
         ball.speed.y = -100.0
         initial_speed_x = ball.speed.x

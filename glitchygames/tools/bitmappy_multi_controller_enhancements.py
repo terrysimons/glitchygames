@@ -8,7 +8,7 @@ user experience.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from glitchygames.tools.bitmappy import BitmapEditorScene
@@ -26,15 +26,15 @@ class BitmappyMultiControllerEnhancements:
             bitmappy_scene: The bitmappy scene instance
 
         """
-        self.scene = bitmappy_scene
-        self.manager = bitmappy_scene.multi_controller_manager
-        self.visual_manager = bitmappy_scene.visual_collision_manager
-        self.controller_selections = bitmappy_scene.controller_selections
+        self.scene: Any = bitmappy_scene
+        self.manager: Any = bitmappy_scene.multi_controller_manager
+        self.visual_manager: Any = bitmappy_scene.visual_collision_manager
+        self.controller_selections: Any = bitmappy_scene.controller_selections
 
         # Enhanced features
-        self.controller_history: dict[int, list[dict]] = {}
+        self.controller_history: dict[int, list[dict[str, Any]]] = {}
         self.performance_metrics: dict[str, float] = {}
-        self.visual_customizations: dict[int, dict] = {}
+        self.visual_customizations: dict[int, dict[str, Any]] = {}
         self.controller_groups: dict[str, list[int]] = {}
 
         # Performance optimization
@@ -286,7 +286,9 @@ class BitmappyMultiControllerEnhancements:
         # Update visual management
         self.enhanced_visual_management(controller_id)
 
-    def _record_controller_action(self, controller_id: int, action: str, data: dict) -> None:
+    def _record_controller_action(
+        self, controller_id: int, action: str, data: dict[str, Any]
+    ) -> None:
         """Record controller action in history.
 
         Args:
@@ -323,7 +325,7 @@ class BitmappyMultiControllerEnhancements:
             time_diff = timestamp - self.performance_metrics[operation]
             self.performance_metrics[operation] = time_diff
 
-    def get_controller_performance_stats(self, controller_id: int) -> dict:
+    def get_controller_performance_stats(self, controller_id: int) -> dict[str, Any]:
         """Get performance statistics for a controller.
 
         Args:
@@ -386,8 +388,8 @@ class BitmappyMultiControllerEnhancements:
         success = True
         for controller_id in self.controller_groups[group_name]:
             if action == 'navigate':
-                direction = kwargs.get('direction', 'frame')
-                amount = kwargs.get('amount', 1)
+                direction = cast(str, kwargs.get('direction', 'frame'))
+                amount = cast(int, kwargs.get('amount', 1))
                 if not self.enhanced_navigation(controller_id, direction, amount):
                     success = False
             elif action == 'activate':
@@ -396,33 +398,34 @@ class BitmappyMultiControllerEnhancements:
 
         return success
 
-    def get_controller_status_summary(self) -> dict:
+    def get_controller_status_summary(self) -> dict[str, Any]:
         """Get comprehensive status summary for all controllers.
 
         Returns:
             Dict: Status summary
 
         """
-        summary = {
-            'total_controllers': len(self.controller_selections),
-            'active_controllers': 0,
-            'controller_groups': len(self.controller_groups),
-            'performance_metrics': self.performance_metrics.copy(),
-            'controllers': {},
-        }
+        active_count: int = 0
+        controllers_detail: dict[int, dict[str, Any]] = {}
 
         for controller_id, selection in self.controller_selections.items():
             if selection.is_active():
-                summary['active_controllers'] += 1
+                active_count += 1
 
-            summary['controllers'][controller_id] = {
+            controllers_detail[controller_id] = {
                 'active': selection.is_active(),
                 'selection': selection.get_selection(),
                 'history_length': len(self.controller_history.get(controller_id, [])),
                 'customizations': self.visual_customizations.get(controller_id, {}),
             }
 
-        return summary
+        return {
+            'total_controllers': len(self.controller_selections),
+            'active_controllers': active_count,
+            'controller_groups': len(self.controller_groups),
+            'performance_metrics': self.performance_metrics.copy(),
+            'controllers': controllers_detail,
+        }
 
     def cleanup_inactive_controllers(self) -> int:
         """Clean up inactive controllers and their resources.
@@ -434,7 +437,7 @@ class BitmappyMultiControllerEnhancements:
         cleaned_count = 0
 
         # Find inactive controllers
-        inactive_controllers = []
+        inactive_controllers: list[int] = []
         for controller_id, selection in self.controller_selections.items():
             if not selection.is_active():
                 inactive_controllers.append(controller_id)
@@ -464,7 +467,7 @@ class BitmappyMultiControllerEnhancements:
 
         return cleaned_count
 
-    def optimize_performance(self) -> dict:
+    def optimize_performance(self) -> dict[str, Any]:
         """Optimize performance by cleaning up resources and optimizing operations.
 
         Returns:

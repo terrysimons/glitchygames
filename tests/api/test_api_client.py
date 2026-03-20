@@ -299,9 +299,9 @@ class TestDisplaySpriteAscii:
     def test_display_static_sprite(self, mocker, capsys):
         """Test displaying a static sprite as ASCII."""
         mock_renderer = mocker.Mock()
-        mock_renderer._extract_colors_from_toml.return_value = {'#': (255, 0, 0)}
-        mock_renderer._extract_pixels_from_toml.return_value = '##\n##'
-        mock_renderer._colorize_pixels.return_value = '##\n##'
+        mock_renderer.extract_colors_from_toml.return_value = {'#': (255, 0, 0)}
+        mock_renderer.extract_pixels_from_toml.return_value = '##\n##'
+        mock_renderer.colorize_pixels.return_value = '##\n##'
 
         mocker.patch(
             'glitchygames.api.client.ASCIIRenderer',
@@ -334,8 +334,8 @@ blue = 0
     def test_display_animated_sprite(self, mocker, capsys):
         """Test displaying an animated sprite."""
         mock_renderer = mocker.Mock()
-        mock_renderer._extract_colors_from_toml.return_value = {'#': (255, 0, 0)}
-        mock_renderer._colorize_pixels.return_value = '##'
+        mock_renderer.extract_colors_from_toml.return_value = {'#': (255, 0, 0)}
+        mock_renderer.colorize_pixels.return_value = '##'
 
         mocker.patch(
             'glitchygames.api.client.ASCIIRenderer',

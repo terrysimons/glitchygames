@@ -1,11 +1,13 @@
 """Health check endpoints for the GlitchyGames API."""
 
+from typing import Any
+
 from fastapi import APIRouter
 
 from glitchygames.api.models import HealthResponse
 from glitchygames.services import RendererService, ServiceConfig
 
-router = APIRouter(tags=['health'])
+router: Any = APIRouter(tags=['health'])
 
 
 @router.get('/health')
@@ -21,7 +23,7 @@ async def health_check() -> HealthResponse:
     config = ServiceConfig.from_env()
 
     # Check if pygame is initialized (renderer will initialize it if needed)
-    pygame_initialized = RendererService._pygame_initialized
+    pygame_initialized: bool = RendererService.pygame_initialized
 
     return HealthResponse(
         status='healthy',
@@ -33,7 +35,7 @@ async def health_check() -> HealthResponse:
 
 
 @router.get('/')
-async def root() -> dict:
+async def root() -> dict[str, str]:
     """Root endpoint with API information.
 
     Returns:

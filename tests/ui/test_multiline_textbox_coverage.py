@@ -7,7 +7,7 @@ and navigation.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock
+from typing import Any
 
 import pygame
 import pytest
@@ -19,7 +19,7 @@ from glitchygames.ui import MultiLineTextBox
 from tests.mocks.test_mock_factory import MockFactory
 
 
-def _key_mock() -> Mock:
+def _key_mock() -> Any:
     """Return the pygame.key mock for attribute access.
 
     mock_pygame_patches replaces pygame.key with a Mock, but basedpyright
@@ -510,6 +510,7 @@ class TestMultiLineTextBoxMouseUpEvent:
         """Test mouse up inside textbox activates it."""
         textbox = _create_multiline_textbox(mocker)
 
+        assert textbox.rect is not None
         event = mocker.Mock()
         event.pos = (textbox.rect.centerx, textbox.rect.centery)
 

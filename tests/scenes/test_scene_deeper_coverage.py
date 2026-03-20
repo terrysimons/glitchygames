@@ -55,7 +55,7 @@ class TestSceneManagerSwitchToScene:
             'fps_log_interval_ms': 1000,
             'target_fps': 60,
         }
-        manager.OPTIONS = manager._game_engine.OPTIONS
+        type(manager).OPTIONS = manager._game_engine.OPTIONS
         manager.target_fps = 60
 
         manager.switch_to_scene(second_scene)
@@ -112,7 +112,7 @@ class TestSceneManagerCleanupAndSetup:
 
         manager._setup_new_scene(scene)
         scene.setup.assert_called_once()
-        assert scene.game_engine is manager._game_engine
+        assert scene.game_engine is manager._game_engine  # type: ignore[unresolved-attribute]
 
     def test_setup_new_scene_none(self, mock_pygame_patches):
         """Test _setup_new_scene does nothing with None scene."""

@@ -35,6 +35,7 @@ class TestBallDtTick:
         LOG.debug('Direction | Initial Pos | Final Pos  | Distance | Speed')
         LOG.debug('----------|-------------|------------|----------|-------')
 
+        assert ball.rect is not None
         for direction in directions:
             # Reset ball position to center
             ball.rect.x = 400

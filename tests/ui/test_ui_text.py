@@ -56,6 +56,7 @@ class TestTextSpriteFunctionality:
         )
 
         # Assert
+        assert text_sprite.rect is not None
         assert text_sprite.rect.x == TEST_X_POS
         assert text_sprite.rect.y == TEST_Y_POS
         assert text_sprite.text == 'Hello World'
@@ -114,6 +115,7 @@ class TestTextBoxSpriteFunctionality:
         )
 
         # Assert
+        assert textbox.rect is not None
         assert textbox.rect.x == TEST_X_POS
         assert textbox.rect.y == TEST_Y_POS
         assert textbox.rect.width == TEST_WIDTH
@@ -153,13 +155,13 @@ class TestTextBoxSpriteFunctionality:
         textbox = TextBoxSprite(
             x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox'
         )
-        textbox.text = 'Hello'
+        textbox.text = 'Hello'  # type: ignore[unresolved-attribute]
 
         # Act: simulate backspace by directly modifying text
-        textbox.text = 'Hell'  # Simulate backspace effect
+        textbox.text = 'Hell'  # type: ignore[unresolved-attribute]
 
         # Assert
-        assert textbox.text == 'Hell'
+        assert textbox.text == 'Hell'  # type: ignore[unresolved-attribute]
 
     def test_textbox_focus_handling(self, mocker):
         """Test TextBoxSprite focus handling."""
@@ -222,6 +224,7 @@ class TestMultiLineTextBoxFunctionality:
         )
 
         # Assert
+        assert multiline.rect is not None
         assert multiline.rect.x == TEST_X_POS
         assert multiline.rect.y == TEST_Y_POS
         assert multiline.rect.width == TEST_MULTILINE_WIDTH

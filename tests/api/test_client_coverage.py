@@ -230,7 +230,7 @@ class TestSaveExtractedFrames:
             model_used=None,
         )
 
-        mock_image.resize.assert_called_once_with((32, 32), RealImageModule.NEAREST)
+        mock_image.resize.assert_called_once_with((32, 32), RealImageModule.NEAREST)  # type: ignore[unresolved-attribute]
 
 
 class TestSaveFilesLocallyAnimatedFrames:

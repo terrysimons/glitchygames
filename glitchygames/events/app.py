@@ -1,7 +1,7 @@
 """App event manager for application lifecycle events."""
 
 import logging
-from typing import Self
+from typing import Any, ClassVar, Self, override
 
 import pygame
 
@@ -13,44 +13,50 @@ LOG = logging.getLogger(__name__)
 class AppEventManager(ResourceManager):
     """Manager for application lifecycle events."""
 
-    log: logging.Logger = LOG
+    log: ClassVar[logging.Logger] = LOG
 
     class AppEventProxy(AppEvents, ResourceManager):
         """Proxy for application lifecycle events."""
 
-        log: logging.Logger = LOG
+        log: ClassVar[logging.Logger] = LOG
 
         def __init__(self: Self, game: object) -> None:
             """Initialize the app event proxy with a game object."""
             super().__init__(game)
-            self.game = game
+            self.game: Any = game
             self.proxies = [self.game]
 
+        @override
         def on_app_did_enter_background_event(self: Self, event: HashableEvent) -> None:
             """Forward the app-did-enter-background event to the game object."""
             if hasattr(self.game, 'on_app_did_enter_background_event'):
                 self.game.on_app_did_enter_background_event(event)
 
+        @override
         def on_app_did_enter_foreground_event(self: Self, event: HashableEvent) -> None:
             """Forward the app-did-enter-foreground event to the game object."""
             if hasattr(self.game, 'on_app_did_enter_foreground_event'):
                 self.game.on_app_did_enter_foreground_event(event)
 
+        @override
         def on_app_will_enter_background_event(self: Self, event: HashableEvent) -> None:
             """Forward the app-will-enter-background event to the game object."""
             if hasattr(self.game, 'on_app_will_enter_background_event'):
                 self.game.on_app_will_enter_background_event(event)
 
+        @override
         def on_app_will_enter_foreground_event(self: Self, event: HashableEvent) -> None:
             """Forward the app-will-enter-foreground event to the game object."""
             if hasattr(self.game, 'on_app_will_enter_foreground_event'):
                 self.game.on_app_will_enter_foreground_event(event)
 
+        @override
         def on_app_low_memory_event(self: Self, event: HashableEvent) -> None:
             """Forward the app-low-memory event to the game object."""
             if hasattr(self.game, 'on_app_low_memory_event'):
                 self.game.on_app_low_memory_event(event)
 
+        @override
         def on_app_terminating_event(self: Self, event: HashableEvent) -> None:
             """Forward the app-terminating event to the game object."""
             if hasattr(self.game, 'on_app_terminating_event'):
@@ -69,5 +75,5 @@ class AppEventManager(ResourceManager):
             pygame.event.set_allowed(APP_EVENTS)
         except pygame.error:
             LOG.debug('Failed to set allowed app events: pygame not fully initialized')
-        self.game = game
+        self.game: Any = game
         self.proxies = [AppEventManager.AppEventProxy(game=game)]

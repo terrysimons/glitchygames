@@ -44,6 +44,7 @@ Targets uncovered areas NOT covered by existing test files:
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -521,7 +522,7 @@ class TestFilmStripGetFrameImageStale:
     def test_get_frame_image_stale_with_pixels_and_image(self):
         """Test _get_frame_image returns surface from pixel data when image is stale."""
         frame = SpriteFrame(pygame.Surface((2, 2), pygame.SRCALPHA), duration=0.5)
-        frame._image_stale = True
+        frame._image_stale = True  # type: ignore[unresolved-attribute]
         frame.pixels = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 0, 255)]
 
         result = FilmStripWidget._get_frame_image(frame)
@@ -532,7 +533,7 @@ class TestFilmStripGetFrameImageStale:
         """Test _get_frame_image falls back to sqrt when no image (lines 506-516)."""
         # Create a mock frame that has _image_stale=True, pixels, but no image/get_size
         frame = mocker.Mock(spec=[])
-        frame._image_stale = True
+        frame._image_stale = True  # type: ignore[unresolved-attribute]
         frame.pixels = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 0, 255)]
         frame.image = None
         frame._image = None
@@ -553,10 +554,11 @@ class TestFilmStripGetFrameImageStale:
     def test_get_frame_image_stale_with_internal_image(self):
         """Test _get_frame_image uses _image when image is None but _image exists (line 503-504)."""
         frame = SpriteFrame(pygame.Surface((3, 3), pygame.SRCALPHA), duration=0.5)
-        frame._image_stale = True
-        frame.pixels = [(255, 0, 0, 255)] * 9
+        frame._image_stale = True  # type: ignore[unresolved-attribute]
+        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0, 255)] * 9)
+        frame.pixels = pixel_data
         # Set image to None but _image to a valid surface
-        frame.image = None
+        frame.image = None  # type: ignore[invalid-assignment]
         frame._image = pygame.Surface((3, 3), pygame.SRCALPHA)
 
         result = FilmStripWidget._get_frame_image(frame)

@@ -6,6 +6,7 @@ with the universal character set, using TOML format only.
 
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -44,7 +45,8 @@ class TestAnimatedSpriteGlyphs:
 
         for color in colors1:
             frame = SpriteFrame(pygame.Surface((4, 4)))
-            frame.set_pixel_data([color] * 16)  # 4x4 = 16 pixels
+            pixel_data = cast(list[tuple[int, ...]], [color] * 16)  # 4x4 = 16 pixels
+            frame.set_pixel_data(pixel_data)
             frame.duration = 0.5
             frames1.append(frame)
 
@@ -56,7 +58,8 @@ class TestAnimatedSpriteGlyphs:
 
         for color in colors2:
             frame = SpriteFrame(pygame.Surface((4, 4)))
-            frame.set_pixel_data([color] * 16)
+            frame_pixels = cast(list[tuple[int, ...]], [color] * 16)
+            frame.set_pixel_data(frame_pixels)
             frame.duration = 0.3
             frames2.append(frame)
 
@@ -98,7 +101,8 @@ class TestAnimatedSpriteGlyphs:
 
         for color in colors:
             frame = SpriteFrame(pygame.Surface((2, 2)))
-            frame.set_pixel_data([color] * 4)  # 2x2 = 4 pixels
+            color_pixels = cast(list[tuple[int, ...]], [color] * 4)  # 2x2 = 4 pixels
+            frame.set_pixel_data(color_pixels)
             frame.duration = 0.6
             frames.append(frame)
 
@@ -132,7 +136,7 @@ class TestAnimatedSpriteGlyphs:
 
         # Create animation with specific colors
         frame = SpriteFrame(pygame.Surface((2, 2)))
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+        colors = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)])
         frame.set_pixel_data(colors)
         animated_sprite.add_animation('test_anim', [frame])
 
@@ -163,10 +167,12 @@ class TestAnimatedSpriteGlyphs:
 
         # Create frames with colors that should map to reserved characters
         frame1 = SpriteFrame(pygame.Surface((2, 2)))
-        frame1.set_pixel_data([(0, 0, 0)] * 4)  # Black - should map to '#'
+        black_pixels = cast(list[tuple[int, ...]], [(0, 0, 0)] * 4)  # Black - should map to '#'
+        frame1.set_pixel_data(black_pixels)
 
         frame2 = SpriteFrame(pygame.Surface((2, 2)))
-        frame2.set_pixel_data([(255, 0, 0)] * 4)  # Red - should map to '@'
+        red_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)  # Red - should map to '@'
+        frame2.set_pixel_data(red_pixels)
 
         animated_sprite.add_animation('test_anim', [frame1, frame2])
 
@@ -197,7 +203,7 @@ class TestAnimatedSpriteGlyphs:
                 colors.append((r, g, b))
 
             # Create pixel data with all colors
-            pixels = colors[:64]  # 8x8 = 64 pixels
+            pixels: list[tuple[int, ...]] = colors[:64]  # 8x8 = 64 pixels
             frame.set_pixel_data(pixels)
             frame.duration = 0.5
             frames.append(frame)
@@ -216,10 +222,12 @@ class TestAnimatedSpriteGlyphs:
 
         # Create two animations with some shared colors
         frame1 = SpriteFrame(pygame.Surface((2, 2)))
-        frame1.set_pixel_data([(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)])
+        frame1_pixels: list[tuple[int, ...]] = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+        frame1.set_pixel_data(frame1_pixels)
 
         frame2 = SpriteFrame(pygame.Surface((2, 2)))
-        frame2.set_pixel_data([(255, 0, 0), (0, 255, 0), (128, 128, 128), (0, 0, 0)])
+        frame2_pixels: list[tuple[int, ...]] = [(255, 0, 0), (0, 255, 0), (128, 128, 128), (0, 0, 0)]
+        frame2.set_pixel_data(frame2_pixels)
 
         animated_sprite.add_animation('anim1', [frame1])
         animated_sprite.add_animation('anim2', [frame2])
@@ -268,7 +276,8 @@ class TestAnimatedSpriteGlyphs:
         frames = []
         for _ in range(3):
             frame = SpriteFrame(pygame.Surface((2, 2)))
-            frame.set_pixel_data([(255, 0, 0)] * 4)  # All red
+            all_red = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)  # All red
+            frame.set_pixel_data(all_red)
             frames.append(frame)
 
         animated_sprite.add_animation('red_anim', frames)
@@ -293,7 +302,8 @@ class TestAnimatedSpriteGlyphs:
 
         # Create a simple frame
         frame = SpriteFrame(pygame.Surface((4, 4)))
-        frame.set_pixel_data([(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)] * 4)
+        toml_pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)] * 4)
+        frame.set_pixel_data(toml_pixels)
         animated_sprite.add_animation('test_anim', [frame])
 
         # Save to TOML file
@@ -325,7 +335,7 @@ class TestAnimatedSpriteGlyphs:
             colors.append((r, g, b))
 
         # Create pixel data with all 65 colors
-        pixels = [colors[i] for i in range(65)]  # 65x1 = 65 pixels
+        pixels: list[tuple[int, ...]] = [colors[i] for i in range(65)]  # 65x1 = 65 pixels
 
         frame.set_pixel_data(pixels)
         animated_sprite.add_animation('test_anim', [frame])

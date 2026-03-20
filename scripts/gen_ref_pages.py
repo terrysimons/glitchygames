@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Generate the code reference pages and navigation."""
+"""Generate the code reference pages and navigation.
+
+This script runs under mkdocs and depends on mkdocs-gen-files which has no type stubs.
+"""
+# pyright: reportMissingImports=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportPrivateImportUsage=false
 
 import logging
 from pathlib import Path
 
 import mkdocs_gen_files
 
-nav = mkdocs_gen_files.Nav()  # pyright: ignore[reportPrivateImportUsage]
+nav = mkdocs_gen_files.Nav()
 
 src = Path(Path(__file__).parent.parent)
 

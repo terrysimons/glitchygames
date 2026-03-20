@@ -353,7 +353,7 @@ class TestBitmappySprite:
             'glitchygames.sprites.BitmappySprite._create_color_map',
             return_value={'A': (255, 0, 0), 'B': (0, 255, 0), 'X': (255, 0, 255)},
         )
-        result = sprite._get_pixel_string()
+        result = sprite._get_pixel_string()  # type: ignore[unresolved-attribute]
         assert result is not None
 
     def test_get_pixel_string_method_no_pixels(self):
@@ -361,7 +361,7 @@ class TestBitmappySprite:
         sprite = BitmappySprite()
         sprite.pixels = []
 
-        result = sprite._get_pixel_string()
+        result = sprite._get_pixel_string()  # type: ignore[unresolved-attribute]
         assert not result
 
     def test_get_color_map_method(self):
@@ -369,7 +369,7 @@ class TestBitmappySprite:
         sprite = BitmappySprite()
         sprite.pixels = [(255, 0, 0), (0, 255, 0)]
 
-        result = sprite._get_color_map()
+        result = sprite._get_color_map()  # type: ignore[unresolved-attribute]
         assert isinstance(result, dict)
 
     def test_get_color_map_method_no_pixels(self):
@@ -377,7 +377,7 @@ class TestBitmappySprite:
         sprite = BitmappySprite()
         sprite.pixels = []
 
-        result = sprite._get_color_map()
+        result = sprite._get_color_map()  # type: ignore[unresolved-attribute]
         assert result == {}
 
 

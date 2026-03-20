@@ -8,6 +8,7 @@ helper functions, and edge cases in frame management.
 import math
 import sys
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -146,12 +147,12 @@ class TestLookupInMap:
 
     def test_found_key(self):
         """Test successful lookup returns character."""
-        color_map = {(255, 0, 0): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
         assert _lookup_in_map((255, 0, 0), color_map) == '#'
 
     def test_missing_key_raises(self):
         """Test missing key raises KeyError."""
-        color_map = {(255, 0, 0): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
         with pytest.raises(KeyError, match='not found in color map'):
             _lookup_in_map((0, 0, 0), color_map)
 
@@ -161,25 +162,25 @@ class TestLookupPixelChar:
 
     def test_rgb_pixel_non_magenta(self):
         """Test RGB pixel lookup in non-alpha map."""
-        color_map = {(255, 0, 0): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
         result = _lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=False)
         assert result == '#'
 
     def test_rgb_magenta_pixel(self):
         """Test RGB magenta pixel lookup normalizes to RGBA."""
-        color_map = {(255, 0, 255, 255): '.'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 255, 255): '.'}
         result = _lookup_pixel_char((255, 0, 255), color_map, map_uses_alpha=False)
         assert result == '.'
 
     def test_rgb_pixel_in_alpha_map_rgba_match(self):
         """Test RGB pixel lookup in alpha map with RGBA match."""
-        color_map = {(255, 0, 0, 255): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0, 255): '#'}
         result = _lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=True)
         assert result == '#'
 
     def test_rgb_pixel_in_alpha_map_rgb_match(self):
         """Test RGB pixel lookup in alpha map with RGB match."""
-        color_map = {(255, 0, 0): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
         result = _lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=True)
         assert result == '#'
 
@@ -189,7 +190,7 @@ class TestExtractPixelColors:
 
     def test_extract_colors(self):
         """Test extracting colors from pixel lines."""
-        color_map = {'#': (0, 0, 0), '.': (255, 255, 255)}
+        color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0), '.': (255, 255, 255)}
         pixel_lines = ['#.', '.#']
         result = _extract_pixel_colors(pixel_lines, width=2, height=2, color_map=color_map)
         assert len(result) == 4
@@ -198,7 +199,7 @@ class TestExtractPixelColors:
 
     def test_unknown_char_defaults_to_magenta(self):
         """Test unknown characters default to magenta."""
-        color_map = {'#': (0, 0, 0)}
+        color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0)}
         pixel_lines = ['#?']
         result = _extract_pixel_colors(pixel_lines, width=2, height=1, color_map=color_map)
         assert result[1] == (255, 0, 255)
@@ -231,10 +232,12 @@ class TestSpriteFrame:
         """Test image setter updates the surface."""
         new_surface = pygame.Surface((8, 8))
         frame.image = new_surface
+        assert frame.image is not None
         assert frame.image.get_size() == (8, 8)
 
     def test_rect_property(self, frame):
         """Test rect property returns correct rect."""
+        assert frame.rect is not None
         assert frame.rect.width == SURFACE_SIZE
         assert frame.rect.height == SURFACE_SIZE
 
@@ -242,6 +245,7 @@ class TestSpriteFrame:
         """Test rect setter updates the rect."""
         new_rect = pygame.Rect(10, 20, 30, 40)
         frame.rect = new_rect
+        assert frame.rect is not None
         assert frame.rect.x == 10
 
     def test_getitem_returns_self(self, frame):
@@ -287,14 +291,14 @@ class TestSpriteFrame:
     def test_set_pixel_data(self, frame):
         """Test set_pixel_data updates pixels and surface."""
         pixel_count = SURFACE_SIZE * SURFACE_SIZE
-        new_pixels = [(255, 0, 0, 255)] * pixel_count
+        new_pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255)] * pixel_count)
         frame.set_pixel_data(new_pixels)
         assert frame.pixels == new_pixels
 
     def test_set_pixel_data_rgb(self, frame):
         """Test set_pixel_data handles RGB pixels."""
         pixel_count = SURFACE_SIZE * SURFACE_SIZE
-        new_pixels = [(0, 255, 0)] * pixel_count
+        new_pixels = cast(list[tuple[int, ...]], [(0, 255, 0)] * pixel_count)
         frame.set_pixel_data(new_pixels)
         assert frame.pixels == new_pixels
 
@@ -821,7 +825,7 @@ class TestAnimatedSpriteNextAnimation:
         sprite.add_animation('run', [SpriteFrame(surface)])
         sprite.set_animation('run')
         # Set the legacy attribute that next_animation uses
-        sprite._current_animation = 'run'
+        sprite._current_animation = 'run'  # type: ignore[unresolved-attribute]
         # next after 'run' (last) should wrap to 'walk' (first)
         result = sprite.next_animation
         assert result == 'walk'
@@ -837,6 +841,6 @@ class TestAnimatedSpriteNextAnimation:
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
         sprite.add_animation('walk', [SpriteFrame(surface)])
         # Set _current_animation to something not in animations
-        sprite._current_animation = 'nonexistent'
+        sprite._current_animation = 'nonexistent'  # type: ignore[unresolved-attribute]
         result = sprite.next_animation
         assert result == 'walk'

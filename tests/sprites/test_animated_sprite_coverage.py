@@ -19,6 +19,7 @@ Targets lines missed by test_animated_coverage.py and test_animated_deeper.py:
 import sys
 from io import StringIO
 from pathlib import Path
+from typing import cast
 
 import pygame
 import pytest
@@ -47,43 +48,43 @@ class TestLookupRgbaPixelChar:
 
     def test_rgba_opaque_rgb_key_match(self):
         """Test opaque RGBA pixel matched via RGB key in alpha map."""
-        color_map = {(255, 0, 0): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
         result = _lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
         assert result == '#'
 
     def test_rgba_opaque_rgba_key_match(self):
         """Test opaque RGBA pixel matched via RGBA key in alpha map."""
-        color_map = {(255, 0, 0, 255): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0, 255): '#'}
         result = _lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
         assert result == '#'
 
     def test_rgba_opaque_not_found_raises(self):
         """Test opaque RGBA pixel not in map raises KeyError."""
-        color_map = {(0, 255, 0): '.'}
+        color_map: dict[tuple[int, ...], str] = {(0, 255, 0): '.'}
         with pytest.raises(KeyError, match='not found in color map'):
             _lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
 
     def test_rgba_transparent_in_alpha_map(self):
         """Test transparent RGBA pixel lookup in alpha map."""
-        color_map = {(255, 0, 0, 128): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0, 128): '#'}
         result = _lookup_rgba_pixel_char((255, 0, 0, 128), color_map, map_uses_alpha=True)
         assert result == '#'
 
     def test_rgba_non_alpha_map_opaque(self):
         """Test opaque RGBA pixel in non-alpha map collapses to RGB."""
-        color_map = {(255, 0, 0): '#'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
         result = _lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=False)
         assert result == '#'
 
     def test_rgba_non_alpha_map_transparent_becomes_magenta(self):
         """Test transparent RGBA pixel in non-alpha map maps to magenta."""
-        color_map = {(255, 0, 255, 255): '.'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 255, 255): '.'}
         result = _lookup_rgba_pixel_char((255, 0, 0, 128), color_map, map_uses_alpha=False)
         assert result == '.'
 
     def test_rgba_magenta_pixel_normalizes(self):
         """Test magenta RGBA pixel normalizes to (255, 0, 255, 255)."""
-        color_map = {(255, 0, 255, 255): '.'}
+        color_map: dict[tuple[int, ...], str] = {(255, 0, 255, 255): '.'}
         result = _lookup_rgba_pixel_char((255, 0, 255, 128), color_map, map_uses_alpha=True)
         assert result == '.'
 
@@ -93,7 +94,7 @@ class TestLookupPixelCharRgbRaiseInAlphaMap:
 
     def test_rgb_not_found_in_alpha_map_raises(self):
         """Test that RGB pixel raises when neither RGBA nor RGB found in alpha map."""
-        color_map = {(0, 0, 0): '#'}
+        color_map: dict[tuple[int, ...], str] = {(0, 0, 0): '#'}
         with pytest.raises(KeyError, match='not found in color map'):
             _lookup_pixel_char((128, 128, 128), color_map, map_uses_alpha=True)
 
@@ -108,7 +109,7 @@ class TestCreateAlphaSurface:
 
     def test_creates_srcalpha_surface(self):
         """Test creating an alpha surface with RGBA colors."""
-        color_map = {'#': (0, 0, 0, 255), '.': (255, 255, 255, 128)}
+        color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 255), '.': (255, 255, 255, 128)}
         pixel_lines = ['#.', '.#']
         surface = _create_alpha_surface(2, 2, pixel_lines, color_map)
         assert surface is not None
@@ -116,14 +117,14 @@ class TestCreateAlphaSurface:
 
     def test_rgb_color_gets_full_alpha(self):
         """Test that RGB colors in the map get alpha=255 added."""
-        color_map = {'#': (0, 0, 0)}
+        color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0)}
         pixel_lines = ['#']
         surface = _create_alpha_surface(1, 1, pixel_lines, color_map)
         assert surface is not None
 
     def test_magenta_rgba_stays_opaque(self):
         """Test that magenta RGBA (255,0,255,255) is preserved."""
-        color_map = {'.': (255, 0, 255, 255)}
+        color_map: dict[str, tuple[int, ...]] = {'.': (255, 0, 255, 255)}
         pixel_lines = ['.']
         surface = _create_alpha_surface(1, 1, pixel_lines, color_map)
         assert surface is not None
@@ -139,7 +140,7 @@ class TestCreateIndexedSurface:
 
     def test_creates_indexed_surface(self):
         """Test creating an indexed surface with RGB colors."""
-        color_map = {'#': (0, 0, 0), '.': (255, 255, 255)}
+        color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0), '.': (255, 255, 255)}
         pixel_lines = ['#.', '.#']
         surface = _create_indexed_surface(2, 2, pixel_lines, color_map)
         assert surface is not None
@@ -147,14 +148,14 @@ class TestCreateIndexedSurface:
 
     def test_rgba_opaque_converts_to_rgb(self):
         """Test that opaque RGBA colors are converted to RGB on indexed surface."""
-        color_map = {'#': (0, 0, 0, 255)}
+        color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 255)}
         pixel_lines = ['#']
         surface = _create_indexed_surface(1, 1, pixel_lines, color_map)
         assert surface is not None
 
     def test_rgba_transparent_becomes_magenta(self):
         """Test that transparent RGBA colors become magenta on indexed surface."""
-        color_map = {'#': (0, 0, 0, 128)}
+        color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 128)}
         pixel_lines = ['#']
         surface = _create_indexed_surface(1, 1, pixel_lines, color_map)
         assert surface is not None
@@ -250,7 +251,7 @@ class TestAnimatedSpriteClearSurfaceCache:
     def test_clear_surface_cache(self):
         """Test clearing the surface cache."""
         sprite = AnimatedSprite()
-        sprite._surface_cache['test_key'] = 'test_value'
+        sprite._surface_cache['test_key'] = 'test_value'  # type: ignore[invalid-assignment]
         assert len(sprite._surface_cache) > 0
         sprite.clear_surface_cache()
         assert len(sprite._surface_cache) == 0
@@ -345,13 +346,13 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
 
     def test_rgb_pixels(self):
         """Test surface creation from RGB pixel data."""
-        pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)])
         surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
         assert surface.get_size() == (2, 2)
 
     def test_rgba_pixels(self):
         """Test surface creation from RGBA pixel data."""
-        pixels = [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 64), (128, 128, 128, 0)]
+        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 64), (128, 128, 128, 0)])
         surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
         assert surface.get_size() == (2, 2)
 

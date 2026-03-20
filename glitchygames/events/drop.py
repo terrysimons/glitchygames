@@ -7,7 +7,7 @@ This is a simple drop event class that can be used to handle drag & drop events.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 import pygame
 
-from glitchygames.events import DROP_EVENTS, DropEvents, ResourceManager
+from glitchygames.events import DROP_EVENTS, DropEvents, HashableEvent, ResourceManager
 
 log = logging.getLogger('game.events.drop_events')
 log.addHandler(logging.NullHandler())
@@ -37,10 +37,11 @@ class DropEventManager(ResourceManager):
             """
             super().__init__(game)
 
-            self.game = game
+            self.game: Any = game
             self.proxies = [self.game]
 
-        def on_drop_begin_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_drop_begin_event(self: Self, event: HashableEvent) -> None:
             """Handle drop begin event.
 
             Args:
@@ -49,7 +50,8 @@ class DropEventManager(ResourceManager):
             """
             self.game.on_drop_begin_event(event)
 
-        def on_drop_complete_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_drop_complete_event(self: Self, event: HashableEvent) -> None:
             """Handle drop complete event.
 
             Args:
@@ -58,7 +60,8 @@ class DropEventManager(ResourceManager):
             """
             self.game.on_drop_complete_event(event)
 
-        def on_drop_file_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_drop_file_event(self: Self, event: HashableEvent) -> None:
             """Handle drop file event.
 
             Args:
@@ -67,7 +70,8 @@ class DropEventManager(ResourceManager):
             """
             self.game.on_drop_file_event(event)
 
-        def on_drop_text_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_drop_text_event(self: Self, event: HashableEvent) -> None:
             """Handle drop text event.
 
             Args:

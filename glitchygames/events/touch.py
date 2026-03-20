@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Self
+from typing import Any, Self, override
 
 import pygame
 
-from glitchygames.events import TOUCH_EVENTS, ResourceManager, TouchEvents
+from glitchygames.events import TOUCH_EVENTS, HashableEvent, ResourceManager, TouchEvents
 
 LOG = logging.getLogger('game.touch')
 LOG.addHandler(logging.NullHandler())
@@ -28,14 +28,15 @@ class TouchEventManager(ResourceManager):
 
             """
             super().__init__(game=game)
-            self.fingers: dict = {}
-            self.game: object = game
+            self.fingers: dict[int, Any] = {}
+            self.game: Any = game
             try:
-                self.proxies: list = [self.game, pygame._sdl2.touch]
+                self.proxies: list[Any] = [self.game, pygame._sdl2.touch]  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[possibly-missing-submodule]
             except AttributeError:
                 self.proxies = [self.game]
 
-        def on_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_touch_down_event(self: Self, event: HashableEvent) -> None:
             """Handle finger down events.
 
             Args:
@@ -44,7 +45,8 @@ class TouchEventManager(ResourceManager):
             """
             self.game.on_touch_down_event(event)
 
-        def on_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_touch_motion_event(self: Self, event: HashableEvent) -> None:
             """Handle finger motion events.
 
             Args:
@@ -53,7 +55,8 @@ class TouchEventManager(ResourceManager):
             """
             self.game.on_touch_motion_event(event)
 
-        def on_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_touch_up_event(self: Self, event: HashableEvent) -> None:
             """Handle finger up events.
 
             Args:
@@ -62,7 +65,8 @@ class TouchEventManager(ResourceManager):
             """
             self.game.on_touch_up_event(event)
 
-        def on_multi_touch_down_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_multi_touch_down_event(self: Self, event: HashableEvent) -> None:
             """Handle multi-touch down events.
 
             Args:
@@ -71,7 +75,8 @@ class TouchEventManager(ResourceManager):
             """
             self.game.on_multi_touch_down_event(event)
 
-        def on_multi_touch_motion_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_multi_touch_motion_event(self: Self, event: HashableEvent) -> None:
             """Handle multi-touch motion events.
 
             Args:
@@ -80,7 +85,8 @@ class TouchEventManager(ResourceManager):
             """
             self.game.on_multi_touch_motion_event(event)
 
-        def on_multi_touch_up_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_multi_touch_up_event(self: Self, event: HashableEvent) -> None:
             """Handle multi-touch up events.
 
             Args:

@@ -21,7 +21,7 @@ class TestOnMouseDragEvent:
 
         scene.on_mouse_drag_event(event, trigger)
 
-        scene.sprites_at_position.assert_called_once_with(pos=(50, 50))
+        scene.sprites_at_position.assert_called_once_with(pos=(50, 50))  # type: ignore[unresolved-attribute]
 
     def test_delegates_to_collided_sprites(self, mock_pygame_patches, mocker):
         """Test that collided sprites receive drag events."""
@@ -84,7 +84,7 @@ class TestOnMouseDropEvent:
 
         scene.on_mouse_drop_event(event, trigger)
 
-        scene.sprites_at_position.assert_called_once_with(pos=(100, 200))
+        scene.sprites_at_position.assert_called_once_with(pos=(100, 200))  # type: ignore[unresolved-attribute]
 
     def test_delegates_to_collided_sprites(self, mock_pygame_patches, mocker):
         """Test that collided sprites receive drop events."""
@@ -201,7 +201,7 @@ class TestOnLeftMouseDropEvent:
 
         scene.on_left_mouse_drop_event(event, trigger)
 
-        scene.sprites_at_position.assert_called_once_with(pos=(150, 250))
+        scene.sprites_at_position.assert_called_once_with(pos=(150, 250))  # type: ignore[unresolved-attribute]
 
 
 class TestOnMiddleMouseDragEvent:
@@ -412,7 +412,7 @@ class TestOnLeftMouseButtonDownEvent:
 
         scene.on_left_mouse_button_down_event(event)
 
-        scene._handle_focus_management.assert_called_once_with([])
+        scene._handle_focus_management.assert_called_once_with([])  # type: ignore[unresolved-attribute]
 
     def test_delegates_to_sprites_with_handler(self, mock_pygame_patches, mocker):
         """Test that sprites with on_left_mouse_button_down_event receive it."""
@@ -522,7 +522,7 @@ class TestOnMouseButtonDownEvent:
 
         scene.on_mouse_button_down_event(event)
 
-        scene._handle_focus_management.assert_called_once_with([])
+        scene._handle_focus_management.assert_called_once_with([])  # type: ignore[unresolved-attribute]
 
     def test_delegates_to_sprites_with_handler(self, mock_pygame_patches, mocker):
         """Test that sprites with on_mouse_button_down_event receive it."""

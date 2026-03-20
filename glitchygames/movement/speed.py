@@ -67,14 +67,14 @@ class Speed:
         self.y *= scalar
         return self
 
-    def __radd__(self: Self, other: Speed | float) -> int:
+    def __radd__(self: Self, other: Speed | float) -> float:
         """Add another value to Speed (right addition).
 
         Args:
             other: The value to add to this Speed.
 
         Returns:
-            int: The sum of the other value and the Speed's y component.
+            float: The sum of the other value and the Speed's y component.
 
         """
         if isinstance(other, (int, float)):
@@ -102,9 +102,7 @@ class Speed:
         """
         if isinstance(other, Speed):
             return Speed(self.x - other.x, self.y - other.y, self.increment)
-        if isinstance(other, (int, float)):
-            return Speed(self.x - other, self.y - other, self.increment)
-        return NotImplemented
+        return Speed(self.x - other, self.y - other, self.increment)
 
     def __mul__(self: Self, other: float) -> Speed:
         """Multiply this Speed by a scalar value.
@@ -116,9 +114,7 @@ class Speed:
             Speed: A new Speed instance with the result of multiplication.
 
         """
-        if isinstance(other, (int, float)):
-            return Speed(self.x * other, self.y * other, self.increment)
-        return NotImplemented
+        return Speed(self.x * other, self.y * other, self.increment)
 
     def __add__(self: Self, other: Speed | float) -> Speed:
         """Add another Speed object or scalar to this Speed.
@@ -132,9 +128,7 @@ class Speed:
         """
         if isinstance(other, Speed):
             return Speed(self.x + other.x, self.y + other.y, self.increment)
-        if isinstance(other, (int, float)):
-            return Speed(self.x + other, self.y + other, self.increment)
-        return NotImplemented
+        return Speed(self.x + other, self.y + other, self.increment)
 
     def __truediv__(self: Self, other: float) -> Speed:
         """Divide this Speed by a scalar value.
@@ -149,11 +143,9 @@ class Speed:
             ZeroDivisionError: If dividing by zero.
 
         """
-        if isinstance(other, (int, float)):
-            if other == 0:
-                raise ZeroDivisionError('Cannot divide Speed by zero')
-            return Speed(self.x / other, self.y / other, self.increment)
-        return NotImplemented
+        if other == 0:
+            raise ZeroDivisionError('Cannot divide Speed by zero')
+        return Speed(self.x / other, self.y / other, self.increment)
 
     def __mod__(self: Self, other: float) -> Speed:
         """Modulo this Speed by a scalar value.
@@ -168,11 +160,9 @@ class Speed:
             ZeroDivisionError: If the modulo divisor is zero.
 
         """
-        if isinstance(other, (int, float)):
-            if other == 0:
-                raise ZeroDivisionError('Cannot modulo Speed by zero')
-            return Speed(self.x % other, self.y % other, self.increment)
-        return NotImplemented
+        if other == 0:
+            raise ZeroDivisionError('Cannot modulo Speed by zero')
+        return Speed(self.x % other, self.y % other, self.increment)
 
     def apply_dt(self: Self, dt: float) -> Speed:
         """Apply delta time to get frame-relative movement.

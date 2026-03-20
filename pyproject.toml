@@ -30,6 +30,16 @@ dependencies = [
   "speechrecognition",
   "bokeh",
   "backoff",
+  "fastapi",
+  "uvicorn",
+  "pydantic",
+  "httpx",
+  "apng",
+  "pillow",
+  "deptry>=0.25.1",
+  "vulture>=2.15",
+  "pip-audit>=2.10.0",
+  "hypothesis>=6.151.9",
 ]
 
 [project.urls]
@@ -68,9 +78,10 @@ dev = [
   "ruff",
   "pre-commit",
   "basedpyright",
+  "ty",
   "pillow",
 ]
-api = ["fastapi", "uvicorn", "pydantic", "httpx", "apng", "pillow"]
+api = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["glitchygames"]
@@ -87,6 +98,7 @@ norecursedirs = [
   "dist",
   "*.egg-info",
   ".git",
+  ".hypothesis",
   "__pycache__",
 ]
 addopts = "-n auto --cov=glitchygames --cov-fail-under=80 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
@@ -219,6 +231,53 @@ convention = "google"
 known-first-party = ["glitchygames"]
 
 ## basedpyright config lives in pyrightconfig.json (supports per-environment overrides)
+
+## ty (Astral's type checker) configuration
+[tool.ty.environment]
+python-version = "3.13"
+extra-paths = ["scripts"]
+
+[tool.ty.src]
+include = ["glitchygames", "tests", "scripts"]
+
+[tool.ty.rules]
+# type: ignore comments are shared with basedpyright — don't flag them as unused
+unused-type-ignore-comment = "ignore"
+
+[tool.ty.terminal]
+output-format = "full"
+error-on-warning = false
+
+
+[tool.deptry.per_rule_ignores]
+# numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime
+# Dev/build/lint/docs tools are invoked via CLI, not imported in Python code
+DEP002 = [
+  "numpy",
+  "deptry",
+  "mkdocs",
+  "mkdocstrings",
+  "mkdocs-material",
+  "mkdocs-literate-nav",
+  "mkdocs-section-index",
+  "pymdown-extensions",
+  "mkdocs-autorefs",
+  "mkdocs-macros-plugin",
+  "mkdocstrings-python",
+  "pytest-cov",
+  "pytest-xdist",
+  "pytest-benchmark",
+  "pytest-mock",
+  "bandit",
+  "safety",
+  "ruff",
+  "pre-commit",
+  "basedpyright",
+  "ty",
+  "vulture",
+  "pip-audit",
+  "hypothesis",
+]
 
 [build-system]
 requires = ["hatchling"]

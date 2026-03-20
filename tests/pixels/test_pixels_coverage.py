@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -57,8 +58,8 @@ class TestPixelsCoverage:
     def test_indexed_rgb_triplet_generator(self):
         """Test indexed_rgb_triplet_generator function."""
         # Test with valid pixel data
-        pixel_data = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        result = list(indexed_rgb_triplet_generator(pixel_data))
+        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
+        result = list(indexed_rgb_triplet_generator(pixel_data))  # type: ignore[invalid-argument-type]
         assert result == [255, 0, 0]
 
         # Test with empty data
@@ -66,8 +67,8 @@ class TestPixelsCoverage:
         assert result == []
 
         # Test with single item
-        pixel_data = [(128, 64, 32)]
-        result = list(indexed_rgb_triplet_generator(pixel_data))
+        pixel_data = cast(list[tuple[int, ...]], [(128, 64, 32)])
+        result = list(indexed_rgb_triplet_generator(pixel_data))  # type: ignore[invalid-argument-type]
         assert result == [128]
 
     def test_rgb_555_triplet_generator(self):
@@ -170,7 +171,7 @@ class TestPixelsCoverage:
     def test_pixels_from_data(self):
         """Test pixels_from_data function."""
         # Test with valid data
-        pixel_data = [255, 0, 0, 0, 255, 0, 0, 0, 255]  # RGB values
+        pixel_data = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255])  # RGB values
         result = pixels_from_data(pixel_data)
         assert len(result) == RGB_COMPONENTS_PER_PIXEL
         assert result[0] == (255, 0, 0)
@@ -179,16 +180,16 @@ class TestPixelsCoverage:
 
         # Test with empty data - should raise ValueError
         with pytest.raises(ValueError, match='Empty pixel data'):
-            pixels_from_data([])
+            pixels_from_data(b'')
 
         # Test with single pixel
-        pixel_data = [128, 64, 32]
+        pixel_data = bytes([128, 64, 32])
         result = pixels_from_data(pixel_data)
         assert len(result) == 1
         assert result[0] == (128, 64, 32)
 
         # Test with incomplete pixel (not divisible by 3) - should raise ValueError
-        pixel_data = [255, 0]  # Only 2 values, need 3 for RGB
+        pixel_data = bytes([255, 0])  # Only 2 values, need 3 for RGB
         with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
             pixels_from_data(pixel_data)
 
@@ -279,25 +280,25 @@ class TestPixelsCoverage:
     def test_pixels_from_data_edge_cases(self):
         """Test pixels_from_data edge cases."""
         # Test with exactly 3 values (single pixel)
-        pixel_data = [255, 0, 0]
+        pixel_data = bytes([255, 0, 0])
         result = pixels_from_data(pixel_data)
         assert len(result) == 1
         assert result[0] == (255, 0, 0)
 
         # Test with 6 values (two pixels)
-        pixel_data = [255, 0, 0, 0, 255, 0]
+        pixel_data = bytes([255, 0, 0, 0, 255, 0])
         result = pixels_from_data(pixel_data)
         assert len(result) == TWO_PIXEL_COMPONENTS // RGB_COMPONENTS_PER_PIXEL
         assert result[0] == (255, 0, 0)
         assert result[1] == (0, 255, 0)
 
         # Test with 1 value (incomplete pixel) - should raise ValueError
-        pixel_data = [255]
+        pixel_data = bytes([255])
         with pytest.raises(ValueError, match='Pixel data length \\(1\\) is not divisible by 3'):
             pixels_from_data(pixel_data)
 
         # Test with 2 values (incomplete pixel) - should raise ValueError
-        pixel_data = [255, 0]
+        pixel_data = bytes([255, 0])
         with pytest.raises(ValueError, match='Pixel data length \\(2\\) is not divisible by 3'):
             pixels_from_data(pixel_data)
 

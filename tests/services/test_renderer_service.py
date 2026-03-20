@@ -117,12 +117,12 @@ blue = 0
     def test_initialization(self, mocker):
         """Test renderer service initialization."""
         # Reset the class variable for testing
-        RendererService._pygame_initialized = False
+        RendererService._pygame_initialized = False  # type: ignore[unresolved-attribute]
 
         # Set headless environment variables
         mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'})
         service = RendererService()
-        assert RendererService._pygame_initialized is True
+        assert RendererService._pygame_initialized is True  # type: ignore[unresolved-attribute]
 
     def test_render_from_toml_static(self, sample_static_toml):
         """Test rendering a static sprite from TOML."""
@@ -185,4 +185,5 @@ blue = 0
         result = service.render_from_file('/nonexistent/path/sprite.toml')
 
         assert result.success is False
+        assert result.error is not None
         assert 'not found' in result.error.lower() or 'no such file' in result.error.lower()
