@@ -17,6 +17,8 @@ rules:
     min-spaces-from-content: 1
   # Not all YAML files start with ---
   document-start: disable
+  # Allow platform-specific line endings (Windows uses \r\n)
+  new-lines: disable
   # mkdocs.yml uses non-standard indentation that yamllint flags incorrectly
   indentation:
     spaces: consistent
