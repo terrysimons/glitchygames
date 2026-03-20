@@ -93,8 +93,8 @@ class BitmappyLegacySprite(Sprite):
 
         # NOTE: This code replaces the below for loop but hasn't been tested.
         palette_colors: list[tuple[int, int, int]] = [
-            palette[pixel]
-            for pixel in pixels[0 : width * height]  # type: ignore[index]
+            palette[pixel]  # pyright: ignore[reportCallIssue, reportArgumentType]  # ty: ignore[invalid-argument-type]
+            for pixel in pixels[0 : width * height]
         ]
         rgb_pixels.extend(palette_colors)
 

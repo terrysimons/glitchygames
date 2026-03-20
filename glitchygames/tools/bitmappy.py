@@ -195,7 +195,7 @@ def resource_path(*path_segments: str) -> Path:
     """
     if hasattr(sys, '_MEIPASS'):
         # Running in PyInstaller bundle — _MEIPASS is set by PyInstaller at runtime
-        base_path = Path(sys._MEIPASS)
+        base_path = Path(sys._MEIPASS)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
         # Note: We used --add-data "...:glitchygames/assets", so we must include
         # glitchygames/assets in the final path segments, e.g.:
         return base_path.joinpath(*path_segments)
@@ -278,9 +278,9 @@ def _alpha_blend_pixel(
     return (0, 0, 0, 0)
 
 
-def _composite_frames_with_alpha(
+def _composite_frames_with_alpha(  # pyright: ignore[reportUnusedFunction]
     frames: list[SpriteFrame], additional_alpha: float = 0.5
-) -> list[tuple[int, ...]]:  # type: ignore[reportUnusedFunction]
+) -> list[tuple[int, ...]]:
     """Composite multiple frames together with additional alpha transparency.
 
     Args:
@@ -4541,9 +4541,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             else:
                 # Use the interface-based save method for multi-frame animations
                 self.sprite_serializer.save(
-                    self.animated_sprite,
+                    self.animated_sprite,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
                     filename=filename,
-                    file_format=file_format,  # type: ignore[arg-type]
+                    file_format=file_format,
                 )
         except (OSError, ValueError, KeyError):
             self.log.exception('Error saving file')
@@ -8831,11 +8831,11 @@ class BitmapEditorScene(Scene):
                     # Handle both RGB and RGBA pixel formats
                     if len(color) == RGBA_COMPONENT_COUNT:  # type: ignore[reportUnknownArgumentType]
                         red, green, blue, alpha = (
-                            int(color[0]),
-                            int(color[1]),
-                            int(color[2]),
-                            int(color[3]),
-                        )  # type: ignore[reportUnknownArgumentType]
+                            int(color[0]),  # pyright: ignore[reportUnknownArgumentType]
+                            int(color[1]),  # pyright: ignore[reportUnknownArgumentType]
+                            int(color[2]),  # pyright: ignore[reportUnknownArgumentType]
+                            int(color[3]),  # pyright: ignore[reportUnknownArgumentType]
+                        )
                     else:
                         red, green, blue = int(color[0]), int(color[1]), int(color[2])  # type: ignore[reportUnknownArgumentType]
                         alpha = 255  # Default to opaque for RGB pixels
@@ -9130,10 +9130,10 @@ class BitmapEditorScene(Scene):
         # The canvas already handles its own drag events efficiently
         if (
             hasattr(self, 'canvas')
-            and self.canvas is not None
+            and self.canvas is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.canvas.rect is not None
             and self.canvas.rect.collidepoint(event.pos)
-        ):  # type: ignore[redundant-expr]
+        ):
             # Directly call canvas drag handler - skip sprite iteration
             self.canvas.on_left_mouse_drag_event(event, trigger)
             return
@@ -9155,10 +9155,10 @@ class BitmapEditorScene(Scene):
         # Check if debug text box should handle the event
         if (
             hasattr(self, 'debug_text')
-            and self.debug_text is not None
+            and self.debug_text is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.debug_text.rect is not None
             and self.debug_text.rect.collidepoint(event.pos)
-        ):  # type: ignore[redundant-expr]
+        ):
             self.debug_text.on_mouse_up_event(event)
             return
 
@@ -9445,11 +9445,11 @@ class BitmapEditorScene(Scene):
         refinement_result: Any = self._serialize_current_sprite_for_refinement()  # type: ignore[attr-defined]
         is_refinement = bool(refinement_result[0])  # type: ignore[reportUnknownArgumentType]
         last_sprite_content: str | None = (
-            str(refinement_result[1]) if refinement_result[1] else None
-        )  # type: ignore[reportUnknownArgumentType]
+            str(refinement_result[1]) if refinement_result[1] else None  # pyright: ignore[reportUnknownArgumentType]
+        )
         conversation_history: list[dict[str, str]] | None = (
-            list(refinement_result[2]) if refinement_result[2] else None
-        )  # type: ignore[reportUnknownArgumentType]
+            list(refinement_result[2]) if refinement_result[2] else None  # pyright: ignore[reportUnknownArgumentType]
+        )
 
         if is_refinement and last_sprite_content:
             messages = build_refinement_messages(
@@ -12005,9 +12005,9 @@ pixels = \"\"\"
         mouse_pos = pygame.mouse.get_pos()
         if not (
             hasattr(self, 'canvas')
-            and self.canvas is not None
+            and self.canvas is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.canvas.rect is not None
-            and self.canvas.rect.collidepoint(mouse_pos)  # type: ignore[redundant-expr]
+            and self.canvas.rect.collidepoint(mouse_pos)
         ):
             self.log.info(f'Drop not on canvas or film strip - ignoring drop at {mouse_pos}')
             return
@@ -15258,8 +15258,8 @@ pixels = \"\"\"
                     # Trigger frame selection
                     self._on_film_strip_frame_selected(
                         strip_widget,
-                        self.selected_animation,
-                        self.selected_frame,  # type: ignore[arg-type]
+                        self.selected_animation,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                        self.selected_frame,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
                     )
                     break
 

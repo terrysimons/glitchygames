@@ -1172,16 +1172,16 @@ class TextSprite(BitmappySprite):
 
         """
         if is_transparent:
-            return (
-                font.render(str(text), True, text_color)[0]  # noqa: FBT003
-                if isinstance(font.render(str(text), True, text_color), tuple)  # noqa: FBT003
-                else font.render(str(text), True, text_color)  # noqa: FBT003
-            )  # type: ignore[arg-type]
-        return (
-            font.render(str(text), True, text_color)[0]  # noqa: FBT003
-            if isinstance(font.render(str(text), True, text_color), tuple)  # noqa: FBT003
-            else font.render(str(text), True, text_color)  # noqa: FBT003
-        )  # type: ignore[arg-type]
+            return (  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+                font.render(str(text), True, text_color)[0]  # noqa: FBT003  # pyright: ignore[reportIndexIssue, reportArgumentType]  # ty: ignore[invalid-return-type, not-subscriptable, invalid-argument-type]
+                if isinstance(font.render(str(text), True, text_color), tuple)  # noqa: FBT003  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                else font.render(str(text), True, text_color)  # noqa: FBT003  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            )
+        return (  # pyright: ignore[reportReturnType, reportUnknownVariableType]
+            font.render(str(text), True, text_color)[0]  # noqa: FBT003  # pyright: ignore[reportIndexIssue, reportArgumentType]  # ty: ignore[invalid-return-type, not-subscriptable, invalid-argument-type]
+            if isinstance(font.render(str(text), True, text_color), tuple)  # noqa: FBT003  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            else font.render(str(text), True, text_color)  # noqa: FBT003  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        )
 
     def _draw_cursor(self, text_rect: pygame.Rect, font: GameFont) -> None:
         """Draw a blinking cursor at the end of the text."""
