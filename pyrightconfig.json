@@ -16,7 +16,9 @@
 
   "reportImplicitOverride": "error",
   "reportDeprecated": "error",
-  "reportImplicitStringConcatenation": "error",
+  // Disabled — ruff's formatter produces implicit string concatenation when
+  // splitting long f-strings across lines; pyright should not override the formatter.
+  "reportImplicitStringConcatenation": false,
   "reportUninitializedInstanceVariable": "error",
 
   // Enabled — small error count, fix now
