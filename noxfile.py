@@ -1,6 +1,7 @@
 """Nox session definitions for linting, testing, security scanning, and benchmarks."""
 
 import os
+import shutil
 from pathlib import Path
 
 import nox
@@ -51,6 +52,9 @@ def _lint_yaml(session: nox.Session) -> None:
 
 def _lint_circleci(session: nox.Session) -> None:
     """Validate CircleCI configuration."""
+    if not shutil.which('circleci'):
+        session.log('circleci CLI not found on PATH; skipping config validation.')
+        return
     session.run('circleci', 'config', 'validate', external=True)
 
 
@@ -58,6 +62,9 @@ def _lint_github_actions(session: nox.Session) -> None:
     """Lint GitHub Actions workflows with actionlint."""
     if not Path('.github/workflows').is_dir():
         session.log('No .github/workflows/ directory found; skipping actionlint.')
+        return
+    if not shutil.which('actionlint'):
+        session.log('actionlint not found on PATH; skipping.')
         return
     session.run('actionlint', external=True)
 
