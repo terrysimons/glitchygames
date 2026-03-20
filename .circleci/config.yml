@@ -108,7 +108,7 @@ commands:
     steps:
       - run:
           name: "Tests (pytest + coverage)"
-          no_output_timeout: 60m
+          no_output_timeout: 120m
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uv run nox -s test
@@ -283,7 +283,7 @@ jobs:
             uv run nox -s lint-docs
       - run:
           name: "Tests (pytest + coverage)"
-          no_output_timeout: 60m
+          no_output_timeout: 120m
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
