@@ -40,6 +40,8 @@ dependencies = [
   "vulture>=2.15",
   "pip-audit>=2.10.0",
   "hypothesis>=6.151.9",
+  "taplo>=0.9.3",
+  "yamllint>=1.38.0",
 ]
 
 [project.urls]
