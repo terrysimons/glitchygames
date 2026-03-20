@@ -89,16 +89,20 @@ def _lint_cves(session: nox.Session) -> None:
     import tempfile
 
     # Export requirements to a temp file (cross-platform; /dev/stdin doesn't exist on Windows)
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as tmp:
         tmp_path = tmp.name
     try:
-        session.run('uv', 'export', '--quiet', '--no-emit-project', '--output-file', tmp_path, external=True)
+        session.run(
+            'uv', 'export', '--quiet', '--no-emit-project', '--output-file', tmp_path, external=True
+        )
         session.run(
             'pip-audit',
-            '--requirement', tmp_path,
+            '--requirement',
+            tmp_path,
             '--require-hashes',
             '--disable-pip',
-            '--ignore-vuln', 'CVE-2026-2473',
+            '--ignore-vuln',
+            'CVE-2026-2473',
         )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
