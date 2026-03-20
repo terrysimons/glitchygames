@@ -78,12 +78,15 @@ repos:
       stages: [pre-push]
 
 # Dependency vulnerability auditing
+# CVE-2026-2473: google-cloud-aiplatform pinned at 1.71.1 by vertexai (via aisuite[all]).
+# Fix requires google-cloud-aiplatform>=1.133.0 which needs httpx>=0.28.1,
+# but aisuite pins httpx<0.28.0. Blocked until upstream aisuite updates.
 - repo: local
   hooks:
     - id: pip-audit
       name: pip-audit
       language: system
-      entry: bash -c 'uv export --quiet --no-emit-project | pip-audit --requirement /dev/stdin --require-hashes --disable-pip'
+      entry: bash -c 'uv export --quiet --no-emit-project | pip-audit --requirement /dev/stdin --require-hashes --disable-pip --ignore-vuln CVE-2026-2473'
       files: ^(pyproject\.toml|uv\.lock)$
       pass_filenames: false
       stages: [pre-push]
