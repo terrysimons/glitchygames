@@ -89,7 +89,9 @@ def _lint_cves(session: nox.Session) -> None:
     import tempfile
 
     # Export requirements to a temp file (cross-platform; /dev/stdin doesn't exist on Windows)
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as tmp:
+    with tempfile.NamedTemporaryFile(
+        mode='w', suffix='.txt', delete=False, encoding='utf-8'
+    ) as tmp:
         tmp_path = tmp.name
     try:
         session.run(
