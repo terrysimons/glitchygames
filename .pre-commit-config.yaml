@@ -2,7 +2,7 @@ repos:
 - repo: local
   hooks:
     - id: format
-      name: format (ruff + taplo)
+      name: format (ruff, taplo)
       language: system
       entry: nox -s format
       pass_filenames: false
@@ -16,14 +16,14 @@ repos:
       stages: [pre-push]
 
     - id: static-analysis
-      name: static-analysis (basedpyright + ty)
+      name: static-analysis (basedpyright, ty)
       language: system
       entry: nox -s static-analysis
       pass_filenames: false
       stages: [pre-push]
 
     - id: security-scan
-      name: security-scan (bandit + safety)
+      name: security-scan (bandit, safety)
       language: system
       entry: nox -s security-scan
       pass_filenames: false

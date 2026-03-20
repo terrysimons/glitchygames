@@ -189,6 +189,10 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y fontconfig
 
+            # actionlint (Go binary) for GitHub Actions workflow linting
+            curl -sSLf https://github.com/rhysd/actionlint/releases/latest/download/actionlint_linux_amd64.tar.gz \
+              | sudo tar -xz -C /usr/local/bin actionlint
+
       - restore-uv-cache-posix
       - restore-venv-posix
       - install-deps-posix
@@ -210,6 +214,11 @@ jobs:
     steps:
       - checkout
 
+      - run:
+          name: "Install macOS system dependencies"
+          command: |
+            brew install actionlint
+
       - restore-uv-cache-posix
       - restore-venv-posix
       - install-deps-posix
@@ -230,6 +239,16 @@ jobs:
 
     steps:
       - checkout
+
+      - run:
+          name: "Install Windows system dependencies"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            # actionlint (Go binary) for GitHub Actions workflow linting
+            New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.local\bin" | Out-Null
+            $url = "https://github.com/rhysd/actionlint/releases/latest/download/actionlint_windows_amd64.exe"
+            Invoke-WebRequest -Uri $url -OutFile "$env:USERPROFILE\.local\bin\actionlint.exe"
 
       - restore-uv-cache-windows
       - restore-venv-windows
