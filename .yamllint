@@ -1,6 +1,10 @@
 ---
 extends: default
 
+ignore:
+  - .nox/
+  - .venv/
+
 rules:
   # CircleCI config uses long lines for cache keys with template expressions
   line-length:

@@ -218,10 +218,10 @@ fixable = ["ALL"]
   "B002",    # False positive on double-negation test: -(-speed)
 ]
 "glitchygames/api/**/*.py" = [
-  "RUF029",  # FastAPI requires async def for route handlers even without await
+  "RUF029", # FastAPI requires async def for route handlers even without await
 ]
 "scripts/**/*.py" = [
-  "TC003",   # Scripts use stdlib imports at runtime, not just for type checking
+  "TC003", # Scripts use stdlib imports at runtime, not just for type checking
 ]
 
 [tool.ruff.format]
