@@ -1078,7 +1078,6 @@ class BitmapPixelSprite(BitmappySprite):
         self.x = x
         self.y = y
 
-        assert self.image is not None
         self.rect = pygame.draw.rect(
             self.image, self.color, (self.x, self.y, self.width, self.height), self.border_thickness
         )
@@ -1135,7 +1134,6 @@ class BitmapPixelSprite(BitmappySprite):
 
         if not cached_image:
             self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-            assert self.image is not None
             self.image.fill((0, 0, 0, 0))  # Start with transparent
 
             # Draw main pixel
@@ -1149,12 +1147,10 @@ class BitmapPixelSprite(BitmappySprite):
 
             # Convert surface for better performance
             self.image = self.image.convert_alpha()
-            BitmapPixelSprite.PIXEL_CACHE[cache_key] = self.image  # ty: ignore[invalid-assignment]
+            BitmapPixelSprite.PIXEL_CACHE[cache_key] = self.image
         else:
             self.image = cached_image  # No need to copy since we converted the surface
 
-        assert self.image is not None
-        assert self.rect is not None
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
     def on_pixel_update_event(self: Self, event: events.HashableEvent) -> None:
@@ -1468,7 +1464,7 @@ def _check_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
 
         # Check if model exists locally
         request = urllib.request.Request('http://localhost:11434/api/tags')
-        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310  # nosec B310 -- hardcoded http://localhost URL
             if response.status == HTTPStatus.OK:
                 data = json.loads(response.read().decode())
                 models = data.get('models', [])
@@ -2428,7 +2424,6 @@ class ScrollArrowSprite(BitmappySprite):
 
         # Create arrow surface
         self.image = pygame.Surface((width, height))
-        assert self.image is not None
         self.rect = self.image.get_rect(x=x, y=y)
 
         # Draw the arrow
@@ -2440,7 +2435,6 @@ class ScrollArrowSprite(BitmappySprite):
 
     def _draw_arrow(self) -> None:
         """Draw the arrow on the surface."""
-        assert self.image is not None
         self.image.fill((255, 255, 255))  # White background
 
         if self.direction == 'up':
@@ -2508,7 +2502,6 @@ class FilmStripSprite(BitmappySprite):
 
         # Create initial surface with alpha support
         self.image = pygame.Surface((width, height), pygame.SRCALPHA)
-        assert self.image is not None
         self.rect = self.image.get_rect(x=x, y=y)
 
         # Force initial render
@@ -2580,7 +2573,6 @@ class FilmStripSprite(BitmappySprite):
 
     def force_redraw(self) -> None:
         """Force a redraw of the film strip."""
-        assert self.image is not None
         assert self.film_strip_widget is not None
         # Clear the surface with copper brown to match film strip
         self.image.fill((100, 70, 55))  # Copper brown background
@@ -2600,7 +2592,6 @@ class FilmStripSprite(BitmappySprite):
     @override
     def on_left_mouse_button_down_event(self, event: events.HashableEvent) -> None:
         """Handle mouse clicks on the film strip."""
-        assert self.rect is not None
         LOG.debug(f'FilmStripSprite: Mouse click at {event.pos}, rect: {self.rect}')
         if self.rect.collidepoint(event.pos) and self.film_strip_widget and self.visible:
             LOG.debug(
@@ -2653,7 +2644,6 @@ class FilmStripSprite(BitmappySprite):
             object: The result.
 
         """
-        assert self.rect is not None
         LOG.info(f'FilmStripSprite: Right mouse UP at {event.pos}, rect: {self.rect}')
         if self.rect.collidepoint(event.pos) and self.film_strip_widget and self.visible:
             LOG.info(
@@ -2954,7 +2944,6 @@ class FilmStripSprite(BitmappySprite):
         # Get current mouse position since drop events don't include position
         mouse_pos = pygame.mouse.get_pos()
 
-        assert self.rect is not None
         # Check if the drop is within the film strip bounds
         if not self.rect.collidepoint(mouse_pos):
             return False
@@ -2993,7 +2982,6 @@ class FilmStripSprite(BitmappySprite):
             event: The pygame mouse motion event.
 
         """
-        assert self.rect is not None
         assert self.film_strip_widget is not None
         # Check if we're currently dragging a file (this would need to be tracked by the scene)
         # For now, we'll implement basic hover detection
@@ -3630,7 +3618,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         """
         # Create initial surface
         self.image = pygame.Surface((self.width, self.height))
-        assert self.image is not None
         self.rect = self.image.get_rect(x=x, y=y)
 
         # Initialize interface components for animated sprites
@@ -4136,7 +4123,6 @@ class AnimatedCanvasSprite(BitmappySprite):
     @override
     def on_left_mouse_button_down_event(self, event: events.HashableEvent) -> None:
         """Handle the left mouse button down event."""
-        assert self.rect is not None
         # self.log.debug(f"AnimatedCanvasSprite mouse down event at {event.pos}, rect: {self.rect}")
         if self.rect.collidepoint(event.pos):
             x = (event.pos[0] - self.rect.x) // self.pixel_width
@@ -4274,7 +4260,6 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         Optimized path that updates visuals but defers expensive ops.
         """
-        assert self.rect is not None
         if not self.rect.collidepoint(event.pos):
             return
 
@@ -4410,7 +4395,6 @@ class AnimatedCanvasSprite(BitmappySprite):
     @override
     def on_mouse_motion_event(self, event: events.HashableEvent) -> None:
         """Handle mouse motion events."""
-        assert self.rect is not None
         if self.rect.collidepoint(event.pos):
             # Mouse is over canvas - set hover state
             if not self.is_hovered:
@@ -4892,8 +4876,6 @@ class AnimatedCanvasSprite(BitmappySprite):
         self.image = pygame.Surface((actual_width, actual_height))
         LOG.debug('Surface created successfully')
         LOG.debug('===== END DEBUG =====\n')
-        assert self.image is not None
-        assert self.rect is not None
         self.rect = self.image.get_rect(x=self.rect.x, y=self.rect.y)
 
         # Update class dimensions
@@ -5033,7 +5015,6 @@ class AnimatedCanvasSprite(BitmappySprite):
 
         # Update the sprite's image to match the frame
         animated_sprite.image = frame.image.copy()
-        assert animated_sprite.image is not None
         animated_sprite.rect = animated_sprite.image.get_rect()
 
         # Save using the animated sprite's save method
@@ -5716,7 +5697,6 @@ class BitmapEditorScene(Scene):
         self.canvas.parent_scene = self
 
         # Debug: Log canvas position and size
-        assert self.canvas.rect is not None
         self.log.info(
             'AnimatedCanvasSprite created at position '
             f'({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}'
@@ -5743,7 +5723,6 @@ class BitmapEditorScene(Scene):
         self._ensure_default_animation_exists(animated_sprite)
 
         film_strip_x, film_strip_width = self._calculate_film_strip_dimensions()
-        assert self.canvas.rect is not None
         film_strip_y_start = self.canvas.rect.y  # Start at same vertical position as canvas
 
         # Calculate vertical spacing between strips
@@ -5976,9 +5955,7 @@ class BitmapEditorScene(Scene):
             Tuple of (film_strip_x, film_strip_width).
 
         """
-        assert self.canvas.rect is not None
         if hasattr(self, 'color_well') and self.color_well:
-            assert self.color_well.rect is not None
             film_strip_x = (
                 self.color_well.rect.right + 1
             )  # Film strip left x = color well right x + 1
@@ -6119,7 +6096,7 @@ class BitmapEditorScene(Scene):
         # Get canvas position for reference
         film_strip_y_start = (
             self.canvas.rect.y
-            if hasattr(self, 'canvas') and self.canvas and self.canvas.rect is not None
+            if hasattr(self, 'canvas') and self.canvas and self.canvas.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
             else 0
         )
         strip_height = 145
@@ -6143,8 +6120,6 @@ class BitmapEditorScene(Scene):
                     fixed_y = film_strip_y_start + (slot_index * (strip_height + strip_spacing))
 
                     # Update positions
-                    assert film_strip.rect is not None
-                    assert film_strip_sprite.rect is not None
                     film_strip.rect.y = fixed_y
                     film_strip_sprite.rect.y = fixed_y
                     film_strip_sprite.visible = True
@@ -6165,9 +6140,7 @@ class BitmapEditorScene(Scene):
 
         # Get canvas position for reference
         # Position film strip so its left x is 2 pixels to the right of color well's right edge
-        assert self.canvas.rect is not None
         if hasattr(self, 'color_well') and self.color_well:
-            assert self.color_well.rect is not None
             film_strip_x = (
                 self.color_well.rect.right + 1
             )  # Film strip left x = color well right x + 1
@@ -6352,7 +6325,6 @@ class BitmapEditorScene(Scene):
         LOG.debug(
             f'DEBUG: After switch - current frame: {self.canvas.animated_sprite.current_frame}'
         )
-        assert self.canvas.animated_sprite.image is not None
         LOG.debug(f'DEBUG: New frame surface size: {self.canvas.animated_sprite.image.get_size()}')
 
         # Force the animated sprite to update its surface
@@ -6898,7 +6870,6 @@ class BitmapEditorScene(Scene):
             )
             bbox_sprite.visible = False  # Start hidden
             # Update bounding box position to match slider position
-            assert bbox_sprite.rect is not None
             bbox_sprite.rect.y = bbox_y - 2
             setattr(self, attr_name, bbox_sprite)
 
@@ -7021,7 +6992,6 @@ class BitmapEditorScene(Scene):
 
         # Calculate film strip left x position (should be less than color well's right x - 1)
         if hasattr(self, 'color_well') and self.color_well:
-            assert self.color_well.rect is not None
             film_strip_left_x = (
                 self.color_well.rect.right + 1
             )  # Film strip left x = color well right x + 1
@@ -7095,7 +7065,6 @@ class BitmapEditorScene(Scene):
 
         # Calculate film strip left x position (should be less than color well's right x - 1)
         if hasattr(self, 'color_well') and self.color_well:
-            assert self.color_well.rect is not None
             film_strip_left_x = (
                 self.color_well.rect.right + 1
             )  # Film strip left x = color well right x + 1
@@ -7135,14 +7104,12 @@ class BitmapEditorScene(Scene):
             debug_y = self.screen_height - debug_height
 
         # Update AI label position
-        assert self.ai_label.rect is not None
         self.ai_label.rect.x = debug_x
         self.ai_label.rect.y = debug_y - 20  # Position above the text box
         self.ai_label.rect.width = debug_width
         self.ai_label.rect.height = 20
 
         # Update debug text position
-        assert self.debug_text.rect is not None
         self.debug_text.rect.x = debug_x
         self.debug_text.rect.y = debug_y
         self.debug_text.rect.width = debug_width
@@ -7258,7 +7225,6 @@ class BitmapEditorScene(Scene):
 
         # Check if mouse is within any film strip sprite bounds
         for anim_name, film_strip_sprite in self.film_strip_sprites.items():
-            assert film_strip_sprite.rect is not None
             if film_strip_sprite.rect.collidepoint(mouse_pos):
                 self.log.debug(
                     f"Mouse {mouse_pos} is in film strip '{anim_name}' at {film_strip_sprite.rect}"
@@ -7564,8 +7530,6 @@ class BitmapEditorScene(Scene):
             # Update film strip sprite rect if it exists
             if hasattr(self, 'film_strip_sprites') and new_name in self.film_strip_sprites:
                 film_strip_sprite = self.film_strip_sprites[new_name]
-                assert film_strip_sprite.rect is not None
-                assert strip_widget.rect is not None
                 film_strip_sprite.rect.height = strip_widget.rect.height
                 film_strip_sprite.rect.width = strip_widget.rect.width
                 # Update sprite surface size
@@ -8413,7 +8377,7 @@ class BitmapEditorScene(Scene):
         # and verifying speech recognition works reliably on your platform.
         # self._setup_voice_recognition()
 
-        self.all_sprites.clear(self.screen, self.background)  # type: ignore[arg-type]
+        self.all_sprites.clear(self.screen, self.background)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
 
         # TODO: Plumb this into the scene manager
 
@@ -8549,7 +8513,6 @@ class BitmapEditorScene(Scene):
 
         self.canvas.animated_sprite = fresh_sprite
         self.canvas.image = pygame.Surface((width * pixel_size, height * pixel_size))
-        assert self.canvas.image is not None
         self.canvas.rect = self.canvas.image.get_rect(x=0, y=24)
         self.canvas._update_border_thickness()  # type: ignore[reportPrivateUsage]
         self.canvas.force_redraw()
@@ -8807,7 +8770,7 @@ class BitmapEditorScene(Scene):
         if (
             hasattr(self, 'canvas')
             and self.canvas
-            and self.canvas.rect is not None
+            and self.canvas.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.canvas.rect.collidepoint(event.pos)
         ):
             if is_shift_click:
@@ -9131,7 +9094,7 @@ class BitmapEditorScene(Scene):
         if (
             hasattr(self, 'canvas')
             and self.canvas is not None  # pyright: ignore[reportUnnecessaryComparison]
-            and self.canvas.rect is not None
+            and self.canvas.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.canvas.rect.collidepoint(event.pos)
         ):
             # Directly call canvas drag handler - skip sprite iteration
@@ -9156,7 +9119,7 @@ class BitmapEditorScene(Scene):
         if (
             hasattr(self, 'debug_text')
             and self.debug_text is not None  # pyright: ignore[reportUnnecessaryComparison]
-            and self.debug_text.rect is not None
+            and self.debug_text.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.debug_text.rect.collidepoint(event.pos)
         ):
             self.debug_text.on_mouse_up_event(event)
@@ -9266,8 +9229,6 @@ class BitmapEditorScene(Scene):
             bbox: The alpha slider bounding box sprite
 
         """
-        assert bbox.image is not None
-        assert bbox.rect is not None
         bbox.image.fill((0, 0, 0, 0))  # Clear surface
 
         # Draw individual pixels to create gradient effect
@@ -9376,7 +9337,6 @@ class BitmapEditorScene(Scene):
                 self._draw_alpha_slider_gradient_border(self.alpha_slider_bbox)
             elif not alpha_hover and self.alpha_slider_bbox.visible:
                 # Hide alpha border
-                assert self.alpha_slider_bbox.image is not None
                 self.alpha_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
                 self.alpha_slider_bbox.visible = False
                 self.alpha_slider_bbox.dirty = 1
@@ -12006,7 +11966,7 @@ pixels = \"\"\"
         if not (
             hasattr(self, 'canvas')
             and self.canvas is not None  # pyright: ignore[reportUnnecessaryComparison]
-            and self.canvas.rect is not None
+            and self.canvas.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.canvas.rect.collidepoint(mouse_pos)
         ):
             self.log.info(f'Drop not on canvas or film strip - ignoring drop at {mouse_pos}')
@@ -14861,7 +14821,6 @@ pixels = \"\"\"
         )
 
         # Make the background transparent
-        assert indicator.image is not None
         indicator.image.set_colorkey((0, 0, 0))  # Make black transparent
         indicator.image.fill((0, 0, 0))  # Fill with black first
 
@@ -14891,7 +14850,7 @@ pixels = \"\"\"
                 indicator = self._create_slider_indicator_sprite(
                     controller_id,
                     color,
-                    self.red_slider.rect,  # type: ignore[arg-type]
+                    self.red_slider.rect,
                 )
                 self.slider_indicators[controller_id] = indicator
 
@@ -14903,7 +14862,7 @@ pixels = \"\"\"
                 indicator = self._create_slider_indicator_sprite(
                     controller_id,
                     color,
-                    self.green_slider.rect,  # type: ignore[arg-type]
+                    self.green_slider.rect,
                 )
                 self.slider_indicators[controller_id] = indicator
 
@@ -14915,7 +14874,7 @@ pixels = \"\"\"
                 indicator = self._create_slider_indicator_sprite(
                     controller_id,
                     color,
-                    self.blue_slider.rect,  # type: ignore[arg-type]
+                    self.blue_slider.rect,
                 )
                 self.slider_indicators[controller_id] = indicator
 
@@ -15020,7 +14979,6 @@ pixels = \"\"\"
             )
 
             # Make the background transparent
-            assert indicator.image is not None
             indicator.image.set_colorkey((0, 0, 0))
             indicator.image.fill((0, 0, 0))
 

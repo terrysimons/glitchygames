@@ -683,6 +683,11 @@ class SpriteFrame:
 class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     """A prototype Sprite Animation class with proper dirty sprite integration."""
 
+    # Override pygame's optional typing — AnimatedSprite always has
+    # a valid image and rect after __init__.
+    image: pygame.Surface
+    rect: pygame.Rect
+
     log = LOG
 
     def __init__(
@@ -2223,10 +2228,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self.image = new_surface
 
         # Preserve the current position when updating rect
-        assert self.rect is not None, 'rect must be set before updating surface'
         old_center = self.rect.center
         self.rect = new_surface.get_rect()
-        self.rect.center = old_center  # ty: ignore[invalid-assignment]
+        self.rect.center = old_center
 
         # Update frame tracking
         self._last_frame_index = self.frame_manager.current_frame

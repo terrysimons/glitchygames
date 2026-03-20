@@ -58,7 +58,6 @@ class BasePaddle(Sprite):
         self.use_gfxdraw = True
         self.moving = False
 
-        assert self.image is not None
         self.image.convert()
         draw.rect(self.image, color, (0, 0, self.width, self.height))
         if collision_sound:
@@ -75,7 +74,7 @@ class BasePaddle(Sprite):
             None
 
         """
-        assert self.rect is not None
+
         self.rect.x += self._move.current_speed
         self.dirty = 1
 
@@ -86,7 +85,7 @@ class BasePaddle(Sprite):
             None
 
         """
-        assert self.rect is not None
+
         self.rect.y += self._move.current_speed
         self.dirty = 1
 
@@ -100,7 +99,7 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the bottom of the screen, False otherwise.
 
         """
-        assert self.rect is not None
+
         return self.rect.bottom >= self.screen_height
 
     def is_at_top_of_screen(self: Self) -> bool:
@@ -113,7 +112,7 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the top of the screen, False otherwise.
 
         """
-        assert self.rect is not None
+
         return self.rect.top <= 0
 
     def is_at_left_of_screen(self: Self) -> bool:
@@ -127,7 +126,7 @@ class BasePaddle(Sprite):
 
         """
         assert self.screen is not None
-        assert self.rect is not None
+
         screen_rect = self.screen.get_rect()
         return self.rect.left + self._move.current_speed < screen_rect.left
 
@@ -142,7 +141,7 @@ class BasePaddle(Sprite):
 
         """
         assert self.screen is not None
-        assert self.rect is not None
+
         screen_rect = self.screen.get_rect()
         return self.rect.right + self._move.current_speed > screen_rect.right
 
@@ -195,7 +194,7 @@ class HorizontalPaddle(BasePaddle):
             None
 
         """
-        assert self.rect is not None
+
         assert self.screen is not None
         if self.is_at_left_of_screen():
             self.rect.x = 0
@@ -260,7 +259,7 @@ class HorizontalPaddle(BasePaddle):
         movement = self._move.get_movement_with_dt(dt)
 
         # Use proper rounding to avoid precision loss from integer truncation
-        assert self.rect is not None
+
         self.rect.x += round(movement)
 
         self.dirty = 1
@@ -315,7 +314,7 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
-        assert self.rect is not None
+
         # Movement is now handled in dt_tick() for frame-rate independence
         # Constrain position at boundaries AND stop movement to prevent bouncing
         if self.rect.y < 0:
@@ -384,7 +383,7 @@ class VerticalPaddle(BasePaddle):
         movement = self._move.get_movement_with_dt(dt)
 
         # Use proper rounding to avoid precision loss from integer truncation
-        assert self.rect is not None
+
         self.rect.y += round(movement)
 
         self.dirty = 1

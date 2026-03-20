@@ -53,7 +53,6 @@ class ShapesSprite(Sprite):
 
         # Create a proper sprite surface instead of using the screen
         self.image = pygame.Surface((self.screen_width, self.screen_height))
-        assert self.image is not None
         self.image.convert()
         self.image.fill(BLACK)
         self.rect = self.image.get_rect()
@@ -76,7 +75,6 @@ class ShapesSprite(Sprite):
             pos (tuple): The new position.
 
         """
-        assert self.rect is not None
         self.rect.center = pos
         self.dirty = 1
 
@@ -101,7 +99,6 @@ class ShapesSprite(Sprite):
             None
 
         """
-        assert self.image is not None
         # Draw a yellow point.
         # There's no point API, so we'll fake
         # it with the line API.
@@ -126,7 +123,6 @@ class ShapesSprite(Sprite):
             None
 
         """
-        assert self.image is not None
         # Draw a blue circle.
         if self.use_gfxdraw:
             pygame.gfxdraw.circle(  # type: ignore[attr-defined]
@@ -152,7 +148,6 @@ class ShapesSprite(Sprite):
             None
 
         """
-        assert self.image is not None
         # Draw a green triangle.
         # polygon(Surface, color, pointlist, width=0) -> Rect
         x1 = self.screen_width // 2
@@ -200,7 +195,6 @@ class ShapesSprite(Sprite):
             None
 
         """
-        assert self.image is not None
         # Draw a purple rectangle.
         # Note that the pygame documentation has a typo
         # Do not use width=1, use 1 instead.
@@ -250,7 +244,6 @@ class TextSprite(Sprite):
         self.image = pygame.Surface((self.screen_width, self.screen_height))
 
         # Make background transparent
-        assert self.image is not None
         if not alpha:
             self.image.set_colorkey(self.background_color)
             self.image.convert()
@@ -275,7 +268,6 @@ class TextSprite(Sprite):
         #             self.image.set_alpha(self.alpha)
 
         self.rect = self.image.get_rect()
-        assert self.rect is not None
         self.rect.x += x
         self.rect.y += y
         # Create a joystick manager for this demo, connected to the scene for events
@@ -458,7 +450,6 @@ class TextSprite(Sprite):
 
         """
         assert self.text_box is not None
-        assert self.image is not None
         axes = len(proxy.AXIS) if hasattr(proxy, 'AXIS') else 0
         self.text_box.print(self.image, f'Number of axes: {axes}')
 
@@ -494,7 +485,6 @@ class TextSprite(Sprite):
 
         """
         assert self.text_box is not None
-        assert self.image is not None
         axes = device_obj.get_numaxes()
         self.text_box.print(self.image, f'Number of axes: {axes}')
 
@@ -538,7 +528,6 @@ class TextSprite(Sprite):
 
         """
         assert self.text_box is not None
-        assert self.image is not None
         proxy_name, joystick_guid, device_id = self._get_device_display_info(
             joystick_id, proxy, device_obj, input_mode
         )
@@ -584,7 +573,6 @@ class TextSprite(Sprite):
             input_mode (str | None): The input mode ("joystick" or "controller")
 
         """
-        assert self.image is not None
         self.image.fill(self.background_color)
 
         # Lazy initialize the textbox helper on first use
@@ -721,7 +709,6 @@ class JoystickScene(Scene):
         # Keep tabs centered if window size changes dynamically
         assert self.screen is not None
         if self.tab_control is not None and len(self.tab_control.tabs) > 0:
-            assert self.tab_control.rect is not None
             total_width = self.tab_control.tab_width * len(self.tab_control.tabs)
             new_x = (self.screen.get_width() - total_width) // 2
             if new_x != self.tab_control.rect.x:

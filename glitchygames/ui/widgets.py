@@ -135,7 +135,6 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
         # Create surface with alpha support
         self.image = pygame.Surface((width, height), pygame.SRCALPHA)
-        assert self.image is not None
         self.image = self.image.convert_alpha()
 
         # Create RGBA colors
@@ -143,8 +142,6 @@ class MenuBar(FocusableSingletonBitmappySprite):
         border_color = (WHITE[0], WHITE[1], WHITE[2], 128)  # Semi-transparent white
 
         # Draw with alpha
-        assert self.image is not None
-        assert self.rect is not None
         pygame.draw.rect(self.image, menu_bg_color, self.rect)
         pygame.draw.rect(self.image, border_color, self.rect, self.border_width)
 
@@ -153,8 +150,6 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
     def add_menu(self: Self, menu: MenuItem) -> None:
         """Add a menu to the menu bar."""
-        assert menu.image is not None
-        assert menu.rect is not None
         self.menu_items[menu.name] = menu  # ty: ignore[invalid-assignment]
         self.log.info(
             f'Before offset: menu {menu.name} at x={menu.rect.x}, offset={self.menu_offset_x}'
@@ -167,13 +162,11 @@ class MenuBar(FocusableSingletonBitmappySprite):
             menu.rect.x = self.menu_offset_x
             # Only adjust text position if it exists
             if hasattr(menu, 'text'):
-                assert menu.text.rect is not None
                 menu.text.rect.x = self.menu_offset_x
 
         menu.rect.y += self.menu_offset_y
         # Only adjust text y position if it exists
         if hasattr(menu, 'text'):
-            assert menu.text.rect is not None
             menu.text.rect.y += self.menu_offset_y
 
         self.log.info(f'After offset: menu {menu.name} at x={menu.rect.x}')
@@ -202,11 +195,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
             None
 
         """
-        assert self.image is not None
-        assert self.rect is not None
         for menu_item in self.menu_items.values():
-            assert menu_item.image is not None
-            assert menu_item.rect is not None
             # Blit with alpha support
             self.image.blit(menu_item.image, (menu_item.rect.x, menu_item.rect.y))
 
@@ -502,19 +491,17 @@ class MenuItem(BitmappySprite):
         self.menu_items: dict[str | None, MenuItem] = {}
         self.menu_offset_x: int = self.border_width
         self.menu_offset_y: int = self.border_width
-        self.menu_image: pygame.Surface | None = None
-        self.menu_rect: pygame.Rect | None = None
-        self.menu_down_image: pygame.Surface | None = None
-        self.menu_down_rect: pygame.Rect | None = None
-        self.menu_up_image: pygame.Surface | None = None
-        self.menu_up_rect: pygame.Rect | None = None
+        self.menu_image: pygame.Surface = pygame.Surface((0, 0))
+        self.menu_rect: pygame.Rect = pygame.Rect(0, 0, 0, 0)
+        self.menu_down_image: pygame.Surface = pygame.Surface((0, 0))
+        self.menu_down_rect: pygame.Rect = pygame.Rect(0, 0, 0, 0)
+        self.menu_up_image: pygame.Surface = pygame.Surface((0, 0))
+        self.menu_up_rect: pygame.Rect = pygame.Rect(0, 0, 0, 0)
         self.active: bool = False
         self.name = name
         self.parent = parent
 
         # Don't set a name for the icon.
-        assert self.image is not None
-        assert self.rect is not None
         if self.name:
             self.image.fill((255, 255, 255))
             self.image.set_colorkey((255, 255, 255))
@@ -531,12 +518,11 @@ class MenuItem(BitmappySprite):
             )
             self.text.add(groups)
             # Align the rect with the text position
-            assert self.text.rect is not None
             self.rect.x = self.text.rect.x
             self.rect.y = self.text.rect.y
 
         self.menu_up_image = self.image
-        self.menu_up_rect = self.rect  # type: ignore[assignment]
+        self.menu_up_rect = self.rect
         self.menu_down_image = self.menu_up_image
         self.menu_down_rect = self.menu_up_rect
 
@@ -565,9 +551,6 @@ class MenuItem(BitmappySprite):
             menu (MenuItem): The menu to add.
 
         """
-        assert menu.image is not None
-        assert menu.rect is not None
-        assert self.rect is not None
         menu.image.set_colorkey((255, 0, 255))
         menu.add(self.groups())  # type: ignore[arg-type]
         menu.add(self.all_sprites)
@@ -590,8 +573,8 @@ class MenuItem(BitmappySprite):
         self.menu_rect.y = 21
 
         menu_rects = [self.menu_items[mi].rect for mi in self.menu_items]
-        width = max((r.width + 20) for r in menu_rects if r is not None) * 2.5
-        heights = [r.height for r in menu_rects if r is not None]
+        width = max((r.width + 20) for r in menu_rects if r is not None) * 2.5  # pyright: ignore[reportUnnecessaryComparison]
+        heights = [r.height for r in menu_rects if r is not None]  # pyright: ignore[reportUnnecessaryComparison]
         height = self.rect.height
 
         if heights:
@@ -612,14 +595,11 @@ class MenuItem(BitmappySprite):
         self.rect.height = self.menu_down_rect.height
 
         # Put ourselves at the top of the list.
-        assert self.image is not None
         self.menu_down_image.blit(self.image, (0, self.rect.y))
 
         y_offset = self.rect.height
         for menu_name in self.menu_items:
             menu_item = self.menu_items[menu_name]
-            assert menu_item.rect is not None
-            assert menu_item.image is not None
             menu_item.rect.y = y_offset
             menu_item.rect.width = menu_item.text.width
             menu_item.rect.height = menu_item.text.height
@@ -644,7 +624,6 @@ class MenuItem(BitmappySprite):
     def update(self: Self) -> None:
         """Update the menu item."""
         # Draw to our own surface instead of the screen
-        assert self.image is not None
         if self.active and self.menu_image and self.menu_rect:
             self.log.debug('Drawing the menu')
             self.image.blit(self.menu_image, (0, 0))  # Draw relative to our own surface
@@ -821,7 +800,6 @@ class MenuItem(BitmappySprite):
             event (pygame.event.Event): The event to handle.
 
         """
-        assert self.rect is not None
         self.log.debug(f'{type(self)} Mouse Up {self.name}')
         self.image = self.menu_up_image
         self.rect = self.menu_up_rect
@@ -844,7 +822,6 @@ class MenuItem(BitmappySprite):
             if isinstance(sprite, MenuItem):
                 self.log.debug(f'Mouse button up on {sprite.name} at {mouse.rect}')
 
-                assert sprite.rect is not None
                 self.log.debug(
                     f'{type(self)} Clicked Menu Item: Name: {sprite.name}, '
                     f'Width: {sprite.rect.width},'
@@ -1019,7 +996,6 @@ class TextSprite(BitmappySprite):
     def x(self, value: int) -> None:
         """Set the x position."""
         self._x = value
-        assert self.rect is not None
         self.rect.x = value
         self.dirty = 2
 
@@ -1032,7 +1008,6 @@ class TextSprite(BitmappySprite):
     def y(self, value: int) -> None:
         """Set the y position."""
         self._y = value
-        assert self.rect is not None
         self.rect.y = value
         self.dirty = 2
 
@@ -1080,11 +1055,9 @@ class TextSprite(BitmappySprite):
 
         # Create surface with alpha support
         self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        assert self.image is not None
         self.image = self.image.convert_alpha()
 
         # Fill with the sprite's background color
-        assert self.image is not None
         if is_transparent:
             self.image.fill((0, 0, 0, 0))
         elif hasattr(self, 'active') and self.active:
@@ -1102,7 +1075,6 @@ class TextSprite(BitmappySprite):
         # Position the text in the center of our surface
         if text_rect is None:
             text_rect = text_surface.get_rect()
-        assert self.image is not None
         target_rect = self.image.get_rect()
         text_rect.centerx = target_rect.centerx
         text_rect.centery = target_rect.centery
@@ -1185,7 +1157,6 @@ class TextSprite(BitmappySprite):
 
     def _draw_cursor(self, text_rect: pygame.Rect, font: GameFont) -> None:
         """Draw a blinking cursor at the end of the text."""
-        assert self.image is not None
         if self._cursor_visible:
             try:
                 # Calculate cursor position at the end of the text
@@ -1273,11 +1244,8 @@ class ButtonSprite(BitmappySprite):
             parent=self,
             groups=groups,
         )
-        assert self.rect is not None
-        assert self.text.rect is not None
         self.text.rect.center = self.rect.center
 
-        assert self.image is not None
         pygame.draw.rect(self.image, self.border_color, Rect(0, 0, self.width, self.height), 1)
 
     # def update(self):
@@ -1309,7 +1277,6 @@ class ButtonSprite(BitmappySprite):
             int: The x coordinate of the button sprite.
 
         """
-        assert self.rect is not None
         return int(self.rect.x)
 
     @x.setter
@@ -1320,7 +1287,6 @@ class ButtonSprite(BitmappySprite):
             new_x (int): The new x coordinate of the button sprite.
 
         """
-        assert self.rect is not None
         self.rect.x = new_x
         self.text.x = new_x  # Position relative to button
         self.dirty = 1
@@ -1336,7 +1302,6 @@ class ButtonSprite(BitmappySprite):
             int: The y coordinate of the button sprite.
 
         """
-        assert self.rect is not None
         return int(self.rect.y)
 
     @y.setter
@@ -1347,7 +1312,6 @@ class ButtonSprite(BitmappySprite):
             new_y (int): The new y coordinate of the button sprite.
 
         """
-        assert self.rect is not None
         self.rect.y = new_y
         self.text.y = new_y  # Position relative to button
         self.dirty = 1
@@ -1434,7 +1398,6 @@ class CheckboxSprite(ButtonSprite):
             None
 
         """
-        assert self.image is not None
         if not self.checked:
             self.image.fill((0, 0, 0))
 
@@ -1500,7 +1463,6 @@ class InputBox(Sprite):
 
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         pygame.font.init()
-        assert self.rect is not None
         self.offset_x: int = self.parent.x if self.parent else 0
         self.offset_y: int = self.parent.y if self.parent else 0
         self.rect.x = x + self.offset_x
@@ -1512,7 +1474,6 @@ class InputBox(Sprite):
         self.text_image = self.font.render(self.text, True, self.color)  # noqa: FBT003
         self.active = False
         self.image = pygame.Surface((self.width, self.height))
-        assert self.image is not None
         self.image.convert()
         self.parent = parent
 
@@ -1564,8 +1525,6 @@ class InputBox(Sprite):
             None
 
         """
-        assert self.image is not None
-        assert self.rect is not None
         self.image.fill((0, 0, 0))
         self.image.blit(self.text_image, (4, 4))
 
@@ -1714,10 +1673,8 @@ class TextBoxSprite(BitmappySprite):
             None
 
         """
-        assert self.image is not None
         if self.text_box:
             self.text_box.background_color = self.background_color
-            assert self.text_box.image is not None
             self.image.blit(self.text_box.image, (self.x, self.y, self.width, self.height))
 
         # TODO: Update this to support hover/click/etc...
@@ -1790,7 +1747,6 @@ class SliderSprite(BitmappySprite):
 
             self.value = 0
 
-            assert self.image is not None
             self.image.fill((255, 255, 255))
             self.rect = Rect(x, y, self.width, self.height)
             self.x = x
@@ -1896,7 +1852,6 @@ class SliderSprite(BitmappySprite):
             name=f'{name}_knob',
             groups=groups,
         )
-        assert self.slider_knob.image is not None
         self.slider_knob.image.fill((200, 200, 200))
 
         # Create text sprite and event handlers
@@ -1941,7 +1896,6 @@ class SliderSprite(BitmappySprite):
         """Set the slider value."""
         if hasattr(self, 'slider_knob'):  # Only update knob if it exists
             self._value = max(0, min(255, new_value))
-            assert self.slider_knob.rect is not None
             self.slider_knob.rect.x = self.min_x + (self._value * (self.max_x - self.min_x) // 255)
             self.slider_knob.dirty = 2
             if hasattr(self, 'text_sprite'):
@@ -2004,7 +1958,6 @@ class SliderSprite(BitmappySprite):
 
         # Add mouse click handling to activate text editing
         def handle_text_click(event: HashableEvent) -> bool:
-            assert self.text_sprite.rect is not None
             if self.text_sprite.rect.collidepoint(event.pos):
                 # Store current value as original for restoration
                 self.original_value = self._value
@@ -2082,7 +2035,6 @@ class SliderSprite(BitmappySprite):
 
     def update_slider_appearance(self) -> None:
         """Update the slider's gradient appearance based on its color."""
-        assert self.image is not None
         for x in range(self.width):
             intensity = int((x / self.width) * 255)
             if self.name == 'R':
@@ -2100,7 +2052,6 @@ class SliderSprite(BitmappySprite):
 
     def _draw_slider_visual_indicators(self) -> None:
         """Draw visual indicators for multi-controller system on sliders."""
-        assert self.image is not None
         if not hasattr(self, 'parent') or not self.parent:
             return
 
@@ -2122,7 +2073,6 @@ class SliderSprite(BitmappySprite):
         # Draw each indicator on this slider
         for indicator in slider_indicators.values():
             # Calculate position relative to this slider
-            assert self.rect is not None
             slider_x = self.rect.x
             slider_y = self.rect.y
             slider_width = self.rect.width
@@ -2261,7 +2211,6 @@ class SliderSprite(BitmappySprite):
     @override
     def on_left_mouse_button_down_event(self, event: HashableEvent) -> None:
         """Handle left mouse button down event."""
-        assert self.rect is not None
         self.log.info(f'Slider {self.name} mouse down event at {event.pos}, rect: {self.rect}')
         if self.rect.collidepoint(event.pos):
             self.log.info(f'Mouse down on slider {self.name}')
@@ -2476,7 +2425,6 @@ class ColorWellSprite(BitmappySprite):
             None
 
         """
-        assert self.image is not None
         pygame.draw.rect(self.image, (128, 128, 255), Rect(0, 0, self.width, self.height), 1)
 
         # Draw the color directly on the alpha-compatible surface
@@ -2545,7 +2493,6 @@ class TabControlSprite(BitmappySprite):
             event (pygame.event.Event): The pygame event.
 
         """
-        assert self.rect is not None
         if self.rect.collidepoint(event.pos):
             # Calculate which tab was clicked
             relative_x = event.pos[0] - self.rect.x
@@ -2568,7 +2515,6 @@ class TabControlSprite(BitmappySprite):
             None
 
         """
-        assert self.image is not None
         if self.dirty:
             # Clear the surface
             self.image.fill((0, 0, 0, 0))  # Transparent background
@@ -2643,7 +2589,6 @@ class InputDialog(BitmappySprite):
 
         # Create a black background surface
         self.image = pygame.Surface((width, height))
-        assert self.image is not None
         self.image.fill((0, 0, 0))
 
         # Position dialog text at top
@@ -2712,16 +2657,6 @@ class InputDialog(BitmappySprite):
     def update(self: Self) -> None:
         """Update the input dialog."""
         # Clear the surface first
-        assert self.image is not None
-        assert self.rect is not None
-        assert self.dialog_text_sprite.image is not None
-        assert self.dialog_text_sprite.rect is not None
-        assert self.cancel_button.image is not None
-        assert self.cancel_button.rect is not None
-        assert self.confirm_button.image is not None
-        assert self.confirm_button.rect is not None
-        assert self.input_box.image is not None
-        assert self.input_box.rect is not None
         self.image.fill((0, 0, 0))  # Black background
 
         # Draw the bounding box
@@ -2810,7 +2745,6 @@ class InputDialog(BitmappySprite):
 
         """
         self.log.debug(f'{self.name} Got mouse button up event: {event}')
-        assert self.input_box.rect is not None
         # Only activate if click was within input box bounds
         if self.input_box.rect.collidepoint(event.pos):
             self.input_box.activate()
@@ -3109,7 +3043,6 @@ class MultiLineTextBox(BitmappySprite):
         self.dirty = 2
 
         self.image = pygame.Surface((width, height), pygame.SRCALPHA)
-        assert self.image is not None
         self.image = self.image.convert_alpha()
 
         # Use FontManager for consistent font handling
@@ -3401,7 +3334,6 @@ class MultiLineTextBox(BitmappySprite):
         end_idx = int(self.scroll_offset + self.visible_lines)
         visible_lines = lines[start_idx:end_idx]
 
-        assert self.image is not None
         y_offset = 5
         for line in visible_lines:
             if line:  # Only render non-empty lines
@@ -3419,7 +3351,6 @@ class MultiLineTextBox(BitmappySprite):
 
     def _update_cursor_blink(self, current_time: int, line_height: int) -> None:
         """Handle cursor blinking and drawing."""
-        assert self.image is not None
         if not self.active:
             return
 
@@ -3477,7 +3408,6 @@ class MultiLineTextBox(BitmappySprite):
         self._last_update_time = current_time
 
         # Clear background
-        assert self.image is not None
         self.image.fill((32, 32, 32, 200))
 
         # Draw border
@@ -3505,7 +3435,6 @@ class MultiLineTextBox(BitmappySprite):
     @override
     def on_left_mouse_button_down_event(self, event: HashableEvent) -> None:
         """Handle left mouse button down events."""
-        assert self.rect is not None
         self.log.debug('\n--- Mouse Event ---')
         self.log.debug(f'Mouse down at {event.pos}')
         self.log.debug(f'Current rect: {self.rect}')
@@ -3788,7 +3717,6 @@ class MultiLineTextBox(BitmappySprite):
 
     def on_mouse_up_event(self, event: HashableEvent) -> None:
         """Handle mouse up events to activate text input."""
-        assert self.rect is not None
         if self.rect.collidepoint(event.pos):
             self.activate()
         else:
@@ -3812,7 +3740,6 @@ class MultiLineTextBox(BitmappySprite):
     def on_mouse_motion_event(self, event: HashableEvent) -> None:
         """Handle mouse motion events for hover effects and scrollbar."""
         # Convert absolute mouse position to widget-relative coordinates
-        assert self.rect is not None
         relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
 
         # Check if scrollbar handled the event
@@ -3836,7 +3763,6 @@ class MultiLineTextBox(BitmappySprite):
     def on_left_mouse_button_up_event(self, event: HashableEvent) -> None:
         """Handle left mouse button up events."""
         # Convert absolute mouse position to widget-relative coordinates
-        assert self.rect is not None
         relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
 
         # Check if scrollbar handled the event
@@ -3851,7 +3777,6 @@ class MultiLineTextBox(BitmappySprite):
         self, event: HashableEvent, trigger: HashableEvent | None = None
     ) -> None:
         """Handle mouse wheel events for scrolling."""
-        assert self.rect is not None
         if not self.rect.collidepoint(pygame.mouse.get_pos()):
             return
 
@@ -3940,7 +3865,6 @@ class ConfirmDialog(BitmappySprite):
     def update(self, *args: object, **kwargs: object) -> None:
         """Update the dialog."""
         # Check mouse position for hover effects
-        assert self.rect is not None
         mouse_pos = pygame.mouse.get_pos()
         dialog_relative_x = mouse_pos[0] - self.rect.x
         dialog_relative_y = mouse_pos[1] - self.rect.y
@@ -3964,7 +3888,6 @@ class ConfirmDialog(BitmappySprite):
     def render(self, screen: pygame.Surface | None = None) -> None:
         """Render the confirmation dialog."""
         # Draw semi-transparent background
-        assert self.image is not None
         self.image.fill((40, 40, 40))
 
         # Draw border

@@ -86,7 +86,6 @@ class TextSprite(Sprite):
         self.image = pygame.Surface((400, 400))
         self.screen = pygame.display.get_surface()
 
-        assert self.image is not None
         if not alpha:
             self.image.set_colorkey(self.background_color)
             self.image.convert()
@@ -110,7 +109,6 @@ class TextSprite(Sprite):
             self.image.set_alpha(self.alpha)
 
         self.rect = self.image.get_rect()
-        assert self.rect is not None
         self.rect.x += x
         self.rect.y += y
         self.font_manager = FontManager()
@@ -143,7 +141,7 @@ class TextSprite(Sprite):
                     groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
                 super().__init__(pos[0], pos[1], 0, 0, groups=groups)  # type: ignore[arg-type]
-                self.image = None
+                self.image = pygame.Surface((0, 0))  # Replaced by font.render() in print_text()
                 self.start_pos = pos
                 self.rect = pygame.Rect(pos, (640, 480))
                 self.line_height = line_height
@@ -174,18 +172,14 @@ class TextSprite(Sprite):
                     None
 
                 """
-                assert self.rect is not None
                 self.rect.center = self.start_pos
 
             def indent(self: Self) -> None:
-                assert self.rect is not None
                 self.rect.x += 10
 
             def unindent(self: Self) -> None:
-                assert self.rect is not None
                 self.rect.x -= 10
 
-        assert self.rect is not None
         self.text_box = TextBox(
             font_controller=self.font_manager,
             pos=(int(self.rect.centerx), int(self.rect.centery)),
@@ -200,7 +194,6 @@ class TextSprite(Sprite):
             None
 
         """
-        assert self.image is not None
         self.image.fill(self.background_color)
 
         self.text_box.reset()
@@ -359,7 +352,6 @@ class Game(Scene):
         # Debug log ball positions and speeds before update
         for i, ball in enumerate(self.balls):
             if ball.alive():
-                assert ball.rect is not None
                 # Track trajectory over time to detect curving
                 if not hasattr(ball, '_debug_positions'):
                     ball._debug_positions = []  # type: ignore[attr-defined]
@@ -399,7 +391,6 @@ class Game(Scene):
         # Debug log ball positions and speeds after update
         for i, ball in enumerate(self.balls):
             if ball.alive():
-                assert ball.rect is not None
                 log.debug(
                     f'BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
                     f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
@@ -414,13 +405,10 @@ class Game(Scene):
             None
 
         """
-        assert self.player1.rect is not None
-        assert self.player2.rect is not None
         for i, ball in enumerate(self.balls):
             if not ball.alive():
                 continue
 
-            assert ball.rect is not None
             # Debug log ball state before collision checks
             log.debug(
                 f'BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
@@ -481,7 +469,6 @@ class Game(Scene):
             speed_up_interval=1.0,  # Not used for paddle-only mode
         )
 
-        assert new_ball.rect is not None
         # Position the ball based on spawn mode
         if self.ball_spawn_mode & BallSpawnMode.RANDOM_POSITION:
             # Spawn at random location between the paddles and within top/bottom boundaries
@@ -504,7 +491,6 @@ class Game(Scene):
                 min_distance = 100  # Minimum distance from other balls
                 too_close = False
                 for existing_ball in self.balls:
-                    assert existing_ball.rect is not None
                     dx = spawn_x - existing_ball.rect.centerx
                     dy = spawn_y - existing_ball.rect.centery
                     distance = math.sqrt(dx * dx + dy * dy)
@@ -692,8 +678,6 @@ class Game(Scene):
             Tuple of (dx, dy, distance, collision_distance).
 
         """
-        assert ball1.rect is not None
-        assert ball2.rect is not None
         dx = float(ball2.rect.centerx - ball1.rect.centerx)
         dy = float(ball2.rect.centery - ball1.rect.centery)
         distance = math.sqrt(dx * dx + dy * dy)
@@ -772,8 +756,6 @@ class Game(Scene):
         distance: float,
     ) -> None:
         """Separate overlapping balls to prevent sticking."""
-        assert ball1.rect is not None
-        assert ball2.rect is not None
         overlap = collision_distance - distance
         separation_distance = max(overlap + 2.0, 3.0)
         half_separation = separation_distance * 0.5

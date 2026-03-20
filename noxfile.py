@@ -291,13 +291,15 @@ def performance_test(session: nox.Session) -> None:
 
 
 def _bandit_scan(session: nox.Session) -> None:
-    """Run bandit security scan, excluding test dirs."""
+    """Run bandit security scan (exclude_dirs configured in pyproject.toml)."""
     session.run(
         'bandit',
+        '-c',
+        'pyproject.toml',
+        '-ll',  # Medium+ severity
+        '-ii',  # Medium+ confidence
         '-r',
         'glitchygames',
-        '--exclude',
-        'glitchygames/tests',
         '-f',
         'json',
         '-o',

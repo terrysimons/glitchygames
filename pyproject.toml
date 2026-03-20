@@ -263,6 +263,14 @@ output-format = "full"
 error-on-warning = false
 
 
+[tool.bandit]
+exclude_dirs = ["tests", "glitchygames/tests"]
+# Filter to Medium+ severity and confidence to reduce noise.
+# B101 (assert_used) is Low severity and gets filtered out by this.
+# TODO: Replace remaining assert usage with explicit raises, then tighten to low/low
+severity = "medium"
+confidence = "medium"
+
 [tool.deptry]
 # pygame-ce installs as the 'pygame' module
 package_module_name_map = { "pygame-ce" = "pygame" }

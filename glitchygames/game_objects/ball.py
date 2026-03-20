@@ -198,7 +198,6 @@ class BallSprite(Sprite):
 
         super().__init__(x=x, y=y, width=width, height=height, groups=groups)  # type: ignore[arg-type]
         self.use_gfxdraw = True
-        assert self.image is not None
         self.image.convert()
         self.image.set_colorkey(0)
         self.direction = 0
@@ -245,7 +244,6 @@ class BallSprite(Sprite):
 
         """
         self._color = new_color
-        assert self.image is not None
         pygame.draw.circle(self.image, self._color, (self.width // 2, self.height // 2), 5, 0)
 
     def reset(self: Self) -> None:
@@ -255,7 +253,7 @@ class BallSprite(Sprite):
             None
 
         """
-        assert self.rect is not None
+
         # Set position directly to rect, maintaining consistency
         self.rect.x = secrets.randbelow(700) + 50  # 50-749 range
         self.rect.y = secrets.randbelow(375) + 25  # 25-399 range
@@ -488,7 +486,7 @@ class BallSprite(Sprite):
             dt (float): The delta time.
 
         """
-        assert self.rect is not None
+
         # Use centralized performance manager for adaptive clamping
         from glitchygames.performance import performance_manager
 
@@ -598,7 +596,7 @@ class BallSprite(Sprite):
             None
 
         """
-        assert self.rect is not None
+
         import logging
 
         log = logging.getLogger('game')
@@ -619,7 +617,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        assert self.rect is not None
+
         # Track if any collision occurred for corner detection
         collision_occurred = False
 
@@ -654,7 +652,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        assert self.rect is not None
+
         if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
@@ -683,7 +681,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        assert self.rect is not None
+
         if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
@@ -714,7 +712,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        assert self.rect is not None
+
         if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
@@ -743,7 +741,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        assert self.rect is not None
+
         if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
@@ -772,7 +770,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        assert self.rect is not None
+
         # Check if ball is in a corner position - include boundary contact
         in_top_left = self.rect.y <= 0 and self.rect.x <= 0
         in_top_right = self.rect.y <= 0 and self.rect.x + self.width >= self.screen_width
@@ -829,7 +827,7 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-        assert self.rect is not None
+
         # Visual feedback implementation
         # This could include:
         # - Particle effects at collision point
@@ -868,7 +866,6 @@ class BallSprite(Sprite):
             and sprite != self
         ]
 
-        assert self.rect is not None
         # Check collision with each paddle
         for paddle in paddle_sprites:
             assert paddle.rect is not None
@@ -883,7 +880,7 @@ class BallSprite(Sprite):
             paddle (Sprite): The paddle sprite that the ball is colliding with
 
         """
-        assert self.rect is not None
+
         assert paddle.rect is not None
         # Determine which side of the paddle the ball is on
         ball_center_x = self.rect.centerx

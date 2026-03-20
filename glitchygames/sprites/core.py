@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Self, cast, override
 
 if TYPE_CHECKING:
     from glitchygames.events.core import HashableEvent
+    from glitchygames.sprites.animated import AnimatedSprite
 
 import pygame
 import tomli_w
@@ -27,8 +28,6 @@ import tomli_w
 from glitchygames.events import MouseEvents
 from glitchygames.interfaces import SpriteInterface
 
-# Import animated sprite classes
-from .animated import AnimatedSprite
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 
 LOG = logging.getLogger('game.sprites')
@@ -62,6 +61,11 @@ LOG = logging.getLogger('game.sprites')
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     """A root sprite class.  All Glitchy Games sprites inherit from this class."""
 
+    # Override pygame's optional typing — GlitchyGames sprites always have
+    # a valid image and rect after __init__.
+    image: pygame.Surface
+    rect: pygame.Rect
+
     log = LOG
 
     def __init__(self: Self, groups: pygame.sprite.LayeredDirty[Any] | None = None) -> None:
@@ -76,7 +80,7 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
 
         super().__init__(groups)
         self.rect = pygame.Rect(0, 0, 0, 0)
-        self.image = None
+        self.image = pygame.Surface((0, 0))  # Non-null placeholder; subclasses replace in __init__
 
 
 class Sprite(RootSprite):
@@ -141,13 +145,11 @@ class Sprite(RootSprite):
         super().__init__(groups)
         # This is the stuff pygame really cares about.
         self.image = pygame.Surface((width, height))
-        assert self.image is not None
         self.rect = self.image.get_rect()
 
         self.dt = 0
         self.dt_timer = 0
 
-        assert self.rect is not None
         self.rect.x = x
         self.rect.y = y
         self.rect.width = int(width)
@@ -222,7 +224,6 @@ class Sprite(RootSprite):
             int: The width of the sprite.
 
         """
-        assert self.rect is not None, 'rect must be set before accessing width'
         return int(self.rect.width)
 
     @width.setter
@@ -233,7 +234,6 @@ class Sprite(RootSprite):
             new_width (int): The new width of the sprite.
 
         """
-        assert self.rect is not None, 'rect must be set before setting width'
         self.rect.width = new_width
         self.dirty = 1 if not self.dirty else self.dirty
 
@@ -245,7 +245,6 @@ class Sprite(RootSprite):
             int: The height of the sprite.
 
         """
-        assert self.rect is not None, 'rect must be set before accessing height'
         return int(self.rect.height)
 
     @height.setter
@@ -256,7 +255,6 @@ class Sprite(RootSprite):
             new_height (int): The new height of the sprite.
 
         """
-        assert self.rect is not None, 'rect must be set before setting height'
         self.rect.height = new_height
         self.dirty = 1 if not self.dirty else self.dirty
 
@@ -928,21 +926,17 @@ class BitmappySprite(Sprite):
         # if a width and height is specified, make a surface.
         if filename:
             (self.image, self.rect, self.name) = self.load(filename=filename)
-            assert self.rect is not None
-            self.width = self.rect.width  # ty: ignore[invalid-assignment]
-            self.height = self.rect.height  # ty: ignore[invalid-assignment]
+            self.width = self.rect.width
+            self.height = self.rect.height
 
         elif self.width and self.height:
             self.image = pygame.Surface((self.width, self.height))
-            assert self.image is not None
             self.image.convert()
         else:
             raise pygame.error(f"Can't create Surface(({self.width}, {self.height})).")
 
-        assert self.image is not None
         self.rect = self.image.get_rect()
         self.parent = parent
-        assert self.rect is not None
         self.rect.x = x
         self.rect.y = y
         self.proxies = [self.parent]
@@ -970,14 +964,12 @@ class BitmappySprite(Sprite):
                 assert animated_sprite.image is not None, 'AnimatedSprite must have an image'
                 self.image = animated_sprite.image.copy()
 
-            assert self.image is not None
             self.rect = self.image.get_rect()
             self.name = animated_sprite.name
-            assert self.rect is not None
-            self.width = self.rect.width  # ty: ignore[invalid-assignment]
-            self.height = self.rect.height  # ty: ignore[invalid-assignment]
+            self.width = self.rect.width
+            self.height = self.rect.height
 
-            return (self.image, self.rect, self.name)  # ty: ignore[invalid-return-type]
+            return (self.image, self.rect, self.name)
         except ValueError as e:
             # If factory fails, fall back to old static-only loading
             self.log.debug(f'Factory failed, falling back to static-only loading: {e}')
@@ -1876,7 +1868,9 @@ class SpriteFactory:
             raise ValueError('Invalid sprite file')
 
         # Always return AnimatedSprite - it handles both static and animated content
-        return AnimatedSprite(filename, groups=None)
+        from glitchygames.sprites.animated import AnimatedSprite
+
+        return AnimatedSprite(filename, groups=None)  # noqa: PLC0415
 
     @staticmethod
     def detect_file_format(filename: str) -> str:

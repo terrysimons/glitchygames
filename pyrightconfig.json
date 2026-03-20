@@ -38,7 +38,9 @@
   // Deferred — large error count, fix later
   "reportArgumentType": true,
   "reportAttributeAccessIssue": true,
-  "reportIncompatibleMethodOverride": true,
+  // Demoted to warning — pygame-ce stubs declare image/rect as properties on DirtySprite,
+  // but GlitchyGames intentionally overrides them as plain attributes for non-optional typing.
+  "reportIncompatibleMethodOverride": "warning",
   "reportIncompatibleVariableOverride": true,
   "reportOptionalMemberAccess": true,
 

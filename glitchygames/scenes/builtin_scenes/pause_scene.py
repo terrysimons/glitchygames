@@ -40,7 +40,6 @@ class PauseOverlay(Sprite):
 
         # Blit the screenshot first, then overlay, then text
         self.image = screenshot.copy()
-        assert self.image is not None
         self.image.blit(self.overlay, (0, 0))
         self.image.blit(text_surface, text_rect)
 
