@@ -86,15 +86,22 @@ def _lint_dead_code(session: nox.Session) -> None:
 
 def _lint_cves(session: nox.Session) -> None:
     """Audit dependencies for known CVEs with pip-audit."""
-    session.run(
-        'bash',
-        '-c',
-        'uv export --quiet --no-emit-project'
-        ' | pip-audit --requirement /dev/stdin'
-        ' --require-hashes --disable-pip'
-        ' --ignore-vuln CVE-2026-2473',
-        external=True,
-    )
+    import tempfile
+
+    # Export requirements to a temp file (cross-platform; /dev/stdin doesn't exist on Windows)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        session.run('uv', 'export', '--quiet', '--no-emit-project', '--output-file', tmp_path, external=True)
+        session.run(
+            'pip-audit',
+            '--requirement', tmp_path,
+            '--require-hashes',
+            '--disable-pip',
+            '--ignore-vuln', 'CVE-2026-2473',
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
