@@ -388,8 +388,8 @@ class BitmappyMultiControllerEnhancements:
         success = True
         for controller_id in self.controller_groups[group_name]:
             if action == 'navigate':
-                direction = cast(str, kwargs.get('direction', 'frame'))
-                amount = cast(int, kwargs.get('amount', 1))
+                direction = cast('str', kwargs.get('direction', 'frame'))
+                amount = cast('int', kwargs.get('amount', 1))
                 if not self.enhanced_navigation(controller_id, direction, amount):
                     success = False
             elif action == 'activate':

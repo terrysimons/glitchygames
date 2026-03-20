@@ -92,9 +92,7 @@ class BitmappySprite(Sprite):
 
                 color_map[section] = (red, green, blue)
 
-        (image, rect) = self.inflate(
-            width=width, height=height, pixels=pixels, color_map=color_map
-        )
+        (image, rect) = self.inflate(width=width, height=height, pixels=pixels, color_map=color_map)
 
         return (image, rect, name)
 
@@ -271,9 +269,7 @@ class GameScene(Scene):
 
         self.sprite = SpriteFactory.load_sprite(filename=self.filename)
 
-        self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(
-            self.sprite
-        )
+        self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(self.sprite)
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -294,7 +290,7 @@ class Game(Scene):
         """
         super().__init__(options=options)
         self.filename: str | None = options.get('filename')
-        assert self.filename is not None, "filename is required"
+        assert self.filename is not None, 'filename is required'
 
         self.next_scene = GameScene(filename=self.filename)
 

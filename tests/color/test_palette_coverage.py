@@ -3,6 +3,7 @@
 import configparser
 import tempfile
 from pathlib import Path
+
 import pytest
 from pygame import Color
 

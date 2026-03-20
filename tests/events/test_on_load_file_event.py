@@ -16,7 +16,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
-from mocks.test_mock_factory import MockFactory, create_10x10_sprite_mock  # type: ignore[unresolved-import]
+from mocks.test_mock_factory import (  # type: ignore[unresolved-import]
+    MockFactory,
+    create_10x10_sprite_mock,
+)
 
 
 class TestOnLoadFileEvent:

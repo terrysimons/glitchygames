@@ -234,10 +234,10 @@ class SceneManager(SceneInterface, events.EventManager):
             late_pct = (late / count) * 100.0
             self.log.info(
                 f'Timer jitter ns: p50={p50}'
-                + f' p95={p95} p99={p99}'
-                + f' max={p100} frames={count}'
-                + f' avg_fps={avg_fps:.1f}'
-                + f' late={late_pct:.1f}%'
+                f' p95={p95} p99={p99}'
+                f' max={p100} frames={count}'
+                f' avg_fps={avg_fps:.1f}'
+                f' late={late_pct:.1f}%'
             )
         self._jitter_last_log_ns = now_ns
         self._jitter_interval_start_ns = now_ns
@@ -421,12 +421,10 @@ class SceneManager(SceneInterface, events.EventManager):
         except KeyError:
             self.log.error(  # noqa: TRY400
                 f'Unregistered Event: {event} '
-                + '(call self.register_game_event(<event subtype>, <event data>))'
+                '(call self.register_game_event(<event subtype>, <event data>))'
             )
 
-    def register_game_event(
-        self: Self, event_type: int, callback: Callable[..., Any]
-    ) -> None:
+    def register_game_event(self: Self, event_type: int, callback: Callable[..., Any]) -> None:
         """Register a game event.
 
         Args:
@@ -580,7 +578,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """Log quit information."""
         self.log.info(
             f'Game Quitting: Active Scene: {self.active_scene}, '
-            + f'Quit Requested: {self.quit_requested}'
+            f'Quit Requested: {self.quit_requested}'
         )
 
     def _reset_scene_timers(self) -> None:
@@ -671,7 +669,7 @@ class SceneManager(SceneInterface, events.EventManager):
         )
         self.log.info(
             f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-            + f' at {fps_display} FPS'
+            f' at {fps_display} FPS'
         )
 
     def _setup_event_proxies(self) -> None:
@@ -1352,7 +1350,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             top_sprite = collided_sprites[-1]
             self.log.debug(
                 f'Top sprite @ DOWN: {type(top_sprite).__name__}, '
-                + f'active={getattr(top_sprite, "active", None)}, pos={event_pos}'
+                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}'
             )
 
         # Find currently focused sprites
@@ -1400,7 +1398,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             top_sprite = collided_sprites[-1]
             self.log.debug(
                 f'Top sprite @ DRAG: {type(top_sprite).__name__}, '
-                + f'active={getattr(top_sprite, "active", None)}, pos={event_pos}'
+                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}'
             )
 
         for sprite in collided_sprites:

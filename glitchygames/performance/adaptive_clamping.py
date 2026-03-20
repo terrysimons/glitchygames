@@ -126,8 +126,8 @@ class AdaptiveClamping:
             ):
                 LOG.info(
                     f'Adjusted dt from {dt * 1000:.1f}ms to '
-                    + f'{adjusted_dt * 1000:.1f}ms per frame '
-                    + f'(avg_fps={avg_fps:.1f})'
+                    f'{adjusted_dt * 1000:.1f}ms per frame '
+                    f'(avg_fps={avg_fps:.1f})'
                 )
                 self._last_performance_log_time = current_time
 
@@ -602,13 +602,13 @@ class AdaptiveClamping:
             LOG.info(f'⏱️  Average Frame Time: {spare_stats["avg_frame_time_ms"]:.1f}ms per-tick')
             LOG.info(
                 f'⏱️  Spare Time: {spare_stats["avg_spare_time_ms"]:.1f}ms'
-                + f' per-tick ({spare_stats["spare_capacity_percent"]:.1f}%'
-                + f' of scheduled capacity)'
+                f' per-tick ({spare_stats["spare_capacity_percent"]:.1f}%'
+                ' of scheduled capacity)'
             )
             LOG.info(
                 f'🎨 Draw Time: {spare_stats["avg_frame_time_ms"]:.1f}ms'
-                + f' per-tick ({(100 - spare_stats["spare_capacity_percent"]):.1f}%'
-                + f' of scheduled capacity)'
+                f' per-tick ({(100 - spare_stats["spare_capacity_percent"]):.1f}%'
+                ' of scheduled capacity)'
             )
             LOG.info(f'🔄 Could Tick: {spare_stats["could_tick_times"]:.1f}x faster')
 

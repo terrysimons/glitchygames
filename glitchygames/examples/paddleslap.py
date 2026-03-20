@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Self, cast, override
 if TYPE_CHECKING:
     import argparse
 
+    from glitchygames.events.core import HashableEvent
+
 import pygame
 
 from glitchygames.color import BLACKLUCENT, WHITE
@@ -27,7 +29,6 @@ from glitchygames.game_objects.ball import BallSpawnMode, SpeedUpMode
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
 from glitchygames.movement import Speed
-from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
@@ -302,9 +303,7 @@ class Game(Scene):
             blue = secrets.randbelow(256)
             ball.color = (red, green, blue)
 
-        self.all_sprites = pygame.sprite.LayeredDirty(
-            (self.player1, self.player2, *self.balls)
-        )
+        self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
 
         assert self.screen is not None
         self.all_sprites.clear(self.screen, self.background)
@@ -374,7 +373,7 @@ class Game(Scene):
                 # Check for upward curving pattern
                 if len(ball._debug_positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:  # type: ignore[attr-defined]
                     positions = cast(
-                        list[tuple[int, int, float, float]],
+                        'list[tuple[int, int, float, float]]',
                         ball._debug_positions,  # type: ignore[attr-defined]
                     )
                     # Calculate if ball is curving upward
@@ -384,14 +383,14 @@ class Game(Scene):
                         if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
                             log.debug(
                                 f'BALL {i + 1} UPWARD CURVE DETECTED: '
-                                + f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
-                                + f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
+                                f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
+                                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
                             )
 
                 log.debug(
                     f'BALL {i + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
-                    + f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    + f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
+                    f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
                 )
 
         for sprite in self.all_sprites:
@@ -403,8 +402,8 @@ class Game(Scene):
                 assert ball.rect is not None
                 log.debug(
                     f'BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
-                    + f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    + f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
+                    f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
                 )
 
     @override
@@ -425,15 +424,15 @@ class Game(Scene):
             # Debug log ball state before collision checks
             log.debug(
                 f'BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
-                + f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                + f'paddle1_rect=({self.player1.rect.x},'
-                + f'{self.player1.rect.y},'
-                + f'{self.player1.rect.width},'
-                + f'{self.player1.rect.height}) '
-                + f'paddle2_rect=({self.player2.rect.x},'
-                + f'{self.player2.rect.y},'
-                + f'{self.player2.rect.width},'
-                + f'{self.player2.rect.height})'
+                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+                f'paddle1_rect=({self.player1.rect.x},'
+                f'{self.player1.rect.y},'
+                f'{self.player1.rect.width},'
+                f'{self.player1.rect.height}) '
+                f'paddle2_rect=({self.player2.rect.x},'
+                f'{self.player2.rect.y},'
+                f'{self.player2.rect.width},'
+                f'{self.player2.rect.height})'
             )
 
             # Paddle collision handling is now done in BallSprite._check_paddle_collisions()
@@ -581,9 +580,9 @@ class Game(Scene):
             cooldown = self._get_spawn_cooldown()
             if current_time - self.last_ball_spawn_time < cooldown:
                 log.debug(
-                    f'Ball spawn cooldown active '
-                    + f'({current_time - self.last_ball_spawn_time:.1f}s'
-                    + f' < {cooldown}s), not spawning'
+                    'Ball spawn cooldown active '
+                    f'({current_time - self.last_ball_spawn_time:.1f}s'
+                    f' < {cooldown}s), not spawning'
                 )
                 return
 
@@ -718,7 +717,7 @@ class Game(Scene):
 
         log.debug(
             f'BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, '
-            + f'ball2 speed before={ball2_speed_before:.2f}'
+            f'ball2 speed before={ball2_speed_before:.2f}'
         )
 
         # Decompose velocities into normal and tangential components
@@ -747,9 +746,9 @@ class Game(Scene):
 
         log.debug(
             f'BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, '
-            + f'ball2 speed after={ball2_speed_after:.2f}, '
-            + f'energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, '
-            + f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}'
+            f'ball2 speed after={ball2_speed_after:.2f}, '
+            f'energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, '
+            f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}'
         )
 
     @staticmethod

@@ -185,7 +185,7 @@ class RendererService:
             else:
                 LOG.info(
                     f'Skipping frame rendering: render_all_frames={render_all_frames}, '
-                    + f'frame_count={frame_count}'
+                    f'frame_count={frame_count}'
                 )
 
             return RenderResult(
@@ -329,7 +329,7 @@ class RendererService:
                 else:
                     LOG.warning(
                         f'Could not get surface for frame {frame_index} '
-                        + f"of animation '{animation_name}'"
+                        f"of animation '{animation_name}'"
                     )
 
         return frames_base64, rendered_frames

@@ -555,7 +555,7 @@ class TestFilmStripGetFrameImageStale:
         """Test _get_frame_image uses _image when image is None but _image exists (line 503-504)."""
         frame = SpriteFrame(pygame.Surface((3, 3), pygame.SRCALPHA), duration=0.5)
         frame._image_stale = True  # type: ignore[unresolved-attribute]
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0, 255)] * 9)
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0, 255)] * 9)
         frame.pixels = pixel_data
         # Set image to None but _image to a valid surface
         frame.image = None  # type: ignore[invalid-assignment]

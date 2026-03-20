@@ -918,7 +918,9 @@ class TestFilmStripGetFrameImage:
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
         frame = SpriteFrame(surface)
         frame._image_stale = True  # type: ignore[unresolved-attribute]
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE))
+        pixel_data = cast(
+            'list[tuple[int, ...]]', [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE)
+        )
         frame.pixels = pixel_data
         result = FilmStripWidget._get_frame_image(frame)
         assert result is not None

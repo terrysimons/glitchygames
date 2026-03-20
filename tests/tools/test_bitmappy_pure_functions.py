@@ -353,14 +353,14 @@ class TestBuildColorToGlyphMap:
         """Test that a single unique color maps to the first sprite glyph."""
         from glitchygames.sprites import SPRITE_GLYPHS
 
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (255, 0, 0)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (255, 0, 0)])
         result = _build_color_to_glyph_map(pixels)
         assert len(result) == 1
         assert result[255, 0, 0] == SPRITE_GLYPHS[0]
 
     def test_multiple_colors_map_to_different_glyphs(self):
         """Test that different colors get different glyphs."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         result = _build_color_to_glyph_map(pixels)
         assert len(result) == 3
         glyph_values = list(result.values())
@@ -373,7 +373,7 @@ class TestBuildColorToGlyphMap:
 
     def test_rgba_pixels_stripped_to_rgb(self):
         """Test that RGBA pixels are mapped by their RGB components."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 128), (255, 0, 0, 255)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0, 128), (255, 0, 0, 255)])
         result = _build_color_to_glyph_map(pixels)
         # Both should map to the same glyph since RGB is the same
         assert len(result) == 1
@@ -381,7 +381,7 @@ class TestBuildColorToGlyphMap:
 
     def test_duplicate_colors_not_repeated(self):
         """Test that duplicate colors only produce one mapping entry."""
-        pixels = cast(list[tuple[int, ...]], [(10, 20, 30)] * 100)
+        pixels = cast('list[tuple[int, ...]]', [(10, 20, 30)] * 100)
         result = _build_color_to_glyph_map(pixels)
         assert len(result) == 1
 
@@ -391,34 +391,39 @@ class TestBuildAsciiGrid:
 
     def test_simple_2x2_grid(self):
         """Test building a 2x2 ASCII grid."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)])
-        color_map = cast(dict[tuple[int, ...], str], {
-            (255, 0, 0): '#',
-            (0, 255, 0): '.',
-            (0, 0, 255): '@',
-            (255, 255, 0): '*',
-        })
+        pixels = cast(
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        )
+        color_map = cast(
+            'dict[tuple[int, ...], str]',
+            {
+                (255, 0, 0): '#',
+                (0, 255, 0): '.',
+                (0, 0, 255): '@',
+                (255, 255, 0): '*',
+            },
+        )
         result = _build_ascii_grid(pixels, 2, 2, color_map)
         assert result == '#.\n@*'
 
     def test_single_pixel_grid(self):
         """Test building a 1x1 grid."""
-        pixels = cast(list[tuple[int, ...]], [(0, 0, 0)])
-        color_map = cast(dict[tuple[int, ...], str], {(0, 0, 0): '#'})
+        pixels = cast('list[tuple[int, ...]]', [(0, 0, 0)])
+        color_map = cast('dict[tuple[int, ...], str]', {(0, 0, 0): '#'})
         result = _build_ascii_grid(pixels, 1, 1, color_map)
         assert result == '#'
 
     def test_unmapped_color_uses_space(self):
         """Test that colors not in the map produce a space character."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (99, 99, 99)])
-        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 0): '#'})
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (99, 99, 99)])
+        color_map = cast('dict[tuple[int, ...], str]', {(255, 0, 0): '#'})
         result = _build_ascii_grid(pixels, 2, 1, color_map)
         assert result == '# '
 
     def test_rgba_pixels_use_rgb_for_lookup(self):
         """Test that RGBA pixels use their RGB portion for map lookup."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 128), (0, 255, 0, 200)])
-        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 0): '#', (0, 255, 0): '.'})
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0, 128), (0, 255, 0, 200)])
+        color_map = cast('dict[tuple[int, ...], str]', {(255, 0, 0): '#', (0, 255, 0): '.'})
         result = _build_ascii_grid(pixels, 2, 1, color_map)
         assert result == '#.'
 
@@ -429,8 +434,8 @@ class TestBuildAsciiGrid:
 
     def test_width_larger_than_pixels(self):
         """Test that grid handles fewer pixels than width*height gracefully."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0)])
-        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 0): '#'})
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0)])
+        color_map = cast('dict[tuple[int, ...], str]', {(255, 0, 0): '#'})
         result = _build_ascii_grid(pixels, 2, 1, color_map)
         assert result == '#'
 
@@ -440,29 +445,29 @@ class TestBuildRendererColorDict:
 
     def test_rgb_pixels_get_default_alpha_255(self):
         """Test that RGB-only pixels get alpha=255 in the renderer dict."""
-        pixels = cast(list[tuple[int, ...]], [(100, 150, 200)])
-        color_map = cast(dict[tuple[int, ...], str], {(100, 150, 200): '#'})
+        pixels = cast('list[tuple[int, ...]]', [(100, 150, 200)])
+        color_map = cast('dict[tuple[int, ...], str]', {(100, 150, 200): '#'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['#'] == (100, 150, 200, 255)
 
     def test_rgba_pixels_preserve_alpha(self):
         """Test that RGBA pixels preserve their alpha value."""
-        pixels = cast(list[tuple[int, ...]], [(100, 150, 200, 64)])
-        color_map = cast(dict[tuple[int, ...], str], {(100, 150, 200): '#'})
+        pixels = cast('list[tuple[int, ...]]', [(100, 150, 200, 64)])
+        color_map = cast('dict[tuple[int, ...], str]', {(100, 150, 200): '#'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['#'] == (100, 150, 200, 64)
 
     def test_magenta_rendered_as_white(self):
         """Test that magenta (255, 0, 255) is rendered as white."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 255)])
-        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 255): '.'})
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 255)])
+        color_map = cast('dict[tuple[int, ...], str]', {(255, 0, 255): '.'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['.'] == (255, 255, 255, 255)
 
     def test_magenta_with_alpha_rendered_as_white_with_alpha(self):
         """Test that magenta RGBA pixel renders as white with the pixel's alpha."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 255, 0)])
-        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 255): '.'})
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 255, 0)])
+        color_map = cast('dict[tuple[int, ...], str]', {(255, 0, 255): '.'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['.'] == (255, 255, 255, 0)
 
@@ -473,8 +478,8 @@ class TestBuildRendererColorDict:
 
     def test_multiple_colors(self):
         """Test building renderer dict with multiple colors."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0)])
-        color_map = cast(dict[tuple[int, ...], str], {(255, 0, 0): '#', (0, 255, 0): '.'})
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0)])
+        color_map = cast('dict[tuple[int, ...], str]', {(255, 0, 0): '#', (0, 255, 0): '.'})
         result = _build_renderer_color_dict(pixels, color_map)
         assert result['#'] == (255, 0, 0, 255)
         assert result['.'] == (0, 255, 0, 255)

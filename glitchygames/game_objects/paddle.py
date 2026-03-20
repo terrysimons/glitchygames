@@ -24,7 +24,7 @@ class BasePaddle(Sprite):
 
     def __init__(
         self: Self,
-        axis: type[Horizontal] | type[Vertical],
+        axis: type[Horizontal | Vertical],
         speed: int,
         name: str,
         color: tuple[int, int, int],

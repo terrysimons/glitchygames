@@ -72,7 +72,7 @@ class TestColorPaletteCoverage:
 
     def test_color_palette_initialization_with_colors(self):
         """Test ColorPalette initialization with colors list."""
-        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0), (0, 0, 255)])
+        colors = cast('list[ColorLike]', [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         palette = ColorPalette(colors=colors)
 
         assert palette._colors == colors
@@ -98,7 +98,7 @@ class TestColorPaletteCoverage:
 
     def test_get_color_with_valid_index(self):
         """Test get_color with valid palette index."""
-        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0), (0, 0, 255)])
+        colors = cast('list[ColorLike]', [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         palette = ColorPalette(colors=colors)
 
         result = palette.get_color(1)
@@ -106,7 +106,7 @@ class TestColorPaletteCoverage:
 
     def test_get_color_with_invalid_index(self):
         """Test get_color with invalid palette index."""
-        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
+        colors = cast('list[ColorLike]', [(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors)
 
         result = palette.get_color(5)  # Index out of range
@@ -128,7 +128,7 @@ class TestColorPaletteCoverage:
 
     def test_set_color_with_valid_index(self):
         """Test set_color with valid palette index."""
-        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
+        colors = cast('list[ColorLike]', [(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors)
 
         palette.set_color(0, (128, 128, 128))
@@ -136,7 +136,7 @@ class TestColorPaletteCoverage:
 
     def test_set_color_with_invalid_index(self):
         """Test set_color with invalid palette index (should append)."""
-        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
+        colors = cast('list[ColorLike]', [(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors)
 
         palette.set_color(5, (128, 128, 128))
@@ -348,7 +348,7 @@ class TestColorPaletteEdgeCasesCoverage:
 
     def test_get_color_boundary_conditions(self):
         """Test get_color with boundary conditions."""
-        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0), (0, 0, 255)])
+        colors = cast('list[ColorLike]', [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         palette = ColorPalette(colors=colors)
 
         # Test exact boundary
@@ -361,7 +361,7 @@ class TestColorPaletteEdgeCasesCoverage:
 
     def test_set_color_boundary_conditions(self):
         """Test set_color with boundary conditions."""
-        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
+        colors = cast('list[ColorLike]', [(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors)
 
         # Test exact boundary - index 0 should be within _size (1)
@@ -414,7 +414,7 @@ class TestColorPaletteEdgeCasesCoverage:
 
     def test_color_palette_with_colors_and_filename(self):
         """Test ColorPalette with both colors and filename provided."""
-        colors = cast(list[ColorLike],[(255, 0, 0), (0, 255, 0)])
+        colors = cast('list[ColorLike]', [(255, 0, 0), (0, 255, 0)])
         palette = ColorPalette(colors=colors, filename='test')
 
         # Should use colors since it's provided

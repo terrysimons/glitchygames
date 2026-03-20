@@ -28,9 +28,7 @@ class GameScene(Scene):
 
     log = LOG
 
-    def __init__(
-        self: Self, groups: pygame.sprite.LayeredDirty[Any] | None = None
-    ) -> None:
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty[Any] | None = None) -> None:
         """Initialize the intro scene.
 
         Args:

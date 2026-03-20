@@ -171,32 +171,32 @@ class TestPixelsHaveAlpha:
 
     def test_rgb_pixels_no_alpha(self):
         """RGB-only pixels return False."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0)])
         assert _pixels_have_alpha(pixels) is False
 
     def test_rgba_all_opaque(self):
         """All-opaque RGBA pixels return False."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255), (0, 255, 0, 255)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0, 255), (0, 255, 0, 255)])
         assert _pixels_have_alpha(pixels) is False
 
     def test_rgba_with_transparency(self):
         """Non-opaque RGBA pixel returns True."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255), (0, 255, 0, 127)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0, 255), (0, 255, 0, 127)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_single_fully_transparent_pixel(self):
         """Single pixel with alpha=0 returns True."""
-        pixels = cast(list[tuple[int, ...]], [(0, 0, 0, 0)])
+        pixels = cast('list[tuple[int, ...]]', [(0, 0, 0, 0)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_mixed_rgb_and_rgba(self):
         """Mix of RGB and RGBA pixels, only RGBA checked for alpha."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 0, 0, 200)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (0, 0, 0, 200)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_alpha_254_detected(self):
         """Alpha=254 (just below opaque) returns True."""
-        pixels = cast(list[tuple[int, ...]], [(100, 100, 100, 254)])
+        pixels = cast('list[tuple[int, ...]]', [(100, 100, 100, 254)])
         assert _pixels_have_alpha(pixels) is True
 
 

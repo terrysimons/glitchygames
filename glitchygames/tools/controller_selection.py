@@ -307,7 +307,9 @@ class ControllerSelection:
             'is_active': self.state.is_active,
             'last_update_time': self.state.last_update_time,
             'activity_age': self.get_activity_age(),
-            'navigation_history_count': len(self.state.navigation_history) if self.state.navigation_history is not None else 0,
+            'navigation_history_count': len(self.state.navigation_history)
+            if self.state.navigation_history is not None
+            else 0,
             'creation_time': self.creation_time,
         }
 

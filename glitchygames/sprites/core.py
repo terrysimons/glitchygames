@@ -16,13 +16,15 @@ import collections
 import logging
 import tomllib
 from pathlib import Path
-from typing import Any, ClassVar, NoReturn, Self, cast, override
+from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Self, cast, override
+
+if TYPE_CHECKING:
+    from glitchygames.events.core import HashableEvent
 
 import pygame
 import tomli_w
 
 from glitchygames.events import MouseEvents
-from glitchygames.events.core import HashableEvent
 from glitchygames.interfaces import SpriteInterface
 
 # Import animated sprite classes
@@ -85,9 +87,9 @@ class Sprite(RootSprite):
     PROXIES: ClassVar = [pygame.sprite]
     # None means no breakpoints.  Empty list means all.
     SPRITE_BREAKPOINTS: ClassVar[list[str] | None] = None
-    SPRITE_COUNTERS: ClassVar[
-        collections.OrderedDict[str, dict[str, int]]
-    ] = collections.OrderedDict()
+    SPRITE_COUNTERS: ClassVar[collections.OrderedDict[str, dict[str, int]]] = (
+        collections.OrderedDict()
+    )
     SPRITE_COUNT = 0
 
     @classmethod
@@ -173,7 +175,9 @@ class Sprite(RootSprite):
 
         # Each sprite maintains a reference to the screen.
         self.screen = pygame.display.get_surface()
-        assert self.screen is not None, 'Display surface must be initialized before creating sprites'
+        assert self.screen is not None, (
+            'Display surface must be initialized before creating sprites'
+        )
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 
@@ -341,10 +345,14 @@ class Sprite(RootSprite):
 
         """
         # Custom Event
-        self.log.debug(f'Mouse Focus Event: {type(self)}: {event}, Entering Focus: {entering_focus}')
+        self.log.debug(
+            f'Mouse Focus Event: {type(self)}: {event}, Entering Focus: {entering_focus}'
+        )
 
     @override
-    def on_mouse_unfocus_event(self: Self, event: HashableEvent, leaving_focus: object = None) -> None:
+    def on_mouse_unfocus_event(
+        self: Self, event: HashableEvent, leaving_focus: object = None
+    ) -> None:
         """Handle a mouse unfocus event.
 
         Args:
@@ -375,9 +383,7 @@ class Sprite(RootSprite):
         # Custom Event
         self.log.debug(f'Mouse Exit Event: {type(self)}: {event}')
 
-    def on_mouse_drag_down_event(
-        self: Self, event: HashableEvent, trigger: object | None
-    ) -> None:
+    def on_mouse_drag_down_event(self: Self, event: HashableEvent, trigger: object | None) -> None:
         """Handle a mouse drag down event.
 
         Args:
@@ -736,9 +742,7 @@ class Sprite(RootSprite):
         self.log.debug(f'{type(self)}: {event}')
 
     @override
-    def on_left_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
-    ) -> None:
+    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a left mouse drag event.
 
         Args:
@@ -762,9 +766,7 @@ class Sprite(RootSprite):
         self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
 
     @override
-    def on_right_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
-    ) -> None:
+    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a right mouse drag event.
 
         Args:
@@ -775,9 +777,7 @@ class Sprite(RootSprite):
         self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
 
     @override
-    def on_left_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
-    ) -> None:
+    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a left mouse drop event.
 
         Args:
@@ -801,9 +801,7 @@ class Sprite(RootSprite):
         self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
 
     @override
-    def on_right_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
-    ) -> None:
+    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a right mouse drop event.
 
         Args:
@@ -995,7 +993,7 @@ class BitmappySprite(Sprite):
 
         """
         raise ValueError(
-            f'File {filename} contains animated sprite data. ' +
+            f'File {filename} contains animated sprite data. '
             f'Use AnimatedSprite class instead of BitmappySprite.'
         )
 
@@ -1510,9 +1508,7 @@ class BitmappySprite(Sprite):
         raise ValueError(f'Unsupported format: {file_format}')
 
     @override
-    def on_left_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
-    ) -> None:
+    def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a left mouse drag event.
 
         Args:
@@ -1536,9 +1532,7 @@ class BitmappySprite(Sprite):
         self.log.debug(f'{type(self)}: Middle Mouse Drag Event: {event} @ {self} for {trigger}')
 
     @override
-    def on_right_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
-    ) -> None:
+    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a right mouse drag event.
 
         Args:
@@ -1549,9 +1543,7 @@ class BitmappySprite(Sprite):
         self.log.debug(f'{type(self)}: Right Mouse Drag Event: {event} @ {self} for {trigger}')
 
     @override
-    def on_left_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
-    ) -> None:
+    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a left mouse drop event.
 
         Args:
@@ -1575,9 +1567,7 @@ class BitmappySprite(Sprite):
         self.log.debug(f'{type(self)}: Middle Mouse Drop Event: {event} @ {self} for {trigger}')
 
     @override
-    def on_right_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
-    ) -> None:
+    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle a right mouse drop event.
 
         Args:

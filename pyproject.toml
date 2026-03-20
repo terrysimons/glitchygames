@@ -191,6 +191,8 @@ ignore = [
   "TRY300",  # Consider moving this statement to an `else` block
   "PLR6301", # Method could be a function/staticmethod
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
+  "S101",    # assert is used intentionally for type narrowing and runtime invariant checks
+  "ANN401",  # Any is needed for dynamic dispatch, loosely-typed game objects, and AI client APIs
 ]
 fixable = ["ALL"]
 
@@ -208,6 +210,16 @@ fixable = ["ALL"]
   "F841",
   "B007",
   "S101",
+  "PT018",   # Compound assertions are acceptable in tests
+  "RUF069",  # Exact float comparisons are intentional in property-based tests
+  "B905",    # zip() without strict= is fine in tests
+  "B002",    # False positive on double-negation test: -(-speed)
+]
+"glitchygames/api/**/*.py" = [
+  "RUF029",  # FastAPI requires async def for route handlers even without await
+]
+"scripts/**/*.py" = [
+  "TC003",   # Scripts use stdlib imports at runtime, not just for type checking
 ]
 
 [tool.ruff.format]

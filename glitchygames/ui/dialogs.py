@@ -15,9 +15,10 @@ from typing import TYPE_CHECKING, Any, Self, override
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from glitchygames.events.core import HashableEvent
+
 import pygame
 
-from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputDialog
 
@@ -549,7 +550,7 @@ class DeleteAnimationDialogScene(Scene):
         else:
             LOG.warning(
                 f"DeleteAnimationDialog: Typed name '{typed_text}'"
-                + f" does not match '{self.animation_name}'"
+                f" does not match '{self.animation_name}'"
             )
             # Could show an error message here, but for now just do nothing
             # Clear the input box to let user try again
@@ -681,9 +682,9 @@ class DeleteFrameDialogScene(Scene):
         # Validate that the typed text is "YES"
         if typed_text == 'YES':
             LOG.info(
-                f'DeleteFrameDialog: User confirmed deletion of'
-                + f' frame {self.frame_index}'
-                + f" from '{self.animation_name}'"
+                'DeleteFrameDialog: User confirmed deletion of'
+                f' frame {self.frame_index}'
+                f" from '{self.animation_name}'"
             )
             # Call the callback if provided
             self.on_confirm_callback()

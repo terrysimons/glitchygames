@@ -10,12 +10,12 @@ import configparser
 import json
 import sys
 from pathlib import Path
-from typing import Any, ClassVar, Self, Union, cast
+from typing import Any, ClassVar, Self, cast
 
 from pygame import Color
 
 # A color-like value: either a pygame Color or an RGB/RGBA tuple.
-ColorLike = Union[Color, tuple[int, int, int], tuple[int, int, int, int]]
+ColorLike = Color | tuple[int, int, int] | tuple[int, int, int, int]
 
 VGA = 'vga'
 SYSTEM = 'system'
@@ -46,7 +46,7 @@ class ColorPalette:
                 file_path = Path(path) / f'{filename}.{self._DEFAULT_EXTENSION}'
                 if Path.exists(file_path):
                     self._colors = cast(
-                        list[ColorLike], PaletteUtility.load_palette_from_file(file_path)
+                        'list[ColorLike]', PaletteUtility.load_palette_from_file(file_path)
                     )
                     break
 

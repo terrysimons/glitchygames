@@ -7,10 +7,22 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol, Self, cast, override, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Literal,
+    Protocol,
+    Self,
+    cast,
+    override,
+    runtime_checkable,
+)
 
 if TYPE_CHECKING:
     import argparse
+
+    from glitchygames.events.core import HashableEvent
 
 import pygame
 
@@ -57,7 +69,6 @@ class GameFont(Protocol):
 
 
 from glitchygames.events import FontEvents, ResourceManager  # noqa: E402
-from glitchygames.events.core import HashableEvent  # noqa: E402
 
 log = logging.getLogger('game.fonts')
 log.addHandler(logging.NullHandler())
@@ -217,9 +228,7 @@ class FontManager(ResourceManager):
     #
     # We can also use a config file to specify the font path.
     @classmethod
-    def font(
-        cls, font_config: dict[str, Any] | None = None
-    ) -> GameFont:
+    def font(cls, font_config: dict[str, Any] | None = None) -> GameFont:
         """Return a font object.
 
         If the font requested can't be found then bitstream_vera will be loaded instead.
@@ -349,9 +358,7 @@ class FontManager(ResourceManager):
         """
         if font_system is None:
             # Default to freetype
-            use_freetype: bool = bool(
-                FontManager.OPTIONS.get('use_freetype', True)
-            )
+            use_freetype: bool = bool(FontManager.OPTIONS.get('use_freetype', True))
         else:
             use_freetype = font_system == 'freetype'
 

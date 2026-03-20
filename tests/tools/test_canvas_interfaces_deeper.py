@@ -58,7 +58,7 @@ class TestAnimatedCanvasInterfaceGetPixelAtAnimated:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        pixel_data = cast(list[tuple[int, ...]], [RED] * PIXEL_COUNT)
+        pixel_data = cast('list[tuple[int, ...]]', [RED] * PIXEL_COUNT)
         frame.set_pixel_data(pixel_data)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
@@ -79,7 +79,7 @@ class TestAnimatedCanvasInterfaceGetPixelAtAnimated:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        pixel_data = cast(list[tuple[int, ...]], [RED_RGB] * PIXEL_COUNT)
+        pixel_data = cast('list[tuple[int, ...]]', [RED_RGB] * PIXEL_COUNT)
         frame.set_pixel_data(pixel_data)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
@@ -128,7 +128,7 @@ class TestAnimatedCanvasInterfaceGetOldPixelColor:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        pixel_data = cast(list[tuple[int, ...]], [GREEN] * PIXEL_COUNT)
+        pixel_data = cast('list[tuple[int, ...]]', [GREEN] * PIXEL_COUNT)
         frame.set_pixel_data(pixel_data)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
@@ -183,7 +183,7 @@ class TestAnimatedCanvasInterfaceUpdateFramePixelData:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        magenta_pixels = cast(list[tuple[int, ...]], [MAGENTA] * PIXEL_COUNT)
+        magenta_pixels = cast('list[tuple[int, ...]]', [MAGENTA] * PIXEL_COUNT)
         frame.set_pixel_data(magenta_pixels)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite
@@ -210,7 +210,7 @@ class TestAnimatedCanvasInterfaceUpdateFramePixelData:
         animated_sprite = AnimatedSprite()
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
-        magenta_pixels = cast(list[tuple[int, ...]], [MAGENTA] * PIXEL_COUNT)
+        magenta_pixels = cast('list[tuple[int, ...]]', [MAGENTA] * PIXEL_COUNT)
         frame.set_pixel_data(magenta_pixels)
         animated_sprite.add_animation('idle', [frame])
         canvas_sprite.animated_sprite = animated_sprite

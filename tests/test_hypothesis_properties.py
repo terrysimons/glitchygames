@@ -5,6 +5,7 @@ Speed arithmetic, movement scaling, palette roundtrips, and adaptive clamping.
 """
 
 import math
+from itertools import starmap
 
 import pytest
 from hypothesis import assume, given, settings
@@ -47,7 +48,7 @@ class TestSpeedAddition:
         y2=reasonable_floats,
     )
     def test_addition_is_commutative(self, x1, y1, x2, y2):
-        """a + b == b + a for Speed objects."""
+        """A + b == b + a for Speed objects."""
         speed_a = Speed(x1, y1)
         speed_b = Speed(x2, y2)
         result_ab = speed_a + speed_b
@@ -57,7 +58,7 @@ class TestSpeedAddition:
 
     @given(x=reasonable_floats, y=reasonable_floats)
     def test_adding_zero_is_identity(self, x, y):
-        """a + Speed(0, 0) == a."""
+        """A + Speed(0, 0) == a."""
         speed = Speed(x, y)
         result = speed + Speed(0, 0)
         assert math.isclose(result.x, x, rel_tol=1e-9, abs_tol=1e-12)
@@ -87,7 +88,7 @@ class TestSpeedSubtraction:
 
     @given(x=reasonable_floats, y=reasonable_floats)
     def test_subtracting_self_gives_zero(self, x, y):
-        """a - a == Speed(0, 0)."""
+        """A - a == Speed(0, 0)."""
         speed = Speed(x, y)
         result = speed - Speed(x, y)
         assert math.isclose(result.x, 0.0, abs_tol=1e-12)
@@ -113,7 +114,7 @@ class TestSpeedMultiplication:
 
     @given(x=reasonable_floats, y=reasonable_floats)
     def test_multiplying_by_one_is_identity(self, x, y):
-        """a * 1 == a."""
+        """A * 1 == a."""
         speed = Speed(x, y)
         result = speed * 1.0
         assert math.isclose(result.x, x, rel_tol=1e-9, abs_tol=1e-12)
@@ -121,7 +122,7 @@ class TestSpeedMultiplication:
 
     @given(x=reasonable_floats, y=reasonable_floats)
     def test_multiplying_by_zero_gives_zero(self, x, y):
-        """a * 0 == Speed(0, 0)."""
+        """A * 0 == Speed(0, 0)."""
         speed = Speed(x, y)
         result = speed * 0.0
         assert result.x == 0.0
@@ -181,7 +182,7 @@ class TestSpeedNegation:
 
     @given(x=reasonable_floats, y=reasonable_floats)
     def test_negation_plus_original_is_zero(self, x, y):
-        """a + (-a) == Speed(0, 0)."""
+        """A + (-a) == Speed(0, 0)."""
         speed = Speed(x, y)
         result = speed + (-speed)
         assert math.isclose(result.x, 0.0, abs_tol=1e-12)
@@ -371,7 +372,7 @@ class TestPaletteRoundtrip:
     )
     def test_create_then_load_roundtrips(self, colors):
         """create_palette_data -> load_palette_from_config preserves colors."""
-        pygame_colors = [Color(r, g, b, a) for r, g, b, a in colors]
+        pygame_colors = list(starmap(Color, colors))
         config = PaletteUtility.create_palette_data(pygame_colors)
         loaded_colors = PaletteUtility.load_palette_from_config(config)
         assert len(loaded_colors) == len(pygame_colors)
@@ -390,7 +391,7 @@ class TestPaletteRoundtrip:
     )
     def test_double_roundtrip_is_stable(self, colors):
         """Two roundtrips should give the same result as one."""
-        pygame_colors = [Color(r, g, b, a) for r, g, b, a in colors]
+        pygame_colors = list(starmap(Color, colors))
         config1 = PaletteUtility.create_palette_data(pygame_colors)
         loaded1 = PaletteUtility.load_palette_from_config(config1)
         config2 = PaletteUtility.create_palette_data(loaded1)
@@ -522,9 +523,7 @@ class TestTrimPercentValidation:
         AdaptiveClamping._initialized = False
 
     @given(
-        percent=st.floats(
-            min_value=0.0, max_value=49.9, allow_nan=False, allow_infinity=False
-        ),
+        percent=st.floats(min_value=0.0, max_value=49.9, allow_nan=False, allow_infinity=False),
     )
     def test_valid_trim_percent_is_stored(self, percent):
         """Valid trim percentages in [0, 49.9] should be stored as-is."""
@@ -532,9 +531,7 @@ class TestTrimPercentValidation:
         assert math.isclose(self.clamping._trim_percent, percent, rel_tol=1e-9)
 
     @given(
-        percent=st.floats(
-            min_value=50.0, max_value=1e6, allow_nan=False, allow_infinity=False
-        ),
+        percent=st.floats(min_value=50.0, max_value=1e6, allow_nan=False, allow_infinity=False),
     )
     def test_trim_percent_at_or_above_50_is_clamped(self, percent):
         """Trim percent >= 50 should be clamped to 49.9."""
@@ -542,9 +539,7 @@ class TestTrimPercentValidation:
         assert self.clamping._trim_percent == 49.9
 
     @given(
-        percent=st.floats(
-            min_value=-1e6, max_value=-0.001, allow_nan=False, allow_infinity=False
-        ),
+        percent=st.floats(min_value=-1e6, max_value=-0.001, allow_nan=False, allow_infinity=False),
     )
     def test_negative_trim_percent_is_clamped_to_zero(self, percent):
         """Negative trim percent should be clamped to 0."""
@@ -619,9 +614,7 @@ class TestSpeedModulo:
     @given(
         x=reasonable_floats,
         y=reasonable_floats,
-        modulus=st.floats(
-            min_value=0.1, max_value=1e6, allow_nan=False, allow_infinity=False
-        ),
+        modulus=st.floats(min_value=0.1, max_value=1e6, allow_nan=False, allow_infinity=False),
     )
     def test_modulo_result_is_bounded(self, x, y, modulus):
         """Result of modulo should be in [0, modulus)."""
@@ -642,7 +635,7 @@ class TestSpeedInPlaceMultiplication:
 
     @given(x=reasonable_floats, y=reasonable_floats, scalar=reasonable_floats)
     def test_imul_matches_mul(self, x, y, scalar):
-        """a *= s should give the same result as a * s."""
+        """A *= s should give the same result as a * s."""
         speed_mul = Speed(x, y) * scalar
         speed_imul = Speed(x, y)
         speed_imul *= scalar

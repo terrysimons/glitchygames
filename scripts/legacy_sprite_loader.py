@@ -93,7 +93,8 @@ class BitmappyLegacySprite(Sprite):
 
         # NOTE: This code replaces the below for loop but hasn't been tested.
         palette_colors: list[tuple[int, int, int]] = [
-            palette[pixel] for pixel in pixels[0 : width * height]  # type: ignore[index]
+            palette[pixel]
+            for pixel in pixels[0 : width * height]  # type: ignore[index]
         ]
         rgb_pixels.extend(palette_colors)
 
@@ -257,9 +258,7 @@ class GameScene(Scene):
             filename=self.filename, palette=self.palette
         )
 
-        self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(
-            self.sprite
-        )
+        self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(self.sprite)
 
         self.all_sprites.clear(self.screen, self.background)
 

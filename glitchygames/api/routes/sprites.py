@@ -5,11 +5,12 @@ from __future__ import annotations
 import base64
 import io
 import logging
-from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     import apng as apng_types
 
 from fastapi import APIRouter, HTTPException
@@ -511,7 +512,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
 
         LOG.info(
             f'Extracted {len(frames_info)} frames from APNG '
-            + f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)'
+            f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)'
         )
 
         return ApngExtractResponse(

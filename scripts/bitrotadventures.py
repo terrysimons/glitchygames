@@ -60,7 +60,9 @@ class BitrotAdventures(Scene):
     # before adding new options to ensure that you haven't
     # clobbered an existing option.
     @classmethod
-    def args(cls: type[BitrotAdventures], parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    def args(
+        cls: type[BitrotAdventures], parser: argparse.ArgumentParser
+    ) -> argparse.ArgumentParser:
         """Game specific command line arguments.
 
         Returns:

@@ -58,7 +58,7 @@ class TestPixelsCoverage:
     def test_indexed_rgb_triplet_generator(self):
         """Test indexed_rgb_triplet_generator function."""
         # Test with valid pixel data
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         result = list(indexed_rgb_triplet_generator(pixel_data))  # type: ignore[invalid-argument-type]
         assert result == [255, 0, 0]
 
@@ -67,7 +67,7 @@ class TestPixelsCoverage:
         assert result == []
 
         # Test with single item
-        pixel_data = cast(list[tuple[int, ...]], [(128, 64, 32)])
+        pixel_data = cast('list[tuple[int, ...]]', [(128, 64, 32)])
         result = list(indexed_rgb_triplet_generator(pixel_data))  # type: ignore[invalid-argument-type]
         assert result == [128]
 

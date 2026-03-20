@@ -537,9 +537,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         )
 
         # Get sorted frame keys for the test animation
-        frame_keys = sorted([
-            k for k in frame_layouts if k[0] == 'test_anim'
-        ])
+        frame_keys = sorted([k for k in frame_layouts if k[0] == 'test_anim'])
 
         # Test spacing between consecutive frames (after the first)
         for i in range(1, len(frame_keys)):
@@ -595,9 +593,7 @@ class TestFilmTabFrameInsertion(FilmStripTestBase):
         assert len(film_tabs) > 0, 'Should have film tabs'
 
         # Get sorted frame keys for the test animation
-        frame_keys = sorted([
-            k for k in frame_layouts if k[0] == 'test_anim'
-        ])
+        frame_keys = sorted([k for k in frame_layouts if k[0] == 'test_anim'])
 
         # Test that spacing formula is correct
         # Expected spacing: frame_width + tab_width + 2

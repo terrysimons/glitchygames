@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING, Self, override
 if TYPE_CHECKING:
     import argparse
 
+    from glitchygames.events.core import HashableEvent
+
 import pygame
 
 from glitchygames.color import WHITE
 from glitchygames.engine import GameEngine
-from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 
 # Adapted from:

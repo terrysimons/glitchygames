@@ -606,7 +606,7 @@ class TestBitmappySpriteDeflate:
         sprite = BitmappySprite(x=0, y=0, width=2, height=2)
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 10)  # 10 pixels, expected 4
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 10)  # 10 pixels, expected 4
         sprite.pixels = pixel_data
         sprite.name = 'test'
         config = sprite.deflate(file_format='toml')

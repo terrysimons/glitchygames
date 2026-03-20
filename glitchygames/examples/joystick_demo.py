@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Any, Self, override
 if TYPE_CHECKING:
     import argparse
 
+    from glitchygames.events.core import HashableEvent
+
 import pygame
 import pygame._sdl2.controller
 from pygame import Rect
@@ -22,7 +24,6 @@ from glitchygames.engine import GameEngine
 from glitchygames.events.controller import ControllerEventManager
 from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.fonts import FontManager
-from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite
 from glitchygames.ui import TabControlSprite
@@ -238,7 +239,11 @@ class TextSprite(Sprite):
         self.screen_height = self.screen.get_height()
 
         super().__init__(
-            x=x, y=y, width=self.screen_width, height=self.screen_height, groups=groups  # type: ignore[arg-type]
+            x=x,
+            y=y,
+            width=self.screen_width,
+            height=self.screen_height,
+            groups=groups,  # type: ignore[arg-type]
         )
 
         # Quick and dirty, for now.
@@ -603,8 +608,8 @@ class TextSprite(Sprite):
                     if self.x + text_width > surface.get_width():
                         LOG.debug(
                             f"Text '{string}' width {text_width} "
-                            + f'at x={self.x} exceeds surface '
-                            + f'width {surface.get_width()}'
+                            f'at x={self.x} exceeds surface '
+                            f'width {surface.get_width()}'
                         )
                     surface.blit(rendered, (self.x, self.y))  # ty: ignore[invalid-argument-type]
                     self.y += self.line_height
@@ -831,7 +836,7 @@ class JoystickScene(Scene):
                 if instance_id not in current_instance_ids:
                     LOG.debug(
                         'Joystick %d (instance_id=%d) not in current '
-                        + 'pygame joysticks, marking as stale',
+                        'pygame joysticks, marking as stale',
                         joystick_id,
                         instance_id,
                     )
@@ -933,9 +938,7 @@ class JoystickScene(Scene):
                 LOG.debug('Failed to access controller %d during device lookup', i)
         return joystick_id
 
-    def _collect_unique_device_ids(
-        self: Self, device_manager: Any, input_mode: str
-    ) -> list[int]:
+    def _collect_unique_device_ids(self: Self, device_manager: Any, input_mode: str) -> list[int]:
         """Collect unique, validated device IDs from the device manager.
 
         Args:
@@ -1280,8 +1283,12 @@ class Game(Scene):
 
         """
         super().__init__(options=options)
-        self.time: int | None = int(str(options['time'])) if options.get('time') is not None else None
-        self.input_mode: str = str(options.get('input_mode', 'controller'))  # 'joystick' or 'controller'
+        self.time: int | None = (
+            int(str(options['time'])) if options.get('time') is not None else None
+        )
+        self.input_mode: str = str(
+            options.get('input_mode', 'controller')
+        )  # 'joystick' or 'controller'
         self.next_scene = JoystickScene(options=options)
 
         # TODO: Write an FPS layer that uses time.ns_time()

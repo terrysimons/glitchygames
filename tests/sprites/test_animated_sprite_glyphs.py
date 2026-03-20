@@ -45,7 +45,7 @@ class TestAnimatedSpriteGlyphs:
 
         for color in colors1:
             frame = SpriteFrame(pygame.Surface((4, 4)))
-            pixel_data = cast(list[tuple[int, ...]], [color] * 16)  # 4x4 = 16 pixels
+            pixel_data = cast('list[tuple[int, ...]]', [color] * 16)  # 4x4 = 16 pixels
             frame.set_pixel_data(pixel_data)
             frame.duration = 0.5
             frames1.append(frame)
@@ -58,7 +58,7 @@ class TestAnimatedSpriteGlyphs:
 
         for color in colors2:
             frame = SpriteFrame(pygame.Surface((4, 4)))
-            frame_pixels = cast(list[tuple[int, ...]], [color] * 16)
+            frame_pixels = cast('list[tuple[int, ...]]', [color] * 16)
             frame.set_pixel_data(frame_pixels)
             frame.duration = 0.3
             frames2.append(frame)
@@ -101,7 +101,7 @@ class TestAnimatedSpriteGlyphs:
 
         for color in colors:
             frame = SpriteFrame(pygame.Surface((2, 2)))
-            color_pixels = cast(list[tuple[int, ...]], [color] * 4)  # 2x2 = 4 pixels
+            color_pixels = cast('list[tuple[int, ...]]', [color] * 4)  # 2x2 = 4 pixels
             frame.set_pixel_data(color_pixels)
             frame.duration = 0.6
             frames.append(frame)
@@ -136,7 +136,9 @@ class TestAnimatedSpriteGlyphs:
 
         # Create animation with specific colors
         frame = SpriteFrame(pygame.Surface((2, 2)))
-        colors = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)])
+        colors = cast(
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+        )
         frame.set_pixel_data(colors)
         animated_sprite.add_animation('test_anim', [frame])
 
@@ -167,11 +169,11 @@ class TestAnimatedSpriteGlyphs:
 
         # Create frames with colors that should map to reserved characters
         frame1 = SpriteFrame(pygame.Surface((2, 2)))
-        black_pixels = cast(list[tuple[int, ...]], [(0, 0, 0)] * 4)  # Black - should map to '#'
+        black_pixels = cast('list[tuple[int, ...]]', [(0, 0, 0)] * 4)  # Black - should map to '#'
         frame1.set_pixel_data(black_pixels)
 
         frame2 = SpriteFrame(pygame.Surface((2, 2)))
-        red_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)  # Red - should map to '@'
+        red_pixels = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)  # Red - should map to '@'
         frame2.set_pixel_data(red_pixels)
 
         animated_sprite.add_animation('test_anim', [frame1, frame2])
@@ -222,11 +224,21 @@ class TestAnimatedSpriteGlyphs:
 
         # Create two animations with some shared colors
         frame1 = SpriteFrame(pygame.Surface((2, 2)))
-        frame1_pixels: list[tuple[int, ...]] = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+        frame1_pixels: list[tuple[int, ...]] = [
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (255, 255, 255),
+        ]
         frame1.set_pixel_data(frame1_pixels)
 
         frame2 = SpriteFrame(pygame.Surface((2, 2)))
-        frame2_pixels: list[tuple[int, ...]] = [(255, 0, 0), (0, 255, 0), (128, 128, 128), (0, 0, 0)]
+        frame2_pixels: list[tuple[int, ...]] = [
+            (255, 0, 0),
+            (0, 255, 0),
+            (128, 128, 128),
+            (0, 0, 0),
+        ]
         frame2.set_pixel_data(frame2_pixels)
 
         animated_sprite.add_animation('anim1', [frame1])
@@ -276,7 +288,7 @@ class TestAnimatedSpriteGlyphs:
         frames = []
         for _ in range(3):
             frame = SpriteFrame(pygame.Surface((2, 2)))
-            all_red = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)  # All red
+            all_red = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)  # All red
             frame.set_pixel_data(all_red)
             frames.append(frame)
 
@@ -302,7 +314,9 @@ class TestAnimatedSpriteGlyphs:
 
         # Create a simple frame
         frame = SpriteFrame(pygame.Surface((4, 4)))
-        toml_pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)] * 4)
+        toml_pixels = cast(
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)] * 4
+        )
         frame.set_pixel_data(toml_pixels)
         animated_sprite.add_animation('test_anim', [frame])
 

@@ -85,7 +85,11 @@ class TestBallPaddleCollision:
         ball._adjust_position_for_paddle_collision(paddle)
 
         # Ball should be positioned to the right of paddle
-        assert ball.rect is not None and paddle.rect is not None and ball.rect.left == paddle.rect.right
+        assert (
+            ball.rect is not None
+            and paddle.rect is not None
+            and ball.rect.left == paddle.rect.right
+        )
 
     def test_no_collision_when_not_overlapping(self, mocker):
         """Test that no adjustment occurs when ball and paddle don't overlap."""
@@ -142,7 +146,11 @@ class TestBallPaddleCollision:
         ball._adjust_position_for_paddle_collision(paddle)
 
         # Ball should be positioned to the right of paddle
-        assert ball.rect is not None and paddle.rect is not None and ball.rect.left == paddle.rect.right
+        assert (
+            ball.rect is not None
+            and paddle.rect is not None
+            and ball.rect.left == paddle.rect.right
+        )
         # Ball should bounce (X speed should be positive after hitting right side)
         assert ball.speed.x > 0
         # Y speed should be unchanged

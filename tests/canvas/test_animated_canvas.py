@@ -68,26 +68,26 @@ class TestAnimatedCanvasSprite:
         idle_surface1 = pygame.Surface((8, 8))
         idle_surface1.fill((255, 0, 0))  # Red
         idle_frame1 = SpriteFrame(idle_surface1)
-        idle_pixel_data_1 = cast(list[tuple[int, ...]], [(255, 0, 0)] * 64)  # 8x8 = 64 pixels
+        idle_pixel_data_1 = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 64)  # 8x8 = 64 pixels
         idle_frame1.pixels = idle_pixel_data_1
 
         idle_surface2 = pygame.Surface((8, 8))
         idle_surface2.fill((0, 255, 0))  # Green
         idle_frame2 = SpriteFrame(idle_surface2)
-        idle_pixel_data_2 = cast(list[tuple[int, ...]], [(0, 255, 0)] * 64)
+        idle_pixel_data_2 = cast('list[tuple[int, ...]]', [(0, 255, 0)] * 64)
         idle_frame2.pixels = idle_pixel_data_2
 
         # Create frames for walk animation
         walk_surface1 = pygame.Surface((8, 8))
         walk_surface1.fill((0, 0, 255))  # Blue
         walk_frame1 = SpriteFrame(walk_surface1)
-        walk_pixel_data_1 = cast(list[tuple[int, ...]], [(0, 0, 255)] * 64)
+        walk_pixel_data_1 = cast('list[tuple[int, ...]]', [(0, 0, 255)] * 64)
         walk_frame1.pixels = walk_pixel_data_1
 
         walk_surface2 = pygame.Surface((8, 8))
         walk_surface2.fill((255, 255, 0))  # Yellow
         walk_frame2 = SpriteFrame(walk_surface2)
-        walk_pixel_data_2 = cast(list[tuple[int, ...]], [(255, 255, 0)] * 64)
+        walk_pixel_data_2 = cast('list[tuple[int, ...]]', [(255, 255, 0)] * 64)
         walk_frame2.pixels = walk_pixel_data_2
 
         # Create animated sprite
@@ -328,7 +328,7 @@ class TestAnimatedCanvasSpriteEdgeCases:
         surface = pygame.Surface((8, 8))
         surface.fill((255, 0, 0))
         frame = SpriteFrame(surface)
-        single_pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 64)
+        single_pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 64)
         frame.pixels = single_pixel_data
 
         single_sprite = AnimatedSprite()

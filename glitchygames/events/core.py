@@ -204,7 +204,7 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: Any, **kwargs: Any
     if no_unhandled_events is None:
         LOG.error(
             'Error: no_unhandled_events is missing from the game options. '
-            + "This shouldn't be possible."
+            "This shouldn't be possible."
         )
 
 
@@ -527,9 +527,6 @@ class HashableEvent(collections.UserDict[str, Any]):
 
         Args:
             name: The attribute name.
-
-        Returns:
-            The attribute value.
 
         Raises:
             AttributeError: If the attribute is not found.
@@ -2782,7 +2779,7 @@ class EventManager(ResourceManager):
 
             self.log.debug(
                 f'Unhandled Event {event_handler}: '
-                + f'{self.event_source}->{event} Event Trigger: {event_trigger}'
+                f'{self.event_source}->{event} Event Trigger: {event_trigger}'
             )
 
         def __getattr__(self: Self, attr: str) -> Callable[..., Any]:

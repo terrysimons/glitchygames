@@ -346,13 +346,18 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
 
     def test_rgb_pixels(self):
         """Test surface creation from RGB pixel data."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)])
+        pixels = cast(
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
+        )
         surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
         assert surface.get_size() == (2, 2)
 
     def test_rgba_pixels(self):
         """Test surface creation from RGBA pixel data."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 64), (128, 128, 128, 0)])
+        pixels = cast(
+            'list[tuple[int, ...]]',
+            [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 64), (128, 128, 128, 0)],
+        )
         surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
         assert surface.get_size() == (2, 2)
 

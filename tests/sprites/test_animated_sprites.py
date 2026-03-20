@@ -418,7 +418,7 @@ class TestSpriteFactorySave:
 
         # Add a frame
         frame = SpriteFrame(pygame.Surface((2, 2)))
-        red_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)
+        red_pixels = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)
         frame.set_pixel_data(red_pixels)
         sprite.add_animation('test_anim', [frame])
 

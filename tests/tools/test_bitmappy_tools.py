@@ -124,22 +124,22 @@ class TestPixelsHaveAlpha:
 
     def test_rgb_pixels_no_alpha(self):
         """Test that RGB-only pixels report no alpha."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255)])
         assert _pixels_have_alpha(pixels) is False
 
     def test_rgba_opaque_pixels_no_alpha(self):
         """Test that fully opaque RGBA pixels report no alpha."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255), (0, 255, 0, 255)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0, 255), (0, 255, 0, 255)])
         assert _pixels_have_alpha(pixels) is False
 
     def test_rgba_with_transparency(self):
         """Test that RGBA pixels with transparency are detected."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 128), (0, 255, 0, 255)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0, 128), (0, 255, 0, 255)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_fully_transparent_pixel(self):
         """Test detection of fully transparent pixel."""
-        pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 0)])
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0, 0)])
         assert _pixels_have_alpha(pixels) is True
 
     def test_empty_pixel_list(self):

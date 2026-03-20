@@ -20,7 +20,6 @@ import pygame
 from pygame import Rect
 
 from glitchygames import events
-from glitchygames.events.core import HashableEvent
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT, WHITE
 from glitchygames.events.mouse import MousePointer
 from glitchygames.fonts import FontManager, GameFont
@@ -33,6 +32,8 @@ from glitchygames.sprites import (
 if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Protocol
+
+    from glitchygames.events.core import HashableEvent
 
     class RectProtocol(Protocol):
         """Parent that exposes a rect for positioning."""
@@ -52,9 +53,7 @@ if TYPE_CHECKING:
         slider_input_format: str
         visual_collision_manager: object
 
-        def on_slider_event(
-            self, event: HashableEvent, trigger: HashableEvent
-        ) -> None:
+        def on_slider_event(self, event: HashableEvent, trigger: HashableEvent) -> None:
             """Handle slider value change events."""
             ...
 
@@ -68,15 +67,11 @@ if TYPE_CHECKING:
     class DialogProtocol(Protocol):
         """Parent that handles confirm/cancel events."""
 
-        def on_confirm_event(
-            self, event: HashableEvent, trigger: HashableEvent
-        ) -> None:
+        def on_confirm_event(self, event: HashableEvent, trigger: HashableEvent) -> None:
             """Handle dialog confirmation events."""
             ...
 
-        def on_cancel_event(
-            self, event: HashableEvent, trigger: HashableEvent
-        ) -> None:
+        def on_cancel_event(self, event: HashableEvent, trigger: HashableEvent) -> None:
             """Handle dialog cancellation events."""
             ...
 
@@ -86,6 +81,7 @@ if TYPE_CHECKING:
         def on_text_submit_event(self, text: str) -> None:
             """Handle text submission events."""
             ...
+
 
 LOG = logging.getLogger('game.ui')
 LOG.addHandler(logging.NullHandler())
@@ -230,31 +226,40 @@ class MenuBar(FocusableSingletonBitmappySprite):
         self.log.debug(f'{type(self)} Mouse Drag {event} @ {self} for {trigger}')
 
     @override
-    def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_left_mouse_drop_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle left mouse drop events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Drop {self.name}')
 
     @override
-    def on_middle_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_middle_mouse_drag_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle middle mouse drag events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Drag {self.name}')
 
     @override
-    def on_middle_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_middle_mouse_drop_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle middle mouse drop events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Drop {self.name}')
@@ -400,31 +405,40 @@ class MenuBar(FocusableSingletonBitmappySprite):
                     sprite.menu_items[menu_item].on_left_mouse_button_up_event(event)
 
     @override
-    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_right_mouse_drag_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle right mouse drag events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Drag {self.name}')
 
     @override
-    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_right_mouse_drop_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle right mouse drop events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Drop {self.name}')
 
     @override
-    def on_mouse_wheel_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_mouse_wheel_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle mouse wheel events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Wheel {self.name}')
@@ -576,9 +590,7 @@ class MenuItem(BitmappySprite):
         self.menu_rect.y = 21
 
         menu_rects = [self.menu_items[mi].rect for mi in self.menu_items]
-        width = (
-            max((r.width + 20) for r in menu_rects if r is not None) * 2.5
-        )
+        width = max((r.width + 20) for r in menu_rects if r is not None) * 2.5
         heights = [r.height for r in menu_rects if r is not None]
         height = self.rect.height
 
@@ -660,7 +672,9 @@ class MenuItem(BitmappySprite):
         self.log.debug(f'{type(self)} Mouse Drop {self.name}')
 
     @override
-    def on_middle_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_middle_mouse_drag_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent
+    ) -> None:
         """Handle middle mouse drag events.
 
         Args:
@@ -671,7 +685,9 @@ class MenuItem(BitmappySprite):
         self.log.debug(f'{type(self)} Mouse Drag {self.name}')
 
     @override
-    def on_middle_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
+    def on_middle_mouse_drop_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent
+    ) -> None:
         """Handle middle mouse drop events.
 
         Args:
@@ -831,11 +847,11 @@ class MenuItem(BitmappySprite):
                 assert sprite.rect is not None
                 self.log.debug(
                     f'{type(self)} Clicked Menu Item: Name: {sprite.name}, '
-                    + f'Width: {sprite.rect.width},'
-                    + f'Height: {sprite.rect.height}, '
-                    + f'Clicked X: {mouse.rect.x}, Clicked Y: {mouse.rect.y},'
-                    + f'my X: {sprite.rect.x}, '
-                    + f'my Y: {sprite.rect.y}'
+                    f'Width: {sprite.rect.width},'
+                    f'Height: {sprite.rect.height}, '
+                    f'Clicked X: {mouse.rect.x}, Clicked Y: {mouse.rect.y},'
+                    f'my X: {sprite.rect.x}, '
+                    f'my Y: {sprite.rect.y}'
                 )
                 menu_item_callback = sprite.callbacks.get('on_menu_item_event', None)
 
@@ -877,37 +893,46 @@ class MenuItem(BitmappySprite):
             # Don't click sub menus.
             if collided_sprite.name in self.menu_items:
                 self.log.debug(
-                    f'{type(collided_sprite)} Mouse button down on ' +
+                    f'{type(collided_sprite)} Mouse button down on '
                     f'{collided_sprite.name} at {mouse.rect}'
                 )
                 collided_sprite.on_left_mouse_button_down_event(event)
 
     @override
-    def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_right_mouse_drag_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle right mouse drag events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Drag {self.name}')
 
     @override
-    def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_right_mouse_drop_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle right mouse drop events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Drop {self.name}')
 
     @override
-    def on_mouse_wheel_event(self: Self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_mouse_wheel_event(
+        self: Self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle mouse wheel events.
 
         Args:
             event (pygame.event.Event): The event to handle.
+            trigger (HashableEvent | None): The object that triggered the event.
 
         """
         self.log.debug(f'{type(self)} Mouse Wheel {self.name}')
@@ -1115,9 +1140,7 @@ class TextSprite(BitmappySprite):
                     text_surface.fill((0, 0, 0, 0))
                     text_rect = font.render_to(text_surface, (0, 0), str(text), text_color)
                 else:
-                    render_result = font.render(
-                        str(text), text_color, self.background_color
-                    )
+                    render_result = font.render(str(text), text_color, self.background_color)
                     if isinstance(render_result, tuple):
                         text_surface, text_rect = render_result
                     else:
@@ -1149,8 +1172,16 @@ class TextSprite(BitmappySprite):
 
         """
         if is_transparent:
-            return font.render(str(text), True, text_color)[0] if isinstance(font.render(str(text), True, text_color), tuple) else font.render(str(text), True, text_color)  # type: ignore[arg-type]  # noqa: FBT003, E501
-        return font.render(str(text), True, text_color)[0] if isinstance(font.render(str(text), True, text_color), tuple) else font.render(str(text), True, text_color)  # type: ignore[arg-type]  # noqa: FBT003, E501
+            return (
+                font.render(str(text), True, text_color)[0]  # noqa: FBT003
+                if isinstance(font.render(str(text), True, text_color), tuple)  # noqa: FBT003
+                else font.render(str(text), True, text_color)  # noqa: FBT003
+            )  # type: ignore[arg-type]
+        return (
+            font.render(str(text), True, text_color)[0]  # noqa: FBT003
+            if isinstance(font.render(str(text), True, text_color), tuple)  # noqa: FBT003
+            else font.render(str(text), True, text_color)  # noqa: FBT003
+        )  # type: ignore[arg-type]
 
     def _draw_cursor(self, text_rect: pygame.Rect, font: GameFont) -> None:
         """Draw a blinking cursor at the end of the text."""
@@ -1553,7 +1584,7 @@ class InputBox(Sprite):
         """Render the input box.
 
         Args:
-            None
+            screen (pygame.Surface | None): The surface to render to.
 
         """
         self.text_image = self.font.render(self.text, True, (255, 255, 255))  # noqa: FBT003
@@ -1652,7 +1683,7 @@ class TextBoxSprite(BitmappySprite):
             y=y,
             width=self.width - self.border_width,
             height=self.height - self.border_width,
-            text=self.value if self.value is not None else "",
+            text=self.value if self.value is not None else '',
             parent=self,
             groups=groups,
         )
@@ -2050,8 +2081,8 @@ class SliderSprite(BitmappySprite):
         self.text_sprite.dirty = 2
 
     def update_slider_appearance(self) -> None:
-        assert self.image is not None
         """Update the slider's gradient appearance based on its color."""
+        assert self.image is not None
         for x in range(self.width):
             intensity = int((x / self.width) * 255)
             if self.name == 'R':
@@ -3816,7 +3847,9 @@ class MultiLineTextBox(BitmappySprite):
             return
 
     @override
-    def on_mouse_wheel_event(self, event: HashableEvent, trigger: HashableEvent | None = None) -> None:
+    def on_mouse_wheel_event(
+        self, event: HashableEvent, trigger: HashableEvent | None = None
+    ) -> None:
         """Handle mouse wheel events for scrolling."""
         assert self.rect is not None
         if not self.rect.collidepoint(pygame.mouse.get_pos()):

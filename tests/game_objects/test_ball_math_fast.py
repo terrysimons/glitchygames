@@ -230,7 +230,7 @@ def test_ball_math_fast():
     final_speed_x = float(results['speed_x'])
     final_speed_y = float(results['speed_y'])
     initial_mag = float(results['initial_magnitude'])
-    final_magnitude = math.sqrt(final_speed_x ** 2 + final_speed_y ** 2)
+    final_magnitude = math.sqrt(final_speed_x**2 + final_speed_y**2)
     magnitude_change = abs(final_magnitude - initial_mag)
     LOG.debug(f'  Speed magnitude change: {magnitude_change:.6f}')
 

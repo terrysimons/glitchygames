@@ -39,9 +39,7 @@ class SpriteStackInterface(abc.ABC):
         interface_attributes: frozenset[str] = cls.__abstractmethods__
 
         # Check if subclass has __abstractmethods__ attribute
-        subclass_attributes: frozenset[str] = getattr(
-            subclass, '__abstractmethods__', frozenset()
-        )
+        subclass_attributes: frozenset[str] = getattr(subclass, '__abstractmethods__', frozenset())
 
         methods: list[bool] = []
         for attribute in sorted(interface_attributes):

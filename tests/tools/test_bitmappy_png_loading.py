@@ -45,7 +45,9 @@ class TestPNGLoading:
         self.mock_canvas.log = mocker.Mock()
         self.mock_canvas.pixels_across = 32
         self.mock_canvas.pixels_tall = 32
-        canvas_pixel_data = cast(list[tuple[int, ...]], [(255, 255, 255)] * (32 * 32))  # White pixels
+        canvas_pixel_data = cast(
+            'list[tuple[int, ...]]', [(255, 255, 255)] * (32 * 32)
+        )  # White pixels
         self.mock_canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         self.mock_canvas.on_load_file_event = mocker.Mock()
         self.mock_canvas._update_border_thickness = mocker.Mock()
@@ -786,7 +788,7 @@ blue = 0
     def test_color_quantization_handles_edge_cases(self):
         """Test quantization with edge cases like single color."""
         # Test with single color
-        single_color_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * (32 * 32))
+        single_color_pixels = cast('list[tuple[int, ...]]', [(255, 0, 0)] * (32 * 32))
 
         expected_toml = """[sprite]
 name = "current_frame"
@@ -997,7 +999,7 @@ blue = 255
         canvas.log = self._mocker.Mock()
         canvas.pixels_across = 32
         canvas.pixels_tall = 32
-        canvas_pixel_data = cast(list[tuple[int, ...]], [(255, 255, 255)] * (32 * 32))
+        canvas_pixel_data = cast('list[tuple[int, ...]]', [(255, 255, 255)] * (32 * 32))
         canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         canvas.parent_scene = scene
         # Mock required methods and attributes
@@ -1035,7 +1037,7 @@ blue = 255
         canvas.log = self._mocker.Mock()
         canvas.pixels_across = 32
         canvas.pixels_tall = 32
-        canvas_pixel_data = cast(list[tuple[int, ...]], [(255, 255, 255)] * (32 * 32))
+        canvas_pixel_data = cast('list[tuple[int, ...]]', [(255, 255, 255)] * (32 * 32))
         canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         canvas.parent_scene = scene
         # Mock required methods and attributes
@@ -1073,7 +1075,7 @@ blue = 255
         canvas.log = self._mocker.Mock()
         canvas.pixels_across = 32
         canvas.pixels_tall = 32
-        canvas_pixel_data = cast(list[tuple[int, ...]], [(255, 255, 255)] * (32 * 32))
+        canvas_pixel_data = cast('list[tuple[int, ...]]', [(255, 255, 255)] * (32 * 32))
         canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         canvas.parent_scene = scene
         # Mock required methods and attributes

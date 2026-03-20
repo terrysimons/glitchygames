@@ -94,7 +94,7 @@ commands:
           name: "Static analysis (basedpyright)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s static_analysis
+            uv run nox -s static-analysis
 
   nox-lint-docs:
     steps:
@@ -102,7 +102,7 @@ commands:
           name: "Lint docs (mkdocs)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s lint_docs
+            uv run nox -s lint-docs
 
   nox-test:
     steps:
@@ -127,7 +127,7 @@ commands:
           name: "Security scan (bandit + safety)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s security_scan
+            uv run nox -s security-scan
 
   nox-performance-test:
     steps:
@@ -135,7 +135,7 @@ commands:
           name: "Performance benchmarks"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uv run nox -s performance_test
+            uv run nox -s performance-test
 
   restore-uv-cache-windows:
     steps:
@@ -273,14 +273,14 @@ jobs:
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s static_analysis
+            uv run nox -s static-analysis
       - run:
           name: "Lint docs (mkdocs)"
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s lint_docs
+            uv run nox -s lint-docs
       - run:
           name: "Tests (pytest + coverage)"
           no_output_timeout: 60m
@@ -303,14 +303,14 @@ jobs:
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s security_scan
+            uv run nox -s security-scan
       - run:
           name: "Performance benchmarks"
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uv run nox -s performance_test
+            uv run nox -s performance-test
 
 
 # Invoke jobs via workflows

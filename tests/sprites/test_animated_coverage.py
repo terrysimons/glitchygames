@@ -291,14 +291,14 @@ class TestSpriteFrame:
     def test_set_pixel_data(self, frame):
         """Test set_pixel_data updates pixels and surface."""
         pixel_count = SURFACE_SIZE * SURFACE_SIZE
-        new_pixels = cast(list[tuple[int, ...]], [(255, 0, 0, 255)] * pixel_count)
+        new_pixels = cast('list[tuple[int, ...]]', [(255, 0, 0, 255)] * pixel_count)
         frame.set_pixel_data(new_pixels)
         assert frame.pixels == new_pixels
 
     def test_set_pixel_data_rgb(self, frame):
         """Test set_pixel_data handles RGB pixels."""
         pixel_count = SURFACE_SIZE * SURFACE_SIZE
-        new_pixels = cast(list[tuple[int, ...]], [(0, 255, 0)] * pixel_count)
+        new_pixels = cast('list[tuple[int, ...]]', [(0, 255, 0)] * pixel_count)
         frame.set_pixel_data(new_pixels)
         assert frame.pixels == new_pixels
 

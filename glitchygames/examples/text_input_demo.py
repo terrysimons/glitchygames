@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, override
+
+if TYPE_CHECKING:
+    from glitchygames.events.core import HashableEvent
 
 import pygame
 
 from glitchygames.engine import GameEngine
-from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputBox
 
@@ -43,7 +45,12 @@ class Game(Scene):
 
         super().__init__(options=options, groups=groups)
         self.input_box = InputBox(
-            x=320, y=240, width=200, height=20, text='Test', groups=groups,
+            x=320,
+            y=240,
+            width=200,
+            height=20,
+            text='Test',
+            groups=groups,
         )
 
         self.background_color = (255, 255, 0)

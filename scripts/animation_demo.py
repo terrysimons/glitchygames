@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def main() -> int:
+def main() -> int:  # noqa: PLR0915
     """Run the animation demo.
 
     Returns:

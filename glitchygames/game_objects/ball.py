@@ -514,8 +514,8 @@ class BallSprite(Sprite):
             new_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
             log.debug(
                 f'BALL SPEED CHANGE: old=({old_speed_x:.3f},{old_speed_y:.3f}) '
-                + f'new=({self.speed.x:.3f},{self.speed.y:.3f}) '
-                + f'magnitude_change={new_magnitude - old_magnitude:.3f}'
+                f'new=({self.speed.x:.3f},{self.speed.y:.3f}) '
+                f'magnitude_change={new_magnitude - old_magnitude:.3f}'
             )
 
         # Calculate movement
@@ -531,8 +531,8 @@ class BallSprite(Sprite):
         if abs(move_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
             log.debug(
                 f'BALL MOVE: speed=({self.speed.x:.3f},{self.speed.y:.3f}) dt={dt:.6f} '
-                + f'move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) '
-                + f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}'
+                f'move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) '
+                f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}'
             )
 
         # Use proper rounding to avoid precision loss from integer truncation
@@ -548,17 +548,17 @@ class BallSprite(Sprite):
         if abs(delta_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
             log.debug(
                 f'BALL MOVE: final_pos=({self.rect.x},{self.rect.y}) '
-                + f'delta=({delta_x},{delta_y}) '
-                + f'expected_move=({round(move_x)},{round(move_y)}) '
-                + f'actual_move=({delta_x},{delta_y})'
+                f'delta=({delta_x},{delta_y}) '
+                f'expected_move=({round(move_x)},{round(move_y)}) '
+                f'actual_move=({delta_x},{delta_y})'
             )
 
             # Check if movement matches expectation
             if delta_x != round(move_x) or delta_y != round(move_y):
                 log.debug(
-                    f'BALL MOVE WARNING: Movement mismatch! '
-                    + f'Expected=({round(move_x)},{round(move_y)}) '
-                    + f'Actual=({delta_x},{delta_y})'
+                    'BALL MOVE WARNING: Movement mismatch! '
+                    f'Expected=({round(move_x)},{round(move_y)}) '
+                    f'Actual=({delta_x},{delta_y})'
                 )
 
         # Ensure the ball is marked as dirty for redrawing
@@ -604,9 +604,9 @@ class BallSprite(Sprite):
         log = logging.getLogger('game')
         log.debug(
             f'BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) '
-            + f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
-            + f'screen=({self.screen_width},{self.screen_height}) '
-            + f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}'
+            f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
+            f'screen=({self.screen_width},{self.screen_height}) '
+            f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}'
         )
 
         # Enhanced boundary checking with proper physics
@@ -784,9 +784,9 @@ class BallSprite(Sprite):
 
         if in_top_left or in_top_right or in_bottom_left or in_bottom_right:
             log.debug(
-                f'BALL CORNER COLLISION:'
-                + f' {in_top_left=} {in_top_right=}'
-                + f' {in_bottom_left=} {in_bottom_right=}'
+                'BALL CORNER COLLISION:'
+                f' {in_top_left=} {in_top_right=}'
+                f' {in_bottom_left=} {in_bottom_right=}'
             )
 
             # Enhanced corner physics - both X and Y components are reflected

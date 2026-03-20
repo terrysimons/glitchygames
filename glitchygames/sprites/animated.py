@@ -10,8 +10,8 @@ import hashlib
 import logging
 import tomllib
 from collections import Counter
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 from typing import IO, Any, Self, override
 
 import pygame
@@ -143,7 +143,9 @@ def _convert_pixels_to_rgba_if_needed(
     return rgba_pixels
 
 
-def _lookup_pixel_char(pixel: tuple[int, ...], color_map: dict[tuple[int, ...], str], *, map_uses_alpha: bool) -> str:
+def _lookup_pixel_char(
+    pixel: tuple[int, ...], color_map: dict[tuple[int, ...], str], *, map_uses_alpha: bool
+) -> str:
     """Look up the character for a pixel in the color map.
 
     Handles RGBA/RGB normalization and magenta transparency.
@@ -168,13 +170,15 @@ def _lookup_pixel_char(pixel: tuple[int, ...], color_map: dict[tuple[int, ...], 
         if pixel in color_map:
             return color_map[pixel]
         raise KeyError(
-            f'Color {pixel} (or RGBA {lookup_rgba}) not found in color map. ' +
+            f'Color {pixel} (or RGBA {lookup_rgba}) not found in color map. '
             f'Available colors: {list(color_map.keys())}'
         )
     return _lookup_in_map(pixel, color_map)
 
 
-def _lookup_rgba_pixel_char(pixel: tuple[int, ...], color_map: dict[tuple[int, ...], str], *, map_uses_alpha: bool) -> str:
+def _lookup_rgba_pixel_char(
+    pixel: tuple[int, ...], color_map: dict[tuple[int, ...], str], *, map_uses_alpha: bool
+) -> str:
     """Look up the character for an RGBA pixel in the color map.
 
     Returns:
@@ -197,7 +201,7 @@ def _lookup_rgba_pixel_char(pixel: tuple[int, ...], color_map: dict[tuple[int, .
             if (r, g, b, a) in color_map:
                 return color_map[r, g, b, a]
             raise KeyError(
-                f'Color {(r, g, b)} (or RGBA {(r, g, b, a)}) not found in color map. ' +
+                f'Color {(r, g, b)} (or RGBA {(r, g, b, a)}) not found in color map. '
                 f'Available colors: {list(color_map.keys())}'
             )
         # Pixel has transparency, must use RGBA
@@ -249,7 +253,9 @@ def _normalize_pixel_for_color_map(pixel: tuple[int, ...], *, needs_alpha: bool)
     return pixel
 
 
-def _extract_pixel_colors(pixel_lines: list[str], width: int, height: int, color_map: dict[str, tuple[int, ...]]) -> list[tuple[int, ...]]:
+def _extract_pixel_colors(
+    pixel_lines: list[str], width: int, height: int, color_map: dict[str, tuple[int, ...]]
+) -> list[tuple[int, ...]]:
     """Extract pixel colors from pixel lines using the color map.
 
     Returns:
@@ -416,9 +422,8 @@ class FrameManager:
 
         """
         animation_data = self.animated_sprite.animation_data
-        if (
-            self._current_animation in animation_data
-            and self._current_frame < len(animation_data[self._current_animation])
+        if self._current_animation in animation_data and self._current_frame < len(
+            animation_data[self._current_animation]
         ):
             return animation_data[self._current_animation][self._current_frame]
         return None
@@ -519,7 +524,10 @@ class AnimatedSpriteInterface(abc.ABC):
     # Animation data methods
     @abc.abstractmethod
     def add_animation(
-        self: Self, name: str, frames: list['SpriteFrame'], metadata: dict[str, object] | None = None
+        self: Self,
+        name: str,
+        frames: list['SpriteFrame'],
+        metadata: dict[str, object] | None = None,
     ) -> None:
         """Add a new animation."""
         raise NotImplementedError
@@ -645,9 +653,7 @@ class SpriteFrame:
                     extracted_pixels.append((color.r, color.g, color.b, MAX_COLOR_CHANNEL_VALUE))
         return extracted_pixels  # ty: ignore[invalid-return-type]
 
-    def set_pixel_data(
-        self, pixels: list[tuple[int, ...]]
-    ) -> None:
+    def set_pixel_data(self, pixels: list[tuple[int, ...]]) -> None:
         """Set pixel data from a list of RGB or RGBA tuples."""
         self.pixels = pixels.copy()
         # Update the surface with the new pixel data
@@ -959,7 +965,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         if not self.frame_manager.set_frame(frame_index):
             frames = self._animations.get(self.frame_manager.current_animation, [])
             raise IndexError(
-                f'Frame index {frame_index} out of range for animation ' +
+                f'Frame index {frame_index} out of range for animation '
                 f"'{self.frame_manager.current_animation}' (0-{len(frames) - 1})"
             )
 
@@ -989,7 +995,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     # Animation data methods
     @override
     def add_animation(
-        self: Self, name: str, frames: list['SpriteFrame'], metadata: dict[str, object] | None = None
+        self: Self,
+        name: str,
+        frames: list['SpriteFrame'],
+        metadata: dict[str, object] | None = None,
     ) -> None:
         """Add a new animation."""
         self._animations[name] = frames.copy()
@@ -1106,7 +1115,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             'is_looping': self._is_looping,
         }
 
-    def set_animation_metadata(self: Self, animation_name: str, metadata: dict[str, object]) -> None:
+    def set_animation_metadata(
+        self: Self, animation_name: str, metadata: dict[str, object]
+    ) -> None:
         """Set metadata for a specific animation.
 
         Raises:
@@ -1156,7 +1167,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             )
             self.frame_manager.current_animation = initial_animation
             self.log.debug(
-                f'Set initial animation to first animation in file: ' +
+                'Set initial animation to first animation in file: '
                 f"'{initial_animation}' with {len(self._animations[initial_animation])} frames"
             )
             self.frame_manager.current_frame = 0
@@ -1222,14 +1233,16 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             and self.frame_manager.current_animation in self._animations
         ):
             self.log.debug(
-                f"INITIAL FRAME STATE: animation='{self.frame_manager.current_animation}', " +
+                f"INITIAL FRAME STATE: animation='{self.frame_manager.current_animation}', "
                 f'frame={self.frame_manager.current_frame}'
             )
             # Force initial surface update by resetting frame tracking
             self._last_frame_index = -1  # Force update regardless of previous state
             self._update_surface_and_mark_dirty()
 
-    def _convert_static_sprite(self: Self, data: dict[str, Any], color_map: dict[str, tuple[int, ...]]) -> None:
+    def _convert_static_sprite(
+        self: Self, data: dict[str, Any], color_map: dict[str, tuple[int, ...]]
+    ) -> None:
         """Convert a static sprite to a single-frame animation."""
         sprite_data = data['sprite']
         pixels = sprite_data['pixels']
@@ -1245,8 +1258,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # Check for inconsistent row widths and pad if needed
         if len(set(row_widths)) > 1:
             self.log.warning(
-                f'Inconsistent row widths detected in static sprite: ' +
-                f'min={min(row_widths)}, max={max(row_widths)}. ' +
+                'Inconsistent row widths detected in static sprite: '
+                f'min={min(row_widths)}, max={max(row_widths)}. '
                 f'Padding shorter rows to {width} characters.'
             )
             # Pad shorter rows with first character (usually transparency)
@@ -1299,12 +1312,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._animation_order.append(animation_name)
 
         self.log.debug(
-            f'Converted static sprite to single-frame animation ' +
+            'Converted static sprite to single-frame animation '
             f"'{animation_name}' ({width}x{height})"
         )
 
     @staticmethod
-    def _build_color_map(data: dict[str, Any]) -> tuple[dict[str, tuple[int, ...]], list[str], dict[str, int]]:
+    def _build_color_map(
+        data: dict[str, Any],
+    ) -> tuple[dict[str, tuple[int, ...]], list[str], dict[str, int]]:
         """Build color map from TOML colors section.
 
         Returns:
@@ -1341,7 +1356,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             color_order.append(char)  # Preserve order
         return color_map, color_order, original_alpha_values
 
-    def _process_toml_animation(self: Self, anim_data: dict[str, Any], color_map: dict[str, tuple[int, ...]]) -> list[SpriteFrame]:
+    def _process_toml_animation(
+        self: Self, anim_data: dict[str, Any], color_map: dict[str, tuple[int, ...]]
+    ) -> list[SpriteFrame]:
         """Process a single animation from TOML data.
 
         Returns:
@@ -1384,7 +1401,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 self.log.debug(f'    {key}: {value}')
 
     def _create_toml_frame(
-        self: Self, frame_data: dict[str, Any], frame_idx: int, color_map: dict[str, tuple[int, ...]], frame_interval: float = 0.5
+        self: Self,
+        frame_data: dict[str, Any],
+        frame_idx: int,
+        color_map: dict[str, tuple[int, ...]],
+        frame_interval: float = 0.5,
     ) -> SpriteFrame | None:
         """Create a SpriteFrame from TOML frame data.
 
@@ -1461,7 +1482,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         # If there are inconsistencies, try to normalize to the most common length
         if len(set(line_lengths)) > 1:
             self.log.warning(
-                f'    Frame {frame_index}: Inconsistent line lengths detected. ' +
+                f'    Frame {frame_index}: Inconsistent line lengths detected. '
                 f'Most common length: {most_common_length}, lengths found: {set(line_lengths)}'
             )
 
@@ -1490,11 +1511,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         for i, line in enumerate(normalized_lines):
             if len(line) != expected_width:
                 self.log.error(
-                    f'    Frame {frame_index}: Line {i} has {len(line)} pixels, ' +
+                    f'    Frame {frame_index}: Line {i} has {len(line)} pixels, '
                     f'expected {expected_width}'
                 )
                 raise ValueError(
-                    f'Inconsistent line length in frame {frame_index}: ' +
+                    f'Inconsistent line length in frame {frame_index}: '
                     f'line {i} has {len(line)} pixels, expected {expected_width}'
                 )
 
@@ -1528,7 +1549,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return surface
 
     @staticmethod
-    def _extract_toml_pixels(pixel_lines: list[str], width: int, height: int, color_map: dict[str, tuple[int, ...]]) -> list[tuple[int, ...]]:
+    def _extract_toml_pixels(
+        pixel_lines: list[str], width: int, height: int, color_map: dict[str, tuple[int, ...]]
+    ) -> list[tuple[int, ...]]:
         """Extract pixel data as RGB or RGBA tuples based on alpha needs.
 
         Returns:
@@ -1850,7 +1873,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                         return True
         return False
 
-    def _build_toml_data_structure(self: Self, color_map: dict[tuple[int, ...], str]) -> dict[str, Any]:
+    def _build_toml_data_structure(
+        self: Self, color_map: dict[tuple[int, ...], str]
+    ) -> dict[str, Any]:
         """Build TOML data structure.
 
         Returns:
@@ -1930,7 +1955,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return data
 
     @staticmethod
-    def _create_toml_animation_frames(frames: list[SpriteFrame], color_map: dict[tuple[int, ...], str]) -> list[dict[str, Any]]:
+    def _create_toml_animation_frames(
+        frames: list[SpriteFrame], color_map: dict[tuple[int, ...], str]
+    ) -> list[dict[str, Any]]:
         """Create TOML animation frames.
 
         Returns:
@@ -1944,7 +1971,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return animation_frames
 
     @staticmethod
-    def _create_toml_frame_data(frame: SpriteFrame, frame_index: int, color_map: dict[tuple[int, ...], str]) -> dict[str, Any]:
+    def _create_toml_frame_data(
+        frame: SpriteFrame, frame_index: int, color_map: dict[tuple[int, ...], str]
+    ) -> dict[str, Any]:
         """Create TOML frame data.
 
         Returns:
@@ -1958,7 +1987,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     @staticmethod
     def _convert_pixels_to_toml_chars(
-        pixels: list[tuple[int, ...]], width: int, height: int, color_map: dict[tuple[int, ...], str]
+        pixels: list[tuple[int, ...]],
+        width: int,
+        height: int,
+        color_map: dict[tuple[int, ...], str],
     ) -> list[str]:
         """Convert pixels to TOML character representation.
 
@@ -2012,7 +2044,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                 f.write('\n"""\n\n')
 
     @staticmethod
-    def _write_toml_colors(f: IO[str], data: dict[str, Any], color_order: list[str] | None = None) -> None:
+    def _write_toml_colors(
+        f: IO[str], data: dict[str, Any], color_order: list[str] | None = None
+    ) -> None:
         """Write TOML colors section.
 
         Args:
@@ -2118,22 +2152,22 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             or self.frame_manager.current_animation not in self._animations
         ):
             self.log.debug(
-                f"ANIMATION FRAME DUMP: animation '{self.frame_manager.current_animation}' " +
+                f"ANIMATION FRAME DUMP: animation '{self.frame_manager.current_animation}' "
                 f'not found or no animation'
             )
             return
 
         if self.frame_manager.current_frame >= len(frames):
             self.log.debug(
-                f'ANIMATION FRAME DUMP: frame_index {self.frame_manager.current_frame} ' +
+                f'ANIMATION FRAME DUMP: frame_index {self.frame_manager.current_frame} '
                 f'out of range for {len(frames)} frames'
             )
             return
 
         frame = frames[self.frame_manager.current_frame]
         self.log.debug(
-            f"ANIMATION FRAME DUMP: animation='{self.frame_manager.current_animation}', " +
-            f'frame_index={self.frame_manager.current_frame}, frame={frame}, ' +
+            f"ANIMATION FRAME DUMP: animation='{self.frame_manager.current_animation}', "
+            f'frame_index={self.frame_manager.current_frame}, frame={frame}, '
             f'has_surface={hasattr(frame, "surface")}'
         )
 
@@ -2201,12 +2235,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self.dirty = 1
 
         self.log.debug(
-            f'Updated surface for frame {self.frame_manager.current_frame} ' +
+            f'Updated surface for frame {self.frame_manager.current_frame} '
             f"of animation '{self.frame_manager.current_animation}'"
         )
 
     @staticmethod
-    def _create_surface_from_toml_pixels(width: int, height: int, pixels: list[tuple[int, ...]]) -> pygame.Surface:
+    def _create_surface_from_toml_pixels(
+        width: int, height: int, pixels: list[tuple[int, ...]]
+    ) -> pygame.Surface:
         """Create a pygame surface from TOML RGB or RGBA pixel data.
 
         Returns:

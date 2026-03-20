@@ -300,7 +300,7 @@ class GameEngine(events.EventManager):
 
         return options
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self: Self,
         game: type[Scene] | Scene,
         icon: pygame.Surface | Path | str | None = None,
@@ -595,8 +595,8 @@ class GameEngine(events.EventManager):
         self.log.info(f'32-bit Modes: {pygame.display.list_modes(32)}')
         self.log.info(
             'Best Color Depth: '
-            + f'{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
-            + f' ({self.mode_flags})'
+            f'{pygame.display.mode_ok(self.initial_resolution), self.mode_flags}'
+            f' ({self.mode_flags})'
         )
         self.log.info(f'Window Manager Info: {pygame.display.get_wm_info()}')
         self.log.info(f'Platform Timer Resolution: {pygame.TIMER_RESOLUTION}')
@@ -605,7 +605,7 @@ class GameEngine(events.EventManager):
         """Print game information."""
         self.log.debug(
             f'Successfully loaded {self.init_pass} modules '
-            + f'and failed loading {self.init_fail} modules.'
+            f'and failed loading {self.init_fail} modules.'
         )
 
         self.log.info(f'Game Title: {type(self).NAME}')
@@ -1191,9 +1191,9 @@ class GameEngine(events.EventManager):
         if event.type == pygame.MOUSEBUTTONDOWN:
             # MOUSEBUTTONDOWN  pos, button
             self.log.debug(
-                f'ENGINE: MOUSEBUTTONDOWN received:'
-                + f' button={getattr(event, "button", None)},'
-                + f' pos={getattr(event, "pos", None)}'
+                'ENGINE: MOUSEBUTTONDOWN received:'
+                f' button={getattr(event, "button", None)},'
+                f' pos={getattr(event, "pos", None)}'
             )
             self.mouse_manager.on_mouse_button_down_event(event)
             return True

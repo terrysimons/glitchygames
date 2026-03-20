@@ -1329,7 +1329,7 @@ class TestBitmappySpriteDeflatePixelsTruncated:
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
         # 10 pixels for 2x2=4 expected - should truncate
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 10)
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 10)
         sprite.pixels = pixel_data
         config = sprite.deflate(file_format='toml')
         assert 'sprite' in config

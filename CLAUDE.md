@@ -56,17 +56,39 @@ pyright
 
 ### Nox Sessions (Automated Testing Pipeline)
 ```bash
-# Run full lint and test suite
-nox -s lint_and_test
+# --- Aggregate sessions ---
+nox -s format              # Run ALL formatters (code + TOML)
+nox -s lint                # Run ALL linters (code, docs, YAML, TOML, CI, deps, dead code, CVEs)
 
-# Run security scanning (bandit + safety)
-nox -s security_scan
+# --- Individual format sessions ---
+nox -s format-code         # Format Python code (ruff format + import sorting)
+nox -s format-toml         # Format TOML files (taplo)
 
-# Run performance benchmarks
-nox -s performance_test
+# --- Individual lint sessions ---
+nox -s lint-code           # Lint Python code (ruff)
+nox -s lint-docs           # Lint documentation (mkdocs strict build)
+nox -s lint-yaml           # Lint YAML files (yamllint)
+nox -s lint-ci-config      # Validate all CI configs (CircleCI + GitHub Actions)
+nox -s lint-circleci       # Validate CircleCI config only
+nox -s lint-github-actions # Lint GitHub Actions workflows only
+nox -s lint-toml           # Lint TOML files (taplo)
+nox -s lint-dependencies   # Check dependency issues (deptry)
+nox -s lint-dead-code      # Detect dead code (vulture)
+nox -s lint-cves           # Audit dependencies for known CVEs (pip-audit)
 
-# Generate coverage reports
-nox -s coverage_report
+# --- Static type analysis ---
+nox -s static-analysis              # Run ALL type checkers (basedpyright + ty)
+nox -s static-analysis-basedpyright # Run basedpyright only
+nox -s static-analysis-ty           # Run ty only
+
+# --- Testing ---
+nox -s test                # Run tests with coverage
+nox -s performance-test    # Run performance benchmarks
+
+# --- Security ---
+nox -s security-scan       # Run ALL security scans (bandit + safety)
+nox -s bandit-scan         # Run bandit only
+nox -s safety-scan         # Run safety only
 ```
 
 ### Running Bitmappy (Pixel Art Editor)

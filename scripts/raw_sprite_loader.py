@@ -257,9 +257,7 @@ class GameScene(Scene):
         # Load the legacy sprite file.
         self.sprite: BitmappyLegacySprite = BitmappyLegacySprite(filename=self.filename)
 
-        self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(
-            self.sprite
-        )
+        self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(self.sprite)
 
         self.all_sprites.clear(self.screen, self.background)
 

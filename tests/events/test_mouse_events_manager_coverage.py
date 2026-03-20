@@ -180,9 +180,7 @@ class TestMouseEventProxy:
         motion_event = HashableEvent(
             pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(1, 0, 0)
         )
-        trigger = HashableEvent(
-            pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_LEFT, pos=(100, 200)
-        )
+        trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_LEFT, pos=(100, 200))
         proxy.on_mouse_drag_event(motion_event, trigger)
         mock_game.on_mouse_drag_event.assert_called_once()
         mock_game.on_left_mouse_drag_event.assert_called_once()
@@ -192,9 +190,7 @@ class TestMouseEventProxy:
         motion_event = HashableEvent(
             pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(0, 0, 1)
         )
-        trigger = HashableEvent(
-            pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_RIGHT, pos=(100, 200)
-        )
+        trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_RIGHT, pos=(100, 200))
         proxy.on_mouse_drag_event(motion_event, trigger)
         mock_game.on_right_mouse_drag_down_event.assert_called_once()
 
@@ -203,18 +199,14 @@ class TestMouseEventProxy:
         motion_event = HashableEvent(
             pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(0, 1, 0)
         )
-        trigger = HashableEvent(
-            pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_WHEEL, pos=(100, 200)
-        )
+        trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_WHEEL, pos=(100, 200))
         proxy.on_mouse_drag_event(motion_event, trigger)
         mock_game.on_middle_mouse_drag_down_event.assert_called_once()
 
     def test_on_mouse_drop_event_left(self, mock_game):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=MOUSE_BUTTON_LEFT, pos=(100, 200))
-        trigger = HashableEvent(
-            pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_LEFT, pos=(90, 190)
-        )
+        trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_LEFT, pos=(90, 190))
         proxy.on_mouse_drop_event(event, trigger)
         mock_game.on_mouse_drop_event.assert_called_once()
         mock_game.on_left_mouse_drag_up_event.assert_called_once()
@@ -223,35 +215,27 @@ class TestMouseEventProxy:
     def test_on_mouse_drop_event_right(self, mock_game):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=MOUSE_BUTTON_RIGHT, pos=(100, 200))
-        trigger = HashableEvent(
-            pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_RIGHT, pos=(90, 190)
-        )
+        trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_RIGHT, pos=(90, 190))
         proxy.on_mouse_drop_event(event, trigger)
         mock_game.on_right_mouse_drag_up_event.assert_called_once()
 
     def test_on_mouse_drop_event_middle(self, mock_game):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=MOUSE_BUTTON_WHEEL, pos=(100, 200))
-        trigger = HashableEvent(
-            pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_WHEEL, pos=(90, 190)
-        )
+        trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_WHEEL, pos=(90, 190))
         proxy.on_mouse_drop_event(event, trigger)
         mock_game.on_middle_mouse_drag_up_event.assert_called_once()
 
     def test_on_mouse_focus_event(self, mock_game, mocker):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
-        event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(100, 200), rel=(1, 1), buttons=(0, 0, 0)
-        )
+        event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 200), rel=(1, 1), buttons=(0, 0, 0))
         mock_sprite = mocker.Mock()
         proxy.on_mouse_focus_event(event, mock_sprite)
         assert proxy.current_focus is mock_sprite
 
     def test_on_mouse_unfocus_event(self, mock_game, mocker):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
-        event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(100, 200), rel=(1, 1), buttons=(0, 0, 0)
-        )
+        event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 200), rel=(1, 1), buttons=(0, 0, 0))
         mock_sprite = mocker.Mock()
         proxy.current_focus = mock_sprite
         proxy.on_mouse_unfocus_event(event, mock_sprite)
@@ -260,9 +244,7 @@ class TestMouseEventProxy:
 
     def test_on_mouse_unfocus_event_none(self, mock_game):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
-        event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(100, 200), rel=(1, 1), buttons=(0, 0, 0)
-        )
+        event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 200), rel=(1, 1), buttons=(0, 0, 0))
         proxy.on_mouse_unfocus_event(event, None)
         assert proxy.previous_focus is None
 

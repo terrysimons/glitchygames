@@ -218,7 +218,7 @@ class SpriteGenerationService:
 
         LOG.info(
             f'Successfully generated sprite: {sprite_name} '
-            + f'(animated={is_animated}, frames={frame_count})'
+            f'(animated={is_animated}, frames={frame_count})'
         )
 
         return GenerationResult(
@@ -310,7 +310,7 @@ class SpriteGenerationService:
 
         LOG.info(
             f'Successfully refined sprite: {sprite_name} '
-            + f'(animated={is_animated}, frames={frame_count})'
+            f'(animated={is_animated}, frames={frame_count})'
         )
 
         return GenerationResult(
@@ -351,15 +351,15 @@ class SpriteGenerationService:
             # Count frames across all animations
             animations: Any = data.get('animation', [])
             if isinstance(animations, list):
-                for animation in cast(list[Any], animations):
-                    animation_dict = cast(dict[str, Any], animation)
+                for animation in cast('list[Any]', animations):
+                    animation_dict = cast('dict[str, Any]', animation)
                     if isinstance(animation, dict) and 'frame' in animation_dict:
-                        animation_frames = cast(list[Any], animation_dict.get('frame', []))
+                        animation_frames = cast('list[Any]', animation_dict.get('frame', []))
                         frame_count = max(frame_count, len(animation_frames))
             elif isinstance(animations, dict):
                 # Single animation
-                animation_single = cast(dict[str, Any], animations)
-                single_frames = cast(list[Any], animation_single.get('frame', []))
+                animation_single = cast('dict[str, Any]', animations)
+                single_frames = cast('list[Any]', animation_single.get('frame', []))
                 frame_count = len(single_frames)
 
         return sprite_name, is_animated, frame_count

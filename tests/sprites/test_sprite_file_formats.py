@@ -103,11 +103,11 @@ class TestTOMLOnlySupport:
 
         # Create frames
         frame1 = SpriteFrame(pygame.Surface((2, 2)))
-        red_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)  # Red frame
+        red_pixels = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)  # Red frame
         frame1.set_pixel_data(red_pixels)
 
         frame2 = SpriteFrame(pygame.Surface((2, 2)))
-        green_pixels = cast(list[tuple[int, ...]], [(0, 255, 0)] * 4)  # Green frame
+        green_pixels = cast('list[tuple[int, ...]]', [(0, 255, 0)] * 4)  # Green frame
         frame2.set_pixel_data(green_pixels)
 
         animated_sprite.add_animation('test_anim', [frame1, frame2])
@@ -141,7 +141,7 @@ class TestTOMLOnlySupport:
     def test_yaml_format_rejected(self, mocker):
         """Test that YAML format is properly rejected."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='test')
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)
         sprite.pixels = pixel_data
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
@@ -165,7 +165,7 @@ class TestTOMLOnlySupport:
     def test_ini_format_rejected(self, mocker):
         """Test that INI format is properly rejected."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='test')
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)
         sprite.pixels = pixel_data
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
@@ -192,7 +192,7 @@ class TestTOMLOnlySupport:
         animated_sprite.name = 'test'
 
         frame = SpriteFrame(pygame.Surface((2, 2)))
-        yaml_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)
+        yaml_pixels = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)
         frame.set_pixel_data(yaml_pixels)
         animated_sprite.add_animation('test_anim', [frame])
 
@@ -208,7 +208,7 @@ class TestTOMLOnlySupport:
         animated_sprite.name = 'test'
 
         frame = SpriteFrame(pygame.Surface((2, 2)))
-        ini_pixels = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)
+        ini_pixels = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)
         frame.set_pixel_data(ini_pixels)
         animated_sprite.add_animation('test_anim', [frame])
 
@@ -221,7 +221,7 @@ class TestTOMLOnlySupport:
     def test_default_format_is_toml(self):
         """Test that default file format is TOML."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='test')
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)
         sprite.pixels = pixel_data
         sprite.pixels_across = 2
         sprite.pixels_tall = 2
@@ -236,7 +236,7 @@ class TestTOMLOnlySupport:
     def test_unsupported_format_error_message(mocker):
         """Test that unsupported format error messages are clear."""
         sprite = BitmappySprite(x=0, y=0, width=2, height=2, name='test')
-        pixel_data = cast(list[tuple[int, ...]], [(255, 0, 0)] * 4)
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * 4)
         sprite.pixels = pixel_data
         sprite.pixels_across = 2
         sprite.pixels_tall = 2

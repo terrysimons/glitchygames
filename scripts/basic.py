@@ -10,10 +10,11 @@ from typing import Any, Literal, Self, override
 if typing.TYPE_CHECKING:
     import argparse
 
+    from glitchygames.events.core import HashableEvent
+
 import pygame
 
 from glitchygames.engine import GameEngine
-from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
 
 LOG: logging.Logger = logging.getLogger('game')
