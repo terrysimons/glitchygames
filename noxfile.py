@@ -1,6 +1,7 @@
 """Nox session definitions for linting, testing, security scanning, and benchmarks."""
 
 import os
+from pathlib import Path
 
 import nox
 
@@ -55,6 +56,9 @@ def _lint_circleci(session: nox.Session) -> None:
 
 def _lint_github_actions(session: nox.Session) -> None:
     """Lint GitHub Actions workflows with actionlint."""
+    if not Path('.github/workflows').is_dir():
+        session.log('No .github/workflows/ directory found; skipping actionlint.')
+        return
     session.run('actionlint', external=True)
 
 
