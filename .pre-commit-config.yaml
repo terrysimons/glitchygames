@@ -2,16 +2,23 @@ repos:
 - repo: local
   hooks:
     - id: format
-      name: format (ruff, taplo)
+      name: format (code, toml, markdown)
       language: system
       entry: nox -s format
       pass_filenames: false
       stages: [pre-push]
 
     - id: lint
-      name: lint (ruff, docs, yaml, toml, ci, deps, dead code, cves)
+      name: lint (code, docs, yaml, toml, deps, dead code, cves)
       language: system
       entry: nox -s lint
+      pass_filenames: false
+      stages: [pre-push]
+
+    - id: lint-ci-config
+      name: lint-ci-config (circleci)
+      language: system
+      entry: nox -s lint-ci-config
       pass_filenames: false
       stages: [pre-push]
 

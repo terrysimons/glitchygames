@@ -112,13 +112,11 @@ def format_all(session: nox.Session) -> None:
 
 @nox.session(python=['3.13'], reuse_venv=False, name='lint')
 def lint_all(session: nox.Session) -> None:
-    """Run all linters (code, docs, YAML, TOML, CI configs, deps, dead code, CVEs)."""
+    """Run all linters (code, docs, YAML, TOML, deps, dead code, CVEs)."""
     session.install(_ALL_EXTRAS)
     _lint_code(session)
     _lint_docs(session)
     _lint_yaml(session)
-    _lint_circleci(session)
-    _lint_github_actions(session)
     _lint_toml(session)
     _lint_dependencies(session)
     _lint_dead_code(session)
