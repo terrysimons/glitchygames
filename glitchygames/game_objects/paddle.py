@@ -74,7 +74,6 @@ class BasePaddle(Sprite):
             None
 
         """
-
         self.rect.x += self._move.current_speed
         self.dirty = 1
 
@@ -85,7 +84,6 @@ class BasePaddle(Sprite):
             None
 
         """
-
         self.rect.y += self._move.current_speed
         self.dirty = 1
 
@@ -99,7 +97,6 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the bottom of the screen, False otherwise.
 
         """
-
         return self.rect.bottom >= self.screen_height
 
     def is_at_top_of_screen(self: Self) -> bool:
@@ -112,7 +109,6 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the top of the screen, False otherwise.
 
         """
-
         return self.rect.top <= 0
 
     def is_at_left_of_screen(self: Self) -> bool:
@@ -194,7 +190,6 @@ class HorizontalPaddle(BasePaddle):
             None
 
         """
-
         assert self.screen is not None
         if self.is_at_left_of_screen():
             self.rect.x = 0
@@ -314,7 +309,6 @@ class VerticalPaddle(BasePaddle):
             None
 
         """
-
         # Movement is now handled in dt_tick() for frame-rate independence
         # Constrain position at boundaries AND stop movement to prevent bouncing
         if self.rect.y < 0:

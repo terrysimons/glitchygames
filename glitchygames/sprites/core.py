@@ -1870,7 +1870,7 @@ class SpriteFactory:
         # Always return AnimatedSprite - it handles both static and animated content
         from glitchygames.sprites.animated import AnimatedSprite
 
-        return AnimatedSprite(filename, groups=None)  # noqa: PLC0415
+        return AnimatedSprite(filename, groups=None)
 
     @staticmethod
     def detect_file_format(filename: str) -> str:

@@ -253,7 +253,6 @@ class BallSprite(Sprite):
             None
 
         """
-
         # Set position directly to rect, maintaining consistency
         self.rect.x = secrets.randbelow(700) + 50  # 50-749 range
         self.rect.y = secrets.randbelow(375) + 25  # 25-399 range
@@ -486,7 +485,6 @@ class BallSprite(Sprite):
             dt (float): The delta time.
 
         """
-
         # Use centralized performance manager for adaptive clamping
         from glitchygames.performance import performance_manager
 
@@ -596,7 +594,6 @@ class BallSprite(Sprite):
             None
 
         """
-
         import logging
 
         log = logging.getLogger('game')
@@ -617,7 +614,6 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-
         # Track if any collision occurred for corner detection
         collision_occurred = False
 
@@ -652,7 +648,6 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-
         if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
@@ -681,7 +676,6 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-
         if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
@@ -712,7 +706,6 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-
         if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
@@ -741,7 +734,6 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-
         if hasattr(self, 'snd') and self.snd is not None:  # type: ignore[reportUnnecessaryComparison]
             self.snd.play()
 
@@ -770,7 +762,6 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-
         # Check if ball is in a corner position - include boundary contact
         in_top_left = self.rect.y <= 0 and self.rect.x <= 0
         in_top_right = self.rect.y <= 0 and self.rect.x + self.width >= self.screen_width
@@ -827,7 +818,6 @@ class BallSprite(Sprite):
             log (logging.Logger): Logger instance for debug output
 
         """
-
         # Visual feedback implementation
         # This could include:
         # - Particle effects at collision point
@@ -880,7 +870,6 @@ class BallSprite(Sprite):
             paddle (Sprite): The paddle sprite that the ball is colliding with
 
         """
-
         assert paddle.rect is not None
         # Determine which side of the paddle the ball is on
         ball_center_x = self.rect.centerx
