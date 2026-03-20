@@ -295,6 +295,8 @@ DEP002 = [
   "vulture",
   "pip-audit",
   "hypothesis",
+  "taplo",
+  "yamllint",
 ]
 
 [build-system]
