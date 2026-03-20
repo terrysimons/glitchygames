@@ -394,8 +394,8 @@ def _extract_single_frame(
         delay_ms: int = int((delay_num / delay_den) * 1000)
 
         # Get frame dimensions and offsets
-        frame_width: int = control.width  # ty: ignore[invalid-assignment]
-        frame_height: int = control.height  # ty: ignore[invalid-assignment]
+        frame_width: int = control.width or 0
+        frame_height: int = control.height or 0
         x_offset: int = control.x_offset
         y_offset: int = control.y_offset
     else:
