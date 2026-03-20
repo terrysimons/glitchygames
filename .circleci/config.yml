@@ -205,7 +205,7 @@ jobs:
   build-and-test-macos:
     macos:
       xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
-    resource_class: macos.m1.medium.gen1
+    resource_class: macos.m4pro.medium
 
     steps:
       - checkout
