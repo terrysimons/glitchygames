@@ -110,12 +110,16 @@ class VoiceEventManager(ResourceManager):
                     try:
                         if callable(exit_cm):
                             exit_cm(None, None, None)
-                    except OSError:
-                        LOG.debug('Voice backend cleanup raised OSError during probe')
+                    except (OSError, RuntimeError):
+                        LOG.debug('Voice backend cleanup raised error during probe', exc_info=True)
             self.log.info(f'Voice backend selected: {backend_name}')
             return mic_cls()
-        except OSError:
+        except (OSError, RuntimeError):
             self.log.exception(f'Voice backend probe failed for {backend_name}')
+            return None
+        except Exception:
+            # Catch-all to prevent unexpected backend errors from crashing initialization
+            self.log.exception(f'Unexpected error while probing voice backend {backend_name}')
             return None
 
     def _setup_microphone(self) -> None:
