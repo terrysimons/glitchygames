@@ -116,13 +116,14 @@ blue = 0
 
     def test_initialization(self, mocker):
         """Test renderer service initialization."""
-        # Reset the class variable for testing
-        RendererService._pygame_initialized = False  # type: ignore[unresolved-attribute]
+        # Reset the class variable for testing.
+        # The actual class attribute is `pygame_initialized` (no leading underscore).
+        RendererService.pygame_initialized = False
 
         # Set headless environment variables
         mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'})
         service = RendererService()
-        assert RendererService._pygame_initialized is True  # type: ignore[unresolved-attribute]
+        assert RendererService.pygame_initialized is True
 
     def test_render_from_toml_static(self, sample_static_toml):
         """Test rendering a static sprite from TOML."""

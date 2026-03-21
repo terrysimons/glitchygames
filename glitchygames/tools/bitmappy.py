@@ -22,10 +22,12 @@ import pygame
 if TYPE_CHECKING:
     import numpy as np
 
-# Try to import aisuite, but don't fail if it's not available
+# Try to import aisuite, but don't fail if it's not available.
+# Catch AttributeError too — docstring_parser (an aisuite transitive dependency)
+# uses ast.NameConstant which was removed in Python 3.14.
 try:
     import aisuite as ai
-except ImportError:
+except (ImportError, AttributeError):
     ai = None  # ty: ignore[invalid-assignment]
 
 # Try to import backoff for retry logic

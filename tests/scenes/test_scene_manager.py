@@ -201,9 +201,20 @@ class TestSceneManager:
         scene_manager = self.scene_manager
         mock_callback = mocker.Mock()
 
-        # Test registering game event (may not exist in all implementations)
-        with contextlib.suppress(AttributeError):
-            scene_manager.register_game_event('test_event', mock_callback)  # type: ignore[invalid-argument-type]
+        # register_game_event asserts game_engine is not None, so provide one
+        mock_engine = mocker.Mock()
+        mock_engine.OPTIONS = {
+            'update_type': 'update',
+            'fps_log_interval_ms': FPS_REFRESH_RATE,
+            'target_fps': 60,
+        }
+        scene_manager.game_engine = mock_engine
+
+        # Test registering game event
+        scene_manager.register_game_event('test_event', mock_callback)  # type: ignore[invalid-argument-type]
+        mock_engine.register_game_event.assert_called_once_with(
+            event_type='test_event', callback=mock_callback
+        )
 
     def test_scene_manager_getattr(self):
         """Test SceneManager __getattr__ method."""
@@ -274,13 +285,16 @@ class TestSceneManager:
         # Test clock ticking
         scene_manager._tick_clock()
 
-    def test_scene_manager_update_scene(self):
+    def test_scene_manager_update_scene(self, mocker):
         """Test SceneManager _update_scene method."""
         scene_manager = self.scene_manager
 
-        # Test scene update
-        with contextlib.suppress(AttributeError):
-            scene_manager._update_scene()
+        # _update_scene asserts active_scene is not None, so provide a mock scene
+        mock_scene = mocker.Mock()
+        scene_manager.active_scene = mock_scene
+
+        scene_manager._update_scene()
+        mock_scene.dt_tick.assert_called_once_with(scene_manager.dt)
 
     def test_scene_manager_process_events(self):
         """Test SceneManager _process_events method."""
@@ -290,21 +304,28 @@ class TestSceneManager:
         with contextlib.suppress(AttributeError):
             scene_manager._process_events()
 
-    def test_scene_manager_render_scene(self):
+    def test_scene_manager_render_scene(self, mocker):
         """Test SceneManager _render_scene method."""
         scene_manager = self.scene_manager
 
-        # Test scene rendering
-        with contextlib.suppress(AttributeError):
-            scene_manager._render_scene()
+        # _render_scene asserts active_scene is not None, so provide a mock scene
+        mock_scene = mocker.Mock()
+        mock_scene.rects = []
+        scene_manager.active_scene = mock_scene
 
-    def test_scene_manager_update_display(self):
+        scene_manager._render_scene()
+        mock_scene.update.assert_called_once()
+
+    def test_scene_manager_update_display(self, mocker):
         """Test SceneManager _update_display method."""
         scene_manager = self.scene_manager
 
-        # Test display update
-        with contextlib.suppress(AttributeError):
-            scene_manager._update_display()
+        # _update_display asserts active_scene is not None, so provide a mock scene
+        mock_scene = mocker.Mock()
+        mock_scene.rects = []
+        scene_manager.active_scene = mock_scene
+
+        scene_manager._update_display()
 
     def test_scene_manager_log_quit_info(self):
         """Test SceneManager _log_quit_info method."""

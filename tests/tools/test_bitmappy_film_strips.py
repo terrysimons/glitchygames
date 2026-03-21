@@ -400,11 +400,19 @@ class TestFilmStripWidgetIntegration:
 
         # Create mock animated sprite with frames
         animated_sprite = self._mocker.Mock()
-        animated_sprite._animations = {
+        animations_data = {
             'test_animation': [self._mocker.Mock(), self._mocker.Mock()],
             'another_animation': [self._mocker.Mock()],  # Add second animation
         }
+        animated_sprite._animations = animations_data
+        animated_sprite.animations = animations_data
         animated_sprite._animation_order = ['test_animation', 'another_animation']
+        animated_sprite.animation_order = ['test_animation', 'another_animation']
+        # Also wire up the parent scene canvas animated_sprite.animations
+        widget.parent_scene.canvas.animated_sprite.animations = {
+            'test_animation': [],
+            'another_animation': [],
+        }
         widget.set_animated_sprite(animated_sprite)
 
         # Act
@@ -428,11 +436,15 @@ class TestFilmStripWidgetIntegration:
         widget.parent_scene.canvas = self._mocker.Mock()
         widget.parent_scene.canvas.animated_sprite = self._mocker.Mock()
         widget.parent_scene.canvas.animated_sprite._animations = {'test_animation': []}
+        widget.parent_scene.canvas.animated_sprite.animations = {'test_animation': []}
 
         # Create mock animated sprite with frames
         animated_sprite = self._mocker.Mock()
-        animated_sprite._animations = {'test_animation': [self._mocker.Mock(), self._mocker.Mock()]}
-        animated_sprite._animation_order = ['test_animation']  # Add missing attribute
+        animations_data = {'test_animation': [self._mocker.Mock(), self._mocker.Mock()]}
+        animated_sprite._animations = animations_data
+        animated_sprite.animations = animations_data
+        animated_sprite._animation_order = ['test_animation']
+        animated_sprite.animation_order = ['test_animation']
         widget.set_animated_sprite(animated_sprite)
 
         # Create tabs
@@ -461,15 +473,20 @@ class TestFilmStripWidgetIntegration:
         # Set up canvas for parent_scene
         widget.parent_scene.canvas = self._mocker.Mock()
         widget.parent_scene.canvas.animated_sprite = self._mocker.Mock()
-        widget.parent_scene.canvas.animated_sprite._animations = {
+        canvas_animations = {
             'test_animation': [],
             'other_animation': [],
         }
+        widget.parent_scene.canvas.animated_sprite._animations = canvas_animations
+        widget.parent_scene.canvas.animated_sprite.animations = canvas_animations
 
         # Create mock animated sprite with frames
         animated_sprite = self._mocker.Mock()
-        animated_sprite._animations = {'test_animation': [self._mocker.Mock(), self._mocker.Mock()]}
-        animated_sprite._animation_order = ['test_animation']  # Add missing attribute
+        animations_data = {'test_animation': [self._mocker.Mock(), self._mocker.Mock()]}
+        animated_sprite._animations = animations_data
+        animated_sprite.animations = animations_data
+        animated_sprite._animation_order = ['test_animation']
+        animated_sprite.animation_order = ['test_animation']
         widget.set_animated_sprite(animated_sprite)
 
         # Create tabs
@@ -496,8 +513,11 @@ class TestFilmStripWidgetIntegration:
 
         # Create mock animated sprite without frames
         animated_sprite = self._mocker.Mock()
-        animated_sprite._animations = {'test_animation': []}
-        animated_sprite._animation_order = ['test_animation']  # Add missing attribute
+        animations_data = {'test_animation': []}
+        animated_sprite._animations = animations_data
+        animated_sprite.animations = animations_data
+        animated_sprite._animation_order = ['test_animation']
+        animated_sprite.animation_order = ['test_animation']
         widget.set_animated_sprite(animated_sprite)
 
         # Act

@@ -1090,7 +1090,8 @@ class TestSpriteHasPerPixelAlpha:
         class FakeSprite:
             pass
 
-        assert _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type] is False
+        result = _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type]
+        assert result is False
 
     def test_opaque_pixels_only(self):
         """Test sprite with only opaque pixels."""
@@ -1103,7 +1104,8 @@ class TestSpriteHasPerPixelAlpha:
             def __init__(self):
                 self._animations = {'idle': [FakeFrame()]}
 
-        assert _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type] is False
+        result = _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type]
+        assert result is False
 
     def test_has_transparent_pixel(self):
         """Test sprite with a transparent pixel."""
@@ -1116,7 +1118,8 @@ class TestSpriteHasPerPixelAlpha:
             def __init__(self):
                 self._animations = {'idle': [FakeFrame()]}
 
-        assert _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type] is True
+        result = _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type]
+        assert result is True
 
     def test_rgb_only_pixels(self):
         """Test sprite with RGB-only pixels (no alpha channel)."""
@@ -1129,7 +1132,8 @@ class TestSpriteHasPerPixelAlpha:
             def __init__(self):
                 self._animations = {'idle': [FakeFrame()]}
 
-        assert _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type] is False
+        result = _sprite_has_per_pixel_alpha(FakeSprite())  # type: ignore[invalid-argument-type]
+        assert result is False
 
 
 # ---------------------------------------------------------------------------

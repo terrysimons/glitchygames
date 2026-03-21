@@ -264,8 +264,13 @@ class TestPanningKeyboardHandling:
 
         # Add necessary attributes for the commit test
         self.canvas.animated_sprite = mocker.Mock()
-        self.canvas.animated_sprite._animations = {'strip_1': [mocker.Mock()]}
-        self.canvas.animated_sprite._animations['strip_1'][0].pixels = [(255, 0, 0)] * 64
+        mock_frame = mocker.Mock()
+        mock_frame.pixels = [(255, 0, 0)] * 64
+        animations_data = {'strip_1': [mock_frame]}
+        self.canvas.animated_sprite._animations = animations_data
+        self.canvas.animated_sprite.animations = animations_data
+        self.canvas.animated_sprite._animation_order = ['strip_1']
+        self.canvas.animated_sprite.animation_order = ['strip_1']
         self.canvas.current_animation = 'strip_1'
         self.canvas.current_frame = 0
         self.canvas.pixels = [(255, 0, 0)] * 64

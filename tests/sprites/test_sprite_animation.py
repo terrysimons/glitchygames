@@ -255,12 +255,17 @@ class TestAnimatedSprite:
         assert surface is not None
 
     def test_animated_sprite_animation_order(self):
-        """Test animation order."""
+        """Test animation order is a read-only property."""
         sprite = AnimatedSprite(filename=STATIC_TOML)
 
-        # Test animation order
-        sprite.animation_order = ['walk', 'run']  # type: ignore[invalid-assignment]
-        assert sprite.animation_order == ['walk', 'run']
+        # animation_order is a read-only property (no setter)
+        with pytest.raises(AttributeError):
+            sprite.animation_order = ['walk', 'run']  # type: ignore[misc]
+
+        # Verify it returns the list of animation names from the loaded file
+        order = sprite.animation_order
+        assert isinstance(order, list)
+        assert 'idle' in order
 
     def test_animated_sprite_frame_observers(self, mocker):
         """Test frame observers."""

@@ -516,7 +516,6 @@ class MenuItem(BitmappySprite):
                 parent=parent,
                 groups=groups,
             )
-            self.text.add(groups)
             # Align the rect with the text position
             self.rect.x = self.text.rect.x
             self.rect.y = self.text.rect.y
@@ -3613,12 +3612,15 @@ class MultiLineTextBox(BitmappySprite):
     def _handle_copy(self) -> None:
         """Handle copy operation."""
         try:
-            if pyperclip and self.selection_start is not None and self.selection_end is not None:
+            if pyperclip is None:
+                self.log.warning('pyperclip not available, cannot copy text')
+                return
+
+            if self.selection_start is not None and self.selection_end is not None:
                 start = min(self.selection_start, self.selection_end)
                 end = max(self.selection_start, self.selection_end)
                 pyperclip.copy(self._text[start:end])
             else:
-                assert pyperclip is not None
                 pyperclip.copy(self._text)
         except (ImportError, AttributeError):
             self.log.error('Error copying text')  # noqa: TRY400

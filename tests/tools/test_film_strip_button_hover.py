@@ -39,13 +39,15 @@ class TestFilmStripButtonHover:
 
         # Create a mock animated sprite with frames
         self.mock_animated_sprite = mocker.Mock(spec=AnimatedSprite)
-        self.mock_animated_sprite._animations = {
+        animations_data = {
             'test_animation': [
                 mocker.Mock(spec=SpriteFrame),
                 mocker.Mock(spec=SpriteFrame),
                 mocker.Mock(spec=SpriteFrame),
             ]
         }
+        self.mock_animated_sprite._animations = animations_data
+        self.mock_animated_sprite.animations = animations_data
 
         # Create film strip widget
         self.film_strip_widget = FilmStripWidget(0, 0, 400, 100)

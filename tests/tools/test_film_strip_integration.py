@@ -268,14 +268,17 @@ class TestFilmStripIntegration(FilmStripTestBase):
             return frame
 
         animated_sprite = self._mocker.Mock()
-        animated_sprite._animations = {
+        animations_data = {
             'test_anim': [
                 create_mock_frame(FRAME_DURATION),
                 create_mock_frame(FRAME_DURATION),
                 create_mock_frame(FRAME_DURATION),
             ]
         }
+        animated_sprite._animations = animations_data
+        animated_sprite.animations = animations_data
         animated_sprite._animation_order = ['test_anim']
+        animated_sprite.animation_order = ['test_anim']
         animated_sprite.current_animation = 'test_anim'
         animated_sprite.current_frame = 0
         animated_sprite.is_looping = True

@@ -64,7 +64,7 @@ class TestFilmStripSelection:
 
         """
         sprite = mocker.Mock(spec=AnimatedSprite)
-        sprite._animations = {
+        animations_data = {
             'walk': [
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
@@ -72,7 +72,10 @@ class TestFilmStripSelection:
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
             ]
         }
+        sprite._animations = animations_data
+        sprite.animations = animations_data
         sprite._animation_order = ['walk']
+        sprite.animation_order = ['walk']
         return sprite
 
     @pytest.fixture

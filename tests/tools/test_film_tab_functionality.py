@@ -157,6 +157,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         # Mock parent scene with canvas that has a proper animated_sprite._animations dict
         mock_scene = self._mocker.Mock()
         mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
+        mock_scene.canvas.animated_sprite.animations = mock_sprite._animations
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -186,6 +187,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         mock_scene.canvas.pixels_across = 32
         mock_scene.canvas.pixels_tall = 32
         mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
+        mock_scene.canvas.animated_sprite.animations = mock_sprite._animations
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -215,6 +217,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         # Mock parent scene with canvas that has a proper animated_sprite._animations dict
         mock_scene = self._mocker.Mock()
         mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
+        mock_scene.canvas.animated_sprite.animations = mock_sprite._animations
         film_strip.parent_scene = mock_scene
 
         # Update layout to create tabs
@@ -281,6 +284,7 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
         # Mock parent scene with canvas that has a proper animated_sprite._animations dict
         mock_scene = self._mocker.Mock()
         mock_scene.canvas.animated_sprite._animations = mock_sprite._animations
+        mock_scene.canvas.animated_sprite.animations = mock_sprite._animations
         mock_scene.controller_selections = {}
         mock_scene.multi_controller_manager.controllers = {}
         film_strip.parent_scene = mock_scene

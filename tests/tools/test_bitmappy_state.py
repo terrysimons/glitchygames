@@ -233,6 +233,7 @@ class TestCreateAIRetryDecorator:
         decorator = _create_ai_retry_decorator(log)
         assert callable(decorator)
 
+    @pytest.mark.filterwarnings('ignore::DeprecationWarning')
     def test_decorator_preserves_function(self):
         """Test that decorated function is still callable."""
         log = logging.getLogger('test')
