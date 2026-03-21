@@ -23,7 +23,14 @@ nav:
     - glitchygames.tools: "glitchygames/tools/index.md"
     - glitchygames.ui: "glitchygames/ui/index.md"
   - Documentation:
+    - Bitmappy Architecture: "architecture/bitmappy.md"
+    - Event System: "architecture/event_system.md"
+    - Argument System: "architecture/argument_system.md"
     - Multi-Controller System: "multi_controller_system.md"
+
+extra_javascript:
+  - https://unpkg.com/mermaid/dist/mermaid.min.js
+  - js/mermaid-init.js
 
 validation:
   omitted_files: warn
@@ -59,6 +66,7 @@ theme:
     - toc.integrate
 
 markdown_extensions:
+  - admonition
   - attr_list
   - md_in_html
   - toc:
@@ -77,7 +85,11 @@ markdown_extensions:
   - pymdownx.emoji
   - pymdownx.keys
   - pymdownx.caret
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.snippets
   - pymdownx.details
 

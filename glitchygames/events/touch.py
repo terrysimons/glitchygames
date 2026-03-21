@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, override
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 
@@ -108,3 +111,20 @@ class TouchEventManager(ResourceManager):
         except pygame.error:
             LOG.debug('Failed to set allowed touch events: pygame not fully initialized')
         self.proxies = [TouchEventManager.TouchEventProxy(game=game)]
+
+    @classmethod
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add touch-specific arguments to the global parser.
+
+        This class method will get called automatically by the GameEngine class.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            argparse.ArgumentParser
+
+        """
+        _group = parser.add_argument_group('Touch Options')
+
+        return parser

@@ -19,6 +19,7 @@ import pygame
 
 from glitchygames import events
 from glitchygames.color import PURPLE
+from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
 from glitchygames.events.controller import ControllerEventManager
 from glitchygames.events.drop import DropEventManager
@@ -37,8 +38,6 @@ from glitchygames.timing import create_timer
 if TYPE_CHECKING:
     from collections import OrderedDict
     from collections.abc import Callable
-
-    from glitchygames.events.app import AppEventManager
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
@@ -235,15 +234,17 @@ class GameEngine(events.EventManager):
         group.add_argument('--video-driver', default=None, choices=default_videodriver)
 
         event_managers = (
+            AppEventManager,
             AudioEventManager,
-            DropEventManager,
             ControllerEventManager,
+            DropEventManager,
             FontManager,
             GameEventManager,
             JoystickEventManager,
             KeyboardEventManager,
             MidiEventManager,
             MouseEventManager,
+            TouchEventManager,
             WindowEventManager,
         )
 

@@ -1,7 +1,12 @@
 """App event manager for application lifecycle events."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any, ClassVar, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 
@@ -77,3 +82,20 @@ class AppEventManager(ResourceManager):
             LOG.debug('Failed to set allowed app events: pygame not fully initialized')
         self.game: Any = game
         self.proxies = [AppEventManager.AppEventProxy(game=game)]
+
+    @classmethod
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add app-specific arguments to the global parser.
+
+        This class method will get called automatically by the GameEngine class.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        Returns:
+            argparse.ArgumentParser
+
+        """
+        _group = parser.add_argument_group('App Options')
+
+        return parser

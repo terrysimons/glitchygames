@@ -29,7 +29,13 @@ class MidiEventManager(ResourceManager):
             """Initialize the MIDI event proxy with a game object."""
             super().__init__(game)
             self.game: Any = game
-            self.proxies = [self.game]
+            # Proxy to game first, then pygame.midi for subsystem queries
+            # (get_count, get_device_info, get_default_input_id, etc.)
+            try:
+                self.proxies = [self.game, pygame.midi]
+            except AttributeError:
+                # pygame.midi may not be available on all platforms
+                self.proxies = [self.game]
 
         @override
         def on_midi_in_event(self: Self, event: HashableEvent) -> None:
