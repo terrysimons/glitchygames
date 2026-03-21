@@ -100,20 +100,20 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
     def __init__(
         self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
+        x: int | float,
+        y: int | float,
+        width: int | float,
+        height: int | float,
         name: str | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize a MenuBar.
 
         Args:
-            x (int): The x coordinate of the menu bar.
-            y (int): The y coordinate of the menu bar.
-            width (int): The width of the menu bar.
-            height (int): The height of the menu bar.
+            x (int | float): The x coordinate of the menu bar.
+            y (int | float): The y coordinate of the menu bar.
+            width (int | float): The width of the menu bar.
+            height (int | float): The height of the menu bar.
             name (str | None): The name of the menu bar.
             groups (pygame.sprite.LayeredDirty[Any] | None): The sprite groups to add the sprite to.
 
@@ -447,10 +447,10 @@ class MenuItem(BitmappySprite):
 
     def __init__(
         self: Self,
-        x: int = 0,
-        y: int = 0,
-        width: int = 1,
-        height: int = 1,
+        x: int | float = 0,
+        y: int | float = 0,
+        width: int | float = 1,
+        height: int | float = 1,
         name: str | None = None,
         filename: str | None = None,
         parent: object | None = None,
@@ -459,10 +459,10 @@ class MenuItem(BitmappySprite):
         """Initialize a MenuItem.
 
         Args:
-            x (int): The x coordinate of the menu item.
-            y (int): The y coordinate of the menu item.
-            width (int): The width of the menu item.
-            height (int): The height of the menu item.
+            x (int | float): The x coordinate of the menu item.
+            y (int | float): The y coordinate of the menu item.
+            width (int | float): The width of the menu item.
+            height (int | float): The height of the menu item.
             name (str | None): The name of the menu item.
             filename (str | None): The filename of the menu item.
             parent (object | None): The parent of the menu item.
@@ -492,11 +492,11 @@ class MenuItem(BitmappySprite):
         self.menu_offset_x: int = self.border_width
         self.menu_offset_y: int = self.border_width
         self.menu_image: pygame.Surface = pygame.Surface((0, 0))
-        self.menu_rect: pygame.Rect = pygame.Rect(0, 0, 0, 0)
+        self.menu_rect: pygame.FRect | pygame.Rect = pygame.Rect(0, 0, 0, 0)
         self.menu_down_image: pygame.Surface = pygame.Surface((0, 0))
-        self.menu_down_rect: pygame.Rect = pygame.Rect(0, 0, 0, 0)
+        self.menu_down_rect: pygame.FRect | pygame.Rect = pygame.Rect(0, 0, 0, 0)
         self.menu_up_image: pygame.Surface = pygame.Surface((0, 0))
-        self.menu_up_rect: pygame.Rect = pygame.Rect(0, 0, 0, 0)
+        self.menu_up_rect: pygame.FRect | pygame.Rect = pygame.Rect(0, 0, 0, 0)
         self.active: bool = False
         self.name = name
         self.parent = parent
@@ -922,10 +922,10 @@ class TextSprite(BitmappySprite):
 
     def __init__(
         self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
+        x: int | float,
+        y: int | float,
+        width: int | float,
+        height: int | float,
         name: str | None = None,
         background_color: tuple[int, ...] = (255, 0, 255),
         text_color: tuple[int, ...] = WHITE,
@@ -988,24 +988,24 @@ class TextSprite(BitmappySprite):
         self.update_text(text)
 
     @property
-    def x(self) -> int:
+    def x(self) -> int | float:
         """Get the x position."""
         return self._x
 
     @x.setter
-    def x(self, value: int) -> None:
+    def x(self, value: int | float) -> None:
         """Set the x position."""
         self._x = value
         self.rect.x = value
         self.dirty = 2
 
     @property
-    def y(self) -> int:
+    def y(self) -> int | float:
         """Get the y position."""
         return self._y
 
     @y.setter
-    def y(self, value: int) -> None:
+    def y(self, value: int | float) -> None:
         """Set the y position."""
         self._y = value
         self.rect.y = value
@@ -2035,7 +2035,7 @@ class SliderSprite(BitmappySprite):
 
     def update_slider_appearance(self) -> None:
         """Update the slider's gradient appearance based on its color."""
-        for x in range(self.width):
+        for x in range(int(self.width)):
             intensity = int((x / self.width) * 255)
             if self.name == 'R':
                 color = (intensity, 0, 0)
@@ -2785,10 +2785,10 @@ class Scrollbar:
 
     def __init__(
         self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
+        x: int | float,
+        y: int | float,
+        width: int | float,
+        height: int | float,
         total_items: int,
         visible_items: int,
         scroll_offset: float = 0,
@@ -2805,10 +2805,10 @@ class Scrollbar:
             scroll_offset: Current scroll position (0 to max_scroll)
 
         """
-        self.x: int = x
-        self.y: int = y
-        self.width: int = width
-        self.height: int = height
+        self.x: int | float = x
+        self.y: int | float = y
+        self.width: int | float = width
+        self.height: int | float = height
         self.total_items: int = total_items
         self.visible_items: int = visible_items
         self.scroll_offset: float = scroll_offset
@@ -2836,7 +2836,7 @@ class Scrollbar:
         return self.total_items > self.visible_items
 
     @property
-    def thumb_height(self) -> int:
+    def thumb_height(self) -> int | float:
         """Calculate thumb height based on content ratio."""
         if self.total_items <= 0:
             return self.height
@@ -2844,7 +2844,7 @@ class Scrollbar:
         return max(20, int(ratio * self.height))
 
     @property
-    def thumb_y(self) -> int:
+    def thumb_y(self) -> int | float:
         """Calculate thumb Y position."""
         if self.max_scroll <= 0:
             return self.y
@@ -3060,7 +3060,7 @@ class MultiLineTextBox(BitmappySprite):
             # For freetype fonts, use the size attribute (it's a float, not a tuple)
             line_height = int(getattr(self.font, 'size', 24))
         # Account for top/bottom padding (5px each = 10px total)
-        self.visible_lines: int = (self.height - 10) // line_height
+        self.visible_lines: int = int((self.height - 10) // line_height)
 
         # Create scrollbar component
         scrollbar_width = 8
@@ -3087,7 +3087,7 @@ class MultiLineTextBox(BitmappySprite):
         # pygame.font.Font - size() is a method
         return self.font.size(text)[0]
 
-    def _wrap_text(self, text: str, max_width: int) -> str:
+    def _wrap_text(self, text: str, max_width: int | float) -> str:
         """Wrap text to fit within the specified width.
 
         Returns:

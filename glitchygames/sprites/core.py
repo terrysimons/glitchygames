@@ -61,12 +61,32 @@ LOG = logging.getLogger('game.sprites')
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     """A root sprite class.  All Glitchy Games sprites inherit from this class."""
 
-    # Override pygame's optional typing — GlitchyGames sprites always have
-    # a valid image and rect after __init__.
-    image: pygame.Surface
-    rect: pygame.Rect
-
     log = LOG
+
+    # Override pygame's optional property typing — GlitchyGames sprites always
+    # have a valid image and rect after __init__, so the getter return types
+    # narrow out None.  Setters keep the parent's wider parameter types to
+    # satisfy LSP.
+
+    @property
+    @override
+    def image(self) -> pygame.Surface:
+        """Return the sprite image (always non-None for GlitchyGames sprites)."""
+        return self._gg_image
+
+    @image.setter
+    def image(self, value: pygame.Surface | None) -> None:
+        self._gg_image = cast(pygame.Surface, value)
+
+    @property
+    @override
+    def rect(self) -> pygame.FRect | pygame.Rect:
+        """Return the sprite rect (always non-None for GlitchyGames sprites)."""
+        return self._gg_rect
+
+    @rect.setter
+    def rect(self, value: pygame.FRect | pygame.Rect | None) -> None:
+        self._gg_rect = cast(pygame.FRect | pygame.Rect, value)
 
     def __init__(self: Self, groups: pygame.sprite.LayeredDirty[Any] | None = None) -> None:
         """Initialize a RootSprite.
@@ -79,8 +99,8 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(groups)
-        self.rect = pygame.Rect(0, 0, 0, 0)
-        self.image = pygame.Surface((0, 0))  # Non-null placeholder; subclasses replace in __init__
+        self._gg_rect = pygame.Rect(0, 0, 0, 0)
+        self._gg_image = pygame.Surface((0, 0))  # Non-null placeholder; subclasses replace
 
 
 class Sprite(RootSprite):
@@ -91,7 +111,7 @@ class Sprite(RootSprite):
     PROXIES: ClassVar = [pygame.sprite]
     # None means no breakpoints.  Empty list means all.
     SPRITE_BREAKPOINTS: ClassVar[list[str] | None] = None
-    SPRITE_COUNTERS: ClassVar[collections.OrderedDict[str, dict[str, int]]] = (
+    SPRITE_COUNTERS: ClassVar[collections.OrderedDict[str, dict[str, int | float]]] = (
         collections.OrderedDict()
     )
     SPRITE_COUNT = 0
@@ -119,10 +139,10 @@ class Sprite(RootSprite):
 
     def __init__(
         self: Self,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
+        x: int | float,
+        y: int | float,
+        width: int | float,
+        height: int | float,
         name: str | None = None,
         parent: object | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
@@ -130,10 +150,10 @@ class Sprite(RootSprite):
         """Initialize a Sprite.
 
         Args:
-            x (int): The x coordinate of the sprite.
-            y (int): The y coordinate of the sprite.
-            width (int): The width of the sprite.
-            height (int): The height of the sprite.
+            x (int | float): The x coordinate of the sprite.
+            y (int | float): The y coordinate of the sprite.
+            width (int | float): The width of the sprite.
+            height (int | float): The height of the sprite.
             name (str | None): The name of the sprite.
             parent (object | None): The parent of the sprite.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
@@ -217,42 +237,42 @@ class Sprite(RootSprite):
                         breakpoint()  # noqa: T100
 
     @property
-    def width(self: Self) -> int:
+    def width(self: Self) -> int | float:
         """Return the width of the sprite.
 
         Returns:
-            int: The width of the sprite.
+            int | float: The width of the sprite.
 
         """
-        return int(self.rect.width)
+        return self.rect.width
 
     @width.setter
-    def width(self: Self, new_width: int) -> None:
+    def width(self: Self, new_width: int | float) -> None:
         """Set the width of the sprite.
 
         Args:
-            new_width (int): The new width of the sprite.
+            new_width (int | float): The new width of the sprite.
 
         """
         self.rect.width = new_width
         self.dirty = 1 if not self.dirty else self.dirty
 
     @property
-    def height(self: Self) -> int:
+    def height(self: Self) -> int | float:
         """Return the height of the sprite.
 
         Returns:
-            int: The height of the sprite.
+            int | float: The height of the sprite.
 
         """
-        return int(self.rect.height)
+        return self.rect.height
 
     @height.setter
-    def height(self: Self, new_height: int) -> None:
+    def height(self: Self, new_height: int | float) -> None:
         """Set the height of the sprite.
 
         Args:
-            new_height (int): The new height of the sprite.
+            new_height (int | float): The new height of the sprite.
 
         """
         self.rect.height = new_height
@@ -877,10 +897,10 @@ class BitmappySprite(Sprite):
 
     def __init__(
         self: Self,
-        x: int = 0,
-        y: int = 0,
-        width: int = 32,
-        height: int = 32,
+        x: int | float = 0,
+        y: int | float = 0,
+        width: int | float = 32,
+        height: int | float = 32,
         name: str | None = None,
         filename: str | None = None,
         *,
@@ -919,8 +939,8 @@ class BitmappySprite(Sprite):
 
         # Initialize pixel data attributes
         self.pixels: list[tuple[int, ...]] = []
-        self.pixels_across: int = width
-        self.pixels_tall: int = height
+        self.pixels_across: int = int(width)
+        self.pixels_tall: int = int(height)
 
         # Try to load a file if one was specified, otherwise
         # if a width and height is specified, make a surface.
@@ -941,11 +961,13 @@ class BitmappySprite(Sprite):
         self.rect.y = y
         self.proxies = [self.parent]
 
-    def load(self: Self, filename: str | None = None) -> tuple[pygame.Surface, pygame.Rect, str]:
+    def load(
+        self: Self, filename: str | None = None,
+    ) -> tuple[pygame.Surface, pygame.FRect | pygame.Rect, str]:
         """Load a sprite from a Bitmappy config file using the factory.
 
         Returns:
-            tuple[pygame.Surface, pygame.Rect, str]: The result.
+            tuple[pygame.Surface, pygame.FRect | pygame.Rect, str]: The result.
 
         """
         self.log.debug(f'=== Starting load from {filename} ===')
@@ -1184,8 +1206,8 @@ class BitmappySprite(Sprite):
             self.log.debug(f'Starting deflate for {self.name} in {file_format} format')
 
             # Handle empty surfaces
-            pixels_across = getattr(self, 'pixels_across', self.width)
-            pixels_tall = getattr(self, 'pixels_tall', self.height)
+            pixels_across: int = int(getattr(self, 'pixels_across', self.width))
+            pixels_tall: int = int(getattr(self, 'pixels_tall', self.height))
             expected_pixels = pixels_across * pixels_tall
 
             if expected_pixels == 0:
@@ -1311,8 +1333,8 @@ class BitmappySprite(Sprite):
         # Process pixels into rows
         pixel_rows: list[str] = []
         # Use height and width if pixels_tall/pixels_across not available
-        pixels_tall: int = getattr(self, 'pixels_tall', self.height)
-        pixels_across: int = getattr(self, 'pixels_across', self.width)
+        pixels_tall: int = int(getattr(self, 'pixels_tall', self.height))
+        pixels_across: int = int(getattr(self, 'pixels_across', self.width))
 
         for y in range(pixels_tall):
             row: str = ''
@@ -1800,18 +1822,18 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
 
     def __init__(
         self: Self,
-        x: int = 0,
-        y: int = 0,
-        width: int = 32,
-        height: int = 32,
+        x: int | float = 0,
+        y: int | float = 0,
+        width: int | float = 32,
+        height: int | float = 32,
         name: str | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the FocusableSingletonBitmappySprite.
 
         Args:
-            x (int): The x coordinate of the sprite.
-            y (int): The y coordinate of the sprite.
+            x (int | float): The x coordinate of the sprite.
+            y (int | float): The y coordinate of the sprite.
             width (int): The width of the sprite.
             height (int): The height of the sprite.
             name (str): The name of the sprite.

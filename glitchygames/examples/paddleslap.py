@@ -161,9 +161,9 @@ class TextSprite(Sprite):
                 """
                 (self.image, self.rect) = self.font.render(string, WHITE)  # type: ignore[union-attr]
                 # self.image
-                surface.blit(self.image, self.rect.center)  # type: ignore[union-attr, arg-type]
-                self.rect.center = surface.get_rect().center  # type: ignore[union-attr]
-                self.rect.y += self.line_height  # type: ignore[union-attr]
+                surface.blit(self.image, self.rect.center)
+                self.rect.center = surface.get_rect().center
+                self.rect.y += self.line_height
 
             def reset(self: Self) -> None:
                 """Reset the text box.

@@ -115,7 +115,7 @@ def _lint_cves(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='format')
+@nox.session(python=['3.14'], reuse_venv=False, name='format')
 def format_all(session: nox.Session) -> None:
     """Run all formatters (code + TOML)."""
     session.install(_ALL_EXTRAS)
@@ -123,7 +123,7 @@ def format_all(session: nox.Session) -> None:
     _format_toml(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='lint')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint')
 def lint_all(session: nox.Session) -> None:
     """Run all linters (code, docs, YAML, TOML, deps, dead code, CVEs)."""
     session.install(_ALL_EXTRAS)
@@ -141,7 +141,7 @@ def lint_all(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='format-code')
+@nox.session(python=['3.14'], reuse_venv=False, name='format-code')
 def format_code(session: nox.Session) -> None:
     """Format Python code with ruff (import sorting + black-style formatting)."""
     session.install(_ALL_EXTRAS)
@@ -159,14 +159,14 @@ def format_toml(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='lint-code')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-code')
 def lint_code(session: nox.Session) -> None:
     """Lint Python code with ruff."""
     session.install(_ALL_EXTRAS)
     _lint_code(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='lint-docs')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-docs')
 def lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
     session.install(_ALL_EXTRAS)
@@ -204,21 +204,21 @@ def lint_toml(session: nox.Session) -> None:
     _lint_toml(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='lint-dependencies')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-dependencies')
 def lint_dependencies(session: nox.Session) -> None:
     """Check for dependency issues with deptry."""
     session.install(_ALL_EXTRAS)
     _lint_dependencies(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='lint-dead-code')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-dead-code')
 def lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
     session.install(_ALL_EXTRAS)
     _lint_dead_code(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='lint-cves')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-cves')
 def lint_cves(session: nox.Session) -> None:
     """Audit dependencies for known CVEs with pip-audit."""
     session.install(_ALL_EXTRAS)
@@ -240,21 +240,21 @@ def _static_analysis_ty(session: nox.Session) -> None:
     session.run('ty', 'check')
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='static-analysis-basedpyright')
+@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-basedpyright')
 def static_analysis_basedpyright(session: nox.Session) -> None:
     """Run static type analysis with basedpyright."""
     session.install(_ALL_EXTRAS)
     _static_analysis_basedpyright(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='static-analysis-ty')
+@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-ty')
 def static_analysis_ty(session: nox.Session) -> None:
     """Run static type analysis with ty (Astral's type checker)."""
     session.install(_ALL_EXTRAS)
     _static_analysis_ty(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='static-analysis')
+@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis')
 def static_analysis(session: nox.Session) -> None:
     """Run all static type analysis (basedpyright + ty)."""
     session.install(_ALL_EXTRAS)
@@ -267,7 +267,7 @@ def static_analysis(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.13'], reuse_venv=False)
+@nox.session(python=['3.14'], reuse_venv=False)
 def test(session: nox.Session) -> None:
     """Run tests."""
     session.install(_ALL_EXTRAS)
@@ -293,7 +293,7 @@ def test(session: nox.Session) -> None:
     session.run('pytest', *args, env=env)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='performance-test')
+@nox.session(python=['3.14'], reuse_venv=False, name='performance-test')
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
     session.install(_ALL_EXTRAS)
@@ -355,21 +355,21 @@ def _safety_scan(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='bandit-scan')
+@nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan')
 def bandit_scan(session: nox.Session) -> None:
     """Run bandit security scan."""
     session.install(_ALL_EXTRAS)
     _bandit_scan(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='safety-scan')
+@nox.session(python=['3.14'], reuse_venv=False, name='safety-scan')
 def safety_scan(session: nox.Session) -> None:
     """Run safety vulnerability scan."""
     session.install(_ALL_EXTRAS)
     _safety_scan(session)
 
 
-@nox.session(python=['3.13'], reuse_venv=False, name='security-scan')
+@nox.session(python=['3.14'], reuse_venv=False, name='security-scan')
 def security_scan(session: nox.Session) -> None:
     """Run all security scanning tools (bandit + safety)."""
     session.install(_ALL_EXTRAS)

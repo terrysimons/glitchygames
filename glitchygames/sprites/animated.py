@@ -12,7 +12,7 @@ import tomllib
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
-from typing import IO, Any, Self, override
+from typing import IO, Any, Self, cast, override
 
 import pygame
 
@@ -683,12 +683,31 @@ class SpriteFrame:
 class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     """A prototype Sprite Animation class with proper dirty sprite integration."""
 
-    # Override pygame's optional typing — AnimatedSprite always has
-    # a valid image and rect after __init__.
-    image: pygame.Surface
-    rect: pygame.Rect
-
     log = LOG
+
+    # Override pygame's optional property typing — AnimatedSprite always has
+    # a valid image and rect after __init__, so the getter return types narrow
+    # out None.  Setters keep the parent's wider parameter types to satisfy LSP.
+
+    @property
+    @override
+    def image(self) -> pygame.Surface:
+        """Return the sprite image (always non-None for AnimatedSprite)."""
+        return self._gg_image
+
+    @image.setter
+    def image(self, value: pygame.Surface | None) -> None:
+        self._gg_image = cast(pygame.Surface, value)
+
+    @property
+    @override
+    def rect(self) -> pygame.FRect | pygame.Rect:
+        """Return the sprite rect (always non-None for AnimatedSprite)."""
+        return self._gg_rect
+
+    @rect.setter
+    def rect(self, value: pygame.FRect | pygame.Rect | None) -> None:
+        self._gg_rect = cast(pygame.FRect | pygame.Rect, value)
 
     def __init__(
         self: Self,
@@ -721,8 +740,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         self._surface_cache: dict[str, pygame.Surface] = {}
 
         # Initialize with default surface
-        self.image = pygame.Surface((32, 32))
-        self.rect = pygame.Rect(0, 0, 32, 32)
+        self._gg_image = pygame.Surface((32, 32))
+        self._gg_rect = pygame.Rect(0, 0, 32, 32)
 
         if filename:
             self.load(filename)

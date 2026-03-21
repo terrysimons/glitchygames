@@ -14797,7 +14797,7 @@ pixels = \"\"\"
         self._update_canvas_indicators()
 
     def _create_slider_indicator_sprite(
-        self, controller_id: int, color: tuple[int, ...], slider_rect: pygame.Rect
+        self, controller_id: int, color: tuple[int, ...], slider_rect: pygame.FRect | pygame.Rect
     ) -> BitmappySprite:
         """Create a proper Bitmappy sprite for slider indicator.
 
@@ -14807,8 +14807,8 @@ pixels = \"\"\"
         """
         # Create a circular indicator sprite
         indicator_size = 16
-        center_x = slider_rect.x + slider_rect.width // 2
-        center_y = slider_rect.y + slider_rect.height // 2
+        center_x = slider_rect.x + slider_rect.width / 2
+        center_y = slider_rect.y + slider_rect.height / 2
 
         # Create the sprite
         indicator = BitmappySprite(

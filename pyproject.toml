@@ -12,9 +12,9 @@ maintainers = [
 ]
 readme = "README.md"
 license = "BSD-3-Clause"
-requires-python = ">=3.13,<4.0"
+requires-python = ">=3.14,<4.0"
 classifiers = [
-  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "License :: OSI Approved :: BSD License",
   "Operating System :: OS Independent",
 ]
@@ -159,7 +159,7 @@ include = [
   "scripts/**/*.py",
   "noxfile.py",
 ]
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
@@ -248,7 +248,7 @@ known-first-party = ["glitchygames"]
 
 ## ty (Astral's type checker) configuration
 [tool.ty.environment]
-python-version = "3.13"
+python-version = "3.14"
 extra-paths = ["scripts"]
 
 [tool.ty.src]

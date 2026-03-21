@@ -7,6 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
+import pygame.midi
 
 from glitchygames.events import MIDI_EVENTS
 
