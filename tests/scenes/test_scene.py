@@ -1,15 +1,14 @@
 """Tests for Scene class functionality."""
 
-
-from glitchygames.color import BLUE, RED
-from glitchygames.scenes import Scene
-import pygame
-import pytest
-from glitchygames.scenes import Scene, SceneManager
-from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 import sys
 from pathlib import Path
 
+import pygame
+import pytest
+
+from glitchygames.color import BLUE, RED
+from glitchygames.scenes import Scene, SceneManager
+from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 

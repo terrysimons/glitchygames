@@ -25,10 +25,10 @@ from glitchygames.events import (
 from glitchygames.events.window import WindowEventManager
 from tests.mocks.test_mock_factory import MockFactory
 
-
 # ---------------------------------------------------------------------------
 # Fixtures (from test_window_events_manager_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_game(mocker):
@@ -139,17 +139,16 @@ class TestWindowEventManager:
         assert len(manager.proxies) == 1
 
     def test_args(self):
-        import argparse
 
         parser = argparse.ArgumentParser()
         result = WindowEventManager.args(parser)
         assert result is parser
 
 
-
 # ---------------------------------------------------------------------------
 # WindowEventProxy forwarding tests (from test_window_events_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 class TestWindowEventProxyForwarding:
     """Test each WindowEventProxy forwarding method individually."""
@@ -283,17 +282,15 @@ class TestWindowEventProxyForwarding:
 
     def test_manager_args_classmethod(self, mock_pygame_patches, mocker):
         """args() classmethod should return the parser with Window Options group."""
-        import argparse
-
         parser = argparse.ArgumentParser()
         result = WindowEventManager.args(parser)
         assert result is parser
 
 
-
 # ---------------------------------------------------------------------------
 # WindowEvents interface and manager tests (from test_events_window_events.py)
 # ---------------------------------------------------------------------------
+
 
 class TestWindowEvents:
     """Test WindowEvents interface functionality."""
@@ -738,4 +735,3 @@ class TestWindowEvents:
         )
         stub.options = scene_mock.options
         return scene_mock
-

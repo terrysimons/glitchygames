@@ -4,17 +4,20 @@ This module provides performance optimizations for the multi-controller system,
 including caching, memory management, and performance monitoring.
 """
 
+from __future__ import annotations
+
 import logging
 import threading
 import time
 import weakref
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.multi_controller_manager import MultiControllerManager
-from glitchygames.tools.visual_collision_manager import VisualCollisionManager
+if TYPE_CHECKING:
+    from glitchygames.tools.controller_selection import ControllerSelection
+    from glitchygames.tools.multi_controller_manager import MultiControllerManager
+    from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 
 LOG = logging.getLogger('game.tools.multi_controller_performance')
 

@@ -108,7 +108,7 @@ class AnimationGame(Scene):
                 f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)'
             )
             self.log.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
-        except (FileNotFoundError, ValueError, RuntimeError):
+        except FileNotFoundError, ValueError, RuntimeError:
             self.log.exception('Failed to load animation')
             raise
 

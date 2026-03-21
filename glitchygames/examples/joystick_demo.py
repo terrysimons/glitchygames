@@ -1095,7 +1095,7 @@ class JoystickScene(Scene):
         try:
             # Convert tab label (which is a string representation of controller ID) back to int
             self.active_controller_index = int(tab_label)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             self.active_controller_index = None
         # Force text sprite to refresh with new filter
         self.text_sprite.update(

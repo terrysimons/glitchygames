@@ -15,28 +15,12 @@ from glitchygames.tools.visual_collision_manager import (
     VisualCollisionManager,
 )
 
-
 """Test suite for multi-controller system.
 
 This module provides comprehensive tests for the multi-controller navigation system,
 including controller assignment, selection management, visual collision avoidance,
 and integration with the bitmappy tool.
 """
-
-import time
-
-import pytest
-
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.multi_controller_manager import (
-    ControllerInfo,
-    ControllerStatus,
-    MultiControllerManager,
-)
-from glitchygames.tools.visual_collision_manager import (
-    IndicatorShape,
-    VisualCollisionManager,
-)
 
 
 class TestMultiControllerManager:
@@ -551,6 +535,7 @@ class TestMultiControllerIntegration:
 
 if __name__ == '__main__':
     pytest.main([__file__])
+
 
 class TestMultiControllerManagerCleanup:
     """Test cleanup_inactive_controllers method."""

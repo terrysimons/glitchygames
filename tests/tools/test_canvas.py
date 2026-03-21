@@ -1,8 +1,6 @@
 """Tests for canvas functionality and deeper coverage."""
 
-from pathlib import Path
 from typing import cast
-import sys
 
 import pygame
 import pytest
@@ -16,7 +14,6 @@ from glitchygames.tools.canvas_interfaces import (
     AnimatedCanvasInterface,
     StaticCanvasInterface,
 )
-from tests.mocks import MockFactory
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -138,6 +135,7 @@ class TestCanvasInterfaces:
         # Test basic properties - StaticSpriteSerializer doesn't have canvas_sprite attribute
         # It's an abstract base class, so we just verify it can be instantiated
         assert serializer is not None
+
 
 CANVAS_SIZE = 4
 PIXEL_COUNT = 16

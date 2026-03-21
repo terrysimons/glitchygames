@@ -1,52 +1,41 @@
 """Tests for animated sprite functionality."""
 
-
+import math
 import shutil
+import sys
 import tempfile
+from io import StringIO
 from pathlib import Path
 from typing import cast
+
 import pygame
 import pytest
 from scripts.sprite_stack import (
     SpriteStack,
     SpriteStackInterface,
 )
+
 import glitchygames.sprites
 from glitchygames.sprites import (
-    AnimatedSprite,
     AnimatedSpriteInterface,
     BitmappySprite,
     SpriteFactory,
-    SpriteFrame,
 )
-from tests.mocks.test_mock_factory import MockFactory
-import math
-import sys
 from glitchygames.sprites.animated import (
     AnimatedSprite,
     SpriteFrame,
     _convert_pixels_to_rgb_if_possible,
     _convert_pixels_to_rgba_if_needed,
+    _create_alpha_surface,
+    _create_indexed_surface,
     _extract_pixel_colors,
     _lookup_in_map,
     _lookup_pixel_char,
+    _lookup_rgba_pixel_char,
     _needs_alpha_channel,
     _normalize_pixel_for_color_map,
 )
-from glitchygames.sprites.animated import (
-    AnimatedSprite,
-    SpriteFrame,
-)
-from io import StringIO
-from glitchygames.sprites.animated import (
-    AnimatedSprite,
-    SpriteFrame,
-    _create_alpha_surface,
-    _create_indexed_surface,
-    _lookup_pixel_char,
-    _lookup_rgba_pixel_char,
-)
-
+from tests.mocks.test_mock_factory import MockFactory
 
 original_sprite_factory_load_sprite = glitchygames.sprites.SpriteFactory.load_sprite
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

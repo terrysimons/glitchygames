@@ -1,9 +1,7 @@
 """Tests for film strip tool functionality, coverage, and edge cases."""
 
-from pathlib import Path
-from typing import cast
 import math
-import sys
+from typing import cast
 
 import pygame
 import pytest
@@ -21,7 +19,6 @@ from glitchygames.tools.film_strip import (
     FilmTabWidget,
 )
 from tests.mocks.test_mock_factory import MockFactory
-
 
 # Constants for test values - from test_tools_film_strip.py (smaller widget)
 FUNC_WIDGET_X = 10
@@ -89,7 +86,9 @@ class TestFilmStripFunctionality:
 
     def test_film_strip_widget_properties(self, mock_pygame_patches):
         """Test film strip widget properties."""
-        strip = film_strip.FilmStripWidget(FUNC_WIDGET_X, FUNC_WIDGET_Y, FUNC_WIDGET_WIDTH, FUNC_WIDGET_HEIGHT)
+        strip = film_strip.FilmStripWidget(
+            FUNC_WIDGET_X, FUNC_WIDGET_Y, FUNC_WIDGET_WIDTH, FUNC_WIDGET_HEIGHT
+        )
 
         # Test rect properties
         assert strip.rect is not None
@@ -4693,4 +4692,3 @@ class TestFilmStripRenderAnimationLabel:
         if anim_rect:
             result = widget._render_animation_label('idle', anim_rect)
             assert isinstance(result, pygame.Surface)
-

@@ -927,6 +927,7 @@ class TestMultiLineTextBoxFunctionality:
 # From test_widgets_coverage.py
 # ============================================================================
 
+
 class TestMenuBarEventHandlers:
     """Test MenuBar event handlers that are not covered."""
 
@@ -2869,6 +2870,7 @@ class TestMultiLineTextBoxUpdate:
 # ============================================================================
 # From test_widgets_deeper_coverage.py
 # ============================================================================
+
 
 class TestTextSpriteUpdate:
     """Test TextSprite update method with cursor blinking."""

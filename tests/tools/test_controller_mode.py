@@ -458,6 +458,7 @@ class TestModeSwitcher:
 
         assert new_mode is None  # Should be debounced
 
+
 class TestControllerModeStateLocationTypes:
     """Test ControllerModeState.get_location_type() method."""
 

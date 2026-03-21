@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Pause scene for paddleslap game."""
 
-from typing import Any, Self, override
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
 from glitchygames.color import WHITE
-from glitchygames.events.core import HashableEvent
 from glitchygames.scenes import Scene
+
+if TYPE_CHECKING:
+    from glitchygames.events.core import HashableEvent
 from glitchygames.sprites import Sprite
 
 

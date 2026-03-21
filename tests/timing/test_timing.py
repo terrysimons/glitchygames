@@ -1,6 +1,5 @@
 """Tests for timing functionality and coverage."""
 
-from pathlib import Path
 import sys
 
 import pytest
@@ -198,6 +197,7 @@ class TestCreateTimer:
     def test_create_timer_unknown_type_defaults_pygame(self):
         timer = create_timer('unknown')
         assert isinstance(timer, PygameTimer)
+
 
 ONE_MS_IN_NS = 1_000_000
 ONE_S_IN_NS = 1_000_000_000

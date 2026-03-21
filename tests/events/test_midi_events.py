@@ -32,6 +32,7 @@ pytestmark = pytest.mark.usefixtures('mock_pygame_patches')
 # MidiEvents interface tests (from test_events_midi_events.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMidiEvents:
     """Test MidiEvents interface functionality."""
 
@@ -323,6 +324,7 @@ class TestMidiEvents:
 # MidiEventProxy forwarding tests (from test_midi_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMidiEventProxyForwarding:
     """Test MidiEventProxy forwarding to game objects."""
 
@@ -379,6 +381,7 @@ class TestMidiEventProxyMissingHandlers:
 # MidiEventManager init tests (from test_midi_coverage.py + test_events_midi_events.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMidiEventManagerInit:
     """Test MidiEventManager initialization edge cases."""
 
@@ -423,6 +426,7 @@ class TestMidiEventManagerCoverage:
 # ---------------------------------------------------------------------------
 # MidiEventManager args tests (from test_midi_coverage.py + test_events_midi_events.py)
 # ---------------------------------------------------------------------------
+
 
 class TestMidiEventManagerArgs:
     """Test MidiEventManager.args class method."""

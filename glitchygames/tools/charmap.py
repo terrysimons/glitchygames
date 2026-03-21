@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Unicode character map utilities for sprite generation."""
 
+from __future__ import annotations
+
 import logging
 import unicodedata
-from collections.abc import Generator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # Set up logging
 LOG = logging.getLogger('glitchygames.tools.charmap')

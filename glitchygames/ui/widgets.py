@@ -100,10 +100,10 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
     def __init__(
         self: Self,
-        x: int | float,
-        y: int | float,
-        width: int | float,
-        height: int | float,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
         name: str | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
@@ -447,10 +447,10 @@ class MenuItem(BitmappySprite):
 
     def __init__(
         self: Self,
-        x: int | float = 0,
-        y: int | float = 0,
-        width: int | float = 1,
-        height: int | float = 1,
+        x: float = 0,
+        y: float = 0,
+        width: float = 1,
+        height: float = 1,
         name: str | None = None,
         filename: str | None = None,
         parent: object | None = None,
@@ -921,10 +921,10 @@ class TextSprite(BitmappySprite):
 
     def __init__(
         self: Self,
-        x: int | float,
-        y: int | float,
-        width: int | float,
-        height: int | float,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
         name: str | None = None,
         background_color: tuple[int, ...] = (255, 0, 255),
         text_color: tuple[int, ...] = WHITE,
@@ -992,7 +992,7 @@ class TextSprite(BitmappySprite):
         return self._x
 
     @x.setter
-    def x(self, value: int | float) -> None:
+    def x(self, value: float) -> None:
         """Set the x position."""
         self._x = value
         self.rect.x = value
@@ -1004,7 +1004,7 @@ class TextSprite(BitmappySprite):
         return self._y
 
     @y.setter
-    def y(self, value: int | float) -> None:
+    def y(self, value: float) -> None:
         """Set the y position."""
         self._y = value
         self.rect.y = value
@@ -1116,7 +1116,7 @@ class TextSprite(BitmappySprite):
                         text_surface, text_rect = render_result
                     else:
                         text_surface = render_result
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 # Fall back to pygame.font style (returns surface)
                 text_surface = self._render_with_pygame_font(
                     font, text, text_color, is_transparent=is_transparent
@@ -1176,7 +1176,7 @@ class TextSprite(BitmappySprite):
                         (cursor_x, cursor_y + cursor_height),
                         2,  # 2 pixel wide cursor
                     )
-            except (TypeError, AttributeError):
+            except TypeError, AttributeError:
                 # Handle mock objects in tests - just skip cursor drawing
                 pass
 
@@ -2536,7 +2536,7 @@ class TabControlSprite(BitmappySprite):
                     text_surface = font.render(tab_text, True, self.text_color)  # noqa: FBT003
                     text_rect = text_surface.get_rect(center=tab_rect.center)
                     self.image.blit(text_surface, text_rect)
-                except (pygame.error, AttributeError):
+                except pygame.error, AttributeError:
                     # Handle font loading errors gracefully
                     pass
 
@@ -2784,10 +2784,10 @@ class Scrollbar:
 
     def __init__(
         self,
-        x: int | float,
-        y: int | float,
-        width: int | float,
-        height: int | float,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
         total_items: int,
         visible_items: int,
         scroll_offset: float = 0,
@@ -3086,7 +3086,7 @@ class MultiLineTextBox(BitmappySprite):
         # pygame.font.Font - size() is a method
         return self.font.size(text)[0]
 
-    def _wrap_text(self, text: str, max_width: int | float) -> str:
+    def _wrap_text(self, text: str, max_width: float) -> str:
         """Wrap text to fit within the specified width.
 
         Returns:
@@ -3622,7 +3622,7 @@ class MultiLineTextBox(BitmappySprite):
                 pyperclip.copy(self._text[start:end])
             else:
                 pyperclip.copy(self._text)
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             self.log.error('Error copying text')  # noqa: TRY400
 
     def _handle_paste(self) -> None:
@@ -3636,7 +3636,7 @@ class MultiLineTextBox(BitmappySprite):
                 after_cursor = self._original_text[self.cursor_pos :]
                 self.text = before_cursor + clipboard_text + after_cursor
                 self.cursor_pos += len(clipboard_text)
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             self.log.error('Error pasting text')  # noqa: TRY400
 
     def _handle_cut(self) -> None:
@@ -3655,7 +3655,7 @@ class MultiLineTextBox(BitmappySprite):
                 pyperclip.copy(self._original_text)
                 self.text = ''
                 self.cursor_pos = 0
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             self.log.error('Error cutting text')  # noqa: TRY400
 
     def _handle_delete_selection(self, event: HashableEvent) -> bool:

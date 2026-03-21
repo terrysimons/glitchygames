@@ -1,16 +1,14 @@
 """Tests for voice backends registry module."""
 
-
+from glitchygames.events.voice_backends import get_microphone_backend
 from glitchygames.events.voice_backends.registry import (
     _probe_backend,
     _try_import_miniaudio,
     _try_import_portaudio,
 )
-from glitchygames.events.voice_backends import get_microphone_backend
 from glitchygames.events.voice_backends.registry import (
     get_microphone_backend as get_microphone_backend_direct,
 )
-
 
 _REGISTRY = 'glitchygames.events.voice_backends.registry'
 

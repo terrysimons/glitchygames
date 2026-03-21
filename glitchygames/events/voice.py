@@ -4,11 +4,15 @@ This module provides voice recognition capabilities for the glitchygames engine,
 allowing users to control the application through voice commands.
 """
 
+from __future__ import annotations
+
 import logging
 import threading
 import time
-from collections.abc import Callable
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from glitchygames.events import ResourceManager
 from glitchygames.events.voice_backends import get_microphone_backend
@@ -35,7 +39,7 @@ class VoiceEventManager(ResourceManager):
 
         log: ClassVar[logging.Logger] = LOG
 
-        def __init__(self, game: 'VoiceEventManager') -> None:
+        def __init__(self, game: VoiceEventManager) -> None:
             """Initialize the voice event proxy with a voice event manager."""
             super().__init__(game)
             self.game = game
@@ -110,11 +114,11 @@ class VoiceEventManager(ResourceManager):
                     try:
                         if callable(exit_cm):
                             exit_cm(None, None, None)
-                    except (OSError, RuntimeError):
+                    except OSError, RuntimeError:
                         LOG.debug('Voice backend cleanup raised error during probe', exc_info=True)
             self.log.info(f'Voice backend selected: {backend_name}')
             return mic_cls()
-        except (OSError, RuntimeError):
+        except OSError, RuntimeError:
             self.log.exception(f'Voice backend probe failed for {backend_name}')
             return None
         except Exception:
@@ -131,7 +135,7 @@ class VoiceEventManager(ResourceManager):
         try:
             self.microphone = sr.Microphone()  # type: ignore[union-attr]
             self.log.info('Microphone initialized successfully')
-        except (OSError, AttributeError):
+        except OSError, AttributeError:
             self.log.error('Failed to initialize microphone')  # noqa: TRY400
             self.microphone = None
 

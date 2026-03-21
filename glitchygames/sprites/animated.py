@@ -5,14 +5,18 @@ basic sprite functionality to support multi-frame animations with flexible
 timing and playback control.
 """
 
+from __future__ import annotations
+
 import abc
 import hashlib
 import logging
 import tomllib
 from collections import Counter
-from collections.abc import Sequence
 from pathlib import Path
-from typing import IO, Any, Self, cast, override
+from typing import IO, TYPE_CHECKING, Any, Self, cast, override
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 import pygame
 
@@ -334,7 +338,7 @@ def _create_indexed_surface(
 class FrameManager:
     """Centralized frame state management for animation system."""
 
-    def __init__(self, animated_sprite: 'AnimatedSprite') -> None:
+    def __init__(self, animated_sprite: AnimatedSprite) -> None:
         """Initialize with reference to the animated sprite."""
         self.animated_sprite = animated_sprite
         self._current_animation = ''
@@ -414,7 +418,7 @@ class FrameManager:
             return True
         return False
 
-    def get_frame_data(self) -> 'SpriteFrame | None':
+    def get_frame_data(self) -> SpriteFrame | None:
         """Get the current frame data.
 
         Returns:
@@ -472,7 +476,7 @@ class AnimatedSpriteInterface(abc.ABC):
     # Animation information properties
     @property
     @abc.abstractmethod
-    def frames(self: Self) -> dict[str, list['SpriteFrame']]:
+    def frames(self: Self) -> dict[str, list[SpriteFrame]]:
         """Return all frames for all animations (including interpolated)."""
         raise NotImplementedError
 
@@ -526,7 +530,7 @@ class AnimatedSpriteInterface(abc.ABC):
     def add_animation(
         self: Self,
         name: str,
-        frames: list['SpriteFrame'],
+        frames: list[SpriteFrame],
         metadata: dict[str, object] | None = None,
     ) -> None:
         """Add a new animation."""
@@ -538,7 +542,7 @@ class AnimatedSpriteInterface(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_frame(self: Self, animation_name: str, frame_index: int) -> 'SpriteFrame':
+    def get_frame(self: Self, animation_name: str, frame_index: int) -> SpriteFrame:
         """Get a specific frame from a specific animation."""
         raise NotImplementedError
 
@@ -596,7 +600,7 @@ class SpriteFrame:
         """Set the rect."""
         self._rect = new_rect
 
-    def __getitem__(self, index: int) -> 'SpriteFrame':
+    def __getitem__(self, index: int) -> SpriteFrame:
         """Return a sprite from the stack.
 
         Returns:
@@ -697,7 +701,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     @image.setter
     def image(self, value: pygame.Surface | None) -> None:
-        self._gg_image = cast(pygame.Surface, value)
+        self._gg_image = cast('pygame.Surface', value)
 
     @property
     @override
@@ -707,7 +711,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     @rect.setter
     def rect(self, value: pygame.FRect | pygame.Rect | None) -> None:
-        self._gg_rect = cast(pygame.FRect | pygame.Rect, value)
+        self._gg_rect = cast('pygame.FRect | pygame.Rect', value)
 
     def __init__(
         self: Self,
@@ -746,7 +750,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         if filename:
             self.load(filename)
 
-    def __getitem__(self: Self, animation_name: str) -> 'SpriteFrame | None':
+    def __getitem__(self: Self, animation_name: str) -> SpriteFrame | None:
         """Return the current frame of the specified animation.
 
         Returns:
@@ -755,7 +759,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         """
         return self._animations.get(animation_name, [None])[self.frame_manager.current_frame]
 
-    def get_current_frame(self: Self) -> 'SpriteFrame | None':
+    def get_current_frame(self: Self) -> SpriteFrame | None:
         """Return the current frame as a "SpriteFrame".
 
         Returns:
@@ -795,7 +799,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         return surface
 
     @staticmethod
-    def _create_optimized_surface(frame: 'SpriteFrame') -> pygame.Surface:
+    def _create_optimized_surface(frame: SpriteFrame) -> pygame.Surface:
         """Create an optimized surface from frame data.
 
         Returns:
@@ -851,7 +855,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
     @property
     @override
-    def frames(self: Self) -> dict[str, list['SpriteFrame']]:
+    def frames(self: Self) -> dict[str, list[SpriteFrame]]:
         """Return all frames for all animations."""
         return self._animations.copy()
 
@@ -1021,7 +1025,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
     def add_animation(
         self: Self,
         name: str,
-        frames: list['SpriteFrame'],
+        frames: list[SpriteFrame],
         metadata: dict[str, object] | None = None,
     ) -> None:
         """Add a new animation."""
@@ -1044,7 +1048,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
                     self.frame_manager.current_frame = 0
 
     @override
-    def get_frame(self: Self, animation_name: str, frame_index: int) -> 'SpriteFrame':
+    def get_frame(self: Self, animation_name: str, frame_index: int) -> SpriteFrame:
         """Get a specific frame from a specific animation.
 
         Returns:
@@ -1064,7 +1068,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
             )
         return frames[frame_index]
 
-    def add_frame(self: Self, animation_name: str, frame: 'SpriteFrame', index: int = -1) -> None:
+    def add_frame(self: Self, animation_name: str, frame: SpriteFrame, index: int = -1) -> None:
         """Add a frame to an animation."""
         if animation_name not in self._animations:
             self._animations[animation_name] = []
@@ -2197,7 +2201,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
 
         self._debug_frame_pixel_data(frame)
 
-    def _debug_frame_pixel_data(self: Self, frame: 'SpriteFrame') -> None:
+    def _debug_frame_pixel_data(self: Self, frame: SpriteFrame) -> None:
         """Debug pixel data for a frame."""
         if hasattr(frame, 'pixels') and frame.pixels:
             # Create hash of frame pixel data for debugging
@@ -2210,7 +2214,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):
         else:
             self.log.debug('  No pixel data available')
 
-    def _debug_frame_image_data(self: Self, frame: 'SpriteFrame') -> None:
+    def _debug_frame_image_data(self: Self, frame: SpriteFrame) -> None:
         """Debug image data for a frame."""
         try:
             pixel_array = pygame.surfarray.array3d(frame.image)  # type: ignore[no-untyped-call]

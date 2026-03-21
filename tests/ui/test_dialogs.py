@@ -944,6 +944,7 @@ class TestDeleteFrameDialogScene:
 # From test_dialogs_deeper_coverage.py
 # ============================================================================
 
+
 class TestNewCanvasDialogConfirm:
     """Test NewCanvasDialogScene.on_confirm_event."""
 
@@ -1428,6 +1429,7 @@ class TestDialogSubclassGroupsNone:
 # From test_confirm_dialog_coverage.py
 # ============================================================================
 
+
 def _create_confirm_dialog(mocker, confirm_callback=None, cancel_callback=None):
     """Create a ConfirmDialog with standard test configuration.
 
@@ -1780,6 +1782,7 @@ class TestConfirmDialogUpdate:
 # ============================================================================
 # From test_input_dialog_coverage.py
 # ============================================================================
+
 
 def _create_input_dialog(mocker, parent=None):
     """Create an InputDialog with standard test configuration.

@@ -41,7 +41,7 @@ class ServiceConfig:
     png_scale: int = field(default_factory=lambda: int(os.environ.get('SPRITE_PNG_SCALE', '1')))
 
     @classmethod
-    def from_env(cls) -> 'ServiceConfig':
+    def from_env(cls) -> ServiceConfig:
         """Create configuration from environment variables.
 
         Returns:

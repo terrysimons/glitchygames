@@ -528,7 +528,7 @@ class TestErrorRecoveryEdgeCases:
         try:
             self.manager.is_controller_active(0)
             self.manager.get_controller_info(0)
-        except (TypeError, AttributeError):
+        except TypeError, AttributeError:
             # Should not crash the entire system
             LOG.debug('System error during corrupted state access handled gracefully')
 

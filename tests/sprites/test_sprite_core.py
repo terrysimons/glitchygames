@@ -1599,7 +1599,7 @@ class TestSpriteFactoryRealPygame:
         try:
             result = SpriteFactory.load_sprite(filename=None)
             assert result is not None
-        except (FileNotFoundError, ValueError, OSError):
+        except FileNotFoundError, ValueError, OSError:
             # Default file may not exist in test environment, but line 1812 was exercised
             pass
 
@@ -2111,7 +2111,7 @@ class TestSpriteFactoryLoadSpriteNone:
             result = SpriteFactory.load_sprite(filename=None)
             # If raspberry.toml exists, it should return an AnimatedSprite
             assert result is not None
-        except (FileNotFoundError, ValueError, OSError):
+        except FileNotFoundError, ValueError, OSError:
             # Default sprite file may not exist in test environment
             # The important thing is that line 1812 was exercised
             assert default_path.endswith('raspberry.toml')

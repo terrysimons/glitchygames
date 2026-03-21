@@ -1,8 +1,5 @@
 """Tests for charmap tool functionality and coverage."""
 
-import sys
-from pathlib import Path
-
 import pytest
 
 from glitchygames.tools import charmap
@@ -90,6 +87,7 @@ class TestCharmapFunctionality:
         assert hasattr(charmap, 'MAX_CHARS_TO_DISPLAY')
         assert isinstance(charmap.MAX_CHARS_TO_DISPLAY, int)
         assert charmap.MAX_CHARS_TO_DISPLAY > 0
+
 
 class TestIsDefinedNonWhitespacePrintableEdgeCases:
     """Tests for is_defined_non_whitespace_printable with edge cases."""

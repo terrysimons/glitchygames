@@ -25,10 +25,10 @@ from glitchygames.events import (
 from glitchygames.events.joystick import JoystickEventManager
 from tests.mocks.test_mock_factory import MockFactory
 
-
 # ---------------------------------------------------------------------------
 # Helper functions (from test_joystick_manager_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 def _make_joystick_mock(mocker, **overrides):
     """Create a standard mock joystick with optional overrides.
@@ -317,10 +317,10 @@ class TestJoystickDeviceAddedFallbackNotification:
         mock_game.on_joy_device_added_event.assert_called()
 
 
-
 # ---------------------------------------------------------------------------
 # JoystickEventProxy direct method tests (from test_joystick_events_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 class TestJoystickEventProxyDirectMethods:
     """Test JoystickEventProxy forwarding methods directly with mocked joystick."""
@@ -841,8 +841,6 @@ class TestJoystickEventManagerRouting:
 
     def test_manager_args_classmethod(self, mock_pygame_patches, mocker):
         """args() classmethod should return the parser with Joystick Options group."""
-        import argparse
-
         from glitchygames.events.joystick import JoystickEventManager
 
         parser = argparse.ArgumentParser()
@@ -850,10 +848,10 @@ class TestJoystickEventManagerRouting:
         assert result is parser
 
 
-
 # ---------------------------------------------------------------------------
 # Deeper coverage tests (from test_joystick_deeper.py)
 # ---------------------------------------------------------------------------
+
 
 class TestJoystickEventProxyWithoutInstanceId:
     """Test JoystickEventProxy initialization without instance_id."""
@@ -1052,10 +1050,10 @@ class TestJoystickEventManagerDeviceRemovedEdge:
         manager.on_joy_device_removed_event(event)
 
 
-
 # ---------------------------------------------------------------------------
 # JoystickEvents interface tests (from test_events_joystick_events.py)
 # ---------------------------------------------------------------------------
+
 
 class TestJoystickEvents:
     """Test JoystickEvents interface functionality."""
@@ -1385,4 +1383,3 @@ class TestJoystickManager:
         # Test button up
         up_event = HashableEvent(pygame.JOYBUTTONUP, joy=0, button=0)
         manager.on_joystick_button_up_event(up_event)
-

@@ -4,9 +4,13 @@
 This is a simple audio manager that can be used to manage audio.
 """
 
-import argparse
+from __future__ import annotations
+
 import logging
-from typing import Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, override
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
 

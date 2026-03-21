@@ -1,12 +1,9 @@
 """Tests for paddle game objects."""
 
-
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
 from glitchygames.movement.horizontal import Horizontal
 from glitchygames.movement.vertical import Vertical
 from tests.mocks import MockFactory
-from glitchygames.game_objects.paddle import HorizontalPaddle, VerticalPaddle
-
 
 POS_100 = 100
 POS_200 = 200

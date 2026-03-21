@@ -1,8 +1,12 @@
 """Game event manager for game-specific events."""
 
-import argparse
+from __future__ import annotations
+
 import logging
-from typing import Any, ClassVar, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
+
+if TYPE_CHECKING:
+    import argparse
 
 from glitchygames.events import GameEvents, HashableEvent, ResourceManager
 

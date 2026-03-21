@@ -272,7 +272,7 @@ class FontManager(ResourceManager):
                     name=font_config['font_name'], size=font_config['font_size']
                 ),
             )
-        except (TypeError, FileNotFoundError):
+        except TypeError, FileNotFoundError:
             # Note: Not sure why but pygame.freetype.SysFont doesn't
             # seem to work with pyinstaller packaged games.
             log.info('Loading Font: Built-In')
@@ -332,7 +332,7 @@ class FontManager(ResourceManager):
                 'GameFont',
                 pygame.font.SysFont(font_config['font_name'], font_config['font_size']),
             )
-        except (TypeError, FileNotFoundError):
+        except TypeError, FileNotFoundError:
             # Fall back to default font
             loaded_font = cast('GameFont', pygame.font.Font(None, font_config['font_size']))
 

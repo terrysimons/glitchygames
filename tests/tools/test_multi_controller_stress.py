@@ -315,7 +315,7 @@ class TestMultiControllerStress:
                 self.visual_manager.remove_controller_indicator(999)
                 self.visual_manager.update_controller_position(999, (0, 0))
 
-            except (KeyError, AttributeError, ValueError):
+            except KeyError, AttributeError, ValueError:
                 # Should handle errors gracefully
                 LOG.debug('Invalid controller operation handled gracefully')
 

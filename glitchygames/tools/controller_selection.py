@@ -323,7 +323,7 @@ class ControllerSelection:
         self.state.navigation_history.clear()
         LOG.debug('Controller %s reset to default state', self.controller_id)
 
-    def clone_state_to(self, target_controller: 'ControllerSelection') -> None:
+    def clone_state_to(self, target_controller: ControllerSelection) -> None:
         """Clone this controller's state to another controller.
 
         Args:

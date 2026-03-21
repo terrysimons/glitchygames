@@ -46,7 +46,7 @@ class TestControllerUndoRedoIntegration:
                     scene, 'selected_frame_visible', True
                 ):
                     scene._handle_redo()
-            except (AttributeError, ValueError):
+            except AttributeError, ValueError:
                 # Controller handler should handle exceptions gracefully
                 LOG.debug('Controller %d button press handler error suppressed', controller_id)
 
@@ -381,7 +381,7 @@ class TestControllerUndoRedoIntegration:
         # Call the controller handler (should not raise exception)
         try:
             mock_scene._handle_film_strip_button_press(controller_id, button)
-        except (AttributeError, ValueError):
+        except AttributeError, ValueError:
             pytest.fail('Controller handler should handle exceptions gracefully')
 
         # Verify undo was called

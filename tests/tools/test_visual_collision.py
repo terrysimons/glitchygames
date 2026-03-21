@@ -1,8 +1,5 @@
 """Tests for visual collision functionality and coverage."""
 
-import sys
-from pathlib import Path
-
 from glitchygames.tools.visual_collision_manager import (
     IndicatorShape,
     LocationType,
@@ -283,6 +280,7 @@ class TestVisualCollisionManagerModifiers:
 
         # Stale cache entry should be cleared
         assert (99, 99) not in manager.position_cache
+
 
 class TestRemoveControllerIndicatorForLocation:
     """Test remove_controller_indicator_for_location (lines 219-222)."""

@@ -25,7 +25,6 @@ from glitchygames.events import (
     MouseEventStubs,
     UnhandledEventError,
 )
-from glitchygames.events.core import HashableEvent as CoreHashableEvent
 from glitchygames.events.mouse import (
     MOUSE_BUTTON_LEFT,
     MOUSE_BUTTON_RIGHT,
@@ -38,10 +37,10 @@ from glitchygames.events.mouse import (
 )
 from tests.mocks.test_mock_factory import MockFactory
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_game(mocker):
@@ -54,6 +53,7 @@ def mock_game(mocker):
 # ---------------------------------------------------------------------------
 # MouseEvents interface tests (from test_events_mouse_events.py)
 # ---------------------------------------------------------------------------
+
 
 class TestMouseEventsInterface:
     """Test MouseEvents interface functionality."""
@@ -292,6 +292,7 @@ class TestMouseEventsInterface:
 # MousePointer tests (from test_mouse_events_coverage.py + test_mouse_events_manager_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMousePointerProperties:
     """Test MousePointer x and y properties."""
 
@@ -361,8 +362,10 @@ class TestMousePointerInit:
 
 
 # ---------------------------------------------------------------------------
-# collided_sprites helper tests (from test_mouse_events_coverage.py + test_mouse_events_manager_coverage.py)
+# collided_sprites helper tests
+# (from test_mouse_events_coverage.py + test_mouse_events_manager_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 class TestCollisionHelper:
     """Test the collided_sprites helper function."""
@@ -423,6 +426,7 @@ class TestCollidedSpritesNoCollision:
 # ---------------------------------------------------------------------------
 # MouseEventProxy drop event tests (from test_mouse_events_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 class TestMouseEventProxyDropEvent:
     """Test MouseEventProxy.on_mouse_drop_event and button-specific drop handlers."""
@@ -509,6 +513,7 @@ class TestMouseEventProxyDropEvent:
 # MouseEventProxy drag event tests (from test_mouse_events_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMouseEventProxyDragEvent:
     """Test MouseEventProxy.on_mouse_drag_event button routing."""
 
@@ -593,6 +598,7 @@ class TestMouseEventProxyDragEvent:
 # MouseEventProxy motion with collision tests (from test_mouse_events_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMouseEventProxyMotionWithCollision:
     """Test MouseEventProxy.on_mouse_motion_event with sprite collision."""
 
@@ -653,6 +659,7 @@ class TestMouseEventProxyMotionWithCollision:
 # MouseEventProxy button up scroll wheel tests (from test_mouse_events_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMouseEventProxyButtonUpScrollWheel:
     """Test scroll-wheel pass-through on button up events."""
 
@@ -686,6 +693,7 @@ class TestMouseEventProxyButtonUpScrollWheel:
 # ---------------------------------------------------------------------------
 # MouseEventProxy RuntimeError handling tests (from test_mouse_events_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 class TestMouseEventProxyButtonDownRuntimeError:
     """Test RuntimeError handling during on_mouse_button_down_event."""
@@ -761,6 +769,7 @@ class TestMouseEventProxyLeftButtonDownRuntimeError:
 # MouseEventProxy button handler tests (from test_mouse_events_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMouseEventProxyMiddleButtonHandlers:
     """Test middle button up and down handlers."""
 
@@ -824,6 +833,7 @@ class TestMouseEventProxyRightButtonHandlers:
 # ---------------------------------------------------------------------------
 # MouseEventProxy delegation tests (from test_mouse_events_manager_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 class TestMouseEventProxyDelegation:
     """Test MouseEventProxy event delegation."""
@@ -1014,6 +1024,7 @@ class TestMouseEventProxyDelegation:
 # MouseEventManager tests (from test_mouse_events_manager_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestMouseEventManagerInit:
     """Test MouseEventManager initialization."""
 
@@ -1030,6 +1041,7 @@ class TestMouseEventManagerInit:
 # ---------------------------------------------------------------------------
 # MouseEventManager routing tests (from test_events_mouse_events.py)
 # ---------------------------------------------------------------------------
+
 
 class TestMouseEventManagerRouting:
     """Test MouseEventManager in isolation."""

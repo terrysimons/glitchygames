@@ -24,10 +24,10 @@ from glitchygames.events import (
 from glitchygames.events.touch import TouchEventManager
 from tests.mocks.test_mock_factory import MockFactory
 
-
 # ---------------------------------------------------------------------------
 # Fixtures (from test_touch_events_manager_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_game_fixture(mocker):
@@ -44,6 +44,7 @@ def mock_event(mocker):
 # ---------------------------------------------------------------------------
 # TouchEvents interface tests (from test_events_touch_events.py)
 # ---------------------------------------------------------------------------
+
 
 class TestTouchEvents:
     """Test TouchEvents interface functionality."""
@@ -292,6 +293,7 @@ class TestTouchEvents:
 # TouchEventProxy forwarding tests (from test_touch_events_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestTouchEventProxyForwarding:
     """Test each TouchEventProxy forwarding method individually."""
 
@@ -380,6 +382,7 @@ class TestTouchEventProxyForwarding:
 # TouchEventProxy delegation tests (from test_touch_events_manager_coverage.py)
 # ---------------------------------------------------------------------------
 
+
 class TestTouchEventProxy:
     """Test TouchEventProxy event delegation."""
 
@@ -422,6 +425,7 @@ class TestTouchEventProxy:
 # ---------------------------------------------------------------------------
 # TouchEventManager tests (from test_touch_events_manager_coverage.py + test_events_touch_events.py)
 # ---------------------------------------------------------------------------
+
 
 class TestTouchEventManager:
     """Test TouchEventManager initialization."""

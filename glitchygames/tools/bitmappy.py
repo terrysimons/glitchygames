@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 # uses ast.NameConstant which was removed in Python 3.14.
 try:
     import aisuite as ai
-except (ImportError, AttributeError):
+except ImportError, AttributeError:
     ai = None  # ty: ignore[invalid-assignment]
 
 # Try to import backoff for retry logic
@@ -2402,7 +2402,7 @@ def ai_worker(
     except ImportError:
         log.exception('Failed to import aisuite')
         raise
-    except (OSError, ValueError, KeyError, AttributeError):
+    except OSError, ValueError, KeyError, AttributeError:
         log.exception('Fatal error in AI worker process')
         raise
 
@@ -3152,7 +3152,7 @@ class FilmStripSprite(BitmappySprite):
             LOG.debug('FilmStripSprite: Successfully converted image to sprite frame')
             return frame
 
-        except (pygame.error, OSError, ValueError, AttributeError):
+        except pygame.error, OSError, ValueError, AttributeError:
             LOG.exception(f'FilmStripSprite: Failed to convert image {file_path}')
             return None
 
@@ -4531,7 +4531,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                     filename=filename,
                     file_format=file_format,
                 )
-        except (OSError, ValueError, KeyError):
+        except OSError, ValueError, KeyError:
             self.log.exception('Error saving file')
             raise
 
@@ -5995,7 +5995,7 @@ class BitmapEditorScene(Scene):
             frame.image = surface
             LOG.debug(f'DEBUG: Created image for frame {frame_idx} from pixel data')
 
-        except (pygame.error, AttributeError, TypeError, ValueError, IndexError):
+        except pygame.error, AttributeError, TypeError, ValueError, IndexError:
             LOG.exception(f'DEBUG: Failed to create image for frame {frame_idx}')
 
     def _create_default_magenta_frame(self, frame: SpriteFrame, frame_idx: int) -> None:
@@ -6017,7 +6017,7 @@ class BitmapEditorScene(Scene):
 
             LOG.debug(f'DEBUG: Created default magenta frame for frame {frame_idx}')
 
-        except (pygame.error, AttributeError, TypeError, ValueError):
+        except pygame.error, AttributeError, TypeError, ValueError:
             LOG.exception(f'DEBUG: Failed to create default frame for frame {frame_idx}')
 
     def _ensure_frames_have_image_data(self, animated_sprite: AnimatedSprite) -> None:
@@ -7022,7 +7022,7 @@ class BitmapEditorScene(Scene):
                     film_strip_list[1], 'rect'
                 ):
                     second_strip_bottom = film_strip_list[1].rect.bottom
-            except (IndexError, KeyError, AttributeError):
+            except IndexError, KeyError, AttributeError:
                 # Handle race condition where film strips are in transition
                 second_strip_bottom = 0
             debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
@@ -7095,7 +7095,7 @@ class BitmapEditorScene(Scene):
                     film_strip_list[1], 'rect'
                 ):
                     second_strip_bottom = film_strip_list[1].rect.bottom
-            except (IndexError, KeyError, AttributeError):
+            except IndexError, KeyError, AttributeError:
                 # Handle race condition where film strips are in transition
                 second_strip_bottom = 0
             debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
@@ -7199,7 +7199,7 @@ class BitmapEditorScene(Scene):
                 self.log.warning('Voice recognition not available - microphone not found')
                 self.voice_manager = None
 
-        except (ImportError, OSError, AttributeError, RuntimeError):
+        except ImportError, OSError, AttributeError, RuntimeError:
             self.log.exception('Failed to initialize voice recognition')
             self.voice_manager = None
 
@@ -9466,7 +9466,7 @@ class BitmapEditorScene(Scene):
                 self.ai_process.start()
                 self.log.info(f'AI worker process started with PID: {self.ai_process.pid}')
 
-            except (OSError, RuntimeError):
+            except OSError, RuntimeError:
                 self.log.exception('Error initializing AI worker process')
                 self.ai_request_queue = None
                 self.ai_response_queue = None
@@ -9810,7 +9810,7 @@ class BitmapEditorScene(Scene):
                 f'Found {non_magenta_count} non-magenta pixels out of {len(pixels)} total'
             )
             return non_magenta_count > 0
-        except (AttributeError, TypeError, IndexError):
+        except AttributeError, TypeError, IndexError:
             self.log.exception('Error checking frame content')
             return False
 
@@ -9847,7 +9847,7 @@ class BitmapEditorScene(Scene):
             self.log.info(f'Saved current frame to temporary TOML: {temp_path}')
             return temp_path
 
-        except (OSError, ValueError, AttributeError, TypeError):
+        except OSError, ValueError, AttributeError, TypeError:
             self.log.exception('Error saving frame to temp TOML')
             return None
 
@@ -9901,7 +9901,7 @@ class BitmapEditorScene(Scene):
             self.log.info(f'Saved current strip to temporary TOML: {temp_path}')
             return temp_path
 
-        except (OSError, ValueError, AttributeError, KeyError, TypeError):
+        except OSError, ValueError, AttributeError, KeyError, TypeError:
             self.log.exception('Error saving strip to temp TOML')
             return None
 
@@ -9972,7 +9972,7 @@ pixels = \"\"\"
 
 {color_definitions}"""
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        except AttributeError, IndexError, KeyError, TypeError, ValueError:
             self.log.exception('Error generating frame TOML content')
             return ''
 
@@ -10046,7 +10046,7 @@ pixels = \"\"\"
             self.log.info(f'Loaded current frame as training example: {sprite_data["name"]}')
             return sprite_data
 
-        except (OSError, ValueError, KeyError, TypeError):
+        except OSError, ValueError, KeyError, TypeError:
             self.log.exception('Error loading temp TOML as example')
             return None
 
@@ -10364,7 +10364,7 @@ pixels = \"\"\"
         except Empty:
             # This is normal - no responses available
             pass
-        except (ValueError, TypeError, AttributeError, OSError):
+        except ValueError, TypeError, AttributeError, OSError:
             self.log.exception('Error processing AI response')
 
     @override
@@ -10399,7 +10399,7 @@ pixels = \"\"\"
                 self.log.info('Sending shutdown signal to AI worker...')
                 self.ai_request_queue.put(None, timeout=1.0)  # type: ignore[arg-type]  # Sentinel for shutdown
                 self.log.info('Shutdown signal sent successfully')
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 self.log.exception('Error sending shutdown signal')
 
     def _cleanup_ai_process(self) -> None:
@@ -10419,7 +10419,7 @@ pixels = \"\"\"
                     self.ai_process.kill()  # Force kill if still alive
                     self.ai_process.join(timeout=0.5)  # Final cleanup
             self.log.info('AI process cleanup completed')
-        except (OSError, RuntimeError, AttributeError):
+        except OSError, RuntimeError, AttributeError:
             self.log.exception('Error during AI process cleanup')
         finally:
             # Ensure process is cleaned up
@@ -10428,7 +10428,7 @@ pixels = \"\"\"
                     if self.ai_process.is_alive():
                         self.log.info('Force killing remaining AI process...')
                         self.ai_process.kill()
-                except (OSError, AttributeError, RuntimeError):
+                except OSError, AttributeError, RuntimeError:
                     self.log.debug('Error during final AI process cleanup (ignored)')
 
     def _cleanup_queues(self) -> None:
@@ -10437,14 +10437,14 @@ pixels = \"\"\"
             try:
                 self.ai_request_queue.close()
                 self.log.info('AI request queue closed')
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 self.log.exception('Error closing request queue')
 
         if hasattr(self, 'ai_response_queue') and self.ai_response_queue:
             try:
                 self.ai_response_queue.close()
                 self.log.info('AI response queue closed')
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 self.log.exception('Error closing response queue')
 
     def _cleanup_voice_recognition(self) -> None:
@@ -10473,7 +10473,7 @@ pixels = \"\"\"
                 self.voice_manager.stop_listening()
                 self.voice_manager = None
                 self.log.info('Voice recognition stopped successfully')
-            except (OSError, AttributeError, RuntimeError):
+            except OSError, AttributeError, RuntimeError:
                 self.log.exception('Error stopping voice recognition')
 
     @override
@@ -11246,7 +11246,7 @@ pixels = \"\"\"
             self.log.debug(f'Applied frame paste to {animation}[{frame}]')
             return True
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        except AttributeError, IndexError, KeyError, TypeError, ValueError:
             self.log.exception('Error applying frame paste')
             return False
 
@@ -11300,7 +11300,7 @@ pixels = \"\"\"
             else:
                 self.log.warning('Canvas not available for frame selection undo/redo')
                 return False
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        except AttributeError, IndexError, KeyError, TypeError, ValueError:
             self.log.exception('Error applying frame selection undo/redo')
             return False
 
@@ -11415,7 +11415,7 @@ pixels = \"\"\"
             )
             return True
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError, pygame.error):
+        except AttributeError, IndexError, KeyError, TypeError, ValueError, pygame.error:
             self.log.exception('Error adding frame for undo/redo')
             return False
 
@@ -11530,7 +11530,7 @@ pixels = \"\"\"
             )
             return True
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+        except AttributeError, IndexError, KeyError, TypeError, ValueError:
             self.log.exception('Error deleting frame for undo/redo')
             return False
 
@@ -11582,7 +11582,7 @@ pixels = \"\"\"
             self.log.warning(f"Animation '{animation_name}' not found")
             return False
 
-        except (AttributeError, IndexError, KeyError, TypeError):
+        except AttributeError, IndexError, KeyError, TypeError:
             self.log.exception('Error reordering frame for undo/redo')
             return False
 
@@ -11658,7 +11658,7 @@ pixels = \"\"\"
             self.log.debug(f"Added animation '{animation_name}' for undo/redo")
             return True
 
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError, pygame.error):
+        except AttributeError, IndexError, KeyError, TypeError, ValueError, pygame.error:
             self.log.exception('Error adding animation for undo/redo')
             return False
 
@@ -11716,7 +11716,7 @@ pixels = \"\"\"
             self.log.warning(f"Animation '{animation_name}' not found")
             return False
 
-        except (AttributeError, KeyError, TypeError):
+        except AttributeError, KeyError, TypeError:
             self.log.exception('Error deleting animation for undo/redo')
             return False
 
@@ -11755,7 +11755,7 @@ pixels = \"\"\"
             finally:
                 # Always reset the flag
                 self._applying_undo_redo = False
-        except (AttributeError, KeyError, TypeError):
+        except AttributeError, KeyError, TypeError:
             self.log.exception('Error applying controller position undo/redo')
             return False
 
@@ -11806,7 +11806,7 @@ pixels = \"\"\"
             finally:
                 # Always reset the flag
                 self._applying_undo_redo = False
-        except (AttributeError, KeyError, TypeError, ValueError):
+        except AttributeError, KeyError, TypeError, ValueError:
             self.log.exception('Error applying controller mode undo/redo')
             return False
 
@@ -11951,7 +11951,7 @@ pixels = \"\"\"
                 if film_strip_sprite.on_drop_file_event(event):
                     self.log.info(f"Film strip '{strip_name}' handled the drop")
                     return True
-            except (AttributeError, TypeError, ValueError, OSError, pygame.error):
+            except AttributeError, TypeError, ValueError, OSError, pygame.error:
                 self.log.exception('Error in film strip drop handler')
                 continue
         return False
@@ -12045,7 +12045,7 @@ pixels = \"\"\"
             self.log.info(f'Successfully converted PNG to bitmappy format: {output_path}')
             return str(output_path)
 
-        except (OSError, ValueError, TypeError, AttributeError, pygame.error):
+        except OSError, ValueError, TypeError, AttributeError, pygame.error:
             self.log.exception('Error converting PNG to bitmappy format')
             return None
 
@@ -12663,7 +12663,7 @@ pixels = \"\"\"
 
             self.log.info('Onion skinning initialized for loaded sprite')
 
-        except (ImportError, AttributeError, KeyError, TypeError):
+        except ImportError, AttributeError, KeyError, TypeError:
             self.log.exception('Failed to initialize onion skinning for loaded sprite')
 
     def handle_event(self, event: events.HashableEvent) -> None:
@@ -14089,7 +14089,7 @@ pixels = \"\"\"
             # Get the controller instance
             controller = pygame.joystick.Joystick(controller_id)
             return controller.get_button(button)
-        except (pygame.error, ValueError):
+        except pygame.error, ValueError:
             return False
 
     def _canvas_jump_horizontal(self, controller_id: int, distance: int) -> None:

@@ -1,7 +1,6 @@
 """Tests for canvas interface functionality, coverage, and edge cases."""
 
 import sys
-from pathlib import Path
 from typing import cast
 
 import pygame
@@ -22,7 +21,6 @@ from glitchygames.tools.canvas_interfaces import (
     StaticSpriteSerializer,
 )
 from tests.mocks.test_mock_factory import MockFactory
-
 
 # Constants for test values - large canvas (8x8)
 LARGE_CANVAS_SIZE = 8
@@ -2123,4 +2121,3 @@ class TestAnimatedCanvasRendererMethods:
         renderer = AnimatedCanvasRenderer(canvas_sprite)
         result = renderer.get_pixel_size()
         assert result == (8, 8)
-

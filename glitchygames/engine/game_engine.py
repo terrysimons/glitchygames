@@ -745,7 +745,7 @@ class GameEngine(events.EventManager):
             using_pygame_ce = (
                 importlib.metadata.distribution('pygame').metadata['Name'] == 'pygame-ce'
             )
-        except (NameError, importlib.metadata.PackageNotFoundError):
+        except NameError, importlib.metadata.PackageNotFoundError:
             using_pygame_ce = (
                 importlib.metadata.distribution('pygame-ce').metadata['Name'] == 'pygame-ce'
             )

@@ -83,7 +83,7 @@ class SpriteStackInterface(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def __getitem__(self: Self, index: int) -> 'SpriteFrame':
+    def __getitem__(self: Self, index: int) -> SpriteFrame:
         """Return a sprite from the stack."""
         raise NotImplementedError
 
@@ -109,7 +109,7 @@ class SpriteStackInterface(abc.ABC):
 class SpriteStack(SpriteStackInterface):
     """A prototype Sprite Stack class."""
 
-    def __init__(self: Self, sprites: list['SpriteFrame'] | list[pygame.Surface]) -> None:
+    def __init__(self: Self, sprites: list[SpriteFrame] | list[pygame.Surface]) -> None:
         """Initialize the Sprite Stack prototype."""
         super().__init__()
         self.stack: list[SpriteFrame] = []
@@ -144,7 +144,7 @@ class SpriteStack(SpriteStackInterface):
         self.stack[self.frame_index].rect = new_rect
 
     @override
-    def __getitem__(self: Self, index: int) -> 'SpriteFrame':
+    def __getitem__(self: Self, index: int) -> SpriteFrame:
         """Return a sprite from the stack.
 
         Returns:

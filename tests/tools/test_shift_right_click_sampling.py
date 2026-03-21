@@ -59,7 +59,7 @@ class TestShiftRightClickSampling:
                 self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
                 trigger = pygame.event.Event(0, {'name': 'A', 'value': alpha})
                 self.parent_scene.on_slider_event(event=pygame.event.Event(0), trigger=trigger)
-            except (pygame.error, ValueError, TypeError):
+            except pygame.error, ValueError, TypeError:
                 LOG.debug('Failed to sample color from screen at %s', screen_pos)
 
         self.parent_scene._sample_color_from_screen = mocker.Mock(side_effect=_sample_color_impl)
@@ -88,7 +88,7 @@ class TestShiftRightClickSampling:
         try:
             mock_key_state[pygame.K_LSHIFT] = False
             mock_key_state[pygame.K_RSHIFT] = False
-        except (IndexError, AttributeError):
+        except IndexError, AttributeError:
             # Fallback: just return all False
             pass
         mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
@@ -219,7 +219,7 @@ class TestShiftRightClickSampling:
         try:
             mock_key_state[pygame.K_LSHIFT] = False
             mock_key_state[pygame.K_RSHIFT] = False
-        except (IndexError, AttributeError):
+        except IndexError, AttributeError:
             # Fallback: just return all False
             pass
         mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)
@@ -372,7 +372,7 @@ class TestShiftRightClickSampling:
         try:
             mock_key_state[pygame.K_LSHIFT] = False
             mock_key_state[pygame.K_RSHIFT] = False
-        except (IndexError, AttributeError):
+        except IndexError, AttributeError:
             # Fallback: just return all False
             pass
         mocker.patch('pygame.key.get_pressed', return_value=mock_key_state)

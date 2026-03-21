@@ -1,13 +1,12 @@
 """Tests for voice recognition and event handling functionality."""
 
-
-import threading
-import pytest
-from glitchygames.events.voice import VoiceEventManager
 import contextlib
+import threading
+
+import pytest
+
 from glitchygames.events.voice import SPEECH_RECOGNITION_AVAILABLE, VoiceEventManager
 from glitchygames.tools.bitmappy import BitmapEditorScene
-
 
 pytestmark = pytest.mark.usefixtures('mock_pygame_patches')
 

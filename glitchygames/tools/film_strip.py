@@ -538,7 +538,7 @@ class FilmStripWidget:
                     # Try to get dimensions from frame if available
                     try:
                         width, height = frame.get_size()
-                    except (AttributeError, TypeError):
+                    except AttributeError, TypeError:
                         # Last resort: assume square (not ideal but prevents crash)
                         import math
 
@@ -636,7 +636,7 @@ class FilmStripWidget:
                         other_sprite.dirty = 1  # type: ignore[attr-defined]
                         # Recursively propagate to other sprite's groups with visited set
                         self._propagate_dirty_to_sprite_groups(other_sprite, visited)  # type: ignore[arg-type]
-        except (TypeError, AttributeError):
+        except TypeError, AttributeError:
             # If groups is not iterable or doesn't exist, skip propagation
             pass
 

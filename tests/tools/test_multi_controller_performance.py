@@ -863,4 +863,3 @@ class TestMemoryManagerEdgeCases:
         assert cleaned == 1
         assert 1 in memory_manager.weak_refs
         assert 2 not in memory_manager.weak_refs
-

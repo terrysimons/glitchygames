@@ -1,12 +1,12 @@
 """Tests for bitmappy tool functionality and coverage."""
 
-from pathlib import Path
-from typing import cast
-from unittest.mock import MagicMock
 import logging
 import os
 import sys
 import tempfile
+from pathlib import Path
+from typing import cast
+from unittest.mock import MagicMock
 
 import pygame
 import pytest
@@ -36,7 +36,6 @@ from glitchygames.tools.bitmappy import (
     resource_path,
 )
 from tests.mocks import MockFactory
-
 
 LOG = logging.getLogger('test.bitmappy_coverage')
 
@@ -1864,4 +1863,3 @@ class TestAnimatedCanvasSpriteDragMethods:
             del canvas._drag_frame
         canvas._cleanup_drag_state()
         assert canvas._drag_active is False
-

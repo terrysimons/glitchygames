@@ -56,7 +56,7 @@ def main() -> int:  # noqa: PLR0915
         logger.info(f'Loaded: {animated_sprite.name} ({animated_sprite.frame_count} frames)')
         logger.info(f'Scaled from {original_size} to {scaled_size} (5x upscale)')
         logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
-    except (FileNotFoundError, ValueError, RuntimeError):
+    except FileNotFoundError, ValueError, RuntimeError:
         logger.exception('Failed to load animation')
         return 1
 

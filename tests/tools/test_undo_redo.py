@@ -374,7 +374,6 @@ class TestDataClasses:
         assert pixel.new_color == (0, 255, 0)
         # Note: PixelChange no longer has timestamp attribute
 
-
     def test_empty_undo_data_raises_value_error(self):
         """Test that empty undo_data raises ValueError."""
         with pytest.raises(ValueError, match='Operation must have undo_data'):

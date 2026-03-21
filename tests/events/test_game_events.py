@@ -24,12 +24,11 @@ from glitchygames.events import (
 )
 from glitchygames.scenes import Scene
 from tests.mocks import MockFactory
-from tests.mocks.test_mock_factory import MockFactory as MockFactoryDirect
-
 
 # ---------------------------------------------------------------------------
 # Fixtures (from test_game_event_manager_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_game(mocker):
@@ -195,10 +194,10 @@ class TestGameEventManager:
         assert result is parser
 
 
-
 # ---------------------------------------------------------------------------
 # GameEventProxy forwarding tests (from test_game_events_coverage.py)
 # ---------------------------------------------------------------------------
+
 
 class TestGameEventProxyForwarding:
     """Tests for GameEventProxy event forwarding methods."""
@@ -564,10 +563,10 @@ class TestGameEventManagerArgs:
         assert args.profile is False
 
 
-
 # ---------------------------------------------------------------------------
 # GameEventManager tests (from test_game_events_manager.py)
 # ---------------------------------------------------------------------------
+
 
 class MockGame(Scene):
     """Simple mock game scene for testing."""
@@ -744,10 +743,10 @@ class TestGameManager:
         assert hasattr(args, 'profile')  # Should have profile option
 
 
-
 # ---------------------------------------------------------------------------
 # GameEvents interface tests (from test_events_game_events.py)
 # ---------------------------------------------------------------------------
+
 
 class TestGameEvents:
     """Test GameEvents interface functionality."""
@@ -1295,4 +1294,3 @@ class TestGameEvents:
         assert len(scene.game_events_received) == 1
         assert scene.game_events_received[0][0] == 'locale_changed'
         assert scene.game_events_received[0][1].type == pygame.LOCALECHANGED
-

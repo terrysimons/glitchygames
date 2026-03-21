@@ -4,15 +4,19 @@ This module provides enhanced error handling, logging, and configuration
 options for the multi-controller system.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import time
 import traceback
-from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGB_COMPONENT_COUNT
 
@@ -170,7 +174,7 @@ class MultiControllerErrorHandler:
         if error_key in self.recovery_handlers:
             try:
                 return self.recovery_handlers[error_key](error_info)
-            except (ValueError, TypeError, AttributeError, KeyError, OSError):
+            except ValueError, TypeError, AttributeError, KeyError, OSError:
                 self.logger.exception('Recovery handler failed')
                 return False
 
@@ -319,7 +323,7 @@ class MultiControllerConfig:
     enable_navigation_history: bool = True
 
     @classmethod
-    def from_file(cls, config_file: str) -> 'MultiControllerConfig':
+    def from_file(cls, config_file: str) -> MultiControllerConfig:
         """Load configuration from file.
 
         Args:

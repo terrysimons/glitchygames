@@ -1,16 +1,15 @@
 """Tests for BallSprite game object."""
 
-
+import math
 import sys
 from pathlib import Path
+
+import pygame
 import pytest
-from glitchygames.game_objects.ball import BallSprite
+
+from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.movement import Speed
 from tests.mocks.test_mock_factory import MockFactory
-import math
-import pygame
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
-
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 SIZE_20 = 20

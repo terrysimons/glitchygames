@@ -1,10 +1,17 @@
 """Tests for the GlitchyGames API client module."""
 
-
+import argparse
 import base64
 from pathlib import Path
+
 import pytest
+
 from glitchygames.api.client import (
+    _handle_extract_frames,
+    _handle_generate_sprite,
+    _log_extraction_metadata,
+    _save_apng_extracted_frames,
+    _save_extracted_frames,
     create_apng_from_frames,
     create_parser,
     display_sprite_ascii,
@@ -12,18 +19,6 @@ from glitchygames.api.client import (
     find_available_directory,
     find_available_path,
     generate_sprite,
-    main,
-    save_files_locally,
-)
-import argparse
-from glitchygames.api.client import (
-    _handle_extract_frames,
-    _handle_generate_sprite,
-    _log_extraction_metadata,
-    _save_apng_extracted_frames,
-    _save_extracted_frames,
-    find_available_directory,
-    find_available_path,
     main,
     save_files_locally,
 )

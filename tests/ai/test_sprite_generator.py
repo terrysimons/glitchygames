@@ -1,16 +1,5 @@
 """Tests for AI sprite generation functionality."""
 
-
-from glitchygames.ai.sprite_generator import (
-    build_refinement_messages,
-    build_sprite_generation_messages,
-    clean_ai_response,
-    detect_animation_request,
-    detect_refinement_request,
-    format_training_example,
-    get_sprite_size_hint,
-    validate_ai_response,
-)
 from glitchygames.ai.sprite_generator import (
     SpriteGenerationPrompt,
     _check_mixed_format,

@@ -305,7 +305,7 @@ class TestBitmappyMultiControllerIntegration:
                 ):
                     # Process event
                     pass
-            except (AttributeError, KeyError):
+            except AttributeError, KeyError:
                 # Should handle gracefully
                 LOG.debug('Invalid event handled gracefully: %s', event)
 
@@ -314,7 +314,7 @@ class TestBitmappyMultiControllerIntegration:
             # Try to access non-existent controller
             if 999 in self.scene.controller_selections:
                 self.scene.controller_selections[999].activate()
-        except (KeyError, AttributeError):
+        except KeyError, AttributeError:
             # Should handle gracefully
             LOG.debug('Malformed controller data handled gracefully')
 

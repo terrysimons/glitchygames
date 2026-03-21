@@ -19,11 +19,15 @@ Environment Variables:
     SPRITE_PNG_SCALE: Default PNG scale (default: 1)
 """
 
+from __future__ import annotations
+
 import logging
 import os
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
