@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-GlitchyGames is a Python 3.13 game engine built on Pygame with an event-driven architecture. The project includes a full-featured pixel art editor called Bitmappy and supports animation, UI widgets, and physics-based game objects.
+GlitchyGames is a Python 3.14 game engine built on Pygame with an event-driven architecture. The project includes a full-featured pixel art editor called Bitmappy and supports animation, UI widgets, and physics-based game objects.
 
 ## Development Setup
 
@@ -217,7 +217,7 @@ Features:
 
 ## Code Style
 
-- Python 3.13 target
+- Python 3.14 target
 - Ruff for linting/formatting (100 char line length)
 - Google-style docstrings
 - Pyright for type checking (lenient configuration)

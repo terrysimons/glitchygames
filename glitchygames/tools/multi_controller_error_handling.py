@@ -481,11 +481,11 @@ class MultiControllerValidator:
             True if valid
 
         """
-        if not isinstance(position, tuple):
+        if not isinstance(position, tuple):  # pyright: ignore[reportUnnecessaryIsInstance]
             return False
         if len(position) != POSITION_TUPLE_LENGTH:
             return False
-        return all(isinstance(value, (int, float)) for value in position)
+        return all(isinstance(value, (int, float)) for value in position)  # pyright: ignore[reportUnnecessaryIsInstance]
 
     def validate_color(self, color: tuple[int, ...]) -> bool:
         """Validate color tuple.
@@ -497,7 +497,7 @@ class MultiControllerValidator:
             True if valid
 
         """
-        if not isinstance(color, tuple):
+        if not isinstance(color, tuple):  # pyright: ignore[reportUnnecessaryIsInstance]
             return False
         if len(color) != RGB_COMPONENT_COUNT:
             return False
@@ -515,7 +515,7 @@ class MultiControllerValidator:
             True if valid
 
         """
-        if not isinstance(animation_name, str):
+        if not isinstance(animation_name, str):  # pyright: ignore[reportUnnecessaryIsInstance]
             return False
         return len(animation_name) > 0
 
@@ -529,6 +529,6 @@ class MultiControllerValidator:
             True if valid
 
         """
-        if not isinstance(frame_index, int):
+        if not isinstance(frame_index, int):  # pyright: ignore[reportUnnecessaryIsInstance]
             return False
         return frame_index >= 0

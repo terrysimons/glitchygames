@@ -4,7 +4,7 @@
   "exclude": ["**/__pycache__"],
   "stubPath": "typings",
   "defineConstant": { "DEBUG": true },
-  "pythonVersion": "3.13",
+  "pythonVersion": "3.14",
   "pythonPlatform": "All",
 
   "reportMissingImports": "error",
