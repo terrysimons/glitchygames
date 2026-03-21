@@ -75,8 +75,11 @@ class SpriteGenerationRequest(BaseModel):
     )
     output_path: str | None = Field(
         default=None,
-        description="Directory to save output files. Created if it doesn't exist.",
-        json_schema_extra={'example': '/path/to/sprites'},
+        description=(
+            "Directory (relative to the server's output root) to save output files. "
+            "Created if it doesn't exist."
+        ),
+        json_schema_extra={'example': 'sprites/output'},
     )
     model: str | None = Field(
         default=None,
