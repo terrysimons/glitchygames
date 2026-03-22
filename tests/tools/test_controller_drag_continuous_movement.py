@@ -5,8 +5,11 @@ import time
 
 import pytest
 
-from glitchygames.tools.operation_history import CanvasOperationTracker, FilmStripOperationTracker
-from glitchygames.tools.undo_redo_manager import UndoRedoManager
+from glitchygames.bitmappy.operation_history import (
+    CanvasOperationTracker,
+    FilmStripOperationTracker,
+)
+from glitchygames.bitmappy.undo_redo_manager import UndoRedoManager
 
 
 class TestControllerDragContinuousMovement:
@@ -101,7 +104,7 @@ class TestControllerDragContinuousMovement:
         mock_scene.mode_switcher.get_controller_position = mock_get_controller_position
 
         # Import the actual method from the real implementation
-        from glitchygames.tools.bitmappy import BitmapEditorScene
+        from glitchygames.bitmappy.editor import BitmapEditorScene
 
         # Create a real scene instance to test the actual method
         real_scene = BitmapEditorScene.__new__(BitmapEditorScene)
@@ -163,7 +166,7 @@ class TestControllerDragContinuousMovement:
         # Don't start a controller drag (no controller_drags entry)
 
         # Use the real method from BitmapEditorScene bound to a real instance
-        from glitchygames.tools.bitmappy import BitmapEditorScene
+        from glitchygames.bitmappy.editor import BitmapEditorScene
 
         real_scene = BitmapEditorScene.__new__(BitmapEditorScene)
         real_scene.controller_drags = mock_scene.controller_drags
@@ -205,7 +208,7 @@ class TestControllerDragContinuousMovement:
         }
 
         # Use the real method from BitmapEditorScene bound to a real instance
-        from glitchygames.tools.bitmappy import BitmapEditorScene
+        from glitchygames.bitmappy.editor import BitmapEditorScene
 
         real_scene = BitmapEditorScene.__new__(BitmapEditorScene)
         real_scene.controller_drags = mock_scene.controller_drags

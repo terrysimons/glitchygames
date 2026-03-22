@@ -14,7 +14,7 @@ Features:
 from dataclasses import dataclass
 from enum import Enum
 
-from glitchygames.tools.visual_collision_manager import LocationType
+from glitchygames.bitmappy.visual_collision_manager import LocationType
 
 MAX_MODE_HISTORY_SIZE = 10
 

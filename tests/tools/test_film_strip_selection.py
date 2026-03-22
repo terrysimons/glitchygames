@@ -15,9 +15,9 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.film_strip import FilmStripWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from glitchygames.tools.bitmappy import BitmapEditorScene
-from glitchygames.tools.film_strip import FilmStripWidget
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values

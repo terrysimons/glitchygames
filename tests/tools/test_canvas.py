@@ -5,14 +5,14 @@ from typing import cast
 import pygame
 import pytest
 
+from glitchygames.bitmappy import canvas_interfaces
+from glitchygames.bitmappy.canvas_interfaces import (
+    AnimatedCanvasInterface,
+    StaticCanvasInterface,
+)
 from glitchygames.sprites.animated import (
     AnimatedSprite,
     SpriteFrame,
-)
-from glitchygames.tools import canvas_interfaces
-from glitchygames.tools.canvas_interfaces import (
-    AnimatedCanvasInterface,
-    StaticCanvasInterface,
 )
 from tests.mocks.test_mock_factory import MockFactory
 

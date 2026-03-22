@@ -6,7 +6,7 @@ from typing import cast
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.editor import (
     _build_ascii_grid,
     _build_color_to_glyph_map,
     _build_renderer_color_dict,
@@ -1039,7 +1039,7 @@ class TestRenderAnimatedSpriteAscii:
 
         # Mock the _render_frames_side_by_side function
         mocker.patch(
-            'glitchygames.tools.bitmappy._render_frames_side_by_side',
+            'glitchygames.bitmappy.editor._render_frames_side_by_side',
             return_value='ascii output',
         )
 
@@ -1053,7 +1053,7 @@ class TestRenderAnimatedSpriteAscii:
         renderer = mocker.Mock()
 
         mocker.patch(
-            'glitchygames.tools.bitmappy._render_frames_side_by_side',
+            'glitchygames.bitmappy.editor._render_frames_side_by_side',
             return_value='output',
         )
 
@@ -1073,12 +1073,12 @@ class TestLogColorizedSpriteOutput:
 
     def test_animated_static_sprite(self, mocker):
         """Test logging output for an AnimatedSprite that is static (single-frame)."""
-        mocker.patch('glitchygames.tools.bitmappy._sprite_has_per_pixel_alpha', return_value=False)
-        mocker.patch('glitchygames.tools.bitmappy._render_static_sprite_ascii')
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_color_count', return_value=2)
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_alpha_type', return_value='indexed')
+        mocker.patch('glitchygames.bitmappy.editor._sprite_has_per_pixel_alpha', return_value=False)
+        mocker.patch('glitchygames.bitmappy.editor._render_static_sprite_ascii')
+        mocker.patch('glitchygames.bitmappy.editor._get_sprite_color_count', return_value=2)
+        mocker.patch('glitchygames.bitmappy.editor._get_sprite_alpha_type', return_value='indexed')
         mocker.patch(
-            'glitchygames.tools.bitmappy._calculate_animation_duration',
+            'glitchygames.bitmappy.editor._calculate_animation_duration',
             return_value=(0.0, False),
         )
 
@@ -1102,12 +1102,14 @@ class TestLogColorizedSpriteOutput:
 
     def test_animated_multi_frame_sprite(self, mocker):
         """Test logging output for a multi-frame AnimatedSprite."""
-        mocker.patch('glitchygames.tools.bitmappy._sprite_has_per_pixel_alpha', return_value=True)
-        mocker.patch('glitchygames.tools.bitmappy._render_animated_sprite_ascii')
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_color_count', return_value=5)
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_alpha_type', return_value='per-pixel')
+        mocker.patch('glitchygames.bitmappy.editor._sprite_has_per_pixel_alpha', return_value=True)
+        mocker.patch('glitchygames.bitmappy.editor._render_animated_sprite_ascii')
+        mocker.patch('glitchygames.bitmappy.editor._get_sprite_color_count', return_value=5)
         mocker.patch(
-            'glitchygames.tools.bitmappy._calculate_animation_duration',
+            'glitchygames.bitmappy.editor._get_sprite_alpha_type', return_value='per-pixel'
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.editor._calculate_animation_duration',
             return_value=(2.0, True),
         )
 
@@ -1130,10 +1132,10 @@ class TestLogColorizedSpriteOutput:
 
     def test_non_animated_sprite(self, mocker):
         """Test logging output for a non-AnimatedSprite."""
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_color_count', return_value=3)
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_alpha_type', return_value='indexed')
+        mocker.patch('glitchygames.bitmappy.editor._get_sprite_color_count', return_value=3)
+        mocker.patch('glitchygames.bitmappy.editor._get_sprite_alpha_type', return_value='indexed')
         mocker.patch(
-            'glitchygames.tools.bitmappy._calculate_animation_duration',
+            'glitchygames.bitmappy.editor._calculate_animation_duration',
             return_value=(0.0, False),
         )
 
@@ -1152,10 +1154,10 @@ class TestLogColorizedSpriteOutput:
 
     def test_non_animated_sprite_without_pixels(self, mocker):
         """Test logging for non-AnimatedSprite without pixels attribute."""
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_color_count', return_value=0)
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_alpha_type', return_value='indexed')
+        mocker.patch('glitchygames.bitmappy.editor._get_sprite_color_count', return_value=0)
+        mocker.patch('glitchygames.bitmappy.editor._get_sprite_alpha_type', return_value='indexed')
         mocker.patch(
-            'glitchygames.tools.bitmappy._calculate_animation_duration',
+            'glitchygames.bitmappy.editor._calculate_animation_duration',
             return_value=(0.0, False),
         )
 
@@ -1248,7 +1250,7 @@ class TestSelectRelevantTrainingExamples:
     def test_returns_empty_for_non_list_data(self, mocker):
         """Test that non-list training data returns empty list."""
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.editor.ai_training_state',
             {'data': 'not a list'},
         )
         result = _select_relevant_training_examples('create a sprite')
@@ -1261,7 +1263,7 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'mushroom', 'sprite_type': 'animated', 'has_alpha': True},
         ]
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.editor.ai_training_state',
             {'data': examples},
         )
         result = _select_relevant_training_examples('create a sprite', max_examples=10)
@@ -1276,11 +1278,11 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'cat', 'sprite_type': 'static', 'has_alpha': False},
         ]
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.editor.ai_training_state',
             {'data': examples},
         )
         mocker.patch(
-            'glitchygames.tools.bitmappy.get_sprite_size_hint',
+            'glitchygames.bitmappy.editor.get_sprite_size_hint',
             return_value=None,
         )
         result = _select_relevant_training_examples('create a slime', max_examples=2)
@@ -1294,11 +1296,11 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'glass', 'sprite_type': 'static', 'has_alpha': True},
         ]
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.editor.ai_training_state',
             {'data': examples},
         )
         mocker.patch(
-            'glitchygames.tools.bitmappy.get_sprite_size_hint',
+            'glitchygames.bitmappy.editor.get_sprite_size_hint',
             return_value=None,
         )
         result = _select_relevant_training_examples('create a transparent ghost', max_examples=2)
@@ -1307,7 +1309,7 @@ class TestSelectRelevantTrainingExamples:
     def test_returns_empty_for_none_data(self, mocker):
         """Test that None training data returns empty list."""
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.editor.ai_training_state',
             {'data': None},
         )
         result = _select_relevant_training_examples('create a sprite')

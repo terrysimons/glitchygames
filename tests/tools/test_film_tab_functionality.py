@@ -7,9 +7,9 @@ before or after existing frames in film strips.
 import pygame
 import pytest
 
+from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.film_strip import FilmStripWidget, FilmTabWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from glitchygames.tools.bitmappy import BitmapEditorScene
-from glitchygames.tools.film_strip import FilmStripWidget, FilmTabWidget
 from tests.mocks.test_mock_factory import MockFactory
 from tests.tools.test_film_strip_base import FRAME_SIZE, FilmStripTestBase
 

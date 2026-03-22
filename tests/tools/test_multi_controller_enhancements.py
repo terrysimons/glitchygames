@@ -2,7 +2,7 @@
 
 import pytest
 
-from glitchygames.tools.bitmappy_multi_controller_enhancements import (
+from glitchygames.bitmappy.bitmappy_multi_controller_enhancements import (
     MAX_CONTROLLER_ACTION_HISTORY,
     BitmappyMultiControllerEnhancements,
 )

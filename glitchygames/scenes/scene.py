@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pygame
 
 from glitchygames import events
-from glitchygames.color import BLACK
+from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
 from glitchygames.events.mouse import MousePointer
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 
@@ -808,10 +808,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     def background_color(self: Self, new_color: tuple[int, ...]) -> None:
         """Set the background color.
 
+        Normalizes RGB colors to RGBA by appending alpha=0 (fully transparent background).
+
         Args:
-            new_color (tuple[int, ...]): The new background color.
+            new_color (tuple[int, ...]): The new background color (RGB or RGBA).
 
         """
+        if len(new_color) == RGB_COMPONENT_COUNT:
+            new_color = (*new_color, 0)
         self._background_color = new_color
         assert self._background_color is not None
         assert self.screen is not None

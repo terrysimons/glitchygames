@@ -11,8 +11,11 @@ import logging
 import pygame
 import pytest
 
-from glitchygames.tools.operation_history import CanvasOperationTracker, FilmStripOperationTracker
-from glitchygames.tools.undo_redo_manager import UndoRedoManager
+from glitchygames.bitmappy.operation_history import (
+    CanvasOperationTracker,
+    FilmStripOperationTracker,
+)
+from glitchygames.bitmappy.undo_redo_manager import UndoRedoManager
 
 LOG = logging.getLogger(__name__)
 

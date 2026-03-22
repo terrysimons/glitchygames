@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.editor import (
     AI_MODEL,
     AI_TIMEOUT,
     AIRequest,
@@ -203,7 +203,7 @@ class TestInitializeAIClient:
     def test_returns_none_when_aisuite_unavailable(self, mocker):
         """Test returns None when aisuite is not available."""
         log = logging.getLogger('test')
-        mocker.patch('glitchygames.tools.bitmappy.ai', None)
+        mocker.patch('glitchygames.bitmappy.editor.ai', None)
         result = _initialize_ai_client(log)
         assert result is None
 

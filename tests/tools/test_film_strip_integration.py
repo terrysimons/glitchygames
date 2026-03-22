@@ -1,7 +1,8 @@
 """Film strip integration tests with animated canvas."""
 
+from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy import film_strip
 from glitchygames.sprites import AnimatedSprite
-from glitchygames.tools import bitmappy, film_strip
 from tests.mocks.test_mock_factory import MockFactory
 
 # Import constants from base class

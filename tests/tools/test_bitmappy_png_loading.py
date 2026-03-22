@@ -7,7 +7,7 @@ from typing import cast
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.editor import (
     AnimatedCanvasSprite,
     BitmapEditorScene,
     _normalize_toml_data,
@@ -74,7 +74,7 @@ class TestPNGLoading:
             self.mock_canvas._convert_png_to_bitmappy = mock_convert  # type: ignore[invalid-assignment]
 
             # Mock the AnimatedSprite.load method
-            mock_sprite_class = self._mocker.patch('glitchygames.tools.bitmappy.AnimatedSprite')
+            mock_sprite_class = self._mocker.patch('glitchygames.bitmappy.editor.AnimatedSprite')
             mock_sprite = self._mocker.Mock()
             mock_sprite._animations = {}  # Add required attribute
             mock_sprite_class.return_value = mock_sprite
@@ -114,7 +114,7 @@ class TestPNGLoading:
 
     def test_non_png_files_passthrough(self):
         """Test that non-PNG files are passed through unchanged."""
-        mock_sprite_class = self._mocker.patch('glitchygames.tools.bitmappy.AnimatedSprite')
+        mock_sprite_class = self._mocker.patch('glitchygames.bitmappy.editor.AnimatedSprite')
         mock_sprite = self._mocker.Mock()
         mock_sprite._animations = {}  # Add required attribute
         mock_sprite_class.return_value = mock_sprite

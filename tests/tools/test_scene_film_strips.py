@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from glitchygames.tools import bitmappy
+from glitchygames.bitmappy import editor as bitmappy
 from tests.mocks import MockFactory
 
 # Skip in CI - BitmapEditorScene.__init__ requires full display and font system

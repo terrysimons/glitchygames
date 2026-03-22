@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.editor import (
     AIResponse,
     _alpha_blend_pixel,
     _build_retry_prompt,
@@ -595,27 +595,27 @@ class TestColorDistanceStaticMethod:
 
     def test_same_color_distance_is_zero(self):
         """Test that distance between identical colors is zero."""
-        from glitchygames.tools.bitmappy import BitmapEditorScene
+        from glitchygames.bitmappy.editor import BitmapEditorScene
 
         assert BitmapEditorScene._color_distance((0, 0, 0), (0, 0, 0)) == 0
 
     def test_black_to_white_distance(self):
         """Test distance from black to white."""
-        from glitchygames.tools.bitmappy import BitmapEditorScene
+        from glitchygames.bitmappy.editor import BitmapEditorScene
 
         distance = BitmapEditorScene._color_distance((0, 0, 0), (255, 255, 255))
         assert distance == 255**2 + 255**2 + 255**2
 
     def test_single_channel_difference(self):
         """Test distance with only one channel different."""
-        from glitchygames.tools.bitmappy import BitmapEditorScene
+        from glitchygames.bitmappy.editor import BitmapEditorScene
 
         distance = BitmapEditorScene._color_distance((100, 0, 0), (200, 0, 0))
         assert distance == 100**2
 
     def test_symmetry(self):
         """Test that distance is symmetric."""
-        from glitchygames.tools.bitmappy import BitmapEditorScene
+        from glitchygames.bitmappy.editor import BitmapEditorScene
 
         distance_ab = BitmapEditorScene._color_distance((10, 20, 30), (40, 50, 60))
         distance_ba = BitmapEditorScene._color_distance((40, 50, 60), (10, 20, 30))

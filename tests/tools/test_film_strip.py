@@ -6,17 +6,17 @@ from typing import cast
 import pygame
 import pytest
 
-from glitchygames.sprites.animated import (
-    AnimatedSprite,
-    SpriteFrame,
-)
-from glitchygames.tools import film_strip
-from glitchygames.tools.film_strip import (
+from glitchygames.bitmappy import film_strip
+from glitchygames.bitmappy.film_strip import (
     ANIMATION_NAME_MAX_LENGTH,
     FilmStripDeleteTab,
     FilmStripTab,
     FilmStripWidget,
     FilmTabWidget,
+)
+from glitchygames.sprites.animated import (
+    AnimatedSprite,
+    SpriteFrame,
 )
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -2501,12 +2501,12 @@ class TestToggleOnionSkinning:
         mock_manager = mocker.Mock()
         mock_manager.toggle_frame_onion_skinning.return_value = True
         mocker.patch(
-            'glitchygames.tools.film_strip.get_onion_skinning_manager',
+            'glitchygames.bitmappy.film_strip.get_onion_skinning_manager',
             return_value=mock_manager,
             create=True,
         )
         mocker.patch(
-            'glitchygames.tools.onion_skinning.get_onion_skinning_manager',
+            'glitchygames.bitmappy.onion_skinning.get_onion_skinning_manager',
             return_value=mock_manager,
         )
         widget._toggle_onion_skinning('idle', 0)
@@ -2518,7 +2518,7 @@ class TestToggleOnionSkinning:
         mock_manager = mocker.Mock()
         mock_manager.toggle_frame_onion_skinning.return_value = True
         mocker.patch(
-            'glitchygames.tools.onion_skinning.get_onion_skinning_manager',
+            'glitchygames.bitmappy.onion_skinning.get_onion_skinning_manager',
             return_value=mock_manager,
         )
         mock_parent = mocker.Mock()
@@ -3550,7 +3550,7 @@ class TestFilmStripToggleOnionSkinning:
         mock_onion_module.get_onion_skinning_manager.return_value = mock_manager
         mocker.patch.dict(
             'sys.modules',
-            {'glitchygames.tools.onion_skinning': mock_onion_module},
+            {'glitchygames.bitmappy.onion_skinning': mock_onion_module},
         )
 
         widget._toggle_onion_skinning('idle', 0)
@@ -3566,7 +3566,7 @@ class TestFilmStripToggleOnionSkinning:
         mock_onion_module.get_onion_skinning_manager.side_effect = RuntimeError('test error')
         mocker.patch.dict(
             'sys.modules',
-            {'glitchygames.tools.onion_skinning': mock_onion_module},
+            {'glitchygames.bitmappy.onion_skinning': mock_onion_module},
         )
         # Should not raise - exception is caught and logged
         widget._toggle_onion_skinning('idle', 0)
@@ -4474,7 +4474,7 @@ class TestFilmStripGetControllerSelectionColor:
         mock_multi_ctrl_module.MultiControllerManager.get_instance.return_value = mock_manager
         mocker.patch.dict(
             'sys.modules',
-            {'glitchygames.tools.multi_controller_manager': mock_multi_ctrl_module},
+            {'glitchygames.bitmappy.multi_controller_manager': mock_multi_ctrl_module},
         )
 
         result = widget._get_controller_selection_color('idle', 0)

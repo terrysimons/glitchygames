@@ -11,7 +11,7 @@ import time
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from glitchygames.tools.bitmappy import BitmapEditorScene
+    from glitchygames.bitmappy.editor import BitmapEditorScene
 
 MAX_CONTROLLER_ACTION_HISTORY = 100
 
@@ -260,7 +260,7 @@ class BitmappyMultiControllerEnhancements:
 
             # Apply shape customization
             if 'shape' in customizations:
-                from glitchygames.tools.visual_collision_manager import IndicatorShape
+                from glitchygames.bitmappy.visual_collision_manager import IndicatorShape
 
                 if customizations['shape'] == 'circle':
                     indicator.shape = IndicatorShape.CIRCLE

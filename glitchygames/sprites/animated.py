@@ -34,7 +34,7 @@ from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 
 # Import detect_file_format function
 try:
-    from glitchygames.tools.bitmappy import detect_file_format
+    from glitchygames.bitmappy import detect_file_format
 except ImportError:
     # Fallback if bitmappy module is not available
     def detect_file_format(filename: str) -> str:  # noqa: ARG001

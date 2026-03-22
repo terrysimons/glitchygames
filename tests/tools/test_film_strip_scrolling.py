@@ -3,7 +3,7 @@
 import pygame
 import pytest
 
-from glitchygames.tools.bitmappy import BitmapEditorScene
+from glitchygames.bitmappy.editor import BitmapEditorScene
 
 # Test constants to avoid magic values
 MAX_VISIBLE_STRIPS = 2

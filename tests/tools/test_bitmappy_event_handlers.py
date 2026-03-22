@@ -9,8 +9,8 @@ from types import SimpleNamespace
 import pygame
 import pytest
 
-from glitchygames.tools import bitmappy
-from glitchygames.tools.bitmappy import BitmapEditorScene
+from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.editor import BitmapEditorScene
 from tests.mocks import MockFactory
 
 
@@ -560,12 +560,12 @@ class TestOnKeyDownEvent:
         onion_mock = mocker.Mock()
         onion_mock.toggle_global_onion_skinning.return_value = True
         mocker.patch(
-            'glitchygames.tools.bitmappy.get_onion_skinning_manager',
+            'glitchygames.bitmappy.editor.get_onion_skinning_manager',
             return_value=onion_mock,
             create=True,
         )
         mocker.patch(
-            'glitchygames.tools.onion_skinning.get_onion_skinning_manager',
+            'glitchygames.bitmappy.onion_skinning.get_onion_skinning_manager',
             return_value=onion_mock,
         )
         event = mocker.Mock()

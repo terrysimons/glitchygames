@@ -16,9 +16,9 @@ from glitchygames.color import RGB_COMPONENT_COUNT
 from glitchygames.fonts import FontManager
 
 if TYPE_CHECKING:
+    from glitchygames.bitmappy.editor import AnimatedCanvasSprite
     from glitchygames.events.core import HashableEvent
     from glitchygames.sprites import AnimatedSprite, SpriteFrame
-    from glitchygames.tools.bitmappy import AnimatedCanvasSprite
 
 ANIMATION_NAME_MAX_LENGTH = 50
 CURSOR_BLINK_INTERVAL_MS = 530

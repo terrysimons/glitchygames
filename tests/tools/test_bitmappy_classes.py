@@ -3,7 +3,7 @@
 import pygame
 import pytest
 
-from glitchygames.tools.bitmappy import BitmapPixelSprite, ScrollArrowSprite
+from glitchygames.bitmappy.editor import BitmapPixelSprite, ScrollArrowSprite
 from tests.mocks import MockFactory
 
 

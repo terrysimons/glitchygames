@@ -15,9 +15,9 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.undo_redo_manager import OperationType
 from glitchygames.sprites.animated import SpriteFrame
-from glitchygames.tools.bitmappy import BitmapEditorScene
-from glitchygames.tools.undo_redo_manager import OperationType
 from tests.mocks.test_mock_factory import MockFactory
 
 

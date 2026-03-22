@@ -11,7 +11,7 @@ from typing import cast
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.editor import (
     AIRequest,
     AIResponse,
     _alpha_blend_pixel,
@@ -1218,7 +1218,7 @@ class TestCreateAiRetryDecorator:
 
     def test_no_op_when_backoff_unavailable(self, logger, mocker):
         """Test no-op decorator when backoff module is not available."""
-        mocker.patch('glitchygames.tools.bitmappy.backoff', None)
+        mocker.patch('glitchygames.bitmappy.editor.backoff', None)
         decorator = _create_ai_retry_decorator(logger)
 
         # The no-op decorator should return the function unchanged
@@ -1458,13 +1458,13 @@ class TestSelectRelevantTrainingExamples:
 
     def test_empty_training_data(self, mocker):
         """Test with empty training data."""
-        mocker.patch('glitchygames.tools.bitmappy.ai_training_state', {'data': []})
+        mocker.patch('glitchygames.bitmappy.editor.ai_training_state', {'data': []})
         result = _select_relevant_training_examples('test sprite')
         assert result == []
 
     def test_non_list_training_data(self, mocker):
         """Test with non-list training data."""
-        mocker.patch('glitchygames.tools.bitmappy.ai_training_state', {'data': 'not_a_list'})
+        mocker.patch('glitchygames.bitmappy.editor.ai_training_state', {'data': 'not_a_list'})
         result = _select_relevant_training_examples('test sprite')
         assert result == []
 
@@ -1473,7 +1473,7 @@ class TestSelectRelevantTrainingExamples:
         examples = [
             {'name': 'hero', 'sprite_type': 'static', 'has_alpha': False},
         ]
-        mocker.patch('glitchygames.tools.bitmappy.ai_training_state', {'data': examples})
+        mocker.patch('glitchygames.bitmappy.editor.ai_training_state', {'data': examples})
         result = _select_relevant_training_examples('test', max_examples=10)
         assert result == examples
 
@@ -1484,7 +1484,7 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'animated walk', 'sprite_type': 'animated', 'has_alpha': False},
             {'name': 'another', 'sprite_type': 'static', 'has_alpha': False},
         ]
-        mocker.patch('glitchygames.tools.bitmappy.ai_training_state', {'data': examples})
+        mocker.patch('glitchygames.bitmappy.editor.ai_training_state', {'data': examples})
         result = _select_relevant_training_examples('animated walk cycle', max_examples=2)
         assert len(result) == 2
         # The animated walk example should be ranked first
@@ -1531,7 +1531,7 @@ class TestMockEvent:
 
     def test_mock_event_creation(self):
         """Test creating a MockEvent."""
-        from glitchygames.tools.bitmappy import MockEvent
+        from glitchygames.bitmappy.editor import MockEvent
 
         event = MockEvent(text='test.toml')
         assert event.text == 'test.toml'

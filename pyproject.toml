@@ -51,7 +51,7 @@ dependencies = [
 "Repository" = "https://github.com/terrysimons/glitchygames"
 
 [project.scripts]
-bitmappy = "glitchygames.tools.bitmappy:main"
+bitmappy = "glitchygames.bitmappy:main"
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
 

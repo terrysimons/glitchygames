@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-from glitchygames.tools.onion_skinning import OnionSkinningManager, get_onion_skinning_manager
+from glitchygames.bitmappy.onion_skinning import OnionSkinningManager, get_onion_skinning_manager
 
 
 class TestOnionSkinningManager:

@@ -9,8 +9,8 @@ import operator
 import pygame
 import pytest
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.film_strip import FilmStripWidget
+from glitchygames.bitmappy.controller_selection import ControllerSelection
+from glitchygames.bitmappy.film_strip import FilmStripWidget
 
 
 class TestFilmStripColorBasedSorting:

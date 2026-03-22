@@ -141,8 +141,8 @@ if TYPE_CHECKING:
     import argparse
     from collections.abc import Callable
 
+    from glitchygames.bitmappy.visual_collision_manager import VisualIndicator
     from glitchygames.tools.ascii_renderer import ASCIIRenderer
-    from glitchygames.tools.visual_collision_manager import VisualIndicator
 
 LOG = logging.getLogger('game.tools.bitmappy')
 
@@ -8302,7 +8302,7 @@ class BitmapEditorScene(Scene):
         self.controller_selections: dict[int, ControllerSelection] = {}
 
         # Initialize mode switching system
-        from glitchygames.tools.controller_mode_system import ModeSwitcher
+        from glitchygames.bitmappy.controller_mode_system import ModeSwitcher
 
         # Initialize undo/redo system
         self._init_undo_redo_system()
@@ -8389,7 +8389,7 @@ class BitmapEditorScene(Scene):
         self.canvas_operation_tracker = CanvasOperationTracker(self.undo_redo_manager)
         self.film_strip_operation_tracker = FilmStripOperationTracker(self.undo_redo_manager)
         self.cross_area_operation_tracker = CrossAreaOperationTracker(self.undo_redo_manager)
-        from glitchygames.tools.operation_history import ControllerPositionOperationTracker
+        from glitchygames.bitmappy.operation_history import ControllerPositionOperationTracker
 
         self.controller_position_operation_tracker = ControllerPositionOperationTracker(
             self.undo_redo_manager
@@ -11150,7 +11150,7 @@ pixels = \"\"\"
             return
 
         # Create undo/redo operation for the paste
-        from glitchygames.tools.undo_redo_manager import OperationType
+        from glitchygames.bitmappy.undo_redo_manager import OperationType
 
         # Store original frame data for undo
         original_pixels = target_frame.get_pixel_data()
@@ -11776,7 +11776,7 @@ pixels = \"\"\"
             try:
                 # Update controller mode in mode switcher
                 if hasattr(self, 'mode_switcher') and self.mode_switcher:
-                    from glitchygames.tools.controller_mode_system import ControllerMode
+                    from glitchygames.bitmappy.controller_mode_system import ControllerMode
 
                     # Convert string to ControllerMode enum
                     try:
@@ -13519,7 +13519,7 @@ pixels = \"\"\"
             self.visual_collision_manager.remove_controller_indicator(controller_id)
 
             # Add new canvas indicator
-            from glitchygames.tools.visual_collision_manager import LocationType
+            from glitchygames.bitmappy.visual_collision_manager import LocationType
 
             self.visual_collision_manager.add_controller_indicator(
                 controller_id,
@@ -14434,7 +14434,7 @@ pixels = \"\"\"
 
         # Register controller with mode switcher if not already registered
         if controller_id not in self.mode_switcher.controller_modes:
-            from glitchygames.tools.controller_mode_system import ControllerMode
+            from glitchygames.bitmappy.controller_mode_system import ControllerMode
 
             self.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
             self.log.debug(f'DEBUG: Registered controller {controller_id} with mode switcher')
@@ -14718,7 +14718,7 @@ pixels = \"\"\"
             location_type: The LocationType for the new mode.
 
         """
-        from glitchygames.tools.visual_collision_manager import LocationType
+        from glitchygames.bitmappy.visual_collision_manager import LocationType
 
         if location_type == LocationType.CANVAS:
             if hasattr(self, 'canvas'):
@@ -14763,13 +14763,13 @@ pixels = \"\"\"
 
         # Initialize mode switcher if needed
         if not hasattr(self, 'mode_switcher'):
-            from glitchygames.tools.controller_mode_system import ModeSwitcher
+            from glitchygames.bitmappy.controller_mode_system import ModeSwitcher
 
             self.mode_switcher = ModeSwitcher()
 
         # Initialize multi-controller manager if needed
         if not hasattr(self, 'multi_controller_manager'):
-            from glitchygames.tools.multi_controller_manager import MultiControllerManager
+            from glitchygames.bitmappy.multi_controller_manager import MultiControllerManager
 
             self.multi_controller_manager = MultiControllerManager()
 
@@ -15128,7 +15128,7 @@ pixels = \"\"\"
             controller_id = controller_info.controller_id
             if controller_id not in self.controller_selections:
                 # Register new controller
-                from glitchygames.tools.controller_selection import ControllerSelection
+                from glitchygames.bitmappy.controller_selection import ControllerSelection
 
                 self.controller_selections[controller_id] = ControllerSelection(
                     controller_id, instance_id
@@ -15139,7 +15139,7 @@ pixels = \"\"\"
 
                 # Register with mode switcher
                 if hasattr(self, 'mode_switcher'):
-                    from glitchygames.tools.controller_mode_system import ControllerMode
+                    from glitchygames.bitmappy.controller_mode_system import ControllerMode
 
                     self.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
 

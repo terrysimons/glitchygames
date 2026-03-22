@@ -5,8 +5,8 @@ import math
 import pygame
 import pytest
 
+from glitchygames.bitmappy.film_strip import FilmStripWidget, FilmTabWidget
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from glitchygames.tools.film_strip import FilmStripWidget, FilmTabWidget
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values

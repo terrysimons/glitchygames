@@ -2,7 +2,7 @@
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.editor import (
     AI_BASE_DELAY,
     AI_MAX_CONTEXT_SIZE,
     AI_MAX_DELAY,

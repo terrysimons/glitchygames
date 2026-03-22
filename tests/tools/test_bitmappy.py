@@ -11,8 +11,8 @@ from unittest.mock import MagicMock
 import pygame
 import pytest
 
-from glitchygames.tools import bitmappy
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.editor import (
     AIRequest,
     BitmapPixelSprite,
     ScrollArrowSprite,
@@ -104,14 +104,14 @@ class TestBitmappyFunctionality:
         # Test that bitmappy module exists and has expected attributes
         assert hasattr(bitmappy, '__file__')
         assert hasattr(bitmappy, '__name__')
-        assert bitmappy.__name__ == 'glitchygames.tools.bitmappy'
+        assert bitmappy.__name__ == 'glitchygames.bitmappy.editor'
 
     def test_bitmappy_module_structure(self, mock_pygame_patches):
         """Test bitmappy module structure."""
         # Test that module has expected attributes
         assert hasattr(bitmappy, '__file__')
         assert hasattr(bitmappy, '__name__')
-        assert bitmappy.__name__ == 'glitchygames.tools.bitmappy'
+        assert bitmappy.__name__ == 'glitchygames.bitmappy.editor'
 
 
 @pytest.fixture(autouse=True)
@@ -542,7 +542,7 @@ blue = 0
             training_data = []
             # Mock SpriteFactory.load_sprite to avoid full sprite loading
             mocker.patch(
-                'glitchygames.tools.bitmappy.SpriteFactory.load_sprite',
+                'glitchygames.bitmappy.editor.SpriteFactory.load_sprite',
                 side_effect=ValueError('mocked'),
             )
             _process_config_file(Path(temp_file.name), training_data)
@@ -574,7 +574,7 @@ class TestLoadAiTrainingData:
         original_data = ai_training_state['data']
         ai_training_state['data'] = []
         mocker.patch(
-            'glitchygames.tools.bitmappy.SPRITE_CONFIG_DIR',
+            'glitchygames.bitmappy.editor.SPRITE_CONFIG_DIR',
             Path('/nonexistent/directory'),
         )
         load_ai_training_data()
@@ -588,7 +588,7 @@ class TestLoadAiTrainingData:
         ai_training_state['data'] = []
         with tempfile.TemporaryDirectory() as temp_dir:
             mocker.patch(
-                'glitchygames.tools.bitmappy.SPRITE_CONFIG_DIR',
+                'glitchygames.bitmappy.editor.SPRITE_CONFIG_DIR',
                 Path(temp_dir),
             )
             load_ai_training_data()
@@ -606,7 +606,7 @@ class TestCheckOllamaModelStatus:
 
     def test_non_ollama_model(self, mock_logger):
         """Non-ollama model returns downloaded=True."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
@@ -621,7 +621,7 @@ class TestCheckOllamaModelStatus:
         The function uses urllib.request.urlopen; we mock the response's
         status attribute to simulate a non-200 response.
         """
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
@@ -644,7 +644,7 @@ class TestCheckOllamaModelStatus:
         """
         import json
 
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
@@ -668,7 +668,7 @@ class TestCheckOllamaModelStatus:
         """
         import json
 
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:newmodel'
@@ -689,7 +689,7 @@ class TestCheckOllamaModelStatus:
 
         The function catches OSError from urllib.request.urlopen.
         """
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
@@ -706,7 +706,7 @@ class TestCheckOllamaModelStatus:
         ValueError since ImportError is not in the exception list and
         urllib is a stdlib module that cannot fail to import.
         """
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
@@ -727,7 +727,7 @@ class TestSetOllamaEnvTimeout:
 
     def test_non_ollama_model_no_env_set(self, mock_logger, mocker):
         """Non-ollama model does not set environment variable."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
@@ -737,12 +737,12 @@ class TestSetOllamaEnvTimeout:
 
     def test_ollama_model_sets_env(self, mock_logger, mocker):
         """Ollama model sets OLLAMA_TIMEOUT environment variable."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
         mocker.patch(
-            'glitchygames.tools.bitmappy._check_ollama_model_status',
+            'glitchygames.bitmappy.editor._check_ollama_model_status',
             return_value={'downloaded': True, 'reason': 'already_downloaded'},
         )
         _set_ollama_env_timeout(mock_logger)
@@ -753,12 +753,12 @@ class TestSetOllamaEnvTimeout:
 
     def test_ollama_model_not_downloaded_uses_longer_timeout(self, mock_logger, mocker):
         """Ollama model needing download uses longer timeout."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
         mocker.patch(
-            'glitchygames.tools.bitmappy._check_ollama_model_status',
+            'glitchygames.bitmappy.editor._check_ollama_model_status',
             return_value={'downloaded': False, 'reason': 'needs_download'},
         )
         _set_ollama_env_timeout(mock_logger)
@@ -777,7 +777,7 @@ class TestCreateOllamaConfig:
 
     def test_non_ollama_model_returns_empty(self, mock_logger):
         """Non-ollama model returns empty config."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
@@ -787,12 +787,12 @@ class TestCreateOllamaConfig:
 
     def test_ollama_model_downloaded(self, mock_logger, mocker):
         """Ollama model already downloaded uses normal timeout."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
         mocker.patch(
-            'glitchygames.tools.bitmappy._check_ollama_model_status',
+            'glitchygames.bitmappy.editor._check_ollama_model_status',
             return_value={'downloaded': True},
         )
         result = _create_ollama_config(mock_logger)
@@ -802,12 +802,12 @@ class TestCreateOllamaConfig:
 
     def test_ollama_model_needs_download(self, mock_logger, mocker):
         """Ollama model needing download uses longer timeout."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
         mocker.patch(
-            'glitchygames.tools.bitmappy._check_ollama_model_status',
+            'glitchygames.bitmappy.editor._check_ollama_model_status',
             return_value={'downloaded': False},
         )
         result = _create_ollama_config(mock_logger)
@@ -825,7 +825,7 @@ class TestGetProviderTimeoutValue:
 
     def test_non_ollama_returns_default(self, mock_logger):
         """Non-ollama model returns AI_TIMEOUT."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
@@ -835,12 +835,12 @@ class TestGetProviderTimeoutValue:
 
     def test_ollama_downloaded_returns_default(self, mock_logger, mocker):
         """Downloaded ollama model returns AI_TIMEOUT."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
         mocker.patch(
-            'glitchygames.tools.bitmappy._check_ollama_model_status',
+            'glitchygames.bitmappy.editor._check_ollama_model_status',
             return_value={'downloaded': True},
         )
         result = _get_provider_timeout_value(mock_logger)
@@ -849,12 +849,12 @@ class TestGetProviderTimeoutValue:
 
     def test_ollama_not_downloaded_returns_download_timeout(self, mock_logger, mocker):
         """Not-downloaded ollama model returns AI_MODEL_DOWNLOAD_TIMEOUT."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
         mocker.patch(
-            'glitchygames.tools.bitmappy._check_ollama_model_status',
+            'glitchygames.bitmappy.editor._check_ollama_model_status',
             return_value={'downloaded': False},
         )
         result = _get_provider_timeout_value(mock_logger)
@@ -893,7 +893,7 @@ class TestConfigureProviderClientTimeout:
 
     def test_ollama_additional_timeout_attrs(self, mock_logger, mocker):
         """Ollama model configures additional timeout attributes."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
@@ -925,7 +925,7 @@ class TestConfigureClientTimeouts:
     def test_client_with_providers(self, mock_logger, mocker):
         """Client with providers configures timeouts."""
         mocker.patch(
-            'glitchygames.tools.bitmappy._get_provider_timeout_value',
+            'glitchygames.bitmappy.editor._get_provider_timeout_value',
             return_value=600,
         )
         provider = MagicMock()
@@ -955,7 +955,7 @@ class TestConfigureOllamaProvider:
 
     def test_non_ollama_model_skipped(self, mock_logger):
         """Non-ollama model skips provider configuration."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
@@ -965,7 +965,7 @@ class TestConfigureOllamaProvider:
 
     def test_client_without_providers_skipped(self, mock_logger):
         """Client without _providers skips configuration."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
@@ -975,7 +975,7 @@ class TestConfigureOllamaProvider:
 
     def test_ollama_provider_configured(self, mock_logger):
         """Ollama provider gets timeout configured."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
@@ -992,7 +992,7 @@ class TestConfigureOllamaProvider:
 
     def test_non_ollama_provider_in_dict_skipped(self, mock_logger):
         """Non-ollama provider in providers dict is skipped."""
-        import glitchygames.tools.bitmappy as bitmappy_module
+        import glitchygames.bitmappy.editor as bitmappy_module
 
         original = bitmappy_module.AI_MODEL
         bitmappy_module.AI_MODEL = 'ollama:testmodel'
@@ -1016,7 +1016,7 @@ class TestInitializeAiClient:
 
     def test_aisuite_not_available(self, mock_logger, mocker):
         """Returns None when aisuite is not available."""
-        mocker.patch('glitchygames.tools.bitmappy.ai', None)
+        mocker.patch('glitchygames.bitmappy.editor.ai', None)
         result = _initialize_ai_client(mock_logger)
         assert result is None
 
@@ -1025,14 +1025,14 @@ class TestInitializeAiClient:
         mock_ai = MagicMock()
         mock_client = MagicMock()
         mock_ai.Client.return_value = mock_client
-        mocker.patch('glitchygames.tools.bitmappy.ai', mock_ai)
-        mocker.patch('glitchygames.tools.bitmappy._set_ollama_env_timeout')
+        mocker.patch('glitchygames.bitmappy.editor.ai', mock_ai)
+        mocker.patch('glitchygames.bitmappy.editor._set_ollama_env_timeout')
         mocker.patch(
-            'glitchygames.tools.bitmappy._create_ollama_config',
+            'glitchygames.bitmappy.editor._create_ollama_config',
             return_value={},
         )
-        mocker.patch('glitchygames.tools.bitmappy._configure_ollama_provider')
-        mocker.patch('glitchygames.tools.bitmappy._configure_client_timeouts')
+        mocker.patch('glitchygames.bitmappy.editor._configure_ollama_provider')
+        mocker.patch('glitchygames.bitmappy.editor._configure_client_timeouts')
         result = _initialize_ai_client(mock_logger)
         assert result == mock_client
 
@@ -1041,15 +1041,15 @@ class TestInitializeAiClient:
         mock_ai = MagicMock()
         mock_client = MagicMock()
         mock_ai.Client.return_value = mock_client
-        mocker.patch('glitchygames.tools.bitmappy.ai', mock_ai)
-        mocker.patch('glitchygames.tools.bitmappy._set_ollama_env_timeout')
+        mocker.patch('glitchygames.bitmappy.editor.ai', mock_ai)
+        mocker.patch('glitchygames.bitmappy.editor._set_ollama_env_timeout')
         provider_config = {'ollama': {'timeout': 600}}
         mocker.patch(
-            'glitchygames.tools.bitmappy._create_ollama_config',
+            'glitchygames.bitmappy.editor._create_ollama_config',
             return_value=provider_config,
         )
-        mocker.patch('glitchygames.tools.bitmappy._configure_ollama_provider')
-        mocker.patch('glitchygames.tools.bitmappy._configure_client_timeouts')
+        mocker.patch('glitchygames.bitmappy.editor._configure_ollama_provider')
+        mocker.patch('glitchygames.bitmappy.editor._configure_client_timeouts')
         result = _initialize_ai_client(mock_logger)
         mock_ai.Client.assert_called_once_with(provider_config)
         assert result == mock_client
@@ -1065,9 +1065,9 @@ class TestAiWorker:
 
     def test_shutdown_signal(self, mocker):
         """Worker exits cleanly on None shutdown signal."""
-        mocker.patch('glitchygames.tools.bitmappy._setup_ai_worker_logging')
+        mocker.patch('glitchygames.bitmappy.editor._setup_ai_worker_logging')
         mocker.patch(
-            'glitchygames.tools.bitmappy._initialize_ai_client',
+            'glitchygames.bitmappy.editor._initialize_ai_client',
             return_value=MagicMock(),
         )
         request_queue = MagicMock()
@@ -1080,13 +1080,13 @@ class TestAiWorker:
 
     def test_processing_error_sends_error_response(self, mocker):
         """Processing error sends error response back."""
-        mocker.patch('glitchygames.tools.bitmappy._setup_ai_worker_logging')
+        mocker.patch('glitchygames.bitmappy.editor._setup_ai_worker_logging')
         mocker.patch(
-            'glitchygames.tools.bitmappy._initialize_ai_client',
+            'glitchygames.bitmappy.editor._initialize_ai_client',
             return_value=MagicMock(),
         )
         mocker.patch(
-            'glitchygames.tools.bitmappy._process_ai_request',
+            'glitchygames.bitmappy.editor._process_ai_request',
             side_effect=ValueError('test error'),
         )
         request_queue = MagicMock()
@@ -1105,9 +1105,9 @@ class TestAiWorker:
 
     def test_import_error_raised(self, mocker):
         """ImportError is re-raised from worker."""
-        mocker.patch('glitchygames.tools.bitmappy._setup_ai_worker_logging')
+        mocker.patch('glitchygames.bitmappy.editor._setup_ai_worker_logging')
         mocker.patch(
-            'glitchygames.tools.bitmappy._initialize_ai_client',
+            'glitchygames.bitmappy.editor._initialize_ai_client',
             side_effect=ImportError('no aisuite'),
         )
         request_queue = MagicMock()
@@ -1181,7 +1181,7 @@ class TestFilmStripSpriteGetFramePixelData:
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups, animated_sprite=None):
         """Create a FilmStripSprite with mocked dependencies."""
-        from glitchygames.tools.bitmappy import FilmStripSprite
+        from glitchygames.bitmappy.editor import FilmStripSprite
 
         widget = MagicMock()
         widget.animated_sprite = animated_sprite
@@ -1263,7 +1263,7 @@ class TestFilmStripSpriteGetFrameDimensions:
     """Tests for FilmStripSprite._get_frame_dimensions method."""
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
-        from glitchygames.tools.bitmappy import FilmStripSprite
+        from glitchygames.bitmappy.editor import FilmStripSprite
 
         widget = MagicMock()
         widget.parent_canvas = None
@@ -1304,7 +1304,7 @@ class TestFilmStripSpriteFindFrameLayout:
     """Tests for FilmStripSprite._find_frame_layout method."""
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
-        from glitchygames.tools.bitmappy import FilmStripSprite
+        from glitchygames.bitmappy.editor import FilmStripSprite
 
         widget = MagicMock()
         return FilmStripSprite(
@@ -1336,7 +1336,7 @@ class TestFilmStripSpriteScreenToPixelCoords:
     """Tests for FilmStripSprite._screen_to_pixel_coords method."""
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
-        from glitchygames.tools.bitmappy import FilmStripSprite
+        from glitchygames.bitmappy.editor import FilmStripSprite
 
         widget = MagicMock()
         return FilmStripSprite(
@@ -1381,7 +1381,7 @@ class TestFilmStripSpriteUpdateColorSliders:
     """Tests for FilmStripSprite._update_color_sliders method."""
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
-        from glitchygames.tools.bitmappy import FilmStripSprite
+        from glitchygames.bitmappy.editor import FilmStripSprite
 
         widget = MagicMock()
         return FilmStripSprite(
@@ -1413,7 +1413,7 @@ class TestFilmStripSpriteSampleColorFromFrame:
     """Tests for FilmStripSprite._sample_color_from_frame method."""
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
-        from glitchygames.tools.bitmappy import FilmStripSprite
+        from glitchygames.bitmappy.editor import FilmStripSprite
 
         widget = MagicMock()
         widget.animated_sprite = None
@@ -1486,7 +1486,7 @@ class TestFilmStripSpriteHoverEffects:
     """Tests for FilmStripSprite hover effect methods."""
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
-        from glitchygames.tools.bitmappy import FilmStripSprite
+        from glitchygames.bitmappy.editor import FilmStripSprite
 
         widget = MagicMock()
         return FilmStripSprite(
@@ -1535,7 +1535,7 @@ class TestFilmStripSpriteOnMouseMotionEvent:
     """Tests for FilmStripSprite.on_mouse_motion_event method."""
 
     def _make_film_strip_sprite(self, pygame_mocks, mock_groups):
-        from glitchygames.tools.bitmappy import FilmStripSprite
+        from glitchygames.bitmappy.editor import FilmStripSprite
 
         widget = MagicMock()
         widget.get_frame_at_position.return_value = None
@@ -1609,7 +1609,7 @@ class TestAnimatedCanvasSpriteDragMethods:
 
     def _make_canvas_sprite(self, pygame_mocks, mock_groups):
         """Create an AnimatedCanvasSprite with mocked dependencies."""
-        from glitchygames.tools.bitmappy import AnimatedCanvasSprite
+        from glitchygames.bitmappy.editor import AnimatedCanvasSprite
 
         animated_sprite = MagicMock()
         animated_sprite.current_animation = 'idle'

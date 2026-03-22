@@ -3,14 +3,14 @@
 import math
 import time
 
-from glitchygames.tools.controller_mode_system import (
+from glitchygames.bitmappy.controller_mode_system import (
     ControllerMode,
     ControllerModeState,
     ModePosition,
     ModeSwitcher,
     TriggerDetector,
 )
-from glitchygames.tools.visual_collision_manager import LocationType
+from glitchygames.bitmappy.visual_collision_manager import LocationType
 
 
 class TestControllerMode:
@@ -106,7 +106,7 @@ class TestControllerModeState:
 
     def test_get_location_type(self):
         """Test getting location type for current mode."""
-        from glitchygames.tools.visual_collision_manager import LocationType
+        from glitchygames.bitmappy.visual_collision_manager import LocationType
 
         assert self.mode_state.get_location_type() == LocationType.FILM_STRIP
 
@@ -290,7 +290,7 @@ class TestModeSwitcher:
 
     def test_get_controller_location_type(self):
         """Test getting controller location type."""
-        from glitchygames.tools.visual_collision_manager import LocationType
+        from glitchygames.bitmappy.visual_collision_manager import LocationType
 
         controller_id = 0
 

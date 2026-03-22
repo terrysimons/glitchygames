@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.editor import (
     _build_ascii_grid,
     _build_color_to_glyph_map,
     _build_renderer_color_dict,

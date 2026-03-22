@@ -69,17 +69,17 @@ class TestScene:
         # Test getting background color
         assert scene.background_color is not None
 
-        # Test setting background color
+        # Test setting background color (RGB gets normalized to RGBA with alpha=0)
         scene.background_color = RED
-        assert scene.background_color == RED
+        assert scene.background_color == (*RED, 0)
 
     def test_scene_background_color_setter(self, mock_pygame_patches, mocker):
         """Test Scene background_color setter."""
         scene = Scene()
 
-        # Test setting background color
+        # Test setting background color (RGB gets normalized to RGBA with alpha=0)
         scene.background_color = BLUE
-        assert scene.background_color == BLUE
+        assert scene.background_color == (*BLUE, 0)
 
     def test_scene_setup_method(self, mock_pygame_patches, mocker):
         """Test Scene setup method."""
@@ -1969,8 +1969,9 @@ class TestSceneBackgroundColor:
     def test_background_color_setter(self, mock_pygame_patches):
         """Test background_color setter updates the color."""
         scene = Scene()
+        # RGB gets normalized to RGBA with alpha=0
         scene.background_color = (255, 0, 0)
-        assert scene.background_color == (255, 0, 0)
+        assert scene.background_color == (255, 0, 0, 0)
 
 
 class TestSceneUpdate:

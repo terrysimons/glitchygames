@@ -16,8 +16,8 @@ from types import SimpleNamespace
 import pygame
 import pytest
 
-from glitchygames.tools import bitmappy
-from glitchygames.tools.bitmappy import BitmapEditorScene
+from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.editor import BitmapEditorScene
 from tests.mocks import MockFactory
 
 
@@ -1186,7 +1186,7 @@ class TestDialogEvents:
 
     def test_on_new_canvas_dialog(self, mock_editor, mocker):
         """Creates new canvas dialog scene."""
-        mocker.patch('glitchygames.tools.bitmappy.NewCanvasDialogScene')
+        mocker.patch('glitchygames.bitmappy.editor.NewCanvasDialogScene')
         event = _make_event()
         mock_editor.on_new_canvas_dialog_event(event)
         assert mock_editor.next_scene is not None
@@ -1194,7 +1194,7 @@ class TestDialogEvents:
 
     def test_on_load_dialog(self, mock_editor, mocker):
         """Creates load dialog scene."""
-        mocker.patch('glitchygames.tools.bitmappy.LoadDialogScene')
+        mocker.patch('glitchygames.bitmappy.editor.LoadDialogScene')
         event = _make_event()
         mock_editor.on_load_dialog_event(event)
         assert mock_editor.next_scene is not None
@@ -1202,7 +1202,7 @@ class TestDialogEvents:
 
     def test_on_save_dialog(self, mock_editor, mocker):
         """Creates save dialog scene."""
-        mocker.patch('glitchygames.tools.bitmappy.SaveDialogScene')
+        mocker.patch('glitchygames.bitmappy.editor.SaveDialogScene')
         event = _make_event()
         mock_editor.on_save_dialog_event(event)
         assert mock_editor.next_scene is not None
@@ -2068,7 +2068,7 @@ class TestIsAiErrorMessage:
     def test_valid_sprite_content(self, mock_editor, mocker):
         """Returns False for valid sprite content."""
         mocker.patch(
-            'glitchygames.tools.bitmappy.validate_ai_response',
+            'glitchygames.bitmappy.editor.validate_ai_response',
             return_value=(True, None),
         )
         result = mock_editor._is_ai_error_message('[sprite]\nname = "test"')
@@ -2077,7 +2077,7 @@ class TestIsAiErrorMessage:
     def test_error_content(self, mock_editor, mocker):
         """Returns True for error/apology content."""
         mocker.patch(
-            'glitchygames.tools.bitmappy.validate_ai_response',
+            'glitchygames.bitmappy.editor.validate_ai_response',
             return_value=(False, 'Missing sprite section'),
         )
         result = mock_editor._is_ai_error_message('I apologize, I cannot generate that')

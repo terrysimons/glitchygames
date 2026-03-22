@@ -9,7 +9,7 @@ from pathlib import Path
 import pygame
 import pytest
 
-from glitchygames.tools.bitmappy import BitmapEditorScene
+from glitchygames.bitmappy.editor import BitmapEditorScene
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -129,10 +129,12 @@ class TestAISStripIntegration:
         scene.debug_text.text = 'test'
 
         # Mock the missing constants and functions
-        mocker.patch('glitchygames.tools.bitmappy.AI_TRAINING_FORMAT', 'toml')
-        mocker.patch('glitchygames.tools.bitmappy.SPRITE_GLYPHS', '0123456789ABCDEF')
-        mocker.patch('glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT', 'test format')
-        mock_select = mocker.patch('glitchygames.tools.bitmappy._select_relevant_training_examples')
+        mocker.patch('glitchygames.bitmappy.editor.AI_TRAINING_FORMAT', 'toml')
+        mocker.patch('glitchygames.bitmappy.editor.SPRITE_GLYPHS', '0123456789ABCDEF')
+        mocker.patch('glitchygames.bitmappy.editor.COMPLETE_TOML_FORMAT', 'test format')
+        mock_select = mocker.patch(
+            'glitchygames.bitmappy.editor._select_relevant_training_examples'
+        )
 
         mock_select.return_value = []
 
@@ -173,10 +175,12 @@ class TestAISStripIntegration:
         scene.debug_text.text = 'test'
 
         # Mock the missing constants and functions
-        mocker.patch('glitchygames.tools.bitmappy.AI_TRAINING_FORMAT', 'toml')
-        mocker.patch('glitchygames.tools.bitmappy.SPRITE_GLYPHS', '0123456789ABCDEF')
-        mocker.patch('glitchygames.tools.bitmappy.COMPLETE_TOML_FORMAT', 'test format')
-        mock_select = mocker.patch('glitchygames.tools.bitmappy._select_relevant_training_examples')
+        mocker.patch('glitchygames.bitmappy.editor.AI_TRAINING_FORMAT', 'toml')
+        mocker.patch('glitchygames.bitmappy.editor.SPRITE_GLYPHS', '0123456789ABCDEF')
+        mocker.patch('glitchygames.bitmappy.editor.COMPLETE_TOML_FORMAT', 'test format')
+        mock_select = mocker.patch(
+            'glitchygames.bitmappy.editor._select_relevant_training_examples'
+        )
 
         mock_select.return_value = []
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for frame-specific undo/redo functionality."""
 
-from glitchygames.tools.undo_redo_manager import OperationType, UndoRedoManager
+from glitchygames.bitmappy.undo_redo_manager import OperationType, UndoRedoManager
 
 
 class TestFrameSpecificUndoRedo:

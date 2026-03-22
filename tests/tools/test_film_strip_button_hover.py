@@ -18,13 +18,13 @@ import pytest
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent / '..' / '..'))
 
-from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from glitchygames.tools.film_strip import (
+from glitchygames.bitmappy.film_strip import (
     FilmStripDeleteTab,
     FilmStripTab,
     FilmStripWidget,
     FilmTabWidget,
 )
+from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from tests.mocks.test_mock_factory import MockFactory
 
 

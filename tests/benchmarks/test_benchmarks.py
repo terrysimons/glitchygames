@@ -13,10 +13,10 @@ from pathlib import Path
 import pygame
 import pytest
 
+from glitchygames.bitmappy.controller_selection import ControllerSelection
+from glitchygames.bitmappy.visual_collision_manager import VisualCollisionManager
 from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.visual_collision_manager import VisualCollisionManager
 from tests.mocks import MockFactory
 
 # Path to the static sprite fixture

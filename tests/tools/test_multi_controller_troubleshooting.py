@@ -9,8 +9,8 @@ import logging
 import pygame
 import pytest
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.multi_controller_manager import (
+from glitchygames.bitmappy.controller_selection import ControllerSelection
+from glitchygames.bitmappy.multi_controller_manager import (
     ControllerInfo,
     ControllerStatus,
     MultiControllerManager,
@@ -79,7 +79,7 @@ class TestButtonMappingIssues:
         # This should not trigger controller activation
         # (Button 9 is now unhandled to prevent reset behavior)
         mock_activate = mocker.patch(
-            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_activate'
+            'glitchygames.bitmappy.editor.BitmapEditorScene._multi_controller_activate'
         )
         # Simulate the event handling logic
         if mock_event.button == 9:
@@ -106,10 +106,10 @@ class TestButtonMappingIssues:
 
         # Mock the navigation methods
         mock_prev = mocker.patch(
-            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame'
+            'glitchygames.bitmappy.editor.BitmapEditorScene._multi_controller_previous_frame'
         )
         mock_next = mocker.patch(
-            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame'
+            'glitchygames.bitmappy.editor.BitmapEditorScene._multi_controller_next_frame'
         )
 
         # Simulate left shoulder button press

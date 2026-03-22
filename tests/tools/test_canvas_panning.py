@@ -6,8 +6,8 @@ import math
 import pygame
 import pytest
 
+from glitchygames.bitmappy.editor import AnimatedCanvasSprite, BitmapEditorScene
 from glitchygames.sprites.animated import SpriteFrame
-from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
 from tests.mocks.test_mock_factory import MockFactory
 
 

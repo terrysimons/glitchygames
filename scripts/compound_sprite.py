@@ -11,10 +11,10 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.bitmappy import resource_path
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
-from glitchygames.tools.bitmappy import resource_path
 from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
 
 log = logging.getLogger('game')

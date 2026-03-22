@@ -2,13 +2,13 @@
 
 import pytest
 
-from glitchygames.tools.operation_history import (
+from glitchygames.bitmappy.operation_history import (
     CanvasOperationTracker,
     CrossAreaOperationTracker,
     FilmStripOperationTracker,
     PixelChange,
 )
-from glitchygames.tools.undo_redo_manager import (
+from glitchygames.bitmappy.undo_redo_manager import (
     Operation,
     OperationType,
     UndoRedoManager,

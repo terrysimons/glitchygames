@@ -1,6 +1,6 @@
 """Tests for visual collision functionality and coverage."""
 
-from glitchygames.tools.visual_collision_manager import (
+from glitchygames.bitmappy.visual_collision_manager import (
     IndicatorShape,
     LocationType,
     VisualCollisionManager,

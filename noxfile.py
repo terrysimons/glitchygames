@@ -130,6 +130,8 @@ def lint_all(session: nox.Session) -> None:
     _lint_code(session)
     _lint_docs(session)
     _lint_yaml(session)
+    _lint_circleci(session)
+    _lint_github_actions(session)
     _lint_toml(session)
     _lint_dependencies(session)
     _lint_dead_code(session)
@@ -141,14 +143,14 @@ def lint_all(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='format-code')
+@nox.session(python=['3.14'], reuse_venv=False, name='format-code', default=False)
 def format_code(session: nox.Session) -> None:
     """Format Python code with ruff (import sorting + black-style formatting)."""
     session.install(_ALL_EXTRAS)
     _format_code(session)
 
 
-@nox.session(venv_backend='none', name='format-toml')
+@nox.session(venv_backend='none', name='format-toml', default=False)
 def format_toml(session: nox.Session) -> None:
     """Format TOML files with taplo."""
     _format_toml(session)
@@ -159,66 +161,66 @@ def format_toml(session: nox.Session) -> None:
 # ---------------------------------------------------------------------------
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-code')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-code', default=False)
 def lint_code(session: nox.Session) -> None:
     """Lint Python code with ruff."""
     session.install(_ALL_EXTRAS)
     _lint_code(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-docs')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-docs', default=False)
 def lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
     session.install(_ALL_EXTRAS)
     _lint_docs(session)
 
 
-@nox.session(venv_backend='none', name='lint-yaml')
+@nox.session(venv_backend='none', name='lint-yaml', default=False)
 def lint_yaml(session: nox.Session) -> None:
     """Lint YAML files with yamllint."""
     _lint_yaml(session)
 
 
-@nox.session(venv_backend='none', name='lint-circleci')
+@nox.session(venv_backend='none', name='lint-circleci', default=False)
 def lint_circleci(session: nox.Session) -> None:
     """Validate CircleCI configuration."""
     _lint_circleci(session)
 
 
-@nox.session(venv_backend='none', name='lint-github-actions')
+@nox.session(venv_backend='none', name='lint-github-actions', default=False)
 def lint_github_actions(session: nox.Session) -> None:
     """Lint GitHub Actions workflows with actionlint."""
     _lint_github_actions(session)
 
 
-@nox.session(venv_backend='none', name='lint-ci-config')
+@nox.session(venv_backend='none', name='lint-ci-config', default=False)
 def lint_ci_config(session: nox.Session) -> None:
     """Validate all CI configurations (CircleCI + GitHub Actions)."""
     _lint_circleci(session)
     _lint_github_actions(session)
 
 
-@nox.session(venv_backend='none', name='lint-toml')
+@nox.session(venv_backend='none', name='lint-toml', default=False)
 def lint_toml(session: nox.Session) -> None:
     """Lint TOML files with taplo."""
     _lint_toml(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-dependencies')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-dependencies', default=False)
 def lint_dependencies(session: nox.Session) -> None:
     """Check for dependency issues with deptry."""
     session.install(_ALL_EXTRAS)
     _lint_dependencies(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-dead-code')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-dead-code', default=False)
 def lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
     session.install(_ALL_EXTRAS)
     _lint_dead_code(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-cves')
+@nox.session(python=['3.14'], reuse_venv=False, name='lint-cves', default=False)
 def lint_cves(session: nox.Session) -> None:
     """Audit dependencies for known CVEs with pip-audit."""
     session.install(_ALL_EXTRAS)
@@ -240,14 +242,14 @@ def _static_analysis_ty(session: nox.Session) -> None:
     session.run('ty', 'check')
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-basedpyright')
+@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-basedpyright', default=False)
 def static_analysis_basedpyright(session: nox.Session) -> None:
     """Run static type analysis with basedpyright."""
     session.install(_ALL_EXTRAS)
     _static_analysis_basedpyright(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-ty')
+@nox.session(python=['3.14'], reuse_venv=False, name='static-analysis-ty', default=False)
 def static_analysis_ty(session: nox.Session) -> None:
     """Run static type analysis with ty (Astral's type checker)."""
     session.install(_ALL_EXTRAS)
@@ -293,7 +295,7 @@ def test(session: nox.Session) -> None:
     session.run('pytest', *args, env=env)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='performance-test')
+@nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
     session.install(_ALL_EXTRAS)
@@ -355,21 +357,21 @@ def _safety_scan(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan')
+@nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan', default=False)
 def bandit_scan(session: nox.Session) -> None:
     """Run bandit security scan."""
     session.install(_ALL_EXTRAS)
     _bandit_scan(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='safety-scan')
+@nox.session(python=['3.14'], reuse_venv=False, name='safety-scan', default=False)
 def safety_scan(session: nox.Session) -> None:
     """Run safety vulnerability scan."""
     session.install(_ALL_EXTRAS)
     _safety_scan(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='security-scan')
+@nox.session(python=['3.14'], reuse_venv=False, name='security-scan', default=False)
 def security_scan(session: nox.Session) -> None:
     """Run all security scanning tools (bandit + safety)."""
     session.install(_ALL_EXTRAS)

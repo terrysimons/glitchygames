@@ -14,8 +14,8 @@ import pytest
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
+from glitchygames.bitmappy.editor import AnimatedCanvasSprite, BitmapEditorScene
 from glitchygames.sprites import AnimatedSprite
-from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
 from mocks.test_mock_factory import (  # type: ignore[unresolved-import]
     MockFactory,
     create_10x10_sprite_mock,
@@ -192,7 +192,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the detect_file_format function
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
@@ -301,7 +301,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Create a mock loaded sprite with different dimensions using the factory
@@ -365,7 +365,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process to avoid real file system issues
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
@@ -472,7 +472,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Create a mock loaded sprite using the centralized factory
@@ -535,7 +535,7 @@ pixels = \"\"\"
 
         try:
             # Mock the detect_file_format function
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method

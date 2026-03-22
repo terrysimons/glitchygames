@@ -6,12 +6,7 @@ from typing import cast
 import pygame
 import pytest
 
-from glitchygames.sprites.animated import (
-    AnimatedSprite,
-    SpriteFrame,
-)
-from glitchygames.tools.bitmappy import AnimatedCanvasSprite
-from glitchygames.tools.canvas_interfaces import (
+from glitchygames.bitmappy.canvas_interfaces import (
     AnimatedCanvasInterface,
     AnimatedCanvasRenderer,
     AnimatedSpriteSerializer,
@@ -19,6 +14,11 @@ from glitchygames.tools.canvas_interfaces import (
     MockTrigger,
     StaticCanvasInterface,
     StaticSpriteSerializer,
+)
+from glitchygames.bitmappy.editor import AnimatedCanvasSprite
+from glitchygames.sprites.animated import (
+    AnimatedSprite,
+    SpriteFrame,
 )
 from tests.mocks.test_mock_factory import MockFactory
 
