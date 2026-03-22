@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import types
-    from collections.abc import Generator
 
 try:
     import miniaudio as mi
@@ -109,12 +108,10 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[union-attr]
         """
         self.stream = _BlockingByteStream()
 
-        def _capture_generator() -> Generator[None, bytes | None]:
-            """Generator that receives captured audio data and writes to the stream."""
-            while True:
-                data = yield
-                if self.stream and data:
-                    self.stream.write(bytes(data))
+        def _capture_callback(data: memoryview, frame_count: int, playback_position: int) -> None:  # noqa: ARG001
+            """Callback that receives captured audio data and writes to the stream."""
+            if self.stream and data:
+                self.stream.write(bytes(data))
 
         # Configure capture device
         self._device = mi.CaptureDevice(  # type: ignore[union-attr]
@@ -123,9 +120,7 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[union-attr]
             sample_rate=self.SAMPLE_RATE,
             device_id=self.device_index,
         )
-        generator = _capture_generator()
-        next(generator)  # Prime the generator
-        self._device.start(generator)  # ty: ignore[invalid-argument-type]
+        self._device.start(_capture_callback)
         return self
 
     @override

@@ -38,7 +38,7 @@ def _try_import_portaudio() -> type[object] | None:
         from .voice_portaudio import PortAudioMicrophone
 
         return PortAudioMicrophone
-    except ImportError, RuntimeError:
+    except (ImportError, RuntimeError):
         return None
 
 
@@ -56,7 +56,7 @@ def _probe_backend(backend_cls: type[object], name: str) -> type[object] | None:
     try:
         _ = backend_cls()
         return backend_cls
-    except OSError, RuntimeError:
+    except (OSError, RuntimeError):
         LOG.debug('%s probe failed, trying next backend', name)
         return None
 
