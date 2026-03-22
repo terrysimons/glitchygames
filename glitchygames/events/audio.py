@@ -4,15 +4,19 @@
 This is a simple audio manager that can be used to manage audio.
 """
 
-import argparse
+from __future__ import annotations
+
 import logging
-from typing import Self
+from typing import TYPE_CHECKING, Any, Self, override
+
+if TYPE_CHECKING:
+    import argparse
 
 import pygame
-from glitchygames.events import AUDIO_EVENTS
-from glitchygames.events import AudioEvents, ResourceManager
 
-log = logging.getLogger("game.audio")
+from glitchygames.events import AUDIO_EVENTS, AudioEvents, HashableEvent, ResourceManager
+
+log = logging.getLogger('game.audio')
 log.addHandler(logging.NullHandler())
 
 
@@ -28,35 +32,28 @@ class AudioEventManager(ResourceManager):
             Args:
                 game: The game instance.
 
-            Returns:
-                None
-
             """
             super().__init__(game)
 
-            self.game = game
+            self.game: Any = game
             self.proxies = [self.game, pygame.mixer]
 
-        def on_audio_device_added_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:
             """Handle audio device added event.
 
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             self.game.on_audio_device_added_event(event)
 
-        def on_audio_device_removed_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:
             """Handle audio device removed event.
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             self.game.on_audio_device_removed_event(event)
@@ -67,15 +64,12 @@ class AudioEventManager(ResourceManager):
         Args:
             game: The game instance.
 
-        Returns:
-            None
-
         """
         super().__init__(game=game)
         try:
             pygame.event.set_allowed(AUDIO_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            log.debug('Failed to set allowed audio events: pygame not fully initialized')
 
         # Set the mixer pre-init settings
         pygame.mixer.pre_init(22050, -16, 2, 1024)
@@ -84,9 +78,9 @@ class AudioEventManager(ResourceManager):
         # Sound Stuff
         # pygame.mixer.get_init() -> (frequency, format, channels)
         (sound_frequency, sound_format, sound_channels) = pygame.mixer.get_init()
-        log.info("Mixer Settings:")
+        log.info('Mixer Settings:')
         log.info(
-            f"Frequency: {sound_frequency}, Format: {sound_format}, Channels: {sound_channels}"
+            f'Frequency: {sound_frequency}, Format: {sound_format}, Channels: {sound_channels}'
         )
 
         self.proxies = [AudioEventManager.AudioEventProxy(game=game)]
@@ -102,8 +96,6 @@ class AudioEventManager(ResourceManager):
             The argument parser.
 
         """
-        group: argparse._ArgumentGroup = parser.add_argument_group(  # noqa: F841
-            "Sound Mixer Options"
-        )
+        _group = parser.add_argument_group('Sound Mixer Options')
 
         return parser

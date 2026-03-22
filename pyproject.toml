@@ -1,81 +1,92 @@
-[tool.poetry]
+[project]
 name = "glitchygames"
 version = "1.0.0"
 description = "Glitchy Games and Tools for Pygame and Python 3"
 authors = [
-    "Terry Simons <terry.simons@gmail.com>",
-    "Rich Saupe <sabadam32@gmail.com>",
+  { name = "Terry Simons", email = "terry.simons@gmail.com" },
+  { name = "Rich Saupe", email = "sabadam32@gmail.com" },
 ]
 maintainers = [
-    "Terry Simons <terry.simons@gmail.com>",
-    "Rich Saupe <sabadam32@gmail.com>",
+  { name = "Terry Simons", email = "terry.simons@gmail.com" },
+  { name = "Rich Saupe", email = "sabadam32@gmail.com" },
 ]
 readme = "README.md"
 license = "BSD-3-Clause"
+requires-python = ">=3.14,<4.0"
 classifiers = [
-    "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: BSD License",
-    "Operating System :: OS Independent"
+  "Programming Language :: Python :: 3.14",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
 ]
-include = [
-  'glitchygames/assets',
-  'glitchygames/config',
-  'glitchygames/resources',
-  'glitchygames/fonts',
-  'glitchygames/tools'
+keywords = ["pygame", "game-engine", "pixel-art", "sprite-editor"]
+dependencies = [
+  "tomli-w",
+  "pygame-ce",
+  "cookiecutter",
+  "pyperclip",
+  "aisuite[all]>=0.1.14",
+  "numpy",
+  "miniaudio",
+  "speechrecognition",
+  "bokeh",
+  "backoff",
+  "fastapi",
+  "uvicorn",
+  "pydantic",
+  "httpx",
+  "apng",
+  "pillow",
+  "deptry>=0.25.1",
+  "vulture>=2.15",
+  "pip-audit>=2.10.0",
+  "hypothesis>=6.151.9",
+  "taplo>=0.9.3",
+  "yamllint>=1.38.0",
 ]
 
-[tool.poetry.urls]
+[project.urls]
 "Bug Tracker" = "https://github.com/terrysimons/glitchygames/issues/"
-"homepage" = "https://glitchygames.ai/"
+"Homepage" = "https://glitchygames.ai/"
 "Documentation" = "https://glitchygames.ai/documentation/"
+"Repository" = "https://github.com/terrysimons/glitchygames"
 
-[tool.poetry.scripts]
+[project.scripts]
 bitmappy = "glitchygames.tools.bitmappy:main"
+glitchygames-server = "glitchygames.api.main:run"
+glitchygames-client = "glitchygames.api.client:run"
 
-[tool.poetry.dependencies]
-# keep your python version here, e.g.:
-python = ">=3.13.0,<4.0"
-toml = "*"
-pygame = "*"
-future = "*"
-cookiecutter = "*"
-pyperclip = "*"
-aisuite = {extras = ["all"], version = "*"}
-numpy = "*"
-miniaudio = "*"
-speechrecognition = "*"
+[project.optional-dependencies]
+docs = [
+  "mkdocs",
+  "mkdocstrings[crystal,python]",
+  "mkdocs-material",
+  "mkdocs-gen-files",
+  "mkdocs-literate-nav",
+  "mkdocs-section-index",
+  "pymdown-extensions",
+  "mkdocs-autorefs",
+  "mkdocs-macros-plugin",
+  "mkdocstrings-python",
+]
+dev = [
+  "nox[uv]",
+  "pytest",
+  "pytest-cov",
+  "pytest-xdist",
+  "pytest-benchmark",
+  "pytest-mock",
+  "bandit",
+  "safety",
+  "ruff",
+  "pre-commit",
+  "basedpyright",
+  "ty",
+  "pillow",
+]
+api = []
 
-# --- docs extras as optional main deps ---
-mkdocs = { version = "1.6.1", optional = true }
-mkdocstrings = { version = "^0", optional = true, extras = ["crystal", "python"] }
-mkdocs-material = { version = "^9.6", optional = true }
-mkdocs-gen-files = { version = "^0", optional = true }
-mkdocs-literate-nav = { version = "^0", optional = true }
-mkdocs-section-index = { version = "^0", optional = true }
-pymdown-extensions = { version = "*", optional = true }
-mkdocs-autorefs = { version = "^1.4", optional = true }
-mkdocs-macros-plugin = { version = "^1.4", optional = true }
-mkdocstrings-python = { version = "^1.18", optional = true }
-
-# --- dev extras as optional main deps ---
-nox = { version = "*", optional = true }
-nox-poetry = { version = "*", optional = true }
-pytest = { version = "*", optional = true }
-pytest-cov = { version = "*", optional = true }
-pytest-xdist = { version = "*", optional = true }
-pytest-benchmark = { version = "*", optional = true }
-coverage = { version = "*", optional = true }
-bandit = { version = "*", optional = true }
-safety = { version = "*", optional = true }
-ruff = { version = "*", optional = true }
-pre-commit = { version = "*", optional = true }
-poetry-plugin-export = { version = "*", optional = true }
-pyright = { version = "*", optional = true }
-
-[tool.poetry.extras]
-docs = ["mkdocs", "mkdocstrings", "mkdocs-material", "mkdocs-gen-files", "mkdocs-literate-nav", "mkdocs-section-index", "pymdown-extensions", "mkdocs-autorefs", "mkdocs-macros-plugin", "mkdocstrings-python"]
-dev = ["nox", "nox-poetry", "pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "coverage", "bandit", "safety", "ruff", "pre-commit", "pyright", "poetry-plugin-export"]
+[tool.hatch.build.targets.wheel]
+packages = ["glitchygames"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -83,199 +94,219 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 # Exclude examples directory from test collection
-norecursedirs = ["examples", "build", "dist", "*.egg-info", ".git", "__pycache__"]
-addopts = "--cov=glitchygames --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+norecursedirs = [
+  "examples",
+  "build",
+  "dist",
+  "*.egg-info",
+  ".git",
+  ".hypothesis",
+  "__pycache__",
+]
+addopts = "-n auto --cov=glitchygames --cov-fail-under=80 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+filterwarnings = [
+  "error",
+  # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
+  "ignore:aifc was removed:DeprecationWarning",
+  # Third-party: docstring_parser uses deprecated ast nodes (via aisuite)
+  "ignore:ast\\..* is deprecated:DeprecationWarning",
+  # pytest-benchmark warns when xdist is active (benchmarks auto-disabled)
+  "ignore:Benchmarks are automatically disabled:pytest_benchmark.logger.PytestBenchmarkWarning",
+]
 # Note: All tests run with no_unhandled_events=True to catch unhandled events as bugs
 
 [tool.coverage.run]
 source = ["glitchygames"]
+branch = true
+parallel = true
 omit = [
-    "*/tests/*",
-    "*/examples/*",
-    "*/build/*",
-    "*/dist/*",
-    "*/__pycache__/*",
-    "*/migrations/*"
+  "*/tests/*",
+  "*/examples/*",
+  "*/build/*",
+  "*/dist/*",
+  "*/__pycache__/*",
+  "*/migrations/*",
 ]
 
 [tool.coverage.report]
+show_missing = true
+
 exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod"
+  "pragma: no cover",
+  "def __repr__",
+  "if self.debug:",
+  "if settings.DEBUG",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if 0:",
+  "if __name__ == .__main__.:",
+  "class .*\\bProtocol\\):",
+  "@(abc\\.)?abstractmethod",
+  "if TYPE_CHECKING:",
 ]
+
+[tool.coverage.html]
+directory = "htmlcov"
 
 [tool.ruff]
 preview = true
 line-length = 100
 output-format = "grouped"
 src = ["glitchygames", "tests", "scripts"]
-lint.task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
-include = ["glitchygames/*.py", "tests/**/*.py", "scripts/**/*.py", "noxfile.py"]
-extend-include = []
-lint.select = [
-  "F",
-  "E",
-  "W",
-  "C90",
-  "I",
-  "N",
-  "D",
-  "UP",
-  "YTT",
-  "ASYNC",
-  "S",
-  "BLE",
-  "FBT",
-  "B",
-  "A",
-  "COM",
-  "CPY",
-  "C4",
-  "DTZ",
-  "T10",
-  "DJ",
-  "EM",
-  "EXE",
-  "FA",
-  "ISC",
-  "ICN",
-  "G",
-  "INP",
-  "PIE",
-  "T20",
-  "PYI",
-  "PT",
-  "Q",
-  "RSE",
-  "RET",
-  "SLF",
-  "SLOT",
-  "SIM",
-  "TID",
-  "INT",
-  "ARG",
-  "PTH",
-  "TD",
-  "FIX",
-  "ERA",
-  "PD",
-  "PGH",
-  "PL",
-  "TRY",
-  "FLY",
-  "NPY",
-  "AIR",
-  "PERF",
-  "FURB",
-  "LOG",
-  "RUF",
+include = [
+  "glitchygames/*.py",
+  "tests/**/*.py",
+  "scripts/**/*.py",
+  "noxfile.py",
 ]
-lint.ignore = [
+target-version = "py314"
+
+[tool.ruff.lint]
+task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
+select = ["ALL"]
+ignore = [
+  # --- Previously ignored ---
   #"ASYN",
-  "FIX002", # Line contains TODO, consider resolving the issue
-  "SLF001", # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
-  "S311", # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-  "COM812", # Trailing comma missing
-  "G004", # Logging statement uses f-string
-  "ISC002", # Use of implicit string concatenation
-  "ERA001", # Found commented-out code
+  "FIX002",  # Line contains TODO, consider resolving the issue
+  "SLF001",  # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
+  "S311",    # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+  "COM812",  # Trailing comma missing
+  "G004",    # Logging statement uses f-string
+  "ISC002",  # Use of implicit string concatenation
+  "ERA001",  # Found commented-out code
   "PLR0911", # Too many return statements
-  "C901", # Function is too complex
-  "EM102", # Exception must not use an f-string literal, assign to variable first
-  "TRY003", # Avoid specifying long messages outside the exception class
-  "ARG002", # Unused method argument: `args`
-  "TD003", # Missing issue link on the line following this TODO
+  "C901",    # Function is too complex
+  "EM102",   # Exception must not use an f-string literal, assign to variable first
+  "TRY003",  # Avoid specifying long messages outside the exception class
+  "ARG002",  # Unused method argument
+  "TD003",   # Missing issue link on the line following this TODO
   "PLR0913", # Too many arguments to function call
-  "TD002", # Missing author in TODO
-  "S101",
+  "TD002",   # Missing author in TODO
   "PLR0917", # Too many positional arguments
   "PLR0904", # Too many public methods
-  "CPY001", # Missing copyright notice at top of file
-  "B019",  # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
-  "EM101", # Exception must not use a string literal, assign to variable first
-  "ISC001", # Use of implicit string concatenation (this conflicts with ruff format)
-  "D203", # Incorrect blank line before class (conflicts with D211)
-  "D213", # Multi-line summary second line (conflicts with D212)
-  "TRY300", # Consider moving this statement to an `else` block
-  "PLR6301"
+  "CPY001",  # Missing copyright notice at top of file
+  "B019",    # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
+  "EM101",   # Exception must not use a string literal, assign to variable first
+  "ISC001",  # Use of implicit string concatenation (this conflicts with ruff format)
+  "D203",    # Incorrect blank line before class (conflicts with D211)
+  "D213",    # Multi-line summary second line (conflicts with D212)
+  "TRY300",  # Consider moving this statement to an `else` block
+  "PLR6301", # Method could be a function/staticmethod
+  "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
+  "S101",    # assert is used intentionally for type narrowing and runtime invariant checks
+  "ANN401",  # Any is needed for dynamic dispatch, loosely-typed game objects, and AI client APIs
 ]
-lint.exclude = []
-lint.fixable = [
-  "I001",
-  "Q000",
-  "EXE001",
-  "D401",
-  "D413",
-  "TRY400",
-  "F541",
-  "T201",
-  "UP035",
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+  "PLR2004",
+  "ANN",
+  "ARG001",
+  "ARG005",
+  "PLC2701",
+  "PLC2801", # Tests may call dunder methods directly to verify they work
+  "D102",    # Test method names are self-documenting
+  "DOC201",  # Test helper return docs unnecessary
+  "RET504",  # Explicit assignment before return aids test readability
+  "F841",
+  "B007",
+  "S101",
+  "PT018",   # Compound assertions are acceptable in tests
+  "RUF069",  # Exact float comparisons are intentional in property-based tests
+  "B905",    # zip() without strict= is fine in tests
+  "B002",    # False positive on double-negation test: -(-speed)
 ]
-lint.unfixable = []
-target-version = "py313"
+"glitchygames/api/**/*.py" = [
+  "RUF029", # FastAPI requires async def for route handlers even without await
+]
+"scripts/**/*.py" = [
+  "TC003", # Scripts use stdlib imports at runtime, not just for type checking
+]
 
 [tool.ruff.format]
 docstring-code-format = true
+quote-style = "single"
+line-ending = "lf"
 
-[tool.lint.flake8-annotations]
+[tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true
 ignore-fully-untyped = false
 
-[tool.lint.flake8-quotes]
+[tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
 inline-quotes = "single"
 multiline-quotes = "double"
 
-[tool.lint.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
-[tool.pyright]
+[tool.ruff.lint.isort]
+known-first-party = ["glitchygames"]
+
+## basedpyright config lives in pyrightconfig.json (supports per-environment overrides)
+
+## ty (Astral's type checker) configuration
+[tool.ty.environment]
+python-version = "3.14"
+extra-paths = ["scripts"]
+
+[tool.ty.src]
 include = ["glitchygames", "tests", "scripts"]
-exclude = [
-    "**/__pycache__",
-]
-ignore = []
-defineConstant = { DEBUG = true }
-# stubPath = "src/stubs"
 
-pythonVersion = "3.13"
-pythonPlatform = "All"
+[tool.ty.rules]
+# type: ignore comments are shared with basedpyright — don't flag them as unused
+unused-type-ignore-comment = "ignore"
 
-executionEnvironments = [
-  # { root = "src/web", pythonVersion = "3.5", pythonPlatform = "Windows", extraPaths = [ "src/service_libs" ] },
-  # { root = "src/sdk", pythonVersion = "3.0", extraPaths = [ "src/backend" ] },
-  # { root = "src/tests", extraPaths = ["src/tests/e2e", "src/sdk" ]},
-  { root = "glitchygames", extraPaths = [ "scripts", "tests" ]}
+[tool.ty.terminal]
+output-format = "full"
+error-on-warning = false
+
+
+[tool.bandit]
+exclude_dirs = ["tests", "glitchygames/tests"]
+# Filter to Medium+ severity and confidence to reduce noise.
+# B101 (assert_used) is Low severity and gets filtered out by this.
+# TODO: Replace remaining assert usage with explicit raises, then tighten to low/low
+severity = "medium"
+confidence = "medium"
+
+[tool.deptry]
+# pygame-ce installs as the 'pygame' module
+package_module_name_map = { "pygame-ce" = "pygame" }
+
+[tool.deptry.per_rule_ignores]
+# numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime
+# Dev/build/lint/docs tools are invoked via CLI, not imported in Python code
+DEP002 = [
+  "numpy",
+  "deptry",
+  "mkdocs",
+  "mkdocstrings",
+  "mkdocs-material",
+  "mkdocs-literate-nav",
+  "mkdocs-section-index",
+  "pymdown-extensions",
+  "mkdocs-autorefs",
+  "mkdocs-macros-plugin",
+  "mkdocstrings-python",
+  "pytest-cov",
+  "pytest-xdist",
+  "pytest-benchmark",
+  "pytest-mock",
+  "bandit",
+  "safety",
+  "ruff",
+  "pre-commit",
+  "basedpyright",
+  "ty",
+  "vulture",
+  "pip-audit",
+  "hypothesis",
+  "taplo",
+  "yamllint",
 ]
-reportMissingImports = false
-reportMissingTypeStubs = false
-reportAttributeAccessIssue = false
-reportIncompatibleMethodOverride = false
-reportReturnType = false
-reportArgumentType = false
-reportAbstractUsage = false
-reportGeneralTypeIssues = false
-reportOptionalMemberAccess = false
-reportCallIssue = false
-reportOptionalIterable = false
-reportIncompatibleVariableOverride = false
-reportOptionalSubscript = false
-reportIndexIssue = false
-reportAssignmentType = false
-reportOperatorIssue = false
-reportFunctionMemberAccess = false
-reportPossiblyUnboundVariable = false
-reportRedeclaration = false
-reportPrivateImportUsage = false
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"

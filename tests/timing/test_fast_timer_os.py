@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""OS-level accuracy tests for the FastTimer backend."""
+
 import sys
 
 import pytest
@@ -7,17 +9,19 @@ from glitchygames.timing import FastTimer, create_timer
 
 
 def _os_overshoot_ns_default() -> int:
-    if sys.platform.startswith("win"):
+    if sys.platform.startswith('win'):
         return 20_000_000
     return 5_000_000
 
 
 def test_factory_fast_backend_instantiates():
-    t = create_timer("fast", {"sleep_granularity_ns": 1_000_000, "windows_timer_1ms": False})
+    """Test that create_timer with 'fast' returns a FastTimer instance."""
+    t = create_timer('fast', {'sleep_granularity_ns': 1_000_000, 'windows_timer_1ms': False})
     assert isinstance(t, FastTimer)
 
 
 def test_fast_timer_basic_sleep_accuracy():
+    """Test that FastTimer sleep accuracy is within OS-specific bounds."""
     t = FastTimer(sleep_granularity_ns=1_000_000, windows_timer_1ms=False)
     start = t.ns_now()
     deadline = start + 3_000_000  # 3ms
@@ -28,6 +32,7 @@ def test_fast_timer_basic_sleep_accuracy():
 
 
 def test_fast_timer_spin_tighten_accuracy():
+    """Test that spin-only mode achieves tight sleep accuracy."""
     t = FastTimer(sleep_granularity_ns=0, windows_timer_1ms=False)
     start = t.ns_now()
     deadline = start + 1_000_000  # 1ms
@@ -37,8 +42,11 @@ def test_fast_timer_spin_tighten_accuracy():
     assert overshoot < _os_overshoot_ns_default()
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows-only timing resolution test")
+@pytest.mark.skipif(
+    not sys.platform.startswith('win'), reason='Windows-only timing resolution test'
+)
 def test_fast_timer_windows_1ms_option_tighter():
+    """Test that Windows 1ms timer resolution yields tighter sleep accuracy."""
     t = FastTimer(sleep_granularity_ns=1_000_000, windows_timer_1ms=True)
     start = t.ns_now()
     deadline = start + 3_000_000  # 3ms
@@ -46,5 +54,3 @@ def test_fast_timer_windows_1ms_option_tighter():
     assert woke >= deadline
     overshoot = woke - deadline
     assert overshoot < 5_000_000
-
-

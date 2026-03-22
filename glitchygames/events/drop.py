@@ -7,7 +7,7 @@ This is a simple drop event class that can be used to handle drag & drop events.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -15,10 +15,10 @@ if TYPE_CHECKING:
     import pygame
 
 import pygame
-from glitchygames.events import DROP_EVENTS
-from glitchygames.events import DropEvents, ResourceManager
 
-log = logging.getLogger("game.events.drop_events")
+from glitchygames.events import DROP_EVENTS, DropEvents, HashableEvent, ResourceManager
+
+log = logging.getLogger('game.events.drop_events')
 log.addHandler(logging.NullHandler())
 
 
@@ -34,59 +34,48 @@ class DropEventManager(ResourceManager):
             Args:
                 game: The game instance.
 
-            Returns:
-                None
-
             """
             super().__init__(game)
 
-            self.game = game
+            self.game: Any = game
             self.proxies = [self.game]
 
-        def on_drop_begin_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_drop_begin_event(self: Self, event: HashableEvent) -> None:
             """Handle drop begin event.
 
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             self.game.on_drop_begin_event(event)
 
-        def on_drop_complete_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_drop_complete_event(self: Self, event: HashableEvent) -> None:
             """Handle drop complete event.
 
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             self.game.on_drop_complete_event(event)
 
-        def on_drop_file_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_drop_file_event(self: Self, event: HashableEvent) -> None:
             """Handle drop file event.
 
             Args:
                 event: The pygame event.
 
-            Returns:
-                None
-
             """
             self.game.on_drop_file_event(event)
 
-        def on_drop_text_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_drop_text_event(self: Self, event: HashableEvent) -> None:
             """Handle drop text event.
 
             Args:
                 event: The pygame event.
-
-            Returns:
-                None
 
             """
             self.game.on_drop_text_event(event)
@@ -102,7 +91,7 @@ class DropEventManager(ResourceManager):
             The argument parser.
 
         """
-        group = parser.add_argument_group("Drop Options")  # noqa: F841
+        _group = parser.add_argument_group('Drop Options')
 
         return parser
 
@@ -112,14 +101,11 @@ class DropEventManager(ResourceManager):
         Args:
             game: The game instance.
 
-        Returns:
-            None
-
         """
         super().__init__(game=game)
         try:
             pygame.event.set_allowed(DROP_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            log.debug('Failed to set allowed drop events: pygame not fully initialized')
 
         self.proxies = [DropEventManager.DropEventProxy(game=game)]

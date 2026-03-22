@@ -6,10 +6,10 @@ in the animation system before implementing fixes.
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pygame
 import pytest
+
 from glitchygames.sprites import SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
@@ -24,13 +24,18 @@ EXPECTED_FRAME_COUNT = 2
 
 
 def get_resource_path(filename: str) -> str:
-    """Get the full path to a resource file."""
+    """Get the full path to a resource file.
+
+    Returns:
+        str: The resource path.
+
+    """
     return str(
         Path(__file__).parent.parent.parent
-        / "glitchygames"
-        / "examples"
-        / "resources"
-        / "sprites"
+        / 'glitchygames'
+        / 'examples'
+        / 'resources'
+        / 'sprites'
         / filename
     )
 
@@ -38,20 +43,15 @@ def get_resource_path(filename: str) -> str:
 class TestAnimationSystemAudit:
     """Test cases that expose animation system issues."""
 
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
     def setup_method(self):
         """Set up test fixtures."""
-        # Use centralized mocks for pygame initialization
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all the patchers
-        for patcher in self.patchers:
-            patcher.start()
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
-
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        # Teardown the centralized mocks
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     def test_frame_interval_bug_exposure(self):
         """Test that exposes the frame_interval property bug.
@@ -61,10 +61,10 @@ class TestAnimationSystemAudit:
         when animation state is managed through frame_manager.
         """
         # Load an animated sprite
-        sprite = SpriteFactory.load_sprite(filename=get_resource_path("colors.toml"))
+        sprite = SpriteFactory.load_sprite(filename=get_resource_path('colors.toml'))
 
         # Set animation through frame_manager
-        sprite.frame_manager.current_animation = "timing_demo"
+        sprite.frame_manager.current_animation = 'timing_demo'
         sprite.frame_manager.current_frame = 0
 
         # This should work but will fail due to the bug
@@ -73,7 +73,7 @@ class TestAnimationSystemAudit:
             assert isinstance(interval, float)
             assert interval > 0
         except (AttributeError, KeyError, IndexError) as e:
-            pytest.fail(f"frame_interval property failed: {e}")
+            pytest.fail(f'frame_interval property failed: {e}')
 
     @staticmethod
     def test_animations_property_interface_mismatch():
@@ -82,7 +82,7 @@ class TestAnimationSystemAudit:
         BUG: animations property returns dict[str, list] but interface
         expects dict[str, dict] (metadata, not frames).
         """
-        sprite = SpriteFactory.load_sprite(filename=get_resource_path("colors.toml"))
+        sprite = SpriteFactory.load_sprite(filename=get_resource_path('colors.toml'))
 
         # Test discrete property accessors for metadata
         assert isinstance(sprite.animation_count, int)
@@ -117,14 +117,14 @@ class TestAnimationSystemAudit:
 
         # This should work but will fail due to missing method
         try:
-            sprite.add_frame("test_anim", frame, index=0)
+            sprite.add_frame('test_anim', frame, index=0)
 
             # Verify frame was added
-            assert "test_anim" in sprite._animations
-            assert len(sprite._animations["test_anim"]) == 1
+            assert 'test_anim' in sprite._animations
+            assert len(sprite._animations['test_anim']) == 1
 
         except AttributeError as e:
-            pytest.fail(f"add_frame method missing: {e}")
+            pytest.fail(f'add_frame method missing: {e}')
 
     def test_missing_remove_frame_method(self):
         """Test that exposes missing remove_frame method.
@@ -137,43 +137,43 @@ class TestAnimationSystemAudit:
         frames = [SpriteFrame(pygame.Surface((16, 16))) for _ in range(3)]
         for frame in frames:
             frame.duration = 0.5
-        sprite.add_animation("test_anim", frames)
+        sprite.add_animation('test_anim', frames)
 
         # This should work but will fail due to missing method
         try:
-            sprite.remove_frame("test_anim", 1)
+            sprite.remove_frame('test_anim', 1)
 
             # Verify frame was removed
-            assert len(sprite._animations["test_anim"]) == EXPECTED_FRAME_COUNT
+            assert len(sprite._animations['test_anim']) == EXPECTED_FRAME_COUNT
 
         except AttributeError as e:
-            pytest.fail(f"remove_frame method missing: {e}")
+            pytest.fail(f'remove_frame method missing: {e}')
 
     def test_get_frame_error_handling(self):
         """Test that exposes missing error handling in get_frame method.
 
         MISSING: Proper error handling for invalid animation names and frame indices.
         """
-        sprite = SpriteFactory.load_sprite(filename=get_resource_path("colors.toml"))
+        sprite = SpriteFactory.load_sprite(filename=get_resource_path('colors.toml'))
 
         # Test invalid animation name
         try:
-            sprite.get_frame("nonexistent_animation", 0)
-            pytest.fail("Expected ValueError for invalid animation name")
+            sprite.get_frame('nonexistent_animation', 0)
+            pytest.fail('Expected ValueError for invalid animation name')
         except ValueError:
             pass
 
         # Test invalid frame index
         try:
-            sprite.get_frame("timing_demo", 999)
-            pytest.fail("Expected IndexError for invalid frame index")
+            sprite.get_frame('timing_demo', 999)
+            pytest.fail('Expected IndexError for invalid frame index')
         except IndexError:
             pass
 
         # Test negative frame index
         try:
-            sprite.get_frame("timing_demo", -1)
-            pytest.fail("Expected IndexError for negative frame index")
+            sprite.get_frame('timing_demo', -1)
+            pytest.fail('Expected IndexError for negative frame index')
         except IndexError:
             pass
 
@@ -192,13 +192,13 @@ class TestAnimationSystemAudit:
         assert interval == DEFAULT_FRAME_INTERVAL  # Should return default
 
         # Test with invalid current animation
-        sprite.frame_manager.current_animation = "nonexistent"
+        sprite.frame_manager.current_animation = 'nonexistent'
         interval = sprite.frame_interval
         assert interval == DEFAULT_FRAME_INTERVAL  # Should return default
 
         # Test with invalid frame index
-        sprite.add_animation("test", [SpriteFrame(pygame.Surface((16, 16)))])
-        sprite.frame_manager.current_animation = "test"
+        sprite.add_animation('test', [SpriteFrame(pygame.Surface((16, 16)))])
+        sprite.frame_manager.current_animation = 'test'
         sprite.frame_manager.current_frame = 999
         interval = sprite.frame_interval
         assert interval == DEFAULT_FRAME_INTERVAL  # Should return default
@@ -215,38 +215,38 @@ class TestAnimationSystemAudit:
         # Set state through different paths
         sprite._is_playing = True
         sprite._is_looping = True
-        sprite.frame_manager.current_animation = "test"
+        sprite.frame_manager.current_animation = 'test'
 
         # State should be consistent
         assert sprite.is_playing
         assert sprite.is_looping
-        assert sprite.current_animation == "test"
+        assert sprite.current_animation == 'test'
 
         # Test state changes through frame_manager
-        sprite.frame_manager.current_animation = "new_anim"
-        assert sprite.current_animation == "new_anim"
+        sprite.frame_manager.current_animation = 'new_anim'
+        assert sprite.current_animation == 'new_anim'
 
     def test_animation_metadata_access(self):
         """Test that exposes missing animation metadata access methods.
 
         MISSING: Methods to get and set animation metadata.
         """
-        sprite = SpriteFactory.load_sprite(filename=get_resource_path("colors.toml"))
+        sprite = SpriteFactory.load_sprite(filename=get_resource_path('colors.toml'))
 
         # Test getting animation metadata
         try:
-            metadata = sprite.get_animation_metadata("timing_demo")
+            metadata = sprite.get_animation_metadata('timing_demo')
             assert isinstance(metadata, dict)
-            assert "frame_count" in metadata
-            assert "total_duration" in metadata
+            assert 'frame_count' in metadata
+            assert 'total_duration' in metadata
         except AttributeError:
-            pytest.fail("get_animation_metadata method missing")
+            pytest.fail('get_animation_metadata method missing')
 
         # Test setting animation metadata
         try:
-            sprite.set_animation_metadata("timing_demo", {"is_looping": True})
+            sprite.set_animation_metadata('timing_demo', {'is_looping': True})
         except AttributeError:
-            pytest.fail("set_animation_metadata method missing")
+            pytest.fail('set_animation_metadata method missing')
 
     def test_animation_validation(self):
         """Test that exposes missing animation validation.
@@ -257,18 +257,18 @@ class TestAnimationSystemAudit:
 
         # Test invalid animation name in set_animation
         try:
-            sprite.set_animation("nonexistent_animation")
-            pytest.fail("Expected ValueError for invalid animation name")
+            sprite.set_animation('nonexistent_animation')
+            pytest.fail('Expected ValueError for invalid animation name')
         except ValueError:
             pass
 
         # Test invalid frame index in set_frame
-        sprite.add_animation("test", [SpriteFrame(pygame.Surface((16, 16)))])
-        sprite.set_animation("test")
+        sprite.add_animation('test', [SpriteFrame(pygame.Surface((16, 16)))])
+        sprite.set_animation('test')
 
         try:
             sprite.set_frame(999)
-            pytest.fail("Expected IndexError for invalid frame index")
+            pytest.fail('Expected IndexError for invalid frame index')
         except IndexError:
             pass
 
@@ -282,8 +282,8 @@ class TestAnimationSystemAudit:
         sprite = AnimatedSprite()
 
         # Test empty animation
-        sprite.add_animation("empty", [])
-        sprite.set_animation("empty")
+        sprite.add_animation('empty', [])
+        sprite.set_animation('empty')
 
         # Should handle gracefully
         assert sprite.frame_count == 0
@@ -292,8 +292,8 @@ class TestAnimationSystemAudit:
         # Test single-frame animation
         frame = SpriteFrame(pygame.Surface((16, 16)))
         frame.duration = 1.0
-        sprite.add_animation("single", [frame])
-        sprite.set_animation("single")
+        sprite.add_animation('single', [frame])
+        sprite.set_animation('single')
 
         assert sprite.frame_count == 1
         assert sprite.get_current_frame() is not None

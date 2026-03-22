@@ -1,9 +1,9 @@
 """Test coverage for SpriteInterface."""
 
 import inspect
-from unittest.mock import Mock
 
 import pygame
+
 from glitchygames.interfaces import SpriteInterface
 
 # Constants for magic values
@@ -30,15 +30,16 @@ class TestSpriteInterface:
         # Should not raise any exception
         sprite.update()
 
-    def test_sprite_interface_render(self):
+    def test_sprite_interface_render(self, mocker):
         """Test render method."""
         sprite = SpriteInterface()
-        mock_screen = Mock(spec=pygame.Surface)
+        mock_screen = mocker.Mock(spec=pygame.Surface)
         # Should not raise any exception
         sprite.render(mock_screen)
 
     def test_sprite_interface_inheritance(self):
         """Test that SpriteInterface can be inherited."""
+
         class TestSprite(SpriteInterface):
             def update_nested_sprites(self):
                 pass
@@ -66,36 +67,36 @@ class TestSpriteInterface:
         # Check render signature
         render_sig = inspect.signature(SpriteInterface.render)
         assert len(render_sig.parameters) == EXPECTED_PARAMETER_COUNT  # self, screen
-        assert "screen" in render_sig.parameters
+        assert 'screen' in render_sig.parameters
 
     def test_sprite_interface_method_return_types(self):
         """Test that SpriteInterface methods have correct return type annotations."""
         # Check update_nested_sprites return type
         update_nested_sprites_annotations = SpriteInterface.update_nested_sprites.__annotations__
-        assert "return" in update_nested_sprites_annotations
-        assert update_nested_sprites_annotations["return"] == "None"
+        assert 'return' in update_nested_sprites_annotations
+        assert update_nested_sprites_annotations['return'] == 'None'
 
         # Check update return type
         update_annotations = SpriteInterface.update.__annotations__
-        assert "return" in update_annotations
-        assert update_annotations["return"] == "None"
+        assert 'return' in update_annotations
+        assert update_annotations['return'] == 'None'
 
         # Check render return type
         render_annotations = SpriteInterface.render.__annotations__
-        assert "return" in render_annotations
-        assert render_annotations["return"] == "None"
+        assert 'return' in render_annotations
+        assert render_annotations['return'] == 'None'
 
-    def test_type_annotations_with_pygame_surface(self):
+    def test_type_annotations_with_pygame_surface(self, mocker):
         """Test that type annotations work correctly with pygame.Surface."""
         # This test ensures that the TYPE_CHECKING import works correctly
         # and that pygame.Surface is properly typed in the interface
         sprite = SpriteInterface()
-        mock_screen = Mock(spec=pygame.Surface)
+        mock_screen = mocker.Mock(spec=pygame.Surface)
 
         # This should work without type errors
         sprite.render(mock_screen)
 
         # Verify the method signature includes pygame.Surface
         render_sig = inspect.signature(SpriteInterface.render)
-        screen_param = render_sig.parameters["screen"]
-        assert screen_param.annotation == "pygame.Surface"
+        screen_param = render_sig.parameters['screen']
+        assert screen_param.annotation == 'pygame.Surface'

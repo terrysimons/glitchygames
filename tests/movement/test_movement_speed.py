@@ -1,7 +1,7 @@
 """Test coverage for Speed class."""
 
+import math
 import sys
-import unittest
 from pathlib import Path
 
 # Add project root so direct imports work in isolated runs
@@ -34,7 +34,7 @@ RESULT_NEG_8_0 = -8.0
 RESULT_NEG_4_0 = -4.0
 
 
-class TestSpeedCoverage(unittest.TestCase):
+class TestSpeedCoverage:
     """Comprehensive test coverage for Speed class."""
 
     def test_speed_initialization_default(self):
@@ -70,7 +70,7 @@ class TestSpeedCoverage(unittest.TestCase):
 
         speed.speed_up_horizontal()
 
-        assert speed.x == original_x + 0.3
+        assert math.isclose(speed.x, original_x + 0.3)
 
     def test_speed_up_horizontal_negative(self):
         """Test speed_up_horizontal with negative x value."""
@@ -79,7 +79,7 @@ class TestSpeedCoverage(unittest.TestCase):
 
         speed.speed_up_horizontal()
 
-        assert speed.x == original_x - 0.3
+        assert math.isclose(speed.x, original_x - 0.3)
 
     def test_speed_up_horizontal_zero(self):
         """Test speed_up_horizontal with zero x value."""
@@ -88,7 +88,7 @@ class TestSpeedCoverage(unittest.TestCase):
 
         speed.speed_up_horizontal()
 
-        assert speed.x == original_x + 0.3
+        assert math.isclose(speed.x, original_x + 0.3)
 
     def test_speed_up_vertical_positive(self):
         """Test speed_up_vertical with positive y value."""
@@ -97,7 +97,7 @@ class TestSpeedCoverage(unittest.TestCase):
 
         speed.speed_up_vertical()
 
-        assert speed.y == original_y + 0.3
+        assert math.isclose(speed.y, original_y + 0.3)
 
     def test_speed_up_vertical_negative(self):
         """Test speed_up_vertical with negative y value."""
@@ -106,7 +106,7 @@ class TestSpeedCoverage(unittest.TestCase):
 
         speed.speed_up_vertical()
 
-        assert speed.y == original_y - 0.3
+        assert math.isclose(speed.y, original_y - 0.3)
 
     def test_speed_up_vertical_zero(self):
         """Test speed_up_vertical with zero y value."""
@@ -115,7 +115,7 @@ class TestSpeedCoverage(unittest.TestCase):
 
         speed.speed_up_vertical()
 
-        assert speed.y == original_y + 0.3
+        assert math.isclose(speed.y, original_y + 0.3)
 
     def test_mul_operator(self):
         """Test multiplication operator."""
@@ -161,8 +161,8 @@ class TestSpeedCoverage(unittest.TestCase):
         speed = Speed(x=5, y=3, increment=0.2)
         result = speed * 0.0
 
-        assert result.x == 0.0
-        assert result.y == 0.0
+        assert math.isclose(result.x, 0.0, abs_tol=1e-9)
+        assert math.isclose(result.y, 0.0, abs_tol=1e-9)
         assert result.increment == DEFAULT_INCREMENT
         # Original should be unchanged
         assert speed.x == CUSTOM_X
@@ -194,6 +194,6 @@ class TestSpeedCoverage(unittest.TestCase):
         speed = Speed(x=4, y=2, increment=0.2)
         speed *= 0.0
 
-        assert speed.x == 0.0
-        assert speed.y == 0.0
+        assert math.isclose(speed.x, 0.0, abs_tol=1e-9)
+        assert math.isclose(speed.y, 0.0, abs_tol=1e-9)
         assert speed.increment == DEFAULT_INCREMENT

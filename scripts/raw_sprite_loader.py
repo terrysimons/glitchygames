@@ -8,27 +8,28 @@ import logging
 import struct
 from collections import OrderedDict
 from pathlib import Path
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import argparse
 
 import pygame
+
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_565_triplet_generator, rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SPRITE_GLYPHS, Sprite
 
-LOG = logging.getLogger("game")
+LOG = logging.getLogger('game')
 LOG.setLevel(logging.INFO)
 
 
 class BitmappyLegacySprite(Sprite):
     """A sprite class for loading legacy bitmappy sprites."""
 
-    log = LOG
+    log: logging.Logger = LOG
 
-    def __init__(self: Self, filename: str, *args, **kwargs) -> None:
+    def __init__(self: Self, filename: str, *args: object, **kwargs: object) -> None:
         """Initialize a BitmappySprite.
 
         Args:
@@ -36,18 +37,15 @@ class BitmappyLegacySprite(Sprite):
             filename (str): The filename to load.
             **kwargs: Keyword arguments to pass to the parent class.
 
-        Returns:
-            Self
-
         """
-        super().__init__(*args, width=0, height=0, **kwargs)
-        self.image = None
-        self.rect = None
-        self.name = None
+        super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type]
+        self.image: pygame.Surface | None = None
+        self.rect: pygame.Rect | None = None
+        self.name: str | None = None
 
         (self.image, self.rect, self.name) = self.load(filename=filename, width=32, height=32)
 
-        self.save(filename + ".cfg")
+        self.save(filename + '.cfg')
 
     def load(
         self: Self, filename: str, width: int, height: int
@@ -63,21 +61,16 @@ class BitmappyLegacySprite(Sprite):
             tuple[pygame.Surface, pygame.Rect, str]: The image, rect, and name.
 
         """
-        image = None
-        rect = None
-        data = []
-
         # Load the raw bits in.
-        with Path.open(filename, "rb") as fh:
-            data = fh.read()
+        data: bytes = Path(filename).read_bytes()
 
         # Unpack the bytes into 565 triplets.
         # Read 2 bytes, unsigned.
-        packed_rgb_data = struct.iter_unpack("<H", data)
+        packed_rgb_data = struct.iter_unpack('<H', data)
 
-        pixels = rgb_565_triplet_generator(data=packed_rgb_data)
-
-        pixels = list(pixels)
+        pixels: list[tuple[int, int, int]] = list(
+            rgb_565_triplet_generator(pixel_data=packed_rgb_data)
+        )
 
         for pixel in pixels:
             LOG.info(pixel)
@@ -88,7 +81,10 @@ class BitmappyLegacySprite(Sprite):
 
     @classmethod
     def inflate(
-        cls: Self, width: int, height: int, pixels: list
+        cls: type[BitmappyLegacySprite],
+        width: int,
+        height: int,
+        pixels: list[tuple[int, int, int]],
     ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate the sprite.
 
@@ -101,13 +97,13 @@ class BitmappyLegacySprite(Sprite):
             tuple[pygame.Surface, pygame.Rect]: The image and rect.
 
         """
-        image = pygame.Surface((width, height))
+        image: pygame.Surface = pygame.Surface((width, height))
         image.fill((0, 255, 0))
         image.convert()
         image.set_colorkey((255, 0, 255))
 
-        x = 0
-        y = 0
+        x: int = 0
+        y: int = 0
         for color in pixels:
             pygame.draw.rect(image, color, (y, x, 0, 0))
 
@@ -125,131 +121,123 @@ class BitmappyLegacySprite(Sprite):
         Args:
             filename (str): The filename to save to.
 
-        Returns:
-            None
-
         """
-        config = self.deflate()
+        config: configparser.ConfigParser = self.deflate()
 
-        with Path.open(filename, "w") as deflated_sprite:
+        with Path(filename).open('w', encoding='utf-8') as deflated_sprite:
             config.write(deflated_sprite)
 
     def deflate(self: Self) -> configparser.ConfigParser:
         """Deflate the sprite into a config file.
 
-        Args:
-            None
-
         Returns:
             configparser.ConfigParser: The config parser.
 
+        Raises:
+            ValueError: If there are too many unique colors to map to characters.
+
         """
-        config = configparser.ConfigParser(dict_type=OrderedDict)
+        config: configparser.ConfigParser = configparser.ConfigParser(dict_type=OrderedDict)
 
         # Get the set of distinct pixels.
-        color_map = {}
-        pixels = []
+        color_map: dict[tuple[int, int, int], str] = {}
+        pixels: list[str] = []
 
         # Handle empty surfaces
-        if self.rect.width == 0 or self.rect.height == 0:
-            raw_pixels = []
-            colors = set()
+        has_surface = (
+            self.rect is not None
+            and self.rect.width > 0
+            and self.rect.height > 0
+            and self.image is not None
+        )
+
+        if not has_surface:
+            raw_pixels: list[tuple[int, int, int]] = []
+            colors: set[tuple[int, int, int]] = set()
         else:
             try:
-                raw_pixels = rgb_triplet_generator(pygame.image.tostring(self.image, "RGB"))
-
-                # We're utilizing the generator to give us RGB triplets.
-                # We need a list here becasue we'll use set() to pull out the
-                # unique values, but we also need to consume the list again
-                # down below, so we can't solely use a generator.
-                raw_pixels = list(raw_pixels)
+                # TODO: migrate to tobytes once test mocks provide real Surfaces
+                assert self.image is not None  # narrowing for type checker
+                raw_pixels = list(
+                    rgb_triplet_generator(
+                        pygame.image.tostring(self.image, 'RGB')  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+                    )
+                )
                 # This gives us the unique rgb triplets in the image.
                 colors = set(raw_pixels)
             except ValueError as e:
                 # Handle empty pixel data
-                if "Empty pixel data" in str(e):
+                if 'Empty pixel data' in str(e):
                     raw_pixels = []
                     colors = set()
                 else:
                     raise
 
-        config.add_section("sprite")
-        config.set("sprite", "name", self.name)
+        config.add_section('sprite')
+        config.set('sprite', 'name', self.name or '')
 
         # Generate the color key using universal character set
-        universal_chars = SPRITE_GLYPHS
+        universal_chars: str = SPRITE_GLYPHS
 
         # Assign characters sequentially from SPRITE_GLYPHS
         for char_index, color in enumerate(colors):
             if char_index >= len(universal_chars):
-                raise ValueError(f"Too many colors (max {len(universal_chars)})")
+                raise ValueError(f'Too many colors (max {len(universal_chars)})')
 
-            color_key = universal_chars[char_index]
+            color_key: str = universal_chars[char_index]
             config.add_section(color_key)
             color_map[color] = color_key
 
-            self.log.debug(f"Key: {color} -> {color_key}")
+            self.log.debug(f'Key: {color} -> {color_key}')
 
-            red = color[0]
-            config.set(color_key, "red", str(red))
+            red: int = color[0]
+            config.set(color_key, 'red', str(red))
 
-            green = color[1]
-            config.set(color_key, "green", str(green))
+            green: int = color[1]
+            config.set(color_key, 'green', str(green))
 
-            blue = color[2]
-            config.set(color_key, "blue", str(blue))
+            blue: int = color[2]
+            config.set(color_key, 'blue', str(blue))
 
         # Process pixels only if we have any
         if raw_pixels:
-            x = 0
-            row = []
+            x: int = 0
+            row: list[str] = []
             while raw_pixels:
                 row.append(color_map[raw_pixels.pop(0)])
                 x += 1
 
-                if x % self.rect.width == 0:
-                    self.log.debug(f"Row: {row}")
-                    pixels.append("".join(row))
+                if self.rect is not None and x % self.rect.width == 0:
+                    self.log.debug(f'Row: {row}')
+                    pixels.append(''.join(row))
                     row = []
                     x = 0
 
             self.log.debug(pixels)
-            config.set("sprite", "pixels", "\n".join(pixels))
+            config.set('sprite', 'pixels', '\n'.join(pixels))
         else:
             # Empty surface - set empty pixels
-            config.set("sprite", "pixels", "")
+            config.set('sprite', 'pixels', '')
 
-        self.log.debug(f"Deflated Sprite: {config}")
+        self.log.debug(f'Deflated Sprite: {config}')
 
         return config
 
+    @override
     def __str__(self: Self) -> str:
         """Return a string representation of the sprite.
-
-        Args:
-            None
 
         Returns:
             str: A string representation of the sprite.
 
         """
-        description = (
-            f"Name: {self.name}\nDimensions: {self.width}x{self.height}"
-            "\nColor Key: {self.color_key}\n"
-        )
-
-        for row in self.pixels:
-            for pixel in row:
-                description += pixel
-            description += "\n"
-
-        return description
+        return f'Name: {self.name}\nDimensions: {self.width}x{self.height}\n'
 
 
 class GameScene(Scene):
     """The main game scene."""
 
-    log = LOG
+    log: logging.Logger = LOG
 
     def __init__(self: Self, filename: str) -> None:
         """Initialize the GameScene.
@@ -257,20 +245,19 @@ class GameScene(Scene):
         Args:
             filename (str): The filename to load.
 
-        Returns:
-            None
-
         """
         super().__init__()
-        self.screen = pygame.display.get_surface()
-        self.screen_width = self.screen.get_width()
-        self.screen_height = self.screen.get_height()
-        self.filename = filename
+        screen = pygame.display.get_surface()
+        assert screen is not None
+        self.screen: pygame.Surface = screen
+        self.screen_width: int = self.screen.get_width()
+        self.screen_height: int = self.screen.get_height()
+        self.filename: str = filename
 
         # Load the legacy sprite file.
-        self.sprite = BitmappyLegacySprite(filename=self.filename)
+        self.sprite: BitmappyLegacySprite = BitmappyLegacySprite(filename=self.filename)
 
-        self.all_sprites = pygame.sprite.LayeredDirty(tuple(self.sprite))
+        self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(self.sprite)
 
         self.all_sprites.clear(self.screen, self.background)
 
@@ -279,38 +266,32 @@ class Game(Scene):
     """The main game class."""
 
     # Set your game name/version here.
-    NAME = "Raw Sprite Loader"
-    VERSION = "1.0"
+    NAME: str = 'Raw Sprite Loader'
+    VERSION: str = '1.0'
 
-    def __init__(self: Self, options: dict) -> None:
+    def __init__(self: Self, options: dict[str, Any]) -> None:
         """Initialize the Game.
 
         Args:
             options (dict): The options passed to the game.
 
-        Returns:
-            None
-
         """
         super().__init__(options=options)
-        self.filename = options.get("filename")
+        self.filename: str | None = options.get('filename')
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+    def args(cls: type[Game], parser: argparse.ArgumentParser) -> None:
         """Add arguments to the argument parser.
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
 
-        Returns:
-            None
-
         """
         parser.add_argument(
-            "-v", "--version", action="store_true", help="print the game version and exit"
+            '-v', '--version', action='store_true', help='print the game version and exit'
         )
 
-        parser.add_argument("--filename", help="the file to load", required=True)
+        parser.add_argument('--filename', help='the file to load', required=True)
 
 
 def main() -> None:
@@ -318,5 +299,5 @@ def main() -> None:
     GameEngine(game=Game).start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

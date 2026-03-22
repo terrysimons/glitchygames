@@ -4,19 +4,20 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     import argparse
 
 import pygame
+
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
 from glitchygames.tools.bitmappy import resource_path
 from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
 
-log = logging.getLogger("game")
+log = logging.getLogger('game')
 log.setLevel(logging.DEBUG)
 
 # Turn on sprite debugging
@@ -34,36 +35,35 @@ class GameScene(Scene):
 
     """
 
-    def __init__(self: Self, groups: pygame.sprite.Group | None = None) -> None:
+    def __init__(self: Self, groups: pygame.sprite.LayeredDirty[Any] | None = None) -> None:
         """Initialize the intro scene.
 
         Args:
-            groups (pygame.sprite.Group | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
+            groups (pygame.sprite.LayeredDirty[Any] | None): The sprite groups.
 
         """
         if groups is None:
-            groups = pygame.sprite.Group()
+            groups = pygame.sprite.LayeredDirty()
 
         super().__init__(groups=groups)
-        self.all_sprites = groups
-        self.screen = pygame.display.get_surface()
+        self.all_sprites: pygame.sprite.LayeredDirty[Any] = groups
+        screen = pygame.display.get_surface()
+        assert screen is not None
+        self.screen: pygame.Surface = screen
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 
         self.screen.fill((255, 255, 0))
 
         self.menu_bar = MenuBar(
-            name="Menu Bar", x=0, y=0, width=self.screen_width, height=20, groups=self.all_sprites
+            name='Menu Bar', x=0, y=0, width=self.screen_width, height=20, groups=self.all_sprites
         )
 
         # Note: Why is the file menu 2 pixels down from the menu icon?
 
         self.menu_icon = MenuItem(
             name=None,
-            filename=resource_path("glitchygames", "assets", "raspberry.toml"),
+            filename=str(resource_path('glitchygames', 'assets', 'raspberry.toml')),
             x=0,
             y=0,
             width=16,
@@ -74,6 +74,7 @@ class GameScene(Scene):
         # but the menu code needs to know that we're
         # trying to draw an icon.
         self.menu_icon.name = None
+        assert self.menu_icon.rect is not None
 
         self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
 
@@ -95,25 +96,25 @@ class GameScene(Scene):
         #                          height=16,
         #                          groups=self.all_sprites)
         self.save_menu_item = MenuItem(
-            name="Save",
+            name='Save',
             x=self.menu_icon.width + 5,
-            y=self.menu_icon.rect.y,
+            y=int(self.menu_icon.rect.y),
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,
         )
         self.load_menu_item = MenuItem(
-            name="Load",
+            name='Load',
             x=self.menu_icon.width + self.save_menu_item.width + 5,
-            y=self.menu_icon.rect.y,
+            y=int(self.menu_icon.rect.y),
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,
         )
         self.quit_menu_item = MenuItem(
-            name="Quit",
+            name='Quit',
             x=self.menu_icon.width + self.save_menu_item.width + self.load_menu_item.width + 5,
-            y=self.menu_icon.rect.y,
+            y=int(self.menu_icon.rect.y),
             width=40,
             height=self.menu_bar.height,
             groups=self.all_sprites,
@@ -130,17 +131,18 @@ class GameScene(Scene):
 
         button_width = self.screen_width // 2 // 2
         button_height = self.screen_height // 2 // 2
+        screen_rect = self.screen.get_rect()
         self.button = ButtonSprite(
-            x=(self.screen.get_rect().centerx - button_width) // 4,
-            y=(self.screen.get_rect().centery - button_height) // 4,
+            x=(screen_rect.centerx - button_width) // 4,
+            y=(screen_rect.centery - button_height) // 4,
             width=button_width,
             height=button_height,
-            name="Buttony McButtonface",
+            name='Buttony McButtonface',
             groups=self.all_sprites,
         )
 
-        self.button.x = self.screen.get_rect().centerx // 2
-        self.button.y = self.screen.get_rect().centery // 2
+        self.button.x = screen_rect.centerx // 2
+        self.button.y = screen_rect.centery // 2
 
         # self.button.border_color = (0, 255, 0)
         # self.button.background_color = (255, 0, 255)
@@ -161,50 +163,41 @@ class GameScene(Scene):
         Args:
             event (pygame.event.Event): The event to handle.
 
-        Returns:
-            None
-
         """
-        self.log.info(f"Mouse Up Event: {event}")
+        self.log.info(f'Mouse Up Event: {event}')
 
 
 class Game(Scene):
     """The main game class.  This is where the magic happens."""
 
     # Set your game name/version here.
-    NAME = "Compound Sprite Demo"
-    VERSION = "1.0"
+    NAME = 'Compound Sprite Demo'
+    VERSION = '1.0'
 
-    def __init__(self: Self, options: dict) -> None:
+    def __init__(self: Self, options: dict[str, Any]) -> None:
         """Initialize the game.
 
         Args:
-            options (dict): The options passed to the game.
-
-        Returns:
-            None
+            options (dict[str, Any]): The options passed to the game.
 
         """
         super().__init__(options=options)
 
         # GameEngine.OPTIONS is set on initialization.
-        log.info(f"Game Options: {options}")
+        log.info(f'Game Options: {options}')
 
         self.next_scene = GameScene()
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> None:
+    def args(cls: type[Game], parser: argparse.ArgumentParser) -> None:
         """Add arguments to the argument parser.
 
         Args:
             parser (argparse.ArgumentParser): The argument parser.
 
-        Returns:
-            None
-
         """
         parser.add_argument(
-            "-v", "--version", action="store_true", help="print the game version and exit"
+            '-v', '--version', action='store_true', help='print the game version and exit'
         )
 
 
@@ -213,5 +206,5 @@ def main() -> None:
     GameEngine(game=Game).start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

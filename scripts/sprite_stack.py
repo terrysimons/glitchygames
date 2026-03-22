@@ -8,7 +8,7 @@ from glitchygames.sprites.animated.
 import abc
 import argparse
 import logging
-from typing import Self
+from typing import Self, override
 
 import pygame
 
@@ -24,32 +24,33 @@ from glitchygames.sprites import SpriteFrame
 class SpriteStackInterface(abc.ABC):
     """A formal interface for the Sprite Stack prototype."""
 
-    log = logging.getLogger("glitchygames.sprite_stack.SpriteStackInterface")
-
-    """A formal interface for the Sprite Stack prototype."""
+    log = logging.getLogger('glitchygames.sprite_stack.SpriteStackInterface')
 
     @classmethod
-    def __subclasshook__(cls: Self, subclass: object) -> bool:
-        """Override the default __subclasshook__ to create an interface."""
+    @override
+    def __subclasshook__(cls: type[Self], subclass: type) -> bool:
+        """Override the default __subclasshook__ to create an interface.
+
+        Returns:
+            bool: True if the condition is met, False otherwise.
+
+        """
         # Note: This accounts for under/dunder methods in addition to regular methods.
-        interface_attributes = set(cls.__abstractmethods__)
+        interface_attributes: frozenset[str] = cls.__abstractmethods__
 
         # Check if subclass has __abstractmethods__ attribute
-        if hasattr(subclass, "__abstractmethods__"):
-            subclass_attributes = set(subclass.__abstractmethods__)
-        else:
-            subclass_attributes = set()
+        subclass_attributes: frozenset[str] = getattr(subclass, '__abstractmethods__', frozenset())
 
-        methods = []
+        methods: list[bool] = []
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
-                    cls.log.info(f"{subclass.__name__}.{attribute} -> ✅ (callable)")
+                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (callable)')
                 else:
-                    cls.log.info(f"{subclass.__name__}.{attribute} -> ✅ (attribute))")
+                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (attribute))')
                 methods.append(True)
             else:
-                cls.log.info(f"{subclass.__name__}.{attribute} -> ❌ (unimplemented)")
+                cls.log.info(f'{subclass.__name__}.{attribute} -> ❌ (unimplemented)')
                 methods.append(False)
 
         # all([]) returns True, so mask it
@@ -82,7 +83,7 @@ class SpriteStackInterface(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def __getitem__(self: Self, index: int) -> "SpriteFrame":
+    def __getitem__(self: Self, index: int) -> SpriteFrame:
         """Return a sprite from the stack."""
         raise NotImplementedError
 
@@ -92,12 +93,12 @@ class SpriteStackInterface(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_alpha(self: Self) -> int:
+    def get_alpha(self: Self) -> int | None:
         """Return the alpha value of the surface."""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_colorkey(self: Self) -> int | None:
+    def get_colorkey(self: Self) -> tuple[int, int, int, int] | None:
         """Return the colorkey of the surface."""
         raise NotImplementedError
 
@@ -108,11 +109,11 @@ class SpriteStackInterface(abc.ABC):
 class SpriteStack(SpriteStackInterface):
     """A prototype Sprite Stack class."""
 
-    def __init__(self: Self, sprites: list["SpriteFrame"] | list[pygame.Surface]) -> Self:
+    def __init__(self: Self, sprites: list[SpriteFrame] | list[pygame.Surface]) -> None:
         """Initialize the Sprite Stack prototype."""
         super().__init__()
-        self.stack = []
-        self.frame_index = 0
+        self.stack: list[SpriteFrame] = []
+        self.frame_index: int = 0
 
         for sprite in sprites:
             if isinstance(sprite, SpriteFrame):
@@ -121,6 +122,7 @@ class SpriteStack(SpriteStackInterface):
                 self.stack.append(SpriteFrame(sprite))
 
     @property
+    @override
     def image(self: Self) -> pygame.Surface:
         """Return the flattened sprite stack image."""
         return self.stack[self.frame_index].image
@@ -131,6 +133,7 @@ class SpriteStack(SpriteStackInterface):
         self.stack[self.frame_index].image = new_image
 
     @property
+    @override
     def rect(self: Self) -> pygame.Rect:
         """Return the sprite stack pygame.Rect."""
         return self.stack[self.frame_index].rect
@@ -140,20 +143,44 @@ class SpriteStack(SpriteStackInterface):
         """Set the rect."""
         self.stack[self.frame_index].rect = new_rect
 
-    def __getitem__(self: Self, index: int) -> "SpriteFrame":
-        """Return a sprite from the stack."""
+    @override
+    def __getitem__(self: Self, index: int) -> SpriteFrame:
+        """Return a sprite from the stack.
+
+        Returns:
+            'SpriteFrame': The item at the given index.
+
+        """
         return self.stack[index]
 
+    @override
     def get_size(self: Self) -> tuple[int, int]:
-        """Return the size of the surface."""
+        """Return the size of the surface.
+
+        Returns:
+            tuple[int, int]: The size.
+
+        """
         return self.stack[self.frame_index].get_size()
 
-    def get_alpha(self: Self) -> int:
-        """Return the alpha value of the surface."""
+    @override
+    def get_alpha(self: Self) -> int | None:
+        """Return the alpha value of the surface.
+
+        Returns:
+            int | None: The alpha.
+
+        """
         return self.stack[self.frame_index].get_alpha()
 
-    def get_colorkey(self: Self) -> int | None:
-        """Return the colorkey of the surface."""
+    @override
+    def get_colorkey(self: Self) -> tuple[int, int, int, int] | None:
+        """Return the colorkey of the surface.
+
+        Returns:
+            tuple[int, int, int, int] | None: The colorkey.
+
+        """
         return self.stack[self.frame_index].get_colorkey()
 
 
@@ -161,14 +188,16 @@ class SpriteStack(SpriteStackInterface):
 # The official implementations are used instead of the old incomplete ones
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Sprite Stack Prototype")
-    logging.getLogger("glitchygames.sprite_stack")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser('Sprite Stack Prototype')
+    logging.getLogger('glitchygames.sprite_stack')
     logging.basicConfig(
-        format="%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s",
+        format='%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s',
         level=logging.DEBUG,
     )
 
-    assert issubclass(SpriteStack, SpriteStackInterface)
+    assert issubclass(SpriteStack, SpriteStackInterface), (
+        'SpriteStack must implement SpriteStackInterface'
+    )
 
     sprite_stack = SpriteStack([pygame.Surface((32, 32)) for _ in range(10)])

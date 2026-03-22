@@ -23,13 +23,19 @@ nav:
     - glitchygames.tools: "glitchygames/tools/index.md"
     - glitchygames.ui: "glitchygames/ui/index.md"
   - Documentation:
+    - Bitmappy Architecture: "architecture/bitmappy.md"
+    - Event System: "architecture/event_system.md"
+    - Argument System: "architecture/argument_system.md"
     - Multi-Controller System: "multi_controller_system.md"
+
+extra_javascript:
+  - https://unpkg.com/mermaid/dist/mermaid.min.js
+  - js/mermaid-init.js
 
 validation:
   omitted_files: warn
   not_found: warn
   absolute_links: warn
-
 
 theme:
   name: readthedocs
@@ -60,6 +66,7 @@ theme:
     - toc.integrate
 
 markdown_extensions:
+  - admonition
   - attr_list
   - md_in_html
   - toc:
@@ -78,7 +85,11 @@ markdown_extensions:
   - pymdownx.emoji
   - pymdownx.keys
   - pymdownx.caret
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.snippets
   - pymdownx.details
 
@@ -93,49 +104,47 @@ plugins:
           paths: [glitchygames]
           options:
             show_source: true
-          # options:
-          #   allow_inspection: no
-          #   show_bases: yes
-          #   show_source: no
-          #   show_root_heading: yes
-          #   preload_modules: no
-          #   allow_inspection: yes
-          #   show_bases: yes
-          #   heading_level: 2
-          #   show_root_heading: yes
-          #   show_root_toc_entry: yes
-          #   show_root_full_path: yes
-          #   show_root_members_full_path: yes
-          #   show_object_full_path: yes
-          #   show_category_heading: yes
-          #   show_symbol_type_heading: yes
-          #   show_symbol_type_toc: yes
-          #   inherited_members: yes
-          #   members: yes
-          #   members_order: source
-          #   group_by_category: yes
-          #   show_submodules: yes
-          #   summary: yes
-          #   docstring_style: "google"
-          #   docstring_section_style: table
-          #   show_if_no_docstring: yes
-          #   show_docstring_attributes: yes
-          #   show_docstring_functions: yes
-          #   show_docstring_classes: yes
-          #   show_docstring_modules: yes
-          #   show_docstring_description: yes
-          #   show_docstring_examples: yes
-          #   show_docstring_other_parameters: yes
-          #   show_docstring_parameters: yes
-          #   show_docstring_raises: yes
-          #   show_docstring_receives: yes
-          #   show_docstring_returns: yes
-          #   show_docstring_yields: yes
-          #   annotations_path: brief
-          #   line_length: 100
-          #   show_signature: yes
-          #   show_signature_annotations: yes
-          #   signature_crossrefs: yes
-          #   separate_signature: yes
-          #   unwrap_annotated: no
-
+            # allow_inspection: no
+            # show_bases: yes
+            # show_source: no
+            # show_root_heading: yes
+            # preload_modules: no
+            # allow_inspection: yes
+            # show_bases: yes
+            # heading_level: 2
+            # show_root_heading: yes
+            # show_root_toc_entry: yes
+            # show_root_full_path: yes
+            # show_root_members_full_path: yes
+            # show_object_full_path: yes
+            # show_category_heading: yes
+            # show_symbol_type_heading: yes
+            # show_symbol_type_toc: yes
+            # inherited_members: yes
+            # members: yes
+            # members_order: source
+            # group_by_category: yes
+            # show_submodules: yes
+            # summary: yes
+            # docstring_style: "google"
+            # docstring_section_style: table
+            # show_if_no_docstring: yes
+            # show_docstring_attributes: yes
+            # show_docstring_functions: yes
+            # show_docstring_classes: yes
+            # show_docstring_modules: yes
+            # show_docstring_description: yes
+            # show_docstring_examples: yes
+            # show_docstring_other_parameters: yes
+            # show_docstring_parameters: yes
+            # show_docstring_raises: yes
+            # show_docstring_receives: yes
+            # show_docstring_returns: yes
+            # show_docstring_yields: yes
+            # annotations_path: brief
+            # line_length: 100
+            # show_signature: yes
+            # show_signature_annotations: yes
+            # signature_crossrefs: yes
+            # separate_signature: yes
+            # unwrap_annotated: no

@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Unicode character map utilities for sprite generation."""
 
+from __future__ import annotations
+
 import logging
 import unicodedata
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # Set up logging
-LOG = logging.getLogger("glitchygames.tools.charmap")
+LOG = logging.getLogger('glitchygames.tools.charmap')
 
 # Constants
 MAX_CHARS_TO_DISPLAY = 100
@@ -23,8 +29,13 @@ EMOJI_RANGES = [
 ]
 
 
-def is_defined_non_whitespace_printable(ch):
-    """Check if character is defined, non-whitespace, and printable."""
+def is_defined_non_whitespace_printable(ch: str) -> bool:
+    """Check if character is defined, non-whitespace, and printable.
+
+    Returns:
+        bool: True if is defined non whitespace printable, False otherwise.
+
+    """
     if not ch.isprintable():
         return False
     if ch.isspace():
@@ -36,14 +47,24 @@ def is_defined_non_whitespace_printable(ch):
     return True
 
 
-def is_emoji(ch):
-    """Check if character is an emoji."""
+def is_emoji(ch: str) -> bool:
+    """Check if character is an emoji.
+
+    Returns:
+        bool: True if is emoji, False otherwise.
+
+    """
     cp = ord(ch)
     return any(start <= cp <= end for start, end in EMOJI_RANGES)
 
 
-def unicode_generator_with_priority():
-    """Generate Unicode characters with priority ordering."""
+def unicode_generator_with_priority() -> Generator[str]:
+    """Generate Unicode characters with priority ordering.
+
+    Yields:
+        str: The next Unicode character in priority order.
+
+    """
     # Regional indicator letters (🇦-🇿)
     # ordered_letters = [
     #     "\U0001F1E6", "\U0001F1E7", "\U0001F1E8", "\U0001F1E9", "\U0001F1EA",
@@ -61,7 +82,7 @@ def unicode_generator_with_priority():
     #     "➊","➋","➌","➍","➎","➏","➐","➑","➒","➓"
     # ]
 
-    handled_chars = set()
+    handled_chars: set[str] = set()
 
     # # 1. Print regional indicator letters first
     # for ch in ordered_letters:
@@ -120,7 +141,7 @@ def unicode_generator_with_priority():
 
 
 # Example usage:
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Configure logging for this module
     logging.basicConfig(level=logging.INFO)
 
@@ -128,5 +149,5 @@ if __name__ == "__main__":
 
     # Log the characters as a single message to avoid excessive logging
     sample_chars = chars[:MAX_CHARS_TO_DISPLAY]
-    truncation = "..." if len(chars) > MAX_CHARS_TO_DISPLAY else ""
-    LOG.info(f"Generated {len(chars)} Unicode characters: {' '.join(sample_chars)}{truncation}")
+    truncation = '...' if len(chars) > MAX_CHARS_TO_DISPLAY else ''
+    LOG.info(f'Generated {len(chars)} Unicode characters: {" ".join(sample_chars)}{truncation}')

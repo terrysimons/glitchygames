@@ -1,23 +1,37 @@
 repos:
-# - repo: local
-#   hooks:
-#     - id: nox
-#       name: nox
-#       files: ^.*\.py$
-#       language: python
-#       entry: nox
-#       types: [python]
-#       # stages: [pre-commit, push]
-#       pass_filenames: false
-
-# We don't need to do this seperately, because nox will run the tests
 - repo: local
   hooks:
-    - id: mkdocs
-      name: mkdocs
-      files: ^.*\.py$
-      language: python
-      entry: mkdocs build --strict
-      types: [python]
-      # stages: [pre-commit, push]
+    - id: format
+      name: format (code, toml, markdown)
+      language: system
+      entry: nox -s format
       pass_filenames: false
+      stages: [pre-push]
+
+    - id: lint
+      name: lint (code, docs, yaml, toml, deps, dead code, cves)
+      language: system
+      entry: nox -s lint
+      pass_filenames: false
+      stages: [pre-push]
+
+    - id: lint-ci-config
+      name: lint-ci-config (circleci)
+      language: system
+      entry: nox -s lint-ci-config
+      pass_filenames: false
+      stages: [pre-push]
+
+    - id: static-analysis
+      name: static-analysis (basedpyright, ty)
+      language: system
+      entry: nox -s static-analysis
+      pass_filenames: false
+      stages: [pre-push]
+
+    - id: security-scan
+      name: security-scan (bandit, safety)
+      language: system
+      entry: nox -s security-scan
+      pass_filenames: false
+      stages: [pre-push]

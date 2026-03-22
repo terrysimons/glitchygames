@@ -4,14 +4,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Self
+from typing import TYPE_CHECKING, Any, Self, override
+
+if TYPE_CHECKING:
+    from glitchygames.events.core import HashableEvent
 
 import pygame
+
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputBox
 
-LOG = logging.getLogger("game")
+LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
 
 
@@ -21,100 +25,89 @@ class Game(Scene):
     log = LOG
 
     # Set your game name/version here.
-    NAME = "Input Demo"
-    VERSION = "1.0"
+    NAME = 'Input Demo'
+    VERSION = '1.0'
 
     def __init__(
-        self: Self, options: dict, groups: pygame.sprite.LayeredDirty | None = None
+        self: Self,
+        options: dict[str, object],
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the Game.
 
         Args:
-            options (dict): The options passed to the game.
-            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
-
-        Returns:
-            None
+            options (dict[str, object]): The options passed to the game.
+            groups (pygame.sprite.LayeredDirty[Any] | None): The sprite groups to add the sprite to.
 
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(options=options, groups=groups)
-
         self.input_box = InputBox(
-            x=320, y=240, width=200, height=20, text="Test", parent=self, groups=groups
+            x=320,
+            y=240,
+            width=200,
+            height=20,
+            text='Test',
+            groups=groups,
         )
 
         self.background_color = (255, 255, 0)
 
         self.all_sprites = pygame.sprite.LayeredDirty(self.input_box)
 
+        assert self.screen is not None
         self.all_sprites.clear(self.screen, self.background)
 
-    # Note: This could be a static method, a class method
-    # or an instance method. It's up to you.
-    #
-    # Since I'm not using self in this method, I'm making it
-    # a class method to appease the linter
-    @classmethod
-    def setup(cls) -> None:
+    @override
+    def setup(self: Self) -> None:
         """Set up the game.
 
         Args:
             None
 
-        Returns:
-            None
-
         """
         pygame.key.set_repeat(350)
 
+    @override
     def update(self: Self) -> None:
         """Update the game.
 
         Args:
             None
 
-        Returns:
-            None
-
         """
         self.input_box.update()
+        assert self.screen is not None
+        assert self.input_box.image is not None
         self.screen.blit(self.input_box.image, (320, 240))
 
-    def on_input_box_submit_event(self: Self, control: object) -> None:
+    def on_input_box_submit_event(self: Self, control: Any) -> None:
         """Handle input box submit events.
 
         Args:
-            control (object): The control that submitted the event.
-
-        Returns:
-            None
+            control: The control that submitted the event.
 
         """
-        self.log.info(f"{self.name} Got text input from: {control.name}: {control.text}")
+        self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
 
-    def on_mouse_button_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle mouse button up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
+            event (HashableEvent): The event to handle.
 
         """
         self.input_box.activate()
 
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle key up events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
+            event (HashableEvent): The event to handle.
 
         """
         if self.input_box.active:
@@ -124,14 +117,12 @@ class Game(Scene):
         else:
             super().on_key_up_event(event)
 
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events.
 
         Args:
-            event (pygame.event.Event): The event to handle.
-
-        Returns:
-            None
+            event (HashableEvent): The event to handle.
 
         """
         if self.input_box.active:
@@ -145,5 +136,5 @@ def main() -> None:
     GameEngine(game=Game).start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

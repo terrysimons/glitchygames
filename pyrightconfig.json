@@ -1,0 +1,80 @@
+{
+  "typeCheckingMode": "strict",
+  "include": ["glitchygames", "tests", "scripts"],
+  "exclude": ["**/__pycache__"],
+  "stubPath": "typings",
+  "defineConstant": { "DEBUG": true },
+  "pythonVersion": "3.14",
+  "pythonPlatform": "All",
+
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": false,
+  "reportPossiblyUnboundVariable": "error",
+  "reportPrivateImportUsage": "error",
+  "reportRedeclaration": "error",
+  "reportUnnecessaryTypeIgnoreComment": "error",
+
+  "reportImplicitOverride": "error",
+  "reportDeprecated": "error",
+  // Disabled — ruff's formatter produces implicit string concatenation when
+  // splitting long f-strings across lines; pyright should not override the formatter.
+  "reportImplicitStringConcatenation": false,
+  "reportUninitializedInstanceVariable": "error",
+
+  // Enabled — small error count, fix now
+  "reportAbstractUsage": "error",
+  "reportAssignmentType": "error",
+  "reportFunctionMemberAccess": "error",
+  "reportIndexIssue": "error",
+  "reportOperatorIssue": "error",
+  "reportOptionalIterable": "error",
+  "reportOptionalSubscript": "error",
+
+  // Deferred — medium error count, fix soon
+  "reportCallIssue": true,
+  "reportGeneralTypeIssues": true,
+  "reportReturnType": true,
+
+  // Deferred — large error count, fix later
+  "reportArgumentType": true,
+  "reportAttributeAccessIssue": true,
+  // Demoted to warning — pygame-ce stubs declare image/rect as properties on DirtySprite,
+  // but GlitchyGames intentionally overrides them as plain attributes for non-optional typing.
+  "reportIncompatibleMethodOverride": "warning",
+  "reportIncompatibleVariableOverride": true,
+  "reportOptionalMemberAccess": true,
+
+  "executionEnvironments": [
+    {
+      "root": "glitchygames",
+      "extraPaths": ["scripts"]
+    },
+    {
+      "root": "tests",
+      "extraPaths": ["."],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
+    }
+  ]
+}

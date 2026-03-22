@@ -9,16 +9,21 @@ from __future__ import annotations
 
 import threading
 from collections import deque
+from typing import TYPE_CHECKING, Any, Self, override
+
+if TYPE_CHECKING:
+    import types
+    from collections.abc import Generator
 
 try:
     import miniaudio as mi
-except Exception:  # pragma: no cover - optional dependency
-    mi = None  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    mi = None  # ty: ignore[invalid-assignment]
 
 try:
     import speech_recognition as sr
-except Exception:  # pragma: no cover - test environments may skip
-    sr = None  # type: ignore
+except ImportError:  # pragma: no cover - test environments may skip
+    sr = None  # ty: ignore[invalid-assignment]
 
 
 class _BlockingByteStream:
@@ -43,7 +48,7 @@ class _BlockingByteStream:
             while self._size < size and not self._closed:
                 self._cv.wait(timeout=0.5)
             if self._size == 0 and self._closed:
-                return b""
+                return b''
             chunks: list[bytes] = []
             remaining = size
             while self._buf and remaining > 0:
@@ -59,7 +64,7 @@ class _BlockingByteStream:
                     self._size -= remaining
                     remaining = 0
             # If we still didn't get enough and closed, return what we have
-            return b"".join(chunks)
+            return b''.join(chunks)
 
     def close(self) -> None:
         with self._cv:
@@ -67,7 +72,7 @@ class _BlockingByteStream:
             self._cv.notify_all()
 
 
-class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
+class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[union-attr]
     """Miniaudio-based microphone compatible with speech_recognition.AudioSource."""
 
     def __init__(
@@ -78,36 +83,59 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
         chunk_size: int = 1024,
         sample_width: int = 2,
     ) -> None:
+        """Initialize the miniaudio microphone capture device.
+
+        Raises:
+            RuntimeError: If miniaudio is not installed.
+
+        """
         if mi is None:
-            raise RuntimeError("miniaudio is not installed")
+            raise RuntimeError('miniaudio is not installed')
         self.device_index = device_index
         self.SAMPLE_RATE = sample_rate
         self.CHANNELS = channels
         self.CHUNK = chunk_size
         self.SAMPLE_WIDTH = sample_width  # bytes per sample
         self.stream: _BlockingByteStream | None = None
-        self._device: mi.CaptureDevice | None = None
+        self._device: Any = None
 
-    def __enter__(self) -> "MiniaudioMicrophone":
+    @override
+    def __enter__(self) -> Self:
+        """Enter the context manager, starting audio capture.
+
+        Returns:
+            MiniaudioMicrophone: The result.
+
+        """
         self.stream = _BlockingByteStream()
 
-        def _callback(frames: bytes) -> None:
-            # miniaudio provides raw bytes in the requested format
-            if self.stream:
-                self.stream.write(frames)
+        def _capture_generator() -> Generator[None, bytes | None]:
+            """Generator that receives captured audio data and writes to the stream."""
+            while True:
+                data = yield
+                if self.stream and data:
+                    self.stream.write(bytes(data))
 
         # Configure capture device
-        self._device = mi.CaptureDevice(
-            callback=_callback,
+        self._device = mi.CaptureDevice(  # type: ignore[union-attr]
+            input_format=mi.SampleFormat.SIGNED16,  # type: ignore[union-attr]
+            nchannels=self.CHANNELS,
             sample_rate=self.SAMPLE_RATE,
-            channels=self.CHANNELS,
-            format=mi.SampleFormat.SIGNED16,
             device_id=self.device_index,
         )
-        self._device.start()
+        generator = _capture_generator()
+        next(generator)  # Prime the generator
+        self._device.start(generator)  # ty: ignore[invalid-argument-type]
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
+    @override
+    def __exit__(  # ty: ignore[invalid-method-override]
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: types.TracebackType | None,
+    ) -> None:
+        """Exit the context manager, stopping audio capture and cleaning up."""
         try:
             if self._device is not None:
                 self._device.stop()
@@ -115,5 +143,3 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[misc]
             if self.stream is not None:
                 self.stream.close()
             self._device = None
-
-

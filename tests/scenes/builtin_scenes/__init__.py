@@ -1,1 +1,1 @@
-# tests/scenes/builtins/__init__.py
+"""Tests for built-in scene types."""

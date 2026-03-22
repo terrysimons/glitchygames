@@ -3,6 +3,23 @@
 This module contains color constants and palette helpers.
 """
 
+from .constants import (
+    ALPHA_TRANSPARENCY_THRESHOLD,
+    BLACK,
+    BLACKLUCENT,
+    BLUE,
+    BLUELUCENT,
+    GREEN,
+    MAGENTA_TRANSPARENCY_KEY,
+    MAX_COLOR_CHANNEL_VALUE,
+    MAX_PER_PIXEL_ALPHA,
+    PURPLE,
+    RED,
+    RGB_COMPONENT_COUNT,
+    RGBA_COMPONENT_COUNT,
+    WHITE,
+    YELLOW,
+)
 from .palette import (
     NES,
     SYSTEM,
@@ -10,15 +27,24 @@ from .palette import (
     Default,
 )
 
-__all__ = ["NES", "SYSTEM", "VGA", "Default"]
-
-_default_colors: Default = Default()
-YELLOW = _default_colors.YELLOW
-PURPLE = _default_colors.PURPLE
-BLUE = _default_colors.BLUE
-GREEN = _default_colors.GREEN
-WHITE = _default_colors.WHITE
-BLACK = _default_colors.BLACK
-BLACKLUCENT = _default_colors.BLACKLUCENT
-BLUELUCENT = _default_colors.BLUELUCENT
-RED = _default_colors.RED
+__all__ = [
+    'ALPHA_TRANSPARENCY_THRESHOLD',
+    'BLACK',
+    'BLACKLUCENT',
+    'BLUE',
+    'BLUELUCENT',
+    'GREEN',
+    'MAGENTA_TRANSPARENCY_KEY',
+    'MAX_COLOR_CHANNEL_VALUE',
+    'MAX_PER_PIXEL_ALPHA',
+    'NES',
+    'PURPLE',
+    'RED',
+    'RGBA_COMPONENT_COUNT',
+    'RGB_COMPONENT_COUNT',
+    'SYSTEM',
+    'VGA',
+    'WHITE',
+    'YELLOW',
+    'Default',
+]

@@ -1,12 +1,12 @@
 [sprite]
 name = "animated_sprite"
 
-[animation]
+[[animation]]
 namespace = "idle"
 frame_interval = 0.5
 loop = true
 
-[animation.frame]
+[[animation.frame]]
 namespace = "idle"
 frame_index = 0
 pixels = """
@@ -44,7 +44,7 @@ pixels = """
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 """
 
-[animation.frame]
+[[animation.frame]]
 namespace = "idle"
 frame_index = 1
 pixels = """
@@ -92,4 +92,3 @@ blue = 0
 red = 255
 green = 0
 blue = 0
-

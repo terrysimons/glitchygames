@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Bitrot Adventures."""
 
+from __future__ import annotations
+
 import argparse
 import logging
-from typing import NoReturn, Self
+from typing import Self
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 
 # Instantiate a logger called "game" to enable glitchygames
 # logging module. This is optional, but recommended.
-LOG = logging.getLogger("game")
+LOG = logging.getLogger('game')
 
 
 # Think of a scene as an encapsulated pygame screen.
@@ -26,10 +28,10 @@ LOG = logging.getLogger("game")
 class BitrotAdventures(Scene):
     """Draws a pixel to the screen."""
 
-    NAME = "Bitrot Adventures"
-    VERSION = "0.0.0"
+    NAME = 'Bitrot Adventures'
+    VERSION = '0.0.0'
 
-    def __init__(self: Self, options: dict[str, str]) -> Self:
+    def __init__(self: Self, options: dict[str, str]) -> None:
         """Initialize the scene.
 
         Args:
@@ -40,6 +42,7 @@ class BitrotAdventures(Scene):
 
         self.dirty = 1
         # draw a pixel to the screen
+        assert self.screen is not None
         self.screen.fill((255, 0, 0))
         self.dirty = 1
         self.rects = self.screen.get_rect()
@@ -57,19 +60,26 @@ class BitrotAdventures(Scene):
     # before adding new options to ensure that you haven't
     # clobbered an existing option.
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Game specific command line arguments."""
-        parser.add_argument("-s", "--some-game-specific-option", help="foo help")
+    def args(
+        cls: type[BitrotAdventures], parser: argparse.ArgumentParser
+    ) -> argparse.ArgumentParser:
+        """Game specific command line arguments.
+
+        Returns:
+            argparse.ArgumentParser: The result.
+
+        """
+        parser.add_argument('-s', '--some-game-specific-option', help='foo help')
         return parser
 
 
-def main() -> NoReturn:
+def main() -> None:
     """Run the game."""
     # Note that the Scene (BitrotAdventures) is
     # passed in uninitialized - the engine
     # will initialize it for you.
-    GameEngine(game=BitrotAdventures, icon="/path/to/icon").start()
+    GameEngine(game=BitrotAdventures, icon='/path/to/icon').start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

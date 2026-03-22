@@ -6,9 +6,10 @@ This is a simple horizontal movement class that can be used to move sprites left
 
 from __future__ import annotations
 
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
-from .speed import Speed
+if TYPE_CHECKING:
+    from .speed import Speed
 
 
 class Horizontal:
@@ -20,21 +21,15 @@ class Horizontal:
         Args:
             speed (Speed): The speed object to move at.
 
-        Returns:
-            None
-
         """
         self.speed = speed
         self.current_speed = self.speed.x
 
-    def _change_speed(self: Self, value: int) -> None:
+    def _change_speed(self: Self, value: float) -> None:
         """Change the current speed.
 
         Args:
-            value (int): The value to change the speed by.
-
-        Returns:
-            None
+            value (float): The value to change the speed by.
 
         """
         self.current_speed = value
@@ -43,9 +38,6 @@ class Horizontal:
         """Move left.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -57,9 +49,6 @@ class Horizontal:
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._change_speed(self.speed.x)
 
@@ -67,9 +56,6 @@ class Horizontal:
         """Stop moving.
 
         Args:
-            None
-
-        Returns:
             None
 
         """

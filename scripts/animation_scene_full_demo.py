@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
@@ -21,22 +21,26 @@ if TYPE_CHECKING:
     import argparse
 
 # Set up logging
-LOG = logging.getLogger("game")
+LOG = logging.getLogger('game')
 LOG.setLevel(logging.DEBUG)
 
 
 class AnimationGame(Scene):
     """Full glitchygames scene for displaying animated sprites."""
 
-    NAME = "Animation Scene Demo"
+    NAME = 'Animation Scene Demo'
     log = LOG
 
-    def __init__(self: Self, options: dict, groups: pygame.sprite.Group | None = None) -> None:
+    def __init__(
+        self: Self,
+        options: dict[str, Any],
+        groups: pygame.sprite.AbstractGroup[Any] | None = None,
+    ) -> None:
         """Initialize the animation game."""
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        super().__init__(options=options, groups=groups)
+        super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
 
         # Set up the scene
         self.background_color = (20, 20, 40)
@@ -46,8 +50,10 @@ class AnimationGame(Scene):
         self._load_animated_sprite()
 
         # Clear the screen with background
+        assert self.screen is not None
         self.all_sprites.clear(self.screen, self.background)
 
+    @override
     def update(self: Self) -> None:
         """Update the scene."""
         super().update()
@@ -57,7 +63,7 @@ class AnimationGame(Scene):
 
     def on_keydown_event(self: Self, event: pygame.event.Event) -> None:
         """Handle keydown events."""
-        if event.key == pygame.K_ESCAPE or event.unicode.lower() == "q":
+        if event.key == pygame.K_ESCAPE or event.unicode.lower() == 'q':
             self.scene_manager.quit()
             return
 
@@ -81,27 +87,41 @@ class AnimationGame(Scene):
             self.animated_sprite.set_frame(1)
 
     def _load_animated_sprite(self: Self) -> None:
-        """Load the animated sprite from foo.toml."""
-        foo_toml_path = Path(__file__).parent.parent / "foo.toml"
+        """Load the animated sprite from foo.toml.
+
+        Raises:
+            FileNotFoundError: If the animation TOML file is not found.
+            ValueError: If the animation data is invalid.
+            RuntimeError: If the animation system fails to initialize.
+
+        """
+        foo_toml_path = Path(__file__).parent.parent / 'foo.toml'
 
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.all_sprites)
             self.animated_sprite.play()
             # Center on screen dynamically
+            assert self.animated_sprite.rect is not None
+            assert self.screen is not None
             self.animated_sprite.rect.center = self.screen.get_rect().center
             self.log.info(
-                f"Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)"
+                f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)'
             )
-            self.log.info("Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1")
-        except (FileNotFoundError, ValueError, RuntimeError):
-            self.log.exception("Failed to load animation")
+            self.log.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
+        except FileNotFoundError, ValueError, RuntimeError:
+            self.log.exception('Failed to load animation')
             raise
 
     @classmethod
-    def args(cls: Self, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Add game-specific arguments to the global parser."""
+    def args(cls: type[AnimationGame], parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add game-specific arguments to the global parser.
+
+        Returns:
+            argparse.ArgumentParser: The result.
+
+        """
         parser.add_argument(
-            "-v", "--version", action="store_true", help="print the game version and exit"
+            '-v', '--version', action='store_true', help='print the game version and exit'
         )
         return parser
 
@@ -112,5 +132,5 @@ def main() -> None:
     GameEngine(game=AnimationGame).start()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

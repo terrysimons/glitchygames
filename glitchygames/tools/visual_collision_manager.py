@@ -1,5 +1,4 @@
-"""
-Visual Collision Manager for Multi-Controller System
+"""Visual Collision Manager for Multi-Controller System.
 
 This module provides smart positioning and collision avoidance for multiple
 controller indicators, ensuring clear visual distinction and preventing
@@ -12,101 +11,112 @@ Features:
 - Controller-specific positioning
 """
 
-import pygame
-from typing import List, Tuple, Dict, Optional
+import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, ClassVar
+
+import pygame
+
+LOG = logging.getLogger('game.tools.visual_collision_manager')
 
 
 class IndicatorShape(Enum):
     """Visual indicator shapes."""
-    TRIANGLE = "triangle"
-    CIRCLE = "circle"
-    SQUARE = "square"
-    DIAMOND = "diamond"
+
+    TRIANGLE = 'triangle'
+    CIRCLE = 'circle'
+    SQUARE = 'square'
+    DIAMOND = 'diamond'
 
 
 class LocationType(Enum):
     """Location types for visual indicators."""
-    FILM_STRIP = "film_strip"
-    CANVAS = "canvas"
-    SLIDER = "slider"
+
+    FILM_STRIP = 'film_strip'
+    CANVAS = 'canvas'
+    SLIDER = 'slider'
 
 
 @dataclass
 class VisualIndicator:
     """Visual indicator information."""
+
     controller_id: int
     instance_id: int
-    position: Tuple[int, int]
-    color: Tuple[int, int, int]
+    position: tuple[int, int]
+    color: tuple[int, int, int]
     shape: IndicatorShape
     size: int
     location_type: LocationType
-    offset: Tuple[int, int] = (0, 0)
+    offset: tuple[int, int] = (0, 0)
     is_visible: bool = True
     transparency: float = 1.0  # 1.0 = opaque, 0.0 = transparent
 
 
 class VisualCollisionManager:
-    """
-    Manages visual indicators for multiple controllers with collision avoidance.
-    
+    """Manage visual indicators for multiple controllers with collision avoidance.
+
     Provides smart positioning to prevent visual overlap when multiple
     controllers select the same frame or area.
     """
-    
+
     # Default indicator properties
     DEFAULT_SIZE = 12
     MIN_SPACING = 8
     MAX_OFFSET = 20
-    
+
     # Positioning patterns for collision avoidance
-    POSITION_PATTERNS = [
-        (0, 0),      # Center
+    POSITION_PATTERNS: ClassVar[list[tuple[int, int]]] = [
+        (0, 0),  # Center
         (-15, -15),  # Top-left
-        (15, -15),   # Top-right
-        (-15, 15),   # Bottom-left
-        (15, 15),    # Bottom-right
-        (-25, 0),    # Far left
-        (25, 0),     # Far right
-        (0, -25),    # Far top
-        (0, 25),     # Far bottom
+        (15, -15),  # Top-right
+        (-15, 15),  # Bottom-left
+        (15, 15),  # Bottom-right
+        (-25, 0),  # Far left
+        (25, 0),  # Far right
+        (0, -25),  # Far top
+        (0, 25),  # Far bottom
     ]
-    
-    def __init__(self):
+
+    def __init__(self) -> None:
         """Initialize the visual collision manager."""
         # Location-specific indicator tracking
-        self.indicators: Dict[int, VisualIndicator] = {}
-        self.film_strip_indicators: Dict[int, VisualIndicator] = {}
-        self.canvas_indicators: Dict[int, VisualIndicator] = {}
-        self.slider_indicators: Dict[int, VisualIndicator] = {}
-        
+        self.indicators: dict[int, VisualIndicator] = {}
+        self.film_strip_indicators: dict[int, VisualIndicator] = {}
+        self.canvas_indicators: dict[int, VisualIndicator] = {}
+        self.slider_indicators: dict[int, VisualIndicator] = {}
+
         # Location-specific collision groups
-        self.collision_groups: Dict[Tuple[int, int], List[int]] = {}
-        self.film_strip_collision_groups: Dict[Tuple[int, int], List[int]] = {}
-        self.canvas_collision_groups: Dict[Tuple[int, int], List[int]] = {}
-        self.slider_collision_groups: Dict[Tuple[int, int], List[int]] = {}
-        
+        self.collision_groups: dict[tuple[int, int], list[int]] = {}
+        self.film_strip_collision_groups: dict[tuple[int, int], list[int]] = {}
+        self.canvas_collision_groups: dict[tuple[int, int], list[int]] = {}
+        self.slider_collision_groups: dict[tuple[int, int], list[int]] = {}
+
         # Position cache for performance
-        self.position_cache: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
-        
-    def add_controller_indicator(self, controller_id: int, instance_id: int, 
-                               color: Tuple[int, int, int], 
-                               position: Tuple[int, int],
-                               location_type: LocationType = LocationType.FILM_STRIP) -> VisualIndicator:
-        """
-        Add a visual indicator for a controller.
-        
+        self.position_cache: dict[tuple[int, int], list[tuple[int, int]]] = {}
+
+    def add_controller_indicator(
+        self,
+        controller_id: int,
+        instance_id: int,
+        color: tuple[int, int, int],
+        position: tuple[int, int],
+        location_type: LocationType = LocationType.FILM_STRIP,
+    ) -> VisualIndicator:
+        """Add a visual indicator for a controller.
+
         Args:
             controller_id: Unique controller ID
             instance_id: Pygame controller instance ID
             color: RGB color tuple
             position: Base position (x, y)
             location_type: Location type (FILM_STRIP or CANVAS)
-            
+
         Returns:
             VisualIndicator object
+
         """
         # Set appropriate shape and transparency based on location type
         if location_type == LocationType.CANVAS:
@@ -118,7 +128,7 @@ class VisualCollisionManager:
         else:  # FILM_STRIP
             shape = IndicatorShape.TRIANGLE
             transparency = 1.0  # Fully opaque for film strip
-        
+
         indicator = VisualIndicator(
             controller_id=controller_id,
             instance_id=instance_id,
@@ -127,62 +137,81 @@ class VisualCollisionManager:
             shape=shape,
             size=self.DEFAULT_SIZE,
             location_type=location_type,
-            transparency=transparency
+            transparency=transparency,
         )
-        
+
         # Add to appropriate location-specific tracking
         if location_type == LocationType.FILM_STRIP:
             self.film_strip_indicators[controller_id] = indicator
-            print(f"DEBUG: Added to film_strip_indicators - now {len(self.film_strip_indicators)} indicators")
+            LOG.debug(
+                'Added to film_strip_indicators - now %s indicators',
+                len(self.film_strip_indicators),
+            )
         elif location_type == LocationType.CANVAS:
             self.canvas_indicators[controller_id] = indicator
-            print(f"DEBUG: Added to canvas_indicators - now {len(self.canvas_indicators)} indicators")
+            LOG.debug(
+                'Added to canvas_indicators - now %s indicators',
+                len(self.canvas_indicators),
+            )
         elif location_type == LocationType.SLIDER:
             self.slider_indicators[controller_id] = indicator
-            print(f"DEBUG: Added to slider_indicators - now {len(self.slider_indicators)} indicators")
-        
+            LOG.debug(
+                'Added to slider_indicators - now %s indicators',
+                len(self.slider_indicators),
+            )
+
         # Keep main indicators dict for backward compatibility
         # Note: This will overwrite if same controller_id is used for different locations
         self.indicators[controller_id] = indicator
-        
+
         # Update collision groups for the specific location
         self._update_collision_groups(location_type)
-        
-        print(f"DEBUG: Added {location_type.value} indicator for controller {controller_id} at {position}")
+
+        LOG.debug(
+            'Added %s indicator for controller %s at %s',
+            location_type.value,
+            controller_id,
+            position,
+        )
         return indicator
-    
+
     def remove_controller_indicator(self, controller_id: int) -> None:
-        """
-        Remove a visual indicator for a controller.
-        
+        """Remove a visual indicator for a controller.
+
         Args:
             controller_id: Controller ID to remove
+
         """
         if controller_id in self.indicators:
             # Get the location type before removing
             location_type = self.indicators[controller_id].location_type
-            
+
             # Remove from location-specific dictionaries first
-            if location_type == LocationType.FILM_STRIP and controller_id in self.film_strip_indicators:
+            if (
+                location_type == LocationType.FILM_STRIP
+                and controller_id in self.film_strip_indicators
+            ):
                 del self.film_strip_indicators[controller_id]
             elif location_type == LocationType.CANVAS and controller_id in self.canvas_indicators:
                 del self.canvas_indicators[controller_id]
             elif location_type == LocationType.SLIDER and controller_id in self.slider_indicators:
                 del self.slider_indicators[controller_id]
-            
+
             # Remove from main indicators dict
             del self.indicators[controller_id]
-            
+
             self._update_collision_groups()
-            print(f"DEBUG: Removed indicator for controller {controller_id}")
-    
-    def remove_controller_indicator_for_location(self, controller_id: int, location_type: LocationType) -> None:
-        """
-        Remove a visual indicator for a controller from a specific location.
-        
+            LOG.debug('Removed indicator for controller %s', controller_id)
+
+    def remove_controller_indicator_for_location(
+        self, controller_id: int, location_type: LocationType
+    ) -> None:
+        """Remove a visual indicator for a controller from a specific location.
+
         Args:
             controller_id: Controller ID to remove
             location_type: Location type to remove from
+
         """
         # Remove from location-specific dictionary
         if location_type == LocationType.FILM_STRIP and controller_id in self.film_strip_indicators:
@@ -191,57 +220,57 @@ class VisualCollisionManager:
             del self.canvas_indicators[controller_id]
         elif location_type == LocationType.SLIDER and controller_id in self.slider_indicators:
             del self.slider_indicators[controller_id]
-        
+
         # Update collision groups for the specific location
         self._update_collision_groups(location_type)
-        
-        print(f"DEBUG: Removed {location_type.value} indicator for controller {controller_id}")
-    
-    def update_controller_position(self, controller_id: int, 
-                                  new_position: Tuple[int, int]) -> None:
-        """
-        Update the position of a controller indicator.
-        
+
+        LOG.debug('Removed %s indicator for controller %s', location_type.value, controller_id)
+
+    def update_controller_position(self, controller_id: int, new_position: tuple[int, int]) -> None:
+        """Update the position of a controller indicator.
+
         Args:
             controller_id: Controller ID
             new_position: New position (x, y)
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].position = new_position
             self._update_collision_groups()
-            print(f"DEBUG: Updated position for controller {controller_id} to {new_position}")
-    
-    def get_controller_indicator(self, controller_id: int) -> Optional[VisualIndicator]:
-        """
-        Get visual indicator for a controller.
-        
+            LOG.debug('Updated position for controller %s to %s', controller_id, new_position)
+
+    def get_controller_indicator(self, controller_id: int) -> VisualIndicator | None:
+        """Get visual indicator for a controller.
+
         Args:
             controller_id: Controller ID
-            
+
         Returns:
             VisualIndicator if found, None otherwise
+
         """
         return self.indicators.get(controller_id)
-    
-    def get_indicators_for_position(self, position: Tuple[int, int], 
-                                   location_type: LocationType = None) -> List[VisualIndicator]:
-        """
-        Get all indicators at a specific position.
-        
+
+    def get_indicators_for_position(
+        self, position: tuple[int, int], location_type: LocationType | None = None
+    ) -> list[VisualIndicator]:
+        """Get all indicators at a specific position.
+
         Args:
             position: Position to check
             location_type: Specific location type to check (None for all)
-            
+
         Returns:
             List of indicators at the position
+
         """
-        indicators = []
-        
         if location_type is None:
             # Check all location types
-            for indicator in self.indicators.values():
-                if indicator.position == position:
-                    indicators.append(indicator)
+            indicators = [
+                indicator
+                for indicator in self.indicators.values()
+                if indicator.position == position
+            ]
         else:
             # Check specific location type
             if location_type == LocationType.FILM_STRIP:
@@ -252,14 +281,16 @@ class VisualCollisionManager:
                 indicators_dict = self.slider_indicators
             else:
                 indicators_dict = self.indicators
-                
-            for indicator in indicators_dict.values():
-                if indicator.position == position:
-                    indicators.append(indicator)
-        
+
+            indicators = [
+                indicator
+                for indicator in indicators_dict.values()
+                if indicator.position == position
+            ]
+
         return indicators
-    
-    def _update_collision_groups(self, location_type: LocationType = None) -> None:
+
+    def _update_collision_groups(self, location_type: LocationType | None = None) -> None:
         """Update collision groups based on current positions."""
         if location_type is None:
             # Update all location types
@@ -267,7 +298,7 @@ class VisualCollisionManager:
             self._update_collision_groups(LocationType.CANVAS)
             self._update_collision_groups(LocationType.SLIDER)
             return
-        
+
         # Clear the appropriate collision groups
         if location_type == LocationType.FILM_STRIP:
             self.film_strip_collision_groups.clear()
@@ -280,47 +311,58 @@ class VisualCollisionManager:
             indicators_dict = self.slider_indicators
         else:
             return
-        
+
         # Group indicators by position for the specific location
-        for controller_id, indicator in indicators_dict.items():
+        # Snapshot to avoid RuntimeError from concurrent modification
+        for controller_id, indicator in list(indicators_dict.items()):
             if indicator.is_visible:
                 position = indicator.position
                 collision_groups = self._get_collision_groups_for_location(location_type)
                 if position not in collision_groups:
                     collision_groups[position] = []
                 collision_groups[position].append(controller_id)
-        
+
         # Apply collision avoidance for groups with multiple indicators
+        # Snapshot the items to avoid RuntimeError from concurrent dict modification
         collision_groups = self._get_collision_groups_for_location(location_type)
-        for position, controller_ids in collision_groups.items():
+        for position, controller_ids in list(collision_groups.items()):
             if len(controller_ids) > 1:
                 self._apply_collision_avoidance(position, controller_ids, location_type)
-    
-    def _get_collision_groups_for_location(self, location_type: LocationType) -> Dict[Tuple[int, int], List[int]]:
-        """Get collision groups for a specific location type."""
+
+    def _get_collision_groups_for_location(
+        self, location_type: LocationType
+    ) -> dict[tuple[int, int], list[int]]:
+        """Get collision groups for a specific location type.
+
+        Returns:
+            dict[tuple[int, int], list[int]]: The collision groups for location.
+
+        """
         if location_type == LocationType.FILM_STRIP:
             return self.film_strip_collision_groups
-        elif location_type == LocationType.CANVAS:
+        if location_type == LocationType.CANVAS:
             return self.canvas_collision_groups
-        elif location_type == LocationType.SLIDER:
+        if location_type == LocationType.SLIDER:
             return self.slider_collision_groups
-        else:
-            return self.collision_groups
-    
-    def _apply_collision_avoidance(self, position: Tuple[int, int], 
-                                 controller_ids: List[int],
-                                 location_type: LocationType = LocationType.FILM_STRIP) -> None:
-        """
-        Apply collision avoidance for indicators at the same position.
-        
+        return self.collision_groups
+
+    def _apply_collision_avoidance(
+        self,
+        position: tuple[int, int],
+        controller_ids: list[int],
+        location_type: LocationType = LocationType.FILM_STRIP,
+    ) -> None:
+        """Apply collision avoidance for indicators at the same position.
+
         Args:
             position: Base position
             controller_ids: List of controller IDs at this position
             location_type: Location type for the indicators
+
         """
         if len(controller_ids) <= 1:
             return
-            
+
         # Use cached positions if available
         cache_key = (position[0], position[1])
         if cache_key in self.position_cache:
@@ -328,7 +370,7 @@ class VisualCollisionManager:
         else:
             offsets = self._calculate_offsets(len(controller_ids))
             self.position_cache[cache_key] = offsets
-        
+
         # Get the appropriate indicators dictionary
         if location_type == LocationType.FILM_STRIP:
             indicators_dict = self.film_strip_indicators
@@ -338,201 +380,207 @@ class VisualCollisionManager:
             indicators_dict = self.slider_indicators
         else:
             indicators_dict = self.indicators
-        
+
         # Apply offsets to indicators
         for i, controller_id in enumerate(controller_ids):
             if controller_id in indicators_dict:
                 if i < len(offsets):
                     indicators_dict[controller_id].offset = offsets[i]
-                    print(f"DEBUG: Applied {location_type.value} offset {offsets[i]} to controller {controller_id}")
+                    LOG.debug(
+                        'Applied %s offset %s to controller %s',
+                        location_type.value,
+                        offsets[i],
+                        controller_id,
+                    )
                 else:
                     # Fallback to default offset
                     indicators_dict[controller_id].offset = (0, 0)
-                    print(f"DEBUG: Applied fallback {location_type.value} offset (0, 0) to controller {controller_id}")
-    
-    def _calculate_offsets(self, count: int) -> List[Tuple[int, int]]:
-        """
-        Calculate offsets for collision avoidance.
-        
+                    LOG.debug(
+                        'Applied fallback %s offset (0, 0) to controller %s',
+                        location_type.value,
+                        controller_id,
+                    )
+
+    def _calculate_offsets(self, count: int) -> list[tuple[int, int]]:
+        """Calculate offsets for collision avoidance.
+
         Args:
             count: Number of indicators to position
-            
+
         Returns:
             List of offset tuples
+
         """
         if count <= 1:
             return [(0, 0)]
-        
+
         # Use predefined patterns for common cases
         if count <= len(self.POSITION_PATTERNS):
             return self.POSITION_PATTERNS[:count]
-        
+
         # Generate additional patterns for more indicators
         offsets = list(self.POSITION_PATTERNS)
-        
+
         # Add more patterns if needed
         for i in range(len(self.POSITION_PATTERNS), count):
             # Create a spiral pattern
-            angle = (i * 2 * 3.14159) / count
+            angle = (i * 2 * math.pi) / count
             radius = 15 + (i // 8) * 10
-            x = int(radius * pygame.math.Vector2(1, 0).rotate(angle * 180 / 3.14159).x)
-            y = int(radius * pygame.math.Vector2(1, 0).rotate(angle * 180 / 3.14159).y)
+            x = int(radius * pygame.math.Vector2(1, 0).rotate(angle * 180 / math.pi).x)
+            y = int(radius * pygame.math.Vector2(1, 0).rotate(angle * 180 / math.pi).y)
             offsets.append((x, y))
-        
+
         return offsets[:count]
-    
-    def get_final_position(self, controller_id: int) -> Tuple[int, int]:
-        """
-        Get the final position of a controller indicator (base + offset).
-        
+
+    def get_final_position(self, controller_id: int) -> tuple[int, int]:
+        """Get the final position of a controller indicator (base + offset).
+
         Args:
             controller_id: Controller ID
-            
+
         Returns:
             Final position (x, y)
+
         """
         if controller_id not in self.indicators:
             return (0, 0)
-        
+
         indicator = self.indicators[controller_id]
         base_x, base_y = indicator.position
         offset_x, offset_y = indicator.offset
-        
+
         return (base_x + offset_x, base_y + offset_y)
-    
-    def get_all_indicators(self) -> List[VisualIndicator]:
-        """
-        Get all visual indicators.
-        
+
+    def get_all_indicators(self) -> list[VisualIndicator]:
+        """Get all visual indicators.
+
         Returns:
             List of all indicators
+
         """
         return list(self.indicators.values())
-    
-    def get_visible_indicators(self) -> List[VisualIndicator]:
-        """
-        Get all visible indicators.
-        
+
+    def get_visible_indicators(self) -> list[VisualIndicator]:
+        """Get all visible indicators.
+
         Returns:
             List of visible indicators
+
         """
         return [indicator for indicator in self.indicators.values() if indicator.is_visible]
-    
-    def set_indicator_visibility(self, controller_id: int, visible: bool) -> None:
-        """
-        Set visibility of a controller indicator.
-        
+
+    def set_indicator_visibility(self, controller_id: int, *, visible: bool) -> None:
+        """Set visibility of a controller indicator.
+
         Args:
             controller_id: Controller ID
             visible: Visibility state
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].is_visible = visible
             self._update_collision_groups()
-            print(f"DEBUG: Set visibility for controller {controller_id} to {visible}")
-    
-    def set_indicator_color(self, controller_id: int, color: Tuple[int, int, int]) -> None:
-        """
-        Set color of a controller indicator.
-        
+            LOG.debug('Set visibility for controller %s to %s', controller_id, visible)
+
+    def set_indicator_color(self, controller_id: int, color: tuple[int, int, int]) -> None:
+        """Set color of a controller indicator.
+
         Args:
             controller_id: Controller ID
             color: RGB color tuple
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].color = color
-            print(f"DEBUG: Set color for controller {controller_id} to {color}")
-    
+            LOG.debug('Set color for controller %s to %s', controller_id, color)
+
     def set_indicator_shape(self, controller_id: int, shape: IndicatorShape) -> None:
-        """
-        Set shape of a controller indicator.
-        
+        """Set shape of a controller indicator.
+
         Args:
             controller_id: Controller ID
             shape: Indicator shape
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].shape = shape
-            print(f"DEBUG: Set shape for controller {controller_id} to {shape}")
-    
+            LOG.debug('Set shape for controller %s to %s', controller_id, shape)
+
     def set_indicator_size(self, controller_id: int, size: int) -> None:
-        """
-        Set size of a controller indicator.
-        
+        """Set size of a controller indicator.
+
         Args:
             controller_id: Controller ID
             size: Indicator size
+
         """
         if controller_id in self.indicators:
             self.indicators[controller_id].size = size
-            print(f"DEBUG: Set size for controller {controller_id} to {size}")
-    
+            LOG.debug('Set size for controller %s to %s', controller_id, size)
+
     def clear_all_indicators(self) -> None:
         """Clear all visual indicators."""
         self.indicators.clear()
         self.collision_groups.clear()
         self.position_cache.clear()
-        print("DEBUG: Cleared all indicators")
-    
-    def get_collision_summary(self) -> Dict[str, any]:
-        """
-        Get a summary of collision groups and positioning.
-        
+        LOG.debug('Cleared all indicators')
+
+    def get_collision_summary(self) -> dict[str, Any]:
+        """Get a summary of collision groups and positioning.
+
         Returns:
             Dictionary with collision information
+
         """
         summary = {
             'total_indicators': len(self.indicators),
             'collision_groups': len(self.collision_groups),
             'groups_with_collisions': 0,
-            'position_cache_size': len(self.position_cache)
+            'position_cache_size': len(self.position_cache),
         }
-        
-        for position, controller_ids in self.collision_groups.items():
+
+        for controller_ids in self.collision_groups.values():
             if len(controller_ids) > 1:
                 summary['groups_with_collisions'] += 1
-        
+
         return summary
-    
-    def get_indicators_by_location(self, location_type: LocationType) -> Dict[int, VisualIndicator]:
-        """
-        Get all indicators for a specific location type.
-        
+
+    def get_indicators_by_location(self, location_type: LocationType) -> dict[int, VisualIndicator]:
+        """Get all indicators for a specific location type.
+
         Args:
             location_type: Location type to get indicators for
-            
+
         Returns:
             Dictionary of controller_id -> VisualIndicator
+
         """
         if location_type == LocationType.FILM_STRIP:
-            # Suppress debug output during pytest runs
-            import sys
-            if 'pytest' not in sys.modules:
-                print(f"DEBUG: get_indicators_by_location FILM_STRIP - {len(self.film_strip_indicators)} indicators")
+            LOG.debug(
+                'get_indicators_by_location FILM_STRIP - %s indicators',
+                len(self.film_strip_indicators),
+            )
             return self.film_strip_indicators
-        elif location_type == LocationType.CANVAS:
-            # Suppress debug output during pytest runs
-            import sys
-            if 'pytest' not in sys.modules:
-                print(f"DEBUG: get_indicators_by_location CANVAS - {len(self.canvas_indicators)} indicators")
+        if location_type == LocationType.CANVAS:
+            LOG.debug(
+                'get_indicators_by_location CANVAS - %s indicators',
+                len(self.canvas_indicators),
+            )
             return self.canvas_indicators
-        elif location_type == LocationType.SLIDER:
-            # Suppress debug output during pytest runs
-            import sys
-            if 'pytest' not in sys.modules:
-                print(f"DEBUG: get_indicators_by_location SLIDER - {len(self.slider_indicators)} indicators")
+        if location_type == LocationType.SLIDER:
+            LOG.debug(
+                'get_indicators_by_location SLIDER - %s indicators',
+                len(self.slider_indicators),
+            )
             return self.slider_indicators
-        else:
-            return self.indicators
-    
+        return self.indicators
+
     def optimize_positioning(self) -> None:
-        """
-        Optimize positioning to minimize collisions and improve visual clarity.
-        """
+        """Optimize positioning to minimize collisions and improve visual clarity."""
         # Clear position cache to force recalculation
         self.position_cache.clear()
-        
+
         # Recalculate all positions
         self._update_collision_groups()
-        
-        print("DEBUG: Optimized positioning for all indicators")
+
+        LOG.debug('Optimized positioning for all indicators')

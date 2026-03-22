@@ -1,71 +1,75 @@
 #!/usr/bin/env python3
 """Pause scene for paddleslap game."""
 
-import pygame
-from typing import Self
+from __future__ import annotations
 
-from .. import Scene
-from glitchygames.sprites import Sprite
+from typing import TYPE_CHECKING, Any, Self, override
+
+import pygame
+
 from glitchygames.color import WHITE
+from glitchygames.scenes import Scene
+
+if TYPE_CHECKING:
+    from glitchygames.events.core import HashableEvent
+from glitchygames.sprites import Sprite
 
 
 class PauseOverlay(Sprite):
     """Semi-transparent overlay for pause screen."""
-    
-    def __init__(self: Self, game, screenshot: pygame.Surface) -> None:
+
+    def __init__(self: Self, game: Scene, screenshot: pygame.Surface) -> None:
         """Initialize the pause overlay.
-        
+
         Args:
-            game: The game instance
-            screenshot: Screenshot of the game when paused
+            game (Scene): The game instance
+            screenshot (pygame.Surface): Screenshot of the game when paused
+
         """
         # Initialize the sprite with the screenshot dimensions
-        super().__init__(
-            x=0,
-            y=0,
-            width=screenshot.get_width(),
-            height=screenshot.get_height()
-        )
-        
+        super().__init__(x=0, y=0, width=screenshot.get_width(), height=screenshot.get_height())
+
         # Create a semi-transparent overlay
         self.overlay = pygame.Surface((game.screen_width, game.screen_height))
         self.overlay.fill((0, 0, 0))  # Black background
         self.overlay.set_alpha(128)  # 50% transparency
-        
+
         # Create the paused text
         font = pygame.font.Font(None, 72)
-        text_surface = font.render("PAUSED", True, WHITE)
-        
+        text_surface = font.render('PAUSED', True, WHITE)  # noqa: FBT003
+
         # Center the text on screen
         text_rect = text_surface.get_rect()
         text_rect.center = (game.screen_width // 2, game.screen_height // 2)
-        
+
         # Blit the screenshot first, then overlay, then text
         self.image = screenshot.copy()
         self.image.blit(self.overlay, (0, 0))
         self.image.blit(text_surface, text_rect)
-        
+
         self.rect = self.image.get_rect()
         self.dirty = 1
 
 
 class PauseScene(Scene):
     """Pause scene that shows a semi-transparent overlay over the game."""
-    
-    def __init__(self: Self, **kwargs) -> None:
+
+    def __init__(self: Self, **kwargs: Any) -> None:
         """Initialize the pause scene.
-        
+
         Args:
             **kwargs: Additional keyword arguments.
+
         """
         super().__init__(**kwargs)
         self.overlay = None
         self._space_pressed = False
-    
+
+    @override
     def setup(self: Self) -> None:
         """Set up the pause scene."""
         super().setup()
-        
+
         # Create the pause overlay using the previous scene's screenshot
         previous_scene = self.scene_manager.previous_scene
         if previous_scene:
@@ -73,24 +77,24 @@ class PauseScene(Scene):
             screenshot = previous_scene.screenshot
         else:
             # This should not happen - scene manager should always have a previous_scene
-            self.log.warning("No previous scene found - this should not happen!")
+            self.log.warning('No previous scene found - this should not happen!')
             # Fallback: create a black screenshot
             screenshot = pygame.Surface((self.screen_width, self.screen_height))
             screenshot.fill((0, 0, 0))
-        
+
+        assert self.scene_manager.game_engine is not None
         self.overlay = PauseOverlay(self.scene_manager.game_engine.game, screenshot)
         self.all_sprites.add(self.overlay)
-        
-        self.log.info("Pause scene setup complete")
-    
-    def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+
+        self.log.info('Pause scene setup complete')
+
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events for the pause scene.
-        
+
         Args:
             event: The key down event
-            
-        Returns:
-            None
+
         """
         if event.key == pygame.K_SPACE:
             # Track that spacebar is pressed (but don't act on it yet)
@@ -100,20 +104,19 @@ class PauseScene(Scene):
             self.scene_manager.quit()
         else:
             super().on_key_down_event(event)
-    
-    def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+
+    @override
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle key up events for the pause scene.
-        
+
         Args:
             event: The key up event
-            
-        Returns:
-            None
+
         """
         if event.key == pygame.K_SPACE and self._space_pressed:
             # Spacebar was pressed and now released - resume the game
             self._space_pressed = False
-            self.log.info("Resuming game...")
+            self.log.info('Resuming game...')
             self.resume()
         else:
             super().on_key_up_event(event)

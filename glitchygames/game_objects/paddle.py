@@ -4,17 +4,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Self
+from typing import Self, override
 
 import pygame
+from pygame import draw
+
 from glitchygames.movement import Horizontal, Vertical
 from glitchygames.movement.speed import Speed
 from glitchygames.sprites import Sprite
-from pygame import draw
 
 from .sounds import load_sound
 
-log = logging.getLogger("game.paddle")
+log = logging.getLogger('game.paddle')
 log.setLevel(logging.INFO)
 
 
@@ -23,24 +24,24 @@ class BasePaddle(Sprite):
 
     def __init__(
         self: Self,
-        axis: Horizontal | Vertical,
+        axis: type[Horizontal | Vertical],
         speed: int,
         name: str,
-        color: tuple,
+        color: tuple[int, int, int],
         x: int,
         y: int,
         width: int,
         height: int,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
         collision_sound: str | None = None,
     ) -> None:
         """Initialize the paddle.
 
         Args:
-            axis (Horizontal | Vertical): The axis to move on.
+            axis (type[Horizontal] | type[Vertical]): The axis to move on.
             speed (int): The speed to move at.
             name (str): The name of the paddle.
-            color (tuple): The color of the paddle.
+            color (tuple[int, int, int]): The color of the paddle.
             x (int): The x position of the paddle.
             y (int): The y position of the paddle.
             width (int): The width of the paddle.
@@ -48,14 +49,11 @@ class BasePaddle(Sprite):
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
             collision_sound (str | None): The sound to play on collision.
 
-        Returns:
-            None
-
         """
         if groups is None:
-            groups = pygame.sprite.LayeredDirty()
+            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
-        super().__init__(name=name, x=x, y=y, width=width, height=height, groups=groups)
+        super().__init__(name=name, x=x, y=y, width=width, height=height, groups=groups)  # type: ignore[arg-type]
 
         self.use_gfxdraw = True
         self.moving = False
@@ -65,17 +63,14 @@ class BasePaddle(Sprite):
         if collision_sound:
             self.snd = load_sound(collision_sound)
         # Create Speed object based on axis type
-        speed_obj = Speed(speed, 0) if axis == Horizontal else Speed(0, speed)
-        self._move = axis(speed_obj)
+        speed_obj = Speed(speed, 0) if axis is Horizontal else Speed(0, speed)
+        self._move: Horizontal | Vertical = axis(speed_obj)
         self.dirty = 1
 
     def move_horizontal(self: Self) -> None:
         """Move the paddle horizontally.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -86,9 +81,6 @@ class BasePaddle(Sprite):
         """Move the paddle vertically.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -129,7 +121,10 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the left of the screen, False otherwise.
 
         """
-        return self.rect.left + self._move.current_speed < self.screen.left
+        assert self.screen is not None
+
+        screen_rect = self.screen.get_rect()
+        return self.rect.left + self._move.current_speed < screen_rect.left
 
     def is_at_right_of_screen(self: Self) -> bool:
         """Check if the paddle is at the right of the screen.
@@ -141,7 +136,10 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the right of the screen, False otherwise.
 
         """
-        return self.rect.right + self._move.current_speed > self.screen.right
+        assert self.screen is not None
+
+        screen_rect = self.screen.get_rect()
+        return self.rect.right + self._move.current_speed > screen_rect.right
 
 
 class HorizontalPaddle(BasePaddle):
@@ -150,31 +148,28 @@ class HorizontalPaddle(BasePaddle):
     def __init__(
         self: Self,
         name: str,
-        size: tuple,
-        position: tuple,
-        color: tuple,
+        size: tuple[int, int],
+        position: tuple[int, int],
+        color: tuple[int, int, int],
         speed: int,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
         collision_sound: str | None = None,
     ) -> None:
         """Initialize the horizontal paddle.
 
         Args:
             name (str): The name of the paddle.
-            size (tuple): The size of the paddle.
-            position (tuple): The position of the paddle.
-            color (tuple): The color of the paddle.
+            size (tuple[int, int]): The size of the paddle.
+            position (tuple[int, int]): The position of the paddle.
+            color (tuple[int, int, int]): The color of the paddle.
             speed (int): The speed to move at.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
             collision_sound (str | None): The sound to play on collision.
 
-        Returns:
-            None
-
         """
         if groups is None:
-            groups = pygame.sprite.LayeredDirty()
-        super().__init__(
+            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
+        super().__init__(  # type: ignore[arg-type]
             Horizontal,
             speed,
             name,
@@ -187,21 +182,20 @@ class HorizontalPaddle(BasePaddle):
             collision_sound,
         )
 
+    @override
     def update(self: Self) -> None:
         """Update the paddle.
 
         Args:
             None
 
-        Returns:
-            None
-
         """
+        assert self.screen is not None
         if self.is_at_left_of_screen():
             self.rect.x = 0
             self.stop()
         elif self.is_at_right_of_screen():
-            self.rect.x = self.screen.right - self.rect.width
+            self.rect.x = self.screen.get_rect().right - self.rect.width
             self.stop()
         else:
             self.move_horizontal()
@@ -212,10 +206,8 @@ class HorizontalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
+        assert isinstance(self._move, Horizontal)
         self._move.left()
         self.dirty = 1
 
@@ -225,10 +217,8 @@ class HorizontalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
+        assert isinstance(self._move, Horizontal)
         self._move.right()
         self.dirty = 1
 
@@ -236,9 +226,6 @@ class HorizontalPaddle(BasePaddle):
         """Stop moving.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -251,29 +238,25 @@ class HorizontalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._move.speed.speed_up_horizontal()
         self._move.current_speed = self._move.speed.x
 
+    @override
     def dt_tick(self: Self, dt: float) -> None:
         """Update the horizontal paddle with delta time.
 
         Args:
             dt (float): The delta time.
 
-        Returns:
-            None
-
         """
         # Use the movement class's get_movement_with_dt method for frame-rate independent movement
         movement = self._move.get_movement_with_dt(dt)
-        
+
         # Use proper rounding to avoid precision loss from integer truncation
+
         self.rect.x += round(movement)
-        
+
         self.dirty = 1
 
 
@@ -283,32 +266,29 @@ class VerticalPaddle(BasePaddle):
     def __init__(
         self: Self,
         name: str,
-        size: tuple,
-        position: tuple,
-        color: tuple,
+        size: tuple[int, int],
+        position: tuple[int, int],
+        color: tuple[int, int, int],
         speed: int,
-        groups: pygame.sprite.LayeredDirty | None = None,
+        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
         collision_sound: str | None = None,
     ) -> None:
         """Initialize the vertical paddle.
 
         Args:
             name (str): The name of the paddle.
-            size (tuple): The size of the paddle.
-            position (tuple): The position of the paddle.
-            color (tuple): The color of the paddle.
+            size (tuple[int, int]): The size of the paddle.
+            position (tuple[int, int]): The position of the paddle.
+            color (tuple[int, int, int]): The color of the paddle.
             speed (int): The speed to move at.
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
             collision_sound (str | None): The sound to play on collision.
 
-        Returns:
-            None
-
         """
         if groups is None:
-            groups = pygame.sprite.LayeredDirty()
+            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
-        super().__init__(
+        super().__init__(  # type: ignore[arg-type]
             Vertical,
             speed,
             name,
@@ -321,13 +301,11 @@ class VerticalPaddle(BasePaddle):
             collision_sound,
         )
 
+    @override
     def update(self: Self) -> None:
         """Update the paddle.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -346,10 +324,8 @@ class VerticalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
+        assert isinstance(self._move, Vertical)
         self._move.up()
         self.dirty = 1
 
@@ -359,10 +335,8 @@ class VerticalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
+        assert isinstance(self._move, Vertical)
         self._move.down()
         self.dirty = 1
 
@@ -370,9 +344,6 @@ class VerticalPaddle(BasePaddle):
         """Stop moving.
 
         Args:
-            None
-
-        Returns:
             None
 
         """
@@ -385,31 +356,28 @@ class VerticalPaddle(BasePaddle):
         Args:
             None
 
-        Returns:
-            None
-
         """
         self._move.speed.speed_up_vertical()
         self._move.current_speed = self._move.speed.y
 
+    @override
     def dt_tick(self: Self, dt: float) -> None:
         """Update the vertical paddle with delta time.
 
         Args:
             dt (float): The delta time.
 
-        Returns:
-            None
-
         """
         # Use centralized performance manager for adaptive clamping
         from glitchygames.performance import performance_manager
+
         dt = performance_manager.get_adaptive_dt(dt)
-        
+
         # Use the movement class's get_movement_with_dt method for frame-rate independent movement
         movement = self._move.get_movement_with_dt(dt)
-        
+
         # Use proper rounding to avoid precision loss from integer truncation
+
         self.rect.y += round(movement)
-        
+
         self.dirty = 1

@@ -5,14 +5,12 @@ This module tests GameEngine properties like joysticks, scene_manager, game, etc
 
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
-
 from tests.mocks import MockFactory
 
 # Constants for magic values
@@ -22,8 +20,8 @@ TEST_JOYSTICK_COUNT_2 = 2
 class MockGame(Scene):
     """Simple mock game scene for testing."""
 
-    NAME = "MockGame"
-    VERSION = "1.0"
+    NAME = 'MockGame'
+    VERSION = '1.0'
 
     def __init__(self, options=None, groups=None):
         """Initialize mock game scene."""
@@ -38,8 +36,13 @@ class MockGame(Scene):
 
     @classmethod
     def args(cls, parser):
-        """Add mock game arguments."""
-        parser.add_argument("--test-flag", action="store_true", help="Test flag")
+        """Add mock game arguments.
+
+        Returns:
+            object: The result.
+
+        """
+        parser.add_argument('--test-flag', action='store_true', help='Test flag')
         return parser
 
     def update(self):
@@ -51,8 +54,13 @@ class MockGameWithArgs(MockGame):
 
     @classmethod
     def args(cls, parser):
-        """Add mock game arguments."""
-        parser.add_argument("--test-flag", action="store_true", help="Test flag")
+        """Add mock game arguments.
+
+        Returns:
+            object: The result.
+
+        """
+        parser.add_argument('--test-flag', action='store_true', help='Test flag')
         return parser
 
 
@@ -60,74 +68,84 @@ class TestEngineProperties:
     """Test GameEngine properties."""
 
     def _create_mock_game(self):
-        """Create a mock game using MockFactory."""
-        mock_game = MockFactory.create_game_mock()
-        return mock_game
+        """Create a mock game using MockFactory.
 
-    def test_game_engine_game_property(self, mock_pygame_patches, mock_game_args):
+        Returns:
+            object: The result.
+
+        """
+        return MockFactory.create_game_mock()
+
+    def test_game_engine_game_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine game property."""
         # Mock argument parsing to prevent command line argument issues
-        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
-            mock_parse_args.return_value = mock_game_args
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
+        mock_parse_args.return_value = mock_game_args
 
-            # Create GameEngine instance with mock game
-            mock_game = self._create_mock_game()
+        # Create GameEngine instance with mock game
+        mock_game = self._create_mock_game()
 
-            engine = GameEngine(game=mock_game)
+        engine = GameEngine(game=mock_game)
 
-            # Test that game property exists
-            assert engine.game is not None
-            assert engine.game == mock_game
+        # Test that game property exists
+        assert engine.game is not None
+        assert engine.game == mock_game
 
-    def test_game_engine_scene_manager_property(self, mock_pygame_patches, mock_game_args):
+    def test_game_engine_scene_manager_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine scene_manager property."""
         # Mock argument parsing to prevent command line argument issues
-        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
-            mock_parse_args.return_value = mock_game_args
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
+        mock_parse_args.return_value = mock_game_args
 
-            # Create GameEngine instance with mock game
-            mock_game = self._create_mock_game()
+        # Create GameEngine instance with mock game
+        mock_game = self._create_mock_game()
 
-            engine = GameEngine(game=mock_game)
+        engine = GameEngine(game=mock_game)
 
-            # Test that scene_manager property exists
-            assert engine.scene_manager is not None
+        # Test that scene_manager property exists
+        assert engine.scene_manager is not None
 
-    def test_game_engine_joystick_count_property(self, mock_pygame_patches, mock_game_args):
+    def test_game_engine_joystick_count_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine joystick_count property."""
         # Mock argument parsing to prevent command line argument issues
-        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
-            mock_parse_args.return_value = mock_game_args
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
+        mock_parse_args.return_value = mock_game_args
 
-            # Create GameEngine instance with mock game
-            mock_game = self._create_mock_game()
+        # Create GameEngine instance with mock game
+        mock_game = self._create_mock_game()
 
-            engine = GameEngine(game=mock_game)
+        engine = GameEngine(game=mock_game)
 
-            # Set joystick attributes directly (simulating what start() would do)
-            engine.joysticks = [MockFactory.create_pygame_joystick_mock(), MockFactory.create_pygame_joystick_mock()]  # 2 joysticks
-            engine.joystick_count = len(engine.joysticks)
+        # Set joystick attributes directly (simulating what start() would do)
+        engine.joysticks = [
+            MockFactory.create_pygame_joystick_mock(),
+            MockFactory.create_pygame_joystick_mock(),
+        ]  # 2 joysticks
+        engine.joystick_count = len(engine.joysticks)
 
-            # Test that joystick_count property exists
-            assert engine.joystick_count is not None
-            assert engine.joystick_count == TEST_JOYSTICK_COUNT_2
+        # Test that joystick_count property exists
+        assert engine.joystick_count is not None
+        assert engine.joystick_count == TEST_JOYSTICK_COUNT_2
 
-    def test_game_engine_joysticks_property(self, mock_pygame_patches, mock_game_args):
+    def test_game_engine_joysticks_property(self, mock_pygame_patches, mock_game_args, mocker):
         """Test GameEngine joysticks property."""
         # Mock argument parsing to prevent command line argument issues
-        with patch("argparse.ArgumentParser.parse_args") as mock_parse_args:
-            mock_parse_args.return_value = mock_game_args
+        mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
+        mock_parse_args.return_value = mock_game_args
 
-            # Create GameEngine instance with mock game
-            mock_game = self._create_mock_game()
+        # Create GameEngine instance with mock game
+        mock_game = self._create_mock_game()
 
-            engine = GameEngine(game=mock_game)
+        engine = GameEngine(game=mock_game)
 
-            # Set joystick attributes directly (simulating what start() would do)
-            mock_joysticks = [MockFactory.create_pygame_joystick_mock(), MockFactory.create_pygame_joystick_mock()]  # 2 joysticks
-            engine.joysticks = mock_joysticks
-            engine.joystick_count = len(engine.joysticks)
+        # Set joystick attributes directly (simulating what start() would do)
+        mock_joysticks = [
+            MockFactory.create_pygame_joystick_mock(),
+            MockFactory.create_pygame_joystick_mock(),
+        ]  # 2 joysticks
+        engine.joysticks = mock_joysticks
+        engine.joystick_count = len(engine.joysticks)
 
-            # Test that joysticks property exists
-            assert engine.joysticks is not None
-            assert len(engine.joysticks) == TEST_JOYSTICK_COUNT_2
+        # Test that joysticks property exists
+        assert engine.joysticks is not None
+        assert len(engine.joysticks) == TEST_JOYSTICK_COUNT_2

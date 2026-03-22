@@ -15,12 +15,12 @@ from glitchygames.ai.sprite_generator import (
 )
 
 __all__ = [
-    "SpriteGenerationPrompt",
-    "build_refinement_messages",
-    "build_sprite_generation_messages",
-    "clean_ai_response",
-    "detect_animation_request",
-    "format_training_example",
-    "get_sprite_size_hint",
-    "validate_ai_response",
+    'SpriteGenerationPrompt',
+    'build_refinement_messages',
+    'build_sprite_generation_messages',
+    'clean_ai_response',
+    'detect_animation_request',
+    'format_training_example',
+    'get_sprite_size_hint',
+    'validate_ai_response',
 ]

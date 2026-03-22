@@ -1,1 +1,1 @@
-# ruff: noqa: D104
+"""Tools for the GlitchyGames engine including Bitmappy editor and utilities."""

@@ -7,10 +7,9 @@ and that the animation system respects individual frame intervals.
 import sys
 import time
 from pathlib import Path
-from unittest.mock import Mock, patch
 
-import pygame
 import pytest
+
 from glitchygames.sprites import SpriteFactory
 
 # Add project root so direct imports work in isolated runs
@@ -20,13 +19,18 @@ from tests.mocks.test_mock_factory import MockFactory
 
 
 def get_resource_path(filename: str) -> str:
-    """Get the full path to a resource file."""
+    """Get the full path to a resource file.
+
+    Returns:
+        str: The resource path.
+
+    """
     return str(
         Path(__file__).parent.parent.parent
-        / "glitchygames"
-        / "examples"
-        / "resources"
-        / "sprites"
+        / 'glitchygames'
+        / 'examples'
+        / 'resources'
+        / 'sprites'
         / filename
     )
 
@@ -44,55 +48,50 @@ PERFORMANCE_THRESHOLD = 0.1
 class TestAnimationTiming:
     """Test animation timing and frame intervals."""
 
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
     def setup_method(self):
         """Set up test fixtures."""
-        # Use centralized mocks for pygame initialization
-        self.patchers = MockFactory.setup_pygame_mocks()
-        # Start all the patchers
-        for patcher in self.patchers:
-            patcher.start()
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
-        
-        # Load the colors.toml animation for testing
-        self.animation_file = get_resource_path("colors.toml")
 
-    def teardown_method(self):
-        """Clean up test fixtures."""
-        # Teardown the centralized mocks
-        MockFactory.teardown_pygame_mocks(self.patchers)
+        # Load the colors.toml animation for testing
+        self.animation_file = get_resource_path('colors.toml')
 
     def test_animation_frame_timing_structure(self):
         """Test that animation frames have proper timing structure."""
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
         # Verify it's an animated sprite
-        assert hasattr(sprite, "animations"), "Should be an animated sprite"
-        assert len(sprite.animations) > 0, "Should have animations"
+        assert hasattr(sprite, 'animations'), 'Should be an animated sprite'
+        assert len(sprite.animations) > 0, 'Should have animations'
 
         # Get the first animation
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
 
         # Verify frames exist
-        assert len(frames) > 0, "Should have frames"
+        assert len(frames) > 0, 'Should have frames'
 
         # Check that frames have timing information
         for i, frame in enumerate(frames):
-            assert frame is not None, f"Frame {i} should exist"
-            assert frame.image is not None, f"Frame {i} should have an image"
+            assert frame is not None, f'Frame {i} should exist'
+            assert frame.image is not None, f'Frame {i} should have an image'
 
             # Check timing attributes
-            assert hasattr(frame, "duration"), f"Frame {i} should have duration"
-            assert isinstance(frame.duration, (int, float)), f"Frame {i} duration should be numeric"
-            assert frame.duration > 0, f"Frame {i} duration should be positive"
+            assert hasattr(frame, 'duration'), f'Frame {i} should have duration'
+            assert isinstance(frame.duration, (int, float)), f'Frame {i} duration should be numeric'
+            assert frame.duration > 0, f'Frame {i} duration should be positive'
 
     def test_animation_timing_accuracy(self):
         """Test that animation timing is accurate within reasonable tolerance."""
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
-        if not hasattr(sprite, "animations") or not sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(sprite, 'animations') or not sprite.animations:
+            pytest.skip('No animations found')
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -110,16 +109,16 @@ class TestAnimationTiming:
 
             # Verify the timing data is correct
             assert abs(actual_interval - expected_interval) < TIMING_PRECISION, (
-                f"Frame {frame_idx} timing mismatch: expected {expected_interval}, "
-                f"actual {actual_interval}"
+                f'Frame {frame_idx} timing mismatch: expected {expected_interval}, '
+                f'actual {actual_interval}'
             )
 
     def test_animation_frame_sequence(self):
         """Test that animation frames are in correct sequence."""
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
-        if not hasattr(sprite, "animations") or not sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(sprite, 'animations') or not sprite.animations:
+            pytest.skip('No animations found')
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -127,21 +126,21 @@ class TestAnimationTiming:
         # Check frame sequence
         for i, frame in enumerate(frames):
             # Verify frame index matches position
-            if hasattr(frame, "frame_index"):
-                assert frame.frame_index == i, f"Frame {i} should have frame_index {i}"
+            if hasattr(frame, 'frame_index'):
+                assert frame.frame_index == i, f'Frame {i} should have frame_index {i}'
 
             # Verify frame has content
-            assert frame.image is not None, f"Frame {i} should have an image"
+            assert frame.image is not None, f'Frame {i} should have an image'
             width, height = frame.image.get_size()
-            assert width > 0, f"Frame {i} should have width > 0"
-            assert height > 0, f"Frame {i} should have height > 0"
+            assert width > 0, f'Frame {i} should have width > 0'
+            assert height > 0, f'Frame {i} should have height > 0'
 
     def test_animation_timing_consistency(self):
         """Test that animation timing is consistent across frames."""
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
-        if not hasattr(sprite, "animations") or not sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(sprite, 'animations') or not sprite.animations:
+            pytest.skip('No animations found')
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -151,19 +150,19 @@ class TestAnimationTiming:
 
         # Verify we have different intervals (colors.toml has varied timing)
         unique_intervals = set(intervals)
-        assert len(unique_intervals) > 1, "Animation should have varied frame intervals"
+        assert len(unique_intervals) > 1, 'Animation should have varied frame intervals'
 
         # Verify all intervals are reasonable (between 0.01s and 10s)
         for interval in intervals:
-            assert interval > MIN_INTERVAL, f"Frame interval {interval} should be > {MIN_INTERVAL}s"
-            assert interval < MAX_INTERVAL, f"Frame interval {interval} should be < {MAX_INTERVAL}s"
+            assert interval > MIN_INTERVAL, f'Frame interval {interval} should be > {MIN_INTERVAL}s'
+            assert interval < MAX_INTERVAL, f'Frame interval {interval} should be < {MAX_INTERVAL}s'
 
     def test_animation_playback_simulation(self):
         """Simulate animation playback to test timing behavior."""
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
-        if not hasattr(sprite, "animations") or not sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(sprite, 'animations') or not sprite.animations:
+            pytest.skip('No animations found')
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -172,8 +171,8 @@ class TestAnimationTiming:
         total_expected_time = sum(frame.duration for frame in frames)
 
         # Verify total time is reasonable
-        assert total_expected_time > 0, "Total animation time should be > 0"
-        assert total_expected_time < MAX_ANIMATION_TIME, "Total animation time should be < 60s"
+        assert total_expected_time > 0, 'Total animation time should be > 0'
+        assert total_expected_time < MAX_ANIMATION_TIME, 'Total animation time should be < 60s'
 
         # Test frame-by-frame timing
         cumulative_time = 0
@@ -181,15 +180,15 @@ class TestAnimationTiming:
             cumulative_time += frame.duration
 
         assert abs(cumulative_time - total_expected_time) < TIMING_PRECISION, (
-            "Cumulative time should match total"
+            'Cumulative time should match total'
         )
 
     def test_animation_timing_edge_cases(self):
         """Test animation timing with edge cases."""
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
-        if not hasattr(sprite, "animations") or not sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(sprite, 'animations') or not sprite.animations:
+            pytest.skip('No animations found')
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -200,23 +199,23 @@ class TestAnimationTiming:
         max_interval = max(intervals)
 
         # Verify reasonable bounds
-        assert min_interval >= MIN_INTERVAL, f"Minimum interval should be >= {MIN_INTERVAL}s"
-        assert max_interval <= MAX_INTERVAL, f"Maximum interval should be <= {MAX_INTERVAL}s"
+        assert min_interval >= MIN_INTERVAL, f'Minimum interval should be >= {MIN_INTERVAL}s'
+        assert max_interval <= MAX_INTERVAL, f'Maximum interval should be <= {MAX_INTERVAL}s'
 
         # Test that we have both fast and slow frames
         fast_frames = [i for i, interval in enumerate(intervals) if interval < TIMING_TOLERANCE]
         slow_frames = [i for i, interval in enumerate(intervals) if interval > TIMING_TOLERANCE]
 
         # Colors.toml should have both fast and slow frames
-        assert len(fast_frames) > 0, "Should have fast frames"
-        assert len(slow_frames) > 0, "Should have slow frames"
+        assert len(fast_frames) > 0, 'Should have fast frames'
+        assert len(slow_frames) > 0, 'Should have slow frames'
 
     def test_animation_timing_performance(self):
         """Test that animation timing doesn't cause performance issues."""
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
-        if not hasattr(sprite, "animations") or not sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(sprite, 'animations') or not sprite.animations:
+            pytest.skip('No animations found')
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -234,15 +233,15 @@ class TestAnimationTiming:
 
         # Verify timing calculations are fast
         assert calculation_time < PERFORMANCE_THRESHOLD, (
-            f"Timing calculations should be fast: {calculation_time:.3f}s"
+            f'Timing calculations should be fast: {calculation_time:.3f}s'
         )
 
     def test_animation_frame_content_consistency(self):
         """Test that animation frames have consistent content structure."""
         sprite = SpriteFactory.load_sprite(filename=self.animation_file)
 
-        if not hasattr(sprite, "animations") or not sprite.animations:
-            pytest.skip("No animations found")
+        if not hasattr(sprite, 'animations') or not sprite.animations:
+            pytest.skip('No animations found')
 
         animation_name = next(iter(sprite.animations.keys()))
         frames = sprite.animations[animation_name]
@@ -254,7 +253,7 @@ class TestAnimationTiming:
             for i, frame in enumerate(frames):
                 frame_size = frame.image.get_size()
                 assert frame_size == first_frame_size, (
-                    f"Frame {i} should have same size as first frame"
+                    f'Frame {i} should have same size as first frame'
                 )
 
                 # Check that frame has content (not just transparent)
@@ -263,7 +262,12 @@ class TestAnimationTiming:
 
     @staticmethod
     def _extract_pixel_data(surface):
-        """Extract pixel data from a pygame surface as RGB tuples."""
+        """Extract pixel data from a pygame surface as RGB tuples.
+
+        Returns:
+            object: The result.
+
+        """
         width, height = surface.get_size()
         pixels = []
 

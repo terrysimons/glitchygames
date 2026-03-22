@@ -4,6 +4,7 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Any, override
 
 import pygame
 
@@ -14,36 +15,45 @@ from glitchygames.scenes import Scene
 from glitchygames.sprites.animated import AnimatedSprite
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
 class AnimationScene(Scene):
     """Scene for displaying animated sprites."""
 
-    def __init__(self):
-        """Initialize the animation scene."""
+    def __init__(self) -> None:
+        """Initialize the animation scene.
+
+        Raises:
+            FileNotFoundError: If the animation TOML file is not found.
+            ValueError: If the animation data is invalid.
+            RuntimeError: If the animation system fails to initialize.
+
+        """
         super().__init__()
 
         # Create sprite group for the scene
-        self.groups = pygame.sprite.LayeredDirty()
+        self.groups: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty()
 
         # Load the animated sprite from foo.toml
-        foo_toml_path = Path(__file__).parent.parent / "foo.toml"
+        foo_toml_path = Path(__file__).parent.parent / 'foo.toml'
 
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.groups)
             self.animated_sprite.play()
+            assert self.animated_sprite.rect is not None
             self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
             logger.info(
-                f"Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)"
+                f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)'
             )
-            logger.info("Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1")
-        except (FileNotFoundError, ValueError, RuntimeError):
-            logger.exception("Failed to load animation")
+            logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
+        except FileNotFoundError, ValueError, RuntimeError:
+            logger.exception('Failed to load animation')
             raise
 
-    def update(self, dt=None):
+    @override
+    def update(self, dt: float | None = None) -> None:
         """Update the scene."""
         super().update()
 
@@ -52,11 +62,16 @@ class AnimationScene(Scene):
             # Default to ~60fps if no dt provided
             self.animated_sprite.update(dt or 0.016)
 
-    def handle_event(self, event):
-        """Handle scene events."""
+    def handle_event(self, event: pygame.event.Event) -> str | None:
+        """Handle scene events.
+
+        Returns:
+            object: The result.
+
+        """
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE or event.unicode.lower() == "q":
-                return "quit"
+            if event.key == pygame.K_ESCAPE or event.unicode.lower() == 'q':
+                return 'quit'
             if event.key == pygame.K_SPACE:
                 if self.animated_sprite.is_playing:
                     self.animated_sprite.pause()
@@ -72,14 +87,19 @@ class AnimationScene(Scene):
         return None
 
 
-def main():
-    """Run the animation scene demo."""
+def main() -> int:
+    """Run the animation scene demo.
+
+    Returns:
+        int: Exit code (0 for success).
+
+    """
     # Initialize pygame
     pygame.init()
 
     # Set up the display
     screen = pygame.display.set_mode((800, 600))
-    pygame.display.set_caption("Animated Scene Demo - foo.toml")
+    pygame.display.set_caption('Animated Scene Demo - foo.toml')
     clock = pygame.time.Clock()
 
     # Create and run the scene
@@ -97,12 +117,14 @@ def main():
                 running = False
             else:
                 result = scene.handle_event(event)
-                if result == "quit":
+                if result == 'quit':
                     running = False
 
         # Update and render
         scene.update(dt)
         screen.fill((20, 20, 40))
+        assert scene.animated_sprite.image is not None
+        assert scene.animated_sprite.rect is not None
         screen.blit(scene.animated_sprite.image, scene.animated_sprite.rect)
         pygame.display.flip()
 
@@ -110,5 +132,5 @@ def main():
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())

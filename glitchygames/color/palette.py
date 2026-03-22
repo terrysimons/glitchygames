@@ -10,45 +10,50 @@ import configparser
 import json
 import sys
 from pathlib import Path
-from typing import ClassVar, Self
+from typing import Any, ClassVar, Self, cast
 
 from pygame import Color
 
-VGA = "vga"
-SYSTEM = "system"
-NES = "nes"
+# A color-like value: either a pygame Color or an RGB/RGBA tuple.
+ColorLike = Color | tuple[int, int, int] | tuple[int, int, int, int]
+
+VGA = 'vga'
+SYSTEM = 'system'
+NES = 'nes'
 
 
 class ColorPalette:
     """Manages color palette data for Glitchy Games."""
 
-    _BUILTIN_PALETTE_LOCATION: ClassVar = Path(__file__).parent / "resources"
-    _DEFAULT_EXTENSION: ClassVar = "palette"
+    _BUILTIN_PALETTE_LOCATION: ClassVar = Path(__file__).parent / 'resources'
+    _DEFAULT_EXTENSION: ClassVar = 'palette'
 
-    def __init__(self: Self, colors: list, filename: str | None = None) -> None:
+    def __init__(self: Self, colors: list[ColorLike] | None, filename: str | None = None) -> None:
         """Create a color palette object.
 
         Args:
-            colors: A list of PyGame Colors.  Default: None
+            colors: A list of PyGame Colors or RGB/RGBA tuples.  Default: None
             filename: The name of the palette file to load.  Default: None
 
         """
-        self._colors = colors
+        self._colors: list[ColorLike] | None = colors
         self._size = 0
 
         if not self._colors and filename:
             script_path = Path(sys.argv[0]).parent
-            paths = [self._BUILTIN_PALETTE_LOCATION, script_path, Path(script_path) / "resources"]
+            paths = [self._BUILTIN_PALETTE_LOCATION, script_path, Path(script_path) / 'resources']
             for path in paths:
-                file_path = Path(path) / f"{filename}.{self._DEFAULT_EXTENSION}"
+                file_path = Path(path) / f'{filename}.{self._DEFAULT_EXTENSION}'
                 if Path.exists(file_path):
-                    self._colors = PaletteUtility.load_palette_from_file(file_path)
+                    self._colors = cast(
+                        'list[ColorLike]', PaletteUtility.load_palette_from_file(file_path)
+                    )
                     break
 
         if self._colors:
             self._size = len(self._colors) - 1
 
-    def get_color(self: Self, palette_index: int) -> tuple[int, int, int] | None:
+    def get_color(self: Self, palette_index: int) -> ColorLike | None:
         """Return PyGame Color from the palette at the specified index.
 
         Args:
@@ -66,19 +71,18 @@ class ColorPalette:
             )
 
         # Return Magenta if our palette isn't set
-        return (255, 0, 255)
+        return Color(255, 0, 255)
 
-    def set_color(self: Self, palette_index: int, new_color: tuple) -> None:
-        """Set the indexed color to the new PyGame Color.
+    def set_color(self: Self, palette_index: int, new_color: ColorLike) -> None:
+        """Set the indexed color to the new PyGame Color or RGB/RGBA tuple.
 
         Args:
             palette_index: The index of the color to set.
-            new_color: A PyGame Color object in the format tuple[R: int, G: int, B: int]
-
-        Returns:
-            None
+            new_color: A PyGame Color or RGB/RGBA tuple.
 
         """
+        if self._colors is None:
+            self._colors = []
         if palette_index < self._size:
             self._colors[palette_index] = new_color
         else:
@@ -89,7 +93,7 @@ class PaletteUtility:
     """Utility class for working with Glitchy Games palettes."""
 
     @staticmethod
-    def load_palette_from_config(config: configparser.ConfigParser) -> list:
+    def load_palette_from_config(config: configparser.ConfigParser) -> list[Color]:
         """Load a palette from a ConfigParser object.
 
         Args:
@@ -99,21 +103,22 @@ class PaletteUtility:
             A list of PyGame Colors in the format list[tuple[R: int, G: int, B: int]].
 
         """
-        colors = []
-        for index in range(int(config["default"]["colors"])):
+        colors: list[Color] = []
+        for index in range(int(config['default']['colors'])):
             color_index = str(index)
+            section = config[color_index]
             tmp_color = Color(
-                config[color_index].getint("red"),
-                config[color_index].getint("green"),
-                config[color_index].getint("blue"),
-                config[color_index].getint("alpha", 255),
+                int(section.get('red', '0')),
+                int(section.get('green', '0')),
+                int(section.get('blue', '0')),
+                int(section.get('alpha', '255')),
             )
             colors.append(tmp_color)
 
         return colors
 
     @staticmethod
-    def load_palette_from_file(config_file_path: Path) -> list:
+    def load_palette_from_file(config_file_path: Path) -> list[Color]:
         """Load a palette from a GlitchyGames palette file.
 
         Args:
@@ -130,22 +135,19 @@ class PaletteUtility:
         return PaletteUtility.load_palette_from_config(config)
 
     @staticmethod
-    def write_palette_to_file(config_data: dict, output_file: Path) -> None:
+    def write_palette_to_file(config_data: dict[str, Any], output_file: Path) -> None:
         """Write a GlitchyGames palette to a file.
 
         Args:
             config_data: A ConfigParser object containing palette data.
             output_file: The path to the palette file to write.
 
-        Returns:
-            None
-
         """
-        with Path.open(Path(output_file), "w") as file_obj:
+        with Path.open(Path(output_file), 'w') as file_obj:
             file_obj.write(json.dumps(config_data))
 
     @staticmethod
-    def parse_rgb_data_in_file(rgb_data_file: Path) -> list:
+    def parse_rgb_data_in_file(rgb_data_file: Path) -> list[Color]:
         """Read RGB data from a file.
 
         Args:
@@ -156,17 +158,17 @@ class PaletteUtility:
 
         """
         # Read input RGBA Values from file.  No duplicates
-        colors = []
+        colors: list[Color] = []
         with Path.open(rgb_data_file) as file_obj:
             for line in file_obj.readlines():
-                tmp = [int(x) for x in line.strip().split(",")]
+                tmp = [int(x) for x in line.strip().split(',')]
                 color = Color(*tmp)
                 if color not in colors:
                     colors.append(color)
         return colors
 
     @staticmethod
-    def create_palette_data(colors: list) -> configparser.ConfigParser:
+    def create_palette_data(colors: list[Color]) -> configparser.ConfigParser:
         """Create a ConfigParser object containing palette data from a list of PyGame Colors.
 
         Args:
@@ -177,13 +179,13 @@ class PaletteUtility:
 
         """
         palette_data = configparser.ConfigParser()
-        palette_data["default"] = {"colors": str(len(colors))}
+        palette_data['default'] = {'colors': str(len(colors))}
         for count, color in enumerate(colors):
             palette_data[str(count)] = {
-                "red": color.r,
-                "green": color.g,
-                "blue": color.b,
-                "alpha": color.a,
+                'red': str(color.r),
+                'green': str(color.g),
+                'blue': str(color.b),
+                'alpha': str(color.a),
             }
         return palette_data
 
@@ -193,13 +195,8 @@ class Default(ColorPalette):
     """A default set of colors used for Glitchy Games Examples."""
 
     def __init__(self: Self) -> None:
-        """Create a default color palette object.
-
-        Returns:
-            None
-
-        """
-        super().__init__(colors=[], filename="default")
+        """Create a default color palette object."""
+        super().__init__(colors=[], filename='default')
         self.YELLOW = self.get_color(0)
         self.PURPLE = self.get_color(1)
         self.BLUE = self.get_color(2)
@@ -215,13 +212,8 @@ class System(ColorPalette):
     """A palette representing the 16 default system colors."""
 
     def __init__(self: Self) -> None:
-        """Create a system color palette object.
-
-        Returns:
-            None
-
-        """
-        super().__init__(filename=SYSTEM)
+        """Create a system color palette object."""
+        super().__init__(colors=[], filename=SYSTEM)
         self.BLACK = self.get_color(0)
         self.MAROON = self.get_color(1)
         self.GREEN = self.get_color(2)
@@ -244,12 +236,7 @@ class Vga(ColorPalette):
     """The 256 VGA color palette."""
 
     def __init__(self: Self) -> None:
-        """Create a VGA color palette object.
-
-        Returns:
-            None
-
-        """
-        super().__init__(filename=VGA)
+        """Create a VGA color palette object."""
+        super().__init__(colors=[], filename=VGA)
         # TODO @<sabadam32@gmail.com>: Set Color Names (See rich.color for list of names to poach)
         # https://glitchy-games.atlassian.net/browse/GG-21

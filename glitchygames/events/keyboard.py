@@ -4,16 +4,16 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import argparse
 
 import pygame
-from glitchygames.events import KEYBOARD_EVENTS
-from glitchygames.events import KeyboardEvents, ResourceManager
 
-log = logging.getLogger("game.keyboard")
+from glitchygames.events import KEYBOARD_EVENTS, HashableEvent, KeyboardEvents, ResourceManager
+
+log = logging.getLogger('game.keyboard')
 log.addHandler(logging.NullHandler())
 
 
@@ -29,23 +29,18 @@ class KeyboardEventManager(ResourceManager):
             Args:
                 game (object): The game object.
 
-            Returns:
-                None
-
             """
             super().__init__(game=game)
-            self.keys = {}
-            self.game = game
+            self.keys: dict[Any, Any] = {}
+            self.game: Any = game
             self.proxies = [self.game, pygame.key]
 
-        def on_key_down_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_key_down_event(self: Self, event: HashableEvent) -> None:
             """Handle key down events.
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             # The KEYUP and KEYDOWN events are
@@ -56,7 +51,7 @@ class KeyboardEventManager(ResourceManager):
             # delete the key "unicode" so we can track
             # both sets of events.
             keyboard_key = event.dict.copy()
-            del keyboard_key["unicode"]
+            del keyboard_key['unicode']
 
             # This makes it possible to use
             # a dictionary as a key, which is
@@ -66,14 +61,12 @@ class KeyboardEventManager(ResourceManager):
             self.game.on_key_down_event(event)
             self.on_key_chord_down_event(event)
 
-        def on_key_up_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_key_up_event(self: Self, event: HashableEvent) -> None:
             """Handle key up events.
 
             Args:
                 event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
 
             """
             # This makes it possible to use
@@ -84,35 +77,39 @@ class KeyboardEventManager(ResourceManager):
             self.game.on_key_up_event(event)
             self.on_key_chord_up_event(event)
 
-        def on_key_chord_down_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_key_chord_down_event(
+            self: Self, event: HashableEvent, keys: list[int] | None = None
+        ) -> None:
             """Handle key chord down events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
+                event (HashableEvent): The event to handle.
+                keys (list[int] | None): The keys in the chord
+                    (computed internally if not provided).
 
             """
-            keys_down: tuple = (
+            keys_down: tuple[Any, ...] = tuple(
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
             )
 
-            event["keys_down"] = keys_down
+            event['keys_down'] = keys_down
 
             self.game.on_key_chord_down_event(event, keys_down)
 
-        def on_key_chord_up_event(self: Self, event: pygame.event.Event) -> None:
+        @override
+        def on_key_chord_up_event(
+            self: Self, event: HashableEvent, keys: list[int] | None = None
+        ) -> None:
             """Handle key chord up events.
 
             Args:
-                event (pygame.event.Event): The event to handle.
-
-            Returns:
-                None
+                event (HashableEvent): The event to handle.
+                keys (list[int] | None): The keys in the chord
+                    (computed internally if not provided).
 
             """
-            keys_down: tuple = (
+            keys_down: tuple[Any, ...] = tuple(
                 self.keys[key] for key in self.keys if self.keys[key].type == pygame.KEYDOWN
             )
 
@@ -124,16 +121,13 @@ class KeyboardEventManager(ResourceManager):
         Args:
             game (object): The game object.
 
-        Returns:
-            None
-
         """
         super().__init__(game=game)
         # Enable keyboard events for this manager
         try:
             pygame.event.set_allowed(KEYBOARD_EVENTS)
-        except Exception:
-            pass
+        except pygame.error:
+            log.debug('Failed to set allowed keyboard events: pygame not fully initialized')
         self.proxies = [KeyboardEventManager.KeyboardEventProxy(game=game)]
 
     @classmethod
@@ -149,6 +143,6 @@ class KeyboardEventManager(ResourceManager):
             argparse.ArgumentParser
 
         """
-        group = parser.add_argument_group("Keyboard Options")  # noqa: F841
+        _group = parser.add_argument_group('Keyboard Options')
 
         return parser

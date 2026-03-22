@@ -1,26 +1,29 @@
 """Game Over scene for the paddleslap game."""
 
+from __future__ import annotations
+
 import logging
-from typing import Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
-from .. import Scene
+
+from glitchygames.scenes import Scene
+
+if TYPE_CHECKING:
+    from glitchygames.events.core import HashableEvent
 from glitchygames.sprites import Sprite
 
-log = logging.getLogger("game")
+log = logging.getLogger('game')
 
 
 class GameOverScene(Scene):
     """Game Over scene that displays when all balls are dead."""
 
-    def __init__(self: Self, **kwargs) -> None:
+    def __init__(self: Self, **kwargs: Any) -> None:
         """Initialize the Game Over scene.
 
         Args:
             **kwargs: Additional keyword arguments.
-
-        Returns:
-            None
 
         """
         super().__init__(**kwargs)
@@ -29,60 +32,54 @@ class GameOverScene(Scene):
         # Don't set next_scene to self - this causes infinite loops
         # The scene will stay active until user input changes it
 
+    @override
     def setup(self: Self) -> None:
         """Set up the Game Over scene.
 
         Args:
             None
 
-        Returns:
-            None
-
         """
         super().setup()
-        log.info("GameOverScene setup() called")
+        log.info('GameOverScene setup() called')
 
         # Create a text sprite for "Game Over"
         self.text_sprite = TextSprite(
-            "GAME OVER",
+            'GAME OVER',
             (self.screen_width // 2, self.screen_height // 2),
             color=(255, 0, 0),  # Red color
-            font_size=48
+            font_size=48,
         )
         self.all_sprites.add(self.text_sprite)
 
         # Create a subtitle
         subtitle = TextSprite(
-            "Press SPACE to restart or ESC to quit",
+            'Press SPACE to restart or ESC to quit',
             (self.screen_width // 2, self.screen_height // 2 + 60),
             color=(255, 255, 255),  # White color
-            font_size=24
+            font_size=24,
         )
         self.all_sprites.add(subtitle)
-        log.info("GameOverScene setup() completed")
+        log.info('GameOverScene setup() completed')
 
+    @override
     def update(self: Self) -> None:
         """Update the Game Over scene.
 
         Args:
             None
 
-        Returns:
-            None
-
         """
         # Call the parent update method to handle sprite updates
         super().update()
-        log.debug("GameOverScene update() called")
+        log.debug('GameOverScene update() called')
 
-    def on_key_down_event(self: Self, event) -> None:
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events for the Game Over scene.
 
         Args:
-            event: The key down event.
-
-        Returns:
-            None
+            event (HashableEvent): The key down event.
 
         """
         if event.key == pygame.K_SPACE:
@@ -95,14 +92,12 @@ class GameOverScene(Scene):
             # Let the base Scene class handle other keys (like 'q' for quit)
             super().on_key_down_event(event)
 
-    def on_key_up_event(self: Self, event) -> None:
+    @override
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle key up events for the Game Over scene.
 
         Args:
-            event: The key up event.
-
-        Returns:
-            None
+            event (HashableEvent): The key up event.
 
         """
         if event.key == pygame.K_SPACE and self._space_pressed:
@@ -113,28 +108,26 @@ class GameOverScene(Scene):
             # Let the base Scene class handle other keys
             super().on_key_up_event(event)
 
+    @override
     def resume(self: Self) -> None:
         """Resume by creating a new game instance.
-        
+
         Override the default resume behavior to create a fresh game
         instead of switching back to the previous scene.
-        
-        Returns:
-            None
+
         """
         # Get the game class from the previous scene
         if self.scene_manager.previous_scene:
             game_class = type(self.scene_manager.previous_scene)
-            self.log.info(f"Restarting game with class: {game_class}")
-            
+            self.log.info(f'Restarting game with class: {game_class}')
+
             # Create a new instance of the game with the same options
             new_game = game_class(options=self.options)
-            
+
             # Switch to the new game instance
             self.scene_manager.switch_to_scene(new_game)
         else:
-            self.log.warning("No previous scene found to restart")
-
+            self.log.warning('No previous scene found to restart')
 
 
 class TextSprite(Sprite):
@@ -146,7 +139,7 @@ class TextSprite(Sprite):
         position: tuple[int, int],
         color: tuple[int, int, int] = (255, 255, 255),
         font_size: int = 24,
-        **kwargs
+        **kwargs: Any,
     ) -> None:
         """Initialize the text sprite.
 
@@ -157,23 +150,20 @@ class TextSprite(Sprite):
             font_size: The size of the font.
             **kwargs: Additional keyword arguments.
 
-        Returns:
-            None
-
         """
         # Create a font
         font = pygame.font.Font(None, font_size)
 
         # Render the text
-        text_surface = font.render(text, True, color)
+        text_surface = font.render(text, True, color)  # noqa: FBT003
 
         # Initialize the sprite with the text surface
         super().__init__(
             x=position[0] - text_surface.get_width() // 2,  # Center horizontally
-            y=position[1] - text_surface.get_height() // 2,   # Center vertically
+            y=position[1] - text_surface.get_height() // 2,  # Center vertically
             width=text_surface.get_width(),
             height=text_surface.get_height(),
-            **kwargs
+            **kwargs,
         )
 
         # Set the image to the text surface

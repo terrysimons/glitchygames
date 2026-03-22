@@ -6,16 +6,14 @@ across static sprites, animated sprites, and legacy sprites.
 
 import tempfile
 import time
-import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import pygame
 import pytest
-from glitchygames.sprites import SPRITE_GLYPHS, BitmappySprite
-from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from scripts.raw_sprite_loader import BitmappyLegacySprite
 
+from glitchygames.sprites import SPRITE_GLYPHS, BitmappySprite
+from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from tests.mocks import MockFactory
 
 # Constants for test values
@@ -23,38 +21,36 @@ CHARACTER_LIMIT = 64
 EXPECTED_ERROR_COUNT_2 = 2
 
 
-class TestCharacterLimitEnforcement(unittest.TestCase):
+class TestCharacterLimitEnforcement:
     """Test character limit enforcement across all sprite modes."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def setup_method(self):
         """Set up test fixtures."""
         # Ensure pygame is properly initialized for mocks
         if not pygame.get_init():
             pygame.init()
 
-        self.patchers = MockFactory.setup_pygame_mocks()
-        for patcher in self.patchers:
-            patcher.start()
         self.temp_dir = tempfile.mkdtemp()
         self.temp_path = Path(self.temp_dir)
-
-    def tearDown(self):
-        """Clean up test fixtures."""
-        MockFactory.teardown_pygame_mocks(self.patchers)
 
     @staticmethod
     def test_character_limit_constant():
         """Test that the character limit is properly defined."""
         glyphs = SPRITE_GLYPHS
-        assert len(glyphs) == CHARACTER_LIMIT, "SPRITE_GLYPHS should contain exactly 64 characters"
+        assert len(glyphs) == CHARACTER_LIMIT, 'SPRITE_GLYPHS should contain exactly 64 characters'
 
         # Check that it contains expected character types
-        assert any(c.isupper() for c in glyphs), "Should contain uppercase letters"
-        assert any(c.islower() for c in glyphs), "Should contain lowercase letters"
-        assert any(c.isdigit() for c in glyphs), "Should contain digits"
+        assert any(c.isupper() for c in glyphs), 'Should contain uppercase letters'
+        assert any(c.islower() for c in glyphs), 'Should contain lowercase letters'
+        assert any(c.isdigit() for c in glyphs), 'Should contain digits'
 
         # Check for dangerous characters
-        dangerous_chars = {"\n", "\r", "\t", "\0", "\b", "\f", "\v", "\a"}
+        dangerous_chars = {'\n', '\r', '\t', '\0', '\b', '\f', '\v', '\a'}
         for char in dangerous_chars:
             assert char not in glyphs, f"Dangerous character '{char}' found in glyphs"
 
@@ -67,12 +63,12 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
             colors.append((r, g, b))
 
         # All colors should be unique
-        assert len(set(colors)) == CHARACTER_LIMIT, "Should be able to create 64 unique colors"
+        assert len(set(colors)) == CHARACTER_LIMIT, 'Should be able to create 64 unique colors'
 
-    def test_static_sprite_character_limit(self):
+    def test_static_sprite_character_limit(self, mocker):
         """Test character limit enforcement in static sprites."""
         # Create sprite with exactly 64 colors (should work)
-        sprite = BitmappySprite(x=0, y=0, width=8, height=8, name="test_64_colors")
+        sprite = BitmappySprite(x=0, y=0, width=8, height=8, name='test_64_colors')
 
         colors = []
         for i in range(64):
@@ -93,8 +89,8 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 8
 
         # Should not raise error
-        toml_file = self.temp_path / "test_64_colors.toml"
-        sprite.save(str(toml_file), "toml")
+        toml_file = self.temp_path / 'test_64_colors.toml'
+        sprite.save(str(toml_file), 'toml')
         assert toml_file.exists()
 
         # Test with 65 colors (should fail)
@@ -103,24 +99,25 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 9
 
         # Use centralized mocks to suppress logs during successful runs
-        with patch.object(sprite, "log") as mock_log:
-            with pytest.raises(ValueError, match="Too many colors"):
-                sprite.save(str(toml_file), "toml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        with pytest.raises(ValueError, match='Too many colors'):
+            sprite.save(str(toml_file), 'toml')
 
-            # Verify the ERROR log messages were called (multiple times expected)
-            assert mock_log.error.call_count >= 1
-            # Check that the log messages contain the expected content
-            call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
-            assert any("Pixels list length mismatch: 65 vs expected 81" in msg
-                      for msg in call_args_list)
-            assert any("Error in deflate" in msg for msg in call_args_list)
-            assert any("Error in save" in msg for msg in call_args_list)
+        # Verify the ERROR log message was called for non-exception errors
+        error_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+        assert any(
+            'Pixels list length mismatch: 65 vs expected 81' in msg for msg in error_args_list
+        )
+        # Verify the EXCEPTION log messages were called (inside except blocks)
+        exception_args_list = [call[0][0] for call in mock_log.exception.call_args_list]
+        assert any('Error in deflate' in msg for msg in exception_args_list)
+        assert any('Error in save' in msg for msg in exception_args_list)
 
     def test_animated_sprite_character_limit(self):
         """Test character limit enforcement in animated sprites."""
         # Create animated sprite with exactly 64 colors (should work)
         animated_sprite = AnimatedSprite()
-        animated_sprite.name = "test_64_colors_animated"
+        animated_sprite.name = 'test_64_colors_animated'
 
         # Create colors
         colors = []
@@ -132,21 +129,22 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
 
         # Create frame with all colors
         frame = SpriteFrame(pygame.Surface((8, 8)))
-        pixels = [colors[i] for i in range(64)]  # 8x8 = 64 pixels
+        pixels: list[tuple[int, ...]] = [colors[i] for i in range(64)]  # 8x8 = 64 pixels
 
         frame.set_pixel_data(pixels)
-        animated_sprite.add_animation("test_anim", [frame])
+        animated_sprite.add_animation('test_anim', [frame])
 
         # Should not raise error
-        toml_file = self.temp_path / "test_64_colors_animated.toml"
-        animated_sprite.save(str(toml_file), "toml")
+        toml_file = self.temp_path / 'test_64_colors_animated.toml'
+        animated_sprite.save(str(toml_file), 'toml')
         assert toml_file.exists()
 
         # Test with 65 colors (should fail)
-        frame.set_pixel_data([*colors, (255, 255, 255)])  # Add one more color
+        overflow_pixels: list[tuple[int, ...]] = [*colors, (255, 255, 255)]  # Add one more color
+        frame.set_pixel_data(overflow_pixels)
 
-        with pytest.raises(ValueError, match="Too many colors"):
-            animated_sprite.save(str(toml_file), "toml")
+        with pytest.raises(ValueError, match='Too many colors'):
+            animated_sprite.save(str(toml_file), 'toml')
 
     def test_legacy_sprite_character_limit(self):
         """Test character limit enforcement in legacy sprites."""
@@ -170,7 +168,7 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         legacy_sprite = BitmappyLegacySprite.__new__(BitmappyLegacySprite)
         legacy_sprite.image = surface
         legacy_sprite.rect = surface.get_rect()
-        legacy_sprite.name = "test_64_colors_legacy"
+        legacy_sprite.name = 'test_64_colors_legacy'
 
         # Should not raise error
         config = legacy_sprite.deflate()
@@ -188,13 +186,13 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         legacy_sprite.image = surface_65
         legacy_sprite.rect = surface_65.get_rect()
 
-        with pytest.raises(ValueError, match="Too many colors"):
+        with pytest.raises(ValueError, match='Too many colors'):
             legacy_sprite.deflate()
 
     def test_mixed_animation_character_limit(self):
         """Test character limit enforcement across multiple animations."""
         animated_sprite = AnimatedSprite()
-        animated_sprite.name = "test_mixed_animations"
+        animated_sprite.name = 'test_mixed_animations'
 
         # Create first animation with 33 colors
         colors1 = []
@@ -205,8 +203,9 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
             colors1.append((r, g, b))
 
         frame1 = SpriteFrame(pygame.Surface((33, 1)))
-        frame1.set_pixel_data(colors1)  # Use all 33 colors
-        animated_sprite.add_animation("anim1", [frame1])
+        colors1_pixels: list[tuple[int, ...]] = colors1
+        frame1.set_pixel_data(colors1_pixels)  # Use all 33 colors
+        animated_sprite.add_animation('anim1', [frame1])
 
         # Create second animation with 32 different colors (offset to avoid overlap)
         colors2 = []
@@ -217,18 +216,18 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
             colors2.append((r, g, b))
 
         frame2 = SpriteFrame(pygame.Surface((32, 1)))
-        frame2.set_pixel_data(colors2)  # Use all 32 colors
-        animated_sprite.add_animation("anim2", [frame2])
+        colors2_pixels: list[tuple[int, ...]] = colors2
+        frame2.set_pixel_data(colors2_pixels)  # Use all 32 colors
+        animated_sprite.add_animation('anim2', [frame2])
 
         # Total unique colors should be 65 (should fail)
-        toml_file = self.temp_path / "test_mixed_animations.toml"
-        with pytest.raises(ValueError, match="Too many colors"):
-            animated_sprite.save(str(toml_file), "toml")
+        toml_file = self.temp_path / 'test_mixed_animations.toml'
+        with pytest.raises(ValueError, match='Too many colors'):
+            animated_sprite.save(str(toml_file), 'toml')
 
-    def test_character_limit_edge_cases(self):
-        """Test character limit enforcement with edge cases."""
-        # Test with exactly 64 colors in different arrangements
-        test_cases = [
+    @pytest.mark.parametrize(
+        ('width', 'height'),
+        [
             (1, 64),  # 1x64 grid
             (2, 32),  # 2x32 grid
             (4, 16),  # 4x16 grid
@@ -236,42 +235,40 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
             (16, 4),  # 16x4 grid
             (32, 2),  # 32x2 grid
             (64, 1),  # 64x1 grid
-        ]
+        ],
+    )
+    def test_character_limit_edge_cases(self, width, height):
+        """Test character limit enforcement with edge cases."""
+        sprite = BitmappySprite(x=0, y=0, width=width, height=height, name=f'test_{width}x{height}')
 
-        for width, height in test_cases:
-            with self.subTest(width=width, height=height):
-                sprite = BitmappySprite(
-                    x=0, y=0, width=width, height=height, name=f"test_{width}x{height}"
-                )
+        # Create 64 unique colors
+        colors = []
+        for i in range(64):
+            r = (i * 3) % 256
+            g = (i * 5) % 256
+            b = (i * 7) % 256
+            colors.append((r, g, b))
 
-                # Create 64 unique colors
-                colors = []
-                for i in range(64):
-                    r = (i * 3) % 256
-                    g = (i * 5) % 256
-                    b = (i * 7) % 256
-                    colors.append((r, g, b))
+        # Set up pixel data
+        pixels = []
+        for y_pos in range(height):
+            for x_pos in range(width):
+                color_index = (x_pos + y_pos) % len(colors)
+                pixels.append(colors[color_index])
 
-                # Set up pixel data
-                pixels = []
-                for y in range(height):
-                    for x in range(width):
-                        color_index = (x + y) % len(colors)
-                        pixels.append(colors[color_index])
+        sprite.pixels = pixels
+        sprite.pixels_across = width
+        sprite.pixels_tall = height
 
-                sprite.pixels = pixels
-                sprite.pixels_across = width
-                sprite.pixels_tall = height
+        # Should not raise error
+        toml_file = self.temp_path / f'test_{width}x{height}.toml'
+        sprite.save(str(toml_file), 'toml')
+        assert toml_file.exists()
 
-                # Should not raise error
-                toml_file = self.temp_path / f"test_{width}x{height}.toml"
-                sprite.save(str(toml_file), "toml")
-                assert toml_file.exists()
-
-    def test_character_limit_error_messages(self):
+    def test_character_limit_error_messages(self, mocker):
         """Test that character limit error messages are informative."""
         # Test static sprite error message
-        sprite = BitmappySprite(x=0, y=0, width=8, height=8, name="test_error")
+        sprite = BitmappySprite(x=0, y=0, width=8, height=8, name='test_error')
 
         # Create 65 colors
         colors = []
@@ -286,22 +283,22 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 5
 
         # Use centralized mocks to suppress logs during successful runs
-        with patch.object(sprite, "log") as mock_log:
-            with pytest.raises(ValueError, match="Too many colors"):
-                sprite.save(str(self.temp_path / "test_error.toml"), "toml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        with pytest.raises(ValueError, match='Too many colors'):
+            sprite.save(str(self.temp_path / 'test_error.toml'), 'toml')
 
-            # Verify the ERROR log messages were called
-            assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
-            # Check that the log messages contain the expected content
-            first_call = mock_log.error.call_args_list[0][0][0]
-            second_call = mock_log.error.call_args_list[1][0][0]
-            assert "Error in deflate" in first_call
-            assert "Error in save" in second_call
+        # Verify the EXCEPTION log messages were called (inside except blocks)
+        assert mock_log.exception.call_count == EXPECTED_ERROR_COUNT_2
+        # Check that the log messages contain the expected content
+        first_call = mock_log.exception.call_args_list[0][0][0]
+        second_call = mock_log.exception.call_args_list[1][0][0]
+        assert 'Error in deflate' in first_call
+        assert 'Error in save' in second_call
 
     def test_character_limit_with_reserved_characters(self):
         """Test character limit enforcement with universal characters."""
         # Test that universal characters are used correctly
-        sprite = BitmappySprite(x=0, y=0, width=8, height=8, name="test_reserved")
+        sprite = BitmappySprite(x=0, y=0, width=8, height=8, name='test_reserved')
 
         # Create 64 colors including black and red (which map to universal characters)
         colors = [(0, 0, 0), (255, 0, 0)]  # Black and red - map to '.' and 'a'
@@ -324,19 +321,19 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 8
 
         # Should not raise error (64 total colors using universal character set)
-        toml_file = self.temp_path / "test_reserved.toml"
-        sprite.save(str(toml_file), "toml")
+        toml_file = self.temp_path / 'test_reserved.toml'
+        sprite.save(str(toml_file), 'toml')
         assert toml_file.exists()
 
         # Check that universal characters are used
         content = toml_file.read_text()
         assert '[colors."."]' in content  # Black should map to '.'
-        assert "[colors.a]" in content  # Red should map to 'a'
+        assert '[colors.a]' in content  # Red should map to 'a'
 
-    def test_character_limit_performance(self):
+    def test_character_limit_performance(self, mocker):
         """Test that character limit enforcement is efficient."""
         # Create sprite with exactly 65 colors (more than 64 limit)
-        sprite = BitmappySprite(x=0, y=0, width=65, height=1, name="test_performance")
+        sprite = BitmappySprite(x=0, y=0, width=65, height=1, name='test_performance')
 
         # Create 65 colors (more than limit)
         colors = []
@@ -357,28 +354,28 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         start_time = time.time()
 
         # Use centralized mocks to suppress logs during successful runs
-        with patch.object(sprite, "log") as mock_log:
-            with pytest.raises(ValueError, match="Too many colors"):
-                sprite.save(str(self.temp_path / "test_performance.toml"), "toml")
+        mock_log = mocker.patch.object(sprite, 'log')
+        with pytest.raises(ValueError, match='Too many colors'):
+            sprite.save(str(self.temp_path / 'test_performance.toml'), 'toml')
 
-            # Verify the ERROR log messages were called
-            assert mock_log.error.call_count == EXPECTED_ERROR_COUNT_2
-            # Check that the log messages contain the expected content
-            first_call = mock_log.error.call_args_list[0][0][0]
-            second_call = mock_log.error.call_args_list[1][0][0]
-            assert "Error in deflate" in first_call
-            assert "Error in save" in second_call
+        # Verify the EXCEPTION log messages were called (inside except blocks)
+        assert mock_log.exception.call_count == EXPECTED_ERROR_COUNT_2
+        # Check that the log messages contain the expected content
+        first_call = mock_log.exception.call_args_list[0][0][0]
+        second_call = mock_log.exception.call_args_list[1][0][0]
+        assert 'Error in deflate' in first_call
+        assert 'Error in save' in second_call
 
         end_time = time.time()
         execution_time = end_time - start_time
 
         # Should be fast (less than 1 second)
-        assert execution_time < 1.0, "Character limit enforcement should be fast"
+        assert execution_time < 1.0, 'Character limit enforcement should be fast'
 
     def test_character_mapping_consistency(self):
         """Test that character mapping is consistent across different save modes."""
         # Create a sprite with specific colors
-        sprite = BitmappySprite(x=0, y=0, width=4, height=4, name="test_consistency")
+        sprite = BitmappySprite(x=0, y=0, width=4, height=4, name='test_consistency')
 
         colors = [
             (255, 0, 0),  # Red
@@ -398,23 +395,23 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 4
 
         # Save in TOML format
-        toml_file = self.temp_path / "test_consistency.toml"
-        sprite.save(str(toml_file), "toml")
+        toml_file = self.temp_path / 'test_consistency.toml'
+        sprite.save(str(toml_file), 'toml')
 
         # File should exist
         assert toml_file.exists()
 
         # Check TOML content
         toml_content = toml_file.read_text()
-        assert "[sprite]" in toml_content
+        assert '[sprite]' in toml_content
         assert 'name = "test_consistency"' in toml_content
-        assert "pixels =" in toml_content
+        assert 'pixels =' in toml_content
         # Should have individual color sections
-        assert '[colors."."]' in toml_content or "[colors.a]" in toml_content
+        assert '[colors."."]' in toml_content or '[colors.a]' in toml_content
 
     def test_sequential_character_assignment(self):
         """Test that characters are assigned sequentially from SPRITE_GLYPHS."""
-        sprite = BitmappySprite(x=0, y=0, width=4, height=4, name="test_sequential")
+        sprite = BitmappySprite(x=0, y=0, width=4, height=4, name='test_sequential')
 
         # Use colors that should map to sequential characters
         colors = [
@@ -435,22 +432,18 @@ class TestCharacterLimitEnforcement(unittest.TestCase):
         sprite.pixels_tall = 4
 
         # Save and check that sequential characters are used
-        toml_file = self.temp_path / "test_sequential.toml"
-        sprite.save(str(toml_file), "toml")
+        toml_file = self.temp_path / 'test_sequential.toml'
+        sprite.save(str(toml_file), 'toml')
 
         content = toml_file.read_text()
 
         # Should have TOML structure with individual color sections
-        assert "[sprite]" in content
+        assert '[sprite]' in content
         assert 'name = "test_sequential"' in content
-        assert "pixels =" in content
+        assert 'pixels =' in content
 
         # Should have individual color sections using SPRITE_GLYPHS characters
         assert '[colors."."]' in content
-        assert "[colors.a]" in content
-        assert "[colors.A]" in content
-        assert "[colors.b]" in content
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert '[colors.a]' in content
+        assert '[colors.A]' in content
+        assert '[colors.b]' in content

@@ -11,6 +11,7 @@ class TestInterfaceMeta:
 
     def test_sprite_and_scene_interface_combination(self):
         """Test that a class can implement both interfaces."""
+
         class GameObject(SpriteInterface, SceneInterface):
             def update_nested_sprites(self):
                 pass
@@ -54,18 +55,18 @@ class TestInterfaceMeta:
         """Test that interfaces have proper documentation."""
         # Check SpriteInterface documentation
         assert SpriteInterface.__doc__ is not None
-        assert "Sprite interface" in SpriteInterface.__doc__
+        assert 'Sprite interface' in SpriteInterface.__doc__
 
         # Check SceneInterface documentation
         assert SceneInterface.__doc__ is not None
-        assert "Scene interface" in SceneInterface.__doc__
+        assert 'Scene interface' in SceneInterface.__doc__
 
     def test_type_checking_import_coverage(self):
         """Test that TYPE_CHECKING imports work correctly."""
         # This test ensures that the TYPE_CHECKING import in interfaces works
         # and doesn't cause import issues during runtime
-        assert hasattr(interfaces_module, "SpriteInterface")
-        assert hasattr(interfaces_module, "SceneInterface")
+        assert hasattr(interfaces_module, 'SpriteInterface')
+        assert hasattr(interfaces_module, 'SceneInterface')
 
     def test_reload_with_type_checking_true(self):
         """Test that interfaces module can be reloaded with type checking enabled."""
@@ -74,12 +75,12 @@ class TestInterfaceMeta:
         reload(interfaces_module)
 
         # Verify interfaces are still accessible after reload
-        assert hasattr(interfaces_module, "SpriteInterface")
-        assert hasattr(interfaces_module, "SceneInterface")
+        assert hasattr(interfaces_module, 'SpriteInterface')
+        assert hasattr(interfaces_module, 'SceneInterface')
 
         # Verify they can still be instantiated
         sprite = interfaces_module.SpriteInterface()
         scene = interfaces_module.SceneInterface()
         # After reload, the classes are different objects, so we check by name
-        assert sprite.__class__.__name__ == "SpriteInterface"
-        assert scene.__class__.__name__ == "SceneInterface"
+        assert sprite.__class__.__name__ == 'SpriteInterface'
+        assert scene.__class__.__name__ == 'SceneInterface'

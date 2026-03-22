@@ -71,27 +71,32 @@ blue = 0
 
 # Load the content using configparser
 config = configparser.ConfigParser()
-config.optionxform = str  # Preserve case sensitivity for keys
+config.optionxform = str  # type: ignore[assignment]  # Preserve case sensitivity for keys
 config.read_file(StringIO(ini_content))
 
 # Extract multi-line `pixels` data
-pixels_raw = config.get("sprite", "pixels")
+pixels_raw = config.get('sprite', 'pixels')
 pixels = [line.strip() for line in pixels_raw.splitlines() if line.strip()]
 
 # Extract color data
-color_map = {}
+color_map: dict[str, tuple[int, int, int]] = {}
 for i in range(5):
     color_map[str(i)] = (
-        int(config[str(i)]["red"]),
-        int(config[str(i)]["green"]),
-        int(config[str(i)]["blue"]),
+        int(config[str(i)]['red']),
+        int(config[str(i)]['green']),
+        int(config[str(i)]['blue']),
     )
 
 
 # Convert RGB colors to hex
-def rgb_to_hex(rgb):
-    """Convert RGB tuple to hex color string."""
-    return "#{:02x}{:02x}{:02x}".format(*rgb)
+def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    """Convert RGB tuple to hex color string.
+
+    Returns:
+        str: The hex color string.
+
+    """
+    return '#{:02x}{:02x}{:02x}'.format(*rgb)
 
 
 # Prepare the Bokeh plot
@@ -99,10 +104,10 @@ output_notebook()
 p = figure(
     width=320,
     height=320,
-    title="Sprite Visualization",
-    x_range=(0, len(pixels[0])),
-    y_range=(0, len(pixels)),
-    tools="",
+    title='Sprite Visualization',
+    x_range=(0, len(pixels[0])),  # type: ignore[arg-type]
+    y_range=(0, len(pixels)),  # type: ignore[arg-type]
+    tools='',
     toolbar_location=None,
 )
 
@@ -110,7 +115,7 @@ p = figure(
 for y, row in enumerate(pixels):
     for x, pixel in enumerate(row):
         color = rgb_to_hex(color_map[pixel])
-        p.rect(x + 0.5, len(pixels) - y - 0.5, width=1, height=1, color=color, line_color=None)
+        p.rect(x + 0.5, len(pixels) - y - 0.5, width=1, height=1, color=color, line_color=None)  # type: ignore[call-overload]
 
 p.xgrid.visible = False
 p.ygrid.visible = False

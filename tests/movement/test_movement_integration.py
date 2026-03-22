@@ -1,7 +1,6 @@
 """Test coverage for movement integration and edge cases."""
 
 import sys
-import unittest
 from pathlib import Path
 
 # Add project root so direct imports work in isolated runs
@@ -24,7 +23,7 @@ SPEED_2_5_FLOAT = 2.5
 SPEED_3_7_FLOAT = 3.7
 
 
-class TestMovementIntegrationCoverage(unittest.TestCase):
+class TestMovementIntegrationCoverage:
     """Comprehensive test coverage for movement integration."""
 
     def test_speed_with_horizontal_movement(self):
@@ -105,7 +104,7 @@ class TestMovementIntegrationCoverage(unittest.TestCase):
         assert vertical.current_speed == SPEED_NEG_3
 
 
-class TestMovementEdgeCasesCoverage(unittest.TestCase):
+class TestMovementEdgeCasesCoverage:
     """Comprehensive test coverage for movement edge cases."""
 
     def test_speed_with_very_small_increment(self):
