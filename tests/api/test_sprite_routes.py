@@ -265,6 +265,57 @@ class TestSpriteRefinementEndpoint:
         data = response.json()
         assert data['success'] is True
 
+    def test_refine_sprite_toml_only(self, client, mock_generation_result, mocker):
+        """Test refining a sprite with TOML-only output format."""
+        mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.refine_sprite.return_value = mock_generation_result
+        mock_render_service = mocker.MagicMock()
+        mock_services.return_value = (mock_gen_service, mock_render_service)
+
+        response = client.post(
+            '/sprites/refine',
+            json={
+                'prompt': 'make it blue',
+                'current_toml': "[sprite]\nname = 'test'",
+                'output_format': ['toml'],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert data['toml_content'] is not None
+        assert data['png_base64'] is None
+        # PNG renderer should not be called when only TOML is requested
+        mock_render_service.render_from_toml.assert_not_called()
+
+    def test_refine_sprite_png_only(
+        self, client, mock_generation_result, mock_render_result, mocker
+    ):
+        """Test refining a sprite with PNG-only output format."""
+        mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
+        mock_gen_service = mocker.MagicMock()
+        mock_gen_service.refine_sprite.return_value = mock_generation_result
+        mock_render_service = mocker.MagicMock()
+        mock_render_service.render_from_toml.return_value = mock_render_result
+        mock_services.return_value = (mock_gen_service, mock_render_service)
+
+        response = client.post(
+            '/sprites/refine',
+            json={
+                'prompt': 'make it blue',
+                'current_toml': "[sprite]\nname = 'test'",
+                'output_format': ['png'],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert data['png_base64'] is not None
+        assert data['toml_content'] is None
+
     def test_refine_sprite_failure(self, client, mocker):
         """Test handling of refinement failure."""
         failed_result = GenerationResult(
