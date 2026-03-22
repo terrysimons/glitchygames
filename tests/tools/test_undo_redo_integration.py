@@ -3,12 +3,12 @@
 
 import pytest
 
-from glitchygames.bitmappy.operation_history import (
+from glitchygames.bitmappy.history.operations import (
     CanvasOperationTracker,
     FilmStripOperationTracker,
     PixelChange,
 )
-from glitchygames.bitmappy.undo_redo_manager import UndoRedoManager
+from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 
 
 class TestUndoRedoCallbacks:
@@ -37,7 +37,7 @@ class TestUndoRedoCallbacks:
     def test_canvas_operation_callbacks(self):
         """Test that canvas operations call the correct callbacks."""
         # Test brush stroke undo
-        from glitchygames.bitmappy.undo_redo_manager import OperationType
+        from glitchygames.bitmappy.history.undo_redo import OperationType
 
         self.manager.add_operation(
             OperationType.CANVAS_BRUSH_STROKE,
@@ -51,7 +51,7 @@ class TestUndoRedoCallbacks:
 
     def test_film_strip_operation_callbacks(self):
         """Test that film strip operations call the correct callbacks."""
-        from glitchygames.bitmappy.undo_redo_manager import OperationType
+        from glitchygames.bitmappy.history.undo_redo import OperationType
 
         # Test frame add undo
         self.manager.add_operation(

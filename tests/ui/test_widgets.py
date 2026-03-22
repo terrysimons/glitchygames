@@ -2186,7 +2186,7 @@ class TestSliderSpriteCoverage:
         font.render = mocker.Mock(return_value=rendered_surface)
         mock_get_font.return_value = font
 
-        from glitchygames.bitmappy.visual_collision_manager import (
+        from glitchygames.bitmappy.indicators.collision import (
             IndicatorShape,
             LocationType,
             VisualIndicator,
@@ -2223,7 +2223,7 @@ class TestSliderSpriteCoverage:
         font.render = mocker.Mock(return_value=rendered_surface)
         mock_get_font.return_value = font
 
-        from glitchygames.bitmappy.visual_collision_manager import (
+        from glitchygames.bitmappy.indicators.collision import (
             IndicatorShape,
             LocationType,
             VisualIndicator,
@@ -2263,7 +2263,7 @@ class TestSliderSpriteCoverage:
         font.render = mocker.Mock(return_value=rendered_surface)
         mock_get_font.return_value = font
 
-        from glitchygames.bitmappy.visual_collision_manager import (
+        from glitchygames.bitmappy.indicators.collision import (
             IndicatorShape,
             LocationType,
             VisualIndicator,
@@ -4424,7 +4424,7 @@ class TestSliderTriangleIndicator:
 
     def test_draw_triangle_indicator(self, mocker):
         """Test _draw_slider_visual_indicators with triangle-shaped indicator."""
-        from glitchygames.bitmappy.visual_collision_manager import (
+        from glitchygames.bitmappy.indicators.collision import (
             IndicatorShape,
         )
 

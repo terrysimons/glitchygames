@@ -9,7 +9,7 @@ import operator
 import pygame
 import pytest
 
-from glitchygames.bitmappy.controller_selection import ControllerSelection
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
 from glitchygames.bitmappy.film_strip import FilmStripWidget
 
 

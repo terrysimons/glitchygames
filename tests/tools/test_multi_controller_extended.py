@@ -6,13 +6,13 @@ performance scenarios, and integration scenarios for the multi-controller system
 
 import time
 
-from glitchygames.bitmappy.controller_selection import ControllerSelection
-from glitchygames.bitmappy.multi_controller_manager import (
+from glitchygames.bitmappy.controllers.manager import (
     ControllerInfo,
     ControllerStatus,
     MultiControllerManager,
 )
-from glitchygames.bitmappy.visual_collision_manager import IndicatorShape, VisualCollisionManager
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.bitmappy.indicators.collision import IndicatorShape, VisualCollisionManager
 
 
 class TestMultiControllerEdgeCases:

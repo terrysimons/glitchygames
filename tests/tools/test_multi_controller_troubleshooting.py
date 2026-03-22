@@ -9,12 +9,12 @@ import logging
 import pygame
 import pytest
 
-from glitchygames.bitmappy.controller_selection import ControllerSelection
-from glitchygames.bitmappy.multi_controller_manager import (
+from glitchygames.bitmappy.controllers.manager import (
     ControllerInfo,
     ControllerStatus,
     MultiControllerManager,
 )
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
 
 LOG = logging.getLogger(__name__)
 

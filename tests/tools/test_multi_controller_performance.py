@@ -4,8 +4,7 @@ import time
 
 import pytest
 
-from glitchygames.bitmappy.controller_selection import ControllerSelection
-from glitchygames.bitmappy.multi_controller_performance import (
+from glitchygames.bitmappy.controllers.performance import (
     CachedPositionManager,
     MemoryManager,
     MultiControllerPerformanceOptimizer,
@@ -13,7 +12,8 @@ from glitchygames.bitmappy.multi_controller_performance import (
     PerformanceMetrics,
     PerformanceMonitor,
 )
-from glitchygames.bitmappy.visual_collision_manager import VisualCollisionManager
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
 
 
 class TestPerformanceMetrics:

@@ -4474,7 +4474,7 @@ class TestFilmStripGetControllerSelectionColor:
         mock_multi_ctrl_module.MultiControllerManager.get_instance.return_value = mock_manager
         mocker.patch.dict(
             'sys.modules',
-            {'glitchygames.bitmappy.multi_controller_manager': mock_multi_ctrl_module},
+            {'glitchygames.bitmappy.controllers.manager': mock_multi_ctrl_module},
         )
 
         result = widget._get_controller_selection_color('idle', 0)

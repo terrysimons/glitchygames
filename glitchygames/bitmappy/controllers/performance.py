@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from glitchygames.bitmappy.controller_selection import ControllerSelection
-    from glitchygames.bitmappy.multi_controller_manager import MultiControllerManager
-    from glitchygames.bitmappy.visual_collision_manager import VisualCollisionManager
+    from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+    from glitchygames.bitmappy.controllers.selection import ControllerSelection
+    from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
 
 LOG = logging.getLogger('game.tools.multi_controller_performance')
 

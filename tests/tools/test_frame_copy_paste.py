@@ -16,7 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.bitmappy.editor import BitmapEditorScene
-from glitchygames.bitmappy.undo_redo_manager import OperationType
+from glitchygames.bitmappy.history.undo_redo import OperationType
 from glitchygames.sprites.animated import SpriteFrame
 from tests.mocks.test_mock_factory import MockFactory
 

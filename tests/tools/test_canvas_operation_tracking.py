@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Tests for canvas operation tracking."""
 
-from glitchygames.bitmappy.operation_history import CanvasOperationTracker, PixelChange
-from glitchygames.bitmappy.undo_redo_manager import UndoRedoManager
+from glitchygames.bitmappy.history.operations import CanvasOperationTracker, PixelChange
+from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 
 
 class TestCanvasOperationTracker:

@@ -1279,7 +1279,7 @@ class TestHandleSliderModeNavigation:
 
     def test_specific_controller_id(self, mock_editor, mocker):
         """Test navigation with a specific controller_id."""
-        from glitchygames.bitmappy.controller_mode_system import ControllerMode
+        from glitchygames.bitmappy.controllers.modes import ControllerMode
 
         mock_editor.mode_switcher.get_controller_mode.return_value = ControllerMode.R_SLIDER
         # controller_modes must contain the controller_id for the method to proceed

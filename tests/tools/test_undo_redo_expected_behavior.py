@@ -10,12 +10,12 @@ from typing import cast
 import pygame
 import pytest
 
-from glitchygames.bitmappy.operation_history import (
+from glitchygames.bitmappy.history.operations import (
     CanvasOperationTracker,
     CrossAreaOperationTracker,
     FilmStripOperationTracker,
 )
-from glitchygames.bitmappy.undo_redo_manager import UndoRedoManager
+from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 

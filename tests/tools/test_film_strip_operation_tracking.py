@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Tests for film strip operation tracking."""
 
-from glitchygames.bitmappy.operation_history import FilmStripOperationTracker
-from glitchygames.bitmappy.undo_redo_manager import UndoRedoManager
+from glitchygames.bitmappy.history.operations import FilmStripOperationTracker
+from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 
 
 class TestFilmStripOperationTracker:

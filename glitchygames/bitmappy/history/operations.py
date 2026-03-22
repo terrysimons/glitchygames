@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-from .undo_redo_manager import OperationType, UndoRedoManager
+from .undo_redo import OperationType, UndoRedoManager
 
 # Type alias for pixel change tuples: (x, y, old_color, new_color)
 type PixelChangeTuple = tuple[int, int, tuple[int, int, int], tuple[int, int, int]]

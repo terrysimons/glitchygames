@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from glitchygames.bitmappy.multi_controller_error_handling import (
+from glitchygames.bitmappy.controllers.error_handling import (
     ErrorInfo,
     ErrorSeverity,
     MultiControllerConfig,

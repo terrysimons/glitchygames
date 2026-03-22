@@ -1465,7 +1465,7 @@ class FilmStripWidget:
             if controller_animation != animation_name or controller_frame != frame_index:
                 continue
             # Get controller color from multi-controller manager singleton
-            from .multi_controller_manager import MultiControllerManager
+            from .controllers.manager import MultiControllerManager
 
             manager = MultiControllerManager.get_instance()
             for info in manager.controllers.values():

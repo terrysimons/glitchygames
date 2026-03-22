@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.bitmappy.bitmappy_multi_controller_enhancements import (
+from glitchygames.bitmappy.controllers.enhancements import (
     BitmappyMultiControllerEnhancements,
 )
 
@@ -189,7 +189,7 @@ class TestApplyVisualCustomizations:
 
     def test_apply_customizations_circle_shape(self, mock_enhancements, mocker):
         """Test _apply_visual_customizations with circle shape (line 266)."""
-        from glitchygames.bitmappy.visual_collision_manager import IndicatorShape
+        from glitchygames.bitmappy.indicators.collision import IndicatorShape
 
         enhancements = mock_enhancements
 
@@ -207,7 +207,7 @@ class TestApplyVisualCustomizations:
 
     def test_apply_customizations_square_shape(self, mock_enhancements, mocker):
         """Test _apply_visual_customizations with square shape (line 268)."""
-        from glitchygames.bitmappy.visual_collision_manager import IndicatorShape
+        from glitchygames.bitmappy.indicators.collision import IndicatorShape
 
         enhancements = mock_enhancements
 
@@ -224,7 +224,7 @@ class TestApplyVisualCustomizations:
 
     def test_apply_customizations_triangle_shape(self, mock_enhancements, mocker):
         """Test _apply_visual_customizations with triangle (default) shape (line 270)."""
-        from glitchygames.bitmappy.visual_collision_manager import IndicatorShape
+        from glitchygames.bitmappy.indicators.collision import IndicatorShape
 
         enhancements = mock_enhancements
 

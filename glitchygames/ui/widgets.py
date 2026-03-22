@@ -2058,7 +2058,7 @@ class SliderSprite(BitmappySprite):
         if not hasattr(self.parent, 'visual_collision_manager'):
             return
 
-        from glitchygames.bitmappy.visual_collision_manager import LocationType
+        from glitchygames.bitmappy.indicators import LocationType
 
         # Get slider indicators from the visual collision manager
         slider_indicators = self.parent.visual_collision_manager.get_indicators_by_location(

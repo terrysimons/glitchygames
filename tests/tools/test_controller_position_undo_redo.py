@@ -7,9 +7,9 @@ system, ensuring that controller movements and mode changes can be undone and re
 
 import pytest
 
-from glitchygames.bitmappy.controller_mode_system import ControllerMode
-from glitchygames.bitmappy.operation_history import ControllerPositionOperationTracker
-from glitchygames.bitmappy.undo_redo_manager import OperationType, UndoRedoManager
+from glitchygames.bitmappy.controllers.modes import ControllerMode
+from glitchygames.bitmappy.history.operations import ControllerPositionOperationTracker
+from glitchygames.bitmappy.history.undo_redo import OperationType, UndoRedoManager
 
 
 class TestControllerPositionUndoRedo:

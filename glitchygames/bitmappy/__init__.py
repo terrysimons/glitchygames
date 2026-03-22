@@ -6,10 +6,6 @@ Re-exports all public names from submodules for backwards compatibility.
 from __future__ import annotations
 
 # Supporting modules
-from .bitmappy_multi_controller_enhancements import (
-    MAX_CONTROLLER_ACTION_HISTORY,
-    BitmappyMultiControllerEnhancements,
-)
 from .canvas_interfaces import (
     AnimatedCanvasInterface,
     AnimatedCanvasRenderer,
@@ -19,14 +15,31 @@ from .canvas_interfaces import (
     StaticCanvasInterface,
     StaticSpriteSerializer,
 )
-from .controller_mode_system import (
+from .controllers import (
+    MAX_CONTROLLER_ACTION_HISTORY,
+    BitmappyMultiControllerEnhancements,
+    CachedPositionManager,
+    ControllerInfo,
     ControllerMode,
     ControllerModeState,
+    ControllerSelection,
+    ControllerStatus,
+    ErrorInfo,
+    ErrorSeverity,
+    MemoryManager,
     ModePosition,
     ModeSwitcher,
+    MultiControllerConfig,
+    MultiControllerErrorHandler,
+    MultiControllerLogger,
+    MultiControllerManager,
+    MultiControllerPerformanceOptimizer,
+    MultiControllerValidator,
+    OptimizedVisualCollisionManager,
+    PerformanceMetrics,
+    PerformanceMonitor,
     TriggerDetector,
 )
-from .controller_selection import ControllerSelection
 
 # Main editor classes and functions
 from .editor import (
@@ -101,42 +114,23 @@ from .film_strip import (
     FilmStripWidget,
     FilmTabWidget,
 )
-from .multi_controller_error_handling import (
-    ErrorInfo,
-    ErrorSeverity,
-    MultiControllerConfig,
-    MultiControllerErrorHandler,
-    MultiControllerLogger,
-    MultiControllerValidator,
-)
-from .multi_controller_manager import (
-    ControllerInfo,
-    ControllerStatus,
-    MultiControllerManager,
-)
-from .multi_controller_performance import (
-    CachedPositionManager,
-    MemoryManager,
-    MultiControllerPerformanceOptimizer,
-    OptimizedVisualCollisionManager,
-    PerformanceMetrics,
-    PerformanceMonitor,
-)
-from .onion_skinning import OnionSkinningManager, get_onion_skinning_manager
-from .operation_history import (
+from .history import (
     CanvasOperationTracker,
     ControllerPositionOperationTracker,
     CrossAreaOperationTracker,
     FilmStripOperationTracker,
+    Operation,
+    OperationType,
     PixelChange,
+    UndoRedoManager,
 )
-from .undo_redo_manager import Operation, OperationType, UndoRedoManager
-from .visual_collision_manager import (
+from .indicators import (
     IndicatorShape,
     LocationType,
     VisualCollisionManager,
     VisualIndicator,
 )
+from .onion_skinning import OnionSkinningManager, get_onion_skinning_manager
 
 __all__ = [
     'AI_BASE_DELAY',

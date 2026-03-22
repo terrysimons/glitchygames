@@ -260,7 +260,7 @@ class BitmappyMultiControllerEnhancements:
 
             # Apply shape customization
             if 'shape' in customizations:
-                from glitchygames.bitmappy.visual_collision_manager import IndicatorShape
+                from glitchygames.bitmappy.indicators import IndicatorShape
 
                 if customizations['shape'] == 'circle':
                     indicator.shape = IndicatorShape.CIRCLE
