@@ -57,7 +57,7 @@ class TextSprite(Sprite):
 
     def __init__(
         self: Self,
-        background_color: tuple[int, int, int] = BLACKLUCENT,
+        background_color: tuple[int, int, int] | tuple[int, int, int, int] = BLACKLUCENT,
         alpha: int = 0,
         x: int = 0,
         y: int = 0,

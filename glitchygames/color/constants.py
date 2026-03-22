@@ -4,7 +4,7 @@ This module defines numeric constants for color formats, channel values,
 transparency thresholds, and named color tuples derived from the default palette.
 """
 
-from typing import cast
+from pygame import Color
 
 from .palette import Default
 
@@ -30,13 +30,31 @@ _default_colors: Default = Default()
 
 # Default palette always has valid colors for these indices.
 # get_color() can return None for invalid indices, but these are known-good.
-_ColorTuple = tuple[int, int, int]
-YELLOW: _ColorTuple = cast('_ColorTuple', _default_colors.YELLOW)
-PURPLE: _ColorTuple = cast('_ColorTuple', _default_colors.PURPLE)
-BLUE: _ColorTuple = cast('_ColorTuple', _default_colors.BLUE)
-GREEN: _ColorTuple = cast('_ColorTuple', _default_colors.GREEN)
-WHITE: _ColorTuple = cast('_ColorTuple', _default_colors.WHITE)
-BLACK: _ColorTuple = cast('_ColorTuple', _default_colors.BLACK)
-BLACKLUCENT: _ColorTuple = cast('_ColorTuple', _default_colors.BLACKLUCENT)
-BLUELUCENT: _ColorTuple = cast('_ColorTuple', _default_colors.BLUELUCENT)
-RED: _ColorTuple = cast('_ColorTuple', _default_colors.RED)
+# Colors are explicitly converted to tuples so the type matches the annotation.
+_RGBColorTuple = tuple[int, int, int]
+_RGBAColorTuple = tuple[int, int, int, int]
+
+
+def _to_rgb(color: object) -> _RGBColorTuple:
+    # Module-initialization helper: converts a pygame.Color to a plain RGB tuple.
+    if not isinstance(color, Color):
+        raise TypeError(f'Expected pygame.Color, got {type(color).__name__}')
+    return (color.r, color.g, color.b)
+
+
+def _to_rgba(color: object) -> _RGBAColorTuple:
+    # Module-initialization helper: converts a pygame.Color to a plain RGBA tuple.
+    if not isinstance(color, Color):
+        raise TypeError(f'Expected pygame.Color, got {type(color).__name__}')
+    return (color.r, color.g, color.b, color.a)
+
+
+YELLOW: _RGBColorTuple = _to_rgb(_default_colors.YELLOW)
+PURPLE: _RGBColorTuple = _to_rgb(_default_colors.PURPLE)
+BLUE: _RGBColorTuple = _to_rgb(_default_colors.BLUE)
+GREEN: _RGBColorTuple = _to_rgb(_default_colors.GREEN)
+WHITE: _RGBColorTuple = _to_rgb(_default_colors.WHITE)
+BLACK: _RGBColorTuple = _to_rgb(_default_colors.BLACK)
+BLACKLUCENT: _RGBAColorTuple = _to_rgba(_default_colors.BLACKLUCENT)
+BLUELUCENT: _RGBAColorTuple = _to_rgba(_default_colors.BLUELUCENT)
+RED: _RGBColorTuple = _to_rgb(_default_colors.RED)
