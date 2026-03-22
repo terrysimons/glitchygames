@@ -1835,12 +1835,12 @@ class TestHasSingleAnimationCanvas:
 
     def test_single_animation_returns_true(self, mock_editor, mocker):
         """Single animation returns True."""
-        mock_editor.canvas.animated_sprite._animations = {'default': [mocker.Mock()]}
+        mock_editor.canvas.animated_sprite.animations = {'default': [mocker.Mock()]}
         assert mock_editor._has_single_animation_canvas() is True
 
     def test_multiple_animations_returns_false(self, mock_editor, mocker):
         """Multiple animations returns False."""
-        mock_editor.canvas.animated_sprite._animations = {
+        mock_editor.canvas.animated_sprite.animations = {
             'default': [mocker.Mock()],
             'walk': [mocker.Mock()],
         }

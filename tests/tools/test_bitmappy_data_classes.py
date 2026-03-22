@@ -2,7 +2,7 @@
 
 import pytest
 
-from glitchygames.bitmappy.editor import (
+from glitchygames.bitmappy.constants import (
     AI_BASE_DELAY,
     AI_MAX_CONTEXT_SIZE,
     AI_MAX_DELAY,
@@ -39,6 +39,8 @@ from glitchygames.bitmappy.editor import (
     PROGRESS_LOG_MIN_HEIGHT,
     SPRITE_ASPECT_RATIO_TOLERANCE,
     TRANSPARENT_GLYPH,
+)
+from glitchygames.bitmappy.models import (
     AIRequest,
     AIRequestState,
     AIResponse,

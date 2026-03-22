@@ -12,8 +12,6 @@ from typing import cast
 import pytest
 
 from glitchygames.bitmappy.editor import (
-    AIRequest,
-    AIResponse,
     _alpha_blend_pixel,
     _build_ascii_grid,
     _build_color_to_glyph_map,
@@ -44,10 +42,10 @@ from glitchygames.bitmappy.editor import (
     _score_training_example,
     _select_relevant_training_examples,
     _sprite_has_per_pixel_alpha,
-    detect_file_format,
     parse_toml_robustly,
-    resource_path,
 )
+from glitchygames.bitmappy.models import AIRequest, AIResponse
+from glitchygames.bitmappy.utils import detect_file_format, resource_path
 from tests.mocks import MockFactory
 
 # ---------------------------------------------------------------------------

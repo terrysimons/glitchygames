@@ -12,7 +12,6 @@ import sys
 import tempfile
 import time
 import tomllib
-from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
@@ -43,8 +42,6 @@ except ImportError:
     VoiceEventManager = None  # ty: ignore[invalid-assignment]
 
 from http import HTTPStatus
-
-from pydantic import BaseModel
 
 from glitchygames import events
 from glitchygames.ai import (
@@ -93,6 +90,47 @@ from .canvas_interfaces import (
     AnimatedCanvasRenderer,
     AnimatedSpriteSerializer,
 )
+from .constants import (
+    AI_BASE_DELAY,
+    AI_CAPABILITY_RESPONSE_FIELD_COUNT,
+    AI_MAX_CONTEXT_SIZE,
+    AI_MAX_DELAY,
+    AI_MAX_INPUT_TOKENS,
+    AI_MAX_OUTPUT_TOKENS,
+    AI_MAX_RETRIES,
+    AI_MAX_TRAINING_EXAMPLES,
+    AI_MODEL,
+    AI_MODEL_DOWNLOAD_TIMEOUT,
+    AI_TIMEOUT,
+    AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT,
+    AI_VALIDATION_MAX_RETRIES,
+    COLOR_QUANTIZATION_GROUP_DISTANCE_THRESHOLD,
+    CONTROLLER_ACCEL_LEVEL1_TIME,
+    CONTROLLER_ACCEL_LEVEL2_TIME,
+    CONTROLLER_ACCEL_LEVEL3_TIME,
+    DEBUG_LOG_FIRST_N_PIXELS,
+    HAT_INPUT_MAGNITUDE_THRESHOLD,
+    JOYSTICK_HAT_DOWN,
+    JOYSTICK_HAT_LEFT,
+    JOYSTICK_HAT_RIGHT,
+    JOYSTICK_LEFT_SHOULDER_BUTTON,
+    LARGE_SPRITE_DIMENSION,
+    LOG,
+    MAGENTA_TRANSPARENT,
+    MAX_COLOR_VALUE,
+    MAX_COLORS_FOR_AI_TRAINING,
+    MIN_COLOR_FIELD_VALUES_FOR_BLUE,
+    MIN_COLOR_FIELD_VALUES_FOR_GREEN,
+    MIN_COLOR_VALUE,
+    MIN_FILM_STRIPS_FOR_PANEL_POSITIONING,
+    MIN_PIXEL_DISPLAY_SIZE,
+    MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS,
+    PIXEL_CHANGE_DEBOUNCE_SECONDS,
+    PROGRESS_LOG_MIN_HEIGHT,
+    SPRITE_ASPECT_RATIO_TOLERANCE,
+    TRANSPARENT_GLYPH,
+    ai_training_state,
+)
 from .controllers.manager import MultiControllerManager
 from .controllers.modes import ControllerMode
 from .controllers.selection import ControllerSelection
@@ -104,38 +142,13 @@ from .history.operations import (
 )
 from .history.undo_redo import UndoRedoManager
 from .indicators.collision import VisualCollisionManager
-
-# Constants
-MAGENTA_TRANSPARENT = (255, 0, 255)  # Magenta color used for transparency
-TRANSPARENT_GLYPH = '█'  # Block character used for transparent pixels
-
-# Bitmappy-specific constants
-LARGE_SPRITE_DIMENSION = 128  # Sprites this size or larger get special handling
-MIN_PIXEL_DISPLAY_SIZE = 2  # Minimum pixel display size for large sprites
-MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS = 60  # AI model response time threshold
-PIXEL_CHANGE_DEBOUNCE_SECONDS = 0.1  # Debounce timer for auto-submit
-SPRITE_ASPECT_RATIO_TOLERANCE = 0.2  # Tolerance for AI training aspect ratio matching
-COLOR_QUANTIZATION_GROUP_DISTANCE_THRESHOLD = 1000  # Squared Euclidean distance for color grouping
-DEBUG_LOG_FIRST_N_PIXELS = 5  # How many non-magenta pixels to log for debugging
-MIN_FILM_STRIPS_FOR_PANEL_POSITIONING = 2  # Minimum film strips before AI panel positioning
-MAX_COLORS_FOR_AI_TRAINING = 64  # Max unique colors before quantization
-PROGRESS_LOG_MIN_HEIGHT = 32  # Minimum image height to trigger progress logging
-CONTROLLER_ACCEL_LEVEL1_TIME = 0.8  # Acceleration timing thresholds
-CONTROLLER_ACCEL_LEVEL2_TIME = 1.5
-CONTROLLER_ACCEL_LEVEL3_TIME = 2.5
-CONTROLLER_ACCEL_JUMP_LEVEL1 = 2  # Pixel jump sizes at acceleration levels
-CONTROLLER_ACCEL_JUMP_LEVEL2 = 4
-CONTROLLER_ACCEL_JUMP_LEVEL3 = 8
-HAT_INPUT_MAGNITUDE_THRESHOLD = 0.5  # Joystick hat dead zone
-AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT = 2  # Threshold for single-frame sprite shortcut
-JOYSTICK_LEFT_SHOULDER_BUTTON = 9  # Joystick button mapping for left shoulder
-JOYSTICK_HAT_RIGHT = 2  # Joystick hat bitmask for right direction
-JOYSTICK_HAT_DOWN = 4  # Joystick hat bitmask for down direction
-JOYSTICK_HAT_LEFT = 8  # Joystick hat bitmask for left direction
-MIN_COLOR_FIELD_VALUES_FOR_GREEN = 2  # Minimum parsed color field values for green
-MIN_COLOR_FIELD_VALUES_FOR_BLUE = 3  # Minimum parsed color field values for blue
-AI_CAPABILITY_RESPONSE_FIELD_COUNT = 2  # Expected field count for AI capability response
-AI_VALIDATION_MAX_RETRIES = 2  # Maximum retries for AI response validation
+from .models import (
+    AIRequest,
+    AIRequestState,
+    AIResponse,
+    MockEvent,
+)
+from .utils import SPRITE_CONFIG_DIR, detect_file_format, resource_path
 
 if TYPE_CHECKING:
     import argparse
@@ -143,93 +156,6 @@ if TYPE_CHECKING:
 
     from glitchygames.bitmappy.indicators.collision import VisualIndicator
     from glitchygames.tools.ascii_renderer import ASCIIRenderer
-
-LOG = logging.getLogger('game.tools.bitmappy')
-
-
-class MockEvent(BaseModel):
-    """Lightweight mock event for internal file-loading calls."""
-
-    text: str
-
-
-# Turn on sprite debugging
-BitmappySprite.DEBUG = True
-MAX_PIXELS_ACROSS = 64
-MIN_PIXELS_ACROSS = 1
-MAX_PIXELS_TALL = 64
-MIN_PIXELS_TALL = 1
-MIN_COLOR_VALUE = 0
-MAX_COLOR_VALUE = 255
-
-
-def detect_file_format(filename: str) -> str:
-    """Detect file format from filename extension.
-
-    Note: Only TOML format is currently supported.
-
-    Args:
-        filename: The filename to analyze
-
-    Returns:
-        The detected format string (currently only "toml")
-
-    Raises:
-        ValueError: If the file extension is not a supported format
-
-    """
-    extension = Path(filename).suffix.lower().lstrip('.')
-    if extension in {'toml', ''}:
-        return 'toml'
-    msg = f'Unsupported file format: .{extension} (only TOML is supported)'
-    raise ValueError(msg)
-
-
-def resource_path(*path_segments: str) -> Path:
-    """Return the absolute Path to a resource.
-
-    Args:
-        *path_segments: Path segments to join
-
-    Returns:
-        Path: Absolute path to the resource
-
-    """
-    if hasattr(sys, '_MEIPASS'):
-        # Running in PyInstaller bundle — _MEIPASS is set by PyInstaller at runtime
-        base_path = Path(sys._MEIPASS)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
-        # Note: We used --add-data "...:glitchygames/assets", so we must include
-        # glitchygames/assets in the final path segments, e.g.:
-        return base_path.joinpath(*path_segments)
-    # Running in normal Python environment
-    return Path(__file__).parent.parent.joinpath(*path_segments[1:])
-
-
-AI_MODEL: str = 'anthropic:claude-sonnet-4-5'
-# AI_MODEL = "ollama:gpt-oss:20b"
-# AI_MODEL = "ollama:mistral-nemo:12b"
-AI_TIMEOUT = 600  # Seconds to wait for AI response (10 minutes for ollama models)
-AI_QUEUE_SIZE = 10
-AI_MAX_CONTEXT_SIZE = 65536  # Total context window size
-AI_MAX_INPUT_TOKENS = 8192  # Maximum tokens for INPUT (prompts, examples)
-AI_MAX_OUTPUT_TOKENS = 64000  # Maximum tokens for OUTPUT (AI response, large sprites)
-AI_MAX_TRAINING_EXAMPLES = 1000  # Allow many more training examples for full context
-
-# Retry configuration for AI requests
-AI_MAX_RETRIES = 5  # Maximum number of retry attempts
-AI_BASE_DELAY = 1.0  # Base delay in seconds for exponential backoff
-AI_MAX_DELAY = 60.0  # Maximum delay between retries
-
-# Model download timeout (much longer for initial model download)
-AI_MODEL_DOWNLOAD_TIMEOUT = 1800  # 30 minutes for model download
-# Load sprite files for AI training using SpriteFactory
-ai_training_state: dict[str, list[dict[str, Any]] | str | None] = {
-    'data': [],
-    'format': None,  # Will be detected from training files
-}
-
-# Load sprite configuration files for AI training
-SPRITE_CONFIG_DIR = resource_path('glitchygames', 'examples', 'resources', 'sprites')
 
 
 def _alpha_blend_pixel(
@@ -1047,10 +973,6 @@ def load_ai_training_data() -> None:
     LOG.info(f'Total AI training data loaded: {len(training_data)} sprites')
 
 
-class GGUnhandledMenuItemError(Exception):
-    """Glitchy Games Unhandled Menu Item Error."""
-
-
 class BitmapPixelSprite(BitmappySprite):
     """Bitmap Pixel Sprite."""
 
@@ -1184,35 +1106,6 @@ class BitmapPixelSprite(BitmappySprite):
         """
         self.dirty = 1
         self.on_pixel_update_event(event)
-
-
-@dataclass
-class AIRequest:
-    """Data structure for AI requests."""
-
-    prompt: str
-    request_id: str
-    messages: list[dict[str, str]]
-
-
-@dataclass
-class AIResponse:
-    """Data structure for AI responses."""
-
-    content: str | None
-    error: str | None = None
-
-
-@dataclass
-class AIRequestState:
-    """Tracks state of an AI request including retries."""
-
-    original_prompt: str
-    retry_count: int = 0
-    last_error: str | None = None
-    training_examples: list[dict[str, Any]] | None = None
-    conversation_history: list[dict[str, str]] | None = None  # For multi-turn refinement
-    last_sprite_content: str | None = None  # Last successfully generated sprite
 
 
 def _setup_ai_worker_logging() -> logging.Logger:
@@ -1864,7 +1757,7 @@ def _score_training_example(
     return score
 
 
-def _select_relevant_training_examples(  # type: ignore[reportUnusedFunction]
+def _select_relevant_training_examples(
     user_request: str, max_examples: int = AI_MAX_TRAINING_EXAMPLES
 ) -> list[dict[str, Any]]:
     """Select the most relevant training examples based on user request.
@@ -2893,7 +2786,7 @@ class FilmStripSprite(BitmappySprite):
 
             self._update_color_sliders(red, green, blue, alpha)
 
-        except Exception:
+        except IndexError, ValueError, TypeError:
             LOG.exception('FilmStripSprite: Error sampling color from frame')
 
     @override
@@ -9381,12 +9274,165 @@ class BitmapEditorScene(Scene):
             return False
         if not (hasattr(self.canvas, 'animated_sprite') and self.canvas.animated_sprite):
             return False
-        return len(self.canvas.animated_sprite._animations) == 1  # type: ignore[reportPrivateUsage]
+        return len(self.canvas.animated_sprite.animations) == 1
+
+    def _gather_training_examples_from_frame(self, text: str) -> list[dict[str, Any]]:
+        """Gather training examples from the current frame and strip.
+
+        If the current frame has content, saves both the current frame and strip
+        as temporary TOML files and uses them as training examples. Falls back to
+        the regular training example selection if no frame content is available.
+
+        Args:
+            text: The user's prompt text for selecting relevant examples.
+
+        Returns:
+            List of training example dicts for AI context.
+
+        """
+        current_frame_has_content = self._check_current_frame_has_content()
+
+        if not current_frame_has_content:
+            relevant_examples = _select_relevant_training_examples(text)
+            self.log.info(f'Frame is empty, using {len(relevant_examples)} regular examples')
+            return relevant_examples
+
+        frame_toml_path = self._save_current_frame_to_temp_toml()
+        strip_toml_path = self._save_current_strip_to_temp_toml()
+
+        examples: list[dict[str, Any]] = []
+
+        if frame_toml_path:
+            frame_example = self._load_temp_toml_as_example(frame_toml_path)
+            if frame_example:
+                frame_example['name'] = 'selected_frame'
+                examples.append(frame_example)
+                self.log.info('Added current frame as training example')
+
+        if strip_toml_path:
+            strip_example = self._load_temp_toml_as_example(strip_toml_path)
+            if strip_example:
+                strip_example['name'] = 'selected_strip'
+                examples.append(strip_example)
+                self.log.info('Added current strip as training example')
+
+        if not examples:
+            relevant_examples = _select_relevant_training_examples(text)
+            self.log.info(
+                f'Failed to load context examples, using {len(relevant_examples)} regular examples'
+            )
+            return relevant_examples
+
+        # Optimize: if single animation with single frame, only send the frame
+        if (
+            len(examples) == AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT
+            and self._has_single_animation_canvas()
+        ):
+            single_animation = next(iter(self.canvas.animated_sprite.animations.values()))
+            frame_count = len(single_animation)
+
+            if frame_count == 1:
+                self.log.info('Optimization: Single frame in single strip - using only frame data')
+                return [examples[0]]
+
+        self.log.info(f'Using {len(examples)} context examples (frame + strip)')
+        return examples
+
+    def _serialize_current_sprite_for_refinement(
+        self,
+    ) -> tuple[bool, str | None, list[dict[str, str]] | None]:
+        """Serialize the current sprite for AI refinement context.
+
+        Returns:
+            Tuple of (is_refinement, last_sprite_content, conversation_history).
+
+        """
+        if not (
+            hasattr(self, 'canvas')
+            and self.canvas
+            and hasattr(self.canvas, 'animated_sprite')
+            and self.canvas.animated_sprite
+        ):
+            return (False, None, None)
+
+        try:
+            import os
+            import tempfile
+
+            temp_fd, temp_path = tempfile.mkstemp(suffix='.toml', prefix='bitmappy_refinement_')
+            os.close(temp_fd)
+
+            self.canvas.animated_sprite.save(temp_path, DEFAULT_FILE_FORMAT)
+
+            last_sprite_content = Path(temp_path).read_text(encoding='utf-8')
+
+            with contextlib.suppress(OSError):
+                Path(temp_path).unlink()
+
+            conversation_history = None
+            if hasattr(self, 'last_conversation_history'):
+                conversation_history = self.last_conversation_history
+
+            anim_count = last_sprite_content.count('[[animation]]')
+            frame_count = last_sprite_content.count('[[animation.frame]]')
+            self.log.info(
+                f'Sprite loaded - serialized for AI context ({len(last_sprite_content)} chars,'
+                f' {anim_count} animations, {frame_count} frames)'
+            )
+            self.log.debug(f'Serialized sprite preview:\n{last_sprite_content[:500]}')
+
+            return (True, last_sprite_content, conversation_history)
+        except OSError, ValueError, AttributeError, TypeError:
+            self.log.exception('Failed to serialize sprite')
+            self.log.warning('Will use standard generation mode instead')
+            return (False, None, None)
+
+    def _submit_ai_request(
+        self,
+        text: str,
+        messages: list[dict[str, str]],
+        relevant_examples: list[dict[str, Any]],
+        conversation_history: list[dict[str, str]] | None,
+        last_sprite_content: str | None,
+    ) -> None:
+        """Submit an AI sprite generation request to the worker process.
+
+        Args:
+            text: The original user prompt.
+            messages: The built message list for the AI.
+            relevant_examples: Training examples for context.
+            conversation_history: Prior conversation for refinement.
+            last_sprite_content: Last sprite TOML content for refinement.
+
+        """
+        try:
+            request_id = str(time.time())
+
+            request = AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
+            self.log.info(f'Submitting AI request: {request}')
+
+            assert self.ai_request_queue is not None
+            self.ai_request_queue.put(request)
+
+            self.pending_ai_requests[request_id] = AIRequestState(
+                original_prompt=text,
+                retry_count=0,
+                training_examples=relevant_examples,
+                conversation_history=conversation_history,
+                last_sprite_content=last_sprite_content,
+            )
+
+            if hasattr(self, 'debug_text'):
+                self.debug_text.text = f'Processing AI request... (ID: {request_id})'
+
+        except AttributeError, OSError, ValueError:
+            self.log.exception('Error submitting AI request')
+            if hasattr(self, 'debug_text'):
+                self.debug_text.text = 'Error: Failed to submit AI request'
 
     @override
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
-        # Don't update sprite description here - only update when AI generation actually happens
         self.log.info(f"AI Sprite Generation Request: '{text}'")
         self.log.debug(f'Text length: {len(text)}')
         self.log.debug(f'Text type: {type(text)}')
@@ -9403,14 +9449,9 @@ class BitmapEditorScene(Scene):
                 self.debug_text.text = 'AI process not available'
             return
 
-        relevant_examples: Any = self._gather_training_examples_from_frame(text)  # type: ignore[attr-defined]
-        refinement_result: Any = self._serialize_current_sprite_for_refinement()  # type: ignore[attr-defined]
-        is_refinement = bool(refinement_result[0])  # type: ignore[reportUnknownArgumentType]
-        last_sprite_content: str | None = (
-            str(refinement_result[1]) if refinement_result[1] else None  # pyright: ignore[reportUnknownArgumentType]
-        )
-        conversation_history: list[dict[str, str]] | None = (
-            list(refinement_result[2]) if refinement_result[2] else None  # pyright: ignore[reportUnknownArgumentType]
+        relevant_examples = self._gather_training_examples_from_frame(text)
+        is_refinement, last_sprite_content, conversation_history = (
+            self._serialize_current_sprite_for_refinement()
         )
 
         if is_refinement and last_sprite_content:
@@ -9424,13 +9465,13 @@ class BitmapEditorScene(Scene):
         else:
             messages = build_sprite_generation_messages(
                 user_request=text.strip(),
-                training_examples=relevant_examples,  # type: ignore[arg-type]
+                training_examples=relevant_examples,
                 max_examples=3,
                 include_size_hint=True,
                 include_animation_hint=True,
             )
 
-        self._submit_ai_request(  # type: ignore[attr-defined]
+        self._submit_ai_request(
             text, messages, relevant_examples, conversation_history, last_sprite_content
         )
 

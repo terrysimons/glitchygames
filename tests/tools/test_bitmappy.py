@@ -67,23 +67,18 @@ class TestBitmappyFunctionality:
             GGUnhandledMenuItemError: Raised intentionally to test the exception class.
 
         """
-        # Test that exception classes exist
-        assert hasattr(bitmappy, 'GGUnhandledMenuItemError')
-        assert callable(bitmappy.GGUnhandledMenuItemError)
+        from glitchygames.bitmappy.models import GGUnhandledMenuItemError
 
         # Test exception can be raised
-        with pytest.raises(bitmappy.GGUnhandledMenuItemError):
-            raise bitmappy.GGUnhandledMenuItemError('Test error')
+        with pytest.raises(GGUnhandledMenuItemError):
+            raise GGUnhandledMenuItemError('Test error')
 
     def test_bitmappy_ai_classes(self, mock_pygame_patches):
         """Test bitmappy AI classes."""
-        # Test that AI classes exist
-        assert hasattr(bitmappy, 'AIRequest')
-        assert hasattr(bitmappy, 'AIResponse')
+        from glitchygames.bitmappy.models import AIRequest, AIResponse
 
-        # Test that classes are callable
-        assert callable(bitmappy.AIRequest)
-        assert callable(bitmappy.AIResponse)
+        assert callable(AIRequest)
+        assert callable(AIResponse)
 
     @pytest.mark.skip(reason='Not yet implemented')
     def test_bitmappy_sprite_inheritance(self, mock_pygame_patches):

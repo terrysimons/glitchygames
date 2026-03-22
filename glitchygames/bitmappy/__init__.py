@@ -15,34 +15,9 @@ from .canvas_interfaces import (
     StaticCanvasInterface,
     StaticSpriteSerializer,
 )
-from .controllers import (
-    MAX_CONTROLLER_ACTION_HISTORY,
-    BitmappyMultiControllerEnhancements,
-    CachedPositionManager,
-    ControllerInfo,
-    ControllerMode,
-    ControllerModeState,
-    ControllerSelection,
-    ControllerStatus,
-    ErrorInfo,
-    ErrorSeverity,
-    MemoryManager,
-    ModePosition,
-    ModeSwitcher,
-    MultiControllerConfig,
-    MultiControllerErrorHandler,
-    MultiControllerLogger,
-    MultiControllerManager,
-    MultiControllerPerformanceOptimizer,
-    MultiControllerValidator,
-    OptimizedVisualCollisionManager,
-    PerformanceMetrics,
-    PerformanceMonitor,
-    TriggerDetector,
-)
 
-# Main editor classes and functions
-from .editor import (
+# Constants, models, and utilities
+from .constants import (
     AI_BASE_DELAY,
     AI_CAPABILITY_RESPONSE_FIELD_COUNT,
     AI_MAX_CONTEXT_SIZE,
@@ -87,25 +62,46 @@ from .editor import (
     PIXEL_CHANGE_DEBOUNCE_SECONDS,
     PROGRESS_LOG_MIN_HEIGHT,
     SPRITE_ASPECT_RATIO_TOLERANCE,
-    SPRITE_CONFIG_DIR,
     TRANSPARENT_GLYPH,
-    AIRequest,
-    AIRequestState,
-    AIResponse,
+    ai_training_state,
+)
+from .controllers import (
+    MAX_CONTROLLER_ACTION_HISTORY,
+    BitmappyMultiControllerEnhancements,
+    CachedPositionManager,
+    ControllerInfo,
+    ControllerMode,
+    ControllerModeState,
+    ControllerSelection,
+    ControllerStatus,
+    ErrorInfo,
+    ErrorSeverity,
+    MemoryManager,
+    ModePosition,
+    ModeSwitcher,
+    MultiControllerConfig,
+    MultiControllerErrorHandler,
+    MultiControllerLogger,
+    MultiControllerManager,
+    MultiControllerPerformanceOptimizer,
+    MultiControllerValidator,
+    OptimizedVisualCollisionManager,
+    PerformanceMetrics,
+    PerformanceMonitor,
+    TriggerDetector,
+)
+
+# Main editor classes and functions
+from .editor import (
     AnimatedCanvasSprite,
     BitmapEditorScene,
     BitmapPixelSprite,
     FilmStripSprite,
-    GGUnhandledMenuItemError,
-    MockEvent,
     ScrollArrowSprite,
-    ai_training_state,
     ai_worker,
-    detect_file_format,
     load_ai_training_data,
     main,
     parse_toml_robustly,
-    resource_path,
 )
 from .film_strip import (
     ANIMATION_NAME_MAX_LENGTH,
@@ -130,7 +126,15 @@ from .indicators import (
     VisualCollisionManager,
     VisualIndicator,
 )
+from .models import (
+    AIRequest,
+    AIRequestState,
+    AIResponse,
+    GGUnhandledMenuItemError,
+    MockEvent,
+)
 from .onion_skinning import OnionSkinningManager, get_onion_skinning_manager
+from .utils import SPRITE_CONFIG_DIR, detect_file_format, resource_path
 
 __all__ = [
     'AI_BASE_DELAY',
