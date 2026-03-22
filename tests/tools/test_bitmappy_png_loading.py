@@ -7,11 +7,9 @@ from typing import cast
 
 import pytest
 
-from glitchygames.bitmappy.editor import (
-    AnimatedCanvasSprite,
-    BitmapEditorScene,
-    _normalize_toml_data,
-)
+from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
+from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.toml_processing import normalize_toml_data
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -74,7 +72,9 @@ class TestPNGLoading:
             self.mock_canvas._convert_png_to_bitmappy = mock_convert  # type: ignore[invalid-assignment]
 
             # Mock the AnimatedSprite.load method
-            mock_sprite_class = self._mocker.patch('glitchygames.bitmappy.editor.AnimatedSprite')
+            mock_sprite_class = self._mocker.patch(
+                'glitchygames.bitmappy.animated_canvas.AnimatedSprite'
+            )
             mock_sprite = self._mocker.Mock()
             mock_sprite._animations = {}  # Add required attribute
             mock_sprite_class.return_value = mock_sprite
@@ -114,7 +114,9 @@ class TestPNGLoading:
 
     def test_non_png_files_passthrough(self):
         """Test that non-PNG files are passed through unchanged."""
-        mock_sprite_class = self._mocker.patch('glitchygames.bitmappy.editor.AnimatedSprite')
+        mock_sprite_class = self._mocker.patch(
+            'glitchygames.bitmappy.animated_canvas.AnimatedSprite'
+        )
         mock_sprite = self._mocker.Mock()
         mock_sprite._animations = {}  # Add required attribute
         mock_sprite_class.return_value = mock_sprite
@@ -141,7 +143,7 @@ class TestTOMLNormalization:
         self.mock_display = MockFactory.create_pygame_display_mock()
         self.mock_surface = MockFactory.create_pygame_surface_mock()
 
-    def test_normalize_toml_data_with_escaped_newlines(self):
+    def testnormalize_toml_data_with_escaped_newlines(self):
         """Test that escaped newlines are converted to actual newlines."""
         # Test data with escaped newlines
         config_data = {
@@ -153,27 +155,27 @@ class TestTOMLNormalization:
         }
 
         # Normalize the data
-        normalized = _normalize_toml_data(config_data)
+        normalized = normalize_toml_data(config_data)
 
         # Check that escaped newlines were converted
         assert normalized['sprite']['pixels'] == 'ABC\nDEF\nGHI\n'
         assert '\\n' not in normalized['sprite']['pixels']
         assert '\n' in normalized['sprite']['pixels']
 
-    def test_normalize_toml_data_with_double_escaped_newlines(self):
+    def testnormalize_toml_data_with_double_escaped_newlines(self):
         """Test that double-escaped newlines are converted to actual newlines."""
         # Test data with double-escaped newlines
         config_data = {'sprite': {'name': 'test_sprite', 'pixels': 'ABC\\\\nDEF\\\\nGHI\\\\n'}}
 
         # Normalize the data
-        normalized = _normalize_toml_data(config_data)
+        normalized = normalize_toml_data(config_data)
 
         # Check that double-escaped newlines were converted
         assert normalized['sprite']['pixels'] == 'ABC\nDEF\nGHI\n'
         assert '\\\\n' not in normalized['sprite']['pixels']
         assert '\n' in normalized['sprite']['pixels']
 
-    def test_normalize_toml_data_with_animation_frames(self):
+    def testnormalize_toml_data_with_animation_frames(self):
         """Test normalization with animation frame data."""
         config_data = {
             'animation': [
@@ -190,19 +192,19 @@ class TestTOMLNormalization:
         }
 
         # Normalize the data
-        normalized = _normalize_toml_data(config_data)
+        normalized = normalize_toml_data(config_data)
 
         # Check that both frames were normalized
         assert normalized['animation'][0]['frame'][0]['pixels'] == 'ABC\nDEF\nGHI\n'
         assert normalized['animation'][0]['frame'][1]['pixels'] == 'XYZ\n123\n456\n'
 
-    def test_normalize_toml_data_error_handling(self):
+    def testnormalize_toml_data_error_handling(self):
         """Test that normalization handles errors gracefully."""
         # Test with invalid data structure
         config_data = 'invalid_data'
 
         # Should return original data on error
-        result = _normalize_toml_data(config_data)  # type: ignore[invalid-argument-type]
+        result = normalize_toml_data(config_data)  # type: ignore[invalid-argument-type]
         assert result == config_data
 
 

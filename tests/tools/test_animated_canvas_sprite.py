@@ -15,12 +15,13 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 from glitchygames.bitmappy.canvas_interfaces import (
     AnimatedCanvasInterface,
     AnimatedCanvasRenderer,
     AnimatedSpriteSerializer,
 )
-from glitchygames.bitmappy.editor import AnimatedCanvasSprite, BitmapPixelSprite
+from glitchygames.bitmappy.pixel_sprite import BitmapPixelSprite
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from tests.mocks.test_mock_factory import MockFactory
 

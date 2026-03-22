@@ -5,6 +5,10 @@ Re-exports all public names from submodules for backwards compatibility.
 
 from __future__ import annotations
 
+# Extracted modules (canonical imports)
+from .ai_worker import run_ai_worker
+from .animated_canvas import AnimatedCanvasSprite
+
 # Supporting modules
 from .canvas_interfaces import (
     AnimatedCanvasInterface,
@@ -91,17 +95,10 @@ from .controllers import (
     TriggerDetector,
 )
 
-# Main editor classes and functions
+# Main editor class and entry point
 from .editor import (
-    AnimatedCanvasSprite,
     BitmapEditorScene,
-    BitmapPixelSprite,
-    FilmStripSprite,
-    ScrollArrowSprite,
-    ai_worker,
-    load_ai_training_data,
     main,
-    parse_toml_robustly,
 )
 from .film_strip import (
     ANIMATION_NAME_MAX_LENGTH,
@@ -110,6 +107,7 @@ from .film_strip import (
     FilmStripWidget,
     FilmTabWidget,
 )
+from .film_strip_sprite import FilmStripSprite
 from .history import (
     CanvasOperationTracker,
     ControllerPositionOperationTracker,
@@ -134,6 +132,10 @@ from .models import (
     MockEvent,
 )
 from .onion_skinning import OnionSkinningManager, get_onion_skinning_manager
+from .pixel_sprite import BitmapPixelSprite
+from .scroll_arrow import ScrollArrowSprite
+from .sprite_inspection import load_ai_training_data
+from .toml_processing import parse_toml_robustly
 from .utils import SPRITE_CONFIG_DIR, detect_file_format, resource_path
 
 __all__ = [
@@ -242,11 +244,11 @@ __all__ = [
     'VisualCollisionManager',
     'VisualIndicator',
     'ai_training_state',
-    'ai_worker',
     'detect_file_format',
     'get_onion_skinning_manager',
     'load_ai_training_data',
     'main',
     'parse_toml_robustly',
     'resource_path',
+    'run_ai_worker',
 ]

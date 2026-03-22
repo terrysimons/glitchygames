@@ -192,7 +192,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the detect_file_format function
-            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
@@ -301,7 +301,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process
-            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Create a mock loaded sprite with different dimensions using the factory
@@ -365,7 +365,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process to avoid real file system issues
-            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
@@ -472,7 +472,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process
-            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Create a mock loaded sprite using the centralized factory
@@ -535,7 +535,7 @@ pixels = \"\"\"
 
         try:
             # Mock the detect_file_format function
-            mock_detect = mocker.patch('glitchygames.bitmappy.editor.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method

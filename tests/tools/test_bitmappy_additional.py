@@ -1,6 +1,6 @@
 """Additional tests for uncovered module-level functions and smaller classes in bitmappy.py.
 
-Covers: _normalize_toml_data, _detect_alpha_channel, _detect_alpha_channel_in_animation,
+Covers: normalize_toml_data, _detect_alpha_channel, _detect_alpha_channel_in_animation,
 _parse_capabilities_response, AI scoring functions, _parse_toml_value, _fix_color_entry,
 FilmStripSprite helpers, AnimatedCanvasSprite methods, and more.
 """
@@ -11,40 +11,48 @@ from typing import cast
 
 import pytest
 
-from glitchygames.bitmappy.editor import (
+from glitchygames.bitmappy.ai_worker import (
+    _create_ai_retry_decorator,
+    _extract_example_size,
+    _extract_response_content,
+    _log_capabilities_dump,
+    _parse_capabilities_response,
+    _process_ai_request,
+    _score_size_match,
+    _score_training_example,
+    build_retry_prompt,
+    select_relevant_training_examples,
+)
+from glitchygames.bitmappy.alpha import (
+    _convert_animation_colors_to_rgba,
+    _convert_colors_to_rgba,
+    _detect_alpha_channel,
+    _detect_alpha_channel_in_animation,
+    convert_sprite_to_alpha_format,
+)
+from glitchygames.bitmappy.models import AIRequest, AIResponse
+from glitchygames.bitmappy.pixel_ops import (
     _alpha_blend_pixel,
     _build_ascii_grid,
     _build_color_to_glyph_map,
     _build_renderer_color_dict,
-    _build_retry_prompt,
     _composite_frames_with_alpha,
-    _convert_animation_colors_to_rgba,
-    _convert_colors_to_rgba,
-    _convert_sprite_to_alpha_format,
-    _create_ai_retry_decorator,
-    _detect_alpha_channel,
-    _detect_alpha_channel_in_animation,
-    _extract_example_size,
-    _extract_response_content,
+    _get_visible_width,
+)
+from glitchygames.bitmappy.sprite_inspection import (
+    _pixels_have_alpha,
+    _sprite_has_per_pixel_alpha,
+)
+from glitchygames.bitmappy.toml_processing import (
     _fix_color_entry,
     _fix_color_format_in_toml_data,
     _fix_comma_separated_color_field,
-    _get_visible_width,
-    _log_capabilities_dump,
     _normalize_animation_pixels,
     _normalize_escaped_newlines,
-    _normalize_toml_data,
-    _parse_capabilities_response,
     _parse_toml_value,
-    _pixels_have_alpha,
-    _process_ai_request,
-    _score_size_match,
-    _score_training_example,
-    _select_relevant_training_examples,
-    _sprite_has_per_pixel_alpha,
+    normalize_toml_data,
     parse_toml_robustly,
 )
-from glitchygames.bitmappy.models import AIRequest, AIResponse
 from glitchygames.bitmappy.utils import detect_file_format, resource_path
 from tests.mocks import MockFactory
 
@@ -76,19 +84,19 @@ def pygame_mocks(mocker):
 
 
 # ---------------------------------------------------------------------------
-# _normalize_toml_data tests
+# normalize_toml_data tests
 # ---------------------------------------------------------------------------
 
 
 class TestNormalizeTomlData:
-    """Tests for _normalize_toml_data function."""
+    """Tests for normalize_toml_data function."""
 
     def test_normalize_sprite_pixels_with_escaped_newlines(self):
         """Test that escaped newlines in sprite pixels are normalized."""
         config_data = {
             'sprite': {'pixels': '##\\n..'},
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['pixels'] == '##\n..'
 
     def test_normalize_sprite_pixels_double_escaped(self):
@@ -96,19 +104,19 @@ class TestNormalizeTomlData:
         config_data = {
             'sprite': {'pixels': '##\\\\n..'},
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['pixels'] == '##\n..'
 
     def test_normalize_no_sprite_section(self):
         """Test normalization when there is no sprite section."""
         config_data = {'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}}}
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result == config_data
 
     def test_normalize_no_pixels_in_sprite(self):
         """Test normalization when sprite section has no pixels."""
         config_data = {'sprite': {'name': 'test'}}
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['name'] == 'test'
 
     def test_normalize_animation_pixels(self):
@@ -122,12 +130,12 @@ class TestNormalizeTomlData:
                 }
             ],
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['animation'][0]['frame'][0]['pixels'] == '##\n..'
 
     def test_normalize_empty_config(self):
         """Test normalization with empty config."""
-        result = _normalize_toml_data({})
+        result = normalize_toml_data({})
         assert result == {}
 
     def test_normalize_non_string_pixels_untouched(self):
@@ -135,7 +143,7 @@ class TestNormalizeTomlData:
         config_data = {
             'sprite': {'pixels': 12345},
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['pixels'] == 12345
 
     def test_normalize_returns_original_on_error(self):
@@ -145,7 +153,7 @@ class TestNormalizeTomlData:
         # A dict subclass that breaks copy could do it, but simpler to use a
         # config_data whose 'sprite' value is not a dict.
         config_data = {'sprite': 'not_a_dict'}
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         # Should return the original data since 'pixels' access on a string will fail
         assert result == config_data
 
@@ -771,61 +779,61 @@ class TestExtractExampleSize:
 
 
 # ---------------------------------------------------------------------------
-# _build_retry_prompt tests
+# build_retry_prompt tests
 # ---------------------------------------------------------------------------
 
 
 class TestBuildRetryPrompt:
-    """Tests for _build_retry_prompt function."""
+    """Tests for build_retry_prompt function."""
 
     def test_missing_sprite_section(self):
         """Test retry prompt for missing [sprite] section."""
-        result = _build_retry_prompt('make a sprite', 'Missing [sprite] section')
+        result = build_retry_prompt('make a sprite', 'Missing [sprite] section')
         assert 'CRITICAL' in result
         assert '[sprite]' in result
 
     def test_missing_colors_section(self):
         """Test retry prompt for missing [colors] section."""
-        result = _build_retry_prompt('make a sprite', 'Missing [colors] section')
+        result = build_retry_prompt('make a sprite', 'Missing [colors] section')
         assert 'CRITICAL' in result
         assert '[colors]' in result
 
     def test_truncated_error(self):
         """Test retry prompt for truncated response."""
-        result = _build_retry_prompt('make a sprite', 'Response was truncated')
+        result = build_retry_prompt('make a sprite', 'Response was truncated')
         assert 'IMPORTANT' in result
         assert 'cut off' in result
 
     def test_mixed_format_error(self):
         """Test retry prompt for mixed format error."""
-        result = _build_retry_prompt('make a sprite', 'Mixed pixel format detected')
+        result = build_retry_prompt('make a sprite', 'Mixed pixel format detected')
         assert 'CRITICAL' in result
 
     def test_comma_error(self):
         """Test retry prompt for comma in color values."""
-        result = _build_retry_prompt('make a sprite', 'Found comma-separated color values')
+        result = build_retry_prompt('make a sprite', 'Found comma-separated color values')
         assert 'CRITICAL' in result
         assert 'comma' in result.lower() or 'separate fields' in result
 
     def test_markdown_error(self):
         """Test retry prompt for markdown in response."""
-        result = _build_retry_prompt('make a sprite', 'Contains markdown code blocks')
+        result = build_retry_prompt('make a sprite', 'Contains markdown code blocks')
         assert 'CRITICAL' in result
 
     def test_empty_error(self):
         """Test retry prompt for empty response."""
-        result = _build_retry_prompt('make a sprite', 'Response was empty')
+        result = build_retry_prompt('make a sprite', 'Response was empty')
         assert 'CRITICAL' in result
 
     def test_generic_error(self):
         """Test retry prompt for unknown error type."""
-        result = _build_retry_prompt('make a sprite', 'Something weird happened')
+        result = build_retry_prompt('make a sprite', 'Something weird happened')
         assert 'IMPORTANT' in result
         assert 'Something weird happened' in result
 
     def test_incomplete_error(self):
         """Test retry prompt for incomplete response."""
-        result = _build_retry_prompt('make a sprite', 'Response was incomplete')
+        result = build_retry_prompt('make a sprite', 'Response was incomplete')
         assert 'IMPORTANT' in result
         assert 'cut off' in result
 
@@ -1034,12 +1042,12 @@ class TestConvertAnimationColorsToRgba:
 
 
 # ---------------------------------------------------------------------------
-# _convert_sprite_to_alpha_format tests
+# convert_sprite_to_alpha_format tests
 # ---------------------------------------------------------------------------
 
 
 class TestConvertSpriteToAlphaFormat:
-    """Tests for _convert_sprite_to_alpha_format function."""
+    """Tests for convert_sprite_to_alpha_format function."""
 
     def test_sprite_with_alpha(self):
         """Test converting sprite with has_alpha=True."""
@@ -1047,7 +1055,7 @@ class TestConvertSpriteToAlphaFormat:
             'has_alpha': True,
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['colors']['#']['alpha'] == 255
 
     def test_sprite_without_alpha(self):
@@ -1056,7 +1064,7 @@ class TestConvertSpriteToAlphaFormat:
             'has_alpha': False,
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         # Colors should not have alpha added
         assert 'alpha' not in result['colors']['#']
 
@@ -1070,7 +1078,7 @@ class TestConvertSpriteToAlphaFormat:
                 }
             },
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['animations']['walk']['colors']['#']['alpha'] == 255
 
 
@@ -1216,7 +1224,7 @@ class TestCreateAiRetryDecorator:
 
     def test_no_op_when_backoff_unavailable(self, logger, mocker):
         """Test no-op decorator when backoff module is not available."""
-        mocker.patch('glitchygames.bitmappy.editor.backoff', None)
+        mocker.patch('glitchygames.bitmappy.ai_worker.backoff', None)
         decorator = _create_ai_retry_decorator(logger)
 
         # The no-op decorator should return the function unchanged
@@ -1447,23 +1455,23 @@ class TestResourcePath:
 
 
 # ---------------------------------------------------------------------------
-# _select_relevant_training_examples tests
+# select_relevant_training_examples tests
 # ---------------------------------------------------------------------------
 
 
 class TestSelectRelevantTrainingExamples:
-    """Tests for _select_relevant_training_examples function."""
+    """Tests for select_relevant_training_examples function."""
 
     def test_empty_training_data(self, mocker):
         """Test with empty training data."""
-        mocker.patch('glitchygames.bitmappy.editor.ai_training_state', {'data': []})
-        result = _select_relevant_training_examples('test sprite')
+        mocker.patch('glitchygames.bitmappy.ai_worker.ai_training_state', {'data': []})
+        result = select_relevant_training_examples('test sprite')
         assert result == []
 
     def test_non_list_training_data(self, mocker):
         """Test with non-list training data."""
-        mocker.patch('glitchygames.bitmappy.editor.ai_training_state', {'data': 'not_a_list'})
-        result = _select_relevant_training_examples('test sprite')
+        mocker.patch('glitchygames.bitmappy.ai_worker.ai_training_state', {'data': 'not_a_list'})
+        result = select_relevant_training_examples('test sprite')
         assert result == []
 
     def test_fewer_than_max_examples(self, mocker):
@@ -1471,8 +1479,8 @@ class TestSelectRelevantTrainingExamples:
         examples = [
             {'name': 'hero', 'sprite_type': 'static', 'has_alpha': False},
         ]
-        mocker.patch('glitchygames.bitmappy.editor.ai_training_state', {'data': examples})
-        result = _select_relevant_training_examples('test', max_examples=10)
+        mocker.patch('glitchygames.bitmappy.ai_worker.ai_training_state', {'data': examples})
+        result = select_relevant_training_examples('test', max_examples=10)
         assert result == examples
 
     def test_scoring_and_selection(self, mocker):
@@ -1482,8 +1490,8 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'animated walk', 'sprite_type': 'animated', 'has_alpha': False},
             {'name': 'another', 'sprite_type': 'static', 'has_alpha': False},
         ]
-        mocker.patch('glitchygames.bitmappy.editor.ai_training_state', {'data': examples})
-        result = _select_relevant_training_examples('animated walk cycle', max_examples=2)
+        mocker.patch('glitchygames.bitmappy.ai_worker.ai_training_state', {'data': examples})
+        result = select_relevant_training_examples('animated walk cycle', max_examples=2)
         assert len(result) == 2
         # The animated walk example should be ranked first
         assert result[0]['name'] == 'animated walk'
@@ -1529,7 +1537,7 @@ class TestMockEvent:
 
     def test_mock_event_creation(self):
         """Test creating a MockEvent."""
-        from glitchygames.bitmappy.editor import MockEvent
+        from glitchygames.bitmappy.models import MockEvent
 
         event = MockEvent(text='test.toml')
         assert event.text == 'test.toml'

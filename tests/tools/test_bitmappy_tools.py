@@ -5,20 +5,21 @@ from typing import cast
 
 import pytest
 
-from glitchygames.bitmappy.editor import (
-    AIResponse,
-    _alpha_blend_pixel,
-    _build_retry_prompt,
-    _calculate_animation_duration,
+from glitchygames.bitmappy.ai_worker import (
     _extract_response_content,
+    _parse_capabilities_response,
+    _score_size_match,
+    _score_training_example,
+    build_retry_prompt,
+)
+from glitchygames.bitmappy.models import AIResponse
+from glitchygames.bitmappy.pixel_ops import _alpha_blend_pixel, _get_visible_width
+from glitchygames.bitmappy.sprite_inspection import (
+    _calculate_animation_duration,
     _format_duration_string,
     _get_sprite_alpha_type,
     _get_sprite_color_count,
-    _get_visible_width,
-    _parse_capabilities_response,
     _pixels_have_alpha,
-    _score_size_match,
-    _score_training_example,
     _sprite_has_per_pixel_alpha,
 )
 
@@ -440,59 +441,59 @@ class TestScoreTrainingExample:
 
 
 class TestBuildRetryPrompt:
-    """Test _build_retry_prompt function."""
+    """Test build_retry_prompt function."""
 
     def test_missing_sprite_section(self):
         """Test retry prompt for missing [sprite] section."""
-        result = _build_retry_prompt('Create a slime', 'Missing [sprite] section')
+        result = build_retry_prompt('Create a slime', 'Missing [sprite] section')
         assert 'CRITICAL' in result
         assert '[sprite]' in result
         assert 'Create a slime' in result
 
     def test_missing_colors_section(self):
         """Test retry prompt for missing [colors] section."""
-        result = _build_retry_prompt('Create a cat', 'Missing [colors] section')
+        result = build_retry_prompt('Create a cat', 'Missing [colors] section')
         assert 'CRITICAL' in result
         assert '[colors]' in result
 
     def test_truncated_response(self):
         """Test retry prompt for truncated response."""
-        result = _build_retry_prompt('Create a sprite', 'Response appears truncated')
+        result = build_retry_prompt('Create a sprite', 'Response appears truncated')
         assert 'IMPORTANT' in result
         assert 'cut off' in result
 
     def test_mixed_format_error(self):
         """Test retry prompt for mixed format error."""
-        result = _build_retry_prompt('Create animation', 'Mixed static and animated format')
+        result = build_retry_prompt('Create animation', 'Mixed static and animated format')
         assert 'CRITICAL' in result
         assert 'animated' in result.lower()
 
     def test_comma_format_error(self):
         """Test retry prompt for comma-separated color error."""
-        result = _build_retry_prompt('Create sprite', 'Found comma-separated color values')
+        result = build_retry_prompt('Create sprite', 'Found comma-separated color values')
         assert 'CRITICAL' in result
         assert 'comma' in result.lower() or 'separate fields' in result
 
     def test_markdown_format_error(self):
         """Test retry prompt for markdown wrapping error."""
-        result = _build_retry_prompt('Create sprite', 'Response contains markdown code blocks')
+        result = build_retry_prompt('Create sprite', 'Response contains markdown code blocks')
         assert 'CRITICAL' in result
         assert 'TOML' in result
 
     def test_empty_response_error(self):
         """Test retry prompt for empty response."""
-        result = _build_retry_prompt('Create sprite', 'Empty response received')
+        result = build_retry_prompt('Create sprite', 'Empty response received')
         assert 'CRITICAL' in result
 
     def test_generic_error(self):
         """Test retry prompt for unrecognized error."""
-        result = _build_retry_prompt('Create sprite', 'Some unknown error')
+        result = build_retry_prompt('Create sprite', 'Some unknown error')
         assert 'IMPORTANT' in result
         assert 'Some unknown error' in result
 
     def test_original_prompt_preserved(self):
         """Test that the original prompt is preserved in the retry."""
-        result = _build_retry_prompt('Make a cool mushroom sprite', 'Missing [colors] section')
+        result = build_retry_prompt('Make a cool mushroom sprite', 'Missing [colors] section')
         assert 'Make a cool mushroom sprite' in result
 
 
