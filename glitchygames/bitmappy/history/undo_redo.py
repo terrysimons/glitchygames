@@ -642,15 +642,9 @@ class UndoRedoManager:
             if last_animation is None and isinstance(last_command, _OperationAdapter):
                 last_animation = last_command.operation.redo_data.get('animation')
                 last_frame = last_command.operation.redo_data.get('frame')
-            if second_animation is None and isinstance(
-                second_last_command, _OperationAdapter
-            ):
-                second_animation = second_last_command.operation.redo_data.get(
-                    'frame_index'
-                )
-                second_frame = second_last_command.operation.redo_data.get(
-                    'animation_name'
-                )
+            if second_animation is None and isinstance(second_last_command, _OperationAdapter):
+                second_animation = second_last_command.operation.redo_data.get('frame_index')
+                second_frame = second_last_command.operation.redo_data.get('animation_name')
 
             if last_animation == second_animation and last_frame == second_frame:
                 self.undo_stack.pop()

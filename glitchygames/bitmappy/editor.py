@@ -1089,9 +1089,7 @@ class BitmapEditorScene(Scene):
         can reach the canvas, film strips, and other subsystems directly.
         """
         self.undo_redo_manager = UndoRedoManager(max_history=50)
-        self.canvas_operation_tracker = CanvasOperationTracker(
-            self.undo_redo_manager, editor=self
-        )
+        self.canvas_operation_tracker = CanvasOperationTracker(self.undo_redo_manager, editor=self)
         self.film_strip_operation_tracker = FilmStripOperationTracker(
             self.undo_redo_manager, editor=self
         )
