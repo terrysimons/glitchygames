@@ -65,8 +65,8 @@ class TestControllerUndoRedoIntegration:
         scene._apply_frame_selection_for_undo_redo = mocker.Mock(return_value=True)
 
         # Set up callbacks (only the ones that exist)
-        scene.undo_redo_manager.pixel_change_callback = scene._apply_pixel_change_callback
-        scene.undo_redo_manager.frame_selection_callback = (
+        scene.undo_redo_manager._pixel_change_callback = scene._apply_pixel_change_callback
+        scene.undo_redo_manager._frame_selection_callback = (
             scene._apply_frame_selection_for_undo_redo
         )
 

@@ -12,6 +12,7 @@ from glitchygames.bitmappy.history.undo_redo import (
     Operation,
     OperationType,
     UndoRedoManager,
+    _OperationAdapter,
 )
 
 
@@ -1077,7 +1078,7 @@ class TestCrossAreaOperations:
         self.manager.undo()
 
         # Remove the callback before redo
-        self.manager.frame_paste_callback = None
+        self.manager._frame_paste_callback = None
         result = self.manager.redo()
         assert result is False
 
@@ -1093,14 +1094,12 @@ class TestCrossAreaOperations:
             {'animation': 'walk'},
             {'animation': 'run'},
         )
-        # Manually force undo (no handler for ANIMATION_COPY undo either)
-        # Instead, directly manipulate stacks to test redo path
-        operation = self.manager.undo_stack.pop()
-        self.manager.redo_stack.append(operation)
+        # Manually move to redo stack to test redo path
+        command = self.manager.undo_stack.pop()
+        self.manager.redo_stack.append(command)
 
-        self.manager.is_redoing = True
-        result = self.manager._redo_cross_area_operation(operation)
-        self.manager.is_redoing = False
+        # Redo should fail — ANIMATION_COPY has no handler in the adapter
+        result = self.manager.redo()
         assert result is False
 
     def test_undo_cross_area_exception(self, mocker):
@@ -1211,13 +1210,12 @@ class TestFrameSelectionOperations:
             {'animation': 'walk', 'frame': 0},
             {'animation': None, 'frame': None},
         )
-        # Manually move to redo stack
-        operation = self.manager.undo_stack.pop()
-        self.manager.redo_stack.append(operation)
+        # Manually move to redo stack to simulate an undo
+        command = self.manager.undo_stack.pop()
+        self.manager.redo_stack.append(command)
 
-        self.manager.is_redoing = True
-        result = self.manager._redo_frame_selection_operation(operation)
-        self.manager.is_redoing = False
+        # Redo should fail because redo_data has None values
+        result = self.manager.redo()
         assert result is False
 
     def test_redo_frame_selection_no_callback(self, mocker):
@@ -1233,7 +1231,7 @@ class TestFrameSelectionOperations:
         )
         self.manager.undo()
 
-        self.manager.frame_selection_callback = None
+        self.manager._frame_selection_callback = None
         result = self.manager.redo()
         assert result is False
 
@@ -1739,102 +1737,206 @@ class TestFilmStripRedoOperations:
 
 
 class TestApplyPixelChangeNocallback:
-    """Test _apply_pixel_change with no callback."""
+    """Test pixel change undo with no callback or failing callback."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = UndoRedoManager(max_history=10)
 
     def test_apply_pixel_change_no_callback(self):
-        """Test _apply_pixel_change returns False with no callback set."""
-        result = self.manager._apply_pixel_change(0, 0, (255, 0, 0))
+        """Test undo of pixel change returns False with no callback set."""
+        self.manager.add_operation(
+            OperationType.CANVAS_PIXEL_CHANGE,
+            'Pixel change',
+            {'pixel': (0, 0, (0, 0, 0))},
+            {'pixel': (0, 0, (255, 0, 0))},
+        )
+
+        result = self.manager.undo()
         assert result is False
 
     def test_apply_pixel_change_callback_exception(self, mocker):
-        """Test _apply_pixel_change handles callback exceptions."""
+        """Test pixel change undo handles callback exceptions."""
         mock_callback = mocker.Mock(side_effect=RuntimeError('Pixel error'))
         self.manager.set_pixel_change_callback(mock_callback)
 
-        result = self.manager._apply_pixel_change(0, 0, (255, 0, 0))
+        self.manager.add_operation(
+            OperationType.CANVAS_PIXEL_CHANGE,
+            'Pixel change',
+            {'pixel': (0, 0, (0, 0, 0))},
+            {'pixel': (0, 0, (255, 0, 0))},
+        )
+
+        result = self.manager.undo()
         assert result is False
 
 
 class TestFilmStripHelperMethodsNoCallback:
-    """Test film strip helper methods when callbacks are not set."""
+    """Test film strip operations when callbacks are not set or are set."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = UndoRedoManager(max_history=10)
 
     def test_add_frame_no_callback(self):
-        """Test _add_frame returns False when callback not set."""
-        result = self.manager._add_frame(0, 'walk', {'pixels': []})
+        """Test redo of frame add returns False when callback not set."""
+        # Undo of FILM_STRIP_FRAME_ADD calls delete_frame_callback
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_FRAME_ADD,
+            'Add frame',
+            {'animation_name': 'walk', 'frame_index': 0},
+            {'animation_name': 'walk', 'frame_index': 0, 'frame_data': {'pixels': []}},
+        )
+
+        result = self.manager.undo()
         assert result is False
 
     def test_delete_frame_no_callback(self):
-        """Test _delete_frame returns False when callback not set."""
-        result = self.manager._delete_frame(0, 'walk')
+        """Test undo of frame delete returns False when callback not set."""
+        # Undo of FILM_STRIP_FRAME_DELETE calls add_frame_callback
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_FRAME_DELETE,
+            'Delete frame',
+            {'animation_name': 'walk', 'frame_index': 0, 'frame_data': {'pixels': []}},
+            {'animation_name': 'walk', 'frame_index': 0},
+        )
+
+        result = self.manager.undo()
         assert result is False
 
     def test_reorder_frame_no_callback(self):
-        """Test _reorder_frame returns False when callback not set."""
-        result = self.manager._reorder_frame(0, 1, 'walk')
+        """Test undo of frame reorder returns False when callback not set."""
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_FRAME_REORDER,
+            'Reorder frame',
+            {'animation': 'walk', 'original_order': [1, 0]},
+            {'animation': 'walk', 'new_order': [0, 1]},
+        )
+
+        result = self.manager.undo()
         assert result is False
 
     def test_add_animation_no_callback(self):
-        """Test _add_animation returns False when callback not set."""
-        result = self.manager._add_animation('run', {'frames': []})
+        """Test undo of animation add returns False when callback not set."""
+        # Undo of FILM_STRIP_ANIMATION_ADD calls delete_animation_callback
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_ANIMATION_ADD,
+            'Add animation',
+            {'animation_name': 'run'},
+            {'animation_name': 'run', 'animation_data': {'frames': []}},
+        )
+
+        result = self.manager.undo()
         assert result is False
 
     def test_delete_animation_no_callback(self):
-        """Test _delete_animation returns False when callback not set."""
-        result = self.manager._delete_animation('run')
+        """Test undo of animation delete returns False when callback not set."""
+        # Undo of FILM_STRIP_ANIMATION_DELETE calls add_animation_callback
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_ANIMATION_DELETE,
+            'Delete animation',
+            {'animation_name': 'run', 'animation_data': {'frames': []}},
+            {'animation_name': 'run'},
+        )
+
+        result = self.manager.undo()
         assert result is False
 
     def test_add_frame_with_callback(self, mocker):
-        """Test _add_frame calls callback correctly."""
-        mock_callback = mocker.Mock(return_value=True)
-        self.manager.set_film_strip_callbacks(add_frame_callback=mock_callback)
+        """Test redo of frame add calls add_frame_callback correctly."""
+        mock_add = mocker.Mock(return_value=True)
+        mock_delete = mocker.Mock(return_value=True)
+        self.manager.set_film_strip_callbacks(
+            add_frame_callback=mock_add, delete_frame_callback=mock_delete
+        )
 
-        result = self.manager._add_frame(0, 'walk', {'pixels': [1, 2, 3]})
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_FRAME_ADD,
+            'Add frame',
+            {'animation_name': 'walk', 'frame_index': 0},
+            {'animation_name': 'walk', 'frame_index': 0, 'frame_data': {'pixels': [1, 2, 3]}},
+        )
+        # Undo first (calls delete_frame_callback)
+        self.manager.undo()
+        mock_add.reset_mock()
+
+        # Redo calls add_frame_callback
+        result = self.manager.redo()
         assert result is True
-        mock_callback.assert_called_once_with(0, 'walk', {'pixels': [1, 2, 3]})
+        mock_add.assert_called_once_with('walk', 0, {'pixels': [1, 2, 3]})
 
     def test_delete_frame_with_callback(self, mocker):
-        """Test _delete_frame calls callback correctly."""
-        mock_callback = mocker.Mock(return_value=True)
-        self.manager.set_film_strip_callbacks(delete_frame_callback=mock_callback)
+        """Test undo of frame delete calls add_frame_callback correctly."""
+        mock_add = mocker.Mock(return_value=True)
+        self.manager.set_film_strip_callbacks(add_frame_callback=mock_add)
 
-        result = self.manager._delete_frame(0, 'walk')
+        # Undo of FILM_STRIP_FRAME_DELETE calls add_frame_callback with undo_data
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_FRAME_DELETE,
+            'Delete frame',
+            {'animation_name': 'walk', 'frame_index': 0, 'frame_data': {'pixels': []}},
+            {'animation_name': 'walk', 'frame_index': 0},
+        )
+
+        result = self.manager.undo()
         assert result is True
-        mock_callback.assert_called_once_with(0, 'walk')
+        mock_add.assert_called_once_with('walk', 0, {'pixels': []})
 
     def test_reorder_frame_with_callback(self, mocker):
-        """Test _reorder_frame calls callback correctly."""
+        """Test undo of frame reorder calls reorder_frame_callback correctly."""
         mock_callback = mocker.Mock(return_value=True)
         self.manager.set_film_strip_callbacks(reorder_frame_callback=mock_callback)
 
-        result = self.manager._reorder_frame(0, 2, 'walk')
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_FRAME_REORDER,
+            'Reorder frame',
+            {'animation': 'walk', 'original_order': [1, 0]},
+            {'animation': 'walk', 'new_order': [0, 1]},
+        )
+
+        result = self.manager.undo()
         assert result is True
-        mock_callback.assert_called_once_with(0, 2, 'walk')
+        mock_callback.assert_called_once_with('walk', [1, 0])
 
     def test_add_animation_with_callback(self, mocker):
-        """Test _add_animation calls callback correctly."""
-        mock_callback = mocker.Mock(return_value=True)
-        self.manager.set_film_strip_callbacks(add_animation_callback=mock_callback)
+        """Test redo of animation add calls add_animation_callback correctly."""
+        mock_add = mocker.Mock(return_value=True)
+        mock_delete = mocker.Mock(return_value=True)
+        self.manager.set_film_strip_callbacks(
+            add_animation_callback=mock_add, delete_animation_callback=mock_delete
+        )
 
-        result = self.manager._add_animation('run', {'frames': []})
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_ANIMATION_ADD,
+            'Add animation',
+            {'animation_name': 'run'},
+            {'animation_name': 'run', 'animation_data': {'frames': []}},
+        )
+        # Undo first (calls delete_animation_callback)
+        self.manager.undo()
+        mock_add.reset_mock()
+
+        # Redo calls add_animation_callback
+        result = self.manager.redo()
         assert result is True
-        mock_callback.assert_called_once_with('run', {'frames': []})
+        mock_add.assert_called_once_with('run', {'frames': []})
 
     def test_delete_animation_with_callback(self, mocker):
-        """Test _delete_animation calls callback correctly."""
-        mock_callback = mocker.Mock(return_value=True)
-        self.manager.set_film_strip_callbacks(delete_animation_callback=mock_callback)
+        """Test undo of animation delete calls add_animation_callback correctly."""
+        mock_add = mocker.Mock(return_value=True)
+        self.manager.set_film_strip_callbacks(add_animation_callback=mock_add)
 
-        result = self.manager._delete_animation('run')
+        # Undo of FILM_STRIP_ANIMATION_DELETE calls add_animation_callback
+        self.manager.add_operation(
+            OperationType.FILM_STRIP_ANIMATION_DELETE,
+            'Delete animation',
+            {'animation_name': 'run', 'animation_data': {'frames': []}},
+            {'animation_name': 'run'},
+        )
+
+        result = self.manager.undo()
         assert result is True
-        mock_callback.assert_called_once_with('run')
+        mock_add.assert_called_once_with('run', {'frames': []})
 
 
 class TestControllerPositionOperations:
@@ -1916,7 +2018,7 @@ class TestControllerPositionOperations:
         )
         self.manager.undo()
 
-        self.manager.controller_position_callback = None
+        self.manager._controller_position_callback = None
         result = self.manager.redo()
         assert result is False
 
@@ -2089,7 +2191,7 @@ class TestControllerModeOperations:
         )
         self.manager.undo()
 
-        self.manager.controller_mode_callback = None
+        self.manager._controller_mode_callback = None
         result = self.manager.redo()
         assert result is False
 
@@ -2185,16 +2287,19 @@ class TestFrameOperationRedoClear:
         frame = 0
         frame_key = (animation, frame)
 
-        # Pre-populate the redo stack
+        # Pre-populate the redo stack with a legacy operation wrapped in an adapter
+        from glitchygames.bitmappy.history.undo_redo import _OperationAdapter
+
+        stale_operation = Operation(
+            operation_type=OperationType.CANVAS_PIXEL_CHANGE,
+            timestamp=1.0,
+            description='stale redo',
+            undo_data={'pixel': (0, 0, (0, 0, 0))},
+            redo_data={'pixel': (0, 0, (255, 0, 0))},
+        )
         self.manager.frame_undo_stacks[frame_key] = []
         self.manager.frame_redo_stacks[frame_key] = [
-            Operation(
-                operation_type=OperationType.CANVAS_PIXEL_CHANGE,
-                timestamp=1.0,
-                description='stale redo',
-                undo_data={'pixel': (0, 0, (0, 0, 0))},
-                redo_data={'pixel': (0, 0, (255, 0, 0))},
-            )
+            _OperationAdapter(stale_operation, self.manager)
         ]
 
         # Confirm we are not in undo/redo state
@@ -2216,7 +2321,7 @@ class TestFrameOperationRedoClear:
 
 
 class TestUndoFrameExceptionPath:
-    """Test undo_frame exception handling (lines 436-438)."""
+    """Test undo_frame exception handling."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -2226,7 +2331,6 @@ class TestUndoFrameExceptionPath:
         """Test that undo_frame returns False on exception and resets is_undoing."""
         animation = 'walk'
         frame = 0
-        frame_key = (animation, frame)
 
         self.manager.add_frame_operation(
             animation=animation,
@@ -2237,8 +2341,10 @@ class TestUndoFrameExceptionPath:
             redo_data={'pixel': (0, 0, (255, 0, 0))},
         )
 
-        # Force _execute_undo to raise an exception
-        mocker.patch.object(self.manager, '_execute_undo', side_effect=RuntimeError('boom'))
+        # Patch the command's undo method to raise an exception
+        frame_key = (animation, frame)
+        command = self.manager.frame_undo_stacks[frame_key][-1]
+        mocker.patch.object(command, 'undo', side_effect=RuntimeError('boom'))
 
         result = self.manager.undo_frame(animation, frame)
 
@@ -2247,7 +2353,7 @@ class TestUndoFrameExceptionPath:
 
 
 class TestRedoFrameExceptionPath:
-    """Test redo_frame exception handling (lines 484-486)."""
+    """Test redo_frame exception handling."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -2275,8 +2381,9 @@ class TestRedoFrameExceptionPath:
         # Undo to populate redo stack
         self.manager.undo_frame(animation, frame)
 
-        # Force _execute_redo to raise an exception
-        mocker.patch.object(self.manager, '_execute_redo', side_effect=RuntimeError('boom'))
+        # Patch the command's execute method (used for redo) to raise an exception
+        command = self.manager.frame_redo_stacks[frame_key][-1]
+        mocker.patch.object(command, 'execute', side_effect=RuntimeError('boom'))
 
         result = self.manager.redo_frame(animation, frame)
 
@@ -2285,197 +2392,221 @@ class TestRedoFrameExceptionPath:
 
 
 class TestExecuteUndoUnknownAndException:
-    """Test _execute_undo unknown type and exception paths (lines 602-607)."""
+    """Test _OperationAdapter undo with unknown type and exception paths."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = UndoRedoManager(max_history=10)
 
     def test_execute_undo_truly_unknown_type_returns_false(self):
-        """Test _execute_undo with operation type not in any dispatch (lines 602-603)."""
-        # Use a mock with an operation_type that doesn't match any known set
+        """Test _OperationAdapter.undo() with operation type not in any dispatch."""
         from unittest.mock import Mock
 
+        # Create an Operation with a fake unknown operation_type
         mock_op = Mock(spec=Operation)
         mock_op.operation_type = 'totally_alien_type'
+        mock_op.timestamp = 1.0
         mock_op.description = 'alien'
+        mock_op.undo_data = {'dummy': True}
+        mock_op.redo_data = {'dummy': True}
 
-        result = self.manager._execute_undo(mock_op)
+        adapter = _OperationAdapter(mock_op, self.manager)
+        result = adapter.undo()
         assert result is False
 
     def test_execute_undo_handler_raises_exception(self, mocker):
-        """Test _execute_undo when handler raises exception (lines 605-607)."""
-        operation = Operation(
-            operation_type=OperationType.CANVAS_PIXEL_CHANGE,
-            timestamp=1.0,
-            description='pixel change',
-            undo_data={'pixel': (0, 0, (255, 0, 0))},
-            redo_data={'pixel': (0, 0, (0, 255, 0))},
+        """Test undo returns False when the adapter's dispatch raises exception."""
+        mock_callback = mocker.Mock(side_effect=RuntimeError('fail'))
+        self.manager.set_pixel_change_callback(mock_callback)
+
+        self.manager.add_operation(
+            OperationType.CANVAS_PIXEL_CHANGE,
+            'pixel change',
+            {'pixel': (0, 0, (255, 0, 0))},
+            {'pixel': (0, 0, (0, 255, 0))},
         )
 
-        mocker.patch.object(
-            self.manager, '_undo_canvas_operation', side_effect=RuntimeError('fail')
-        )
-
-        result = self.manager._execute_undo(operation)
+        result = self.manager.undo()
         assert result is False
 
 
 class TestExecuteRedoUnknownAndException:
-    """Test _execute_redo unknown type and exception paths (lines 648-653)."""
+    """Test _OperationAdapter redo with unknown type and exception paths."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = UndoRedoManager(max_history=10)
 
     def test_execute_redo_truly_unknown_type_returns_false(self):
-        """Test _execute_redo with operation type not in any dispatch (lines 648-649)."""
+        """Test _OperationAdapter.execute() with operation type not in any dispatch."""
         from unittest.mock import Mock
 
         mock_op = Mock(spec=Operation)
         mock_op.operation_type = 'totally_alien_type'
+        mock_op.timestamp = 1.0
         mock_op.description = 'alien'
+        mock_op.undo_data = {'dummy': True}
+        mock_op.redo_data = {'dummy': True}
 
-        result = self.manager._execute_redo(mock_op)
+        adapter = _OperationAdapter(mock_op, self.manager)
+        result = adapter.execute()
         assert result is False
 
     def test_execute_redo_handler_raises_exception(self, mocker):
-        """Test _execute_redo when handler raises exception (lines 651-653)."""
-        operation = Operation(
-            operation_type=OperationType.CANVAS_PIXEL_CHANGE,
-            timestamp=1.0,
-            description='pixel change',
-            undo_data={'pixel': (0, 0, (255, 0, 0))},
-            redo_data={'pixel': (0, 0, (0, 255, 0))},
+        """Test redo returns False when the adapter's dispatch raises exception."""
+        # Use side_effect list: first call (undo) succeeds, second call (redo) fails
+        mock_callback = mocker.Mock(side_effect=[True, RuntimeError('fail')])
+        self.manager.set_pixel_change_callback(mock_callback)
+
+        self.manager.add_operation(
+            OperationType.CANVAS_PIXEL_CHANGE,
+            'pixel change',
+            {'pixel': (0, 0, (255, 0, 0))},
+            {'pixel': (0, 0, (0, 255, 0))},
         )
 
-        mocker.patch.object(
-            self.manager, '_redo_canvas_operation', side_effect=RuntimeError('fail')
-        )
+        # Undo first to move to redo stack
+        self.manager.undo()
 
-        result = self.manager._execute_redo(operation)
+        result = self.manager.redo()
         assert result is False
 
 
 class TestUndoCanvasColorChangeAndException:
-    """Test _undo_canvas_operation with CANVAS_COLOR_CHANGE and exception (lines 696-701)."""
+    """Test undo of CANVAS_COLOR_CHANGE and canvas operation exception paths."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = UndoRedoManager(max_history=10)
 
     def test_undo_canvas_color_change_returns_false(self):
-        """Test CANVAS_COLOR_CHANGE falls through to else branch (lines 696-697)."""
-        operation = Operation(
-            operation_type=OperationType.CANVAS_COLOR_CHANGE,
-            timestamp=1.0,
-            description='color change',
-            undo_data={'color': (255, 0, 0)},
-            redo_data={'color': (0, 255, 0)},
+        """Test CANVAS_COLOR_CHANGE undo returns False (unhandled canvas subtype)."""
+        # CANVAS_COLOR_CHANGE falls through to the else branch in _dispatch_canvas,
+        # even when a pixel_change_callback is set, because there is no handler for it.
+        self.manager.set_pixel_change_callback(lambda x, y, c: True)
+
+        self.manager.add_operation(
+            OperationType.CANVAS_COLOR_CHANGE,
+            'color change',
+            {'color': (255, 0, 0)},
+            {'color': (0, 255, 0)},
         )
 
-        result = self.manager._undo_canvas_operation(operation)
+        result = self.manager.undo()
         assert result is False
 
     def test_undo_canvas_operation_exception(self, mocker):
-        """Test _undo_canvas_operation exception path (lines 699-701)."""
-        operation = Operation(
-            operation_type=OperationType.CANVAS_PIXEL_CHANGE,
-            timestamp=1.0,
-            description='pixel',
-            undo_data={'pixel': (0, 0, (255, 0, 0))},
-            redo_data={'pixel': (0, 0, (0, 0, 0))},
+        """Test canvas undo returns False when callback raises exception."""
+        mock_callback = mocker.Mock(side_effect=RuntimeError('fail'))
+        self.manager.set_pixel_change_callback(mock_callback)
+
+        self.manager.add_operation(
+            OperationType.CANVAS_PIXEL_CHANGE,
+            'pixel',
+            {'pixel': (0, 0, (255, 0, 0))},
+            {'pixel': (0, 0, (0, 0, 0))},
         )
 
-        mocker.patch.object(self.manager, '_apply_pixel_change', side_effect=RuntimeError('fail'))
-
-        result = self.manager._undo_canvas_operation(operation)
+        result = self.manager.undo()
         assert result is False
 
 
 class TestUndoCanvasBrushStrokePixelFailure:
-    """Test _undo_canvas_operation brush stroke pixel failure (line 682)."""
+    """Test brush stroke undo when pixel change callback fails."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = UndoRedoManager(max_history=10)
 
     def test_undo_brush_stroke_pixel_failure(self, mocker):
-        """Test that brush stroke undo returns False when _apply_pixel_change fails."""
-        operation = Operation(
-            operation_type=OperationType.CANVAS_BRUSH_STROKE,
-            timestamp=1.0,
-            description='brush stroke',
-            undo_data={'pixels': [(0, 0, (0, 0, 0), (255, 0, 0))]},
-            redo_data={'pixels': [(0, 0, (255, 0, 0), (0, 0, 0))]},
+        """Test that brush stroke undo returns False when pixel callback returns False."""
+        mock_callback = mocker.Mock(return_value=False)
+        self.manager.set_pixel_change_callback(mock_callback)
+
+        self.manager.add_operation(
+            OperationType.CANVAS_BRUSH_STROKE,
+            'brush stroke',
+            {'pixels': [(0, 0, (0, 0, 0), (255, 0, 0))]},
+            {'pixels': [(0, 0, (255, 0, 0), (0, 0, 0))]},
         )
 
-        mocker.patch.object(self.manager, '_apply_pixel_change', return_value=False)
-
-        result = self.manager._undo_canvas_operation(operation)
+        result = self.manager.undo()
         assert result is False
 
 
 class TestRedoCanvasBrushStrokeFailureAndColorChange:
-    """Test _redo_canvas_operation edge cases (lines 756, 770-775)."""
+    """Test canvas redo edge cases for brush stroke failure and color change."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = UndoRedoManager(max_history=10)
 
     def test_redo_brush_stroke_pixel_failure(self, mocker):
-        """Test redo brush stroke when pixel apply fails (line 756)."""
-        operation = Operation(
-            operation_type=OperationType.CANVAS_BRUSH_STROKE,
-            timestamp=1.0,
-            description='brush stroke',
-            undo_data={'pixels': [(0, 0, (255, 0, 0), (0, 0, 0))]},
-            redo_data={'pixels': [(0, 0, (255, 0, 0), (0, 0, 0))]},
+        """Test redo brush stroke when pixel callback returns False."""
+        # First call (undo) succeeds, second call (redo) fails
+        mock_callback = mocker.Mock(side_effect=[True, False])
+        self.manager.set_pixel_change_callback(mock_callback)
+
+        self.manager.add_operation(
+            OperationType.CANVAS_BRUSH_STROKE,
+            'brush stroke',
+            {'pixels': [(0, 0, (255, 0, 0), (0, 0, 0))]},
+            {'pixels': [(0, 0, (255, 0, 0), (0, 0, 0))]},
         )
 
-        mocker.patch.object(self.manager, '_apply_pixel_change', return_value=False)
+        # Undo to move to redo stack
+        self.manager.undo()
 
-        result = self.manager._redo_canvas_operation(operation)
+        result = self.manager.redo()
         assert result is False
 
     def test_redo_canvas_color_change_returns_false(self):
-        """Test CANVAS_COLOR_CHANGE in redo falls to else branch (lines 770-771)."""
-        operation = Operation(
-            operation_type=OperationType.CANVAS_COLOR_CHANGE,
-            timestamp=1.0,
-            description='color change',
-            undo_data={'color': (255, 0, 0)},
-            redo_data={'color': (0, 255, 0)},
+        """Test CANVAS_COLOR_CHANGE redo returns False (unhandled canvas subtype)."""
+        self.manager.set_pixel_change_callback(lambda x, y, c: True)
+
+        self.manager.add_operation(
+            OperationType.CANVAS_COLOR_CHANGE,
+            'color change',
+            {'color': (255, 0, 0)},
+            {'color': (0, 255, 0)},
         )
 
-        result = self.manager._redo_canvas_operation(operation)
+        # Move to redo stack directly since undo would also fail for color change
+        command = self.manager.undo_stack.pop()
+        self.manager.redo_stack.append(command)
+
+        result = self.manager.redo()
         assert result is False
 
     def test_redo_canvas_operation_exception(self, mocker):
-        """Test _redo_canvas_operation exception path (lines 773-775)."""
-        operation = Operation(
-            operation_type=OperationType.CANVAS_PIXEL_CHANGE,
-            timestamp=1.0,
-            description='pixel',
-            undo_data={'pixel': (0, 0, (255, 0, 0))},
-            redo_data={'pixel': (0, 0, (0, 0, 0))},
+        """Test canvas redo returns False when callback raises exception."""
+        # First call (undo) succeeds, second call (redo) raises
+        mock_callback = mocker.Mock(side_effect=[True, RuntimeError('fail')])
+        self.manager.set_pixel_change_callback(mock_callback)
+
+        self.manager.add_operation(
+            OperationType.CANVAS_PIXEL_CHANGE,
+            'pixel',
+            {'pixel': (0, 0, (255, 0, 0))},
+            {'pixel': (0, 0, (0, 0, 0))},
         )
 
-        mocker.patch.object(self.manager, '_apply_pixel_change', side_effect=RuntimeError('fail'))
+        # Undo first
+        self.manager.undo()
 
-        result = self.manager._redo_canvas_operation(operation)
+        result = self.manager.redo()
         assert result is False
 
 
 class TestFilmStripDispatchUnknownTypes:
-    """Test film strip undo/redo with unknown operation types (lines 1181-1182, 1312-1313)."""
+    """Test _OperationAdapter film strip dispatch with non-film-strip operation types."""
 
     def setup_method(self):
         """Set up test fixtures."""
         self.manager = UndoRedoManager(max_history=10)
 
     def test_undo_film_strip_unknown_type_returns_false(self):
-        """Test _undo_film_strip_operation with non-film-strip type (lines 1181-1182)."""
+        """Test _dispatch_film_strip with non-film-strip type returns False."""
         operation = Operation(
             operation_type=OperationType.CANVAS_PIXEL_CHANGE,
             timestamp=1.0,
@@ -2484,11 +2615,12 @@ class TestFilmStripDispatchUnknownTypes:
             redo_data={'dummy': True},
         )
 
-        result = self.manager._undo_film_strip_operation(operation)
+        adapter = _OperationAdapter(operation, self.manager)
+        result = adapter._dispatch_film_strip(operation, operation.undo_data, is_undo=True)
         assert result is False
 
     def test_redo_film_strip_unknown_type_returns_false(self):
-        """Test _redo_film_strip_operation with non-film-strip type (lines 1312-1313)."""
+        """Test _dispatch_film_strip with non-film-strip type returns False."""
         operation = Operation(
             operation_type=OperationType.CANVAS_PIXEL_CHANGE,
             timestamp=1.0,
@@ -2497,5 +2629,6 @@ class TestFilmStripDispatchUnknownTypes:
             redo_data={'dummy': True},
         )
 
-        result = self.manager._redo_film_strip_operation(operation)
+        adapter = _OperationAdapter(operation, self.manager)
+        result = adapter._dispatch_film_strip(operation, operation.redo_data, is_undo=False)
         assert result is False

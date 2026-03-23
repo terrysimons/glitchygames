@@ -72,9 +72,6 @@ class TestFrameCopyPaste:
         scene._handle_paste_frame = BitmapEditorScene._handle_paste_frame.__get__(
             scene, BitmapEditorScene
         )
-        scene._apply_frame_paste_for_undo_redo = (
-            BitmapEditorScene._apply_frame_paste_for_undo_redo.__get__(scene, BitmapEditorScene)
-        )
         scene.on_key_down_event = BitmapEditorScene.on_key_down_event.__get__(
             scene, BitmapEditorScene
         )

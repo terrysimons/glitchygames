@@ -3,6 +3,9 @@
 
 This module provides a comprehensive undo/redo system that works across both
 canvas (pixel-level) and film strip (frame-level) operations.
+
+Commands implement the UndoRedoCommand protocol (see commands.py) and carry
+their own execute/undo logic so the manager only pushes, pops, and invokes.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from glitchygames.bitmappy.history.commands import UndoRedoCommand
 
 LOG = logging.getLogger(__name__)
 
@@ -51,9 +54,19 @@ class OperationType(Enum):
     CONTROLLER_MODE_CHANGE = 'controller_mode_change'
 
 
+# ---------------------------------------------------------------------------
+# Legacy Operation dataclass — kept for backward compatibility with tests
+# that construct Operation objects directly. New code should use commands.
+# ---------------------------------------------------------------------------
+
+
 @dataclass
 class Operation:
-    """Represents a single operation in the undo/redo history."""
+    """Represents a single operation in the undo/redo history (legacy).
+
+    Prefer creating concrete command objects from ``commands.py`` instead.
+    This dataclass is retained so that existing tests continue to work.
+    """
 
     operation_type: OperationType
     timestamp: float
@@ -75,122 +88,88 @@ class Operation:
             raise ValueError('Operation must have redo_data')
 
 
+# ---------------------------------------------------------------------------
+# UndoRedoManager
+# ---------------------------------------------------------------------------
+
+
 class UndoRedoManager:
-    """Manages undo/redo operations for the Bitmappy editor."""
+    """Manages undo/redo command stacks for the Bitmappy editor.
+
+    Commands are objects that implement the ``UndoRedoCommand`` protocol
+    (``execute()`` and ``undo()`` methods).  The manager pushes and pops
+    commands from the undo/redo stacks and invokes the appropriate method.
+    """
 
     def __init__(self, max_history: int = 50) -> None:
         """Initialize the undo/redo manager.
 
         Args:
-            max_history: Maximum number of operations to keep in history
+            max_history: Maximum number of commands to keep in history.
 
         """
         self.max_history = max_history
-        self.undo_stack: list[Operation] = []
-        self.redo_stack: list[Operation] = []
-        self.current_operation: Operation | None = None
+
+        # Global command stacks
+        self.undo_stack: list[UndoRedoCommand] = []
+        self.redo_stack: list[UndoRedoCommand] = []
+
+        # Reentrancy guards
         self.is_undoing = False
         self.is_redoing = False
-        self.pixel_change_callback: Callable[..., Any] | None = None
-        self.frame_selection_callback: Callable[..., Any] | None = None
+        self.at_head_of_history = True
 
-        # Controller position callbacks
-        self.controller_position_callback: Callable[..., Any] | None = None
-        self.controller_mode_callback: Callable[..., Any] | None = None
+        # Frame-specific command stacks for per-frame canvas edits
+        self.frame_undo_stacks: dict[tuple[str, int], list[UndoRedoCommand]] = {}
+        self.frame_redo_stacks: dict[tuple[str, int], list[UndoRedoCommand]] = {}
 
-        # Film strip operation callbacks
-        self.add_frame_callback: Callable[..., Any] | None = None
-        self.delete_frame_callback: Callable[..., Any] | None = None
-        self.reorder_frame_callback: Callable[..., Any] | None = None
-        self.add_animation_callback: Callable[..., Any] | None = None
-        self.delete_animation_callback: Callable[..., Any] | None = None
+        # Current frame being edited — used by frame selection tracking
+        self.current_frame: tuple[str, int] | None = None
 
-        # Cross-area operation callbacks
-        self.frame_paste_callback: Callable[..., Any] | None = None
-        self.at_head_of_history = True  # Track if we're at the head of undo history
-
-        # Frame-specific undo/redo stacks for canvas operations
-        self.frame_undo_stacks: dict[
-            tuple[str, int], list[Operation]
-        ] = {}  # {(animation, frame): [operations]}
-        self.frame_redo_stacks: dict[
-            tuple[str, int], list[Operation]
-        ] = {}  # {(animation, frame): [operations]}
-        self.current_frame: tuple[str, int] | None = (
-            None  # (animation, frame) currently being edited
-        )
+        # Legacy callback attributes — used by _OperationAdapter for backward
+        # compatibility with tests that call add_operation() + set_*_callback().
+        self._pixel_change_callback: Any = None
+        self._frame_selection_callback: Any = None
+        self._controller_position_callback: Any = None
+        self._controller_mode_callback: Any = None
+        self._frame_paste_callback: Any = None
+        self._add_frame_callback: Any = None
+        self._delete_frame_callback: Any = None
+        self._reorder_frame_callback: Any = None
+        self._add_animation_callback: Any = None
+        self._delete_animation_callback: Any = None
 
         LOG.debug(f'UndoRedoManager initialized with max_history={max_history}')
+
+    # -- Query methods ------------------------------------------------------
 
     def can_undo(self) -> bool:
         """Check if undo is available.
 
         Returns:
-            True if undo is available, False otherwise
+            True if undo is available, False otherwise.
 
         """
         return len(self.undo_stack) > 0 and not self.is_undoing
 
-    def set_current_frame(self, animation: str, frame: int) -> None:
-        """Set the current frame being edited.
+    def can_redo(self) -> bool:
+        """Check if redo is available.
 
-        Args:
-            animation: Name of the animation
-            frame: Frame index
-
-        """
-        self.current_frame = (animation, frame)
-        LOG.debug(f'Current frame set to: {animation}[{frame}]')
-
-    def set_frame_selection_callback(self, callback: Callable[..., Any]) -> None:
-        """Set the frame selection callback.
-
-        Args:
-            callback: Function to call for frame selection operations
+        Returns:
+            True if redo is available, False otherwise.
 
         """
-        self.frame_selection_callback = callback
-        LOG.debug('Frame selection callback set')
-
-    def set_controller_position_callback(self, callback: Callable[..., Any]) -> None:
-        """Set the controller position callback.
-
-        Args:
-            callback: Function to call for controller position operations
-
-        """
-        self.controller_position_callback = callback
-        LOG.debug('Controller position callback set')
-
-    def set_controller_mode_callback(self, callback: Callable[..., Any]) -> None:
-        """Set the controller mode callback.
-
-        Args:
-            callback: Function to call for controller mode operations
-
-        """
-        self.controller_mode_callback = callback
-        LOG.debug('Controller mode callback set')
-
-    def set_frame_paste_callback(self, callback: Callable[..., Any]) -> None:
-        """Set the frame paste callback.
-
-        Args:
-            callback: Function to call for frame paste operations
-
-        """
-        self.frame_paste_callback = callback
-        LOG.debug('Frame paste callback set')
+        return len(self.redo_stack) > 0 and not self.is_redoing
 
     def can_undo_frame(self, animation: str, frame: int) -> bool:
         """Check if undo is available for a specific frame.
 
         Args:
-            animation: Name of the animation
-            frame: Frame index
+            animation: Name of the animation.
+            frame: Frame index.
 
         Returns:
-            True if undo is available for this frame, False otherwise
+            True if undo is available for this frame, False otherwise.
 
         """
         frame_key = (animation, frame)
@@ -204,11 +183,11 @@ class UndoRedoManager:
         """Check if redo is available for a specific frame.
 
         Args:
-            animation: Name of the animation
-            frame: Frame index
+            animation: Name of the animation.
+            frame: Frame index.
 
         Returns:
-            True if redo is available for this frame, False otherwise
+            True if redo is available for this frame, False otherwise.
 
         """
         frame_key = (animation, frame)
@@ -218,20 +197,11 @@ class UndoRedoManager:
             and not self.is_redoing
         )
 
-    def can_redo(self) -> bool:
-        """Check if redo is available.
-
-        Returns:
-            True if redo is available, False otherwise
-
-        """
-        return len(self.redo_stack) > 0 and not self.is_redoing
-
     def get_undo_description(self) -> str | None:
         """Get description of the next undo operation.
 
         Returns:
-            Description of the next undo operation, or None if not available
+            Description string, or None if nothing to undo.
 
         """
         if not self.can_undo():
@@ -242,12 +212,86 @@ class UndoRedoManager:
         """Get description of the next redo operation.
 
         Returns:
-            Description of the next redo operation, or None if not available
+            Description string, or None if nothing to redo.
 
         """
         if not self.can_redo():
             return None
         return self.redo_stack[-1].description
+
+    def set_current_frame(self, animation: str, frame: int) -> None:
+        """Set the current frame being edited.
+
+        Args:
+            animation: Name of the animation.
+            frame: Frame index.
+
+        """
+        self.current_frame = (animation, frame)
+        LOG.debug(f'Current frame set to: {animation}[{frame}]')
+
+    # -- Push commands onto stacks ------------------------------------------
+
+    def push_command(self, command: UndoRedoCommand) -> None:
+        """Push a command onto the global undo stack.
+
+        This clears the redo stack (standard undo/redo branching semantics).
+
+        Args:
+            command: The command to push.
+
+        """
+        if self.is_undoing or self.is_redoing:
+            LOG.debug('Skipping command push during undo/redo')
+            return
+
+        # Clear redo stack on new operation (standard branching)
+        if self.redo_stack:
+            LOG.debug(f'Clearing {len(self.redo_stack)} redo commands')
+            self.redo_stack.clear()
+
+        self.undo_stack.append(command)
+
+        # Collapse redundant frame-create + frame-select pairs
+        self._optimize_frame_create_select_commands()
+
+        # Maintain history limit
+        if len(self.undo_stack) > self.max_history:
+            removed = self.undo_stack.pop(0)
+            LOG.debug(f'Removed oldest command: {removed.description}')
+
+        self.at_head_of_history = True
+        LOG.debug(
+            f'Pushed command: {command.description} (undo stack size: {len(self.undo_stack)})'
+        )
+
+    def push_frame_command(self, animation: str, frame: int, command: UndoRedoCommand) -> None:
+        """Push a command onto a frame-specific undo stack.
+
+        Args:
+            animation: Animation name.
+            frame: Frame index.
+            command: The command to push.
+
+        """
+        frame_key = (animation, frame)
+
+        if frame_key not in self.frame_undo_stacks:
+            self.frame_undo_stacks[frame_key] = []
+        if frame_key not in self.frame_redo_stacks:
+            self.frame_redo_stacks[frame_key] = []
+
+        if not self.is_undoing and not self.is_redoing:
+            self.frame_redo_stacks[frame_key].clear()
+
+        self.frame_undo_stacks[frame_key].append(command)
+
+        if len(self.frame_undo_stacks[frame_key]) > self.max_history:
+            self.frame_undo_stacks[frame_key].pop(0)
+
+        LOG.debug(f'Pushed frame command for {animation}[{frame}]: {command.description}')
+
+    # -- Legacy push (backward-compatible with Operation dataclass) ----------
 
     def add_operation(
         self,
@@ -257,26 +301,24 @@ class UndoRedoManager:
         redo_data: dict[str, Any],
         context: dict[str, Any] | None = None,
     ) -> None:
-        """Add a new operation to the history.
+        """Add a legacy Operation to the history (backward-compatible).
+
+        Wraps the data in an ``_OperationAdapter`` that satisfies the
+        ``UndoRedoCommand`` protocol by delegating execute/undo to callbacks
+        registered via the legacy ``set_*_callback`` methods.
+
+        .. deprecated::
+            Prefer creating a concrete command from ``commands.py`` and
+            calling ``push_command()`` directly.
 
         Args:
-            operation_type: Type of operation
-            description: Human-readable description
-            undo_data: Data needed to undo the operation
-            redo_data: Data needed to redo the operation
-            context: Additional context information
+            operation_type: Type of operation.
+            description: Human-readable description.
+            undo_data: Data needed to undo the operation.
+            redo_data: Data needed to redo the operation.
+            context: Additional context information.
 
         """
-        if self.is_undoing or self.is_redoing:
-            LOG.debug('Skipping operation addition during undo/redo')
-            return
-
-        # Clear redo stack when new operation is added
-        # This is correct behavior: when branching off after an undo, we discard the redo history
-        if self.redo_stack:
-            LOG.debug(f'Clearing {len(self.redo_stack)} redo operations')
-            self.redo_stack.clear()
-
         operation = Operation(
             operation_type=operation_type,
             timestamp=time.time(),
@@ -285,65 +327,8 @@ class UndoRedoManager:
             redo_data=redo_data,
             context=context or {},
         )
-
-        self.undo_stack.append(operation)
-
-        # Check if we should optimize frame create + frame select operations
-        self._optimize_frame_create_select_operations()
-
-        # Maintain max history limit
-        if len(self.undo_stack) > self.max_history:
-            removed = self.undo_stack.pop(0)
-            LOG.debug(f'Removed oldest operation: {removed.description}')
-
-        # We're now at the head of history
-        self.at_head_of_history = True
-
-        LOG.debug(f'Added operation: {description} (undo stack size: {len(self.undo_stack)})')
-
-    def _optimize_frame_create_select_operations(self) -> None:
-        """Optimize frame create + frame select operations.
-
-        Remove both if they appear consecutively.
-
-        If the last two operations are:
-        1. FRAME_SELECTION (most recent)
-        2. FILM_STRIP_FRAME_ADD (second most recent)
-
-        And they're for the same frame, remove both operations
-        since frame creation implies selection.
-        """
-        if len(self.undo_stack) < MIN_UNDO_STACK_SIZE_FOR_COLLAPSE:
-            return
-
-        # Get the last two operations
-        last_operation = self.undo_stack[-1]
-        second_last_operation = self.undo_stack[-2]
-
-        # Check if we have a frame create followed by a frame select
-        if (
-            last_operation.operation_type == OperationType.FRAME_SELECTION
-            and second_last_operation.operation_type == OperationType.FILM_STRIP_FRAME_ADD
-        ):
-            # Check if they're for the same frame
-            # Frame selection uses 'animation' and 'frame' keys
-            last_animation = last_operation.redo_data.get('animation')
-            last_frame = last_operation.redo_data.get('frame')
-
-            # Frame create uses 'animation_name' and 'frame_index' keys (swapped!)
-            second_animation = second_last_operation.redo_data.get(
-                'frame_index'
-            )  # This is the animation name
-            second_frame = second_last_operation.redo_data.get(
-                'animation_name'
-            )  # This is the frame number
-
-            if last_animation == second_animation and last_frame == second_frame:
-                # Remove only the frame selection, keep the frame create
-                self.undo_stack.pop()  # Remove frame selection
-                LOG.debug(
-                    f'Optimized: removed redundant frame select for {last_animation}[{last_frame}]'
-                )
+        adapter = _OperationAdapter(operation, self)
+        self.push_command(adapter)
 
     def add_frame_operation(
         self,
@@ -354,61 +339,111 @@ class UndoRedoManager:
         undo_data: dict[str, Any],
         redo_data: dict[str, Any],
     ) -> None:
-        """Add a frame-specific operation to the undo/redo history.
+        """Add a legacy frame-specific Operation (backward-compatible).
+
+        .. deprecated::
+            Prefer creating a concrete command and calling
+            ``push_frame_command()`` directly.
 
         Args:
-            animation: Name of the animation
-            frame: Frame index
-            operation_type: Type of operation
-            description: Human-readable description
-            undo_data: Data needed to undo the operation
-            redo_data: Data needed to redo the operation
+            animation: Name of the animation.
+            frame: Frame index.
+            operation_type: Type of operation.
+            description: Human-readable description.
+            undo_data: Data needed to undo the operation.
+            redo_data: Data needed to redo the operation.
 
         """
-        frame_key = (animation, frame)
-
-        # Initialize stacks for this frame if they don't exist
-        if frame_key not in self.frame_undo_stacks:
-            self.frame_undo_stacks[frame_key] = []
-        if frame_key not in self.frame_redo_stacks:
-            self.frame_redo_stacks[frame_key] = []
-
-        # Clear redo stack for this frame if we're at the head of history
-        if not self.is_undoing and not self.is_redoing:
-            self.frame_redo_stacks[frame_key].clear()
-
         operation = Operation(
             operation_type=operation_type,
             timestamp=time.time(),
             description=description,
             undo_data=undo_data,
             redo_data=redo_data,
-            context={'frame': frame_key},
+            context={'frame': (animation, frame)},
         )
+        adapter = _OperationAdapter(operation, self)
+        self.push_frame_command(animation, frame, adapter)
 
-        self.frame_undo_stacks[frame_key].append(operation)
+    # -- Undo / Redo --------------------------------------------------------
 
-        # Limit history size for this frame
-        if len(self.frame_undo_stacks[frame_key]) > self.max_history:
-            self.frame_undo_stacks[frame_key].pop(0)
-
-        LOG.debug(f'Added frame operation for {animation}[{frame}]: {description}')
-
-    def undo_frame(self, animation: str, frame: int) -> bool:
-        """Undo the last operation for a specific frame.
-
-        Args:
-            animation: Name of the animation
-            frame: Frame index
+    def undo(self) -> bool:
+        """Undo the last global command.
 
         Returns:
-            True if undo was successful, False otherwise
+            True if undo was successful, False otherwise.
+
+        """
+        if not self.can_undo():
+            LOG.debug('Cannot undo: no commands available')
+            return False
+
+        self.is_undoing = True
+        try:
+            command = self.undo_stack.pop()
+            LOG.debug(f'Undoing: {command.description}')
+
+            success = command.undo()
+
+            if success:
+                self.redo_stack.append(command)
+                self.at_head_of_history = False
+                LOG.debug(f'Successfully undone: {command.description}')
+            else:
+                LOG.warning(f'Failed to undo: {command.description}')
+                # Put it back if it failed
+                self.undo_stack.append(command)
+
+            return success
+        finally:
+            self.is_undoing = False
+
+    def redo(self) -> bool:
+        """Redo the last undone global command.
+
+        Returns:
+            True if redo was successful, False otherwise.
+
+        """
+        if not self.can_redo():
+            LOG.debug('Cannot redo: no commands available')
+            return False
+
+        self.is_redoing = True
+        try:
+            command = self.redo_stack.pop()
+            LOG.debug(f'Redoing: {command.description}')
+
+            success = command.execute()
+
+            if success:
+                self.undo_stack.append(command)
+                if not self.redo_stack:
+                    self.at_head_of_history = True
+                LOG.debug(f'Successfully redone: {command.description}')
+            else:
+                LOG.warning(f'Failed to redo: {command.description}')
+                self.redo_stack.append(command)
+
+            return success
+        finally:
+            self.is_redoing = False
+
+    def undo_frame(self, animation: str, frame: int) -> bool:
+        """Undo the last command for a specific frame.
+
+        Args:
+            animation: Name of the animation.
+            frame: Frame index.
+
+        Returns:
+            True if undo was successful, False otherwise.
 
         """
         frame_key = (animation, frame)
 
         if frame_key not in self.frame_undo_stacks or not self.frame_undo_stacks[frame_key]:
-            LOG.debug(f'No undo operations available for {animation}[{frame}]')
+            LOG.debug(f'No undo commands available for {animation}[{frame}]')
             return False
 
         if self.is_undoing or self.is_redoing:
@@ -416,47 +451,40 @@ class UndoRedoManager:
             return False
 
         self.is_undoing = True
-
         try:
-            operation = self.frame_undo_stacks[frame_key].pop()
-            self.frame_redo_stacks[frame_key].append(operation)
-
-            # Execute the undo operation
-            success = self._execute_undo(operation)
+            command = self.frame_undo_stacks[frame_key].pop()
+            success = command.undo()
 
             if success:
-                LOG.debug(
-                    f'Undid frame operation for {animation}[{frame}]: {operation.description}'
-                )
+                self.frame_redo_stacks[frame_key].append(command)
+                LOG.debug(f'Undid frame command for {animation}[{frame}]: {command.description}')
             else:
-                LOG.warning(f'Failed to undo frame operation for {animation}[{frame}]')
-                # Put the operation back if it failed
-                self.frame_undo_stacks[frame_key].append(operation)
-                self.frame_redo_stacks[frame_key].pop()
+                LOG.warning(f'Failed to undo frame command for {animation}[{frame}]')
+                self.frame_undo_stacks[frame_key].append(command)
 
             return success
 
         except Exception:
-            LOG.exception(f'Error undoing frame operation for {animation}[{frame}]')
+            LOG.exception(f'Error undoing frame command for {animation}[{frame}]')
             return False
         finally:
             self.is_undoing = False
 
     def redo_frame(self, animation: str, frame: int) -> bool:
-        """Redo the last undone operation for a specific frame.
+        """Redo the last undone command for a specific frame.
 
         Args:
-            animation: Name of the animation
-            frame: Frame index
+            animation: Name of the animation.
+            frame: Frame index.
 
         Returns:
-            True if redo was successful, False otherwise
+            True if redo was successful, False otherwise.
 
         """
         frame_key = (animation, frame)
 
         if frame_key not in self.frame_redo_stacks or not self.frame_redo_stacks[frame_key]:
-            LOG.debug(f'No redo operations available for {animation}[{frame}]')
+            LOG.debug(f'No redo commands available for {animation}[{frame}]')
             return False
 
         if self.is_undoing or self.is_redoing:
@@ -464,350 +492,26 @@ class UndoRedoManager:
             return False
 
         self.is_redoing = True
-
         try:
-            operation = self.frame_redo_stacks[frame_key].pop()
-            self.frame_undo_stacks[frame_key].append(operation)
-
-            # Execute the redo operation
-            success = self._execute_redo(operation)
+            command = self.frame_redo_stacks[frame_key].pop()
+            success = command.execute()
 
             if success:
-                LOG.debug(
-                    f'Redid frame operation for {animation}[{frame}]: {operation.description}'
-                )
+                self.frame_undo_stacks[frame_key].append(command)
+                LOG.debug(f'Redid frame command for {animation}[{frame}]: {command.description}')
             else:
-                LOG.warning(f'Failed to redo frame operation for {animation}[{frame}]')
-                # Put the operation back if it failed
-                self.frame_redo_stacks[frame_key].append(operation)
-                self.frame_undo_stacks[frame_key].pop()
+                LOG.warning(f'Failed to redo frame command for {animation}[{frame}]')
+                self.frame_redo_stacks[frame_key].append(command)
 
             return success
 
         except Exception:
-            LOG.exception(f'Error redoing frame operation for {animation}[{frame}]')
+            LOG.exception(f'Error redoing frame command for {animation}[{frame}]')
             return False
         finally:
             self.is_redoing = False
 
-    def undo(self) -> bool:
-        """Undo the last operation.
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        if not self.can_undo():
-            LOG.debug('Cannot undo: no operations available')
-            return False
-
-        self.is_undoing = True
-        try:
-            operation = self.undo_stack.pop()
-            self.redo_stack.append(operation)
-
-            LOG.debug(f'Undoing operation: {operation.description}')
-
-            # Execute undo logic based on operation type
-            success = self._execute_undo(operation)
-
-            if success:
-                LOG.debug(f'Successfully undone: {operation.description}')
-                # We're no longer at the head of history after undoing
-                self.at_head_of_history = False
-            else:
-                LOG.warning(f'Failed to undo: {operation.description}')
-                # Put operation back on undo stack if it failed
-                self.undo_stack.append(operation)
-                self.redo_stack.pop()
-
-            return success
-
-        finally:
-            self.is_undoing = False
-
-    def redo(self) -> bool:
-        """Redo the last undone operation.
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        if not self.can_redo():
-            LOG.debug('Cannot redo: no operations available')
-            return False
-
-        self.is_redoing = True
-        try:
-            operation = self.redo_stack.pop()
-            self.undo_stack.append(operation)
-
-            LOG.debug(f'Redoing operation: {operation.description}')
-
-            # Execute redo logic based on operation type
-            success = self._execute_redo(operation)
-
-            if success:
-                LOG.debug(f'Successfully redone: {operation.description}')
-                # Check if we're back at the head of history (no more redo operations)
-                if not self.redo_stack:
-                    self.at_head_of_history = True
-            else:
-                LOG.warning(f'Failed to redo: {operation.description}')
-                # Put operation back on redo stack if it failed
-                self.redo_stack.append(operation)
-                self.undo_stack.pop()
-
-            return success
-
-        finally:
-            self.is_redoing = False
-
-    def _execute_undo(self, operation: Operation) -> bool:
-        """Execute the undo logic for an operation.
-
-        Args:
-            operation: The operation to undo
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        try:
-            if operation.operation_type in {
-                OperationType.CANVAS_PIXEL_CHANGE,
-                OperationType.CANVAS_BRUSH_STROKE,
-                OperationType.CANVAS_FLOOD_FILL,
-                OperationType.CANVAS_COLOR_CHANGE,
-            }:
-                return self._undo_canvas_operation(operation)
-            if operation.operation_type in {
-                OperationType.FILM_STRIP_FRAME_ADD,
-                OperationType.FILM_STRIP_FRAME_DELETE,
-                OperationType.FILM_STRIP_FRAME_REORDER,
-                OperationType.FILM_STRIP_ANIMATION_ADD,
-                OperationType.FILM_STRIP_ANIMATION_DELETE,
-            }:
-                return self._undo_film_strip_operation(operation)
-            if operation.operation_type in {
-                OperationType.FRAME_COPY,
-                OperationType.FRAME_PASTE,
-                OperationType.ANIMATION_COPY,
-                OperationType.ANIMATION_PASTE,
-            }:
-                return self._undo_cross_area_operation(operation)
-            if operation.operation_type == OperationType.FRAME_SELECTION:
-                return self._undo_frame_selection_operation(operation)
-            if operation.operation_type == OperationType.CONTROLLER_POSITION_CHANGE:
-                return self._undo_controller_position_operation(operation)
-            if operation.operation_type == OperationType.CONTROLLER_MODE_CHANGE:
-                return self._undo_controller_mode_operation(operation)
-            LOG.warning(f'Unknown operation type: {operation.operation_type}')
-            return False
-
-        except Exception:
-            LOG.exception(f'Error executing undo for {operation.description}')
-            return False
-
-    def _execute_redo(self, operation: Operation) -> bool:
-        """Execute the redo logic for an operation.
-
-        Args:
-            operation: The operation to redo
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        try:
-            if operation.operation_type in {
-                OperationType.CANVAS_PIXEL_CHANGE,
-                OperationType.CANVAS_BRUSH_STROKE,
-                OperationType.CANVAS_FLOOD_FILL,
-                OperationType.CANVAS_COLOR_CHANGE,
-            }:
-                return self._redo_canvas_operation(operation)
-            if operation.operation_type in {
-                OperationType.FILM_STRIP_FRAME_ADD,
-                OperationType.FILM_STRIP_FRAME_DELETE,
-                OperationType.FILM_STRIP_FRAME_REORDER,
-                OperationType.FILM_STRIP_ANIMATION_ADD,
-                OperationType.FILM_STRIP_ANIMATION_DELETE,
-            }:
-                return self._redo_film_strip_operation(operation)
-            if operation.operation_type in {
-                OperationType.FRAME_COPY,
-                OperationType.FRAME_PASTE,
-                OperationType.ANIMATION_COPY,
-                OperationType.ANIMATION_PASTE,
-            }:
-                return self._redo_cross_area_operation(operation)
-            if operation.operation_type == OperationType.FRAME_SELECTION:
-                return self._redo_frame_selection_operation(operation)
-            if operation.operation_type == OperationType.CONTROLLER_POSITION_CHANGE:
-                return self._redo_controller_position_operation(operation)
-            if operation.operation_type == OperationType.CONTROLLER_MODE_CHANGE:
-                return self._redo_controller_mode_operation(operation)
-            LOG.warning(f'Unknown operation type: {operation.operation_type}')
-            return False
-
-        except Exception:
-            LOG.exception(f'Error executing redo for {operation.description}')
-            return False
-
-    def _undo_canvas_operation(self, operation: Operation) -> bool:
-        """Undo a canvas operation.
-
-        Args:
-            operation: The canvas operation to undo
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        try:
-            if operation.operation_type == OperationType.CANVAS_PIXEL_CHANGE:
-                # Undo single pixel change
-                pixel_data = operation.undo_data.get('pixel')
-                if pixel_data:
-                    x, y, old_color = pixel_data
-                    # Apply the old color to the pixel
-                    # This will be handled by the canvas interface
-                    return self._apply_pixel_change(x, y, old_color)
-
-            elif operation.operation_type == OperationType.CANVAS_BRUSH_STROKE:
-                # Undo brush stroke
-                pixels = operation.undo_data.get('pixels', [])
-                success = True
-                for pixel_data in pixels:
-                    x, y, _new_color, old_color = pixel_data  # Fixed: unpack 4 values, not 3
-                    if not self._apply_pixel_change(x, y, old_color):
-                        success = False
-                return success
-
-            elif operation.operation_type == OperationType.CANVAS_FLOOD_FILL:
-                # Undo flood fill
-                affected_pixels = operation.undo_data.get('affected_pixels', [])
-                old_color = operation.undo_data.get('old_color')
-                success = True
-                for x, y in affected_pixels:
-                    if old_color is not None and not self._apply_pixel_change(x, y, old_color):
-                        success = False
-                return success
-
-            else:
-                LOG.warning(f'Unknown canvas operation type: {operation.operation_type}')
-                return False
-
-        except Exception:
-            LOG.exception('Error undoing canvas operation')
-            return False
-
-        return False
-
-    def _undo_cross_area_operation(self, operation: Operation) -> bool:
-        """Undo a cross-area operation.
-
-        Args:
-            operation: The cross-area operation to undo
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        try:
-            if operation.operation_type == OperationType.FRAME_PASTE:
-                # For frame paste, undo means restoring the original frame data
-                if self.frame_paste_callback:
-                    return self.frame_paste_callback(
-                        operation.undo_data['animation'],
-                        operation.undo_data['frame'],
-                        operation.undo_data['pixels'],
-                        operation.undo_data['duration'],
-                    )
-                LOG.warning('No frame paste callback available for undo')
-                return False
-            LOG.warning(f'Unknown cross-area operation type: {operation.operation_type}')
-            return False
-        except Exception:
-            LOG.exception('Error undoing cross-area operation')
-            return False
-
-    def _redo_canvas_operation(self, operation: Operation) -> bool:
-        """Redo a canvas operation.
-
-        Args:
-            operation: The canvas operation to redo
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        try:
-            if operation.operation_type == OperationType.CANVAS_PIXEL_CHANGE:
-                # Redo single pixel change
-                pixel_data = operation.redo_data.get('pixel')
-                if pixel_data:
-                    x, y, new_color = pixel_data
-                    return self._apply_pixel_change(x, y, new_color)
-
-            elif operation.operation_type == OperationType.CANVAS_BRUSH_STROKE:
-                # Redo brush stroke
-                pixels = operation.redo_data.get('pixels', [])
-                success = True
-                for pixel_data in pixels:
-                    x, y, _old_color, new_color = pixel_data  # Fixed: unpack 4 values, not 3
-                    if not self._apply_pixel_change(x, y, new_color):
-                        success = False
-                return success
-
-            elif operation.operation_type == OperationType.CANVAS_FLOOD_FILL:
-                # Redo flood fill
-                affected_pixels = operation.redo_data.get('affected_pixels', [])
-                new_color = operation.redo_data.get('new_color')
-                success = True
-                for x, y in affected_pixels:
-                    if new_color is not None and not self._apply_pixel_change(x, y, new_color):
-                        success = False
-                return success
-
-            else:
-                LOG.warning(f'Unknown canvas operation type: {operation.operation_type}')
-                return False
-
-        except Exception:
-            LOG.exception('Error redoing canvas operation')
-            return False
-
-        return False
-
-    def _redo_cross_area_operation(self, operation: Operation) -> bool:
-        """Redo a cross-area operation.
-
-        Args:
-            operation: The cross-area operation to redo
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        try:
-            if operation.operation_type == OperationType.FRAME_PASTE:
-                # For frame paste, redo means applying the pasted frame data again
-                if self.frame_paste_callback:
-                    return self.frame_paste_callback(
-                        operation.redo_data['animation'],
-                        operation.redo_data['frame'],
-                        operation.redo_data['pixels'],
-                        operation.redo_data['duration'],
-                    )
-                LOG.warning('No frame paste callback available for redo')
-                return False
-            LOG.warning(f'Unknown cross-area operation type: {operation.operation_type}')
-            return False
-        except Exception:
-            LOG.exception('Error redoing cross-area operation')
-            return False
+    # -- History management -------------------------------------------------
 
     def clear_history(self) -> None:
         """Clear all undo/redo history."""
@@ -819,7 +523,7 @@ class UndoRedoManager:
         """Get information about the current history state.
 
         Returns:
-            Dictionary with history information
+            Dictionary with history information.
 
         """
         return {
@@ -832,594 +536,423 @@ class UndoRedoManager:
             'max_history': self.max_history,
         }
 
-    def set_pixel_change_callback(self, callback: Callable[..., Any]) -> None:
-        """Set the callback function for applying pixel changes.
+    # -- Legacy callback setters (kept for backward-compatible tests) -------
+
+    def set_pixel_change_callback(self, callback: Any) -> None:
+        """Set the pixel change callback (legacy, used by _OperationAdapter).
 
         Args:
-            callback: Function that takes (x, y, color) and applies the pixel change
+            callback: Function that takes (x, y, color) and applies the change.
 
         """
-        self.pixel_change_callback = callback
+        self._pixel_change_callback = callback
         LOG.debug('Pixel change callback set')
 
     def set_film_strip_callbacks(
         self,
-        add_frame_callback: Callable[..., Any] | None = None,
-        delete_frame_callback: Callable[..., Any] | None = None,
-        reorder_frame_callback: Callable[..., Any] | None = None,
-        add_animation_callback: Callable[..., Any] | None = None,
-        delete_animation_callback: Callable[..., Any] | None = None,
+        add_frame_callback: Any | None = None,
+        delete_frame_callback: Any | None = None,
+        reorder_frame_callback: Any | None = None,
+        add_animation_callback: Any | None = None,
+        delete_animation_callback: Any | None = None,
     ) -> None:
-        """Set the callback functions for film strip operations.
+        """Set film strip operation callbacks (legacy, used by _OperationAdapter).
 
         Args:
-            add_frame_callback: Function that takes
-                (frame_index, animation_name, frame_data)
-                and adds a frame.
-            delete_frame_callback: Function that takes
-                (frame_index, animation_name)
-                and deletes a frame.
-            reorder_frame_callback: Function that takes
-                (old_index, new_index, animation_name)
-                and reorders frames.
-            add_animation_callback: Function that takes
-                (animation_name, animation_data)
-                and adds an animation.
-            delete_animation_callback: Function that takes
-                (animation_name) and deletes an animation.
+            add_frame_callback: Callback for adding frames.
+            delete_frame_callback: Callback for deleting frames.
+            reorder_frame_callback: Callback for reordering frames.
+            add_animation_callback: Callback for adding animations.
+            delete_animation_callback: Callback for deleting animations.
 
         """
-        self.add_frame_callback = add_frame_callback
-        self.delete_frame_callback = delete_frame_callback
-        self.reorder_frame_callback = reorder_frame_callback
-        self.add_animation_callback = add_animation_callback
-        self.delete_animation_callback = delete_animation_callback
+        self._add_frame_callback = add_frame_callback
+        self._delete_frame_callback = delete_frame_callback
+        self._reorder_frame_callback = reorder_frame_callback
+        self._add_animation_callback = add_animation_callback
+        self._delete_animation_callback = delete_animation_callback
         LOG.debug('Film strip operation callbacks set')
 
-    def _apply_pixel_change(self, x: int, y: int, color: tuple[int, int, int]) -> bool:
-        """Apply a pixel change to the canvas.
+    def set_frame_selection_callback(self, callback: Any) -> None:
+        """Set the frame selection callback (legacy).
 
         Args:
-            x: X coordinate of the pixel
-            y: Y coordinate of the pixel
-            color: Color to set the pixel to
-
-        Returns:
-            True if the change was applied successfully, False otherwise
+            callback: Function to call for frame selection operations.
 
         """
-        if self.pixel_change_callback:
-            try:
-                result = self.pixel_change_callback(x, y, color)
-                LOG.debug(f'Applied pixel change at ({x}, {y}) to color {color}')
-                # If callback returns None, treat as success (most callbacks don't return anything)
-                # If callback returns False, treat as failure
-                # If callback returns True, treat as success
-                return result is not False
-            except Exception:
-                LOG.exception('Error applying pixel change')
-                return False
-        else:
+        self._frame_selection_callback = callback
+        LOG.debug('Frame selection callback set')
+
+    def set_controller_position_callback(self, callback: Any) -> None:
+        """Set the controller position callback (legacy).
+
+        Args:
+            callback: Function to call for controller position operations.
+
+        """
+        self._controller_position_callback = callback
+        LOG.debug('Controller position callback set')
+
+    def set_controller_mode_callback(self, callback: Any) -> None:
+        """Set the controller mode callback (legacy).
+
+        Args:
+            callback: Function to call for controller mode operations.
+
+        """
+        self._controller_mode_callback = callback
+        LOG.debug('Controller mode callback set')
+
+    def set_frame_paste_callback(self, callback: Any) -> None:
+        """Set the frame paste callback (legacy).
+
+        Args:
+            callback: Function to call for frame paste operations.
+
+        """
+        self._frame_paste_callback = callback
+        LOG.debug('Frame paste callback set')
+
+    # -- Internal -----------------------------------------------------------
+
+    def _optimize_frame_create_select_commands(self) -> None:
+        """Collapse redundant frame-create + frame-select pairs.
+
+        If the last two commands are a FILM_STRIP_FRAME_ADD followed by a
+        FRAME_SELECTION for the same frame, remove the selection since the
+        creation implies it.
+        """
+        if len(self.undo_stack) < MIN_UNDO_STACK_SIZE_FOR_COLLAPSE:
+            return
+
+        last_command = self.undo_stack[-1]
+        second_last_command = self.undo_stack[-2]
+
+        if (
+            last_command.operation_type == OperationType.FRAME_SELECTION
+            and second_last_command.operation_type == OperationType.FILM_STRIP_FRAME_ADD
+        ):
+            # For command objects, compare attributes directly
+            last_animation = getattr(last_command, 'new_animation', None)
+            last_frame = getattr(last_command, 'new_frame', None)
+            second_animation = getattr(second_last_command, 'animation_name', None)
+            second_frame = getattr(second_last_command, 'frame_index', None)
+
+            # Also support legacy _OperationAdapter objects
+            if last_animation is None and isinstance(last_command, _OperationAdapter):
+                last_animation = last_command.operation.redo_data.get('animation')
+                last_frame = last_command.operation.redo_data.get('frame')
+            if second_animation is None and isinstance(
+                second_last_command, _OperationAdapter
+            ):
+                second_animation = second_last_command.operation.redo_data.get(
+                    'frame_index'
+                )
+                second_frame = second_last_command.operation.redo_data.get(
+                    'animation_name'
+                )
+
+            if last_animation == second_animation and last_frame == second_frame:
+                self.undo_stack.pop()
+                LOG.debug(
+                    f'Optimized: removed redundant frame select for {last_animation}[{last_frame}]'
+                )
+
+
+# ---------------------------------------------------------------------------
+# Legacy adapter — wraps an Operation dataclass so it satisfies the
+# UndoRedoCommand protocol.  Used by add_operation() / add_frame_operation()
+# for backward compatibility.
+# ---------------------------------------------------------------------------
+
+
+class _OperationAdapter:
+    """Adapts a legacy ``Operation`` dataclass to the ``UndoRedoCommand`` protocol.
+
+    This class allows old-style Operation objects (with dict-based undo_data /
+    redo_data) to be pushed onto the new command stacks.  The actual execution
+    is delegated to the callbacks registered on the UndoRedoManager, exactly
+    like the old system worked.
+    """
+
+    def __init__(self, operation: Operation, manager: UndoRedoManager) -> None:
+        """Initialize the adapter.
+
+        Args:
+            operation: The legacy Operation dataclass.
+            manager: The UndoRedoManager (used to look up registered callbacks).
+
+        """
+        self._operation = operation
+        self._manager = manager
+        self.operation_type = operation.operation_type
+        self.timestamp = operation.timestamp
+        self.description = operation.description
+
+    @property
+    def operation(self) -> Operation:
+        """Return the wrapped legacy Operation dataclass."""
+        return self._operation
+
+    def execute(self) -> bool:
+        """Execute (redo) via the legacy dispatch path.
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        return self._dispatch(is_undo=False)
+
+    def undo(self) -> bool:
+        """Undo via the legacy dispatch path.
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        return self._dispatch(is_undo=True)
+
+    def _dispatch(self, *, is_undo: bool) -> bool:
+        """Route to the correct legacy callback based on operation type.
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        operation = self._operation
+        data = operation.undo_data if is_undo else operation.redo_data
+
+        try:
+            op_type = operation.operation_type
+
+            # Canvas operations
+            if op_type in {
+                OperationType.CANVAS_PIXEL_CHANGE,
+                OperationType.CANVAS_BRUSH_STROKE,
+                OperationType.CANVAS_FLOOD_FILL,
+                OperationType.CANVAS_COLOR_CHANGE,
+            }:
+                return self._dispatch_canvas(operation, data, is_undo=is_undo)
+
+            # Film strip operations
+            if op_type in {
+                OperationType.FILM_STRIP_FRAME_ADD,
+                OperationType.FILM_STRIP_FRAME_DELETE,
+                OperationType.FILM_STRIP_FRAME_REORDER,
+                OperationType.FILM_STRIP_ANIMATION_ADD,
+                OperationType.FILM_STRIP_ANIMATION_DELETE,
+            }:
+                return self._dispatch_film_strip(operation, data, is_undo=is_undo)
+
+            # Cross-area operations
+            if op_type in {
+                OperationType.FRAME_COPY,
+                OperationType.FRAME_PASTE,
+                OperationType.ANIMATION_COPY,
+                OperationType.ANIMATION_PASTE,
+            }:
+                return self._dispatch_cross_area(operation, data, is_undo=is_undo)
+
+            # Frame selection
+            if op_type == OperationType.FRAME_SELECTION:
+                return self._dispatch_frame_selection(data)
+
+            # Controller position
+            if op_type == OperationType.CONTROLLER_POSITION_CHANGE:
+                return self._dispatch_controller_position(data, is_undo=is_undo)
+
+            # Controller mode
+            if op_type == OperationType.CONTROLLER_MODE_CHANGE:
+                return self._dispatch_controller_mode(data, is_undo=is_undo)
+
+            LOG.warning(f'Unknown operation type: {op_type}')
+            return False
+
+        except Exception:
+            label = 'undo' if is_undo else 'redo'
+            LOG.exception(f'Error executing {label} for {operation.description}')
+            return False
+
+    # -- Canvas dispatch ----------------------------------------------------
+
+    def _dispatch_canvas(
+        self, operation: Operation, data: dict[str, Any], *, is_undo: bool
+    ) -> bool:
+        callback = getattr(self._manager, '_pixel_change_callback', None)
+        if not callback:
             LOG.warning('No pixel change callback set')
             return False
 
-    def _add_frame(self, frame_index: int, animation_name: str, frame_data: dict[str, Any]) -> bool:
-        """Add a frame to an animation.
+        if operation.operation_type == OperationType.CANVAS_PIXEL_CHANGE:
+            pixel_data = data.get('pixel')
+            if pixel_data:
+                x, y, color = pixel_data
+                result = callback(x, y, color)
+                return result is not False
+            return False
 
-        Args:
-            frame_index: Index where to add the frame
-            animation_name: Name of the animation
-            frame_data: Data about the frame to add
+        if operation.operation_type == OperationType.CANVAS_BRUSH_STROKE:
+            pixels = data.get('pixels', [])
+            success = True
+            for pixel_data in pixels:
+                x, y, _other, color = pixel_data
+                result = callback(x, y, color)
+                if result is False:
+                    success = False
+            return success
 
-        Returns:
-            True if the frame was added successfully, False otherwise
+        if operation.operation_type == OperationType.CANVAS_FLOOD_FILL:
+            affected_pixels = data.get('affected_pixels', [])
+            # Undo data stores old_color; redo data stores new_color
+            color = data.get('old_color') if is_undo else data.get('new_color')
+            success = True
+            for x, y in affected_pixels:
+                if color is not None:
+                    result = callback(x, y, color)
+                    if result is False:
+                        success = False
+            return success
 
-        """
-        if self.add_frame_callback:
-            return self.add_frame_callback(frame_index, animation_name, frame_data)
-        LOG.warning('Add frame callback not set')
         return False
 
-    def _delete_frame(self, frame_index: int, animation_name: str) -> bool:
-        """Delete a frame from an animation.
+    # -- Film strip dispatch ------------------------------------------------
 
-        Args:
-            frame_index: Index of the frame to delete
-            animation_name: Name of the animation
+    def _dispatch_film_strip(  # noqa: PLR0912, PLR0915
+        self, operation: Operation, data: dict[str, Any], *, is_undo: bool
+    ) -> bool:
+        op_type = operation.operation_type
 
-        Returns:
-            True if the frame was deleted successfully, False otherwise
+        if op_type == OperationType.FILM_STRIP_FRAME_ADD:
+            if is_undo:
+                callback = getattr(self._manager, '_delete_frame_callback', None)
+                if callback:
+                    animation = data.get('animation_name')
+                    frame_index = data.get('frame_index')
+                    if animation is not None and frame_index is not None:
+                        return callback(animation, frame_index)
+            else:
+                callback = getattr(self._manager, '_add_frame_callback', None)
+                if callback:
+                    animation = data.get('animation_name')
+                    frame_index = data.get('frame_index')
+                    frame_data = data.get('frame_data')
+                    if animation is not None and frame_index is not None and frame_data is not None:
+                        return callback(animation, frame_index, frame_data)
+            return False
 
-        """
-        if self.delete_frame_callback:
-            return self.delete_frame_callback(frame_index, animation_name)
-        LOG.warning('Delete frame callback not set')
+        if op_type == OperationType.FILM_STRIP_FRAME_DELETE:
+            if is_undo:
+                callback = getattr(self._manager, '_add_frame_callback', None)
+                if callback:
+                    animation = data.get('animation_name')
+                    frame_index = data.get('frame_index')
+                    frame_data = data.get('frame_data')
+                    if animation is not None and frame_index is not None and frame_data is not None:
+                        return callback(animation, frame_index, frame_data)
+            else:
+                callback = getattr(self._manager, '_delete_frame_callback', None)
+                if callback:
+                    animation = data.get('animation_name')
+                    frame_index = data.get('frame_index')
+                    if animation is not None and frame_index is not None:
+                        return callback(animation, frame_index)
+            return False
+
+        if op_type == OperationType.FILM_STRIP_FRAME_REORDER:
+            callback = getattr(self._manager, '_reorder_frame_callback', None)
+            if callback:
+                animation = data.get('animation')
+                order = data.get('original_order') if is_undo else data.get('new_order')
+                if animation and order:
+                    return callback(animation, order)
+            return False
+
+        if op_type == OperationType.FILM_STRIP_ANIMATION_ADD:
+            if is_undo:
+                callback = getattr(self._manager, '_delete_animation_callback', None)
+                if callback:
+                    animation = data.get('animation_name')
+                    if animation:
+                        return callback(animation)
+            else:
+                callback = getattr(self._manager, '_add_animation_callback', None)
+                if callback:
+                    animation = data.get('animation_name')
+                    animation_data = data.get('animation_data')
+                    if animation and animation_data is not None:
+                        return callback(animation, animation_data)
+            return False
+
+        if op_type == OperationType.FILM_STRIP_ANIMATION_DELETE:
+            if is_undo:
+                callback = getattr(self._manager, '_add_animation_callback', None)
+                if callback:
+                    animation = data.get('animation_name')
+                    animation_data = data.get('animation_data')
+                    if animation and animation_data is not None:
+                        return callback(animation, animation_data)
+            else:
+                callback = getattr(self._manager, '_delete_animation_callback', None)
+                if callback:
+                    animation = data.get('animation_name')
+                    if animation:
+                        return callback(animation)
+            return False
+
         return False
 
-    def _reorder_frame(self, old_index: int, new_index: int, animation_name: str) -> bool:
-        """Reorder frames in an animation.
+    # -- Cross-area dispatch ------------------------------------------------
 
-        Args:
-            old_index: Original index of the frame
-            new_index: New index of the frame
-            animation_name: Name of the animation
-
-        Returns:
-            True if the frame was reordered successfully, False otherwise
-
-        """
-        if self.reorder_frame_callback:
-            return self.reorder_frame_callback(old_index, new_index, animation_name)
-        LOG.warning('Reorder frame callback not set')
-        return False
-
-    def _add_animation(self, animation_name: str, animation_data: dict[str, Any]) -> bool:
-        """Add an animation.
-
-        Args:
-            animation_name: Name of the animation to add
-            animation_data: Data about the animation to add
-
-        Returns:
-            True if the animation was added successfully, False otherwise
-
-        """
-        if self.add_animation_callback:
-            return self.add_animation_callback(animation_name, animation_data)
-        LOG.warning('Add animation callback not set')
-        return False
-
-    def _delete_animation(self, animation_name: str) -> bool:
-        """Delete an animation.
-
-        Args:
-            animation_name: Name of the animation to delete
-
-        Returns:
-            True if the animation was deleted successfully, False otherwise
-
-        """
-        if self.delete_animation_callback:
-            return self.delete_animation_callback(animation_name)
-        LOG.warning('Delete animation callback not set')
-        return False
-
-    def _undo_frame_selection_operation(self, operation: Operation) -> bool:
-        """Undo a frame selection operation.
-
-        Args:
-            operation: The frame selection operation to undo
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        try:
-            # Get the previous frame selection from undo_data
-            previous_animation = operation.undo_data.get('animation')
-            previous_frame = operation.undo_data.get('frame')
-
-            if previous_animation is None or previous_frame is None:
-                LOG.warning('Frame selection undo data missing animation or frame')
-                return False
-
-            # Switch to the previous frame selection
-            if self.frame_selection_callback:
-                success = self.frame_selection_callback(previous_animation, previous_frame)
-                if success:
-                    # Update the manager's current frame
-                    self.current_frame = (previous_animation, previous_frame)
-                    LOG.debug(
-                        f'Frame selection undo: switched to {previous_animation}[{previous_frame}]'
-                    )
-                    return True
-                LOG.warning(
-                    f'Frame selection callback failed for {previous_animation}[{previous_frame}]'
+    def _dispatch_cross_area(
+        self, operation: Operation, data: dict[str, Any], *, is_undo: bool
+    ) -> bool:
+        if operation.operation_type == OperationType.FRAME_PASTE:
+            callback = getattr(self._manager, '_frame_paste_callback', None)
+            if callback:
+                return callback(
+                    data['animation'],
+                    data['frame'],
+                    data['pixels'],
+                    data['duration'],
                 )
-                return False
-            LOG.warning('Frame selection callback not set')
+            LOG.warning('No frame paste callback available')
             return False
+        return False
 
-        except Exception:
-            LOG.exception('Error undoing frame selection')
-            return False
+    # -- Frame selection dispatch -------------------------------------------
 
-    def _redo_frame_selection_operation(self, operation: Operation) -> bool:
-        """Redo a frame selection operation.
-
-        Args:
-            operation: The frame selection operation to redo
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        try:
-            # Get the frame selection from redo_data
-            animation = operation.redo_data.get('animation')
-            frame = operation.redo_data.get('frame')
-
-            if animation is None or frame is None:
-                LOG.warning('Frame selection redo data missing animation or frame')
-                return False
-
-            # Switch to the frame selection
-            if self.frame_selection_callback:
-                success = self.frame_selection_callback(animation, frame)
+    def _dispatch_frame_selection(self, data: dict[str, Any]) -> bool:
+        callback = getattr(self._manager, '_frame_selection_callback', None)
+        if callback:
+            animation = data.get('animation')
+            frame = data.get('frame')
+            if animation is not None and frame is not None:
+                success = callback(animation, frame)
                 if success:
-                    # Update the manager's current frame
-                    self.current_frame = (animation, frame)
-                    LOG.debug(f'Frame selection redo: switched to {animation}[{frame}]')
-                    return True
-                LOG.warning(f'Frame selection callback failed for {animation}[{frame}]')
-                return False
-            LOG.warning('Frame selection callback not set')
-            return False
-
-        except Exception:
-            LOG.exception('Error redoing frame selection')
-            return False
-
-    def _undo_film_strip_frame_add(self, data: dict[str, Any]) -> bool:
-        """Undo frame addition by deleting the frame.
-
-        Args:
-            data: The undo data dictionary
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        if not self.delete_frame_callback:
-            LOG.warning('Delete frame callback not set')
-            return False
-        # Note: uses animation_name, not animation
-        animation = data.get('animation_name')
-        frame_index = data.get('frame_index')
-        if animation and frame_index is not None:
-            return self.delete_frame_callback(animation, frame_index)
-        LOG.warning('Frame add undo data missing animation_name or frame_index')
+                    self._manager.current_frame = (animation, frame)
+                return success
+        LOG.warning('Frame selection callback not set')
         return False
 
-    def _undo_film_strip_frame_delete(self, data: dict[str, Any]) -> bool:
-        """Undo frame deletion by adding the frame back.
+    # -- Controller dispatch ------------------------------------------------
 
-        Args:
-            data: The undo data dictionary
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        if not self.add_frame_callback:
-            LOG.warning('Add frame callback not set')
-            return False
-        # Note: uses animation_name, not animation
-        animation = data.get('animation_name')
-        frame_index = data.get('frame_index')
-        frame_data = data.get('frame_data')
-        if animation and frame_index is not None and frame_data is not None:
-            return self.add_frame_callback(animation, frame_index, frame_data)
-        LOG.warning('Frame delete undo data missing animation_name, frame_index, or frame_data')
+    def _dispatch_controller_position(self, data: dict[str, Any], *, is_undo: bool) -> bool:
+        callback = getattr(self._manager, '_controller_position_callback', None)
+        if callback:
+            controller_id = data.get('controller_id')
+            position = data.get('old_position') if is_undo else data.get('new_position')
+            mode = data.get('old_mode') if is_undo else data.get('new_mode')
+            if controller_id is not None and position is not None:
+                return callback(controller_id, position, mode)
+        LOG.warning('Controller position callback not set')
         return False
 
-    def _undo_film_strip_animation_add(self, data: dict[str, Any]) -> bool:
-        """Undo animation addition by deleting the animation.
-
-        Args:
-            data: The undo data dictionary
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        if not self.delete_animation_callback:
-            LOG.warning('Delete animation callback not set')
-            return False
-        # Note: uses animation_name, not animation
-        animation = data.get('animation_name')
-        if animation:
-            return self.delete_animation_callback(animation)
-        LOG.warning('Animation add undo data missing animation_name')
+    def _dispatch_controller_mode(self, data: dict[str, Any], *, is_undo: bool) -> bool:
+        callback = getattr(self._manager, '_controller_mode_callback', None)
+        if callback:
+            controller_id = data.get('controller_id')
+            mode = data.get('old_mode') if is_undo else data.get('new_mode')
+            if controller_id is not None and mode is not None:
+                return callback(controller_id, mode)
+        LOG.warning('Controller mode callback not set')
         return False
-
-    def _undo_film_strip_animation_delete(self, data: dict[str, Any]) -> bool:
-        """Undo animation deletion by adding the animation back.
-
-        Args:
-            data: The undo data dictionary
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        if not self.add_animation_callback:
-            LOG.warning('Add animation callback not set')
-            return False
-        # Note: uses animation_name, not animation
-        animation = data.get('animation_name')
-        animation_data = data.get('animation_data')
-        if animation and animation_data is not None:
-            return self.add_animation_callback(animation, animation_data)
-        LOG.warning('Animation delete undo data missing animation_name or animation_data')
-        return False
-
-    def _undo_film_strip_frame_reorder(self, data: dict[str, Any]) -> bool:
-        """Undo frame reordering by restoring original order.
-
-        Args:
-            data: The undo data dictionary
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        if not self.reorder_frame_callback:
-            LOG.warning('Reorder frame callback not set')
-            return False
-        animation = data.get('animation')
-        original_order = data.get('original_order')
-        if animation and original_order:
-            return self.reorder_frame_callback(animation, original_order)
-        LOG.warning('Frame reorder undo data missing animation or original_order')
-        return False
-
-    def _undo_film_strip_operation(self, operation: Operation) -> bool:
-        """Undo a film strip operation.
-
-        Args:
-            operation: The film strip operation to undo
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        undo_dispatch = {
-            OperationType.FILM_STRIP_FRAME_ADD: self._undo_film_strip_frame_add,
-            OperationType.FILM_STRIP_FRAME_DELETE: self._undo_film_strip_frame_delete,
-            OperationType.FILM_STRIP_ANIMATION_ADD: self._undo_film_strip_animation_add,
-            OperationType.FILM_STRIP_ANIMATION_DELETE: self._undo_film_strip_animation_delete,
-            OperationType.FILM_STRIP_FRAME_REORDER: self._undo_film_strip_frame_reorder,
-        }
-        try:
-            handler = undo_dispatch.get(operation.operation_type)
-            if handler:
-                return handler(operation.undo_data)
-            LOG.warning(f'Unknown film strip operation type: {operation.operation_type}')
-            return False
-        except Exception:
-            LOG.exception('Error undoing film strip operation')
-            return False
-
-    def _redo_film_strip_frame_add(self, data: dict[str, Any]) -> bool:
-        """Redo frame addition by adding the frame.
-
-        Args:
-            data: The redo data dictionary
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        if not self.add_frame_callback:
-            LOG.warning('Add frame callback not set')
-            return False
-        # Note: uses animation_name, not animation
-        animation = data.get('animation_name')
-        frame_index = data.get('frame_index')
-        frame_data = data.get('frame_data')
-        if animation and frame_index is not None and frame_data is not None:
-            return self.add_frame_callback(animation, frame_index, frame_data)
-        LOG.warning('Frame add redo data missing animation_name, frame_index, or frame_data')
-        return False
-
-    def _redo_film_strip_frame_delete(self, data: dict[str, Any]) -> bool:
-        """Redo frame deletion by deleting the frame.
-
-        Args:
-            data: The redo data dictionary
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        if not self.delete_frame_callback:
-            LOG.warning('Delete frame callback not set')
-            return False
-        # Note: uses animation_name, not animation
-        animation = data.get('animation_name')
-        frame_index = data.get('frame_index')
-        if animation and frame_index is not None:
-            return self.delete_frame_callback(animation, frame_index)
-        LOG.warning('Frame delete redo data missing animation_name or frame_index')
-        return False
-
-    def _redo_film_strip_animation_add(self, data: dict[str, Any]) -> bool:
-        """Redo animation addition by adding the animation.
-
-        Args:
-            data: The redo data dictionary
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        if not self.add_animation_callback:
-            LOG.warning('Add animation callback not set')
-            return False
-        # Note: uses animation_name, not animation
-        animation = data.get('animation_name')
-        animation_data = data.get('animation_data')
-        if animation and animation_data is not None:
-            return self.add_animation_callback(animation, animation_data)
-        LOG.warning('Animation add redo data missing animation_name or animation_data')
-        return False
-
-    def _redo_film_strip_animation_delete(self, data: dict[str, Any]) -> bool:
-        """Redo animation deletion by deleting the animation.
-
-        Args:
-            data: The redo data dictionary
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        if not self.delete_animation_callback:
-            LOG.warning('Delete animation callback not set')
-            return False
-        # Note: uses animation_name, not animation
-        animation = data.get('animation_name')
-        if animation:
-            return self.delete_animation_callback(animation)
-        LOG.warning('Animation delete redo data missing animation_name')
-        return False
-
-    def _redo_film_strip_frame_reorder(self, data: dict[str, Any]) -> bool:
-        """Redo frame reordering by applying the new order.
-
-        Args:
-            data: The redo data dictionary
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        if not self.reorder_frame_callback:
-            LOG.warning('Reorder frame callback not set')
-            return False
-        animation = data.get('animation')
-        new_order = data.get('new_order')
-        if animation and new_order:
-            return self.reorder_frame_callback(animation, new_order)
-        LOG.warning('Frame reorder redo data missing animation or new_order')
-        return False
-
-    def _redo_film_strip_operation(self, operation: Operation) -> bool:
-        """Redo a film strip operation.
-
-        Args:
-            operation: The film strip operation to redo
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        redo_dispatch = {
-            OperationType.FILM_STRIP_FRAME_ADD: self._redo_film_strip_frame_add,
-            OperationType.FILM_STRIP_FRAME_DELETE: self._redo_film_strip_frame_delete,
-            OperationType.FILM_STRIP_ANIMATION_ADD: self._redo_film_strip_animation_add,
-            OperationType.FILM_STRIP_ANIMATION_DELETE: self._redo_film_strip_animation_delete,
-            OperationType.FILM_STRIP_FRAME_REORDER: self._redo_film_strip_frame_reorder,
-        }
-        try:
-            handler = redo_dispatch.get(operation.operation_type)
-            if handler:
-                return handler(operation.redo_data)
-            LOG.warning(f'Unknown film strip operation type: {operation.operation_type}')
-            return False
-        except Exception:
-            LOG.exception('Error redoing film strip operation')
-            return False
-
-    def _undo_controller_position_operation(self, operation: Operation) -> bool:
-        """Undo a controller position change operation.
-
-        Args:
-            operation: The operation to undo
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        try:
-            if self.controller_position_callback:
-                controller_id = operation.undo_data.get('controller_id')
-                old_position = operation.undo_data.get('old_position')
-                old_mode = operation.undo_data.get('old_mode')
-                if controller_id is not None and old_position is not None:
-                    return self.controller_position_callback(controller_id, old_position, old_mode)
-                LOG.warning('Controller position undo data missing controller_id or old_position')
-                return False
-            LOG.warning('Controller position callback not set')
-            return False
-
-        except Exception:
-            LOG.exception('Error undoing controller position operation')
-            return False
-
-    def _redo_controller_position_operation(self, operation: Operation) -> bool:
-        """Redo a controller position change operation.
-
-        Args:
-            operation: The operation to redo
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        try:
-            if self.controller_position_callback:
-                controller_id = operation.redo_data.get('controller_id')
-                new_position = operation.redo_data.get('new_position')
-                new_mode = operation.redo_data.get('new_mode')
-                if controller_id is not None and new_position is not None:
-                    return self.controller_position_callback(controller_id, new_position, new_mode)
-                LOG.warning('Controller position redo data missing controller_id or new_position')
-                return False
-            LOG.warning('Controller position callback not set')
-            return False
-
-        except Exception:
-            LOG.exception('Error redoing controller position operation')
-            return False
-
-    def _undo_controller_mode_operation(self, operation: Operation) -> bool:
-        """Undo a controller mode change operation.
-
-        Args:
-            operation: The operation to undo
-
-        Returns:
-            True if undo was successful, False otherwise
-
-        """
-        try:
-            if self.controller_mode_callback:
-                controller_id = operation.undo_data.get('controller_id')
-                old_mode = operation.undo_data.get('old_mode')
-                if controller_id is not None and old_mode is not None:
-                    return self.controller_mode_callback(controller_id, old_mode)
-                LOG.warning('Controller mode undo data missing controller_id or old_mode')
-                return False
-            LOG.warning('Controller mode callback not set')
-            return False
-
-        except Exception:
-            LOG.exception('Error undoing controller mode operation')
-            return False
-
-    def _redo_controller_mode_operation(self, operation: Operation) -> bool:
-        """Redo a controller mode change operation.
-
-        Args:
-            operation: The operation to redo
-
-        Returns:
-            True if redo was successful, False otherwise
-
-        """
-        try:
-            if self.controller_mode_callback:
-                controller_id = operation.redo_data.get('controller_id')
-                new_mode = operation.redo_data.get('new_mode')
-                if controller_id is not None and new_mode is not None:
-                    return self.controller_mode_callback(controller_id, new_mode)
-                LOG.warning('Controller mode redo data missing controller_id or new_mode')
-                return False
-            LOG.warning('Controller mode callback not set')
-            return False
-
-        except Exception:
-            LOG.exception('Error redoing controller mode operation')
-            return False
