@@ -101,7 +101,9 @@ class EditorContext(Protocol):
         """Update scroll arrow visibility based on scroll position."""
         ...
 
-    def on_film_strip_frame_selected(self, film_strip_widget: Any, animation: str, frame: int) -> None:
+    def on_film_strip_frame_selected(
+        self, film_strip_widget: Any, animation: str, frame: int
+    ) -> None:
         """Handle a frame selection event from a film strip widget."""
         ...
 
