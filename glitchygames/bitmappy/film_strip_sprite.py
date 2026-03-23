@@ -827,9 +827,9 @@ class FilmStripSprite(BitmappySprite):
         if (
             hasattr(self, 'parent_scene')
             and self.parent_scene
-            and hasattr(self.parent_scene, '_on_frame_inserted')
+            and hasattr(self.parent_scene, 'on_frame_inserted')
         ):
-            self.parent_scene._on_frame_inserted(current_animation, insert_index)  # type: ignore[reportPrivateUsage]
+            self.parent_scene.on_frame_inserted(current_animation, insert_index)  # type: ignore[reportPrivateUsage]
 
         # Select the newly created frame
         self.film_strip_widget.set_current_frame(current_animation, insert_index)

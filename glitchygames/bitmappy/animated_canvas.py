@@ -601,7 +601,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Notify the parent scene about the frame change
             if hasattr(self, 'parent_scene') and self.parent_scene:
                 self.log.debug(f'Notifying parent scene about frame change: {animation}[{frame}]')
-                self.parent_scene._update_film_strips_for_frame(animation, frame)  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator.update_film_strips_for_frame(
+                    animation, frame
+                )
             else:
                 self.log.debug('No parent scene found to notify about frame change')
 
@@ -621,7 +623,9 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Notify parent scene to update film strips
             if hasattr(self, 'parent_scene') and self.parent_scene:
-                self.parent_scene._update_film_strips_for_frame(animation, frame)  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator.update_film_strips_for_frame(
+                    animation, frame
+                )
 
             # Note: Live preview functionality is now integrated into the film strip
 
@@ -639,7 +643,9 @@ class AnimatedCanvasSprite(BitmappySprite):
                     'Notifying parent scene about frame change:'
                     f' {self.current_animation}[{self.current_frame}]'
                 )
-                self.parent_scene._switch_to_film_strip(self.current_animation, self.current_frame)  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator.switch_to_film_strip(
+                    self.current_animation, self.current_frame
+                )
 
     def previous_frame(self) -> None:
         """Move to the previous frame in the current animation."""
@@ -655,7 +661,9 @@ class AnimatedCanvasSprite(BitmappySprite):
                     'Notifying parent scene about frame change:'
                     f' {self.current_animation}[{self.current_frame}]'
                 )
-                self.parent_scene._switch_to_film_strip(self.current_animation, self.current_frame)  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator.switch_to_film_strip(
+                    self.current_animation, self.current_frame
+                )
 
     def next_animation(self) -> None:
         """Move to the next animation."""
@@ -689,7 +697,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Notify the parent scene to switch film strips
             if hasattr(self, 'parent_scene') and self.parent_scene:
                 self.log.debug(f'Notifying parent scene to switch to film strip {next_animation}')
-                self.parent_scene._switch_to_film_strip(next_animation, preserved_frame)  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator.switch_to_film_strip(
+                    next_animation, preserved_frame
+                )
 
     def previous_animation(self) -> None:
         """Move to the previous animation."""
@@ -723,7 +733,9 @@ class AnimatedCanvasSprite(BitmappySprite):
             # Notify the parent scene to switch film strips
             if hasattr(self, 'parent_scene') and self.parent_scene:
                 self.log.debug(f'Notifying parent scene to switch to film strip {prev_animation}')
-                self.parent_scene._switch_to_film_strip(prev_animation, preserved_frame)  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator.switch_to_film_strip(
+                    prev_animation, preserved_frame
+                )
 
     def handle_keyboard_event(self, key: int) -> None:
         """Handle keyboard navigation events."""
@@ -1053,7 +1065,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             self.dirty = 1
             if hasattr(self, 'parent_scene') and self.parent_scene:
-                self.parent_scene._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
 
     def _flush_batched_drag_pixels(self) -> None:
         """Apply all batched pixel changes from a drag operation to the sprite frame."""
@@ -1139,7 +1151,7 @@ class AnimatedCanvasSprite(BitmappySprite):
                 self._update_animated_sprite_frame()
 
             if hasattr(self, 'parent_scene') and self.parent_scene:
-                self.parent_scene._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
 
         self._cleanup_drag_state()
         self.dirty = 1
@@ -1194,7 +1206,7 @@ class AnimatedCanvasSprite(BitmappySprite):
 
             # Notify parent scene to update film strips
             if hasattr(self, 'parent_scene') and self.parent_scene:
-                self.parent_scene._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
+                self.parent_scene.film_strip_coordinator._update_film_strips_for_pixel_update()  # type: ignore[reportPrivateUsage]
 
             # Update the animated sprite's frame data
             if hasattr(self, 'animated_sprite'):
@@ -1474,7 +1486,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         if hasattr(self, 'parent_scene') and self.parent_scene:
             self.log.debug('Calling parent scene _on_sprite_loaded')
             LOG.debug('DEBUG: Calling parent scene _on_sprite_loaded')
-            self.parent_scene._on_sprite_loaded(loaded_sprite)  # type: ignore[reportPrivateUsage]
+            self.parent_scene.film_strip_coordinator.on_sprite_loaded(loaded_sprite)
         elif hasattr(self, 'on_sprite_loaded') and self.on_sprite_loaded:  # type: ignore[attr-defined]
             self.log.debug('Calling on_sprite_loaded callback')
             LOG.debug('DEBUG: Calling on_sprite_loaded callback')
@@ -1839,7 +1851,7 @@ class AnimatedCanvasSprite(BitmappySprite):
         frame.image = self._build_surface_from_canvas_pixels()
 
         if hasattr(self, 'parent_scene') and self.parent_scene:
-            self.parent_scene._update_film_strips_for_animated_sprite_update()  # type: ignore[reportPrivateUsage]
+            self.parent_scene.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
 
     def get_canvas_surface(self) -> pygame.Surface:
         """Get the current canvas surface for the film strip.

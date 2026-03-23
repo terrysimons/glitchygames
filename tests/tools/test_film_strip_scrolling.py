@@ -126,13 +126,13 @@ class TestFilmStripScrolling:
             'anim4': self._mocker.Mock(),
         }
 
-        # Mock the update methods
-        self.scene.update_film_strip_visibility = self._mocker.Mock()
-        self.scene.update_scroll_arrows = self._mocker.Mock()
-        self.scene._update_film_strip_selection = self._mocker.Mock()
+        # Mock the update methods on the coordinator (which calls them internally)
+        self.scene.film_strip_coordinator.update_film_strip_visibility = self._mocker.Mock()
+        self.scene.film_strip_coordinator.update_scroll_arrows = self._mocker.Mock()
+        self.scene.film_strip_coordinator._update_film_strip_selection = self._mocker.Mock()
 
         # Call auto-scroll
-        self.scene._scroll_to_current_animation()
+        self.scene.film_strip_coordinator.scroll_to_current_animation()
 
         # Should scroll to show the last animation (offset should be 2)
         assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_2
@@ -168,13 +168,13 @@ class TestFilmStripScrolling:
         # Set scroll offset to show first 2 animations
         self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0
 
-        # Mock the update methods
-        self.scene.update_film_strip_visibility = self._mocker.Mock()
-        self.scene.update_scroll_arrows = self._mocker.Mock()
-        self.scene._update_film_strip_selection = self._mocker.Mock()
+        # Mock the update methods on the coordinator (which calls them internally)
+        self.scene.film_strip_coordinator.update_film_strip_visibility = self._mocker.Mock()
+        self.scene.film_strip_coordinator.update_scroll_arrows = self._mocker.Mock()
+        self.scene.film_strip_coordinator._update_film_strip_selection = self._mocker.Mock()
 
         # Call auto-scroll
-        self.scene._scroll_to_current_animation()
+        self.scene.film_strip_coordinator.scroll_to_current_animation()
 
         # Should not change offset since "anim2" is already visible
         assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_0
@@ -189,7 +189,7 @@ class TestFilmStripScrolling:
         self.scene.canvas = self._mocker.Mock()
 
         # Switch to "anim2"
-        self.scene._switch_to_film_strip('anim2', 1)
+        self.scene.film_strip_coordinator.switch_to_film_strip('anim2', 1)
 
         # Check global selection state
         assert self.scene.selected_animation == 'anim2'
@@ -208,7 +208,7 @@ class TestFilmStripScrolling:
         self.scene.canvas = self._mocker.Mock()
 
         # Switch to "anim2"
-        self.scene._switch_to_film_strip('anim2', SCROLL_OFFSET_0)
+        self.scene.film_strip_coordinator.switch_to_film_strip('anim2', SCROLL_OFFSET_0)
 
         # Check that the film strip sprite is marked as dirty
         self.scene.film_strip_sprites['anim2'].dirty = DIRTY_VALUE

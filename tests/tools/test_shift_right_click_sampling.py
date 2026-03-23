@@ -12,8 +12,8 @@ LOG = logging.getLogger(__name__)
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.bitmappy import editor as bitmappy  # noqa: E402
 from glitchygames.bitmappy import film_strip  # noqa: E402
+from glitchygames.bitmappy import film_strip_sprite as film_strip_sprite_module  # noqa: E402
 from tests.mocks.test_mock_factory import MockFactory  # noqa: E402
 
 
@@ -30,7 +30,7 @@ class TestShiftRightClickSampling:
         self.film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Create film strip sprite
-        self.film_strip_sprite = bitmappy.FilmStripSprite(
+        self.film_strip_sprite = film_strip_sprite_module.FilmStripSprite(
             film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100
         )
 

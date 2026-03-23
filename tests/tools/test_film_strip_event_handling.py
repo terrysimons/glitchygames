@@ -8,8 +8,8 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.bitmappy import editor as bitmappy
 from glitchygames.bitmappy import film_strip
+from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -26,7 +26,7 @@ class TestFilmStripEventHandling:
         self.film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Create film strip sprite
-        self.film_strip_sprite = bitmappy.FilmStripSprite(
+        self.film_strip_sprite = FilmStripSprite(
             film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100
         )
 

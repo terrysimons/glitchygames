@@ -36,9 +36,9 @@ class TestControllerDragContinuousMovement:
         scene._applying_undo_redo = False
 
         # Set up controller handler with drag and movement tracking
-        scene._controller_handler = mocker.Mock(spec=ControllerEventHandler)
-        scene._controller_handler.controller_drags = {}
-        scene._controller_handler.canvas_continuous_movements = {}
+        scene.controller_handler = mocker.Mock(spec=ControllerEventHandler)
+        scene.controller_handler.controller_drags = {}
+        scene.controller_handler.canvas_continuous_movements = {}
 
         # Mock canvas interface
         scene.canvas = mocker.Mock()
@@ -71,7 +71,7 @@ class TestControllerDragContinuousMovement:
         controller_id = 0
 
         # Start a controller drag
-        mock_scene._controller_handler.controller_drags[controller_id] = {
+        mock_scene.controller_handler.controller_drags[controller_id] = {
             'active': True,
             'start_time': time.time(),
             'start_position': (5, 5),
@@ -81,7 +81,7 @@ class TestControllerDragContinuousMovement:
         }
 
         # Set up continuous movement
-        mock_scene._controller_handler.canvas_continuous_movements[controller_id] = {
+        mock_scene.controller_handler.canvas_continuous_movements[controller_id] = {
             'start_time': time.time(),
             'last_movement': time.time() - 0.2,  # Ready for next movement
             'dx': 1,
@@ -112,15 +112,15 @@ class TestControllerDragContinuousMovement:
         real_handler = ControllerEventHandler.__new__(ControllerEventHandler)
         real_handler.editor = real_scene
         real_handler.log = mocker.Mock()
-        real_handler.controller_drags = mock_scene._controller_handler.controller_drags
+        real_handler.controller_drags = mock_scene.controller_handler.controller_drags
         real_handler.canvas_continuous_movements = (
-            mock_scene._controller_handler.canvas_continuous_movements
+            mock_scene.controller_handler.canvas_continuous_movements
         )
         real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
         real_handler._canvas_paint_at_controller_position = (
             mock_scene._canvas_paint_at_controller_position
         )
-        real_scene._controller_handler = real_handler
+        real_scene.controller_handler = real_handler
         # Controller handler code references self.editor.* for state
         real_scene.controller_drags = real_handler.controller_drags
         real_scene.canvas_continuous_movements = real_handler.canvas_continuous_movements
@@ -140,7 +140,7 @@ class TestControllerDragContinuousMovement:
         controller_id = 0
 
         # Start a controller drag
-        mock_scene._controller_handler.controller_drags[controller_id] = {
+        mock_scene.controller_handler.controller_drags[controller_id] = {
             'active': True,
             'start_time': time.time(),
             'start_position': (5, 5),
@@ -150,7 +150,7 @@ class TestControllerDragContinuousMovement:
         }
 
         # Don't set up continuous movement
-        # mock_scene._controller_handler.canvas_continuous_movements = {}  # Empty
+        # mock_scene.controller_handler.canvas_continuous_movements = {}  # Empty
 
         # Simulate continuous movement update
         mock_scene._update_canvas_continuous_movements()
@@ -164,7 +164,7 @@ class TestControllerDragContinuousMovement:
         controller_id = 0
 
         # Set up continuous movement
-        mock_scene._controller_handler.canvas_continuous_movements[controller_id] = {
+        mock_scene.controller_handler.canvas_continuous_movements[controller_id] = {
             'start_time': time.time(),
             'last_movement': time.time() - 0.2,  # Ready for next movement
             'dx': 1,
@@ -182,15 +182,15 @@ class TestControllerDragContinuousMovement:
         real_handler = ControllerEventHandler.__new__(ControllerEventHandler)
         real_handler.editor = real_scene
         real_handler.log = mocker.Mock()
-        real_handler.controller_drags = mock_scene._controller_handler.controller_drags
+        real_handler.controller_drags = mock_scene.controller_handler.controller_drags
         real_handler.canvas_continuous_movements = (
-            mock_scene._controller_handler.canvas_continuous_movements
+            mock_scene.controller_handler.canvas_continuous_movements
         )
         real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
         real_handler._canvas_paint_at_controller_position = (
             mock_scene._canvas_paint_at_controller_position
         )
-        real_scene._controller_handler = real_handler
+        real_scene.controller_handler = real_handler
         # Controller handler code references self.editor.* for state
         real_scene.controller_drags = real_handler.controller_drags
         real_scene.canvas_continuous_movements = real_handler.canvas_continuous_movements
@@ -207,7 +207,7 @@ class TestControllerDragContinuousMovement:
         controller_id = 0
 
         # Start a controller drag but mark it as inactive
-        mock_scene._controller_handler.controller_drags[controller_id] = {
+        mock_scene.controller_handler.controller_drags[controller_id] = {
             'active': False,  # Inactive drag
             'start_time': time.time(),
             'start_position': (5, 5),
@@ -217,7 +217,7 @@ class TestControllerDragContinuousMovement:
         }
 
         # Set up continuous movement
-        mock_scene._controller_handler.canvas_continuous_movements[controller_id] = {
+        mock_scene.controller_handler.canvas_continuous_movements[controller_id] = {
             'start_time': time.time(),
             'last_movement': time.time() - 0.2,  # Ready for next movement
             'dx': 1,
@@ -233,15 +233,15 @@ class TestControllerDragContinuousMovement:
         real_handler = ControllerEventHandler.__new__(ControllerEventHandler)
         real_handler.editor = real_scene
         real_handler.log = mocker.Mock()
-        real_handler.controller_drags = mock_scene._controller_handler.controller_drags
+        real_handler.controller_drags = mock_scene.controller_handler.controller_drags
         real_handler.canvas_continuous_movements = (
-            mock_scene._controller_handler.canvas_continuous_movements
+            mock_scene.controller_handler.canvas_continuous_movements
         )
         real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
         real_handler._canvas_paint_at_controller_position = (
             mock_scene._canvas_paint_at_controller_position
         )
-        real_scene._controller_handler = real_handler
+        real_scene.controller_handler = real_handler
         # Controller handler code references self.editor.* for state
         real_scene.controller_drags = real_handler.controller_drags
         real_scene.canvas_continuous_movements = real_handler.canvas_continuous_movements

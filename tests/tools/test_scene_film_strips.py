@@ -35,7 +35,7 @@ class TestSceneFilmStrips:
         )
 
         # Load the sprite
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Test that film strips are created using the new dictionary-based system
         assert hasattr(scene, 'film_strips')
@@ -67,7 +67,7 @@ class TestSceneFilmStrips:
         )
 
         # Load the sprite
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Test that multiple film strips are created
         # Check for at least the animations we added (mock may create others)

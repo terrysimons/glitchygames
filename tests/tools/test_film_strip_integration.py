@@ -2,6 +2,7 @@
 
 from glitchygames.bitmappy import editor as bitmappy
 from glitchygames.bitmappy import film_strip
+from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 from glitchygames.sprites import AnimatedSprite
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -52,7 +53,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Film strip sprites are stored on the scene, keyed by animation name
         first_film_strip_sprite = next(iter(scene.film_strip_sprites.values()))
-        assert isinstance(first_film_strip_sprite, bitmappy.FilmStripSprite)
+        assert isinstance(first_film_strip_sprite, FilmStripSprite)
 
         # Test that film strip sprite has the widget matching its corresponding film strip
         first_film_strip = next(iter(scene.film_strips.values()))
@@ -103,7 +104,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -154,7 +155,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip and sprite from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -191,7 +192,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -367,7 +368,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -393,7 +394,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -415,7 +416,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -436,7 +437,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip and sprite from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -460,7 +461,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip and sprite from the new dictionary-based architecture
         film_strip = next(iter(scene.film_strips.values()))
@@ -497,7 +498,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
         mock_canvas = mock_factory.create_canvas_mock()
         scene.canvas = mock_canvas
 
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # In the new multi-film strip architecture, each animation gets its own film strip
         # So we should have 4 film strips (one for each animation)
@@ -527,7 +528,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(empty_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(empty_sprite)
 
         # Should handle empty sprite gracefully - no film strips should be created
         assert len(scene.film_strips) == 0
@@ -545,7 +546,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixel_size': PIXEL_SIZE,
             }
         )
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Get the first film strip and sprite from the new dictionary-based architecture
         film_strip_sprite = next(iter(scene.film_strip_sprites.values()))

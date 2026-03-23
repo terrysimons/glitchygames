@@ -132,11 +132,11 @@ def mock_editor(mocker, pygame_mocks):  # noqa: PLR0915
     # -- Controller handler (extracted subsystem) --
     from glitchygames.bitmappy.controller_handler import ControllerEventHandler
 
-    editor._controller_handler = ControllerEventHandler(editor)
+    editor.controller_handler = ControllerEventHandler(editor)
     # Controller handler code references self.editor.* for state
-    editor.controller_drags = editor._controller_handler.controller_drags
-    editor.canvas_continuous_movements = editor._controller_handler.canvas_continuous_movements
-    editor.slider_continuous_adjustments = editor._controller_handler.slider_continuous_adjustments
+    editor.controller_drags = editor.controller_handler.controller_drags
+    editor.canvas_continuous_movements = editor.controller_handler.canvas_continuous_movements
+    editor.slider_continuous_adjustments = editor.controller_handler.slider_continuous_adjustments
 
     # -- AI integration (extracted subsystem) --
     from glitchygames.bitmappy.ai_manager import AIManager
@@ -185,6 +185,11 @@ def mock_editor(mocker, pygame_mocks):  # noqa: PLR0915
 
     # -- Next scene --
     editor.next_scene = None
+
+    # -- Film strip coordinator (extracted subsystem) --
+    from glitchygames.bitmappy.film_strip_coordinator import FilmStripCoordinator
+
+    editor.film_strip_coordinator = FilmStripCoordinator(editor)
 
     return editor
 
@@ -289,7 +294,7 @@ class TestOnNewFileEvent:
         """Valid dimension string creates a new canvas."""
         mocker.patch.object(mock_editor, '_reset_canvas_for_new_file')
         mocker.patch.object(mock_editor, '_create_fresh_animated_sprite')
-        mocker.patch.object(mock_editor, '_clear_film_strips_for_new_canvas')
+        mocker.patch.object(mock_editor.film_strip_coordinator, 'clear_film_strips_for_new_canvas')
         mocker.patch.object(mock_editor, '_clear_ai_sprite_box')
         mocker.patch.object(mock_editor, '_update_ai_sprite_position')
         mock_editor.on_new_file_event('16x16')
@@ -412,7 +417,9 @@ class TestOnLeftMouseButtonDownEvent:
         mocker.patch.object(mock_editor, 'sprites_at_position', return_value=[])
         mocker.patch.object(mock_editor, '_detect_clicked_slider', return_value=None)
         mocker.patch.object(mock_editor, '_commit_and_deactivate_slider')
-        mocker.patch.object(mock_editor, '_is_mouse_in_film_strip_area', return_value=False)
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'is_mouse_in_film_strip_area', return_value=False
+        )
         event = _make_event(pos=(400, 300))
         mock_editor.on_left_mouse_button_down_event(event)
         assert mock_editor._commit_and_deactivate_slider.call_count == 3
@@ -422,7 +429,9 @@ class TestOnLeftMouseButtonDownEvent:
         mocker.patch.object(mock_editor, 'sprites_at_position', return_value=[])
         mocker.patch.object(mock_editor, '_detect_clicked_slider', return_value=None)
         mocker.patch.object(mock_editor, '_commit_and_deactivate_slider')
-        mocker.patch.object(mock_editor, '_is_mouse_in_film_strip_area', return_value=True)
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'is_mouse_in_film_strip_area', return_value=True
+        )
         event = _make_event(pos=(500, 200))
         mock_editor.on_left_mouse_button_down_event(event)
         assert mock_editor.is_dragging_film_strips is True
@@ -434,8 +443,10 @@ class TestOnLeftMouseButtonDownEvent:
         arrow.direction = 'up'
         arrow.visible = True
         mocker.patch.object(mock_editor, 'sprites_at_position', return_value=[arrow])
-        mocker.patch.object(mock_editor, '_scroll_to_current_animation')
-        mocker.patch.object(mock_editor, '_update_film_strips_for_animated_sprite_update')
+        mocker.patch.object(mock_editor.film_strip_coordinator, 'scroll_to_current_animation')
+        mocker.patch.object(
+            mock_editor.film_strip_coordinator, 'update_film_strips_for_animated_sprite_update'
+        )
         event = _make_event(pos=(500, 50))
         mock_editor.on_left_mouse_button_down_event(event)
         mock_editor.canvas.previous_animation.assert_called_once()
@@ -470,11 +481,13 @@ class TestOnLeftMouseDragEvent:
     def test_film_strip_drag_scroll(self, mock_editor, mocker):
         """Drag during film strip scroll calls handler."""
         mock_editor.is_dragging_film_strips = True
-        mocker.patch.object(mock_editor, '_handle_film_strip_drag_scroll')
+        mocker.patch.object(mock_editor.film_strip_coordinator, 'handle_film_strip_drag_scroll')
         event = _make_event(pos=(500, 250))
         trigger = mocker.Mock()
         mock_editor.on_left_mouse_drag_event(event, trigger)
-        mock_editor._handle_film_strip_drag_scroll.assert_called_once_with(250)
+        mock_editor.film_strip_coordinator.handle_film_strip_drag_scroll.assert_called_once_with(
+            250
+        )
 
     def test_canvas_drag_bypasses_sprite_iteration(self, mock_editor, mocker):
         """Drag on canvas skips expensive sprite iteration."""
@@ -742,7 +755,7 @@ class TestHandleArrowKeyNavigation:
 
     def test_up_arrow_previous_animation(self, mock_editor, mocker):
         """UP arrow navigates to previous animation."""
-        mocker.patch.object(mock_editor, '_scroll_to_current_animation')
+        mocker.patch.object(mock_editor.film_strip_coordinator, 'scroll_to_current_animation')
         event = mocker.Mock()
         event.key = pygame.K_UP
         result = mock_editor._handle_arrow_key_navigation(event)
@@ -751,7 +764,7 @@ class TestHandleArrowKeyNavigation:
 
     def test_down_arrow_next_animation(self, mock_editor, mocker):
         """DOWN arrow navigates to next animation."""
-        mocker.patch.object(mock_editor, '_scroll_to_current_animation')
+        mocker.patch.object(mock_editor.film_strip_coordinator, 'scroll_to_current_animation')
         event = mocker.Mock()
         event.key = pygame.K_DOWN
         result = mock_editor._handle_arrow_key_navigation(event)
@@ -1082,7 +1095,7 @@ class TestOnControllerButtonDownEvent:
         mock_editor.multi_controller_manager.assign_controller.return_value = 0
         mock_editor.multi_controller_manager.get_controller_id.return_value = 0
         mock_editor.mode_switcher.get_controller_mode.return_value = None
-        mocker.patch.object(mock_editor._controller_handler, '_handle_film_strip_button_press')
+        mocker.patch.object(mock_editor.controller_handler, '_handle_film_strip_button_press')
         event = mocker.Mock()
         event.instance_id = 42
         event.button = pygame.CONTROLLER_BUTTON_A
@@ -1098,12 +1111,12 @@ class TestOnControllerButtonDownEvent:
         mode = mocker.Mock()
         mode.value = 'canvas'
         mock_editor.mode_switcher.get_controller_mode.return_value = mode
-        mocker.patch.object(mock_editor._controller_handler, '_handle_canvas_button_press')
+        mocker.patch.object(mock_editor.controller_handler, '_handle_canvas_button_press')
         event = mocker.Mock()
         event.instance_id = 42
         event.button = pygame.CONTROLLER_BUTTON_A
         mock_editor.on_controller_button_down_event(event)
-        mock_editor._controller_handler._handle_canvas_button_press.assert_called_once_with(
+        mock_editor.controller_handler._handle_canvas_button_press.assert_called_once_with(
             0,
             pygame.CONTROLLER_BUTTON_A,
         )
@@ -1117,12 +1130,12 @@ class TestOnControllerButtonDownEvent:
         mode = mocker.Mock()
         mode.value = 'r_slider'
         mock_editor.mode_switcher.get_controller_mode.return_value = mode
-        mocker.patch.object(mock_editor._controller_handler, '_handle_slider_button_press')
+        mocker.patch.object(mock_editor.controller_handler, '_handle_slider_button_press')
         event = mocker.Mock()
         event.instance_id = 42
         event.button = pygame.CONTROLLER_BUTTON_DPAD_LEFT
         mock_editor.on_controller_button_down_event(event)
-        mock_editor._controller_handler._handle_slider_button_press.assert_called_once()
+        mock_editor.controller_handler._handle_slider_button_press.assert_called_once()
 
 
 class TestHandleFilmStripButtonPress:
@@ -1131,24 +1144,24 @@ class TestHandleFilmStripButtonPress:
     @pytest.fixture(autouse=True)
     def _setup_handle_undo(self, mock_editor, mocker):
         """Add _handle_undo to controller handler (referenced in button_handlers dict)."""
-        mock_editor._controller_handler.handle_undo = mocker.Mock()
+        mock_editor.controller_handler.handle_undo = mocker.Mock()
 
     def test_a_button_selects_frame(self, mock_editor, mocker):
         """A button calls _multi_controller_select_current_frame."""
         mocker.patch.object(
-            mock_editor._controller_handler, '_multi_controller_select_current_frame'
+            mock_editor.controller_handler, '_multi_controller_select_current_frame'
         )
-        mock_editor._controller_handler._handle_film_strip_button_press(
+        mock_editor.controller_handler._handle_film_strip_button_press(
             0, pygame.CONTROLLER_BUTTON_A
         )
-        mock_editor._controller_handler._multi_controller_select_current_frame.assert_called_once_with(
+        mock_editor.controller_handler._multi_controller_select_current_frame.assert_called_once_with(
             0
         )
 
     def test_b_button_calls_undo(self, mock_editor, mocker):
         """B button calls _handle_undo."""
         mocker.patch.object(mock_editor, 'handle_undo')
-        mock_editor._controller_handler._handle_film_strip_button_press(
+        mock_editor.controller_handler._handle_film_strip_button_press(
             0, pygame.CONTROLLER_BUTTON_B
         )
         mock_editor.handle_undo.assert_called_once()
@@ -1157,7 +1170,7 @@ class TestHandleFilmStripButtonPress:
         """X button calls redo when selected frame is visible."""
         mocker.patch.object(mock_editor, 'handle_redo')
         mock_editor.selected_frame_visible = True
-        mock_editor._controller_handler._handle_film_strip_button_press(
+        mock_editor.controller_handler._handle_film_strip_button_press(
             0, pygame.CONTROLLER_BUTTON_X
         )
         mock_editor.handle_redo.assert_called_once()
@@ -1166,32 +1179,32 @@ class TestHandleFilmStripButtonPress:
         """X button is disabled when selected frame is hidden."""
         mocker.patch.object(mock_editor, 'handle_redo')
         mock_editor.selected_frame_visible = False
-        mock_editor._controller_handler._handle_film_strip_button_press(
+        mock_editor.controller_handler._handle_film_strip_button_press(
             0, pygame.CONTROLLER_BUTTON_X
         )
         mock_editor.handle_redo.assert_not_called()
 
     def test_dpad_left_previous_frame(self, mock_editor, mocker):
         """D-pad left calls previous frame."""
-        mocker.patch.object(mock_editor._controller_handler, '_multi_controller_previous_frame')
-        mock_editor._controller_handler._handle_film_strip_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_multi_controller_previous_frame')
+        mock_editor.controller_handler._handle_film_strip_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_LEFT
         )
-        mock_editor._controller_handler._multi_controller_previous_frame.assert_called_once_with(0)
+        mock_editor.controller_handler._multi_controller_previous_frame.assert_called_once_with(0)
 
     def test_dpad_right_next_frame(self, mock_editor, mocker):
         """D-pad right calls next frame."""
-        mocker.patch.object(mock_editor._controller_handler, '_multi_controller_next_frame')
-        mock_editor._controller_handler._handle_film_strip_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_multi_controller_next_frame')
+        mock_editor.controller_handler._handle_film_strip_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_RIGHT
         )
-        mock_editor._controller_handler._multi_controller_next_frame.assert_called_once_with(0)
+        mock_editor.controller_handler._multi_controller_next_frame.assert_called_once_with(0)
 
     def test_unhandled_button_no_crash(self, mock_editor, mocker):
         """Unhandled button doesn't crash."""
         # _handle_undo is referenced in the button_handlers dict, so it must exist
-        mock_editor._controller_handler.handle_undo = mocker.Mock()
-        mock_editor._controller_handler._handle_film_strip_button_press(0, 999)
+        mock_editor.controller_handler.handle_undo = mocker.Mock()
+        mock_editor.controller_handler._handle_film_strip_button_press(0, 999)
 
 
 class TestHandleCanvasButtonPress:
@@ -1199,85 +1212,85 @@ class TestHandleCanvasButtonPress:
 
     def test_a_button_calls_handler(self, mock_editor, mocker):
         """A button dispatches to canvas A handler."""
-        mocker.patch.object(mock_editor._controller_handler, '_handle_canvas_a_button')
-        mock_editor._controller_handler._handle_canvas_button_press(0, pygame.CONTROLLER_BUTTON_A)
-        mock_editor._controller_handler._handle_canvas_a_button.assert_called_once_with(0)
+        mocker.patch.object(mock_editor.controller_handler, '_handle_canvas_a_button')
+        mock_editor.controller_handler._handle_canvas_button_press(0, pygame.CONTROLLER_BUTTON_A)
+        mock_editor.controller_handler._handle_canvas_a_button.assert_called_once_with(0)
 
     def test_b_button_calls_undo(self, mock_editor, mocker):
         """B button calls undo."""
         mocker.patch.object(mock_editor, 'handle_undo')
-        mock_editor._controller_handler._handle_canvas_button_press(0, pygame.CONTROLLER_BUTTON_B)
+        mock_editor.controller_handler._handle_canvas_button_press(0, pygame.CONTROLLER_BUTTON_B)
         mock_editor.handle_undo.assert_called_once()
 
     def test_y_button_calls_handler(self, mock_editor, mocker):
         """Y button dispatches to canvas Y handler."""
-        mocker.patch.object(mock_editor._controller_handler, '_handle_canvas_y_button')
-        mock_editor._controller_handler._handle_canvas_button_press(0, pygame.CONTROLLER_BUTTON_Y)
-        mock_editor._controller_handler._handle_canvas_y_button.assert_called_once_with(0)
+        mocker.patch.object(mock_editor.controller_handler, '_handle_canvas_y_button')
+        mock_editor.controller_handler._handle_canvas_button_press(0, pygame.CONTROLLER_BUTTON_Y)
+        mock_editor.controller_handler._handle_canvas_y_button.assert_called_once_with(0)
 
     def test_x_button_calls_handler(self, mock_editor, mocker):
         """X button dispatches to canvas X handler."""
-        mocker.patch.object(mock_editor._controller_handler, '_handle_canvas_x_button')
-        mock_editor._controller_handler._handle_canvas_button_press(0, pygame.CONTROLLER_BUTTON_X)
-        mock_editor._controller_handler._handle_canvas_x_button.assert_called_once_with(0)
+        mocker.patch.object(mock_editor.controller_handler, '_handle_canvas_x_button')
+        mock_editor.controller_handler._handle_canvas_button_press(0, pygame.CONTROLLER_BUTTON_X)
+        mock_editor.controller_handler._handle_canvas_x_button.assert_called_once_with(0)
 
     def test_dpad_starts_continuous_movement(self, mock_editor, mocker):
         """D-pad buttons start continuous movement."""
-        mocker.patch.object(mock_editor._controller_handler, '_start_canvas_continuous_movement')
-        mock_editor._controller_handler._handle_canvas_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_start_canvas_continuous_movement')
+        mock_editor.controller_handler._handle_canvas_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_LEFT
         )
-        mock_editor._controller_handler._start_canvas_continuous_movement.assert_called_once_with(
+        mock_editor.controller_handler._start_canvas_continuous_movement.assert_called_once_with(
             0, -1, 0
         )
 
     def test_dpad_right_starts_movement(self, mock_editor, mocker):
         """D-pad right starts rightward movement."""
-        mocker.patch.object(mock_editor._controller_handler, '_start_canvas_continuous_movement')
-        mock_editor._controller_handler._handle_canvas_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_start_canvas_continuous_movement')
+        mock_editor.controller_handler._handle_canvas_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_RIGHT
         )
-        mock_editor._controller_handler._start_canvas_continuous_movement.assert_called_once_with(
+        mock_editor.controller_handler._start_canvas_continuous_movement.assert_called_once_with(
             0, 1, 0
         )
 
     def test_dpad_up_starts_movement(self, mock_editor, mocker):
         """D-pad up starts upward movement."""
-        mocker.patch.object(mock_editor._controller_handler, '_start_canvas_continuous_movement')
-        mock_editor._controller_handler._handle_canvas_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_start_canvas_continuous_movement')
+        mock_editor.controller_handler._handle_canvas_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_UP
         )
-        mock_editor._controller_handler._start_canvas_continuous_movement.assert_called_once_with(
+        mock_editor.controller_handler._start_canvas_continuous_movement.assert_called_once_with(
             0, 0, -1
         )
 
     def test_dpad_down_starts_movement(self, mock_editor, mocker):
         """D-pad down starts downward movement."""
-        mocker.patch.object(mock_editor._controller_handler, '_start_canvas_continuous_movement')
-        mock_editor._controller_handler._handle_canvas_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_start_canvas_continuous_movement')
+        mock_editor.controller_handler._handle_canvas_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_DOWN
         )
-        mock_editor._controller_handler._start_canvas_continuous_movement.assert_called_once_with(
+        mock_editor.controller_handler._start_canvas_continuous_movement.assert_called_once_with(
             0, 0, 1
         )
 
     def test_left_shoulder_calls_handler(self, mock_editor, mocker):
         """Left shoulder button dispatches to shoulder handler."""
-        mocker.patch.object(mock_editor._controller_handler, '_handle_canvas_shoulder_button')
-        mock_editor._controller_handler._handle_canvas_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_handle_canvas_shoulder_button')
+        mock_editor.controller_handler._handle_canvas_button_press(
             0, pygame.CONTROLLER_BUTTON_LEFTSHOULDER
         )
-        mock_editor._controller_handler._handle_canvas_shoulder_button.assert_called_once_with(
+        mock_editor.controller_handler._handle_canvas_shoulder_button.assert_called_once_with(
             0, is_left=True
         )
 
     def test_right_shoulder_calls_handler(self, mock_editor, mocker):
         """Right shoulder button dispatches to shoulder handler."""
-        mocker.patch.object(mock_editor._controller_handler, '_handle_canvas_shoulder_button')
-        mock_editor._controller_handler._handle_canvas_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_handle_canvas_shoulder_button')
+        mock_editor.controller_handler._handle_canvas_button_press(
             0, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER
         )
-        mock_editor._controller_handler._handle_canvas_shoulder_button.assert_called_once_with(
+        mock_editor.controller_handler._handle_canvas_shoulder_button.assert_called_once_with(
             0, is_left=False
         )
 
@@ -1288,7 +1301,7 @@ class TestHandleCanvasAButton:
     def test_disabled_when_frame_hidden(self, mock_editor):
         """A button disabled when selected frame not visible."""
         mock_editor.selected_frame_visible = False
-        mock_editor._controller_handler._handle_canvas_a_button(0)
+        mock_editor.controller_handler._handle_canvas_a_button(0)
         # Should not crash, no painting occurred
 
     def test_starts_drag_and_paints(self, mock_editor, mocker):
@@ -1297,11 +1310,11 @@ class TestHandleCanvasAButton:
         mock_editor.mode_switcher.get_controller_position.return_value = mocker.Mock(
             is_valid=True, position=(5, 5)
         )
-        mocker.patch.object(mock_editor._controller_handler, '_canvas_paint_at_controller_position')
-        mock_editor._controller_handler._handle_canvas_a_button(0)
-        assert 0 in mock_editor._controller_handler.controller_drags
-        assert mock_editor._controller_handler.controller_drags[0]['active'] is True
-        mock_editor._controller_handler._canvas_paint_at_controller_position.assert_called_once_with(
+        mocker.patch.object(mock_editor.controller_handler, '_canvas_paint_at_controller_position')
+        mock_editor.controller_handler._handle_canvas_a_button(0)
+        assert 0 in mock_editor.controller_handler.controller_drags
+        assert mock_editor.controller_handler.controller_drags[0]['active'] is True
+        mock_editor.controller_handler._canvas_paint_at_controller_position.assert_called_once_with(
             0
         )
 
@@ -1313,14 +1326,14 @@ class TestHandleCanvasXButton:
         """X button triggers redo when frame visible."""
         mocker.patch.object(mock_editor, 'handle_redo')
         mock_editor.selected_frame_visible = True
-        mock_editor._controller_handler._handle_canvas_x_button(0)
+        mock_editor.controller_handler._handle_canvas_x_button(0)
         mock_editor.handle_redo.assert_called_once()
 
     def test_disabled_when_hidden(self, mock_editor, mocker):
         """X button disabled when frame hidden."""
         mocker.patch.object(mock_editor, 'handle_redo')
         mock_editor.selected_frame_visible = False
-        mock_editor._controller_handler._handle_canvas_x_button(0)
+        mock_editor.controller_handler._handle_canvas_x_button(0)
         mock_editor.handle_redo.assert_not_called()
 
 
@@ -1330,10 +1343,10 @@ class TestHandleCanvasYButton:
     def test_toggles_visibility(self, mock_editor, mocker):
         """Y button toggles selected frame visibility."""
         mocker.patch.object(
-            mock_editor._controller_handler, '_multi_controller_toggle_selected_frame_visibility'
+            mock_editor.controller_handler, '_multi_controller_toggle_selected_frame_visibility'
         )
-        mock_editor._controller_handler._handle_canvas_y_button(0)
-        mock_editor._controller_handler._multi_controller_toggle_selected_frame_visibility.assert_called_once_with(
+        mock_editor.controller_handler._handle_canvas_y_button(0)
+        mock_editor.controller_handler._multi_controller_toggle_selected_frame_visibility.assert_called_once_with(
             0
         )
 
@@ -1343,72 +1356,72 @@ class TestHandleSliderButtonPress:
 
     def test_dpad_left_starts_decrease(self, mock_editor, mocker):
         """D-pad left starts continuous decrease."""
-        mocker.patch.object(mock_editor._controller_handler, '_start_slider_continuous_adjustment')
-        mock_editor._controller_handler._handle_slider_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_start_slider_continuous_adjustment')
+        mock_editor.controller_handler._handle_slider_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_LEFT
         )
-        mock_editor._controller_handler._start_slider_continuous_adjustment.assert_called_once_with(
+        mock_editor.controller_handler._start_slider_continuous_adjustment.assert_called_once_with(
             0, -1
         )
 
     def test_dpad_right_starts_increase(self, mock_editor, mocker):
         """D-pad right starts continuous increase."""
-        mocker.patch.object(mock_editor._controller_handler, '_start_slider_continuous_adjustment')
-        mock_editor._controller_handler._handle_slider_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_start_slider_continuous_adjustment')
+        mock_editor.controller_handler._handle_slider_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_RIGHT
         )
-        mock_editor._controller_handler._start_slider_continuous_adjustment.assert_called_once_with(
+        mock_editor.controller_handler._start_slider_continuous_adjustment.assert_called_once_with(
             0, 1
         )
 
     def test_dpad_up_navigates_slider(self, mock_editor, mocker):
         """D-pad up navigates to previous slider mode."""
-        mocker.patch.object(mock_editor._controller_handler, 'handle_slider_mode_navigation')
-        mock_editor._controller_handler._handle_slider_button_press(
+        mocker.patch.object(mock_editor.controller_handler, 'handle_slider_mode_navigation')
+        mock_editor.controller_handler._handle_slider_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_UP
         )
-        mock_editor._controller_handler.handle_slider_mode_navigation.assert_called_once_with(
+        mock_editor.controller_handler.handle_slider_mode_navigation.assert_called_once_with(
             'up', 0
         )
 
     def test_dpad_down_navigates_slider(self, mock_editor, mocker):
         """D-pad down navigates to next slider mode."""
-        mocker.patch.object(mock_editor._controller_handler, 'handle_slider_mode_navigation')
-        mock_editor._controller_handler._handle_slider_button_press(
+        mocker.patch.object(mock_editor.controller_handler, 'handle_slider_mode_navigation')
+        mock_editor.controller_handler._handle_slider_button_press(
             0, pygame.CONTROLLER_BUTTON_DPAD_DOWN
         )
-        mock_editor._controller_handler.handle_slider_mode_navigation.assert_called_once_with(
+        mock_editor.controller_handler.handle_slider_mode_navigation.assert_called_once_with(
             'down', 0
         )
 
     def test_left_shoulder_starts_fast_decrease(self, mock_editor, mocker):
         """Left shoulder starts continuous decrease by 8."""
-        mocker.patch.object(mock_editor._controller_handler, '_start_slider_continuous_adjustment')
-        mock_editor._controller_handler._handle_slider_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_start_slider_continuous_adjustment')
+        mock_editor.controller_handler._handle_slider_button_press(
             0, pygame.CONTROLLER_BUTTON_LEFTSHOULDER
         )
-        mock_editor._controller_handler._start_slider_continuous_adjustment.assert_called_once_with(
+        mock_editor.controller_handler._start_slider_continuous_adjustment.assert_called_once_with(
             0, -8
         )
 
     def test_right_shoulder_starts_fast_increase(self, mock_editor, mocker):
         """Right shoulder starts continuous increase by 8."""
-        mocker.patch.object(mock_editor._controller_handler, '_start_slider_continuous_adjustment')
-        mock_editor._controller_handler._handle_slider_button_press(
+        mocker.patch.object(mock_editor.controller_handler, '_start_slider_continuous_adjustment')
+        mock_editor.controller_handler._handle_slider_button_press(
             0, pygame.CONTROLLER_BUTTON_RIGHTSHOULDER
         )
-        mock_editor._controller_handler._start_slider_continuous_adjustment.assert_called_once_with(
+        mock_editor.controller_handler._start_slider_continuous_adjustment.assert_called_once_with(
             0, 8
         )
 
     def test_a_button_no_action(self, mock_editor):
         """A button has no action in slider mode."""
         # Should not crash
-        mock_editor._controller_handler._handle_slider_button_press(0, pygame.CONTROLLER_BUTTON_A)
+        mock_editor.controller_handler._handle_slider_button_press(0, pygame.CONTROLLER_BUTTON_A)
 
     def test_unhandled_button(self, mock_editor):
         """Unhandled button in slider mode doesn't crash."""
-        mock_editor._controller_handler._handle_slider_button_press(0, 999)
+        mock_editor.controller_handler._handle_slider_button_press(0, 999)
 
 
 class TestOnControllerButtonUpEvent:
@@ -1426,29 +1439,27 @@ class TestOnControllerButtonUpEvent:
         """D-pad release stops slider and canvas continuous adjustments."""
         mock_editor.multi_controller_manager.get_controller_id.return_value = 0
         mock_editor.mode_switcher.get_controller_mode.return_value = mocker.Mock(value='film_strip')
-        mocker.patch.object(mock_editor._controller_handler, '_stop_slider_continuous_adjustment')
-        mocker.patch.object(mock_editor._controller_handler, '_stop_canvas_continuous_movement')
-        mocker.patch.object(mock_editor._controller_handler, '_handle_controller_drag_end')
+        mocker.patch.object(mock_editor.controller_handler, '_stop_slider_continuous_adjustment')
+        mocker.patch.object(mock_editor.controller_handler, '_stop_canvas_continuous_movement')
+        mocker.patch.object(mock_editor.controller_handler, '_handle_controller_drag_end')
         event = mocker.Mock()
         event.instance_id = 42
         event.button = pygame.CONTROLLER_BUTTON_DPAD_LEFT
         mock_editor.on_controller_button_up_event(event)
-        mock_editor._controller_handler._stop_slider_continuous_adjustment.assert_called_once_with(
-            0
-        )
-        mock_editor._controller_handler._stop_canvas_continuous_movement.assert_called_once_with(0)
+        mock_editor.controller_handler._stop_slider_continuous_adjustment.assert_called_once_with(0)
+        mock_editor.controller_handler._stop_canvas_continuous_movement.assert_called_once_with(0)
 
     def test_a_button_release_ends_drag(self, mock_editor, mocker):
         """A button release ends controller drag."""
         mock_editor.multi_controller_manager.get_controller_id.return_value = 0
-        mocker.patch.object(mock_editor._controller_handler, '_stop_slider_continuous_adjustment')
-        mocker.patch.object(mock_editor._controller_handler, '_stop_canvas_continuous_movement')
-        mocker.patch.object(mock_editor._controller_handler, '_handle_controller_drag_end')
+        mocker.patch.object(mock_editor.controller_handler, '_stop_slider_continuous_adjustment')
+        mocker.patch.object(mock_editor.controller_handler, '_stop_canvas_continuous_movement')
+        mocker.patch.object(mock_editor.controller_handler, '_handle_controller_drag_end')
         event = mocker.Mock()
         event.instance_id = 42
         event.button = pygame.CONTROLLER_BUTTON_A
         mock_editor.on_controller_button_up_event(event)
-        mock_editor._controller_handler._handle_controller_drag_end.assert_called_once_with(0)
+        mock_editor.controller_handler._handle_controller_drag_end.assert_called_once_with(0)
 
     def test_slider_mode_updates_color_well(self, mock_editor, mocker):
         """Slider mode controller updates color well on button release."""
@@ -1456,9 +1467,9 @@ class TestOnControllerButtonUpEvent:
         mode = mocker.Mock()
         mode.value = 'r_slider'
         mock_editor.mode_switcher.get_controller_mode.return_value = mode
-        mocker.patch.object(mock_editor._controller_handler, '_stop_slider_continuous_adjustment')
-        mocker.patch.object(mock_editor._controller_handler, '_stop_canvas_continuous_movement')
-        mocker.patch.object(mock_editor._controller_handler, '_handle_controller_drag_end')
+        mocker.patch.object(mock_editor.controller_handler, '_stop_slider_continuous_adjustment')
+        mocker.patch.object(mock_editor.controller_handler, '_stop_canvas_continuous_movement')
+        mocker.patch.object(mock_editor.controller_handler, '_handle_controller_drag_end')
         mock_editor.update_color_well_from_sliders = mocker.Mock()
         event = mocker.Mock()
         event.instance_id = 42
@@ -1477,27 +1488,27 @@ class TestHandleControllerDragEnd:
 
     def test_no_drags_returns(self, mock_editor):
         """No controller drags returns early."""
-        mock_editor._controller_handler.controller_drags = {}
-        mock_editor._controller_handler._handle_controller_drag_end(0)
+        mock_editor.controller_handler.controller_drags = {}
+        mock_editor.controller_handler._handle_controller_drag_end(0)
 
     def test_inactive_drag_returns(self, mock_editor):
         """Inactive drag returns early."""
-        mock_editor._controller_handler.controller_drags = {0: {'active': False}}
-        mock_editor._controller_handler._handle_controller_drag_end(0)
+        mock_editor.controller_handler.controller_drags = {0: {'active': False}}
+        mock_editor.controller_handler._handle_controller_drag_end(0)
 
     def test_no_pixels_drawn_returns(self, mock_editor):
         """Drag with no pixels drawn doesn't submit."""
         mock_editor.mode_switcher.get_controller_position.return_value = (5, 5)
-        mock_editor._controller_handler.controller_drags = {
+        mock_editor.controller_handler.controller_drags = {
             0: {'active': True, 'pixels_drawn': [], 'start_position': (0, 0)},
         }
-        mock_editor._controller_handler._handle_controller_drag_end(0)
-        assert mock_editor._controller_handler.controller_drags[0]['active'] is False
+        mock_editor.controller_handler._handle_controller_drag_end(0)
+        assert mock_editor.controller_handler.controller_drags[0]['active'] is False
 
     def test_pixels_drawn_submits(self, mock_editor, mocker):
         """Drag with pixels drawn submits changes."""
         mock_editor.mode_switcher.get_controller_position.return_value = (5, 5)
-        mock_editor._controller_handler.controller_drags = {
+        mock_editor.controller_handler.controller_drags = {
             0: {
                 'active': True,
                 'pixels_drawn': [
@@ -1507,13 +1518,13 @@ class TestHandleControllerDragEnd:
             },
         }
         mocker.patch.object(
-            mock_editor._controller_handler,
+            mock_editor.controller_handler,
             '_collect_drag_pixel_changes',
             return_value=[(1, 1, (0, 0, 0), (255, 0, 0))],
         )
-        mocker.patch.object(mock_editor._controller_handler, '_submit_drag_pixel_changes')
-        mock_editor._controller_handler._handle_controller_drag_end(0)
-        mock_editor._controller_handler._submit_drag_pixel_changes.assert_called_once()
+        mocker.patch.object(mock_editor.controller_handler, '_submit_drag_pixel_changes')
+        mock_editor.controller_handler._handle_controller_drag_end(0)
+        mock_editor.controller_handler._submit_drag_pixel_changes.assert_called_once()
 
 
 # ===========================================================================
@@ -1526,11 +1537,11 @@ class TestOnControllerAxisMotionEvent:
 
     def test_trigger_axis_dispatches(self, mock_editor, mocker):
         """Trigger axis events dispatch to trigger handler."""
-        mocker.patch.object(mock_editor._controller_handler, '_handle_trigger_axis_motion')
+        mocker.patch.object(mock_editor.controller_handler, '_handle_trigger_axis_motion')
         event = mocker.Mock()
         event.axis = pygame.CONTROLLER_AXIS_TRIGGERLEFT
         mock_editor.on_controller_axis_motion_event(event)
-        mock_editor._controller_handler._handle_trigger_axis_motion.assert_called_once_with(event)
+        mock_editor.controller_handler._handle_trigger_axis_motion.assert_called_once_with(event)
 
     def test_stick_axis_returns_early(self, mock_editor, mocker):
         """Stick axis events are currently disabled and return early."""
@@ -1551,21 +1562,21 @@ class TestIsMouseInFilmStripArea:
     def test_no_film_strip_sprites_returns_false(self, mock_editor):
         """No film strip sprites returns False."""
         mock_editor.film_strip_sprites = {}
-        assert mock_editor._is_mouse_in_film_strip_area((500, 200)) is False
+        assert mock_editor.film_strip_coordinator.is_mouse_in_film_strip_area((500, 200)) is False
 
     def test_mouse_in_sprite_returns_true(self, mock_editor, mocker):
         """Mouse inside film strip sprite returns True."""
         sprite = mocker.Mock()
         sprite.rect = pygame.Rect(400, 100, 200, 200)
         mock_editor.film_strip_sprites = {'default': sprite}
-        assert mock_editor._is_mouse_in_film_strip_area((500, 200)) is True
+        assert mock_editor.film_strip_coordinator.is_mouse_in_film_strip_area((500, 200)) is True
 
     def test_mouse_outside_returns_false(self, mock_editor, mocker):
         """Mouse outside film strip sprite returns False."""
         sprite = mocker.Mock()
         sprite.rect = pygame.Rect(400, 100, 200, 200)
         mock_editor.film_strip_sprites = {'default': sprite}
-        assert mock_editor._is_mouse_in_film_strip_area((50, 50)) is False
+        assert mock_editor.film_strip_coordinator.is_mouse_in_film_strip_area((50, 50)) is False
 
 
 class TestFilmStripDragScroll:
@@ -1574,13 +1585,13 @@ class TestFilmStripDragScroll:
     def test_not_dragging_returns(self, mock_editor):
         """Not dragging returns early."""
         mock_editor.is_dragging_film_strips = False
-        mock_editor._handle_film_strip_drag_scroll(200)
+        mock_editor.film_strip_coordinator.handle_film_strip_drag_scroll(200)
 
     def test_no_start_y_returns(self, mock_editor):
         """No start Y returns early."""
         mock_editor.is_dragging_film_strips = True
         mock_editor.film_strip_drag_start_y = None
-        mock_editor._handle_film_strip_drag_scroll(200)
+        mock_editor.film_strip_coordinator.handle_film_strip_drag_scroll(200)
 
 
 class TestNavigateFrame:
@@ -1589,12 +1600,12 @@ class TestNavigateFrame:
     def test_no_canvas_returns(self, mock_editor):
         """No canvas returns early."""
         mock_editor.canvas = None
-        mock_editor._navigate_frame(1)
+        mock_editor.film_strip_coordinator._navigate_frame(1)
 
     def test_no_current_animation_returns(self, mock_editor):
         """No current animation returns early."""
         mock_editor.canvas.current_animation = ''
-        mock_editor._navigate_frame(1)
+        mock_editor.film_strip_coordinator._navigate_frame(1)
 
     def test_navigate_forward_wraps(self, mock_editor, mocker):
         """Navigating past last frame wraps to first."""
@@ -1605,7 +1616,7 @@ class TestNavigateFrame:
         mock_editor.selected_frame = 1
         film_strip = mocker.Mock()
         mock_editor.film_strips = {'default': film_strip}
-        mock_editor._navigate_frame(1)
+        mock_editor.film_strip_coordinator._navigate_frame(1)
         assert mock_editor.selected_frame == 0
 
     def test_navigate_backward_wraps(self, mock_editor, mocker):
@@ -1617,7 +1628,7 @@ class TestNavigateFrame:
         mock_editor.selected_frame = 0
         film_strip = mocker.Mock()
         mock_editor.film_strips = {'default': film_strip}
-        mock_editor._navigate_frame(-1)
+        mock_editor.film_strip_coordinator._navigate_frame(-1)
         assert mock_editor.selected_frame == 1
 
 
@@ -1707,19 +1718,19 @@ class TestGetCanvasPixelColor:
     def test_returns_color_from_interface(self, mock_editor):
         """Returns color from canvas interface."""
         mock_editor.canvas.canvas_interface.get_pixel_at.return_value = (255, 0, 0)
-        result = mock_editor._controller_handler._get_canvas_pixel_color(5, 5)
+        result = mock_editor.controller_handler._get_canvas_pixel_color(5, 5)
         assert result == (255, 0, 0)
 
     def test_returns_none_no_canvas(self, mock_editor):
         """Returns None when no canvas."""
         mock_editor.canvas = None
-        result = mock_editor._controller_handler._get_canvas_pixel_color(5, 5)
+        result = mock_editor.controller_handler._get_canvas_pixel_color(5, 5)
         assert result is None
 
     def test_returns_default_on_error(self, mock_editor):
         """Returns (0,0,0) on error from canvas interface."""
         mock_editor.canvas.canvas_interface.get_pixel_at.side_effect = IndexError('out of bounds')
-        result = mock_editor._controller_handler._get_canvas_pixel_color(999, 999)
+        result = mock_editor.controller_handler._get_canvas_pixel_color(999, 999)
         assert result == (0, 0, 0)
 
 
@@ -1728,18 +1739,18 @@ class TestSetCanvasPixel:
 
     def test_sets_via_interface(self, mock_editor):
         """Sets pixel via canvas interface."""
-        mock_editor._controller_handler._set_canvas_pixel(5, 5, (255, 0, 0))
+        mock_editor.controller_handler._set_canvas_pixel(5, 5, (255, 0, 0))
         mock_editor.canvas.canvas_interface.set_pixel_at.assert_called_once_with(5, 5, (255, 0, 0))
 
     def test_no_canvas_no_crash(self, mock_editor):
         """No canvas doesn't crash."""
         mock_editor.canvas = None
-        mock_editor._controller_handler._set_canvas_pixel(5, 5, (255, 0, 0))
+        mock_editor.controller_handler._set_canvas_pixel(5, 5, (255, 0, 0))
 
     def test_fallback_sets_directly(self, mock_editor):
         """Without canvas_interface, sets pixels directly."""
         del mock_editor.canvas.canvas_interface
-        mock_editor._controller_handler._set_canvas_pixel(1, 1, (255, 0, 0))
+        mock_editor.controller_handler._set_canvas_pixel(1, 1, (255, 0, 0))
         expected_idx = 1 * 32 + 1
         assert mock_editor.canvas.pixels[expected_idx] == (255, 0, 0)
         assert mock_editor.canvas.dirty_pixels[expected_idx] is True
@@ -1794,7 +1805,7 @@ class TestCopyCurrentFrame:
     def test_no_film_strips_returns_false(self, mock_editor):
         """No film strips returns False."""
         mock_editor.film_strips = {}
-        assert mock_editor._copy_current_frame() is False
+        assert mock_editor.film_strip_coordinator._copy_current_frame() is False
 
     def test_no_selected_animation_returns_false(self, mock_editor, mocker):
         """No matching film strip returns False."""
@@ -1802,7 +1813,7 @@ class TestCopyCurrentFrame:
         strip.current_animation = 'other'
         mock_editor.film_strips = {'other': strip}
         mock_editor.selected_animation = 'nonexistent'
-        assert mock_editor._copy_current_frame() is False
+        assert mock_editor.film_strip_coordinator._copy_current_frame() is False
 
     def test_active_strip_copies(self, mock_editor, mocker):
         """Active film strip copy_current_frame is called."""
@@ -1811,7 +1822,7 @@ class TestCopyCurrentFrame:
         strip.copy_current_frame.return_value = True
         mock_editor.film_strips = {'default': strip}
         mock_editor.selected_animation = 'default'
-        assert mock_editor._copy_current_frame() is True
+        assert mock_editor.film_strip_coordinator._copy_current_frame() is True
 
 
 class TestPasteToCurrentFrame:
@@ -1820,7 +1831,7 @@ class TestPasteToCurrentFrame:
     def test_no_film_strips_returns_false(self, mock_editor):
         """No film strips returns False."""
         mock_editor.film_strips = {}
-        assert mock_editor._paste_to_current_frame() is False
+        assert mock_editor.film_strip_coordinator._paste_to_current_frame() is False
 
     def test_active_strip_pastes(self, mock_editor, mocker):
         """Active film strip paste_to_current_frame is called."""
@@ -1829,7 +1840,7 @@ class TestPasteToCurrentFrame:
         strip.paste_to_current_frame.return_value = True
         mock_editor.film_strips = {'default': strip}
         mock_editor.selected_animation = 'default'
-        assert mock_editor._paste_to_current_frame() is True
+        assert mock_editor.film_strip_coordinator._paste_to_current_frame() is True
 
 
 class TestUpdateFilmStripSelectionState:
@@ -1861,7 +1872,7 @@ class TestMarkAllFilmStripsDirty:
     def test_no_film_strips_returns(self, mock_editor):
         """No film strips returns early."""
         mock_editor.film_strips = {}
-        mock_editor._mark_all_film_strips_dirty()
+        mock_editor.film_strip_coordinator._mark_all_film_strips_dirty()
 
     def test_marks_strips_dirty(self, mock_editor, mocker):
         """All strips and sprites are marked dirty."""
@@ -1870,7 +1881,7 @@ class TestMarkAllFilmStripsDirty:
         mock_editor.film_strips = {'default': strip}
         sprite = mocker.Mock()
         mock_editor.film_strip_sprites = {'default': sprite}
-        mock_editor._mark_all_film_strips_dirty()
+        mock_editor.film_strip_coordinator._mark_all_film_strips_dirty()
         strip.mark_dirty.assert_called_once()
         assert sprite.dirty == 2
         assert strip.animated_sprite.dirty == 2
@@ -1915,7 +1926,7 @@ class TestSynchronizeCanvasStateAfterUndo:
         }
         mock_editor.canvas.current_animation = 'default'
         mock_editor.canvas.current_frame = 0
-        mocker.patch.object(mock_editor, '_update_film_strips_for_frame')
+        mocker.patch.object(mock_editor.film_strip_coordinator, 'update_film_strips_for_frame')
         mock_editor._synchronize_canvas_state_after_undo()
         mock_editor.canvas.force_redraw.assert_called()
 
@@ -2020,11 +2031,11 @@ class TestStartSliderContinuousAdjustment:
 
     def test_creates_adjustment_entry(self, mock_editor, mocker):
         """Creates continuous adjustment entry for controller."""
-        mocker.patch.object(mock_editor._controller_handler, '_slider_adjust_value')
-        mock_editor._controller_handler._start_slider_continuous_adjustment(0, -1)
-        assert 0 in mock_editor._controller_handler.slider_continuous_adjustments
-        assert mock_editor._controller_handler.slider_continuous_adjustments[0]['direction'] == -1
-        mock_editor._controller_handler._slider_adjust_value.assert_called_once_with(0, -1)
+        mocker.patch.object(mock_editor.controller_handler, '_slider_adjust_value')
+        mock_editor.controller_handler._start_slider_continuous_adjustment(0, -1)
+        assert 0 in mock_editor.controller_handler.slider_continuous_adjustments
+        assert mock_editor.controller_handler.slider_continuous_adjustments[0]['direction'] == -1
+        mock_editor.controller_handler._slider_adjust_value.assert_called_once_with(0, -1)
 
 
 class TestStopSliderContinuousAdjustment:
@@ -2032,13 +2043,13 @@ class TestStopSliderContinuousAdjustment:
 
     def test_removes_adjustment_entry(self, mock_editor):
         """Removes continuous adjustment entry for controller."""
-        mock_editor._controller_handler.slider_continuous_adjustments = {0: {'direction': -1}}
-        mock_editor._controller_handler._stop_slider_continuous_adjustment(0)
-        assert 0 not in mock_editor._controller_handler.slider_continuous_adjustments
+        mock_editor.controller_handler.slider_continuous_adjustments = {0: {'direction': -1}}
+        mock_editor.controller_handler._stop_slider_continuous_adjustment(0)
+        assert 0 not in mock_editor.controller_handler.slider_continuous_adjustments
 
     def test_no_entry_no_crash(self, mock_editor):
         """Missing entry doesn't crash."""
-        mock_editor._controller_handler._stop_slider_continuous_adjustment(99)
+        mock_editor.controller_handler._stop_slider_continuous_adjustment(99)
 
 
 # ===========================================================================
@@ -2118,7 +2129,7 @@ class TestGetControllerIdFromEvent:
         mock_editor.multi_controller_manager.get_controller_id.return_value = 2
         event = mocker.Mock()
         event.instance_id = 42
-        result = mock_editor._controller_handler._get_controller_id_from_event(event)
+        result = mock_editor.controller_handler._get_controller_id_from_event(event)
         assert result == 2
 
     def test_joystick_fallback(self, mock_editor, mocker):
@@ -2126,5 +2137,5 @@ class TestGetControllerIdFromEvent:
         event = mocker.Mock(spec=[])
         event.joy = 3
         # No instance_id attribute
-        result = mock_editor._controller_handler._get_controller_id_from_event(event)
+        result = mock_editor.controller_handler._get_controller_id_from_event(event)
         assert result == 3

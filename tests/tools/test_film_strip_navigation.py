@@ -51,7 +51,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         })
 
         # Reload the sprite to create film strips for all animations
-        self.scene._on_sprite_loaded(self.mock_sprite)
+        self.scene.film_strip_coordinator.on_sprite_loaded(self.mock_sprite)
 
         # Ensure canvas has proper navigation state
         self.scene.canvas.current_animation = 'idle'
@@ -257,7 +257,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         attack_index = animation_names.index('attack')
 
         # Call auto-scroll
-        self.scene._scroll_to_current_animation()
+        self.scene.film_strip_coordinator.scroll_to_current_animation()
 
         # Should scroll so "attack" is visible
         # The offset should be at least attack_index - max_visible + 1
@@ -274,7 +274,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.canvas.current_animation = 'walk'
 
         # Call auto-scroll
-        self.scene._scroll_to_current_animation()
+        self.scene.film_strip_coordinator.scroll_to_current_animation()
 
         # Should not change offset since "walk" is already visible
         assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_1
@@ -299,7 +299,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
     def test_switch_to_film_strip(self):
         """Test switching to a specific film strip."""
         # Switch to "jump" animation, frame 0
-        self.scene._switch_to_film_strip('jump', SCROLL_OFFSET_0)
+        self.scene.film_strip_coordinator.switch_to_film_strip('jump', SCROLL_OFFSET_0)
 
         # Check global selection state
         assert self.scene.selected_animation == 'jump'
@@ -313,7 +313,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
     def test_dirty_marking_on_selection_change(self):
         """Test that selection changes properly mark sprites as dirty."""
         # Switch to a different strip
-        self.scene._switch_to_film_strip('attack', SCROLL_OFFSET_0)
+        self.scene.film_strip_coordinator.switch_to_film_strip('attack', SCROLL_OFFSET_0)
 
         # Check that the film strip sprite is marked as dirty
         if 'attack' in self.scene.film_strip_sprites:

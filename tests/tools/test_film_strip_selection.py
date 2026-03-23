@@ -142,10 +142,10 @@ class TestFilmStripSelection:
             if animation == 'walk':
                 film_strip_widget.selected_frame = frame_index
 
-        film_strip_widget.parent_scene._on_frame_inserted = mock_on_frame_inserted
+        film_strip_widget.parent_scene.on_frame_inserted = mock_on_frame_inserted
 
         # Simulate frame insertion
-        film_strip_widget.parent_scene._on_frame_inserted('walk', 0)
+        film_strip_widget.parent_scene.on_frame_inserted('walk', 0)
 
         # The scene should update its selected_frame to the new frame index
         assert film_strip_widget.parent_scene.selected_frame == 0

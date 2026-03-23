@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from glitchygames.bitmappy.editor import FilmStripSprite
 from glitchygames.bitmappy.film_strip import FilmStripWidget
+from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 from tests.mocks.test_mock_factory import MockFactory
 
 

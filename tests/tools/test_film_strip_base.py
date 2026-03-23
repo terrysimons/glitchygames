@@ -133,5 +133,5 @@ class FilmStripTestBase:
             sprite = self.cached_sprite
 
         scene = self.create_optimized_scene(options)
-        scene._on_sprite_loaded(sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(sprite)
         return scene, sprite

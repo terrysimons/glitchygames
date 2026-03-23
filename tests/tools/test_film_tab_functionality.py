@@ -637,7 +637,7 @@ class TestFilmTabSceneIntegration(FilmStripTestBase):
         # Create scene with mock options
         mock_options = {'size': '800x600'}
         scene = BitmapEditorScene(mock_options)
-        scene._on_sprite_loaded(animated_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip
         if hasattr(scene, 'film_strips') and scene.film_strips:
@@ -654,7 +654,7 @@ class TestFilmTabSceneIntegration(FilmStripTestBase):
                 film_strip._insert_frame_at_tab(first_tab)
 
                 # Check that the scene was notified
-                assert hasattr(scene, '_on_frame_inserted')
+                assert hasattr(scene, 'on_frame_inserted')
 
     @pytest.mark.skip(reason='Frame insertion functionality not implemented')
     def test_frame_insertion_updates_canvas(self):
@@ -674,7 +674,7 @@ class TestFilmTabSceneIntegration(FilmStripTestBase):
         # Create scene with mock options
         mock_options = {'size': '800x600'}
         scene = BitmapEditorScene(mock_options)
-        scene._on_sprite_loaded(animated_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Set the current animation
         scene.selected_animation = 'test_anim'

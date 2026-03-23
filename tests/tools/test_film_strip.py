@@ -3881,10 +3881,10 @@ class TestFilmStripHandleAddDeleteAnimationTab:
     def test_handle_add_animation_no_canvas(self, mocker):
         """Test _handle_add_animation_tab_click without canvas (lines 2719-2720)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.parent_scene = mocker.Mock(spec=['_add_new_animation'])
-        # canvas is not present (spec restricts attributes)
+        widget.parent_scene = mocker.Mock()
+        widget.parent_scene.canvas = None  # No canvas available
         widget._handle_add_animation_tab_click()
-        widget.parent_scene._add_new_animation.assert_called_once()
+        widget.parent_scene.film_strip_coordinator._add_new_animation.assert_called_once()
 
     def test_handle_add_animation_with_canvas(self, mocker):
         """Test _handle_add_animation_tab_click with canvas inserts after current (line 2725)."""
@@ -3899,7 +3899,9 @@ class TestFilmStripHandleAddDeleteAnimationTab:
         widget.parent_scene.canvas.animated_sprite = sprite
 
         widget._handle_add_animation_tab_click()
-        widget.parent_scene._add_new_animation.assert_called_once_with(insert_after_index=0)
+        widget.parent_scene.film_strip_coordinator._add_new_animation.assert_called_once_with(
+            insert_after_index=0
+        )
 
     def test_handle_add_animation_fallback_on_value_error(self, mocker):
         """Test _handle_add_animation_tab_click falls back when animation not found (line 2727)."""
@@ -3916,7 +3918,7 @@ class TestFilmStripHandleAddDeleteAnimationTab:
         widget.parent_scene.canvas.animated_sprite = sprite
 
         widget._handle_add_animation_tab_click()
-        widget.parent_scene._add_new_animation.assert_called_once_with()
+        widget.parent_scene.film_strip_coordinator._add_new_animation.assert_called_once_with()
 
     def test_handle_delete_animation_no_parent(self):
         """Test _handle_delete_animation_tab_click without parent scene (line 2732)."""
@@ -3927,7 +3929,8 @@ class TestFilmStripHandleAddDeleteAnimationTab:
     def test_handle_delete_animation_no_canvas(self, mocker):
         """Test _handle_delete_animation_tab_click without canvas (line 2735)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.parent_scene = mocker.Mock(spec=['_delete_animation'])
+        widget.parent_scene = mocker.Mock()
+        widget.parent_scene.canvas = None  # No canvas available
         widget._handle_delete_animation_tab_click()
         # Should return without error (no canvas to check)
 
@@ -3945,7 +3948,7 @@ class TestFilmStripHandleAddDeleteAnimationTab:
         widget.parent_scene.canvas.animated_sprite = sprite
 
         widget._handle_delete_animation_tab_click()
-        widget.parent_scene._delete_animation.assert_called_once_with('idle')
+        widget.parent_scene.film_strip_coordinator._delete_animation.assert_called_once_with('idle')
 
 
 class TestFilmStripHandleRemovalButton:

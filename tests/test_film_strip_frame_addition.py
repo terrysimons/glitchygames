@@ -43,7 +43,7 @@ def _mock_parent_scene(animated_sprite, mocker):
 
     """
     parent_scene = mocker.Mock()
-    parent_scene._on_frame_inserted = mocker.Mock()
+    parent_scene.on_frame_inserted = mocker.Mock()
     parent_scene.canvas = mocker.Mock()
     parent_scene.canvas.pixels_across = CANVAS_WIDTH
     parent_scene.canvas.pixels_tall = CANVAS_HEIGHT
@@ -120,7 +120,7 @@ class TestFilmStripFrameAddition:
         assert math.isclose(film_strip.preview_animation_times['idle'], 0.0, abs_tol=1e-9)
 
         # Verify parent scene was notified
-        film_strip.parent_scene._on_frame_inserted.assert_called_once_with('idle', 1)
+        film_strip.parent_scene.on_frame_inserted.assert_called_once_with('idle', 1)
 
     def test_film_strip_handles_before_insertion(self, mocker):
         """Test film strip handles frame insertion before existing frame."""
@@ -149,7 +149,7 @@ class TestFilmStripFrameAddition:
         assert animated_sprite._is_looping
 
         # Verify parent scene was notified with correct index
-        film_strip.parent_scene._on_frame_inserted.assert_called_once_with('idle', 0)
+        film_strip.parent_scene.on_frame_inserted.assert_called_once_with('idle', 0)
 
     def test_film_strip_handles_after_insertion(self, mocker):
         """Test film strip handles frame insertion after existing frame."""
@@ -178,7 +178,7 @@ class TestFilmStripFrameAddition:
         assert animated_sprite._is_looping
 
         # Verify parent scene was notified with correct index
-        film_strip.parent_scene._on_frame_inserted.assert_called_once_with('idle', 1)
+        film_strip.parent_scene.on_frame_inserted.assert_called_once_with('idle', 1)
 
     def test_film_strip_no_animation_without_sprite(self, mocker):
         """Test film strip handles missing animated sprite gracefully."""
@@ -194,7 +194,7 @@ class TestFilmStripFrameAddition:
         film_strip._insert_frame_at_tab(tab)
 
         # Should not call parent scene
-        film_strip.parent_scene._on_frame_inserted.assert_not_called()
+        film_strip.parent_scene.on_frame_inserted.assert_not_called()
 
     def test_film_strip_no_animation_without_scene(self):
         """Test film strip handles missing parent scene gracefully."""

@@ -427,7 +427,8 @@ class TestPanningKeyboardHandling:
 
         # Mock the _update_film_strips_for_animated_sprite_update method
         mock_update_film = mocker.patch.object(
-            self.real_scene, '_update_film_strips_for_animated_sprite_update'
+            self.real_scene.film_strip_coordinator,
+            'update_film_strips_for_animated_sprite_update',
         )
         # Now release the key
         event_up = self._mocker.Mock()

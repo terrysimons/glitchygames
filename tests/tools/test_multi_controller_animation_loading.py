@@ -294,7 +294,7 @@ class TestMultiControllerAnimationLoading:
 
         # Simulate loading animation with error
         mocker.patch.object(
-            self.scene, '_on_sprite_loaded', side_effect=RuntimeError('Loading error')
+            self.scene, 'on_sprite_loaded', side_effect=RuntimeError('Loading error')
         )
         try:
             self._simulate_animation_loading('error_animation')

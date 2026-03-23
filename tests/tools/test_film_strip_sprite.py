@@ -8,8 +8,8 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.bitmappy import editor as bitmappy
 from glitchygames.bitmappy import film_strip
+from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -28,7 +28,7 @@ class TestFilmStripSprite:
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Create film strip sprite
-        sprite = bitmappy.FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
+        sprite = FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
         # Test basic properties
         assert hasattr(sprite, 'film_strip_widget')
@@ -50,7 +50,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_methods(self):
         """Test film strip sprite methods."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Test methods exist
         assert hasattr(sprite, 'update')
@@ -67,7 +67,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_update(self):
         """Test film strip sprite update functionality."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Test initial dirty state
         assert sprite.dirty == 1
@@ -85,7 +85,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_force_redraw(self):
         """Test film strip sprite force redraw."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Test force redraw
         sprite.force_redraw()
@@ -97,7 +97,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_mouse_click(self):
         """Test film strip sprite mouse click handling."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
+        sprite = FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
         # Create mock event
         mock_event = self._mocker.Mock()
@@ -112,7 +112,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_mouse_click_outside_bounds(self):
         """Test film strip sprite mouse click outside bounds."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
+        sprite = FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
         # Create mock event outside bounds
         mock_event = self._mocker.Mock()
@@ -131,7 +131,7 @@ class TestFilmStripSprite:
         mock_sprite = MockFactory.create_animated_sprite_mock()
         film_strip_widget.set_animated_sprite(mock_sprite)
 
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Test update with animations running
         sprite.update()
@@ -142,7 +142,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_parent_canvas(self):
         """Test film strip sprite parent canvas integration."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Test setting parent canvas
         mock_canvas = self._mocker.Mock()
@@ -152,7 +152,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_click_with_parent_canvas(self, mocker):
         """Test film strip sprite click with parent canvas."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Set up mock sprite with animations
         mock_sprite = MockFactory.create_animated_sprite_mock()
@@ -176,7 +176,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_click_no_frame_selected(self, mocker):
         """Test film strip sprite click when no frame is selected."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Set parent canvas
         mock_canvas = self._mocker.Mock()
@@ -201,7 +201,7 @@ class TestFilmStripSprite:
         mock_sprite = MockFactory.create_animated_sprite_mock()
         film_strip_widget.set_animated_sprite(mock_sprite)
 
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Reset dirty flag
         sprite.dirty = 0
@@ -215,7 +215,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_surface_initialization(self):
         """Test film strip sprite surface initialization."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget, x=0, y=0, width=200, height=150)
+        sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=200, height=150)
 
         # Test surface properties
         assert sprite.image is not None
@@ -229,7 +229,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_coordinate_conversion(self, mocker):
         """Test film strip sprite coordinate conversion."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
+        sprite = FilmStripSprite(film_strip_widget, x=10, y=20, width=200, height=150)
 
         # Create mock event
         mock_event = self._mocker.Mock()
@@ -248,7 +248,7 @@ class TestFilmStripSprite:
     def test_film_strip_sprite_edge_cases(self):
         """Test film strip sprite edge cases."""
         film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
-        sprite = bitmappy.FilmStripSprite(film_strip_widget)
+        sprite = FilmStripSprite(film_strip_widget)
 
         # Test with None parent canvas
         sprite.parent_canvas = None

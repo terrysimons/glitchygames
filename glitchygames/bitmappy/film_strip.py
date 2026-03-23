@@ -2760,15 +2760,17 @@ class FilmStripWidget:
             return
         current_animation = self.current_animation
         if not (hasattr(self.parent_scene, 'canvas') and self.parent_scene.canvas):
-            self.parent_scene._add_new_animation()
+            self.parent_scene.film_strip_coordinator._add_new_animation()
             return
         animations = list(self.parent_scene.canvas.animated_sprite.animations.keys())
         try:
             current_index = animations.index(current_animation)
-            self.parent_scene._add_new_animation(insert_after_index=current_index)
+            self.parent_scene.film_strip_coordinator._add_new_animation(
+                insert_after_index=current_index
+            )
         except ValueError:
             # Fallback to end if current animation not found
-            self.parent_scene._add_new_animation()
+            self.parent_scene.film_strip_coordinator._add_new_animation()
 
     def _handle_delete_animation_tab_click(self) -> None:
         """Handle click on the delete-animation tab."""
@@ -2779,7 +2781,7 @@ class FilmStripWidget:
             return
         animations = list(self.parent_scene.canvas.animated_sprite.animations.keys())
         if len(animations) > 1:
-            self.parent_scene._delete_animation(current_animation)
+            self.parent_scene.film_strip_coordinator._delete_animation(current_animation)
 
     def _handle_tab_hover(self, pos: tuple[int, int]) -> bool:
         """Handle mouse hover over film tabs.
@@ -2864,8 +2866,8 @@ class FilmStripWidget:
         self._initialize_preview_animations()
 
         # Notify the parent scene about the frame insertion
-        if hasattr(self.parent_scene, '_on_frame_inserted'):
-            self.parent_scene._on_frame_inserted(current_animation, insert_index)
+        if hasattr(self.parent_scene, 'on_frame_inserted'):
+            self.parent_scene.on_frame_inserted(current_animation, insert_index)
 
         # Select the newly created frame so the user can immediately start editing it
         LOG.debug(
@@ -3075,8 +3077,8 @@ class FilmStripWidget:
         self._clamp_animated_sprite_frame(animation_name, frames)
 
         # Notify the parent scene about the frame removal
-        if hasattr(self.parent_scene, '_on_frame_removed'):
-            self.parent_scene._on_frame_removed(animation_name, frame_index)
+        if hasattr(self.parent_scene, 'on_frame_removed'):
+            self.parent_scene.on_frame_removed(animation_name, frame_index)
 
         # CRITICAL: Reinitialize preview animations after frame removal
         # This ensures the preview animation system is updated with the new frame count
