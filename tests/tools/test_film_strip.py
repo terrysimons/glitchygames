@@ -919,10 +919,10 @@ class TestFilmStripFrameSelection:
     def test_set_current_frame_notifies_parent_scene(self, widget_with_sprite, mocker):
         """Test set_current_frame notifies parent scene."""
         parent_scene = mocker.Mock()
-        parent_scene._on_film_strip_frame_selected = mocker.Mock()
+        parent_scene.on_film_strip_frame_selected = mocker.Mock()
         widget_with_sprite.parent_scene = parent_scene
         widget_with_sprite.set_current_frame('idle', 1)
-        parent_scene._on_film_strip_frame_selected.assert_called_once_with(
+        parent_scene.on_film_strip_frame_selected.assert_called_once_with(
             widget_with_sprite, 'idle', 1
         )
 

@@ -457,19 +457,19 @@ class AnimatedCanvasInterface:
         parent_scene: Any = self.canvas_sprite.parent_scene
 
         # Ensure tracking structures exist
-        if not hasattr(parent_scene, '_current_pixel_changes'):
-            parent_scene._current_pixel_changes = []
-        if not hasattr(parent_scene, '_current_pixel_changes_dict'):
+        if not hasattr(parent_scene, 'current_pixel_changes'):
+            parent_scene.current_pixel_changes = []
+        if not hasattr(parent_scene, 'current_pixel_changes_dict'):
             # Use a dict for O(1) deduplication lookups during drag
             # Maps (x, y) -> (x, y, old_color, new_color) for fast replacement
-            parent_scene._current_pixel_changes_dict = {}
+            parent_scene.current_pixel_changes_dict = {}
 
         # Performance optimization: Use dict for O(1) deduplication to prevent memory bloat
         # If the same pixel was already changed in this drag, replace the old entry
         # This prevents unbounded growth during long drags on the same pixels
         pixel_key = (x, y)
         pixel_changes_dict: dict[tuple[int, int], Any] = cast(
-            'dict[tuple[int, int], Any]', parent_scene._current_pixel_changes_dict
+            'dict[tuple[int, int], Any]', parent_scene.current_pixel_changes_dict
         )
 
         # Store or update the pixel change (keeps original old_color, updates new_color)

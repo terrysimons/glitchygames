@@ -37,23 +37,25 @@ class TestControllerUndoRedoIntegration:
         scene.film_strip_operation_tracker = FilmStripOperationTracker(scene.undo_redo_manager)
 
         # Mock the undo/redo methods
-        scene._handle_undo = mocker.Mock()
-        scene._handle_redo = mocker.Mock()
+        scene.handle_undo = mocker.Mock()
+        scene.handle_redo = mocker.Mock()
 
         # Mock the controller button handler
         def mock_handle_film_strip_button_press(controller_id, button):
             try:
                 if button == pygame.CONTROLLER_BUTTON_B:
-                    scene._handle_undo()
+                    scene.handle_undo()
                 elif button == pygame.CONTROLLER_BUTTON_X and getattr(
                     scene, 'selected_frame_visible', True
                 ):
-                    scene._handle_redo()
+                    scene.handle_redo()
             except AttributeError, ValueError:
                 # Controller handler should handle exceptions gracefully
                 LOG.debug('Controller %d button press handler error suppressed', controller_id)
 
-        scene._handle_film_strip_button_press = mock_handle_film_strip_button_press
+        scene._controller_handler._handle_film_strip_button_press = (
+            mock_handle_film_strip_button_press
+        )
 
         # Mock film strip operations
         scene._add_frame_for_undo_redo = mocker.Mock(return_value=True)
@@ -92,10 +94,10 @@ class TestControllerUndoRedoIntegration:
         button = pygame.CONTROLLER_BUTTON_B
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify undo was called
-        mock_scene._handle_undo.assert_called_once()
+        mock_scene.handle_undo.assert_called_once()
 
     def test_controller_redo_button_press(self, mock_scene):
         """Test that controller X button triggers redo operation."""
@@ -114,10 +116,10 @@ class TestControllerUndoRedoIntegration:
         mock_scene.selected_frame_visible = True
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify redo was called
-        mock_scene._handle_redo.assert_called_once()
+        mock_scene.handle_redo.assert_called_once()
 
     def test_controller_redo_disabled_when_frame_hidden(self, mock_scene):
         """Test that controller X button is disabled when selected frame is hidden."""
@@ -136,10 +138,10 @@ class TestControllerUndoRedoIntegration:
         mock_scene.selected_frame_visible = False
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify redo was NOT called
-        mock_scene._handle_redo.assert_not_called()
+        mock_scene.handle_redo.assert_not_called()
 
     def test_controller_undo_with_film_strip_operations(self, mock_scene):
         """Test controller undo with various film strip operations."""
@@ -158,10 +160,10 @@ class TestControllerUndoRedoIntegration:
         button = pygame.CONTROLLER_BUTTON_B
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify undo was called
-        mock_scene._handle_undo.assert_called_once()
+        mock_scene.handle_undo.assert_called_once()
 
     def test_controller_redo_with_film_strip_operations(self, mock_scene):
         """Test controller redo with various film strip operations."""
@@ -190,10 +192,10 @@ class TestControllerUndoRedoIntegration:
         mock_scene.selected_frame_visible = True
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify redo was called
-        mock_scene._handle_redo.assert_called_once()
+        mock_scene.handle_redo.assert_called_once()
 
     def test_controller_undo_no_operations(self, mock_scene):
         """Test controller undo when no operations are available."""
@@ -205,10 +207,10 @@ class TestControllerUndoRedoIntegration:
         button = pygame.CONTROLLER_BUTTON_B
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify undo was called (but should handle gracefully)
-        mock_scene._handle_undo.assert_called_once()
+        mock_scene.handle_undo.assert_called_once()
 
     def test_controller_redo_no_operations(self, mock_scene):
         """Test controller redo when no operations are available."""
@@ -223,10 +225,10 @@ class TestControllerUndoRedoIntegration:
         mock_scene.selected_frame_visible = True
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify redo was called (but should handle gracefully)
-        mock_scene._handle_redo.assert_called_once()
+        mock_scene.handle_redo.assert_called_once()
 
     def test_controller_undo_with_mixed_operations(self, mock_scene):
         """Test controller undo with mixed canvas and film strip operations."""
@@ -244,10 +246,10 @@ class TestControllerUndoRedoIntegration:
         button = pygame.CONTROLLER_BUTTON_B
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify undo was called
-        mock_scene._handle_undo.assert_called_once()
+        mock_scene.handle_undo.assert_called_once()
 
     def test_controller_redo_with_mixed_operations(self, mock_scene):
         """Test controller redo with mixed canvas and film strip operations."""
@@ -271,10 +273,10 @@ class TestControllerUndoRedoIntegration:
         mock_scene.selected_frame_visible = True
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify redo was called
-        mock_scene._handle_redo.assert_called_once()
+        mock_scene.handle_redo.assert_called_once()
 
     def test_controller_undo_redo_sequence(self, mock_scene):
         """Test a sequence of controller undo/redo operations."""
@@ -287,18 +289,18 @@ class TestControllerUndoRedoIntegration:
         for i in range(3):
             controller_id = 0
             button = pygame.CONTROLLER_BUTTON_B
-            mock_scene._handle_film_strip_button_press(controller_id, button)
-            mock_scene._handle_undo.assert_called()
-            mock_scene._handle_undo.reset_mock()
+            mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
+            mock_scene.handle_undo.assert_called()
+            mock_scene.handle_undo.reset_mock()
 
         # Test redo sequence
         for i in range(3):
             controller_id = 0
             button = pygame.CONTROLLER_BUTTON_X
             mock_scene.selected_frame_visible = True
-            mock_scene._handle_film_strip_button_press(controller_id, button)
-            mock_scene._handle_redo.assert_called()
-            mock_scene._handle_redo.reset_mock()
+            mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
+            mock_scene.handle_redo.assert_called()
+            mock_scene.handle_redo.reset_mock()
 
     def test_controller_undo_with_frame_selection_operations(self, mock_scene):
         """Test controller undo with frame selection operations."""
@@ -315,10 +317,10 @@ class TestControllerUndoRedoIntegration:
         button = pygame.CONTROLLER_BUTTON_B
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify undo was called
-        mock_scene._handle_undo.assert_called_once()
+        mock_scene.handle_undo.assert_called_once()
 
     def test_controller_redo_with_frame_selection_operations(self, mock_scene):
         """Test controller redo with frame selection operations."""
@@ -342,10 +344,10 @@ class TestControllerUndoRedoIntegration:
         mock_scene.selected_frame_visible = True
 
         # Call the controller handler
-        mock_scene._handle_film_strip_button_press(controller_id, button)
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
 
         # Verify redo was called
-        mock_scene._handle_redo.assert_called_once()
+        mock_scene.handle_redo.assert_called_once()
 
     def test_controller_undo_redo_with_optimization(self, mock_scene):
         """Test controller undo/redo with frame create + select optimization."""
@@ -360,19 +362,19 @@ class TestControllerUndoRedoIntegration:
         # Test undo
         controller_id = 0
         button = pygame.CONTROLLER_BUTTON_B
-        mock_scene._handle_film_strip_button_press(controller_id, button)
-        mock_scene._handle_undo.assert_called_once()
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
+        mock_scene.handle_undo.assert_called_once()
 
         # Test redo
         button = pygame.CONTROLLER_BUTTON_X
         mock_scene.selected_frame_visible = True
-        mock_scene._handle_film_strip_button_press(controller_id, button)
-        mock_scene._handle_redo.assert_called_once()
+        mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
+        mock_scene.handle_redo.assert_called_once()
 
     def test_controller_undo_redo_error_handling(self, mock_scene):
         """Test controller undo/redo error handling."""
         # Mock undo to raise a ValueError (simulating an undo operation error)
-        mock_scene._handle_undo.side_effect = ValueError('Test error')
+        mock_scene.handle_undo.side_effect = ValueError('Test error')
 
         # Create some operations
         mock_scene.film_strip_operation_tracker.add_frame_added('strip_1', 1, {})
@@ -383,12 +385,12 @@ class TestControllerUndoRedoIntegration:
 
         # Call the controller handler (should not raise exception)
         try:
-            mock_scene._handle_film_strip_button_press(controller_id, button)
+            mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
         except AttributeError, ValueError:
             pytest.fail('Controller handler should handle exceptions gracefully')
 
         # Verify undo was called
-        mock_scene._handle_undo.assert_called_once()
+        mock_scene.handle_undo.assert_called_once()
 
     def test_controller_undo_redo_with_multiple_controllers(self, mock_scene):
         """Test controller undo/redo with multiple controllers."""
@@ -400,16 +402,16 @@ class TestControllerUndoRedoIntegration:
         for controller_id in [0, 1, 2]:
             # Test undo
             button = pygame.CONTROLLER_BUTTON_B
-            mock_scene._handle_film_strip_button_press(controller_id, button)
-            mock_scene._handle_undo.assert_called()
-            mock_scene._handle_undo.reset_mock()
+            mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
+            mock_scene.handle_undo.assert_called()
+            mock_scene.handle_undo.reset_mock()
 
             # Test redo
             button = pygame.CONTROLLER_BUTTON_X
             mock_scene.selected_frame_visible = True
-            mock_scene._handle_film_strip_button_press(controller_id, button)
-            mock_scene._handle_redo.assert_called()
-            mock_scene._handle_redo.reset_mock()
+            mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
+            mock_scene.handle_redo.assert_called()
+            mock_scene.handle_redo.reset_mock()
 
     def test_controller_undo_redo_integration_completeness(self, mock_scene):
         """Test that all controller undo/redo integration points are working."""
@@ -452,16 +454,16 @@ class TestControllerUndoRedoIntegration:
             # Test undo
             controller_id = 0
             button = pygame.CONTROLLER_BUTTON_B
-            mock_scene._handle_film_strip_button_press(controller_id, button)
-            mock_scene._handle_undo.assert_called()
-            mock_scene._handle_undo.reset_mock()
+            mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
+            mock_scene.handle_undo.assert_called()
+            mock_scene.handle_undo.reset_mock()
 
             # Test redo
             button = pygame.CONTROLLER_BUTTON_X
             mock_scene.selected_frame_visible = True
-            mock_scene._handle_film_strip_button_press(controller_id, button)
-            mock_scene._handle_redo.assert_called()
-            mock_scene._handle_redo.reset_mock()
+            mock_scene._controller_handler._handle_film_strip_button_press(controller_id, button)
+            mock_scene.handle_redo.assert_called()
+            mock_scene.handle_redo.reset_mock()
 
             # Clear operations for next test with safety limit
             undo_count = 0

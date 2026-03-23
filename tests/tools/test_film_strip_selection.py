@@ -191,14 +191,14 @@ class TestFilmStripSelection:
                     strip_widget.is_selected = False
                     # Don't reset selected_frame - preserve individual selections
 
-        film_strip_widget.parent_scene._update_film_strip_selection_state = (
+        film_strip_widget.parent_scene.update_film_strip_selection_state = (
             mock_update_selection_state
         )
 
         # Switch to the second strip
         film_strip_widget.parent_scene.selected_animation = 'run'
         film_strip_widget.parent_scene.selected_frame = 1
-        film_strip_widget.parent_scene._update_film_strip_selection_state()
+        film_strip_widget.parent_scene.update_film_strip_selection_state()
 
         # First strip should be deselected but preserve its selected_frame
         assert not film_strip_widget.is_selected
@@ -212,7 +212,7 @@ class TestFilmStripSelection:
         # Now switch back to first strip
         film_strip_widget.parent_scene.selected_animation = 'walk'
         film_strip_widget.parent_scene.selected_frame = 2  # Use the preserved selection
-        film_strip_widget.parent_scene._update_film_strip_selection_state()
+        film_strip_widget.parent_scene.update_film_strip_selection_state()
 
         # First strip should be selected again with its preserved selection
         assert film_strip_widget.is_selected
@@ -291,10 +291,10 @@ class TestFilmStripSelection:
                     strip_widget.is_selected = False
                     # Don't reset selected_frame - preserve individual selections
 
-        scene._update_film_strip_selection_state = mock_update_selection_state
+        scene.update_film_strip_selection_state = mock_update_selection_state
 
         # Update selection state
-        scene._update_film_strip_selection_state()
+        scene.update_film_strip_selection_state()
 
         # Strip 1 should be selected with frame 2
         assert strip1.is_selected
@@ -307,7 +307,7 @@ class TestFilmStripSelection:
         # Switch to strip 2
         scene.selected_animation = 'run'
         scene.selected_frame = 1
-        scene._update_film_strip_selection_state()
+        scene.update_film_strip_selection_state()
 
         # Strip 2 should be selected with frame 1
         assert strip2.is_selected

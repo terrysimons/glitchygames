@@ -6,6 +6,7 @@ Re-exports all public names from submodules for backwards compatibility.
 from __future__ import annotations
 
 # Extracted modules (canonical imports)
+from .ai_integration import AIIntegrationManager
 from .ai_worker import run_ai_worker
 from .animated_canvas import AnimatedCanvasSprite
 
@@ -69,6 +70,7 @@ from .constants import (
     TRANSPARENT_GLYPH,
     ai_training_state,
 )
+from .controller_handler import ControllerEventHandler
 from .controllers import (
     MAX_CONTROLLER_ACTION_HISTORY,
     BitmappyMultiControllerEnhancements,
@@ -100,6 +102,7 @@ from .editor import (
     BitmapEditorScene,
     main,
 )
+from .file_io import FileIOManager
 from .film_strip import (
     ANIMATION_NAME_MAX_LENGTH,
     FilmStripDeleteTab,
@@ -133,6 +136,7 @@ from .models import (
 )
 from .onion_skinning import OnionSkinningManager, get_onion_skinning_manager
 from .pixel_sprite import BitmapPixelSprite
+from .protocols import EditorContext
 from .scroll_arrow import ScrollArrowSprite
 from .sprite_inspection import load_ai_training_data
 from .toml_processing import parse_toml_robustly
@@ -187,6 +191,7 @@ __all__ = [
     'SPRITE_ASPECT_RATIO_TOLERANCE',
     'SPRITE_CONFIG_DIR',
     'TRANSPARENT_GLYPH',
+    'AIIntegrationManager',
     'AIRequest',
     'AIRequestState',
     'AIResponse',
@@ -199,6 +204,7 @@ __all__ = [
     'BitmappyMultiControllerEnhancements',
     'CachedPositionManager',
     'CanvasOperationTracker',
+    'ControllerEventHandler',
     'ControllerInfo',
     'ControllerMode',
     'ControllerModeState',
@@ -206,8 +212,10 @@ __all__ = [
     'ControllerSelection',
     'ControllerStatus',
     'CrossAreaOperationTracker',
+    'EditorContext',
     'ErrorInfo',
     'ErrorSeverity',
+    'FileIOManager',
     'FilmStripDeleteTab',
     'FilmStripOperationTracker',
     'FilmStripSprite',

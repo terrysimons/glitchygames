@@ -9,6 +9,13 @@ import pygame
 import pytest
 
 from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.constants import (
+    JOYSTICK_HAT_DOWN,
+    JOYSTICK_HAT_LEFT,
+    JOYSTICK_HAT_RIGHT,
+    JOYSTICK_LEFT_SHOULDER_BUTTON,
+)
+from glitchygames.bitmappy.controller_handler import ControllerEventHandler
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from tests.mocks import MockFactory
 
@@ -101,21 +108,22 @@ def mock_editor(mocker, pygame_mocks):
     editor.undo_redo_manager.undo_stack = []
     editor.canvas_operation_tracker = mocker.Mock()
     editor.controller_position_operation_tracker = mocker.Mock()
-    editor._current_pixel_changes = []
+    editor.current_pixel_changes = []
     editor._is_drag_operation = False
     editor._applying_undo_redo = False
 
-    # -- Controller drags --
-    editor.controller_drags = {}
+    # -- Controller handler (extracted subsystem) --
+    editor._controller_handler = ControllerEventHandler(editor)
+
+    # -- Controller state on editor (referenced by controller_handler via self.editor.*) --
+    editor.controller_drags = editor._controller_handler.controller_drags
+    editor.canvas_continuous_movements = editor._controller_handler.canvas_continuous_movements
+    editor.slider_continuous_adjustments = editor._controller_handler.slider_continuous_adjustments
 
     # -- Film strips --
     editor.film_strips = {}
     editor.film_strip_scroll_offset = 0
     editor.max_visible_strips = 2
-
-    # -- Continuous movement/adjustment state --
-    editor.canvas_continuous_movements = {}
-    editor.slider_continuous_adjustments = {}
 
     # -- Animated sprite --
     editor.animated_sprite = mocker.Mock()
@@ -129,14 +137,14 @@ def mock_editor(mocker, pygame_mocks):
 
 
 class TestGetCurrentColor:
-    """Tests for _get_current_color()."""
+    """Tests for get_current_color()."""
 
     def test_returns_color_from_sliders(self, mock_editor):
         """Test that slider values are returned as an RGB tuple."""
         mock_editor.red_slider.value = 100
         mock_editor.green_slider.value = 150
         mock_editor.blue_slider.value = 200
-        result = mock_editor._get_current_color()
+        result = mock_editor.get_current_color()
         assert result == (100, 150, 200)
 
     def test_returns_white_when_no_sliders(self, mock_editor):
@@ -144,19 +152,19 @@ class TestGetCurrentColor:
         del mock_editor.red_slider
         del mock_editor.green_slider
         del mock_editor.blue_slider
-        result = mock_editor._get_current_color()
+        result = mock_editor.get_current_color()
         assert result == (255, 255, 255)
 
     def test_returns_white_on_value_error(self, mock_editor):
         """Test fallback to white when slider values raise ValueError."""
         mock_editor.red_slider.value = 'invalid'
-        result = mock_editor._get_current_color()
+        result = mock_editor.get_current_color()
         assert result == (255, 255, 255)
 
     def test_returns_white_on_attribute_error(self, mock_editor):
         """Test fallback to white when slider has no .value attribute."""
         mock_editor.red_slider = object()  # No .value attribute
-        result = mock_editor._get_current_color()
+        result = mock_editor.get_current_color()
         assert result == (255, 255, 255)
 
     def test_zero_slider_values(self, mock_editor):
@@ -164,7 +172,7 @@ class TestGetCurrentColor:
         mock_editor.red_slider.value = 0
         mock_editor.green_slider.value = 0
         mock_editor.blue_slider.value = 0
-        result = mock_editor._get_current_color()
+        result = mock_editor.get_current_color()
         assert result == (0, 0, 0)
 
     def test_max_slider_values(self, mock_editor):
@@ -172,12 +180,12 @@ class TestGetCurrentColor:
         mock_editor.red_slider.value = 255
         mock_editor.green_slider.value = 255
         mock_editor.blue_slider.value = 255
-        result = mock_editor._get_current_color()
+        result = mock_editor.get_current_color()
         assert result == (255, 255, 255)
 
 
 class TestUpdateColorWellFromSliders:
-    """Tests for _update_color_well_from_sliders()."""
+    """Tests for update_color_well_from_sliders()."""
 
     def test_updates_color_well_active_color(self, mock_editor):
         """Test that color well receives RGBA from sliders."""
@@ -185,40 +193,40 @@ class TestUpdateColorWellFromSliders:
         mock_editor.green_slider.value = 20
         mock_editor.blue_slider.value = 30
         mock_editor.alpha_slider.value = 200
-        mock_editor._update_color_well_from_sliders()
+        mock_editor.update_color_well_from_sliders()
         assert mock_editor.color_well.active_color == (10, 20, 30, 200)
 
     def test_marks_color_well_dirty(self, mock_editor):
         """Test that color well dirty flag is set."""
-        mock_editor._update_color_well_from_sliders()
+        mock_editor.update_color_well_from_sliders()
         assert mock_editor.color_well.dirty == 1
 
     def test_marks_scene_dirty(self, mock_editor):
         """Test that the scene dirty flag is set."""
         mock_editor.dirty = 0
-        mock_editor._update_color_well_from_sliders()
+        mock_editor.update_color_well_from_sliders()
         assert mock_editor.dirty == 1
 
     def test_calls_force_redraw_if_available(self, mock_editor):
         """Test that force_redraw() is called when color_well has it."""
-        mock_editor._update_color_well_from_sliders()
+        mock_editor.update_color_well_from_sliders()
         mock_editor.color_well.force_redraw.assert_called_once()
 
     def test_no_color_well_does_not_crash(self, mock_editor):
         """Test graceful handling when color_well is None."""
         mock_editor.color_well = None
-        mock_editor._update_color_well_from_sliders()  # Should not raise
+        mock_editor.update_color_well_from_sliders()  # Should not raise
 
     def test_no_color_well_attribute_does_not_crash(self, mock_editor):
         """Test graceful handling when color_well attribute is missing."""
         del mock_editor.color_well
-        mock_editor._update_color_well_from_sliders()  # Should not raise
+        mock_editor.update_color_well_from_sliders()  # Should not raise
 
     def test_fallback_slider_values_when_missing(self, mock_editor):
         """Test that missing sliders default to 0."""
         del mock_editor.red_slider
         del mock_editor.alpha_slider
-        mock_editor._update_color_well_from_sliders()
+        mock_editor.update_color_well_from_sliders()
         # red and alpha default to 0
         assert mock_editor.color_well.active_color == (0, 64, 32, 0)
 
@@ -263,24 +271,24 @@ class TestGetCanvasDimensions:
         """Test basic dimension retrieval from canvas."""
         mock_editor.canvas.pixels_across = 64
         mock_editor.canvas.pixels_tall = 48
-        assert mock_editor._get_canvas_dimensions() == (64, 48)
+        assert mock_editor._controller_handler._get_canvas_dimensions() == (64, 48)
 
     def test_returns_zero_when_no_canvas(self, mock_editor):
         """Test fallback to (0, 0) when canvas is absent."""
         mock_editor.canvas = None
-        assert mock_editor._get_canvas_dimensions() == (0, 0)
+        assert mock_editor._controller_handler._get_canvas_dimensions() == (0, 0)
 
     def test_returns_zero_when_canvas_attr_missing(self, mock_editor):
         """Test fallback when canvas lacks pixels_across/pixels_tall."""
         del mock_editor.canvas.pixels_across
         del mock_editor.canvas.pixels_tall
-        result = mock_editor._get_canvas_dimensions()
+        result = mock_editor._controller_handler._get_canvas_dimensions()
         assert result == (0, 0)
 
     def test_returns_zero_when_no_canvas_attribute(self, mock_editor):
         """Test fallback when canvas attribute is completely missing."""
         del mock_editor.canvas
-        assert mock_editor._get_canvas_dimensions() == (0, 0)
+        assert mock_editor._controller_handler._get_canvas_dimensions() == (0, 0)
 
 
 class TestCalculateCanvasDimensions:
@@ -341,7 +349,7 @@ class TestGetControllerIdFromEvent:
         event = mocker.Mock()
         event.instance_id = 42
         mock_editor.multi_controller_manager.get_controller_id.return_value = 1
-        result = mock_editor._get_controller_id_from_event(event)
+        result = mock_editor._controller_handler._get_controller_id_from_event(event)
         assert result == 1
         mock_editor.multi_controller_manager.get_controller_id.assert_called_once_with(42)
 
@@ -349,7 +357,7 @@ class TestGetControllerIdFromEvent:
         """Test fallback to joy device index for joystick events."""
         event = mocker.Mock(spec=[])  # No instance_id attribute
         event.joy = 3
-        result = mock_editor._get_controller_id_from_event(event)
+        result = mock_editor._controller_handler._get_controller_id_from_event(event)
         assert result == 3
 
     def test_instance_id_none_falls_back_to_joy(self, mock_editor, mocker):
@@ -357,7 +365,7 @@ class TestGetControllerIdFromEvent:
         event = mocker.Mock()
         event.instance_id = None
         event.joy = 2
-        result = mock_editor._get_controller_id_from_event(event)
+        result = mock_editor._controller_handler._get_controller_id_from_event(event)
         assert result == 2
 
 
@@ -367,13 +375,13 @@ class TestIsControllerButtonHeld:
     def test_returns_false_on_pygame_error(self, mock_editor, mocker):
         """Test that pygame errors result in False."""
         mocker.patch('pygame.joystick.Joystick', side_effect=pygame.error('No joystick'))
-        result = mock_editor._is_controller_button_held(0, 0)
+        result = mock_editor._controller_handler._is_controller_button_held(0, 0)
         assert result is False
 
     def test_returns_false_on_value_error(self, mock_editor, mocker):
         """Test that ValueError results in False."""
         mocker.patch('pygame.joystick.Joystick', side_effect=ValueError('Bad ID'))
-        result = mock_editor._is_controller_button_held(99, 0)
+        result = mock_editor._controller_handler._is_controller_button_held(99, 0)
         assert result is False
 
     def test_returns_button_state_when_available(self, mock_editor, mocker):
@@ -381,7 +389,7 @@ class TestIsControllerButtonHeld:
         mock_joystick = mocker.Mock()
         mock_joystick.get_button.return_value = True
         mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
-        result = mock_editor._is_controller_button_held(0, 1)
+        result = mock_editor._controller_handler._is_controller_button_held(0, 1)
         assert result is True
         mock_joystick.get_button.assert_called_once_with(1)
 
@@ -454,52 +462,52 @@ class TestDeprecatedControllerMethods:
 
     def test_slider_previous_logs(self, mock_editor):
         """Test _slider_previous runs without error."""
-        mock_editor._slider_previous(0)
+        mock_editor._controller_handler._slider_previous(0)
 
     def test_slider_next_logs(self, mock_editor):
         """Test _slider_next runs without error."""
-        mock_editor._slider_next(0)
+        mock_editor._controller_handler._slider_next(0)
 
     def test_controller_previous_frame_logs(self, mock_editor):
         """Test _controller_previous_frame runs without error."""
-        mock_editor._controller_previous_frame()
+        mock_editor._controller_handler._controller_previous_frame()
 
     def test_controller_next_frame_logs(self, mock_editor):
         """Test _controller_next_frame runs without error."""
-        mock_editor._controller_next_frame()
+        mock_editor._controller_handler._controller_next_frame()
 
     def test_controller_previous_animation_logs(self, mock_editor):
         """Test _controller_previous_animation runs without error."""
-        mock_editor._controller_previous_animation()
+        mock_editor._controller_handler._controller_previous_animation()
 
     def test_controller_next_animation_logs(self, mock_editor):
         """Test _controller_next_animation runs without error."""
-        mock_editor._controller_next_animation()
+        mock_editor._controller_handler._controller_next_animation()
 
     def test_validate_controller_selection_logs(self, mock_editor):
         """Test _validate_controller_selection runs without error."""
-        mock_editor._validate_controller_selection()
+        mock_editor._controller_handler._validate_controller_selection()
 
     def test_initialize_controller_selection_logs(self, mock_editor):
         """Test _initialize_controller_selection runs without error."""
-        mock_editor._initialize_controller_selection()
+        mock_editor._controller_handler._initialize_controller_selection()
 
     def test_controller_cancel_logs(self, mock_editor):
         """Test _controller_cancel runs without error."""
-        mock_editor._controller_cancel()
+        mock_editor._controller_handler._controller_cancel()
 
     def test_controller_select_current_frame_logs(self, mock_editor):
         """Test _controller_select_current_frame runs without error."""
-        mock_editor._controller_select_current_frame()
+        mock_editor._controller_handler._controller_select_current_frame()
 
     def test_controller_select_frame_logs(self, mock_editor):
         """Test _controller_select_frame runs without error."""
-        mock_editor._controller_select_frame('idle', 0)
+        mock_editor._controller_handler._controller_select_frame('idle', 0)
 
     def test_controller_select_frame_different_args(self, mock_editor):
         """Test _controller_select_frame with different animation names."""
-        mock_editor._controller_select_frame('walk', 5)
-        mock_editor._controller_select_frame('jump', 10)
+        mock_editor._controller_handler._controller_select_frame('walk', 5)
+        mock_editor._controller_handler._controller_select_frame('jump', 10)
 
 
 # ===========================================================================
@@ -513,31 +521,31 @@ class TestGetCanvasPixelColor:
     def test_returns_none_when_no_canvas(self, mock_editor):
         """Test returns None when canvas is absent."""
         mock_editor.canvas = None
-        assert mock_editor._get_canvas_pixel_color(0, 0) is None
+        assert mock_editor._controller_handler._get_canvas_pixel_color(0, 0) is None
 
     def test_uses_canvas_interface(self, mock_editor):
         """Test pixel retrieval via canvas_interface."""
         mock_editor.canvas.canvas_interface.get_pixel_at.return_value = (255, 0, 0)
-        result = mock_editor._get_canvas_pixel_color(5, 10)
+        result = mock_editor._controller_handler._get_canvas_pixel_color(5, 10)
         assert result == (255, 0, 0)
         mock_editor.canvas.canvas_interface.get_pixel_at.assert_called_once_with(5, 10)
 
     def test_returns_black_on_index_error(self, mock_editor):
         """Test returns black on IndexError from canvas_interface."""
         mock_editor.canvas.canvas_interface.get_pixel_at.side_effect = IndexError('Out of range')
-        result = mock_editor._get_canvas_pixel_color(999, 999)
+        result = mock_editor._controller_handler._get_canvas_pixel_color(999, 999)
         assert result == (0, 0, 0)
 
     def test_returns_black_on_type_error(self, mock_editor):
         """Test returns black on TypeError from canvas_interface."""
         mock_editor.canvas.canvas_interface.get_pixel_at.side_effect = TypeError('Bad type')
-        result = mock_editor._get_canvas_pixel_color(0, 0)
+        result = mock_editor._controller_handler._get_canvas_pixel_color(0, 0)
         assert result == (0, 0, 0)
 
     def test_returns_black_on_attribute_error(self, mock_editor):
         """Test returns black on AttributeError from canvas_interface."""
         mock_editor.canvas.canvas_interface.get_pixel_at.side_effect = AttributeError('Missing')
-        result = mock_editor._get_canvas_pixel_color(0, 0)
+        result = mock_editor._controller_handler._get_canvas_pixel_color(0, 0)
         assert result == (0, 0, 0)
 
     def test_falls_back_to_pixels_array(self, mock_editor):
@@ -546,7 +554,7 @@ class TestGetCanvasPixelColor:
         mock_editor.canvas.pixels_across = 4
         mock_editor.canvas.pixels_tall = 4
         mock_editor.canvas.pixels = [(i, i, i) for i in range(16)]
-        result = mock_editor._get_canvas_pixel_color(2, 1)
+        result = mock_editor._controller_handler._get_canvas_pixel_color(2, 1)
         # pixel_num = 1 * 4 + 2 = 6
         assert result == (6, 6, 6)
 
@@ -555,13 +563,13 @@ class TestGetCanvasPixelColor:
         del mock_editor.canvas.canvas_interface
         mock_editor.canvas.pixels_across = 4
         mock_editor.canvas.pixels_tall = 4
-        result = mock_editor._get_canvas_pixel_color(10, 10)
+        result = mock_editor._controller_handler._get_canvas_pixel_color(10, 10)
         assert result is None
 
     def test_returns_none_when_canvas_attr_missing(self, mock_editor):
         """Test returns None when canvas attribute is missing entirely."""
         del mock_editor.canvas
-        assert mock_editor._get_canvas_pixel_color(0, 0) is None
+        assert mock_editor._controller_handler._get_canvas_pixel_color(0, 0) is None
 
 
 class TestSetCanvasPixel:
@@ -570,11 +578,11 @@ class TestSetCanvasPixel:
     def test_no_canvas_does_nothing(self, mock_editor):
         """Test that missing canvas is a no-op."""
         mock_editor.canvas = None
-        mock_editor._set_canvas_pixel(0, 0, (255, 0, 0))  # Should not raise
+        mock_editor._controller_handler._set_canvas_pixel(0, 0, (255, 0, 0))  # Should not raise
 
     def test_uses_canvas_interface(self, mock_editor):
         """Test pixel setting via canvas_interface."""
-        mock_editor._set_canvas_pixel(3, 7, (0, 255, 0))
+        mock_editor._controller_handler._set_canvas_pixel(3, 7, (0, 255, 0))
         mock_editor.canvas.canvas_interface.set_pixel_at.assert_called_once_with(3, 7, (0, 255, 0))
 
     def test_falls_back_to_pixels_array(self, mock_editor):
@@ -585,7 +593,7 @@ class TestSetCanvasPixel:
         mock_editor.canvas.pixels = [(0, 0, 0)] * 16
         mock_editor.canvas.dirty_pixels = [False] * 16
         mock_editor.canvas.dirty = 0
-        mock_editor._set_canvas_pixel(1, 2, (100, 200, 50))
+        mock_editor._controller_handler._set_canvas_pixel(1, 2, (100, 200, 50))
         # pixel_num = 2 * 4 + 1 = 9
         assert mock_editor.canvas.pixels[9] == (100, 200, 50)
         assert mock_editor.canvas.dirty_pixels[9] is True
@@ -594,7 +602,7 @@ class TestSetCanvasPixel:
     def test_no_canvas_attr_does_nothing(self, mock_editor):
         """Test that missing canvas attribute is a no-op."""
         del mock_editor.canvas
-        mock_editor._set_canvas_pixel(0, 0, (255, 0, 0))  # Should not raise
+        mock_editor._controller_handler._set_canvas_pixel(0, 0, (255, 0, 0))  # Should not raise
 
 
 class TestStopCanvasContinuousMovement:
@@ -602,37 +610,37 @@ class TestStopCanvasContinuousMovement:
 
     def test_removes_movement_entry(self, mock_editor, mocker):
         """Test that movement entry is removed for the controller."""
-        mock_editor.canvas_continuous_movements = {
-            0: {'start_x': 5, 'start_y': 10, 'dx': 1, 'dy': 0},
-        }
+        movements = {0: {'start_x': 5, 'start_y': 10, 'dx': 1, 'dy': 0}}
+        mock_editor._controller_handler.canvas_continuous_movements = movements
+        mock_editor.canvas_continuous_movements = movements
         # Need mode_switcher to return position for tracking
         mock_position = mocker.Mock()
         mock_position.position = (10, 10)
         mock_editor.mode_switcher.get_controller_position.return_value = mock_position
         mock_editor.mode_switcher.get_controller_mode.return_value = mocker.Mock(value='canvas')
-        mock_editor._stop_canvas_continuous_movement(0)
-        assert 0 not in mock_editor.canvas_continuous_movements
+        mock_editor._controller_handler._stop_canvas_continuous_movement(0)
+        assert 0 not in mock_editor._controller_handler.canvas_continuous_movements
 
     def test_no_entry_does_not_crash(self, mock_editor):
         """Test that stopping non-existent movement is safe."""
-        mock_editor.canvas_continuous_movements = {}
-        mock_editor._stop_canvas_continuous_movement(99)
+        mock_editor._controller_handler.canvas_continuous_movements = {}
+        mock_editor._controller_handler._stop_canvas_continuous_movement(99)
 
     def test_no_attr_does_not_crash(self, mock_editor):
         """Test that missing canvas_continuous_movements attribute is safe."""
-        del mock_editor.canvas_continuous_movements
-        mock_editor._stop_canvas_continuous_movement(0)
+        del mock_editor._controller_handler.canvas_continuous_movements
+        mock_editor._controller_handler._stop_canvas_continuous_movement(0)
 
     def test_tracks_position_change_for_undo(self, mock_editor, mocker):
         """Test that position change is tracked for undo/redo when position changed."""
-        mock_editor.canvas_continuous_movements = {
-            0: {'start_x': 0, 'start_y': 0, 'dx': 1, 'dy': 0},
-        }
+        movements = {0: {'start_x': 0, 'start_y': 0, 'dx': 1, 'dy': 0}}
+        mock_editor._controller_handler.canvas_continuous_movements = movements
+        mock_editor.canvas_continuous_movements = movements
         mock_position = mocker.Mock()
         mock_position.position = (5, 0)  # Position changed from start
         mock_editor.mode_switcher.get_controller_position.return_value = mock_position
         mock_editor.mode_switcher.get_controller_mode.return_value = mocker.Mock(value='canvas')
-        mock_editor._stop_canvas_continuous_movement(0)
+        mock_editor._controller_handler._stop_canvas_continuous_movement(0)
         mock_editor.controller_position_operation_tracker.add_controller_position_change.assert_called_once()
 
 
@@ -641,19 +649,19 @@ class TestStopSliderContinuousAdjustment:
 
     def test_removes_adjustment_entry(self, mock_editor):
         """Test that adjustment entry is removed."""
-        mock_editor.slider_continuous_adjustments = {0: {'direction': 1}}
-        mock_editor._stop_slider_continuous_adjustment(0)
-        assert 0 not in mock_editor.slider_continuous_adjustments
+        mock_editor._controller_handler.slider_continuous_adjustments = {0: {'direction': 1}}
+        mock_editor._controller_handler._stop_slider_continuous_adjustment(0)
+        assert 0 not in mock_editor._controller_handler.slider_continuous_adjustments
 
     def test_no_entry_does_not_crash(self, mock_editor):
         """Test that stopping non-existent adjustment is safe."""
-        mock_editor.slider_continuous_adjustments = {}
-        mock_editor._stop_slider_continuous_adjustment(5)
+        mock_editor._controller_handler.slider_continuous_adjustments = {}
+        mock_editor._controller_handler._stop_slider_continuous_adjustment(5)
 
     def test_no_attr_does_not_crash(self, mock_editor):
         """Test that missing slider_continuous_adjustments attribute is safe."""
-        del mock_editor.slider_continuous_adjustments
-        mock_editor._stop_slider_continuous_adjustment(0)
+        del mock_editor._controller_handler.slider_continuous_adjustments
+        mock_editor._controller_handler._stop_slider_continuous_adjustment(0)
 
 
 # ===========================================================================
@@ -666,25 +674,35 @@ class TestTrackControllerDragPixel:
 
     def test_no_controller_drags_attr(self, mock_editor):
         """Test no-op when controller_drags attribute is missing."""
-        del mock_editor.controller_drags
-        mock_editor._track_controller_drag_pixel(0, (1, 2), (255, 0, 0), (0, 0, 0))
+        del mock_editor._controller_handler.controller_drags
+        mock_editor._controller_handler._track_controller_drag_pixel(
+            0, (1, 2), (255, 0, 0), (0, 0, 0)
+        )
 
     def test_controller_not_in_drags(self, mock_editor):
         """Test no-op when controller_id is not tracked."""
-        mock_editor.controller_drags = {}
-        mock_editor._track_controller_drag_pixel(0, (1, 2), (255, 0, 0), (0, 0, 0))
+        mock_editor._controller_handler.controller_drags = {}
+        mock_editor._controller_handler._track_controller_drag_pixel(
+            0, (1, 2), (255, 0, 0), (0, 0, 0)
+        )
 
     def test_drag_not_active(self, mock_editor):
         """Test no-op when drag is not active."""
-        mock_editor.controller_drags = {0: {'active': False, 'pixels_drawn': []}}
-        mock_editor._track_controller_drag_pixel(0, (1, 2), (255, 0, 0), (0, 0, 0))
-        assert len(mock_editor.controller_drags[0]['pixels_drawn']) == 0
+        mock_editor._controller_handler.controller_drags = {
+            0: {'active': False, 'pixels_drawn': []}
+        }
+        mock_editor._controller_handler._track_controller_drag_pixel(
+            0, (1, 2), (255, 0, 0), (0, 0, 0)
+        )
+        assert len(mock_editor._controller_handler.controller_drags[0]['pixels_drawn']) == 0
 
     def test_tracks_pixel_when_active(self, mock_editor):
         """Test that pixel info is appended when drag is active."""
-        mock_editor.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
-        mock_editor._track_controller_drag_pixel(0, (3, 4), (255, 0, 0), (0, 0, 0))
-        pixels = mock_editor.controller_drags[0]['pixels_drawn']
+        mock_editor._controller_handler.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
+        mock_editor._controller_handler._track_controller_drag_pixel(
+            0, (3, 4), (255, 0, 0), (0, 0, 0)
+        )
+        pixels = mock_editor._controller_handler.controller_drags[0]['pixels_drawn']
         assert isinstance(pixels, list)
         assert len(pixels) == 1
         assert pixels[0]['position'] == (3, 4)
@@ -694,11 +712,17 @@ class TestTrackControllerDragPixel:
 
     def test_tracks_multiple_pixels(self, mock_editor):
         """Test that multiple pixels can be tracked."""
-        mock_editor.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
-        mock_editor._track_controller_drag_pixel(0, (0, 0), (255, 0, 0), (0, 0, 0))
-        mock_editor._track_controller_drag_pixel(0, (1, 0), (0, 255, 0), (0, 0, 0))
-        mock_editor._track_controller_drag_pixel(0, (2, 0), (0, 0, 255), (0, 0, 0))
-        assert len(mock_editor.controller_drags[0]['pixels_drawn']) == 3
+        mock_editor._controller_handler.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
+        mock_editor._controller_handler._track_controller_drag_pixel(
+            0, (0, 0), (255, 0, 0), (0, 0, 0)
+        )
+        mock_editor._controller_handler._track_controller_drag_pixel(
+            0, (1, 0), (0, 255, 0), (0, 0, 0)
+        )
+        mock_editor._controller_handler._track_controller_drag_pixel(
+            0, (2, 0), (0, 0, 255), (0, 0, 0)
+        )
+        assert len(mock_editor._controller_handler.controller_drags[0]['pixels_drawn']) == 3
 
 
 # ===========================================================================
@@ -717,7 +741,7 @@ class TestCollectDragPixelChanges:
                 {'position': (3, 4), 'color': (0, 255, 0), 'old_color': (10, 10, 10)},
             ]
         }
-        result = mock_editor._collect_drag_pixel_changes(0, drag_info)
+        result = mock_editor._controller_handler._collect_drag_pixel_changes(0, drag_info)
         assert len(result) == 2
         assert result[0] == (1, 2, (0, 0, 0), (255, 0, 0))
         assert result[1] == (3, 4, (10, 10, 10), (0, 255, 0))
@@ -729,60 +753,60 @@ class TestCollectDragPixelChanges:
                 {'position': (0, 0), 'color': (255, 255, 255)},
             ]
         }
-        result = mock_editor._collect_drag_pixel_changes(0, drag_info)
+        result = mock_editor._controller_handler._collect_drag_pixel_changes(0, drag_info)
         assert result[0][2] == (0, 0, 0)
 
     def test_merges_pending_pixel_changes(self, mock_editor):
         """Test that pending single pixel changes are merged with drag changes."""
-        mock_editor._current_pixel_changes = [(0, 0, (0, 0, 0), (128, 128, 128))]
+        mock_editor.current_pixel_changes = [(0, 0, (0, 0, 0), (128, 128, 128))]
         drag_info = {
             'pixels_drawn': [
                 {'position': (1, 1), 'color': (255, 0, 0), 'old_color': (0, 0, 0)},
             ]
         }
-        result = mock_editor._collect_drag_pixel_changes(0, drag_info)
+        result = mock_editor._controller_handler._collect_drag_pixel_changes(0, drag_info)
         assert len(result) == 2
         # Pending pixels are prepended
         assert result[0] == (0, 0, (0, 0, 0), (128, 128, 128))
         assert result[1] == (1, 1, (0, 0, 0), (255, 0, 0))
         # Pending pixels should be cleared
-        assert mock_editor._current_pixel_changes == []
+        assert mock_editor.current_pixel_changes == []
 
     def test_pops_undo_stack_when_merging(self, mock_editor, mocker):
         """Test that old single-pixel operation is removed from undo stack on merge."""
         mock_operation = mocker.Mock()
         mock_operation.operation_type = 'pixel_change'
         mock_editor.undo_redo_manager.undo_stack = [mock_operation]
-        mock_editor._current_pixel_changes = [(0, 0, (0, 0, 0), (100, 100, 100))]
+        mock_editor.current_pixel_changes = [(0, 0, (0, 0, 0), (100, 100, 100))]
         drag_info = {
             'pixels_drawn': [
                 {'position': (1, 1), 'color': (200, 200, 200), 'old_color': (0, 0, 0)},
             ]
         }
-        result = mock_editor._collect_drag_pixel_changes(0, drag_info)
+        result = mock_editor._controller_handler._collect_drag_pixel_changes(0, drag_info)
         assert len(mock_editor.undo_redo_manager.undo_stack) == 0
 
     def test_empty_undo_stack_during_merge(self, mock_editor):
         """Test safe handling when undo stack is empty during merge attempt."""
         mock_editor.undo_redo_manager.undo_stack = []
-        mock_editor._current_pixel_changes = [(0, 0, (0, 0, 0), (50, 50, 50))]
+        mock_editor.current_pixel_changes = [(0, 0, (0, 0, 0), (50, 50, 50))]
         drag_info = {
             'pixels_drawn': [
                 {'position': (1, 1), 'color': (100, 100, 100), 'old_color': (0, 0, 0)},
             ]
         }
-        result = mock_editor._collect_drag_pixel_changes(0, drag_info)
+        result = mock_editor._controller_handler._collect_drag_pixel_changes(0, drag_info)
         assert len(result) == 2  # Still merges even without undo stack pop
 
     def test_no_pending_changes_no_merge(self, mock_editor):
         """Test that no merge happens when there are no pending changes."""
-        mock_editor._current_pixel_changes = []
+        mock_editor.current_pixel_changes = []
         drag_info = {
             'pixels_drawn': [
                 {'position': (5, 5), 'color': (1, 2, 3), 'old_color': (4, 5, 6)},
             ]
         }
-        result = mock_editor._collect_drag_pixel_changes(0, drag_info)
+        result = mock_editor._controller_handler._collect_drag_pixel_changes(0, drag_info)
         assert len(result) == 1
 
 
@@ -797,18 +821,18 @@ class TestScrollToControllerAnimation:
     def test_no_film_strips_returns_early(self, mock_editor):
         """Test early return when no film strips exist."""
         mock_editor.film_strips = {}
-        mock_editor._scroll_to_controller_animation('idle')
+        mock_editor._controller_handler._scroll_to_controller_animation('idle')
         # Should not crash
 
     def test_no_film_strips_attr_returns_early(self, mock_editor):
         """Test early return when film_strips attribute is missing."""
         del mock_editor.film_strips
-        mock_editor._scroll_to_controller_animation('idle')
+        mock_editor._controller_handler._scroll_to_controller_animation('idle')
 
     def test_animation_not_found_returns_early(self, mock_editor, mocker):
         """Test early return when animation name is not in film strips."""
         mock_editor.film_strips = {'idle': mocker.Mock(), 'walk': mocker.Mock()}
-        mock_editor._scroll_to_controller_animation('jump')
+        mock_editor._controller_handler._scroll_to_controller_animation('jump')
 
     def test_scrolls_up_to_show_animation(self, mock_editor, mocker):
         """Test scrolling up when target animation is above visible area."""
@@ -820,9 +844,9 @@ class TestScrollToControllerAnimation:
         }
         mock_editor.film_strip_scroll_offset = 3  # Currently scrolled past 'idle'
         mock_editor.max_visible_strips = 2
-        mock_editor._update_film_strip_visibility = mocker.Mock()
-        mock_editor._update_scroll_arrows = mocker.Mock()
-        mock_editor._scroll_to_controller_animation('idle')
+        mock_editor.update_film_strip_visibility = mocker.Mock()
+        mock_editor.update_scroll_arrows = mocker.Mock()
+        mock_editor._controller_handler._scroll_to_controller_animation('idle')
         assert mock_editor.film_strip_scroll_offset == 0
 
     def test_scrolls_down_to_show_animation(self, mock_editor, mocker):
@@ -835,9 +859,9 @@ class TestScrollToControllerAnimation:
         }
         mock_editor.film_strip_scroll_offset = 0
         mock_editor.max_visible_strips = 2
-        mock_editor._update_film_strip_visibility = mocker.Mock()
-        mock_editor._update_scroll_arrows = mocker.Mock()
-        mock_editor._scroll_to_controller_animation('jump')
+        mock_editor.update_film_strip_visibility = mocker.Mock()
+        mock_editor.update_scroll_arrows = mocker.Mock()
+        mock_editor._controller_handler._scroll_to_controller_animation('jump')
         # 'jump' is at index 3, max_visible=2, so offset = 3 - 2 + 1 = 2
         assert mock_editor.film_strip_scroll_offset == 2
 
@@ -846,11 +870,11 @@ class TestScrollToControllerAnimation:
         mock_editor.film_strips = {'idle': mocker.Mock(), 'walk': mocker.Mock()}
         mock_editor.film_strip_scroll_offset = 0
         mock_editor.max_visible_strips = 2
-        mock_editor._update_film_strip_visibility = mocker.Mock()
-        mock_editor._update_scroll_arrows = mocker.Mock()
-        mock_editor._scroll_to_controller_animation('idle')
-        mock_editor._update_film_strip_visibility.assert_called_once()
-        mock_editor._update_scroll_arrows.assert_called_once()
+        mock_editor.update_film_strip_visibility = mocker.Mock()
+        mock_editor.update_scroll_arrows = mocker.Mock()
+        mock_editor._controller_handler._scroll_to_controller_animation('idle')
+        mock_editor.update_film_strip_visibility.assert_called_once()
+        mock_editor.update_scroll_arrows.assert_called_once()
 
 
 # ===========================================================================
@@ -863,10 +887,10 @@ class TestTrackControllerModeChange:
 
     def test_skips_during_undo_redo(self, mock_editor, mocker):
         """Test that mode changes are not tracked during undo/redo application."""
-        mock_editor._applying_undo_redo = True
+        mock_editor._controller_handler._applying_undo_redo = True
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
-        mock_editor._track_controller_mode_change(0, new_mode)
+        mock_editor._controller_handler._track_controller_mode_change(0, new_mode)
         mock_editor.controller_position_operation_tracker.add_controller_mode_change.assert_not_called()
 
     def test_skips_without_tracker(self, mock_editor, mocker):
@@ -874,7 +898,7 @@ class TestTrackControllerModeChange:
         del mock_editor.controller_position_operation_tracker
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
-        mock_editor._track_controller_mode_change(0, new_mode)
+        mock_editor._controller_handler._track_controller_mode_change(0, new_mode)
 
     def test_tracks_mode_change(self, mock_editor, mocker):
         """Test that mode change is tracked properly."""
@@ -884,7 +908,7 @@ class TestTrackControllerModeChange:
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
         mock_editor.mode_switcher.get_controller_mode.return_value = old_mode
-        mock_editor._track_controller_mode_change(0, new_mode)
+        mock_editor._controller_handler._track_controller_mode_change(0, new_mode)
         mock_editor.controller_position_operation_tracker.add_controller_mode_change.assert_called_once_with(
             0, 'film_strip', 'canvas'
         )
@@ -895,7 +919,7 @@ class TestTrackControllerModeChange:
         mock_editor.mode_switcher.get_controller_mode.return_value = None
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
-        mock_editor._track_controller_mode_change(0, new_mode)
+        mock_editor._controller_handler._track_controller_mode_change(0, new_mode)
         mock_editor.controller_position_operation_tracker.add_controller_mode_change.assert_not_called()
 
 
@@ -910,7 +934,7 @@ class TestCanvasJumpHorizontal:
     def test_no_valid_position_returns_early(self, mock_editor, mocker):
         """Test early return when no valid position exists."""
         mock_editor.mode_switcher.get_controller_position.return_value = None
-        mock_editor._canvas_jump_horizontal(0, 8)
+        mock_editor._controller_handler._canvas_jump_horizontal(0, 8)
         mock_editor.mode_switcher.save_controller_position.assert_not_called()
 
     def test_jumps_right(self, mock_editor, mocker):
@@ -919,7 +943,7 @@ class TestCanvasJumpHorizontal:
         position.is_valid = True
         position.position = (5, 10)
         mock_editor.mode_switcher.get_controller_position.return_value = position
-        mock_editor._canvas_jump_horizontal(0, 8)
+        mock_editor._controller_handler._canvas_jump_horizontal(0, 8)
         mock_editor.mode_switcher.save_controller_position.assert_called_once_with(0, (13, 10))
 
     def test_clamps_to_canvas_width(self, mock_editor, mocker):
@@ -929,7 +953,7 @@ class TestCanvasJumpHorizontal:
         position.position = (28, 10)
         mock_editor.mode_switcher.get_controller_position.return_value = position
         mock_editor.canvas.pixels_across = 32
-        mock_editor._canvas_jump_horizontal(0, 8)
+        mock_editor._controller_handler._canvas_jump_horizontal(0, 8)
         # end_x = 28 + 8 = 36, clamped to 31 (pixels_across - 1)
         mock_editor.mode_switcher.save_controller_position.assert_called_once_with(0, (31, 10))
 
@@ -940,7 +964,7 @@ class TestCanvasJumpHorizontal:
         position.position = (3, 10)
         mock_editor.mode_switcher.get_controller_position.return_value = position
         mock_editor.canvas.pixels_across = 32
-        mock_editor._canvas_jump_horizontal(0, -8)
+        mock_editor._controller_handler._canvas_jump_horizontal(0, -8)
         mock_editor.mode_switcher.save_controller_position.assert_called_once_with(0, (0, 10))
 
 
@@ -950,7 +974,7 @@ class TestCanvasJumpVertical:
     def test_no_valid_position_returns_early(self, mock_editor, mocker):
         """Test early return when no valid position exists."""
         mock_editor.mode_switcher.get_controller_position.return_value = None
-        mock_editor._canvas_jump_vertical(0, 8)
+        mock_editor._controller_handler._canvas_jump_vertical(0, 8)
         mock_editor.mode_switcher.save_controller_position.assert_not_called()
 
     def test_jumps_down(self, mock_editor, mocker):
@@ -959,7 +983,7 @@ class TestCanvasJumpVertical:
         position.is_valid = True
         position.position = (10, 5)
         mock_editor.mode_switcher.get_controller_position.return_value = position
-        mock_editor._canvas_jump_vertical(0, 8)
+        mock_editor._controller_handler._canvas_jump_vertical(0, 8)
         mock_editor.mode_switcher.save_controller_position.assert_called_once_with(0, (10, 13))
 
     def test_clamps_to_canvas_height(self, mock_editor, mocker):
@@ -969,7 +993,7 @@ class TestCanvasJumpVertical:
         position.position = (10, 28)
         mock_editor.mode_switcher.get_controller_position.return_value = position
         mock_editor.canvas.pixels_tall = 32
-        mock_editor._canvas_jump_vertical(0, 8)
+        mock_editor._controller_handler._canvas_jump_vertical(0, 8)
         mock_editor.mode_switcher.save_controller_position.assert_called_once_with(0, (10, 31))
 
 
@@ -999,9 +1023,9 @@ class TestJoystickEventHandlers:
         event = mocker.Mock()
         event.axis = 4  # TRIGGERLEFT
         event.value = 0.8
-        mock_editor._handle_trigger_axis_motion = mocker.Mock()
+        mock_editor._controller_handler._handle_trigger_axis_motion = mocker.Mock()
         mock_editor.on_joy_axis_motion_event(event)
-        mock_editor._handle_trigger_axis_motion.assert_called_once_with(event)
+        mock_editor._controller_handler._handle_trigger_axis_motion.assert_called_once_with(event)
 
     def test_on_joy_ball_motion_event(self, mock_editor, mocker):
         """Test on_joy_ball_motion_event is a no-op (disabled)."""
@@ -1043,22 +1067,24 @@ class TestJoystickEventHandlers:
         event = mocker.Mock()
         event.button = 0  # A button
         event.instance_id = 0
-        mock_editor._multi_controller_select_current_frame = mocker.Mock()
+        mock_editor._controller_handler._multi_controller_select_current_frame = mocker.Mock()
         mock_editor.on_joy_button_down_event(event)
-        mock_editor._multi_controller_select_current_frame.assert_called_once_with(0)
+        mock_editor._controller_handler._multi_controller_select_current_frame.assert_called_once_with(
+            0
+        )
 
     def test_on_joy_button_down_event_b_button(self, mock_editor, mocker):
         """Test joystick B button down triggers cancel."""
         event = mocker.Mock()
         event.button = 1  # B button
-        mock_editor._controller_cancel = mocker.Mock()
+        mock_editor._controller_handler._controller_cancel = mocker.Mock()
         mock_editor.on_joy_button_down_event(event)
-        mock_editor._controller_cancel.assert_called_once()
+        mock_editor._controller_handler._controller_cancel.assert_called_once()
 
     def test_on_joy_button_down_event_shoulder(self, mock_editor, mocker):
         """Test joystick shoulder button is handled (pass/no-op)."""
         event = mocker.Mock()
-        event.button = bitmappy.JOYSTICK_LEFT_SHOULDER_BUTTON
+        event.button = JOYSTICK_LEFT_SHOULDER_BUTTON
         mock_editor.on_joy_button_down_event(event)
 
     def test_on_joy_button_down_event_unknown(self, mock_editor, mocker):
@@ -1140,21 +1166,21 @@ class TestPaintAndTrackPixel:
     def test_paints_and_tracks(self, mock_editor, mocker):
         """Test that pixel is painted and tracked for undo."""
         mock_editor.canvas.canvas_interface.get_pixel_at.return_value = (0, 0, 0)
-        mock_editor.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
-        mock_editor._paint_and_track_pixel(0, 5, 10, (255, 0, 0))
+        mock_editor._controller_handler.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
+        mock_editor._controller_handler._paint_and_track_pixel(0, 5, 10, (255, 0, 0))
         mock_editor.canvas.canvas_interface.set_pixel_at.assert_called_once_with(5, 10, (255, 0, 0))
 
     def test_defaults_old_color_to_black(self, mock_editor, mocker):
         """Test that None old_color defaults to black."""
         mock_editor.canvas.canvas_interface.get_pixel_at.return_value = None
-        mock_editor.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
-        mock_editor._paint_and_track_pixel(0, 0, 0, (128, 128, 128))
+        mock_editor._controller_handler.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
+        mock_editor._controller_handler._paint_and_track_pixel(0, 0, 0, (128, 128, 128))
         # The old_color should be (0, 0, 0) since get_pixel_at returned None
 
     def test_no_canvas_does_not_crash(self, mock_editor):
         """Test no-op when canvas is absent."""
         mock_editor.canvas = None
-        mock_editor._paint_and_track_pixel(0, 0, 0, (255, 0, 0))
+        mock_editor._controller_handler._paint_and_track_pixel(0, 0, 0, (255, 0, 0))
 
 
 # ===========================================================================
@@ -1209,8 +1235,8 @@ class TestSliderAdjustValue:
         controller_mode.value = 'r_slider'
         mock_editor.mode_switcher.get_controller_mode.return_value = controller_mode
         mock_editor.red_slider.value = 100
-        mock_editor.on_slider_event = mocker.Mock()
-        mock_editor._slider_adjust_value(0, 10)
+        mock_editor._controller_handler.on_slider_event = mocker.Mock()
+        mock_editor._controller_handler._slider_adjust_value(0, 10)
         assert mock_editor.red_slider.value == 110
 
     def test_adjusts_green_slider(self, mock_editor, mocker):
@@ -1219,8 +1245,8 @@ class TestSliderAdjustValue:
         controller_mode.value = 'g_slider'
         mock_editor.mode_switcher.get_controller_mode.return_value = controller_mode
         mock_editor.green_slider.value = 50
-        mock_editor.on_slider_event = mocker.Mock()
-        mock_editor._slider_adjust_value(0, -20)
+        mock_editor._controller_handler.on_slider_event = mocker.Mock()
+        mock_editor._controller_handler._slider_adjust_value(0, -20)
         assert mock_editor.green_slider.value == 30
 
     def test_adjusts_blue_slider(self, mock_editor, mocker):
@@ -1229,8 +1255,8 @@ class TestSliderAdjustValue:
         controller_mode.value = 'b_slider'
         mock_editor.mode_switcher.get_controller_mode.return_value = controller_mode
         mock_editor.blue_slider.value = 200
-        mock_editor.on_slider_event = mocker.Mock()
-        mock_editor._slider_adjust_value(0, 100)
+        mock_editor._controller_handler.on_slider_event = mocker.Mock()
+        mock_editor._controller_handler._slider_adjust_value(0, 100)
         # Clamped to 255
         assert mock_editor.blue_slider.value == 255
 
@@ -1240,8 +1266,8 @@ class TestSliderAdjustValue:
         controller_mode.value = 'r_slider'
         mock_editor.mode_switcher.get_controller_mode.return_value = controller_mode
         mock_editor.red_slider.value = 5
-        mock_editor.on_slider_event = mocker.Mock()
-        mock_editor._slider_adjust_value(0, -20)
+        mock_editor._controller_handler.on_slider_event = mocker.Mock()
+        mock_editor._controller_handler._slider_adjust_value(0, -20)
         assert mock_editor.red_slider.value == 0
 
     def test_no_matching_mode(self, mock_editor, mocker):
@@ -1250,13 +1276,13 @@ class TestSliderAdjustValue:
         controller_mode.value = 'canvas'
         mock_editor.mode_switcher.get_controller_mode.return_value = controller_mode
         original_red = mock_editor.red_slider.value
-        mock_editor._slider_adjust_value(0, 10)
+        mock_editor._controller_handler._slider_adjust_value(0, 10)
         assert mock_editor.red_slider.value == original_red
 
     def test_no_mode_switcher(self, mock_editor):
         """Test graceful handling when mode_switcher is absent."""
         del mock_editor.mode_switcher
-        mock_editor._slider_adjust_value(0, 10)  # Should not raise
+        mock_editor._controller_handler._slider_adjust_value(0, 10)  # Should not raise
 
 
 # ===========================================================================
@@ -1265,17 +1291,17 @@ class TestSliderAdjustValue:
 
 
 class TestHandleSliderModeNavigation:
-    """Tests for _handle_slider_mode_navigation()."""
+    """Tests for handle_slider_mode_navigation()."""
 
     def test_no_mode_switcher_returns(self, mock_editor):
         """Test early return when mode_switcher is absent."""
         del mock_editor.mode_switcher
-        mock_editor._handle_slider_mode_navigation('up')
+        mock_editor._controller_handler.handle_slider_mode_navigation('up')
 
     def test_no_controller_in_slider_mode_returns(self, mock_editor, mocker):
         """Test early return when no controller is in slider mode (keyboard nav)."""
         mock_editor.mode_switcher.controller_modes = {}
-        mock_editor._handle_slider_mode_navigation('up')
+        mock_editor._controller_handler.handle_slider_mode_navigation('up')
 
     def test_specific_controller_id(self, mock_editor, mocker):
         """Test navigation with a specific controller_id."""
@@ -1285,7 +1311,7 @@ class TestHandleSliderModeNavigation:
         # controller_modes must contain the controller_id for the method to proceed
         mock_editor.mode_switcher.controller_modes = {0: mocker.Mock()}
         mock_editor.mode_switcher.switch_mode = mocker.Mock()
-        mock_editor._handle_slider_mode_navigation('up', controller_id=0)
+        mock_editor._controller_handler.handle_slider_mode_navigation('up', controller_id=0)
 
 
 # ===========================================================================
@@ -1300,19 +1326,19 @@ class TestJoyHatMotionDirections:
         """Test hat right direction (bitmask 2)."""
         event = mocker.Mock()
         event.hat = 0
-        event.value = bitmappy.JOYSTICK_HAT_RIGHT
+        event.value = JOYSTICK_HAT_RIGHT
         mock_editor.on_joy_hat_motion_event(event)
 
     def test_hat_down_direction(self, mock_editor, mocker):
         """Test hat down direction (bitmask 4)."""
         event = mocker.Mock()
         event.hat = 0
-        event.value = bitmappy.JOYSTICK_HAT_DOWN
+        event.value = JOYSTICK_HAT_DOWN
         mock_editor.on_joy_hat_motion_event(event)
 
     def test_hat_left_direction(self, mock_editor, mocker):
         """Test hat left direction (bitmask 8)."""
         event = mocker.Mock()
         event.hat = 0
-        event.value = bitmappy.JOYSTICK_HAT_LEFT
+        event.value = JOYSTICK_HAT_LEFT
         mock_editor.on_joy_hat_motion_event(event)

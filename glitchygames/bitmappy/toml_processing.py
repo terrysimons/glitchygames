@@ -1,14 +1,33 @@
-"""TOML parsing and normalization for the Bitmappy editor."""
+"""TOML parsing and normalization for the Bitmappy editor.
+
+Also provides shared utility functions for color quantization, glyph mapping,
+and TOML generation used by both the file I/O and AI integration modules.
+"""
 
 from __future__ import annotations
 
 import tomllib
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from glitchygames.color import ALPHA_TRANSPARENCY_THRESHOLD
+from glitchygames.sprites import SPRITE_GLYPHS
 
 if TYPE_CHECKING:
     import logging
 
-from .constants import LOG, MIN_COLOR_FIELD_VALUES_FOR_BLUE, MIN_COLOR_FIELD_VALUES_FOR_GREEN
+    import numpy as np
+    import pygame
+
+from .constants import (
+    COLOR_QUANTIZATION_GROUP_DISTANCE_THRESHOLD,
+    LOG,
+    MAGENTA_TRANSPARENT,
+    MIN_COLOR_FIELD_VALUES_FOR_BLUE,
+    MIN_COLOR_FIELD_VALUES_FOR_GREEN,
+    PROGRESS_LOG_MIN_HEIGHT,
+    TRANSPARENT_GLYPH,
+)
 
 
 def parse_toml_robustly(content: str, log: logging.Logger | None = None) -> dict[str, Any]:
@@ -339,3 +358,333 @@ def normalize_toml_data(config_data: dict[str, Any]) -> dict[str, Any]:
     except (AttributeError, KeyError, TypeError) as e:
         LOG.warning(f'Error normalizing TOML data: {e}')
         return config_data
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Shared utilities for color quantization, glyph mapping, and TOML generation
+# Used by both file_io.py (PNG conversion) and ai_integration.py
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def color_distance(color_1: tuple[int, int, int], color_2: tuple[int, int, int]) -> float:
+    """Calculate squared Euclidean distance between two RGB colors.
+
+    Args:
+        color_1: First RGB color tuple.
+        color_2: Second RGB color tuple.
+
+    Returns:
+        Squared Euclidean distance as a float.
+
+    """
+    return sum((int(a) - int(b)) ** 2 for a, b in zip(color_1, color_2, strict=True))
+
+
+def quantize_colors_if_needed(
+    unique_colors: set[tuple[int, int, int]],
+    *,
+    has_transparency: bool,
+    max_colors: int = 1000,
+    log: logging.Logger | None = None,
+) -> set[tuple[int, int, int]]:
+    """Quantize colors if there are too many for the palette.
+
+    Args:
+        unique_colors: Set of unique RGB color tuples.
+        has_transparency: Whether the image has transparency.
+        max_colors: Maximum number of colors allowed.
+        log: Optional logger.
+
+    Returns:
+        Possibly reduced set of unique colors.
+
+    """
+    if log is None:
+        log = LOG
+
+    reserved_for_transparency = 1 if has_transparency else 0
+    available_colors = max_colors - reserved_for_transparency
+
+    if len(unique_colors) <= available_colors:
+        return unique_colors
+
+    log.info('Too many colors detected, using color quantization...')
+    color_groups: dict[tuple[int, int, int], list[tuple[int, int, int]]] = {}
+    for color in unique_colors:
+        closest_group = None
+        min_distance = float('inf')
+
+        for group_color in color_groups:
+            distance = sum((a - b) ** 2 for a, b in zip(color, group_color, strict=True))
+            if distance < min_distance:
+                min_distance = distance
+                closest_group = group_color
+
+        # If no close group exists and we have space, create new group
+        if closest_group is None or min_distance > COLOR_QUANTIZATION_GROUP_DISTANCE_THRESHOLD:
+            if len(color_groups) < available_colors:
+                color_groups[color] = [color]
+            else:
+                # Add to closest existing group
+                color_groups[closest_group].append(color)  # type: ignore[index]
+        else:
+            color_groups[closest_group].append(color)
+
+    # Create representative colors for each group
+    representative_colors = [group_color for group_color, colors in color_groups.items() if colors]
+    result = set(representative_colors)
+    log.info(f'Quantized to {len(result)} representative colors')
+    log.info(f'Available colors: {available_colors}, Color groups created: {len(color_groups)}')
+    return result
+
+
+def build_color_to_glyph_mapping(
+    unique_colors: set[tuple[int, int, int]],
+    *,
+    has_transparency: bool,
+    force_single_char_glyphs: bool = False,
+    log: logging.Logger | None = None,
+) -> dict[tuple[int, int, int], str]:
+    """Build a mapping from RGB colors to glyph characters.
+
+    Args:
+        unique_colors: Set of unique RGB color tuples.
+        has_transparency: Whether the image has transparency.
+        force_single_char_glyphs: If True, limit to first 64 single-char glyphs.
+        log: Optional logger.
+
+    Returns:
+        Dictionary mapping RGB tuples to glyph strings.
+
+    """
+    if log is None:
+        log = LOG
+
+    max_glyphs = 64 if force_single_char_glyphs else 1000
+    available_glyphs = list(SPRITE_GLYPHS[:max_glyphs])
+    reserved_for_transparency = 1 if has_transparency else 0
+    available_color_count = len(available_glyphs) - reserved_for_transparency
+
+    log.info(
+        f'Mapping colors: {len(unique_colors)} unique colors to {available_color_count}'
+        f' available glyphs'
+    )
+    if has_transparency:
+        log.info('Reserved 1 glyph for transparency')
+
+    color_mapping: dict[tuple[int, int, int], str] = {}
+    glyph_index = 0
+
+    # First, ensure magenta (transparency) gets a glyph if we have transparency
+    if has_transparency and MAGENTA_TRANSPARENT in unique_colors:
+        color_mapping[MAGENTA_TRANSPARENT] = TRANSPARENT_GLYPH
+        log.info(f"Reserved glyph '{TRANSPARENT_GLYPH}' for transparency (magenta)")
+
+    # Map other colors to available glyphs
+    for color in sorted(unique_colors):
+        if color == MAGENTA_TRANSPARENT and has_transparency:
+            continue  # Already handled above
+
+        if glyph_index < available_color_count:
+            color_mapping[color] = available_glyphs[glyph_index]
+            glyph_index += 1
+        else:
+            # Map to closest existing color
+            closest_color = min(
+                color_mapping.keys(),
+                key=lambda c: color_distance(color, c),
+            )
+            color_mapping[color] = color_mapping[closest_color]
+
+    log.info(f'Final color mapping: {len(color_mapping)} colors mapped to glyphs')
+    return color_mapping
+
+
+def generate_pixel_string(
+    pixel_array: np.ndarray[Any, Any],
+    width: int,
+    height: int,
+    *,
+    has_transparency: bool,
+    original_image: pygame.Surface | None,
+    color_mapping: dict[tuple[int, int, int], str],
+    log: logging.Logger | None = None,
+) -> str:
+    """Generate the pixel string for TOML output from pixel data.
+
+    Args:
+        pixel_array: The numpy pixel array from the image.
+        width: Image width.
+        height: Image height.
+        has_transparency: Whether the image has transparency.
+        original_image: The original image with alpha channel, or None.
+        color_mapping: Mapping from RGB tuples to glyph characters.
+        log: Optional logger.
+
+    Returns:
+        The pixel string with newlines between rows.
+
+    """
+    if log is None:
+        log = LOG
+
+    log.info('Generating pixel string...')
+    rows: list[str] = []
+    for y in range(height):
+        row_chars: list[str] = []
+        for x in range(width):
+            r, g, b = pixel_array[x, y]
+            color_key = (int(r), int(g), int(b))
+
+            # Handle transparency - check if this pixel should be transparent
+            if has_transparency and original_image is not None:
+                original_pixel = original_image.get_at((x, y))
+                if original_pixel.a < ALPHA_TRANSPARENCY_THRESHOLD:
+                    color_key = MAGENTA_TRANSPARENT
+
+            # If color is not in mapping, find closest mapped color
+            if color_key not in color_mapping:
+                closest_color = min(
+                    color_mapping.keys(),
+                    key=lambda c: color_distance(color_key, c),
+                )
+                color_mapping[color_key] = color_mapping[closest_color]
+                log.debug(f'Mapped unmapped color {color_key} to {closest_color}')
+
+            row_chars.append(color_mapping[color_key])
+        rows.append(''.join(row_chars))
+
+        # Log progress for large images
+        if height > PROGRESS_LOG_MIN_HEIGHT and y % (height // 10) == 0:
+            log.info(f'Progress: {y}/{height} rows processed')
+
+    return '\n'.join(rows)
+
+
+def generate_toml_content(
+    file_path: str,
+    pixel_string: str,
+    color_mapping: dict[tuple[int, int, int], str],
+    *,
+    log: logging.Logger | None = None,
+) -> str:
+    """Generate the TOML file content from pixel string and color mapping.
+
+    Args:
+        file_path: Original PNG file path (used for naming).
+        pixel_string: The pixel string with glyph characters.
+        color_mapping: Mapping from RGB tuples to glyph characters.
+        log: Optional logger.
+
+    Returns:
+        The complete TOML content string.
+
+    Raises:
+        ValueError: If no color definitions were generated.
+
+    """
+    if log is None:
+        log = LOG
+
+    toml_content = (
+        f'[sprite]\n'
+        f'name = "imported_from_{Path(file_path).stem}"\n'
+        f'pixels = """\n'
+        f'{pixel_string}\n'
+        f'"""\n'
+        f'\n'
+        f'[colors]\n'
+        f''
+    )
+
+    # Add color definitions - collect unique glyphs first
+    unique_glyphs = set(color_mapping.values())
+    log.info(f'Unique glyphs to define: {sorted(unique_glyphs)}')
+
+    for glyph in sorted(unique_glyphs):
+        # Find the first color that maps to this glyph
+        for color, mapped_glyph in color_mapping.items():
+            if mapped_glyph == glyph:
+                r, g, b = color
+                # Quote the glyph to handle special characters like '.'
+                toml_content += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
+                log.info(f'Defined color {glyph}: RGB({r}, {g}, {b})')
+                break
+
+    if not unique_glyphs:
+        log.error('No colors to define - this will cause display issues!')
+        raise ValueError('No colors found in the converted sprite')
+
+    log.info(f'Generated {len(unique_glyphs)} color definitions')
+    return toml_content
+
+
+def collect_unique_colors_from_pixels(
+    pixels: list[tuple[int, ...]],
+) -> set[tuple[int, int, int]]:
+    """Extract unique RGB colors from a list of pixel color tuples.
+
+    Args:
+        pixels: List of pixel color tuples (RGB or RGBA).
+
+    Returns:
+        Set of unique RGB color tuples (first 3 components).
+
+    """
+    unique_colors: set[tuple[int, int, int]] = set()
+    for pixel in pixels:
+        if len(pixel) >= 3:  # noqa: PLR2004
+            unique_colors.add((int(pixel[0]), int(pixel[1]), int(pixel[2])))
+    return unique_colors
+
+
+def build_pixel_string_from_pixels(
+    pixels: list[tuple[int, ...]],
+    width: int,
+    height: int,
+    color_to_glyph: dict[tuple[int, int, int], str],
+    sorted_colors: list[tuple[int, int, int]],
+    *,
+    force_single_char_glyphs: bool = False,
+) -> str:
+    """Build a glyph pixel string from a flat list of pixel colors.
+
+    Args:
+        pixels: List of pixel color tuples (RGB or RGBA).
+        width: Image width in pixels.
+        height: Image height in pixels.
+        color_to_glyph: Mapping from RGB tuples to glyph characters.
+        sorted_colors: Sorted list of unique colors (unused but kept for API compat).
+        force_single_char_glyphs: If True, limit to single-character glyph lookup.
+
+    Returns:
+        The pixel string with newlines between rows.
+
+    """
+    _ = force_single_char_glyphs  # Reserved for future use
+    _ = sorted_colors  # Available via color_to_glyph.keys()
+
+    rows: list[str] = []
+    for y in range(height):
+        row_chars: list[str] = []
+        for x in range(width):
+            pixel_index = y * width + x
+            if pixel_index < len(pixels):
+                pixel = pixels[pixel_index]
+                color_key = (int(pixel[0]), int(pixel[1]), int(pixel[2]))
+
+                if color_key in color_to_glyph:
+                    row_chars.append(color_to_glyph[color_key])
+                else:
+                    # Find closest color in mapping
+                    closest = min(
+                        color_to_glyph.keys(),
+                        key=lambda c: color_distance(color_key, c),
+                    )
+                    row_chars.append(color_to_glyph[closest])
+            else:
+                # Out of bounds — use transparency glyph
+                row_chars.append(TRANSPARENT_GLYPH)
+        rows.append(''.join(row_chars))
+
+    return '\n'.join(rows)

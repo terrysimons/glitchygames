@@ -1103,9 +1103,9 @@ class AnimatedCanvasSprite(BitmappySprite):
         if not pixel_changes:
             return
 
-        if not hasattr(self.parent_scene, '_current_pixel_changes'):
-            self.parent_scene._current_pixel_changes = []  # type: ignore[reportPrivateUsage]
-        self.parent_scene._current_pixel_changes.extend(pixel_changes)  # type: ignore[reportPrivateUsage]
+        if not hasattr(self.parent_scene, 'current_pixel_changes'):
+            self.parent_scene.current_pixel_changes = []
+        self.parent_scene.current_pixel_changes.extend(pixel_changes)  # type: ignore[reportArgumentType]
 
         if hasattr(self.parent_scene, '_submit_pixel_changes_if_ready'):
             self.parent_scene._submit_pixel_changes_if_ready()  # type: ignore[reportPrivateUsage]

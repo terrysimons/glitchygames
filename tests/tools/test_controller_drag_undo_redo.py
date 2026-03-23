@@ -35,7 +35,7 @@ class TestControllerDragUndoRedo:
         scene.undo_redo_manager.set_pixel_change_callback(scene._apply_pixel_change_for_undo_redo)
 
         # Set up pixel change tracking
-        scene._current_pixel_changes = []
+        scene.current_pixel_changes = []
         scene._applying_undo_redo = False
 
         # Set up controller drag tracking
@@ -59,7 +59,7 @@ class TestControllerDragUndoRedo:
         )
 
         # Mock color getter
-        scene._get_current_color = mocker.Mock(return_value=(255, 0, 0))  # Red
+        scene.get_current_color = mocker.Mock(return_value=(255, 0, 0))  # Red
 
         return scene
 
@@ -97,7 +97,7 @@ class TestControllerDragUndoRedo:
             # Simulate the actual _canvas_paint_at_controller_position logic
             position = mock_scene.mode_switcher.get_controller_position(controller_id)
             if position and position.is_valid:
-                current_color = mock_scene._get_current_color()
+                current_color = mock_scene.get_current_color()
 
                 # Check if pixel is already the selected color (debouncing)
                 current_pixel_color = mock_scene.canvas.canvas_interface.get_pixel_at(x, y)

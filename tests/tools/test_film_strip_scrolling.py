@@ -127,8 +127,8 @@ class TestFilmStripScrolling:
         }
 
         # Mock the update methods
-        self.scene._update_film_strip_visibility = self._mocker.Mock()
-        self.scene._update_scroll_arrows = self._mocker.Mock()
+        self.scene.update_film_strip_visibility = self._mocker.Mock()
+        self.scene.update_scroll_arrows = self._mocker.Mock()
         self.scene._update_film_strip_selection = self._mocker.Mock()
 
         # Call auto-scroll
@@ -169,8 +169,8 @@ class TestFilmStripScrolling:
         self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0
 
         # Mock the update methods
-        self.scene._update_film_strip_visibility = self._mocker.Mock()
-        self.scene._update_scroll_arrows = self._mocker.Mock()
+        self.scene.update_film_strip_visibility = self._mocker.Mock()
+        self.scene.update_scroll_arrows = self._mocker.Mock()
         self.scene._update_film_strip_selection = self._mocker.Mock()
 
         # Call auto-scroll

@@ -1797,13 +1797,13 @@ class TestAnimatedCanvasSpriteDragMethods:
         canvas = self._make_canvas_sprite(pygame_mocks, mock_groups)
         mock_scene = MagicMock()
         mock_scene._applying_undo_redo = False
-        mock_scene._current_pixel_changes = []
+        mock_scene.current_pixel_changes = []
         canvas.parent_scene = mock_scene
         canvas._drag_pixels = {
             (0, 0): (0, 0, (0, 0, 0, 255), (255, 0, 0, 255)),
         }
         canvas._submit_drag_pixel_changes_to_undo()
-        assert len(mock_scene._current_pixel_changes) == 1
+        assert len(mock_scene.current_pixel_changes) == 1
 
     def test_submit_drag_pixel_changes_no_parent_scene(self, pygame_mocks, mock_groups):
         """Does nothing when no parent scene."""

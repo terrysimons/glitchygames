@@ -227,7 +227,7 @@ class TestShoulderButtonFunctionality:
         """Test that left shoulder button moves indicator left."""
         # Mock the _multi_controller_previous_frame method
         mock_prev = mocker.patch(
-            'glitchygames.bitmappy.editor.BitmapEditorScene._multi_controller_previous_frame'
+            'glitchygames.bitmappy.controller_handler.ControllerEventHandler._multi_controller_previous_frame'
         )
         # Simulate left shoulder button press
         controller_id = 0
@@ -243,7 +243,7 @@ class TestShoulderButtonFunctionality:
         """Test that right shoulder button moves indicator right."""
         # Mock the _multi_controller_next_frame method
         mock_next = mocker.patch(
-            'glitchygames.bitmappy.editor.BitmapEditorScene._multi_controller_next_frame'
+            'glitchygames.bitmappy.controller_handler.ControllerEventHandler._multi_controller_next_frame'
         )
         # Simulate right shoulder button press
         controller_id = 0

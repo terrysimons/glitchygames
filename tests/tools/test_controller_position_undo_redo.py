@@ -30,8 +30,8 @@ class TestControllerPositionUndoRedo:
         )
 
         # Mock the undo/redo methods
-        scene._handle_undo = mocker.Mock()
-        scene._handle_redo = mocker.Mock()
+        scene.handle_undo = mocker.Mock()
+        scene.handle_redo = mocker.Mock()
 
         # Mock the controller position callback
         scene._apply_controller_position_for_undo_redo = mocker.Mock(return_value=True)
@@ -54,8 +54,8 @@ class TestControllerPositionUndoRedo:
         )
 
         # Mock visual indicator update
-        scene._update_controller_canvas_visual_indicator = mocker.Mock()
-        scene._update_controller_visual_indicator_for_mode = mocker.Mock()
+        scene.update_controller_canvas_visual_indicator = mocker.Mock()
+        scene.update_controller_visual_indicator_for_mode = mocker.Mock()
 
         return scene
 

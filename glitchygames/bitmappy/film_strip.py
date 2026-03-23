@@ -1176,7 +1176,7 @@ class FilmStripWidget:
 
             # Notify parent scene about the selection change
             if hasattr(self, 'parent_scene') and self.parent_scene:
-                self.parent_scene._on_film_strip_frame_selected(self, animation, frame)
+                self.parent_scene.on_film_strip_frame_selected(self, animation, frame)
 
     def handle_click(
         self, pos: tuple[int, int], *, is_right_click: bool = False, is_shift_click: bool = False

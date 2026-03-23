@@ -176,8 +176,8 @@ class TestBitmapEditorFilmStripIntegration:
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {'strip_1': []}
         scene._on_sprite_loaded = self._mocker.Mock()
-        scene._update_film_strip_visibility = self._mocker.Mock()
-        scene._update_scroll_arrows = self._mocker.Mock()
+        scene.update_film_strip_visibility = self._mocker.Mock()
+        scene.update_scroll_arrows = self._mocker.Mock()
         scene.max_visible_strips = 2
 
         # Act
@@ -199,8 +199,8 @@ class TestBitmapEditorFilmStripIntegration:
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {'strip_1': [], 'strip_2': []}
         scene._on_sprite_loaded = self._mocker.Mock()
-        scene._update_film_strip_visibility = self._mocker.Mock()
-        scene._update_scroll_arrows = self._mocker.Mock()
+        scene.update_film_strip_visibility = self._mocker.Mock()
+        scene.update_scroll_arrows = self._mocker.Mock()
         scene.max_visible_strips = 2
 
         # Act - insert after index 0 (between strip_1 and strip_2)
@@ -223,8 +223,8 @@ class TestBitmapEditorFilmStripIntegration:
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {'strip_1': [], 'strip_2': []}
         scene._on_sprite_loaded = self._mocker.Mock()
-        scene._update_film_strip_visibility = self._mocker.Mock()
-        scene._update_scroll_arrows = self._mocker.Mock()
+        scene.update_film_strip_visibility = self._mocker.Mock()
+        scene.update_scroll_arrows = self._mocker.Mock()
         scene.canvas.show_frame = self._mocker.Mock()
 
         # Act
@@ -265,8 +265,8 @@ class TestBitmapEditorFilmStripIntegration:
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {'strip_1': [], 'strip_2': [], 'strip_3': []}
         scene._on_sprite_loaded = self._mocker.Mock()
-        scene._update_film_strip_visibility = self._mocker.Mock()
-        scene._update_scroll_arrows = self._mocker.Mock()
+        scene.update_film_strip_visibility = self._mocker.Mock()
+        scene.update_scroll_arrows = self._mocker.Mock()
         scene.canvas.show_frame = self._mocker.Mock()
 
         # Act - delete middle strip (index 1)
@@ -285,8 +285,8 @@ class TestBitmapEditorFilmStripIntegration:
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {'strip_1': [], 'strip_2': [], 'strip_3': []}
         scene._on_sprite_loaded = self._mocker.Mock()
-        scene._update_film_strip_visibility = self._mocker.Mock()
-        scene._update_scroll_arrows = self._mocker.Mock()
+        scene.update_film_strip_visibility = self._mocker.Mock()
+        scene.update_scroll_arrows = self._mocker.Mock()
         scene.canvas.show_frame = self._mocker.Mock()
 
         # Act - delete last strip (index 2)
@@ -319,8 +319,8 @@ class TestBitmapEditorFilmStripIntegration:
             'strip_5': [mock_frame],
         }
         scene._on_sprite_loaded = self._mocker.Mock()
-        scene._update_film_strip_visibility = self._mocker.Mock()
-        scene._update_scroll_arrows = self._mocker.Mock()
+        scene.update_film_strip_visibility = self._mocker.Mock()
+        scene.update_scroll_arrows = self._mocker.Mock()
         scene.canvas.show_frame = self._mocker.Mock()
 
         # Act - delete strip at index 2
@@ -353,8 +353,8 @@ class TestBitmapEditorFilmStripIntegration:
             'strip_3': [mock_frame],
         }
         scene._on_sprite_loaded = self._mocker.Mock()
-        scene._update_film_strip_visibility = self._mocker.Mock()
-        scene._update_scroll_arrows = self._mocker.Mock()
+        scene.update_film_strip_visibility = self._mocker.Mock()
+        scene.update_scroll_arrows = self._mocker.Mock()
         scene.canvas.show_frame = self._mocker.Mock()
 
         # Act

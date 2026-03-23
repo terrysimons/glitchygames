@@ -224,6 +224,14 @@ class TestTOMLConstruction:
         self.mock_scene = BitmapEditorScene({})
         self.mock_scene.log = self._mocker.Mock()
 
+        # Initialize extracted AI subsystem manager
+        from glitchygames.bitmappy.ai_integration import AIIntegrationManager
+
+        mocker.patch.object(AIIntegrationManager, '__init__', return_value=None)
+        self.mock_scene._ai_integration = AIIntegrationManager(self.mock_scene)  # type: ignore[arg-type]
+        self.mock_scene._ai_integration.editor = self.mock_scene  # type: ignore[assignment]
+        self.mock_scene._ai_integration.log = self._mocker.Mock()
+
     def test_construct_toml_with_sprite_section(self):
         """Test TOML construction with sprite section."""
         data = {
@@ -234,7 +242,7 @@ class TestTOMLConstruction:
             }
         }
 
-        result = self.mock_scene._construct_toml_with_preserved_formatting(data)
+        result = self.mock_scene._ai_integration._construct_toml_with_preserved_formatting(data)
 
         # Check that the TOML is properly formatted
         assert '[sprite]' in result
@@ -257,7 +265,7 @@ class TestTOMLConstruction:
             ]
         }
 
-        result = self.mock_scene._construct_toml_with_preserved_formatting(data)
+        result = self.mock_scene._ai_integration._construct_toml_with_preserved_formatting(data)
 
         # Check animation structure
         assert '[[animation]]' in result
@@ -280,7 +288,7 @@ class TestTOMLConstruction:
             }
         }
 
-        result = self.mock_scene._construct_toml_with_preserved_formatting(data)
+        result = self.mock_scene._ai_integration._construct_toml_with_preserved_formatting(data)
 
         # Check colors structure
         assert '[colors]' in result
@@ -294,7 +302,7 @@ class TestTOMLConstruction:
         """Test that TOML construction preserves actual newlines in pixel data."""
         data = {'sprite': {'name': 'test', 'pixels': 'ABC\nDEF\nGHI\n'}}
 
-        result = self.mock_scene._construct_toml_with_preserved_formatting(data)
+        result = self.mock_scene._ai_integration._construct_toml_with_preserved_formatting(data)
 
         # Check that actual newlines are preserved (not escaped)
         assert 'ABC\nDEF\nGHI\n' in result
@@ -318,6 +326,11 @@ class TestPNGConversionIntegration:
         self.mock_scene.log = mocker.Mock()
         self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
 
+        # Initialize extracted subsystem managers
+        from glitchygames.bitmappy.file_io import FileIOManager
+
+        self.mock_scene._file_io = FileIOManager(self.mock_scene)  # type: ignore[arg-type]
+
     @pytest.mark.skip(reason='PNG conversion method not implemented')
     def test_png_conversion_generates_valid_toml(self):
         """Test that PNG conversion generates valid TOML with proper formatting."""
@@ -335,7 +348,7 @@ class TestPNGConversionIntegration:
                 mock_canvas.pixels_tall = 32
 
                 # Call the conversion method
-                result = self.mock_scene._convert_png_to_bitmappy(tmp_png.name)
+                result = self.mock_scene._file_io._convert_png_to_bitmappy(tmp_png.name)
 
                 # Should return a TOML file path
                 assert result is not None
@@ -388,7 +401,7 @@ class TestPNGConversionIntegration:
             mock_canvas.pixels_across = 32
             mock_canvas.pixels_tall = 32
 
-            result = self.mock_scene._convert_png_to_bitmappy(str(tmp_png_path))
+            result = self.mock_scene._file_io._convert_png_to_bitmappy(str(tmp_png_path))
 
             if result and Path(result).exists():
                 # Load the TOML and check for magenta color (transparency)
@@ -421,6 +434,11 @@ class TestDragAndDropPNG:
         self.mock_scene.log = mocker.Mock()
         self.mock_scene.canvas = MockFactory().create_canvas_mock(32, 32)
 
+        # Initialize extracted subsystem managers
+        from glitchygames.bitmappy.file_io import FileIOManager
+
+        self.mock_scene._file_io = FileIOManager(self.mock_scene)  # type: ignore[arg-type]
+
     def test_drag_drop_png_file(self):
         """Test drag and drop of PNG file."""
         # Create a simple PNG
@@ -432,8 +450,12 @@ class TestDragAndDropPNG:
 
         try:
             # Mock the conversion and loading methods
-            mock_convert = self._mocker.patch.object(self.mock_scene, '_convert_png_to_bitmappy')
-            mock_load = self._mocker.patch.object(self.mock_scene, '_load_converted_sprite')
+            mock_convert = self._mocker.patch.object(
+                self.mock_scene._file_io, '_convert_png_to_bitmappy'
+            )
+            mock_load = self._mocker.patch.object(
+                self.mock_scene._file_io, '_load_converted_sprite'
+            )
 
             mock_convert.return_value = '/tmp/test.toml'  # noqa: S108
 
@@ -464,7 +486,9 @@ class TestDragAndDropPNG:
 
         try:
             # Mock the conversion method (should not be called)
-            mock_convert = self._mocker.patch.object(self.mock_scene, '_convert_png_to_bitmappy')
+            mock_convert = self._mocker.patch.object(
+                self.mock_scene._file_io, '_convert_png_to_bitmappy'
+            )
 
             # Create a mock event with the correct attribute
             class MockEvent:
@@ -525,6 +549,14 @@ class TestColorQuantization:
 
         self.mock_scene.all_sprites = [self.mock_canvas]
 
+        # Initialize extracted AI subsystem manager
+        from glitchygames.bitmappy.ai_integration import AIIntegrationManager
+
+        mocker.patch.object(AIIntegrationManager, '__init__', return_value=None)
+        self.mock_scene._ai_integration = AIIntegrationManager(self.mock_scene)  # type: ignore[arg-type]
+        self.mock_scene._ai_integration.editor = self.mock_scene  # type: ignore[assignment]
+        self.mock_scene._ai_integration.log = mocker.Mock()
+
     def test_generate_frame_toml_without_quantization(self):
         """Test that _generate_frame_toml_content works without quantization."""
         # Mock the method to return expected content
@@ -581,11 +613,13 @@ green = 6
 blue = 10
 """
 
-        mock_generate = self._mocker.patch.object(self.mock_scene, '_generate_frame_toml_content')
+        mock_generate = self._mocker.patch.object(
+            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+        )
         mock_generate.return_value = expected_toml
 
         # Call without force_single_char_glyphs
-        toml_content = self.mock_scene._generate_frame_toml_content(
+        toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
             self.mock_canvas.pixels, force_single_char_glyphs=False
         )
 
@@ -650,11 +684,13 @@ green = 3
 blue = 5
 """
 
-        mock_generate = self._mocker.patch.object(self.mock_scene, '_generate_frame_toml_content')
+        mock_generate = self._mocker.patch.object(
+            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+        )
         mock_generate.return_value = expected_toml
 
         # Call with force_single_char_glyphs=True
-        toml_content = self.mock_scene._generate_frame_toml_content(
+        toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
             self.mock_canvas.pixels, force_single_char_glyphs=True
         )
 
@@ -683,18 +719,22 @@ blue = 5
         """Test that _save_current_frame_to_temp_toml uses quantization for AI training."""
         # Mock the _save_current_frame_to_temp_toml method to verify it calls
         # _generate_frame_toml_content with quantization
-        mock_generate = self._mocker.patch.object(self.mock_scene, '_generate_frame_toml_content')
+        mock_generate = self._mocker.patch.object(
+            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+        )
         mock_generate.return_value = (
             '[sprite]\nname = "test"\npixels = """\naa\nbb\n"""\n\n'
             "[colors.'a']\nred = 255\ngreen = 0\nblue = 0\n"
         )
 
         # Mock the _save_current_frame_to_temp_toml method
-        mock_save = self._mocker.patch.object(self.mock_scene, '_save_current_frame_to_temp_toml')
+        mock_save = self._mocker.patch.object(
+            self.mock_scene._ai_integration, '_save_current_frame_to_temp_toml'
+        )
         mock_save.return_value = '/tmp/test.toml'  # noqa: S108
 
         # Call the method
-        temp_path = self.mock_scene._save_current_frame_to_temp_toml()
+        temp_path = self.mock_scene._ai_integration._save_current_frame_to_temp_toml()
 
         # Verify it was called
         mock_save.assert_called_once()
@@ -767,10 +807,12 @@ green = 0
 blue = 0
 """
 
-        mock_generate = self._mocker.patch.object(self.mock_scene, '_generate_frame_toml_content')
+        mock_generate = self._mocker.patch.object(
+            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+        )
         mock_generate.return_value = expected_toml
 
-        toml_content = self.mock_scene._generate_frame_toml_content(
+        toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
             pixels, force_single_char_glyphs=True
         )
 
@@ -835,10 +877,12 @@ green = 0
 blue = 0
 """
 
-        mock_generate = self._mocker.patch.object(self.mock_scene, '_generate_frame_toml_content')
+        mock_generate = self._mocker.patch.object(
+            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+        )
         mock_generate.return_value = expected_toml
 
-        toml_content = self.mock_scene._generate_frame_toml_content(
+        toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
             single_color_pixels, force_single_char_glyphs=True
         )
 
@@ -908,10 +952,12 @@ green = 3
 blue = 5
 """
 
-        mock_generate = self._mocker.patch.object(self.mock_scene, '_generate_frame_toml_content')
+        mock_generate = self._mocker.patch.object(
+            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+        )
         mock_generate.return_value = expected_toml
 
-        toml_content = self.mock_scene._generate_frame_toml_content(
+        toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
             pixels, force_single_char_glyphs=True
         )
 

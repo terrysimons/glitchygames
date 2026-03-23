@@ -79,7 +79,7 @@ class TestButtonMappingIssues:
         # This should not trigger controller activation
         # (Button 9 is now unhandled to prevent reset behavior)
         mock_activate = mocker.patch(
-            'glitchygames.bitmappy.editor.BitmapEditorScene._multi_controller_activate'
+            'glitchygames.bitmappy.controller_handler.ControllerEventHandler._multi_controller_activate'
         )
         # Simulate the event handling logic
         if mock_event.button == 9:
@@ -106,10 +106,10 @@ class TestButtonMappingIssues:
 
         # Mock the navigation methods
         mock_prev = mocker.patch(
-            'glitchygames.bitmappy.editor.BitmapEditorScene._multi_controller_previous_frame'
+            'glitchygames.bitmappy.controller_handler.ControllerEventHandler._multi_controller_previous_frame'
         )
         mock_next = mocker.patch(
-            'glitchygames.bitmappy.editor.BitmapEditorScene._multi_controller_next_frame'
+            'glitchygames.bitmappy.controller_handler.ControllerEventHandler._multi_controller_next_frame'
         )
 
         # Simulate left shoulder button press

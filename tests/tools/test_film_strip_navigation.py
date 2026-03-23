@@ -287,7 +287,7 @@ class TestFilmStripNavigation(FilmStripTestBase):
         self.scene.canvas.current_frame = 1
 
         # Update selection state
-        self.scene._update_film_strip_selection_state()
+        self.scene.update_film_strip_selection_state()
 
         # Check that the correct strip is marked as selected
         if 'walk' in self.scene.film_strips:

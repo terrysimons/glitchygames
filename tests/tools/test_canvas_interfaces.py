@@ -738,8 +738,8 @@ class TestCollectPixelChangeDictionaryTrimming:
 
         parent_scene = mocker.Mock()
         # Pre-populate with 2001 unique pixel changes to trigger trimming
-        parent_scene._current_pixel_changes = []
-        parent_scene._current_pixel_changes_dict = {
+        parent_scene.current_pixel_changes = []
+        parent_scene.current_pixel_changes_dict = {
             (i, 0): (i, 0, MAGENTA, RED) for i in range(2001)
         }
         parent_scene._pixel_changes_list_dirty = True
@@ -751,7 +751,7 @@ class TestCollectPixelChangeDictionaryTrimming:
         interface._collect_pixel_change(50, 50, MAGENTA, GREEN)
 
         # Should be trimmed to around 1500 entries (plus the new one)
-        dict_size = len(parent_scene._current_pixel_changes_dict)
+        dict_size = len(parent_scene.current_pixel_changes_dict)
         assert dict_size <= 1501
 
     def test_collect_pixel_change_updates_existing_entry(self, mocker):
@@ -765,8 +765,8 @@ class TestCollectPixelChangeDictionaryTrimming:
         del canvas_sprite.animated_sprite
 
         parent_scene = mocker.Mock()
-        parent_scene._current_pixel_changes = []
-        parent_scene._current_pixel_changes_dict = {
+        parent_scene.current_pixel_changes = []
+        parent_scene.current_pixel_changes_dict = {
             (1, 1): (1, 1, MAGENTA, RED)  # Existing entry
         }
         parent_scene._pixel_changes_list_dirty = True
@@ -778,7 +778,7 @@ class TestCollectPixelChangeDictionaryTrimming:
         interface._collect_pixel_change(1, 1, RED, GREEN)
 
         # Should keep original old_color (MAGENTA), but update new_color to GREEN
-        assert parent_scene._current_pixel_changes_dict[1, 1] == (1, 1, MAGENTA, GREEN)
+        assert parent_scene.current_pixel_changes_dict[1, 1] == (1, 1, MAGENTA, GREEN)
 
     def test_collect_pixel_change_initializes_structures(self, mocker):
         """Test _collect_pixel_change creates tracking structures if missing."""
@@ -794,9 +794,9 @@ class TestCollectPixelChangeDictionaryTrimming:
 
         interface._collect_pixel_change(0, 0, MAGENTA, RED)
 
-        assert hasattr(parent_scene, '_current_pixel_changes')
-        assert hasattr(parent_scene, '_current_pixel_changes_dict')
-        assert (0, 0) in parent_scene._current_pixel_changes_dict
+        assert hasattr(parent_scene, 'current_pixel_changes')
+        assert hasattr(parent_scene, 'current_pixel_changes_dict')
+        assert (0, 0) in parent_scene.current_pixel_changes_dict
 
     def test_collect_pixel_change_starts_timer_on_first_pixel(self, mocker):
         """Test _collect_pixel_change starts timer on first pixel change."""
@@ -2027,21 +2027,21 @@ class TestAnimatedCanvasInterfaceCollectPixelChange:
     def test_collect_first_pixel_change_starts_timer(self, mocker):
         """Test collecting first pixel change starts a timer."""
         canvas_sprite = mocker.Mock()
-        canvas_sprite.parent_scene._current_pixel_changes = []
-        canvas_sprite.parent_scene._current_pixel_changes_dict = {}
+        canvas_sprite.parent_scene.current_pixel_changes = []
+        canvas_sprite.parent_scene.current_pixel_changes_dict = {}
         del canvas_sprite.animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)
         interface._collect_pixel_change(0, 0, MAGENTA, RED)
 
-        assert (0, 0) in canvas_sprite.parent_scene._current_pixel_changes_dict
+        assert (0, 0) in canvas_sprite.parent_scene.current_pixel_changes_dict
         assert hasattr(canvas_sprite.parent_scene, '_pixel_change_timer')
 
     def test_collect_duplicate_pixel_updates_existing(self, mocker):
         """Test collecting same pixel again updates new_color, keeps old_color."""
         canvas_sprite = mocker.Mock()
-        canvas_sprite.parent_scene._current_pixel_changes = []
-        canvas_sprite.parent_scene._current_pixel_changes_dict = {
+        canvas_sprite.parent_scene.current_pixel_changes = []
+        canvas_sprite.parent_scene.current_pixel_changes_dict = {
             (0, 0): (0, 0, MAGENTA, RED),
         }
         del canvas_sprite.animated_sprite
@@ -2049,7 +2049,7 @@ class TestAnimatedCanvasInterfaceCollectPixelChange:
         interface = AnimatedCanvasInterface(canvas_sprite)
         interface._collect_pixel_change(0, 0, RED, GREEN)
 
-        entry = canvas_sprite.parent_scene._current_pixel_changes_dict[0, 0]
+        entry = canvas_sprite.parent_scene.current_pixel_changes_dict[0, 0]
         # Original old_color (MAGENTA) should be preserved, new_color updated to GREEN
         assert entry == (0, 0, MAGENTA, GREEN)
 
@@ -2062,8 +2062,8 @@ class TestAnimatedCanvasInterfaceCollectPixelChange:
         interface = AnimatedCanvasInterface(canvas_sprite)
         interface._collect_pixel_change(1, 1, MAGENTA, BLUE)
 
-        assert hasattr(canvas_sprite.parent_scene, '_current_pixel_changes')
-        assert hasattr(canvas_sprite.parent_scene, '_current_pixel_changes_dict')
+        assert hasattr(canvas_sprite.parent_scene, 'current_pixel_changes')
+        assert hasattr(canvas_sprite.parent_scene, 'current_pixel_changes_dict')
 
 
 class TestAnimatedCanvasRendererMethods:
