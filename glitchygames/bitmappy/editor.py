@@ -47,7 +47,7 @@ from glitchygames.ui.dialogs import (
     SaveDialogScene,
 )
 
-from .ai_integration import AIIntegrationManager
+from .ai_manager import AIManager
 from .animated_canvas import AnimatedCanvasSprite
 from .constants import (
     LOG,
@@ -2968,7 +2968,7 @@ class BitmapEditorScene(Scene):
 
         # Initialize extracted subsystem managers
         self._file_io = FileIOManager(self)
-        self._ai_integration = AIIntegrationManager(self)
+        self._ai_integration = AIManager(self)
         self._controller_handler = ControllerEventHandler(self)
 
         # Set up all components
@@ -4010,7 +4010,7 @@ class BitmapEditorScene(Scene):
 
     @override
     def on_text_submit_event(self, text: str) -> None:
-        """Handle text submission by delegating to AIIntegrationManager."""
+        """Handle text submission by delegating to AIManager."""
         self._ai_integration.on_text_submit_event(text)
 
     @override

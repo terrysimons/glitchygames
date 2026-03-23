@@ -6,7 +6,7 @@ Re-exports all public names from submodules for backwards compatibility.
 from __future__ import annotations
 
 # Extracted modules (canonical imports)
-from .ai_integration import AIIntegrationManager
+from .ai_manager import AIManager
 from .ai_worker import run_ai_worker
 from .animated_canvas import AnimatedCanvasSprite
 
@@ -191,7 +191,7 @@ __all__ = [
     'SPRITE_ASPECT_RATIO_TOLERANCE',
     'SPRITE_CONFIG_DIR',
     'TRANSPARENT_GLYPH',
-    'AIIntegrationManager',
+    'AIManager',
     'AIRequest',
     'AIRequestState',
     'AIResponse',

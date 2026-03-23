@@ -1,4 +1,4 @@
-"""AI integration for the Bitmappy editor.
+"""AI manager for the Bitmappy editor.
 
 Manages AI sprite generation requests, response processing, and sprite loading
 from AI-generated content. Extracted from BitmapEditorScene to reduce class complexity.
@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     from .protocols import EditorContext
 
 
-class AIIntegrationManager:
+class AIManager:
     """Manages AI sprite generation for the Bitmappy editor.
 
     Handles AI request/response processing, training example gathering,
@@ -66,7 +66,7 @@ class AIIntegrationManager:
     """
 
     def __init__(self, editor: EditorContext) -> None:
-        """Initialize the AIIntegrationManager.
+        """Initialize the AIManager.
 
         Args:
             editor: The editor context providing access to shared state.

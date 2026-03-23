@@ -225,10 +225,10 @@ class TestTOMLConstruction:
         self.mock_scene.log = self._mocker.Mock()
 
         # Initialize extracted AI subsystem manager
-        from glitchygames.bitmappy.ai_integration import AIIntegrationManager
+        from glitchygames.bitmappy.ai_manager import AIManager
 
-        mocker.patch.object(AIIntegrationManager, '__init__', return_value=None)
-        self.mock_scene._ai_integration = AIIntegrationManager(self.mock_scene)  # type: ignore[arg-type]
+        mocker.patch.object(AIManager, '__init__', return_value=None)
+        self.mock_scene._ai_integration = AIManager(self.mock_scene)  # type: ignore[arg-type]
         self.mock_scene._ai_integration.editor = self.mock_scene  # type: ignore[assignment]
         self.mock_scene._ai_integration.log = self._mocker.Mock()
 
@@ -550,10 +550,10 @@ class TestColorQuantization:
         self.mock_scene.all_sprites = [self.mock_canvas]
 
         # Initialize extracted AI subsystem manager
-        from glitchygames.bitmappy.ai_integration import AIIntegrationManager
+        from glitchygames.bitmappy.ai_manager import AIManager
 
-        mocker.patch.object(AIIntegrationManager, '__init__', return_value=None)
-        self.mock_scene._ai_integration = AIIntegrationManager(self.mock_scene)  # type: ignore[arg-type]
+        mocker.patch.object(AIManager, '__init__', return_value=None)
+        self.mock_scene._ai_integration = AIManager(self.mock_scene)  # type: ignore[arg-type]
         self.mock_scene._ai_integration.editor = self.mock_scene  # type: ignore[assignment]
         self.mock_scene._ai_integration.log = mocker.Mock()
 

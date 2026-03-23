@@ -17,7 +17,7 @@ import pygame
 import pytest
 
 from glitchygames.bitmappy import editor as bitmappy
-from glitchygames.bitmappy.ai_integration import AIIntegrationManager
+from glitchygames.bitmappy.ai_manager import AIManager
 from glitchygames.bitmappy.controller_handler import ControllerEventHandler
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from tests.mocks import MockFactory
@@ -179,7 +179,7 @@ def _setup_ai_state(editor, mocker):
     editor.ai_label.rect = pygame.Rect(400, 380, 300, 20)
 
     # Set up AI integration manager (extracted subsystem)
-    ai_integration = AIIntegrationManager.__new__(AIIntegrationManager)
+    ai_integration = AIManager.__new__(AIManager)
     ai_integration.editor = editor
     ai_integration.log = mocker.Mock()
     ai_integration.pending_ai_requests = {}
@@ -2088,7 +2088,7 @@ class TestIsAiErrorMessage:
     def test_valid_sprite_content(self, mock_editor, mocker):
         """Returns False for valid sprite content."""
         mocker.patch(
-            'glitchygames.bitmappy.ai_integration.validate_ai_response',
+            'glitchygames.bitmappy.ai_manager.validate_ai_response',
             return_value=(True, None),
         )
         result = mock_editor._ai_integration._is_ai_error_message('[sprite]\nname = "test"')
@@ -2097,7 +2097,7 @@ class TestIsAiErrorMessage:
     def test_error_content(self, mock_editor, mocker):
         """Returns True for error/apology content."""
         mocker.patch(
-            'glitchygames.bitmappy.ai_integration.validate_ai_response',
+            'glitchygames.bitmappy.ai_manager.validate_ai_response',
             return_value=(False, 'Missing sprite section'),
         )
         result = mock_editor._ai_integration._is_ai_error_message(

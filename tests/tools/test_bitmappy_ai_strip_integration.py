@@ -33,9 +33,9 @@ class TestAISStripIntegration:
 
     def _setup_ai_integration(self, scene: BitmapEditorScene) -> None:
         """Initialize AI integration manager on a mocked scene."""
-        from glitchygames.bitmappy.ai_integration import AIIntegrationManager
+        from glitchygames.bitmappy.ai_manager import AIManager
 
-        ai_manager = AIIntegrationManager.__new__(AIIntegrationManager)
+        ai_manager = AIManager.__new__(AIManager)
         ai_manager.editor = scene
         ai_manager.log = scene.log
         ai_manager.pending_ai_requests = {}

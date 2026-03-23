@@ -1,7 +1,7 @@
 """Protocols for the Bitmappy editor subsystem interfaces.
 
 Defines the EditorContext protocol that captures what extracted subsystem managers
-(ControllerEventHandler, AIIntegrationManager, FileIOManager, etc.) need from the
+(ControllerEventHandler, AIManager, FileIOManager, etc.) need from the
 editor. This makes cross-class dependencies explicit and type-safe.
 """
 
@@ -31,7 +31,7 @@ class EditorContext(Protocol):
     """Protocol defining what extracted subsystem managers need from the editor.
 
     This protocol captures the public API surface that ControllerEventHandler,
-    AIIntegrationManager, FileIOManager, and other extracted classes depend on.
+    AIManager, FileIOManager, and other extracted classes depend on.
     BitmapEditorScene satisfies this protocol structurally (no explicit inheritance needed).
     """
 

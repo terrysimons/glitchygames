@@ -139,9 +139,9 @@ def mock_editor(mocker, pygame_mocks):  # noqa: PLR0915
     editor.slider_continuous_adjustments = editor._controller_handler.slider_continuous_adjustments
 
     # -- AI integration (extracted subsystem) --
-    from glitchygames.bitmappy.ai_integration import AIIntegrationManager
+    from glitchygames.bitmappy.ai_manager import AIManager
 
-    ai_integration = AIIntegrationManager.__new__(AIIntegrationManager)
+    ai_integration = AIManager.__new__(AIManager)
     ai_integration.editor = editor
     ai_integration.log = editor.log
     ai_integration.pending_ai_requests = {}
