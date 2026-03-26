@@ -48,7 +48,7 @@ class TestFilmStripOperationTracker:
             'frames': [
                 {'width': 32, 'height': 32, 'pixels': [255, 0, 0] * 32 * 32, 'duration': 1.0},
                 {'width': 32, 'height': 32, 'pixels': [0, 255, 0] * 32 * 32, 'duration': 1.0},
-            ]
+            ],
         }
         self.tracker.add_animation_added('new_animation', animation_data)
 
@@ -61,8 +61,8 @@ class TestFilmStripOperationTracker:
         """Test tracking animation deletion."""
         animation_data = {
             'frames': [
-                {'width': 32, 'height': 32, 'pixels': [255, 0, 0] * 32 * 32, 'duration': 1.0}
-            ]
+                {'width': 32, 'height': 32, 'pixels': [255, 0, 0] * 32 * 32, 'duration': 1.0},
+            ],
         }
         self.tracker.add_animation_deleted('old_animation', animation_data)
 

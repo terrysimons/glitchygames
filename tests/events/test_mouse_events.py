@@ -104,8 +104,8 @@ class TestMouseEventsInterface:
             event_handlers={
                 'on_mouse_button_down_event': lambda event: (
                     scene.mouse_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -124,8 +124,8 @@ class TestMouseEventsInterface:
             event_handlers={
                 'on_mouse_button_up_event': lambda event: (
                     scene.mouse_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -144,8 +144,8 @@ class TestMouseEventsInterface:
             event_handlers={
                 'on_mouse_motion_event': lambda event: (
                     scene.mouse_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -282,7 +282,7 @@ class TestMouseEventsInterface:
 
         """
         scene_mock = MockFactory.create_event_test_scene_mock(
-            options={'debug_events': False, 'no_unhandled_events': True}
+            options={'debug_events': False, 'no_unhandled_events': True},
         )
         stub.options = scene_mock.options
         return scene_mock
@@ -613,7 +613,7 @@ class TestMouseEventProxyMotionWithCollision:
         manager = MouseEventManager(game=scene)
 
         motion_event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10), buttons=(0, 0, 0)
+            pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10), buttons=(0, 0, 0),
         )
         manager.on_mouse_motion_event(motion_event)
 
@@ -647,7 +647,7 @@ class TestMouseEventProxyMotionWithCollision:
         proxy.mouse_state = RaisingDict()
 
         motion_event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(50, 50), rel=(5, 5), buttons=(0, 0, 0)
+            pygame.MOUSEMOTION, pos=(50, 50), rel=(5, 5), buttons=(0, 0, 0),
         )
         # Should not raise
         proxy.on_mouse_motion_event(motion_event)
@@ -949,7 +949,7 @@ class TestMouseEventProxyDelegation:
     def test_on_mouse_drag_event_left(self, mock_game):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
         motion_event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(1, 0, 0)
+            pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(1, 0, 0),
         )
         trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_LEFT, pos=(100, 200))
         proxy.on_mouse_drag_event(motion_event, trigger)
@@ -959,7 +959,7 @@ class TestMouseEventProxyDelegation:
     def test_on_mouse_drag_event_right(self, mock_game):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
         motion_event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(0, 0, 1)
+            pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(0, 0, 1),
         )
         trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_RIGHT, pos=(100, 200))
         proxy.on_mouse_drag_event(motion_event, trigger)
@@ -968,7 +968,7 @@ class TestMouseEventProxyDelegation:
     def test_on_mouse_drag_event_middle(self, mock_game):
         proxy = MouseEventManager.MouseEventProxy(game=mock_game)
         motion_event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(0, 1, 0)
+            pygame.MOUSEMOTION, pos=(150, 250), rel=(5, 5), buttons=(0, 1, 0),
         )
         trigger = HashableEvent(pygame.MOUSEBUTTONDOWN, button=MOUSE_BUTTON_WHEEL, pos=(100, 200))
         proxy.on_mouse_drag_event(motion_event, trigger)
@@ -1078,7 +1078,7 @@ class TestMouseEventManagerRouting:
         # Test mouse motion - use mocker.patch.object to prevent recursive calls
         mock_handler = mocker.patch.object(scene_mock, 'on_mouse_motion_event')
         motion_event = HashableEvent(
-            pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10), buttons=(0, 0, 0)
+            pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10), buttons=(0, 0, 0),
         )
         manager.on_mouse_motion_event(motion_event)
         mock_handler.assert_called_once_with(motion_event)

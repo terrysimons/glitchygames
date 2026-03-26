@@ -302,7 +302,7 @@ class TestEngineLifecycle:
         mock_game_class.assert_called_once()
 
     def test_start_method_error_message_with_previous_scene(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test GameEngine.start method error message shows previous scene when current is None."""
 
@@ -365,7 +365,7 @@ class TestEngineLifecycle:
         assert 'PreviousScene' in call_args
 
     def test_start_method_error_message_with_current_scene(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test GameEngine.start method error message shows current scene when available."""
 
@@ -428,7 +428,7 @@ class TestEngineLifecycle:
         assert '(previous)' not in call_args
 
     def test_start_method_error_message_with_no_scenes(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test GameEngine.start method error message shows None when both scenes are None."""
 

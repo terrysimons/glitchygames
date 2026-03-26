@@ -56,7 +56,7 @@ class GameScene(Scene):
         self.screen.fill((255, 255, 0))
 
         self.menu_bar = MenuBar(
-            name='Menu Bar', x=0, y=0, width=self.screen_width, height=20, groups=self.all_sprites
+            name='Menu Bar', x=0, y=0, width=self.screen_width, height=20, groups=self.all_sprites,
         )
 
         # Note: Why is the file menu 2 pixels down from the menu icon?
@@ -164,7 +164,7 @@ class GameScene(Scene):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.info(f'Mouse Up Event: {event}')
+        self.log.info('Mouse Up Event: %s', event)
 
 
 class Game(Scene):
@@ -184,7 +184,7 @@ class Game(Scene):
         super().__init__(options=options)
 
         # GameEngine.OPTIONS is set on initialization.
-        log.info(f'Game Options: {options}')
+        log.info('Game Options: %s', options)
 
         self.next_scene = GameScene()
 
@@ -197,7 +197,7 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v', '--version', action='store_true', help='print the game version and exit',
         )
 
 

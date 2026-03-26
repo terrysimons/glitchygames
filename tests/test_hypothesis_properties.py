@@ -26,7 +26,7 @@ from glitchygames.performance.adaptive_clamping import AdaptiveClamping
 reasonable_floats = st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False)
 positive_floats = st.floats(min_value=1e-6, max_value=1e6, allow_nan=False, allow_infinity=False)
 nonzero_floats = st.floats(
-    min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False
+    min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False,
 ).filter(lambda x: abs(x) > 1e-9)
 rgb_values = st.integers(min_value=0, max_value=255)
 alpha_values = st.integers(min_value=0, max_value=255)

@@ -233,7 +233,7 @@ class TestVisualCollisionEdgeCases:
         # Add many controllers at exact same position
         for i in range(25):
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(100, 100)
+                controller_id=i, instance_id=i, color=(255, 0, 0), position=(100, 100),
             )
 
         # Should handle collision avoidance
@@ -244,14 +244,14 @@ class TestVisualCollisionEdgeCases:
         assert len(self.visual_manager.indicators) == 25
 
     @pytest.mark.skip(
-        reason='VisualCollisionManager is not thread-safe — concurrent updates cause RuntimeError'
+        reason='VisualCollisionManager is not thread-safe — concurrent updates cause RuntimeError',
     )
     def test_position_update_races(self):
         """Test rapid position updates causing potential race conditions."""
         # Add indicators
         for i in range(10):
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(i * 10, i * 10)
+                controller_id=i, instance_id=i, color=(255, 0, 0), position=(i * 10, i * 10),
             )
 
         def position_worker(controller_id):
@@ -280,7 +280,7 @@ class TestVisualCollisionEdgeCases:
         # Add indicators at negative positions
         for i in range(5):
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(-100, -100)
+                controller_id=i, instance_id=i, color=(255, 0, 0), position=(-100, -100),
             )
 
         # Should handle negative positions
@@ -292,7 +292,7 @@ class TestVisualCollisionEdgeCases:
         # Add indicators at large positions
         for i in range(5):
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(100000, 100000)
+                controller_id=i, instance_id=i, color=(255, 0, 0), position=(100000, 100000),
             )
 
         # Should handle large positions
@@ -306,7 +306,7 @@ class TestVisualCollisionEdgeCases:
             # Add indicators
             for i in range(5):
                 self.visual_manager.add_controller_indicator(
-                    controller_id=i, instance_id=i, color=(255, 0, 0), position=(i * 10, i * 10)
+                    controller_id=i, instance_id=i, color=(255, 0, 0), position=(i * 10, i * 10),
                 )
 
             # Remove indicators
@@ -341,7 +341,7 @@ class TestMemoryAndPerformanceEdgeCases:
 
             # Add visual indicators
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=instance_id, color=(255, 0, 0), position=(i * 5, i * 5)
+                controller_id=i, instance_id=instance_id, color=(255, 0, 0), position=(i * 5, i * 5),
             )
 
         # System should handle this gracefully
@@ -430,12 +430,12 @@ class TestMemoryAndPerformanceEdgeCases:
 
                 # Navigation
                 self.controller_selections[controller_id].set_selection(
-                    f'worker_{worker_id}', _ % 10
+                    f'worker_{worker_id}', _ % 10,
                 )
 
                 # Visual updates
                 self.visual_manager.update_controller_position(
-                    controller_id, (worker_id * 10, _ * 10)
+                    controller_id, (worker_id * 10, _ * 10),
                 )
 
                 # Manager operations
@@ -503,7 +503,7 @@ class TestErrorRecoveryEdgeCases:
         """Test visual manager with invalid data."""
         # Add indicator with valid data
         self.visual_manager.add_controller_indicator(
-            controller_id=0, instance_id=0, color=(255, 0, 0), position=(100, 100)
+            controller_id=0, instance_id=0, color=(255, 0, 0), position=(100, 100),
         )
 
         # Corrupt the indicator position

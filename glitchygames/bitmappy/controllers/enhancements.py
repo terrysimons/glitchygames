@@ -168,7 +168,7 @@ class BitmappyMultiControllerEnhancements:
         self._update_performance_metrics('visual_update', time.time())
 
     def _calculate_enhanced_position(
-        self, controller_id: int, animation: str, frame: int
+        self, controller_id: int, animation: str, frame: int,
     ) -> tuple[int, int]:
         """Calculate enhanced position for visual indicator.
 
@@ -209,7 +209,7 @@ class BitmappyMultiControllerEnhancements:
         return position
 
     def _create_enhanced_visual_indicator(
-        self, controller_id: int, position: tuple[int, int]
+        self, controller_id: int, position: tuple[int, int],
     ) -> None:
         """Create enhanced visual indicator.
 
@@ -287,7 +287,7 @@ class BitmappyMultiControllerEnhancements:
         self.enhanced_visual_management(controller_id)
 
     def _record_controller_action(
-        self, controller_id: int, action: str, data: dict[str, Any]
+        self, controller_id: int, action: str, data: dict[str, Any],
     ) -> None:
         """Record controller action in history.
 

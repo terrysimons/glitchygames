@@ -54,7 +54,7 @@ class TestBallCollisionPhysics:
         if distance > collision_distance or distance < 0.001:
             LOG.debug(
                 f'DEBUG: No collision - distance={distance:.2f},'
-                f' collision_distance={collision_distance}'
+                f' collision_distance={collision_distance}',
             )
             return None
 
@@ -232,7 +232,7 @@ class TestBallCollisionPhysics:
         """Test diagonal ball hitting diagonal ball moving same direction."""
         ball1 = self._create_ball(100, 100, 50.0, 50.0)  # Moving diagonally right-down
         ball2 = self._create_ball(
-            110, 110, -25.0, -25.0
+            110, 110, -25.0, -25.0,
         )  # Moving diagonally left-up (toward ball1)
 
         self._simulate_collision(ball1, ball2)
@@ -247,7 +247,7 @@ class TestBallCollisionPhysics:
         """Test diagonal ball hitting diagonal ball moving opposite direction."""
         ball1 = self._create_ball(100, 100, 50.0, 50.0)  # Moving diagonally down-right
         ball2 = self._create_ball(
-            110, 110, -25.0, -25.0
+            110, 110, -25.0, -25.0,
         )  # Moving diagonally up-left (toward ball1)
 
         self._simulate_collision(ball1, ball2)

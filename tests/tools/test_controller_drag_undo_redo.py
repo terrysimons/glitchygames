@@ -25,37 +25,37 @@ class TestControllerDragUndoRedo:
         """
         scene = mocker.Mock()
 
+        # Set real attributes needed by command objects
+        scene._applying_undo_redo = False
+        scene.canvas = mocker.Mock()
+        scene.canvas.canvas_interface = mocker.Mock()
+        scene.canvas.canvas_interface.get_pixel_at = mocker.Mock(
+            return_value=(0, 0, 0),
+        )  # Default black
+        scene.canvas.canvas_interface.set_pixel_at = mocker.Mock()
+
         # Set up undo/redo manager
         scene.undo_redo_manager = UndoRedoManager()
-        scene.canvas_operation_tracker = CanvasOperationTracker(scene.undo_redo_manager)
-        scene.film_strip_operation_tracker = FilmStripOperationTracker(scene.undo_redo_manager)
-
-        # Set up pixel change callback for undo/redo
-        scene._apply_pixel_change_for_undo_redo = mocker.Mock(return_value=True)
-        scene.undo_redo_manager.set_pixel_change_callback(scene._apply_pixel_change_for_undo_redo)
+        scene.canvas_operation_tracker = CanvasOperationTracker(
+            scene.undo_redo_manager, editor=scene,
+        )
+        scene.film_strip_operation_tracker = FilmStripOperationTracker(
+            scene.undo_redo_manager, editor=scene,
+        )
 
         # Set up pixel change tracking
         scene.current_pixel_changes = []
-        scene._applying_undo_redo = False
 
         # Set up controller drag tracking
         scene.controller_drags = {}
 
-        # Mock canvas interface
-        scene.canvas = mocker.Mock()
-        scene.canvas.canvas_interface = mocker.Mock()
-        scene.canvas.canvas_interface.get_pixel_at = mocker.Mock(
-            return_value=(0, 0, 0)
-        )  # Default black
-        scene.canvas.canvas_interface.set_pixel_at = mocker.Mock()
-
         # Mock mode switcher
         scene.mode_switcher = mocker.Mock()
         scene.mode_switcher.get_controller_mode = mocker.Mock(
-            return_value=mocker.Mock(value='canvas')
+            return_value=mocker.Mock(value='canvas'),
         )
         scene.mode_switcher.get_controller_position = mocker.Mock(
-            return_value=mocker.Mock(is_valid=True, position=(5, 5))
+            return_value=mocker.Mock(is_valid=True, position=(5, 5)),
         )
 
         # Mock color getter
@@ -91,10 +91,10 @@ class TestControllerDragUndoRedo:
         for x, y in positions:
             # Mock the controller position
             mock_scene.mode_switcher.get_controller_position.return_value = mocker.Mock(
-                is_valid=True, position=(x, y)
+                is_valid=True, position=(x, y),
             )
 
-            # Simulate the actual _canvas_paint_at_controller_position logic
+            # Simulate the actual canvas_paint_at_controller_position logic
             position = mock_scene.mode_switcher.get_controller_position(controller_id)
             if position and position.is_valid:
                 current_color = mock_scene.get_current_color()
@@ -195,11 +195,10 @@ class TestControllerDragUndoRedo:
         # After fix: Should have 1 undo operation for the entire drag
         assert len(mock_scene.undo_redo_manager.undo_stack) == 1
 
-        # Verify the operation contains all 3 pixels
-        operation = mock_scene.undo_redo_manager.undo_stack[0]
-        assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
-        assert len(operation.undo_data['pixels']) == 3
-        assert len(operation.redo_data['pixels']) == 3
+        # Verify the command contains all 3 pixels
+        command = mock_scene.undo_redo_manager.undo_stack[0]
+        assert command.operation_type == OperationType.CANVAS_BRUSH_STROKE
+        assert len(command.pixels) == 3
 
     def test_expected_behavior_after_fix(self, mock_scene, mocker):
         """Test the expected behavior after fixing the controller drag undo/redo issue."""
@@ -261,23 +260,21 @@ class TestControllerDragUndoRedo:
                         mock_scene.canvas_operation_tracker.add_pixel_changes(pixel_changes)
 
         # After fix: Should have 1 undo operation for the entire drag
-        # This test will pass after we implement the fix
         assert len(mock_scene.undo_redo_manager.undo_stack) == 1
 
-        # Verify the operation contains all 3 pixels
-        operation = mock_scene.undo_redo_manager.undo_stack[0]
-        assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
-        assert len(operation.undo_data['pixels']) == 3
-        assert len(operation.redo_data['pixels']) == 3
+        # Verify the command contains all 3 pixels
+        command = mock_scene.undo_redo_manager.undo_stack[0]
+        assert command.operation_type == OperationType.CANVAS_BRUSH_STROKE
+        assert len(command.pixels) == 3
 
-        # Test undo functionality
+        # Test undo functionality — command.undo() sets pixels back to old_color
         assert mock_scene.undo_redo_manager.can_undo()
         success = mock_scene.undo_redo_manager.undo()
         assert success
         assert len(mock_scene.undo_redo_manager.undo_stack) == 0
         assert len(mock_scene.undo_redo_manager.redo_stack) == 1
 
-        # Test redo functionality
+        # Test redo functionality — command.execute() sets pixels to new_color
         assert mock_scene.undo_redo_manager.can_redo()
         success = mock_scene.undo_redo_manager.redo()
         assert success

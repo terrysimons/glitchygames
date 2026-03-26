@@ -137,7 +137,7 @@ class TestAnimatedSpriteGlyphs:
         # Create animation with specific colors
         frame = SpriteFrame(pygame.Surface((2, 2)))
         colors = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)],
         )
         frame.set_pixel_data(colors)
         animated_sprite.add_animation('test_anim', [frame])
@@ -315,7 +315,7 @@ class TestAnimatedSpriteGlyphs:
         # Create a simple frame
         frame = SpriteFrame(pygame.Surface((4, 4)))
         toml_pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)] * 4
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)] * 4,
         )
         frame.set_pixel_data(toml_pixels)
         animated_sprite.add_animation('test_anim', [frame])

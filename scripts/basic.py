@@ -46,7 +46,7 @@ class Game(Scene):
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
         # These are set up in the GameEngine class.
-        self.log.info(f'Game Options: {options}')
+        self.log.info('Game Options: %s', options)
         self.fps: float = 6.0
 
         self.background_color = (255, 255, 0)
@@ -64,7 +64,7 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v', '--version', action='store_true', help='print the game version and exit',
         )
 
     @override
@@ -88,7 +88,7 @@ class Game(Scene):
             event (pygame.event.Event): The event to handle.
 
         """
-        self.log.info(f'Left Mouse Up: {event}')
+        self.log.info('Left Mouse Up: %s', event)
 
 
 def main() -> None:

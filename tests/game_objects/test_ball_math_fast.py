@@ -11,7 +11,7 @@ LOG = logging.getLogger(__name__)
 
 
 def _apply_wall_bounces(
-    new_x, new_y, speed_x, speed_y, ball_width, ball_height, screen_width, screen_height
+    new_x, new_y, speed_x, speed_y, ball_width, ball_height, screen_width, screen_height,
 ):
     """Apply wall bounce logic and return updated position, speed, and bounce counts.
 
@@ -50,7 +50,7 @@ def _apply_wall_bounces(
 
 
 def _run_bounce_simulation(
-    screen_width, screen_height, ball_width, ball_height, x, y, speed_x, speed_y, dt, iterations
+    screen_width, screen_height, ball_width, ball_height, x, y, speed_x, speed_y, dt, iterations,
 ):
     """Run the ball bounce simulation loop.
 
@@ -128,7 +128,7 @@ def _log_simulation_results(results, iterations):
     LOG.debug(f'Final speed magnitude: {final_magnitude:.6f}')
     LOG.debug(
         f'Position bounds: X[{results["min_x"]:.1f}-{results["max_x"]:.1f}]'
-        f' Y[{results["min_y"]:.1f}-{results["max_y"]:.1f}]'
+        f' Y[{results["min_y"]:.1f}-{results["max_y"]:.1f}]',
     )
 
 
@@ -172,11 +172,11 @@ def _check_position_bounds(results, screen_width, screen_height, ball_width, bal
         LOG.debug('  Position bounds issue detected')
         LOG.debug(
             f'    Expected X: [{expected_min_x}-{expected_max_x}],'
-            f' got [{results["min_x"]:.1f}-{results["max_x"]:.1f}]'
+            f' got [{results["min_x"]:.1f}-{results["max_x"]:.1f}]',
         )
         LOG.debug(
             f'    Expected Y: [{expected_min_y}-{expected_max_y}],'
-            f' got [{results["min_y"]:.1f}-{results["max_y"]:.1f}]'
+            f' got [{results["min_y"]:.1f}-{results["max_y"]:.1f}]',
         )
 
 

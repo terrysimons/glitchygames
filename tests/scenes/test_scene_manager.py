@@ -213,7 +213,7 @@ class TestSceneManager:
         # Test registering game event
         scene_manager.register_game_event('test_event', mock_callback)  # type: ignore[invalid-argument-type]
         mock_engine.register_game_event.assert_called_once_with(
-            event_type='test_event', callback=mock_callback
+            event_type='test_event', callback=mock_callback,
         )
 
     def test_scene_manager_getattr(self):

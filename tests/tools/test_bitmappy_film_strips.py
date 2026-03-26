@@ -503,7 +503,7 @@ class TestFilmStripWidgetIntegration:
         # Assert
         assert result is True
         widget.parent_scene.film_strip_coordinator._delete_animation.assert_called_once_with(
-            'test_animation'
+            'test_animation',
         )
 
     def test_film_strip_widget_no_tabs_without_frames(self):

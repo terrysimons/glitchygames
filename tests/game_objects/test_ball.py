@@ -68,7 +68,7 @@ class TestBallSpriteInitialization:
         groups = mocker.Mock()
         mocker.patch('pygame.mixer.Sound')
         ball = BallSprite(
-            x=100, y=200, width=30, height=30, groups=groups, collision_sound='test.wav'
+            x=100, y=200, width=30, height=30, groups=groups, collision_sound='test.wav',
         )
 
         # Position is set by reset() during initialization, so it will be random

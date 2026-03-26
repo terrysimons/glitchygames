@@ -122,7 +122,7 @@ class TestInitializeDimensions:
     def test_initialize_dimensions_basic(self, mocker):
         """Test basic dimension initialization returns correct width and height."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=8, pixels_tall=8, pixel_width=10, pixel_height=10
+            mocker, pixels_across=8, pixels_tall=8, pixel_width=10, pixel_height=10,
         )
         assert canvas.pixels_across == 8
         assert canvas.pixels_tall == 8
@@ -132,7 +132,7 @@ class TestInitializeDimensions:
     def test_initialize_dimensions_rectangular(self, mocker):
         """Test dimensions for a non-square canvas."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=16, pixels_tall=8, pixel_width=4, pixel_height=8
+            mocker, pixels_across=16, pixels_tall=8, pixel_width=4, pixel_height=8,
         )
         assert canvas.pixels_across == 16
         assert canvas.pixels_tall == 8
@@ -142,7 +142,7 @@ class TestInitializeDimensions:
     def test_initialize_dimensions_computes_canvas_size(self, mocker):
         """Test that canvas surface dimensions are pixels_across * pixel_width."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16
+            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16,
         )
         # The image should be pixels_across * pixel_width by pixels_tall * pixel_height
         expected_width = 4 * 16
@@ -153,7 +153,7 @@ class TestInitializeDimensions:
     def test_initialize_dimensions_small_pixel_size(self, mocker):
         """Test dimensions with pixel size of 1."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=32, pixels_tall=32, pixel_width=1, pixel_height=1
+            mocker, pixels_across=32, pixels_tall=32, pixel_width=1, pixel_height=1,
         )
         assert canvas.pixel_width == 1
         assert canvas.pixel_height == 1
@@ -221,21 +221,21 @@ class TestUpdateBorderThickness:
     def test_normal_pixel_size_has_border(self, mocker):
         """Test border thickness is 1 for normal pixel sizes."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16
+            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16,
         )
         assert canvas.border_thickness == 1
 
     def test_small_pixel_size_disables_border(self, mocker):
         """Test border is disabled for pixel size <= 2."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=4, pixels_tall=4, pixel_width=2, pixel_height=2
+            mocker, pixels_across=4, pixels_tall=4, pixel_width=2, pixel_height=2,
         )
         assert canvas.border_thickness == 0
 
     def test_large_sprite_disables_border(self, mocker):
         """Test border is disabled for sprites >= 128 pixels across."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=128, pixels_tall=128, pixel_width=4, pixel_height=4, frame_count=1
+            mocker, pixels_across=128, pixels_tall=128, pixel_width=4, pixel_height=4, frame_count=1,
         )
         assert canvas.border_thickness == 0
 
@@ -245,7 +245,7 @@ class TestUpdateBorderThickness:
         BitmapPixelSprite.PIXEL_CACHE['test_key'] = 'test_value'  # type: ignore[invalid-assignment]
 
         canvas, _ = _make_canvas(
-            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16
+            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16,
         )
         # Manually trigger a border thickness change
         canvas.pixel_width = 2

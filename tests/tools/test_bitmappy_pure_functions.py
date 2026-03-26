@@ -400,7 +400,7 @@ class TestBuildAsciiGrid:
     def test_simple_2x2_grid(self):
         """Test building a 2x2 ASCII grid."""
         pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
         )
         color_map = cast(
             'dict[tuple[int, ...], str]',
@@ -1087,10 +1087,10 @@ class TestLogColorizedSpriteOutput:
         )
         mocker.patch('glitchygames.bitmappy.sprite_inspection._render_static_sprite_ascii')
         mocker.patch(
-            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count', return_value=2
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count', return_value=2,
         )
         mocker.patch(
-            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type', return_value='indexed'
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type', return_value='indexed',
         )
         mocker.patch(
             'glitchygames.bitmappy.sprite_inspection._calculate_animation_duration',
@@ -1118,11 +1118,11 @@ class TestLogColorizedSpriteOutput:
     def test_animated_multi_frame_sprite(self, mocker):
         """Test logging output for a multi-frame AnimatedSprite."""
         mocker.patch(
-            'glitchygames.bitmappy.sprite_inspection._sprite_has_per_pixel_alpha', return_value=True
+            'glitchygames.bitmappy.sprite_inspection._sprite_has_per_pixel_alpha', return_value=True,
         )
         mocker.patch('glitchygames.bitmappy.sprite_inspection._render_animated_sprite_ascii')
         mocker.patch(
-            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count', return_value=5
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count', return_value=5,
         )
         mocker.patch(
             'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type',
@@ -1153,10 +1153,10 @@ class TestLogColorizedSpriteOutput:
     def test_non_animated_sprite(self, mocker):
         """Test logging output for a non-AnimatedSprite."""
         mocker.patch(
-            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count', return_value=3
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count', return_value=3,
         )
         mocker.patch(
-            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type', return_value='indexed'
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type', return_value='indexed',
         )
         mocker.patch(
             'glitchygames.bitmappy.sprite_inspection._calculate_animation_duration',
@@ -1179,10 +1179,10 @@ class TestLogColorizedSpriteOutput:
     def test_non_animated_sprite_without_pixels(self, mocker):
         """Test logging for non-AnimatedSprite without pixels attribute."""
         mocker.patch(
-            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count', return_value=0
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count', return_value=0,
         )
         mocker.patch(
-            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type', return_value='indexed'
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type', return_value='indexed',
         )
         mocker.patch(
             'glitchygames.bitmappy.sprite_inspection._calculate_animation_duration',

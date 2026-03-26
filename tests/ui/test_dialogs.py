@@ -1468,7 +1468,7 @@ class TestConfirmDialogInitialization:
         cancel_callback = mocker.Mock()
 
         dialog = _create_confirm_dialog(
-            mocker, confirm_callback=confirm_callback, cancel_callback=cancel_callback
+            mocker, confirm_callback=confirm_callback, cancel_callback=cancel_callback,
         )
 
         assert dialog.confirm_callback is confirm_callback
@@ -1535,7 +1535,7 @@ class TestConfirmDialogRender:
         dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
         dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
         dialog.image.get_rect.return_value = pygame.Rect(
-            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT
+            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT,
         )
 
         mocker.patch('pygame.draw.rect')
@@ -1560,7 +1560,7 @@ class TestConfirmDialogRender:
         dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
         dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
         dialog.image.get_rect.return_value = pygame.Rect(
-            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT
+            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT,
         )
 
         mock_draw_rect = mocker.patch('pygame.draw.rect')
@@ -1586,7 +1586,7 @@ class TestConfirmDialogRender:
         dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
         dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
         dialog.image.get_rect.return_value = pygame.Rect(
-            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT
+            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT,
         )
 
         mocker.patch('pygame.draw.rect')
@@ -1611,7 +1611,7 @@ class TestConfirmDialogRender:
         dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
         dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
         dialog.image.get_rect.return_value = pygame.Rect(
-            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT
+            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT,
         )
 
         mock_draw_rect = mocker.patch('pygame.draw.rect')

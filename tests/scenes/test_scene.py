@@ -1378,7 +1378,7 @@ class TestHandleFramePacing:
         mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
 
         manager._handle_frame_pacing(
-            timer=None, period_ns=0, prev_deadline_ns=None, frame_start_ns=0
+            timer=None, period_ns=0, prev_deadline_ns=None, frame_start_ns=0,
         )
 
         mock_clock_tick.assert_called_once_with(60)
@@ -1391,7 +1391,7 @@ class TestHandleFramePacing:
         mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
 
         manager._handle_frame_pacing(
-            timer=None, period_ns=0, prev_deadline_ns=None, frame_start_ns=0
+            timer=None, period_ns=0, prev_deadline_ns=None, frame_start_ns=0,
         )
 
         mock_clock_tick.assert_called_once_with()
@@ -2060,7 +2060,7 @@ class TestSceneHandleFocusManagementWithFocusable:
     """Test Scene._handle_focus_management with focusable sprites."""
 
     def test_handle_focus_management_keeps_focused_when_focusable_clicked(
-        self, mock_pygame_patches, mocker
+        self, mock_pygame_patches, mocker,
     ):
         """Test focus is maintained when clicking on a focusable sprite."""
         scene = Scene()

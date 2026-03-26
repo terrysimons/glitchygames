@@ -234,7 +234,7 @@ class TestBitmapPixelSpriteUpdate:
         assert default_pixel_sprite.image is cached_image
 
     def test_update_different_colors_create_different_cache_entries(
-        self, default_pixel_sprite, pygame_mocks, mock_groups
+        self, default_pixel_sprite, pygame_mocks, mock_groups,
     ):
         """Test that different pixel colors result in different cache entries."""
         default_pixel_sprite.pixel_color = (255, 0, 0, 255)
@@ -247,17 +247,17 @@ class TestBitmapPixelSpriteUpdate:
         assert len(BitmapPixelSprite.PIXEL_CACHE) == 2
 
     def test_update_same_color_different_border_creates_different_cache(
-        self, pygame_mocks, mock_groups
+        self, pygame_mocks, mock_groups,
     ):
         """Test that same color but different border thickness creates separate cache entries."""
         sprite_thin = BitmapPixelSprite(
-            x=0, y=0, width=16, height=16, border_thickness=1, groups=mock_groups
+            x=0, y=0, width=16, height=16, border_thickness=1, groups=mock_groups,
         )
         sprite_thin.pixel_color = (255, 0, 0, 255)
         sprite_thin.update()
 
         sprite_thick = BitmapPixelSprite(
-            x=0, y=0, width=16, height=16, border_thickness=3, groups=mock_groups
+            x=0, y=0, width=16, height=16, border_thickness=3, groups=mock_groups,
         )
         sprite_thick.pixel_color = (255, 0, 0, 255)
         sprite_thick.update()
@@ -267,7 +267,7 @@ class TestBitmapPixelSpriteUpdate:
     def test_update_with_zero_border_thickness(self, pygame_mocks, mock_groups):
         """Test update with no border does not draw border rect."""
         sprite = BitmapPixelSprite(
-            x=0, y=0, width=16, height=16, border_thickness=0, groups=mock_groups
+            x=0, y=0, width=16, height=16, border_thickness=0, groups=mock_groups,
         )
         sprite.pixel_color = (128, 128, 128, 255)
         sprite.update()
@@ -386,7 +386,7 @@ class TestScrollArrowSpriteInit:
     def test_init_up_direction(self, pygame_mocks, mock_groups):
         """Test initialization with 'up' direction."""
         sprite = ScrollArrowSprite(
-            x=0, y=0, width=20, height=20, groups=mock_groups, direction='up'
+            x=0, y=0, width=20, height=20, groups=mock_groups, direction='up',
         )
         assert sprite.direction == 'up'
         assert sprite.name == 'Scroll up Arrow'
@@ -394,7 +394,7 @@ class TestScrollArrowSpriteInit:
     def test_init_down_direction(self, pygame_mocks, mock_groups):
         """Test initialization with 'down' direction."""
         sprite = ScrollArrowSprite(
-            x=0, y=0, width=20, height=20, groups=mock_groups, direction='down'
+            x=0, y=0, width=20, height=20, groups=mock_groups, direction='down',
         )
         assert sprite.direction == 'down'
         assert sprite.name == 'Scroll down Arrow'
@@ -402,7 +402,7 @@ class TestScrollArrowSpriteInit:
     def test_init_plus_direction(self, pygame_mocks, mock_groups):
         """Test initialization with 'plus' direction."""
         sprite = ScrollArrowSprite(
-            x=0, y=0, width=20, height=20, groups=mock_groups, direction='plus'
+            x=0, y=0, width=20, height=20, groups=mock_groups, direction='plus',
         )
         assert sprite.direction == 'plus'
         assert sprite.name == 'Scroll plus Arrow'
@@ -445,7 +445,7 @@ class TestScrollArrowSpriteDrawArrow:
         """Test that 'up' direction draws a polygon."""
         mock_polygon = mocker.patch('pygame.draw.polygon')
         sprite = ScrollArrowSprite(
-            x=0, y=0, width=20, height=20, groups=mock_groups, direction='up'
+            x=0, y=0, width=20, height=20, groups=mock_groups, direction='up',
         )
         # _draw_arrow is called during __init__, so polygon should have been called
         assert mock_polygon.called
@@ -454,7 +454,7 @@ class TestScrollArrowSpriteDrawArrow:
         """Test that 'down' direction draws a polygon."""
         mock_polygon = mocker.patch('pygame.draw.polygon')
         sprite = ScrollArrowSprite(
-            x=0, y=0, width=20, height=20, groups=mock_groups, direction='down'
+            x=0, y=0, width=20, height=20, groups=mock_groups, direction='down',
         )
         assert mock_polygon.called
 
@@ -462,7 +462,7 @@ class TestScrollArrowSpriteDrawArrow:
         """Test that 'plus' direction draws lines instead of polygon."""
         mock_line = mocker.patch('pygame.draw.line')
         sprite = ScrollArrowSprite(
-            x=0, y=0, width=20, height=20, groups=mock_groups, direction='plus'
+            x=0, y=0, width=20, height=20, groups=mock_groups, direction='plus',
         )
         # Plus sign draws two lines (vertical + horizontal)
         assert mock_line.call_count == 2
@@ -471,7 +471,7 @@ class TestScrollArrowSpriteDrawArrow:
         """Test that _draw_arrow fills with white background."""
         # We can verify by checking image pixel after init
         sprite = ScrollArrowSprite(
-            x=0, y=0, width=20, height=20, groups=mock_groups, direction='up'
+            x=0, y=0, width=20, height=20, groups=mock_groups, direction='up',
         )
         # Corner pixel should be white (255, 255, 255) since arrow doesn't cover it
         assert sprite.image is not None

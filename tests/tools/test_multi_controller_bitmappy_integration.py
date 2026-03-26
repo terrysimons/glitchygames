@@ -43,10 +43,10 @@ class TestBitmappyMultiControllerIntegration:
         # Mock controller events
         mock_events = [
             self._mocker.Mock(
-                type=pygame.CONTROLLERBUTTONDOWN, button=pygame.CONTROLLER_BUTTON_A, instance_id=0
+                type=pygame.CONTROLLERBUTTONDOWN, button=pygame.CONTROLLER_BUTTON_A, instance_id=0,
             ),
             self._mocker.Mock(
-                type=pygame.CONTROLLERBUTTONDOWN, button=pygame.CONTROLLER_BUTTON_A, instance_id=1
+                type=pygame.CONTROLLERBUTTONDOWN, button=pygame.CONTROLLER_BUTTON_A, instance_id=1,
             ),
             self._mocker.Mock(
                 type=pygame.CONTROLLERBUTTONDOWN,
@@ -77,7 +77,7 @@ class TestBitmappyMultiControllerIntegration:
                     if controller_id in self.scene.controller_selections:
                         self.scene.controller_selections[controller_id].activate()
                         self.scene.controller_selections[controller_id].set_selection(
-                            'test_animation', 0
+                            'test_animation', 0,
                         )
                 elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
                     # D-pad left - previous frame
@@ -88,7 +88,7 @@ class TestBitmappyMultiControllerIntegration:
                         ].get_selection()
                         if current_frame > 0:
                             self.scene.controller_selections[controller_id].set_selection(
-                                current_animation, current_frame - 1
+                                current_animation, current_frame - 1,
                             )
                 elif event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
                     # D-pad right - next frame
@@ -98,7 +98,7 @@ class TestBitmappyMultiControllerIntegration:
                             controller_id
                         ].get_selection()
                         self.scene.controller_selections[controller_id].set_selection(
-                            current_animation, current_frame + 1
+                            current_animation, current_frame + 1,
                         )
 
         # Verify controller states
@@ -214,7 +214,7 @@ class TestBitmappyMultiControllerIntegration:
 
         # Create controller selection
         self.scene.controller_selections[controller_id] = ControllerSelection(
-            controller_id, instance_id
+            controller_id, instance_id,
         )
         self.scene.controller_selections[controller_id].activate()
         self.scene.controller_selections[controller_id].set_selection('test_animation', 0)

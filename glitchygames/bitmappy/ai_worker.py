@@ -68,8 +68,8 @@ def _setup_ai_worker_logging() -> logging.Logger:
         log.addHandler(handler)
 
     log.info('AI worker process initializing...')
-    log.debug(f'AI_MODEL: {AI_MODEL}')
-    log.debug(f'AI_TIMEOUT: {AI_TIMEOUT}')
+    log.debug('AI_MODEL: %s', AI_MODEL)
+    log.debug('AI_TIMEOUT: %s', AI_TIMEOUT)
     return log
 
 
@@ -87,10 +87,10 @@ def _create_ollama_config(log: logging.Logger) -> dict[str, Any]:
     model_status = _check_ollama_model_status(log)
     if model_status['downloaded']:
         timeout_value = AI_TIMEOUT  # Use normal timeout for downloaded models
-        log.info(f'Model already downloaded, using {timeout_value}s timeout')
+        log.info('Model already downloaded, using %ss timeout', timeout_value)
     else:
         timeout_value = AI_MODEL_DOWNLOAD_TIMEOUT  # Use longer timeout for download
-        log.info(f'Model needs download, using {timeout_value}s timeout (30 minutes)')
+        log.info('Model needs download, using %ss timeout (30 minutes)', timeout_value)
 
     # Create ollama-specific configuration
     config = {
@@ -98,10 +98,10 @@ def _create_ollama_config(log: logging.Logger) -> dict[str, Any]:
             'timeout': timeout_value,
             'request_timeout': timeout_value,
             'read_timeout': timeout_value,
-        }
+        },
     }
 
-    log.info(f'Created ollama config with {timeout_value}s timeout')
+    log.info('Created ollama config with %ss timeout', timeout_value)
     return config
 
 
@@ -120,13 +120,13 @@ def _set_ollama_env_timeout(log: logging.Logger) -> None:
     model_status = _check_ollama_model_status(log)
     if model_status['downloaded']:
         ollama_timeout = AI_TIMEOUT
-        log.info(f'Model already downloaded, using {ollama_timeout}s timeout')
+        log.info('Model already downloaded, using %ss timeout', ollama_timeout)
     else:
         ollama_timeout = AI_MODEL_DOWNLOAD_TIMEOUT
-        log.info(f'Model needs download, using {ollama_timeout}s timeout (30 minutes)')
+        log.info('Model needs download, using %ss timeout (30 minutes)', ollama_timeout)
 
     os.environ['OLLAMA_TIMEOUT'] = str(ollama_timeout)
-    log.info(f'Set OLLAMA_TIMEOUT environment variable to {ollama_timeout} seconds')
+    log.info('Set OLLAMA_TIMEOUT environment variable to %s seconds', ollama_timeout)
 
 
 def _configure_ollama_provider(log: logging.Logger, client: Any) -> None:
@@ -147,21 +147,21 @@ def _configure_ollama_provider(log: logging.Logger, client: Any) -> None:
         if 'ollama' not in provider_name.lower():
             continue
 
-        log.info(f'Configuring ollama provider: {provider_name}')
+        log.info('Configuring ollama provider: %s', provider_name)
 
         if hasattr(provider, 'timeout'):
             provider.timeout = timeout_value
-            log.info(f'Set ollama provider timeout to {timeout_value}s')
+            log.info('Set ollama provider timeout to %ss', timeout_value)
 
         if hasattr(provider, 'client') and hasattr(provider.client, 'timeout'):
             provider.client.timeout = timeout_value
-            log.info(f'Set ollama HTTP client timeout to {timeout_value}s')
+            log.info('Set ollama HTTP client timeout to %ss', timeout_value)
 
         if hasattr(provider, 'client'):
             for timeout_attr in ['request_timeout', 'read_timeout', 'connect_timeout']:
                 if hasattr(provider.client, timeout_attr):
                     setattr(provider.client, timeout_attr, timeout_value)
-                    log.info(f'Set ollama {timeout_attr} to {timeout_value}s')
+                    log.info('Set ollama %s to %ss', timeout_attr, timeout_value)
 
 
 def _get_provider_timeout_value(log: logging.Logger) -> int:
@@ -182,7 +182,7 @@ def _get_provider_timeout_value(log: logging.Logger) -> int:
 
 
 def _configure_provider_client_timeout(
-    log: logging.Logger, provider_name: str, provider: Any, timeout_value: int
+    log: logging.Logger, provider_name: str, provider: Any, timeout_value: int,
 ) -> None:
     """Configure timeout on a provider's client and underlying HTTP client.
 
@@ -202,13 +202,12 @@ def _configure_provider_client_timeout(
     if hasattr(provider.client, 'timeout'):
         old_timeout = getattr(provider.client, 'timeout', 'unknown')
         provider.client.timeout = timeout_value
-        log.info(f'Set {timeout_value}s timeout for {provider_name} provider (was: {old_timeout})')
+        log.info('Set %ss timeout for %s provider (was: %s)', timeout_value, provider_name, old_timeout)
     elif hasattr(provider.client, '_client') and hasattr(provider.client._client, 'timeout'):
         old_timeout = getattr(provider.client._client, 'timeout', 'unknown')
         provider.client._client.timeout = timeout_value
         log.info(
-            f'Set {timeout_value}s timeout for {provider_name} provider HTTP'
-            f' client (was: {old_timeout})'
+            'Set %ss timeout for %s provider HTTP client (was: %s)', timeout_value, provider_name, old_timeout,
         )
 
     # Additional timeout configurations for ollama
@@ -217,7 +216,7 @@ def _configure_provider_client_timeout(
             if hasattr(provider.client, attr_name):
                 old_timeout = getattr(provider.client, attr_name, 'unknown')
                 setattr(provider.client, attr_name, AI_TIMEOUT)
-                log.info(f'Set {attr_name} for {provider_name} provider (was: {old_timeout})')
+                log.info('Set %s for %s provider (was: %s)', attr_name, provider_name, old_timeout)
 
 
 def _configure_client_timeouts(log: logging.Logger, client: Any) -> None:
@@ -234,7 +233,7 @@ def _configure_client_timeouts(log: logging.Logger, client: Any) -> None:
 
         if not hasattr(client, '_providers'):
             log.warning('Client does not have _providers attribute')
-            log.info(f'AI client initialized successfully with {AI_TIMEOUT}s timeout')
+            log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
             return
 
         timeout_value = _get_provider_timeout_value(log)
@@ -245,9 +244,9 @@ def _configure_client_timeouts(log: logging.Logger, client: Any) -> None:
             log.debug(f'Provider attributes: {dir(provider)}')
             _configure_provider_client_timeout(log, provider_name, provider, timeout_value)
 
-        log.info(f'AI client initialized successfully with {AI_TIMEOUT}s timeout')
+        log.info('AI client initialized successfully with %ss timeout', AI_TIMEOUT)
     except Exception as e:
-        log.warning(f'Could not configure timeout: {e}')
+        log.warning('Could not configure timeout: %s', e)
         log.exception('Timeout configuration error details')
         log.info('AI client initialized with default timeout')
 
@@ -272,7 +271,7 @@ def _initialize_ai_client(log: logging.Logger) -> Any:
     provider_config = _create_ollama_config(log)
 
     if provider_config:
-        log.info(f'Initializing client with provider config: {provider_config}')
+        log.info('Initializing client with provider config: %s', provider_config)
         client = ai.Client(provider_config)
     else:
         client = ai.Client()
@@ -309,16 +308,16 @@ def _check_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
                 models = data.get('models', [])
                 for model in models:
                     if model_name in model.get('name', ''):
-                        log.info(f'Model {model_name} is already downloaded')
+                        log.info('Model %s is already downloaded', model_name)
                         return {'downloaded': True, 'reason': 'already_downloaded'}
 
-                log.info(f'Model {model_name} needs to be downloaded')
+                log.info('Model %s needs to be downloaded', model_name)
                 return {'downloaded': False, 'reason': 'needs_download'}
             log.warning(f'Could not check model status: HTTP {response.status}')
             return {'downloaded': False, 'reason': 'api_error'}
 
     except (OSError, ValueError, KeyError) as e:
-        log.warning(f'Could not check ollama model status: {e}')
+        log.warning('Could not check ollama model status: %s', e)
         return {'downloaded': False, 'reason': 'check_failed'}
 
 
@@ -333,9 +332,9 @@ def _log_capabilities_dump(log: logging.Logger, **fields: object) -> None:
     log.debug(f'\n{"=" * 60}')
     log.debug('MODEL CAPABILITIES DUMP')
     log.debug('=' * 60)
-    log.debug(f'Model: {AI_MODEL}')
+    log.debug('Model: %s', AI_MODEL)
     for key, value in fields.items():
-        log.debug(f'{key}: {value}')
+        log.debug('%s: %s', key, value)
     log.debug(f'{"=" * 60}\n')
 
 
@@ -357,7 +356,7 @@ def _parse_capabilities_response(log: logging.Logger, content: str) -> dict[str,
             if len(parts) == AI_CAPABILITY_RESPONSE_FIELD_COUNT:
                 context_size = int(parts[0].strip())
                 output_limit = int(parts[1].strip())
-                log.info(f'Detected context size: {context_size}, output limit: {output_limit}')
+                log.info('Detected context size: %s, output limit: %s', context_size, output_limit)
                 _log_capabilities_dump(
                     log,
                     **{
@@ -374,13 +373,13 @@ def _parse_capabilities_response(log: logging.Logger, content: str) -> dict[str,
 
         # Fallback to single number parsing
         max_tokens = int(content.strip())
-        log.info(f'Detected max tokens: {max_tokens}')
+        log.info('Detected max tokens: %s', max_tokens)
         _log_capabilities_dump(log, **{'Max Output Tokens': max_tokens, 'Model Response': content})
         return {'max_tokens': max_tokens}
     except ValueError:
-        log.warning(f'Could not parse max tokens from response: {content}')
+        log.warning('Could not parse max tokens from response: %s', content)
         _log_capabilities_dump(
-            log, **{'Max Output Tokens': 'Could not parse', 'Model Response': content}
+            log, **{'Max Output Tokens': 'Could not parse', 'Model Response': content},
         )
         return {'max_tokens': None, 'raw_response': content}
 
@@ -406,7 +405,7 @@ def _query_model_capabilities(log: logging.Logger, client: Any) -> dict[str, Any
                 'Please respond with just two numbers separated by a comma, like: '
                 'context_size,output_limit'
             ),
-        }
+        },
     ]
 
     log.info('Querying model capabilities...')
@@ -426,7 +425,7 @@ def _query_model_capabilities(log: logging.Logger, client: Any) -> dict[str, Any
 
     if hasattr(response, 'choices') and response.choices:
         content = response.choices[0].message.content
-        log.info(f'Model response about capabilities: {content}')
+        log.info('Model response about capabilities: %s', content)
         return _parse_capabilities_response(log, content)
 
     _log_capabilities_dump(log, **{'Max Tokens': 'Unknown (no response)'})
@@ -448,7 +447,7 @@ def _get_model_capabilities(log: logging.Logger) -> dict[str, Any]:  # type: ign
             log.info(f'\n{"=" * 60}')
             log.info('MODEL DOWNLOAD DETECTED')
             log.info('=' * 60)
-            log.info(f'Model: {AI_MODEL}')
+            log.info('Model: %s', AI_MODEL)
             log.info('Status: Model needs to be downloaded')
             log.info('This may take several minutes depending on model size...')
             log.info(f'{"=" * 60}\n')
@@ -487,14 +486,14 @@ def _create_ai_retry_decorator(
         """Handle final failure after all retries."""
         log.error(
             f'AI request failed permanently after {details["tries"]} attempts:'
-            f' {details["exception"]}'
+            f' {details["exception"]}',
         )
 
     def backoff_handler(details: dict[str, Any]) -> None:
         """Handle backoff between retries."""
         log.warning(
             f'AI request failed (attempt {details["tries"]}), retrying in {details["wait"]:.1f}s:'
-            f' {details["exception"]}'
+            f' {details["exception"]}',
         )
 
     return backoff.on_exception(
@@ -517,10 +516,10 @@ def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> A
 
     """
     log.info('Making API call to AI service...')
-    log.debug(f'Using model: {AI_MODEL}')
+    log.debug('Using model: %s', AI_MODEL)
     log.debug(f'Request messages count: {len(request.messages)}')
-    log.debug(f'Max input tokens: {AI_MAX_INPUT_TOKENS}')
-    log.debug(f'Max context tokens: {AI_MAX_CONTEXT_SIZE}')
+    log.debug('Max input tokens: %s', AI_MAX_INPUT_TOKENS)
+    log.debug('Max context tokens: %s', AI_MAX_CONTEXT_SIZE)
 
     start_time = time.time()
 
@@ -550,7 +549,7 @@ def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> A
                         AI_MODEL_DOWNLOAD_TIMEOUT if AI_MODEL.startswith('ollama:') else AI_TIMEOUT
                     )
                     api_kwargs[param_name] = timeout_value
-                    log.debug(f'Added {param_name}={timeout_value} to API call')
+                    log.debug('Added %s=%s to API call', param_name, timeout_value)
                     timeout_added = True
                     break
 
@@ -558,7 +557,7 @@ def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> A
                 log.warning('No timeout parameter found in API call signature')
                 log.debug(f'Available parameters: {list(sig.parameters.keys())}')
 
-        log.critical(f'API call kwargs: {api_kwargs}')
+        log.critical('API call kwargs: %s', api_kwargs)
         response = client.chat.completions.create(**api_kwargs)
     except Exception:
         end_time = time.time()
@@ -702,7 +701,7 @@ def _score_training_example(
 
 
 def select_relevant_training_examples(
-    user_request: str, max_examples: int = AI_MAX_TRAINING_EXAMPLES
+    user_request: str, max_examples: int = AI_MAX_TRAINING_EXAMPLES,
 ) -> list[dict[str, Any]]:
     """Select the most relevant training examples based on user request.
 
@@ -891,7 +890,7 @@ def run_ai_worker(
             try:
                 request = request_queue.get()
                 request_count += 1
-                log.info(f'Processing AI request #{request_count}')
+                log.info('Processing AI request #%s', request_count)
 
                 if request is None:  # Shutdown signal
                     log.info('Received shutdown signal, closing AI worker')

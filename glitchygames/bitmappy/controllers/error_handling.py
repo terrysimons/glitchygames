@@ -164,7 +164,7 @@ class MultiControllerErrorHandler:
 
         # Check if we've exceeded recovery attempts
         if self.recovery_attempts.get(error_key, 0) >= self.max_recovery_attempts:
-            self.logger.error(f'Max recovery attempts exceeded for {error_key}')
+            self.logger.error('Max recovery attempts exceeded for %s', error_key)
             return False
 
         # Increment recovery attempts
@@ -343,7 +343,7 @@ class MultiControllerConfig:
 
             return cls(**config_data)
         except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
-            log.warning(f'Failed to load config from {config_file}: {e}')
+            log.warning('Failed to load config from %s: %s', config_file, e)
             return cls()
 
     def save_to_file(self, config_file: str) -> bool:
@@ -380,7 +380,7 @@ class MultiControllerConfig:
 
             return True
         except Exception:
-            log.exception(f'Failed to save config to {config_file}')
+            log.exception('Failed to save config to %s', config_file)
             return False
 
 
@@ -425,7 +425,7 @@ class MultiControllerLogger:
             data: Event data
 
         """
-        self.logger.info(f'Controller {controller_id}: {event} - {data}')
+        self.logger.info('Controller %s: %s - %s', controller_id, event, data)
 
     def log_performance_metric(self, operation: str, duration: float) -> None:
         """Log performance metric.
@@ -444,7 +444,7 @@ class MultiControllerLogger:
             status: System status dictionary
 
         """
-        self.logger.info(f'System status: {status}')
+        self.logger.info('System status: %s', status)
 
 
 class MultiControllerValidator:

@@ -51,7 +51,7 @@ class OnionSkinningManager:
         new_state = not current_state
         self.onion_skinning_enabled[animation][frame] = new_state
 
-        LOG.debug(f'Toggled onion skinning for {animation}[{frame}]: {new_state}')
+        LOG.debug('Toggled onion skinning for %s[%s]: %s', animation, frame, new_state)
         return new_state
 
     def is_frame_onion_skinned(self, animation: str, frame: int) -> bool:
@@ -71,7 +71,7 @@ class OnionSkinningManager:
         return self.onion_skinning_enabled.get(animation, {}).get(frame, False)
 
     def get_onion_skinned_frames(
-        self, animation: str, current_frame: int, total_frames: int
+        self, animation: str, current_frame: int, total_frames: int,
     ) -> set[int]:
         """Get all frames that should be rendered with onion skinning.
 
@@ -130,7 +130,7 @@ class OnionSkinningManager:
         """
         if animation in self.onion_skinning_enabled:
             self.onion_skinning_enabled[animation].clear()
-            LOG.debug(f'Cleared onion skinning for animation: {animation}')
+            LOG.debug('Cleared onion skinning for animation: %s', animation)
 
     def get_animation_onion_state(self, animation: str) -> dict[int, bool]:
         """Get the onion skinning state for all frames in an animation.
@@ -153,7 +153,7 @@ class OnionSkinningManager:
 
         """
         self.onion_skinning_enabled[animation] = frame_states.copy()
-        LOG.debug(f'Set onion skinning state for animation {animation}: {frame_states}')
+        LOG.debug('Set onion skinning state for animation %s: %s', animation, frame_states)
 
 
 # Global onion skinning manager instance

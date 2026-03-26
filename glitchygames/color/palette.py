@@ -46,7 +46,7 @@ class ColorPalette:
                 file_path = Path(path) / f'{filename}.{self._DEFAULT_EXTENSION}'
                 if Path.exists(file_path):
                     self._colors = cast(
-                        'list[ColorLike]', PaletteUtility.load_palette_from_file(file_path)
+                        'list[ColorLike]', PaletteUtility.load_palette_from_file(file_path),
                     )
                     break
 

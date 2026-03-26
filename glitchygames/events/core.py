@@ -101,7 +101,7 @@ def supported_events(like: str = '.*') -> list[int]:
         #
         # This works around a pygame bug for CONTROLLERDEVICEREMAPPED
         patched_event_name = patched_event_names.get(event_name.upper(), event_name)
-        LOG.info(f'Adding Event: {patched_event_name}')
+        LOG.info('Adding Event: %s', patched_event_name)
 
         if re.match(like, patched_event_name.upper()):
             event_list.append(getattr(pygame, patched_event_name.upper()))
@@ -138,7 +138,7 @@ GAME_EVENTS = list(
     - set(MIDI_EVENTS)
     - set(MOUSE_EVENTS)
     - set(TEXT_EVENTS)
-    - set(WINDOW_EVENTS)
+    - set(WINDOW_EVENTS),
 )
 
 GAME_EVENTS.extend([FPSEVENT, GAMEEVENT, MENUEVENT])
@@ -189,22 +189,22 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: Any, **kwargs: Any
 
     if debug_events:
         LOG.error(
-            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
+            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}',
         )
     elif debug_events is None:
         LOG.error(
-            "Error: debug_events is missing from the game options. This shouldn't be possible."
+            "Error: debug_events is missing from the game options. This shouldn't be possible.",
         )
 
     if no_unhandled_events:
         LOG.error(
-            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}'
+            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}',
         )
         raise UnhandledEventError(f'Unhandled event: {pygame.event.event_name(event.type)} {event}')
     if no_unhandled_events is None:
         LOG.error(
             'Error: no_unhandled_events is missing from the game options. '
-            "This shouldn't be possible."
+            "This shouldn't be possible.",
         )
 
 
@@ -259,7 +259,7 @@ class ResourceManager:
         """
         if cls not in cls.__instances__:
             cls.__instances__[cls] = object.__new__(cls)
-            LOG.debug(f'Created Resource Manager: {cls}')
+            LOG.debug('Created Resource Manager: %s', cls)
             cls.__instances__[cls].args = _args
             cls.__instances__[cls].kwargs = _kwargs
 
@@ -1858,7 +1858,7 @@ class MouseEvents(EventInterface):
 
     @abc.abstractmethod
     def on_middle_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
+        self: Self, event: HashableEvent, trigger: HashableEvent,
     ) -> None:
         """Handle middle mouse drag events.
 
@@ -1871,7 +1871,7 @@ class MouseEvents(EventInterface):
 
     @abc.abstractmethod
     def on_middle_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
+        self: Self, event: HashableEvent, trigger: HashableEvent,
     ) -> None:
         """Handle middle mouse drop events.
 
@@ -2102,7 +2102,7 @@ class MouseEventStubs(EventInterface):
 
     @functools.cache
     def on_middle_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
+        self: Self, event: HashableEvent, trigger: HashableEvent,
     ) -> None:
         """Handle middle mouse drag events.
 
@@ -2116,7 +2116,7 @@ class MouseEventStubs(EventInterface):
 
     @functools.cache
     def on_middle_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent
+        self: Self, event: HashableEvent, trigger: HashableEvent,
     ) -> None:
         """Handle middle mouse drop events.
 
@@ -2779,7 +2779,7 @@ class EventManager(ResourceManager):
 
             self.log.debug(
                 f'Unhandled Event {event_handler}: '
-                f'{self.event_source}->{event} Event Trigger: {event_trigger}'
+                f'{self.event_source}->{event} Event Trigger: {event_trigger}',
             )
 
         def __getattr__(self: Self, attr: str) -> Callable[..., Any]:

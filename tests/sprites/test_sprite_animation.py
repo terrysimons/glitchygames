@@ -28,7 +28,7 @@ STATIC_TOML = str(
     / 'examples'
     / 'resources'
     / 'sprites'
-    / 'static.toml'
+    / 'static.toml',
 )
 
 

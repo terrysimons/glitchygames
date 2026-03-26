@@ -46,7 +46,7 @@ class TestOnMouseDragEvent:
         first_sprite = mocker.Mock()
         second_sprite = mocker.Mock()
         mocker.patch.object(
-            scene, 'sprites_at_position', return_value=[first_sprite, second_sprite]
+            scene, 'sprites_at_position', return_value=[first_sprite, second_sprite],
         )
 
         event = mocker.Mock()
@@ -108,7 +108,7 @@ class TestOnMouseDropEvent:
         first_sprite = mocker.Mock()
         second_sprite = mocker.Mock()
         mocker.patch.object(
-            scene, 'sprites_at_position', return_value=[first_sprite, second_sprite]
+            scene, 'sprites_at_position', return_value=[first_sprite, second_sprite],
         )
 
         event = mocker.Mock()
@@ -178,7 +178,7 @@ class TestOnLeftMouseDropEvent:
         first_sprite = mocker.Mock()
         second_sprite = mocker.Mock()
         mocker.patch.object(
-            scene, 'sprites_at_position', return_value=[first_sprite, second_sprite]
+            scene, 'sprites_at_position', return_value=[first_sprite, second_sprite],
         )
 
         event = mocker.Mock()
@@ -348,7 +348,7 @@ class TestOnLeftMouseButtonUpEvent:
         first_sprite = mocker.Mock()
         second_sprite = mocker.Mock()
         mocker.patch.object(
-            scene, 'sprites_at_position', return_value=[first_sprite, second_sprite]
+            scene, 'sprites_at_position', return_value=[first_sprite, second_sprite],
         )
 
         event = mocker.Mock()

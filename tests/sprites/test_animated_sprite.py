@@ -1613,7 +1613,7 @@ class TestAnimatedSpriteBuildColorMap:
             'colors': {
                 '#': {'red': 0, 'green': 0, 'blue': 0},
                 '.': {'red': 255, 'green': 255, 'blue': 255},
-            }
+            },
         }
         color_map, color_order, alpha_values = AnimatedSprite._build_color_map(data)
         assert '#' in color_map
@@ -1628,7 +1628,7 @@ class TestAnimatedSpriteBuildColorMap:
         data = {
             'colors': {
                 '#': {'red': 255, 'green': 0, 'blue': 0, 'alpha': 128},
-            }
+            },
         }
         color_map, _color_order, alpha_values = AnimatedSprite._build_color_map(data)
         assert color_map['#'] == (255, 0, 0, 128)
@@ -1640,7 +1640,7 @@ class TestAnimatedSpriteBuildColorMap:
         data = {
             'colors': {
                 '#': {'red': 0, 'green': 0, 'blue': 0, 'alpha': 255},
-            }
+            },
         }
         color_map, _color_order, alpha_values = AnimatedSprite._build_color_map(data)
         assert color_map['#'] == (0, 0, 0, 255)
@@ -2110,7 +2110,7 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
     def test_rgb_pixels(self):
         """Test surface creation from RGB pixel data."""
         pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)],
         )
         surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
         assert surface.get_size() == (2, 2)
@@ -2185,7 +2185,7 @@ class TestAnimatedSpriteWriteTomlHelpers:
                 '#': {'red': 0, 'green': 0, 'blue': 0},
                 '.': {'red': 255, 'green': 255, 'blue': 255},
                 '@': {'red': 255, 'green': 0, 'blue': 0},
-            }
+            },
         }
         output_buffer = StringIO()
         AnimatedSprite._write_toml_colors(output_buffer, data, color_order=['.', '#'])
@@ -2202,7 +2202,7 @@ class TestAnimatedSpriteWriteTomlHelpers:
         data = {
             'colors': {
                 '#': {'red': 255, 'green': 0, 'blue': 0, 'alpha': 128},
-            }
+            },
         }
         output_buffer = StringIO()
         AnimatedSprite._write_toml_colors(output_buffer, data)

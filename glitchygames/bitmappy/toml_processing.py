@@ -51,7 +51,7 @@ def parse_toml_robustly(content: str, log: logging.Logger | None = None) -> dict
         return _fix_color_format_in_toml_data(data, log)
     except tomllib.TOMLDecodeError as e:
         # If parsing fails due to duplicate keys, use a more permissive approach
-        log.warning(f'Standard TOML parsing failed: {e}')
+        log.warning('Standard TOML parsing failed: %s', e)
         log.info('Attempting to parse TOML with duplicate key handling...')
 
         # Use a custom parser that handles duplicates
@@ -92,7 +92,7 @@ def _parse_toml_permissively(content: str, log: logging.Logger) -> dict[str, Any
             if not key_part.startswith('[') and not key_part.startswith('"'):
                 # This might be a simple key, check for duplicates
                 if key_part in seen_keys:
-                    log.warning(f'Duplicate key found: {key_part}, keeping last value')
+                    log.warning('Duplicate key found: %s, keeping last value', key_part)
                 else:
                     seen_keys.add(key_part)
                 processed_lines.append(line)
@@ -108,7 +108,7 @@ def _parse_toml_permissively(content: str, log: logging.Logger) -> dict[str, Any
         return tomllib.loads(cleaned_content)
     except tomllib.TOMLDecodeError as e:
         # If it still fails, try a more aggressive approach
-        log.warning(f'Cleaned TOML parsing also failed: {e}')
+        log.warning('Cleaned TOML parsing also failed: %s', e)
         return _parse_toml_with_regex(content, log)
 
 
@@ -160,7 +160,7 @@ def _parse_toml_with_regex(content: str, log: logging.Logger) -> dict[str, Any]:
                     data[key] = parsed_value
 
             except (ValueError, TypeError, KeyError) as e:
-                log.warning(f'Failed to parse line {line_num}: {line} - {e}')
+                log.warning('Failed to parse line %s: %s - %s', line_num, line, e)
                 continue
 
     return data
@@ -233,8 +233,7 @@ def _fix_comma_separated_color_field(
             if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_BLUE:
                 fixed_color['blue'] = values[2]
             log.warning(
-                f"Fixed comma-separated color format for '{color_key}':"
-                f' {field_value} -> separate fields'
+                "Fixed comma-separated color format for '%s': %s -> separate fields", color_key, field_value,
             )
         elif field_name == 'green' and len(values) >= 1:
             fixed_color['green'] = values[0]
@@ -242,13 +241,13 @@ def _fix_comma_separated_color_field(
             fixed_color['blue'] = values[0]
     except (ValueError, IndexError) as e:
         log.warning(
-            f"Failed to parse comma-separated color value '{field_value}' for '{color_key}': {e}"
+            "Failed to parse comma-separated color value '%s' for '%s': %s", field_value, color_key, e,
         )
         fixed_color[field_name] = field_value
 
 
 def _fix_color_entry(
-    color_data: dict[str, Any], color_key: str, log: logging.Logger
+    color_data: dict[str, Any], color_key: str, log: logging.Logger,
 ) -> dict[str, Any]:
     """Fix a single color entry's format, handling comma-separated values.
 
@@ -467,7 +466,7 @@ def build_color_to_glyph_mapping(
 
     log.info(
         f'Mapping colors: {len(unique_colors)} unique colors to {available_color_count}'
-        f' available glyphs'
+        f' available glyphs',
     )
     if has_transparency:
         log.info('Reserved 1 glyph for transparency')
@@ -478,7 +477,7 @@ def build_color_to_glyph_mapping(
     # First, ensure magenta (transparency) gets a glyph if we have transparency
     if has_transparency and MAGENTA_TRANSPARENT in unique_colors:
         color_mapping[MAGENTA_TRANSPARENT] = TRANSPARENT_GLYPH
-        log.info(f"Reserved glyph '{TRANSPARENT_GLYPH}' for transparency (magenta)")
+        log.info("Reserved glyph '%s' for transparency (magenta)", TRANSPARENT_GLYPH)
 
     # Map other colors to available glyphs
     for color in sorted(unique_colors):
@@ -549,14 +548,14 @@ def generate_pixel_string(
                     key=lambda c: color_distance(color_key, c),
                 )
                 color_mapping[color_key] = color_mapping[closest_color]
-                log.debug(f'Mapped unmapped color {color_key} to {closest_color}')
+                log.debug('Mapped unmapped color %s to %s', color_key, closest_color)
 
             row_chars.append(color_mapping[color_key])
         rows.append(''.join(row_chars))
 
         # Log progress for large images
         if height > PROGRESS_LOG_MIN_HEIGHT and y % (height // 10) == 0:
-            log.info(f'Progress: {y}/{height} rows processed')
+            log.info('Progress: %s/%s rows processed', y, height)
 
     return '\n'.join(rows)
 
@@ -608,7 +607,7 @@ def generate_toml_content(
                 r, g, b = color
                 # Quote the glyph to handle special characters like '.'
                 toml_content += f'[colors."{glyph}"]\nred = {r}\ngreen = {g}\nblue = {b}\n\n'
-                log.info(f'Defined color {glyph}: RGB({r}, {g}, {b})')
+                log.info('Defined color %s: RGB(%s, %s, %s)', glyph, r, g, b)
                 break
 
     if not unique_glyphs:

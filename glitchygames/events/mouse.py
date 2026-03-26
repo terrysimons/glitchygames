@@ -190,7 +190,7 @@ class MouseEventManager(ResourceManager):
 
         @override
         def on_left_mouse_drag_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self, event: HashableEvent, trigger: HashableEvent,
         ) -> None:
             """Handle the left mouse drag event.
 
@@ -209,7 +209,7 @@ class MouseEventManager(ResourceManager):
 
         @override
         def on_left_mouse_drop_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self, event: HashableEvent, trigger: HashableEvent,
         ) -> None:
             """Handle the left mouse drop event.
 
@@ -228,7 +228,7 @@ class MouseEventManager(ResourceManager):
 
         @override
         def on_middle_mouse_drag_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self, event: HashableEvent, trigger: HashableEvent,
         ) -> None:
             """Handle the middle mouse drag event.
 
@@ -247,7 +247,7 @@ class MouseEventManager(ResourceManager):
 
         @override
         def on_middle_mouse_drop_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self, event: HashableEvent, trigger: HashableEvent,
         ) -> None:
             """Handle the middle mouse drop event.
 
@@ -266,7 +266,7 @@ class MouseEventManager(ResourceManager):
 
         @override
         def on_right_mouse_drag_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self, event: HashableEvent, trigger: HashableEvent,
         ) -> None:
             """Handle the right mouse drag event.
 
@@ -285,7 +285,7 @@ class MouseEventManager(ResourceManager):
 
         @override
         def on_right_mouse_drop_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self, event: HashableEvent, trigger: HashableEvent,
         ) -> None:
             """Handle the right mouse drop event.
 

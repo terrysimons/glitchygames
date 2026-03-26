@@ -14,9 +14,7 @@ from typing import TYPE_CHECKING, Any
 import pygame
 
 from glitchygames import events
-from glitchygames.sprites import BitmappySprite
-
-from .constants import (
+from glitchygames.bitmappy.constants import (
     CONTROLLER_ACCEL_LEVEL1_TIME,
     CONTROLLER_ACCEL_LEVEL2_TIME,
     CONTROLLER_ACCEL_LEVEL3_TIME,
@@ -26,12 +24,13 @@ from .constants import (
     JOYSTICK_HAT_RIGHT,
     JOYSTICK_LEFT_SHOULDER_BUTTON,
 )
-from .controllers.modes import ControllerMode
-from .controllers.selection import ControllerSelection
+from glitchygames.bitmappy.controllers.modes import ControllerMode
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.sprites import BitmappySprite
 
 if TYPE_CHECKING:
-    from .indicators import VisualIndicator
-    from .protocols import EditorContext
+    from glitchygames.bitmappy.indicators import VisualIndicator
+    from glitchygames.bitmappy.protocols import EditorContext
 
 
 class ControllerEventHandler:
@@ -50,7 +49,7 @@ class ControllerEventHandler:
 
         """
         self.editor = editor
-        self.log = logging.getLogger('game.tools.bitmappy.controller_handler')
+        self.log = logging.getLogger('game.tools.bitmappy.controllers.event_handler')
         self.log.addHandler(logging.NullHandler())
 
         # Controller-specific state
@@ -136,293 +135,13 @@ class ControllerEventHandler:
 
         # Handle button presses
 
-        # Get controller mode for mode-specific handling
-        controller_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
-
-        # Handle mode-specific button presses
-        if controller_mode and controller_mode.value == 'canvas':
-            self._handle_canvas_button_press(controller_id, event.button)
-        elif controller_mode and controller_mode.value in {'r_slider', 'g_slider', 'b_slider'}:
-            self._handle_slider_button_press(controller_id, event.button)
+        # Dispatch to mode-specific strategy
+        strategy = self.editor.mode_switcher.get_strategy(controller_id)
+        if strategy is not None:
+            strategy.handle_button_down(controller_id, event.button)
         else:
-            # Default to film strip mode handling
-            self._handle_film_strip_button_press(controller_id, event.button)
-
-    def _handle_film_strip_button_press(self, controller_id: int, button: int) -> None:
-        """Handle button presses for film strip mode."""
-        button_handlers = {
-            pygame.CONTROLLER_BUTTON_A: (
-                'selecting current frame',
-                lambda: self._multi_controller_select_current_frame(controller_id),
-            ),
-            pygame.CONTROLLER_BUTTON_B: (
-                'UNDO',
-                self.editor.handle_undo,
-            ),
-            pygame.CONTROLLER_BUTTON_Y: (
-                'toggling onion skinning',
-                lambda: self._multi_controller_toggle_onion_skinning(controller_id),
-            ),
-            pygame.CONTROLLER_BUTTON_DPAD_LEFT: (
-                'previous frame',
-                lambda: self._multi_controller_previous_frame(controller_id),
-            ),
-            pygame.CONTROLLER_BUTTON_DPAD_RIGHT: (
-                'next frame',
-                lambda: self._multi_controller_next_frame(controller_id),
-            ),
-            pygame.CONTROLLER_BUTTON_DPAD_UP: (
-                'previous animation',
-                lambda: self._multi_controller_previous_animation(controller_id),
-            ),
-            pygame.CONTROLLER_BUTTON_DPAD_DOWN: (
-                'next animation',
-                lambda: self._multi_controller_next_animation(controller_id),
-            ),
-            pygame.CONTROLLER_BUTTON_START: (
-                'activate controller',
-                lambda: self._multi_controller_activate(controller_id),
-            ),
-            pygame.CONTROLLER_BUTTON_LEFTSHOULDER: (
-                'moving indicator left',
-                lambda: self._multi_controller_previous_frame(controller_id),
-            ),
-            pygame.CONTROLLER_BUTTON_RIGHTSHOULDER: (
-                'moving indicator right',
-                lambda: self._multi_controller_next_frame(controller_id),
-            ),
-        }
-
-        if button == pygame.CONTROLLER_BUTTON_X:
-            # X button (Square): RESERVED for redo operations (only when selected frame is visible)
-            if self.editor.selected_frame_visible:
-                self.log.debug(f'Controller {controller_id}: X button pressed - REDO')
-                self.editor.handle_redo()
-            else:
-                self.log.debug(
-                    f'Controller {controller_id}: X button pressed - DISABLED (selected frame'
-                    f' hidden)'
-                )
-            return
-
-        if button in button_handlers:
-            description, handler = button_handlers[button]
-            self.log.debug(f'Controller {controller_id}: button pressed - {description}')
-            handler()
-        else:
-            # Unhandled buttons
-            self.log.debug(f'Controller {controller_id}: button {button} pressed - UNHANDLED')
-
-    def _handle_canvas_button_press(self, controller_id: int, button: int) -> None:
-        """Handle button presses for canvas mode."""
-        if button == pygame.CONTROLLER_BUTTON_A:
-            self._handle_canvas_a_button(controller_id)
-        elif button == pygame.CONTROLLER_BUTTON_B:
-            self.log.debug(f'Controller {controller_id}: B button pressed - UNDO')
-            self.editor.handle_undo()
-        elif button == pygame.CONTROLLER_BUTTON_Y:
-            self._handle_canvas_y_button(controller_id)
-        elif button == pygame.CONTROLLER_BUTTON_X:
-            self._handle_canvas_x_button(controller_id)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-            self.log.debug(
-                f'Controller {controller_id}: D-pad left pressed - start continuous movement left'
-            )
-            self._start_canvas_continuous_movement(controller_id, -1, 0)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-            self.log.debug(
-                f'Controller {controller_id}: D-pad right pressed - start continuous movement right'
-            )
-            self._start_canvas_continuous_movement(controller_id, 1, 0)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            self.log.debug(
-                f'Controller {controller_id}: D-pad up pressed - start continuous movement up'
-            )
-            self._start_canvas_continuous_movement(controller_id, 0, -1)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            self.log.debug(
-                f'Controller {controller_id}: D-pad down pressed - start continuous movement down'
-            )
-            self._start_canvas_continuous_movement(controller_id, 0, 1)
-        elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
-            self._handle_canvas_shoulder_button(controller_id, is_left=True)
-        elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
-            self._handle_canvas_shoulder_button(controller_id, is_left=False)
-        else:
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: Button {button} not handled in canvas mode'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: Button {button} not handled in canvas mode'
-            )
-
-    def _handle_canvas_a_button(self, controller_id: int) -> None:
-        """Handle A button press in canvas mode (start drag/paint)."""
-        if not self.editor.selected_frame_visible:
-            self.log.debug(
-                f'Controller {controller_id}: A button pressed - DISABLED (selected frame hidden)'
-            )
-            return
-
-        self.log.debug(f'Controller {controller_id}: A button pressed - starting controller drag')
-
-        # Start drag operation for this controller
-        self.controller_drags[controller_id] = {
-            'active': True,
-            'start_position': self.editor.mode_switcher.get_controller_position(controller_id),
-            'pixels_drawn': [],
-            'start_time': time.time(),
-        }
-
-        # Paint at the current position
-        self._canvas_paint_at_controller_position(controller_id)
-
-    def _handle_canvas_x_button(self, controller_id: int) -> None:
-        """Handle X button press in canvas mode (redo)."""
-        if self.editor.selected_frame_visible:
-            self.log.debug(f'Controller {controller_id}: X button pressed - REDO')
-            self.editor.handle_redo()
-        else:
-            self.log.debug(
-                f'Controller {controller_id}: X button pressed - DISABLED (selected frame hidden)'
-            )
-
-    def _handle_canvas_y_button(self, controller_id: int) -> None:
-        """Handle Y button press in canvas mode (toggle visibility or fill direction)."""
-        self.log.debug(
-            f'Controller {controller_id}: Y button pressed - toggling selected frame visibility'
-        )
-        self._multi_controller_toggle_selected_frame_visibility(controller_id)
-
-    def _handle_canvas_shoulder_button(self, controller_id: int, *, is_left: bool) -> None:
-        """Handle shoulder button press in canvas mode (move/paint 8 pixels).
-
-        Args:
-            controller_id: The controller ID.
-            is_left: True for left shoulder, False for right shoulder.
-
-        """
-        if not (
-            hasattr(self.editor, 'controller_selections')
-            and controller_id in self.editor.controller_selections
-        ):
-            return
-
-        fill_direction = self.editor.controller_selections[controller_id].get_fill_direction()
-        a_button_held = self._is_controller_button_held(controller_id, pygame.CONTROLLER_BUTTON_A)
-        direction_label = 'LEFT' if is_left else 'RIGHT'
-        distance = -8 if is_left else 8
-
-        if fill_direction == 'HORIZONTAL':
-            if a_button_held:
-                self.log.debug(
-                    f'Controller {controller_id}: {direction_label} SHOULDER + A - paint 8 pixels'
-                    f' {"left" if is_left else "right"}'
-                )
-                self._canvas_paint_horizontal_line(controller_id, distance)
-            else:
-                self.log.debug(
-                    f'Controller {controller_id}: {direction_label} SHOULDER - jump 8 pixels'
-                    f' {"left" if is_left else "right"}'
-                )
-                self._canvas_jump_horizontal(controller_id, distance)
-        elif a_button_held:
-            self.log.debug(
-                f'Controller {controller_id}: {direction_label} SHOULDER + A - paint 8 pixels'
-                f' {"up" if is_left else "down"}'
-            )
-            self._canvas_paint_vertical_line(controller_id, distance)
-        else:
-            self.log.debug(
-                f'Controller {controller_id}: {direction_label} SHOULDER - jump 8 pixels'
-                f' {"up" if is_left else "down"}'
-            )
-            self._canvas_jump_vertical(controller_id, distance)
-
-    def _handle_slider_button_press(self, controller_id: int, button: int) -> None:
-        """Handle button presses for slider mode."""
-        self.log.debug(
-            f'DEBUG: _handle_slider_button_press called for controller {controller_id}, button'
-            f' {button}'
-        )
-
-        if button == pygame.CONTROLLER_BUTTON_A:
-            # A button: No action in slider mode
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: A button pressed - no action in slider mode'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: A button pressed - no action in slider mode'
-            )
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-            # D-pad left: Start continuous decrease
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: D-pad left pressed - start continuous decrease'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: D-pad left pressed - start continuous decrease'
-            )
-            self._start_slider_continuous_adjustment(controller_id, -1)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-            # D-pad right: Start continuous increase
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: D-pad right pressed - start continuous'
-                f' increase'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: D-pad right pressed - start continuous increase'
-            )
-            self._start_slider_continuous_adjustment(controller_id, 1)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            # D-pad up: Navigate to previous slider mode (B -> G -> R)
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: D-pad up pressed - navigate to previous slider'
-                f' mode'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: D-pad up pressed - navigate to previous slider mode'
-            )
-            self.handle_slider_mode_navigation('up', controller_id)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            # D-pad down: Navigate to next slider mode (R -> G -> B)
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: D-pad down pressed - navigate to next slider'
-                f' mode'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: D-pad down pressed - navigate to next slider mode'
-            )
-            self.handle_slider_mode_navigation('down', controller_id)
-        elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
-            # Left shoulder (L1): Start continuous decrease by 8
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: Left shoulder pressed - start continuous'
-                f' decrease by 8'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: Left shoulder pressed - start continuous decrease by'
-                f' 8'
-            )
-            self._start_slider_continuous_adjustment(controller_id, -8)
-        elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
-            # Right shoulder (R1): Start continuous increase by 8
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: Right shoulder pressed - start continuous'
-                f' increase by 8'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: Right shoulder pressed - start continuous increase by'
-                f' 8'
-            )
-            self._start_slider_continuous_adjustment(controller_id, 8)
-        else:
-            # Other buttons not handled in slider mode (including B button)
-            self.log.debug(
-                f'DEBUG: Controller {controller_id}: Button {button} not handled in slider mode'
-            )
-            self.log.debug(
-                f'Controller {controller_id}: Button {button} not handled in slider mode'
-            )
+            # Fallback for controllers without a registered mode
+            self.log.debug(f'Controller {controller_id}: no strategy found, skipping button press')
 
     def on_controller_button_up_event(self, event: events.HashableEvent) -> None:
         """Handle controller button up events.
@@ -438,35 +157,12 @@ class ControllerEventHandler:
         if controller_id is None:
             return
 
-        # Handle button releases for continuous slider adjustment (D-pad and shoulder buttons)
-        if event.button in {
-            pygame.CONTROLLER_BUTTON_DPAD_LEFT,
-            pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
-            pygame.CONTROLLER_BUTTON_LEFTSHOULDER,
-            pygame.CONTROLLER_BUTTON_RIGHTSHOULDER,
-        }:
-            self._stop_slider_continuous_adjustment(controller_id)
+        # Dispatch to mode-specific strategy for button release
+        strategy = self.editor.mode_switcher.get_strategy(controller_id)
+        if strategy is not None:
+            strategy.handle_button_up(controller_id, event.button)
 
-            # Update color well when slider adjustment is finished (only if controller is in slider
-            # mode)
-            controller_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
-            if controller_mode and controller_mode.value in {'r_slider', 'g_slider', 'b_slider'}:
-                self.editor.update_color_well_from_sliders()
-
-        # Handle button releases for continuous canvas movement (D-pad buttons)
-        if event.button in {
-            pygame.CONTROLLER_BUTTON_DPAD_LEFT,
-            pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
-            pygame.CONTROLLER_BUTTON_DPAD_UP,
-            pygame.CONTROLLER_BUTTON_DPAD_DOWN,
-        }:
-            self._stop_canvas_continuous_movement(controller_id)
-
-        # Handle A button release in canvas mode (end controller drag)
-        if event.button == pygame.CONTROLLER_BUTTON_A:
-            self._handle_controller_drag_end(controller_id)
-
-    def _handle_controller_drag_end(self, controller_id: int) -> None:
+    def handle_controller_drag_end(self, controller_id: int) -> None:
         """Handle the end of a controller drag operation.
 
         Args:
@@ -605,7 +301,7 @@ class ControllerEventHandler:
                 f' changes for global undo/redo'
             )
 
-    def _canvas_paint_at_controller_position(
+    def canvas_paint_at_controller_position(
         self, controller_id: int, *, force: bool = False
     ) -> None:
         """Paint at the controller's current canvas position.
@@ -623,7 +319,7 @@ class ControllerEventHandler:
 
         # Get current color from the color picker
         current_color = self.editor.get_current_color()
-        self.log.debug(f'DEBUG: _canvas_paint_at_controller_position() got color: {current_color}')
+        self.log.debug(f'DEBUG: canvas_paint_at_controller_position() got color: {current_color}')
 
         # Check if pixel is already the selected color (debouncing)
         if not force:
@@ -817,7 +513,7 @@ class ControllerEventHandler:
                     f'DEBUG: Controller {controller_id}: In active drag, painting at new position'
                     f' {new_position}'
                 )
-                self._canvas_paint_at_controller_position(controller_id)
+                self.canvas_paint_at_controller_position(controller_id)
 
         # Update visual indicator
         self.update_controller_canvas_visual_indicator(controller_id)
@@ -990,7 +686,7 @@ class ControllerEventHandler:
         else:
             self.log.debug('DEBUG: No mode_switcher found')
 
-    def _start_slider_continuous_adjustment(self, controller_id: int, direction: int) -> None:
+    def start_slider_continuous_adjustment(self, controller_id: int, direction: int) -> None:
         """Start continuous slider adjustment with acceleration."""
         # Do the first tick immediately for responsive feel
         self._slider_adjust_value(controller_id, direction)
@@ -1009,7 +705,7 @@ class ControllerEventHandler:
             f' {direction} (immediate first tick)'
         )
 
-    def _stop_slider_continuous_adjustment(self, controller_id: int) -> None:
+    def stop_slider_continuous_adjustment(self, controller_id: int) -> None:
         """Stop continuous slider adjustment."""
         if (
             hasattr(self, 'slider_continuous_adjustments')
@@ -1089,7 +785,7 @@ class ControllerEventHandler:
                 # Update last adjustment time
                 adjustment_data['last_adjustment'] = current_time
 
-    def _start_canvas_continuous_movement(self, controller_id: int, dx: int, dy: int) -> None:
+    def start_canvas_continuous_movement(self, controller_id: int, dx: int, dy: int) -> None:
         """Start continuous canvas movement with acceleration."""
         # Do the first movement immediately for responsive feel
         self._canvas_move_cursor(controller_id, dx, dy)
@@ -1114,7 +810,7 @@ class ControllerEventHandler:
             f' ({dx}, {dy}) (immediate first movement)'
         )
 
-    def _stop_canvas_continuous_movement(self, controller_id: int) -> None:
+    def stop_canvas_continuous_movement(self, controller_id: int) -> None:
         """Stop continuous canvas movement."""
         if (
             hasattr(self, 'canvas_continuous_movements')
@@ -1195,15 +891,15 @@ class ControllerEventHandler:
                     and controller_id in self.controller_drags
                     and self.controller_drags[controller_id]['active']
                 ):
-                    self._canvas_paint_at_controller_position(controller_id)
+                    self.canvas_paint_at_controller_position(controller_id)
 
                 # Update last movement time
                 movement_data['last_movement'] = current_time
 
-    def _canvas_paint_horizontal_line(self, controller_id: int, distance: int) -> None:
+    def canvas_paint_horizontal_line(self, controller_id: int, distance: int) -> None:
         """Paint a horizontal line of pixels starting from the controller's current position."""
         self.log.debug(
-            f'DEBUG: _canvas_paint_horizontal_line called for controller {controller_id}, distance'
+            f'DEBUG: canvas_paint_horizontal_line called for controller {controller_id}, distance'
             f' {distance}'
         )
 
@@ -1254,10 +950,10 @@ class ControllerEventHandler:
             f' to canvas bounds)'
         )
 
-    def _canvas_paint_vertical_line(self, controller_id: int, distance: int) -> None:
+    def canvas_paint_vertical_line(self, controller_id: int, distance: int) -> None:
         """Paint a vertical line of pixels starting from the controller's current position."""
         self.log.debug(
-            f'DEBUG: _canvas_paint_vertical_line called for controller {controller_id}, distance'
+            f'DEBUG: canvas_paint_vertical_line called for controller {controller_id}, distance'
             f' {distance}'
         )
 
@@ -1353,7 +1049,7 @@ class ControllerEventHandler:
         else:
             self.log.debug('DEBUG: No canvas or canvas_interface available')
 
-    def _is_controller_button_held(self, controller_id: int, button: int) -> bool:
+    def is_controller_button_held(self, controller_id: int, button: int) -> bool:
         """Check if a controller button is currently held down.
 
         Returns:
@@ -1367,10 +1063,10 @@ class ControllerEventHandler:
         except pygame.error, ValueError:
             return False
 
-    def _canvas_jump_horizontal(self, controller_id: int, distance: int) -> None:
+    def canvas_jump_horizontal(self, controller_id: int, distance: int) -> None:
         """Jump horizontally without painting pixels."""
         self.log.debug(
-            f'DEBUG: _canvas_jump_horizontal called for controller {controller_id}, distance'
+            f'DEBUG: canvas_jump_horizontal called for controller {controller_id}, distance'
             f' {distance}'
         )
 
@@ -1401,10 +1097,10 @@ class ControllerEventHandler:
             f' {start_y})'
         )
 
-    def _canvas_jump_vertical(self, controller_id: int, distance: int) -> None:
+    def canvas_jump_vertical(self, controller_id: int, distance: int) -> None:
         """Jump vertically without painting pixels."""
         self.log.debug(
-            f'DEBUG: _canvas_jump_vertical called for controller {controller_id}, distance'
+            f'DEBUG: canvas_jump_vertical called for controller {controller_id}, distance'
             f' {distance}'
         )
 
@@ -1464,14 +1160,14 @@ class ControllerEventHandler:
             # print("DEBUG: Joystick LEFT SHOULDER button pressed - UNHANDLED")
             # Left shoulder button: Currently unhandled to prevent reset behavior
             # controller_id = getattr(event, 'instance_id', 0)
-            # self._multi_controller_activate(controller_id)
+            # self.multi_controller_activate(controller_id)
             pass
         elif event.button == 0:  # A button
             # print("DEBUG: Joystick A button pressed - selecting current frame with
             # multi-controller system")
             # Use new multi-controller system instead of old single-controller system
             controller_id = getattr(event, 'instance_id', 0)
-            self._multi_controller_select_current_frame(controller_id)
+            self.multi_controller_select_current_frame(controller_id)
         elif event.button == 1:  # B button
             # print("DEBUG: Joystick B button pressed - cancel")
             self._controller_cancel()
@@ -2590,7 +2286,7 @@ class ControllerEventHandler:
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
-    def _multi_controller_activate(self, controller_id: int) -> None:
+    def multi_controller_activate(self, controller_id: int) -> None:
         """Activate a controller for navigation.
 
         Args:
@@ -2605,7 +2301,7 @@ class ControllerEventHandler:
         controller_selection.activate()
 
         # Assign color based on activation order using singleton
-        from .controllers.manager import MultiControllerManager
+        from .manager import MultiControllerManager
 
         manager = MultiControllerManager.get_instance()
         self.log.debug(f'DEBUG: About to assign color to controller {controller_id}')
@@ -2644,7 +2340,7 @@ class ControllerEventHandler:
 
         self.log.debug(f'DEBUG: Controller {controller_id} activated')
 
-    def _multi_controller_previous_frame(self, controller_id: int) -> None:
+    def multi_controller_previous_frame(self, controller_id: int) -> None:
         """Move to previous frame for a controller.
 
         Args:
@@ -2685,7 +2381,7 @@ class ControllerEventHandler:
                 f'DEBUG: Controller {controller_id} previous frame: {frame} -> {new_frame}'
             )
 
-    def _multi_controller_next_frame(self, controller_id: int) -> None:
+    def multi_controller_next_frame(self, controller_id: int) -> None:
         """Move to next frame for a controller.
 
         Args:
@@ -2724,7 +2420,7 @@ class ControllerEventHandler:
 
             self.log.debug(f'DEBUG: Controller {controller_id} next frame: {frame} -> {new_frame}')
 
-    def _multi_controller_previous_animation(self, controller_id: int) -> None:
+    def multi_controller_previous_animation(self, controller_id: int) -> None:
         """Move to previous animation for a controller.
 
         Args:
@@ -2782,7 +2478,7 @@ class ControllerEventHandler:
         # Update visual indicator
         self._update_controller_visual_indicator(controller_id)
 
-    def _multi_controller_next_animation(self, controller_id: int) -> None:
+    def multi_controller_next_animation(self, controller_id: int) -> None:
         """Move to next animation for a controller.
 
         Args:
@@ -2878,7 +2574,7 @@ class ControllerEventHandler:
         else:
             self.editor.visual_collision_manager.update_controller_position(controller_id, position)
 
-    def _multi_controller_toggle_onion_skinning(self, controller_id: int) -> None:
+    def multi_controller_toggle_onion_skinning(self, controller_id: int) -> None:
         """Toggle onion skinning for the controller's selected frame.
 
         Args:
@@ -2900,7 +2596,7 @@ class ControllerEventHandler:
             return
 
         # Get onion skinning manager
-        from .onion_skinning import get_onion_skinning_manager
+        from glitchygames.bitmappy.onion_skinning import get_onion_skinning_manager
 
         onion_manager = get_onion_skinning_manager()
 
@@ -2919,7 +2615,7 @@ class ControllerEventHandler:
         if hasattr(self.editor, 'canvas') and self.editor.canvas:
             self.editor.canvas.force_redraw()
 
-    def _multi_controller_toggle_selected_frame_visibility(self, controller_id: int) -> None:
+    def multi_controller_toggle_selected_frame_visibility(self, controller_id: int) -> None:
         """Toggle visibility of the selected frame on the canvas for comparison.
 
         Args:
@@ -2937,7 +2633,7 @@ class ControllerEventHandler:
         if hasattr(self.editor, 'canvas') and self.editor.canvas:
             self.editor.canvas.force_redraw()
 
-    def _multi_controller_select_current_frame(self, controller_id: int) -> None:
+    def multi_controller_select_current_frame(self, controller_id: int) -> None:
         """Select the current frame that the controller is pointing to.
 
         Args:
@@ -2945,7 +2641,7 @@ class ControllerEventHandler:
 
         """
         self.log.debug(
-            f'DEBUG: _multi_controller_select_current_frame called for controller {controller_id}'
+            f'DEBUG: multi_controller_select_current_frame called for controller {controller_id}'
         )
 
         if controller_id not in self.editor.controller_selections:

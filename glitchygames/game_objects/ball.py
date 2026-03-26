@@ -300,7 +300,7 @@ class BallSprite(Sprite):
         self.speed *= 1.1
 
     def speed_up(
-        self: Self, multiplier: float | None = None, speed_up_type: str = 'linear'
+        self: Self, multiplier: float | None = None, speed_up_type: str = 'linear',
     ) -> None:
         """Increase the ball's speed with linear, logarithmic, or exponential scaling.
 
@@ -511,7 +511,7 @@ class BallSprite(Sprite):
             log.debug(
                 f'BALL SPEED CHANGE: old=({old_speed_x:.3f},{old_speed_y:.3f}) '
                 f'new=({self.speed.x:.3f},{self.speed.y:.3f}) '
-                f'magnitude_change={new_magnitude - old_magnitude:.3f}'
+                f'magnitude_change={new_magnitude - old_magnitude:.3f}',
             )
 
         # Calculate movement
@@ -528,7 +528,7 @@ class BallSprite(Sprite):
             log.debug(
                 f'BALL MOVE: speed=({self.speed.x:.3f},{self.speed.y:.3f}) dt={dt:.6f} '
                 f'move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) '
-                f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}'
+                f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}',
             )
 
         # Use proper rounding to avoid precision loss from integer truncation
@@ -546,7 +546,7 @@ class BallSprite(Sprite):
                 f'BALL MOVE: final_pos=({self.rect.x},{self.rect.y}) '
                 f'delta=({delta_x},{delta_y}) '
                 f'expected_move=({round(move_x)},{round(move_y)}) '
-                f'actual_move=({delta_x},{delta_y})'
+                f'actual_move=({delta_x},{delta_y})',
             )
 
             # Check if movement matches expectation
@@ -554,7 +554,7 @@ class BallSprite(Sprite):
                 log.debug(
                     'BALL MOVE WARNING: Movement mismatch! '
                     f'Expected=({round(move_x)},{round(move_y)}) '
-                    f'Actual=({delta_x},{delta_y})'
+                    f'Actual=({delta_x},{delta_y})',
                 )
 
         # Ensure the ball is marked as dirty for redrawing
@@ -601,7 +601,7 @@ class BallSprite(Sprite):
             f'BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) '
             f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
             f'screen=({self.screen_width},{self.screen_height}) '
-            f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}'
+            f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}',
         )
 
         # Enhanced boundary checking with proper physics
@@ -694,7 +694,7 @@ class BallSprite(Sprite):
             self._add_collision_visual_feedback('bottom', log)
 
         log.debug(
-            f'BALL BOUNCE: BOTTOM EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})'
+            f'BALL BOUNCE: BOTTOM EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})',
         )
         log.debug(f'BALL BOUNCE: BOTTOM EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})')
         self._check_bounce_speed_up('wall')
@@ -773,9 +773,7 @@ class BallSprite(Sprite):
 
         if in_top_left or in_top_right or in_bottom_left or in_bottom_right:
             log.debug(
-                'BALL CORNER COLLISION:'
-                f' {in_top_left=} {in_top_right=}'
-                f' {in_bottom_left=} {in_bottom_right=}'
+                'BALL CORNER COLLISION: %s %s %s %s', in_top_left, in_top_right, in_bottom_left, in_bottom_right,
             )
 
             # Enhanced corner physics - both X and Y components are reflected
@@ -809,7 +807,7 @@ class BallSprite(Sprite):
                 self.rect.y = self.screen_height - self.height - 1
 
     def _add_collision_visual_feedback(
-        self: Self, collision_type: str, log: logging.Logger
+        self: Self, collision_type: str, log: logging.Logger,
     ) -> None:
         """Add visual feedback for collision points and bounce directions.
 
@@ -827,7 +825,7 @@ class BallSprite(Sprite):
 
         # For now, we'll add debug logging and prepare for future visual effects
         log.debug(
-            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at ({self.rect.x}, {self.rect.y})'
+            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at ({self.rect.x}, {self.rect.y})',
         )
 
         # Future implementation could include:

@@ -144,7 +144,7 @@ class TestBallSpeedBehavior:
 
         expected_x = initial_x * 1.1
         assert ball.speed.x == pytest.approx(
-            expected_x, abs=abs(expected_x) * 0.1
+            expected_x, abs=abs(expected_x) * 0.1,
         )  # More tolerant delta
 
     def test_bounce_speedup_triggers(self):

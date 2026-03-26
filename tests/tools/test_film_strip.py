@@ -87,7 +87,7 @@ class TestFilmStripFunctionality:
     def test_film_strip_widget_properties(self, mock_pygame_patches):
         """Test film strip widget properties."""
         strip = film_strip.FilmStripWidget(
-            FUNC_WIDGET_X, FUNC_WIDGET_Y, FUNC_WIDGET_WIDTH, FUNC_WIDGET_HEIGHT
+            FUNC_WIDGET_X, FUNC_WIDGET_Y, FUNC_WIDGET_WIDTH, FUNC_WIDGET_HEIGHT,
         )
 
         # Test rect properties
@@ -353,7 +353,7 @@ class TestFilmStripFunctionality:
         # Simulate a click that should cycle the color
         # This would normally happen through handle_click, but we'll test the cycling logic directly
         strip.background_color_index = (strip.background_color_index + 1) % len(
-            strip.BACKGROUND_COLORS
+            strip.BACKGROUND_COLORS,
         )
         strip.background_color = strip.BACKGROUND_COLORS[strip.background_color_index]
 
@@ -366,7 +366,7 @@ class TestFilmStripFunctionality:
         for _ in range(len(strip.BACKGROUND_COLORS)):
             colors_seen.add(strip.background_color)
             strip.background_color_index = (strip.background_color_index + 1) % len(
-                strip.BACKGROUND_COLORS
+                strip.BACKGROUND_COLORS,
             )
             strip.background_color = strip.BACKGROUND_COLORS[strip.background_color_index]
 
@@ -536,7 +536,7 @@ class TestFilmStripSetAnimatedSprite:
         assert 'old' not in widget.preview_animation_speeds
 
     def test_set_animated_sprite_initializes_scroll_offset(
-        self, widget, animated_sprite_with_order
+        self, widget, animated_sprite_with_order,
     ):
         """Test set_animated_sprite initializes scroll_offset to 0."""
         widget.set_animated_sprite(animated_sprite_with_order)
@@ -923,7 +923,7 @@ class TestFilmStripFrameSelection:
         widget_with_sprite.parent_scene = parent_scene
         widget_with_sprite.set_current_frame('idle', 1)
         parent_scene.on_film_strip_frame_selected.assert_called_once_with(
-            widget_with_sprite, 'idle', 1
+            widget_with_sprite, 'idle', 1,
         )
 
     def test_set_current_frame_negative_index_ignored(self, widget_with_sprite):
@@ -1281,7 +1281,7 @@ class TestFilmStripGetFrameImage:
         frame = SpriteFrame(surface)
         frame._image_stale = True  # type: ignore[unresolved-attribute]
         pixel_data = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE)
+            'list[tuple[int, ...]]', [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE),
         )
         frame.pixels = pixel_data
         result = FilmStripWidget._get_frame_image(frame)
@@ -1669,7 +1669,7 @@ class TestFilmStripRemoveFrame:
         """Test _remove_frame prevents removing the last frame."""
         # Remove until only one frame left
         widget_with_multi_frame_sprite.animated_sprite._animations['idle'] = [
-            widget_with_multi_frame_sprite.animated_sprite._animations['idle'][0]
+            widget_with_multi_frame_sprite.animated_sprite._animations['idle'][0],
         ]
         widget_with_multi_frame_sprite._remove_frame('idle', 0)
         # Should still have 1 frame
@@ -3900,7 +3900,7 @@ class TestFilmStripHandleAddDeleteAnimationTab:
 
         widget._handle_add_animation_tab_click()
         widget.parent_scene.film_strip_coordinator._add_new_animation.assert_called_once_with(
-            insert_after_index=0
+            insert_after_index=0,
         )
 
     def test_handle_add_animation_fallback_on_value_error(self, mocker):

@@ -31,7 +31,7 @@ class TestSceneFilmStrips:
 
         # Create scene with mock sprite (using centralized mocks)
         scene = bitmappy.BitmapEditorScene(
-            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16}
+            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16},
         )
 
         # Load the sprite
@@ -63,7 +63,7 @@ class TestSceneFilmStrips:
 
         # Create scene (using centralized mocks)
         scene = bitmappy.BitmapEditorScene(
-            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16}
+            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16},
         )
 
         # Load the sprite

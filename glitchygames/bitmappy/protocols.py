@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
     from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
     from glitchygames.bitmappy.scroll_arrow import ScrollArrowSprite
-    from glitchygames.ui import ColorWellSprite, SliderSprite
+    from glitchygames.ui import ColorWellSprite, SliderSprite, TabControlSprite
 
 
 class EditorContext(Protocol):
@@ -71,6 +71,8 @@ class EditorContext(Protocol):
     blue_slider: SliderSprite
     alpha_slider: SliderSprite
     color_well: ColorWellSprite
+    tab_control: TabControlSprite
+    slider_input_format: str
     debug_text: Any  # MultiLineTextBox at runtime
     scroll_up_arrow: ScrollArrowSprite | None
     film_strip_widget: FilmStripWidget | None  # Legacy reference
@@ -133,7 +135,7 @@ class EditorContext(Protocol):
         ...
 
     def on_film_strip_frame_selected(
-        self, film_strip_widget: Any, animation: str, frame: int
+        self, film_strip_widget: Any, animation: str, frame: int,
     ) -> None:
         """Handle a frame selection event from a film strip widget."""
         ...

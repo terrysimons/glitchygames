@@ -46,7 +46,7 @@ class ASCIIRenderer:
         return '█'
 
     def extract_colors_from_toml(
-        self, toml_data: dict[str, Any]
+        self, toml_data: dict[str, Any],
     ) -> dict[str, tuple[int, int, int, int]]:
         """Extract color mappings from TOML data with alpha channel support.
 
@@ -150,7 +150,7 @@ class ASCIIRenderer:
                         adjusted_g = int(g * (a / 255))
                         adjusted_b = int(b * (a / 255))
                         color_code = self.color_mapper.get_color_code(
-                            adjusted_r, adjusted_g, adjusted_b
+                            adjusted_r, adjusted_g, adjusted_b,
                         )
                     else:
                         # Fully opaque
@@ -167,7 +167,7 @@ class ASCIIRenderer:
         return '\n'.join(colorized_lines)
 
     def _colorize_non_mapped_char(
-        self, char: str, colors: dict[str, tuple[int, int, int, int]]
+        self, char: str, colors: dict[str, tuple[int, int, int, int]],
     ) -> str:
         """Colorize a character not found in the color map.
 

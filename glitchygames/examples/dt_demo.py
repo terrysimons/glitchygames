@@ -62,11 +62,11 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v', '--version', action='store_true', help='print the game version and exit',
         )
 
         parser.add_argument(
-            '-b', '--balls', type=int, help='the number of balls to start with', default=1
+            '-b', '--balls', type=int, help='the number of balls to start with', default=1,
         )
 
     # def setup(self):

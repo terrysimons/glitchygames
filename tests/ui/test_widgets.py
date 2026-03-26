@@ -738,7 +738,7 @@ class TestTextBoxSpriteFunctionality:
 
         # Act
         textbox = TextBoxSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox'
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox',
         )
 
         # Assert
@@ -760,7 +760,7 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox'
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox',
         )
 
         # Act: simulate text input by directly setting the text_box text
@@ -780,7 +780,7 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox'
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox',
         )
         textbox.text = 'Hello'  # type: ignore[unresolved-attribute]
 
@@ -801,7 +801,7 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox'
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox',
         )
 
         # Act: gain focus by clicking on the textbox
@@ -4231,7 +4231,7 @@ class TestTextSpiteRenderPygameFont:
         mock_font.render.return_value = pygame.Surface((50, 20))
 
         surface = text_sprite._render_with_pygame_font(
-            mock_font, 'hello', (255, 255, 255), is_transparent=False
+            mock_font, 'hello', (255, 255, 255), is_transparent=False,
         )
         assert surface is not None
         # render is called twice: once in the isinstance() check of the ternary
@@ -4253,7 +4253,7 @@ class TestTextSpiteRenderPygameFont:
         mock_font.render.return_value = pygame.Surface((50, 20))
 
         surface = text_sprite._render_with_pygame_font(
-            mock_font, 'hello', (255, 255, 255), is_transparent=True
+            mock_font, 'hello', (255, 255, 255), is_transparent=True,
         )
         assert surface is not None
 

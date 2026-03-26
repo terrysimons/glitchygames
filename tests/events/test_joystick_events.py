@@ -355,7 +355,7 @@ class TestJoystickEventProxyDirectMethods:
 
         mock_game = mocker.Mock()
         proxy = JoystickEventManager.JoystickEventProxy(
-            game=mock_game, joystick_id=0, instance_id=0
+            game=mock_game, joystick_id=0, instance_id=0,
         )
         return proxy, mock_game, mock_joystick
 
@@ -565,7 +565,7 @@ class TestJoystickEventProxyDirectMethods:
 
         mock_game = mocker.Mock()
         proxy = JoystickEventManager.JoystickEventProxy(
-            game=mock_game, joystick_id=5, instance_id=42
+            game=mock_game, joystick_id=5, instance_id=42,
         )
 
         assert proxy._id == 42
@@ -911,7 +911,7 @@ class TestJoystickEventProxyFromInstanceIdFallback:
 
         mock_game = mocker.Mock()
         proxy = JoystickEventManager.JoystickEventProxy(
-            game=mock_game, joystick_id=0, instance_id=99
+            game=mock_game, joystick_id=0, instance_id=99,
         )
 
         # Should still work even though from_instance_id failed
@@ -1073,7 +1073,7 @@ class TestJoystickEvents:
         """Test JoystickEventStubs implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
         # Test that stub methods can be called
@@ -1092,8 +1092,8 @@ class TestJoystickEvents:
                 'on_joy_axis_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -1114,8 +1114,8 @@ class TestJoystickEvents:
                 'on_joy_button_down_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -1135,8 +1135,8 @@ class TestJoystickEvents:
                 'on_joy_button_up_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -1156,8 +1156,8 @@ class TestJoystickEvents:
                 'on_joy_hat_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -1178,8 +1178,8 @@ class TestJoystickEvents:
                 'on_joy_ball_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test ball motion
@@ -1201,8 +1201,8 @@ class TestJoystickEvents:
                 'on_joy_device_added_event': lambda event: (
                     scene.joystick_device_events.append(('added', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -1223,8 +1223,8 @@ class TestJoystickEvents:
                 'on_joy_device_removed_event': lambda event: (
                     scene.joystick_device_events.append(('removed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test device removed
@@ -1246,8 +1246,8 @@ class TestJoystickEvents:
                 'on_joy_axis_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different axes
@@ -1278,7 +1278,7 @@ class TestJoystickEvents:
                     scene.joystick_events_received.append(('button_up', event)),
                     True,
                 )[1],
-            }
+            },
         )
 
         # Test different buttons
@@ -1319,8 +1319,8 @@ class TestJoystickEvents:
                 'on_joy_hat_motion_event': lambda event: (
                     scene.joystick_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different hat directions

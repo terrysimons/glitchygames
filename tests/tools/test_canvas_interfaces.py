@@ -656,7 +656,7 @@ class TestAnimatedCanvasInterfaceIsControllerDragActive:
         """Test returns True when controller has active drag with pixels."""
         canvas_sprite = mocker.Mock()
         canvas_sprite.parent_scene.controller_drags = {
-            0: {'active': True, 'pixels_drawn': [(1, 2, RED, GREEN)]}
+            0: {'active': True, 'pixels_drawn': [(1, 2, RED, GREEN)]},
         }
         del canvas_sprite.animated_sprite
         interface = AnimatedCanvasInterface(canvas_sprite)
@@ -767,7 +767,7 @@ class TestCollectPixelChangeDictionaryTrimming:
         parent_scene = mocker.Mock()
         parent_scene.current_pixel_changes = []
         parent_scene.current_pixel_changes_dict = {
-            (1, 1): (1, 1, MAGENTA, RED)  # Existing entry
+            (1, 1): (1, 1, MAGENTA, RED),  # Existing entry
         }
         parent_scene._pixel_changes_list_dirty = True
         canvas_sprite.parent_scene = parent_scene
@@ -1202,7 +1202,7 @@ class TestAnimatedCanvasRendererForceRedraw:
 
         renderer = AnimatedCanvasRenderer(canvas_sprite)
         mock_force_redraw = mocker.patch.object(
-            renderer, 'force_redraw', return_value=canvas_sprite.image
+            renderer, 'force_redraw', return_value=canvas_sprite.image,
         )
 
         result = renderer.render(canvas_sprite)
@@ -1379,7 +1379,7 @@ class TestCanvasRendererDrawIndicatorsOnly:
         mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
 
         frame_pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
         )
 
         renderer._draw_controller_indicators_only(frame_pixels)
@@ -1416,7 +1416,7 @@ class TestCanvasRendererVisibleFrameWithControllerIndicator:
         mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
 
         frame_pixels = cast(
-            'list[tuple[int, ...]]', [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)]
+            'list[tuple[int, ...]]', [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)],
         )
 
         renderer._draw_visible_frame_pixels(frame_pixels)
@@ -1967,7 +1967,7 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         canvas_sprite.current_animation = 'idle'
         canvas_sprite.current_frame = 0
         canvas_sprite.parent_scene.controller_drags = {
-            0: {'active': True, 'pixels_drawn': [(1, 2, RED, GREEN)]}
+            0: {'active': True, 'pixels_drawn': [(1, 2, RED, GREEN)]},
         }
         del canvas_sprite.animated_sprite
 

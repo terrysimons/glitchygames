@@ -139,7 +139,7 @@ class UndoRedoManager:
         self._add_animation_callback: Any = None
         self._delete_animation_callback: Any = None
 
-        LOG.debug(f'UndoRedoManager initialized with max_history={max_history}')
+        LOG.debug('UndoRedoManager initialized with max_history=%s', max_history)
 
     # -- Query methods ------------------------------------------------------
 
@@ -228,7 +228,7 @@ class UndoRedoManager:
 
         """
         self.current_frame = (animation, frame)
-        LOG.debug(f'Current frame set to: {animation}[{frame}]')
+        LOG.debug('Current frame set to: %s[%s]', animation, frame)
 
     # -- Push commands onto stacks ------------------------------------------
 
@@ -262,7 +262,7 @@ class UndoRedoManager:
 
         self.at_head_of_history = True
         LOG.debug(
-            f'Pushed command: {command.description} (undo stack size: {len(self.undo_stack)})'
+            f'Pushed command: {command.description} (undo stack size: {len(self.undo_stack)})',
         )
 
     def push_frame_command(self, animation: str, frame: int, command: UndoRedoCommand) -> None:
@@ -443,7 +443,7 @@ class UndoRedoManager:
         frame_key = (animation, frame)
 
         if frame_key not in self.frame_undo_stacks or not self.frame_undo_stacks[frame_key]:
-            LOG.debug(f'No undo commands available for {animation}[{frame}]')
+            LOG.debug('No undo commands available for %s[%s]', animation, frame)
             return False
 
         if self.is_undoing or self.is_redoing:
@@ -459,13 +459,13 @@ class UndoRedoManager:
                 self.frame_redo_stacks[frame_key].append(command)
                 LOG.debug(f'Undid frame command for {animation}[{frame}]: {command.description}')
             else:
-                LOG.warning(f'Failed to undo frame command for {animation}[{frame}]')
+                LOG.warning('Failed to undo frame command for %s[%s]', animation, frame)
                 self.frame_undo_stacks[frame_key].append(command)
 
             return success
 
         except Exception:
-            LOG.exception(f'Error undoing frame command for {animation}[{frame}]')
+            LOG.exception('Error undoing frame command for %s[%s]', animation, frame)
             return False
         finally:
             self.is_undoing = False
@@ -484,7 +484,7 @@ class UndoRedoManager:
         frame_key = (animation, frame)
 
         if frame_key not in self.frame_redo_stacks or not self.frame_redo_stacks[frame_key]:
-            LOG.debug(f'No redo commands available for {animation}[{frame}]')
+            LOG.debug('No redo commands available for %s[%s]', animation, frame)
             return False
 
         if self.is_undoing or self.is_redoing:
@@ -500,13 +500,13 @@ class UndoRedoManager:
                 self.frame_undo_stacks[frame_key].append(command)
                 LOG.debug(f'Redid frame command for {animation}[{frame}]: {command.description}')
             else:
-                LOG.warning(f'Failed to redo frame command for {animation}[{frame}]')
+                LOG.warning('Failed to redo frame command for %s[%s]', animation, frame)
                 self.frame_redo_stacks[frame_key].append(command)
 
             return success
 
         except Exception:
-            LOG.exception(f'Error redoing frame command for {animation}[{frame}]')
+            LOG.exception('Error redoing frame command for %s[%s]', animation, frame)
             return False
         finally:
             self.is_redoing = False
@@ -649,7 +649,7 @@ class UndoRedoManager:
             if last_animation == second_animation and last_frame == second_frame:
                 self.undo_stack.pop()
                 LOG.debug(
-                    f'Optimized: removed redundant frame select for {last_animation}[{last_frame}]'
+                    'Optimized: removed redundant frame select for %s[%s]', last_animation, last_frame,
                 )
 
 
@@ -759,7 +759,7 @@ class _OperationAdapter:
             if op_type == OperationType.CONTROLLER_MODE_CHANGE:
                 return self._dispatch_controller_mode(data, is_undo=is_undo)
 
-            LOG.warning(f'Unknown operation type: {op_type}')
+            LOG.warning('Unknown operation type: %s', op_type)
             return False
 
         except Exception:
@@ -770,7 +770,7 @@ class _OperationAdapter:
     # -- Canvas dispatch ----------------------------------------------------
 
     def _dispatch_canvas(
-        self, operation: Operation, data: dict[str, Any], *, is_undo: bool
+        self, operation: Operation, data: dict[str, Any], *, is_undo: bool,
     ) -> bool:
         callback = getattr(self._manager, '_pixel_change_callback', None)
         if not callback:
@@ -812,7 +812,7 @@ class _OperationAdapter:
     # -- Film strip dispatch ------------------------------------------------
 
     def _dispatch_film_strip(  # noqa: PLR0912, PLR0915
-        self, operation: Operation, data: dict[str, Any], *, is_undo: bool
+        self, operation: Operation, data: dict[str, Any], *, is_undo: bool,
     ) -> bool:
         op_type = operation.operation_type
 
@@ -898,7 +898,7 @@ class _OperationAdapter:
     # -- Cross-area dispatch ------------------------------------------------
 
     def _dispatch_cross_area(
-        self, operation: Operation, data: dict[str, Any], *, is_undo: bool
+        self, operation: Operation, data: dict[str, Any], *, is_undo: bool,
     ) -> bool:
         if operation.operation_type == OperationType.FRAME_PASTE:
             callback = getattr(self._manager, '_frame_paste_callback', None)

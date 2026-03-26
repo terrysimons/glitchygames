@@ -18,8 +18,9 @@ import pytest
 
 from glitchygames.bitmappy import editor as bitmappy
 from glitchygames.bitmappy.ai_manager import AIManager
-from glitchygames.bitmappy.controller_handler import ControllerEventHandler
+from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
 from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.slider_manager import SliderManager
 from tests.mocks import MockFactory
 
 
@@ -66,6 +67,12 @@ def _setup_sliders(editor, mocker):
         ('blue_slider', 32, '32', (13, 570, 256, 9), 'blue_slider_bbox', (10, 568, 260, 13)),
         ('alpha_slider', 255, '255', (13, 540, 256, 9), 'alpha_slider_bbox', (10, 538, 260, 13)),
     ]
+
+    # Create a SliderManager for the editor (bypass __init__ to avoid real setup)
+    slider_manager = SliderManager.__new__(SliderManager)
+    slider_manager.editor = editor
+    slider_manager.log = mocker.Mock()
+
     for slider_name, value, text, text_rect, bbox_name, bbox_rect in slider_configs:
         slider = mocker.Mock()
         slider.value = value
@@ -79,7 +86,16 @@ def _setup_sliders(editor, mocker):
         bbox.visible = False
         bbox.rect = pygame.Rect(*bbox_rect)
         bbox.image = mocker.Mock()
-        setattr(editor, bbox_name, bbox)
+        # Bounding boxes are now owned by the SliderManager
+        setattr(slider_manager, bbox_name, bbox)
+
+    # Initialize SliderManager labels as None (they'd be created during setup)
+    slider_manager.alpha_label = None
+    slider_manager.red_label = None
+    slider_manager.green_label = None
+    slider_manager.blue_label = None
+
+    editor._slider_manager = slider_manager
 
 
 def _setup_canvas(editor, mocker):
@@ -1081,59 +1097,97 @@ class TestHandleCopyPasteFrame:
 
 
 # ===========================================================================
-# 19. Apply Pixel Change for Undo/Redo
+# 19. BrushStrokeCommand Undo/Redo
 # ===========================================================================
 
 
-class TestApplyPixelChangeForUndoRedo:
-    """Tests for _apply_pixel_change_for_undo_redo."""
+class TestBrushStrokeCommandUndoRedo:
+    """Tests for BrushStrokeCommand (replaces _apply_pixel_change_for_undo_redo)."""
 
-    def test_sets_pixel(self, mock_editor):
-        """Sets pixel via canvas interface."""
-        mock_editor._apply_pixel_change_for_undo_redo(5, 10, (255, 0, 0))
+    def test_execute_sets_pixel(self, mock_editor):
+        """Execute sets pixel via canvas interface."""
+        from glitchygames.bitmappy.history.commands import BrushStrokeCommand
+        from glitchygames.bitmappy.history.undo_redo import OperationType
+
+        command = BrushStrokeCommand(
+            mock_editor,
+            [(5, 10, (0, 0, 0), (255, 0, 0))],
+            OperationType.CANVAS_PIXEL_CHANGE,
+        )
+        result = command.execute()
+        assert result is True
         mock_editor.canvas.canvas_interface.set_pixel_at.assert_called_once_with(5, 10, (255, 0, 0))
 
-    def test_sets_and_resets_flag(self, mock_editor):
+    def test_execute_sets_and_resets_flag(self, mock_editor):
         """Sets _applying_undo_redo during operation and resets after."""
+        from glitchygames.bitmappy.history.commands import BrushStrokeCommand
+        from glitchygames.bitmappy.history.undo_redo import OperationType
+
         assert mock_editor._applying_undo_redo is False
-        mock_editor._apply_pixel_change_for_undo_redo(0, 0, (0, 0, 0))
+        command = BrushStrokeCommand(
+            mock_editor,
+            [(0, 0, (0, 0, 0), (255, 255, 255))],
+            OperationType.CANVAS_PIXEL_CHANGE,
+        )
+        command.execute()
         assert mock_editor._applying_undo_redo is False
 
-    def test_no_canvas_interface(self, mock_editor):
-        """Warns when canvas interface is not available."""
+    def test_no_canvas_returns_false(self, mock_editor):
+        """Returns False when canvas is not available."""
+        from glitchygames.bitmappy.history.commands import BrushStrokeCommand
+        from glitchygames.bitmappy.history.undo_redo import OperationType
+
         mock_editor.canvas = None
-        mock_editor._apply_pixel_change_for_undo_redo(0, 0, (0, 0, 0))
+        command = BrushStrokeCommand(
+            mock_editor,
+            [(0, 0, (0, 0, 0), (255, 255, 255))],
+            OperationType.CANVAS_PIXEL_CHANGE,
+        )
+        result = command.execute()
+        assert result is False
 
 
 # ===========================================================================
-# 20. Apply Frame Selection for Undo/Redo
+# 20. FrameSelectionCommand Undo/Redo
 # ===========================================================================
 
 
-class TestApplyFrameSelectionForUndoRedo:
-    """Tests for _apply_frame_selection_for_undo_redo."""
+class TestFrameSelectionCommandUndoRedo:
+    """Tests for FrameSelectionCommand (replaces _apply_frame_selection_for_undo_redo)."""
 
-    def test_applies_selection(self, mock_editor):
-        """Applies frame selection via canvas."""
-        result = mock_editor._apply_frame_selection_for_undo_redo('default', 1)
+    def test_execute_applies_selection(self, mock_editor):
+        """Execute switches to new frame via canvas."""
+        from glitchygames.bitmappy.history.commands import FrameSelectionCommand
+
+        command = FrameSelectionCommand(mock_editor, 'default', 0, 'default', 1)
+        result = command.execute()
         assert result is True
         mock_editor.canvas.show_frame.assert_called_once_with('default', 1)
 
-    def test_resets_flag_after_operation(self, mock_editor):
-        """Resets _applying_undo_redo flag after operation."""
-        mock_editor._apply_frame_selection_for_undo_redo('default', 0)
+    def test_undo_resets_flag_after_operation(self, mock_editor):
+        """Resets _applying_undo_redo flag after undo."""
+        from glitchygames.bitmappy.history.commands import FrameSelectionCommand
+
+        command = FrameSelectionCommand(mock_editor, 'default', 0, 'default', 1)
+        command.undo()
         assert mock_editor._applying_undo_redo is False
 
-    def test_no_canvas(self, mock_editor):
+    def test_no_canvas_returns_false(self, mock_editor):
         """Returns False when canvas is not available."""
+        from glitchygames.bitmappy.history.commands import FrameSelectionCommand
+
         mock_editor.canvas = None
-        result = mock_editor._apply_frame_selection_for_undo_redo('default', 0)
+        command = FrameSelectionCommand(mock_editor, 'default', 0, 'default', 1)
+        result = command.execute()
         assert result is False
 
     def test_handles_exception(self, mock_editor):
         """Returns False on exception."""
+        from glitchygames.bitmappy.history.commands import FrameSelectionCommand
+
         mock_editor.canvas.show_frame.side_effect = IndexError('test')
-        result = mock_editor._apply_frame_selection_for_undo_redo('default', 99)
+        command = FrameSelectionCommand(mock_editor, 'default', 0, 'default', 99)
+        result = command.execute()
         assert result is False
 
 
@@ -1318,10 +1372,10 @@ class TestAnimationRename:
         mock_editor.selected_animation = 'old_name'
 
         mocker.patch.object(
-            mock_editor.film_strip_coordinator, 'update_film_strips_for_animated_sprite_update'
+            mock_editor.film_strip_coordinator, 'update_film_strips_for_animated_sprite_update',
         )
         mocker.patch.object(
-            mock_editor.film_strip_coordinator, '_update_film_strip_layout_after_rename'
+            mock_editor.film_strip_coordinator, '_update_film_strip_layout_after_rename',
         )
         mock_editor.on_animation_rename('old_name', 'new_name')
 
@@ -1332,7 +1386,7 @@ class TestAnimationRename:
         """Warns when trying to rename nonexistent animation."""
         mock_editor.canvas.animated_sprite._animations = {'default': [mocker.Mock()]}
         mocker.patch.object(
-            mock_editor.film_strip_coordinator, 'update_film_strips_for_animated_sprite_update'
+            mock_editor.film_strip_coordinator, 'update_film_strips_for_animated_sprite_update',
         )
         mock_editor.on_animation_rename('nonexistent', 'new_name')
         # Should not raise
@@ -1360,7 +1414,7 @@ class TestAiMethods:
         """Handles AI error message by showing in debug text."""
         mock_editor.debug_text.text = ''
         mock_editor._ai_integration._handle_ai_error_message(
-            'req-123', 'Sorry I cannot generate sprites'
+            'req-123', 'Sorry I cannot generate sprites',
         )
         assert 'Sorry I cannot generate sprites' in mock_editor.debug_text.text
 
@@ -1424,7 +1478,7 @@ class TestAiMethods:
         request_state.conversation_history = []
         mock_editor._ai_integration.pending_ai_requests = {'req-1': request_state}
         mock_editor._ai_integration._update_conversation_history(
-            'req-1', 'draw a cat', '[sprite]...'
+            'req-1', 'draw a cat', '[sprite]...',
         )
         assert mock_editor._ai_integration.last_conversation_history is not None
         assert len(mock_editor._ai_integration.last_conversation_history) == 2
@@ -1438,7 +1492,7 @@ class TestAiMethods:
         ]
         mock_editor._ai_integration.pending_ai_requests = {'req-1': request_state}
         mock_editor._ai_integration._update_conversation_history(
-            'req-1', 'refine it', '[sprite]...'
+            'req-1', 'refine it', '[sprite]...',
         )
         assert len(mock_editor._ai_integration.last_conversation_history) == 4
 
@@ -1564,49 +1618,104 @@ class TestOnNewFileEvent:
 # ===========================================================================
 
 
-class TestApplyFramePasteForUndoRedo:
-    """Tests for _apply_frame_paste_for_undo_redo."""
+class TestFramePasteCommandUndoRedo:
+    """Tests for FramePasteCommand (replaces _apply_frame_paste_for_undo_redo)."""
 
-    def test_applies_paste(self, mock_editor, mocker):
-        """Applies pixel data and duration to target frame."""
+    def test_execute_applies_paste(self, mock_editor, mocker):
+        """Execute applies pixel data and duration to target frame."""
+        from glitchygames.bitmappy.history.commands import FramePasteCommand
+
         mock_frame = mocker.Mock()
         mock_editor.canvas.animated_sprite._animations = {'default': [mock_frame]}
-        pixels = [(100, 50, 25)] * 1024
-        result = mock_editor._apply_frame_paste_for_undo_redo('default', 0, pixels, 0.3)
+        new_pixels = [(100, 50, 25)] * 1024
+        command = FramePasteCommand(
+            editor=mock_editor,
+            animation='default',
+            frame=0,
+            old_pixels=[(0, 0, 0)] * 1024,
+            old_duration=0.1,
+            new_pixels=new_pixels,
+            new_duration=0.3,
+        )
+        result = command.execute()
         assert result is True
-        mock_frame.set_pixel_data.assert_called_once_with(pixels)
+        mock_frame.set_pixel_data.assert_called_once_with(new_pixels)
         assert abs(mock_frame.duration - 0.3) < 1e-9
 
-    def test_no_canvas(self, mock_editor):
+    def test_no_canvas_returns_false(self, mock_editor):
         """Returns False when canvas is not available."""
+        from glitchygames.bitmappy.history.commands import FramePasteCommand
+
         mock_editor.canvas = None
-        result = mock_editor._apply_frame_paste_for_undo_redo('default', 0, [], 0.5)
+        command = FramePasteCommand(
+            editor=mock_editor,
+            animation='default',
+            frame=0,
+            old_pixels=[],
+            old_duration=0.1,
+            new_pixels=[],
+            new_duration=0.5,
+        )
+        result = command.execute()
         assert result is False
 
-    def test_animation_not_found(self, mock_editor, mocker):
+    def test_animation_not_found(self, mock_editor):
         """Returns False when animation is not found."""
+        from glitchygames.bitmappy.history.commands import FramePasteCommand
+
         mock_editor.canvas.animated_sprite._animations = {}
-        result = mock_editor._apply_frame_paste_for_undo_redo('missing', 0, [], 0.5)
+        command = FramePasteCommand(
+            editor=mock_editor,
+            animation='missing',
+            frame=0,
+            old_pixels=[],
+            old_duration=0.1,
+            new_pixels=[],
+            new_duration=0.5,
+        )
+        result = command.execute()
         assert result is False
 
     def test_frame_index_out_of_range(self, mock_editor, mocker):
         """Returns False when frame index is out of range."""
+        from glitchygames.bitmappy.history.commands import FramePasteCommand
+
         mock_editor.canvas.animated_sprite._animations = {'default': [mocker.Mock()]}
-        result = mock_editor._apply_frame_paste_for_undo_redo('default', 5, [], 0.5)
+        command = FramePasteCommand(
+            editor=mock_editor,
+            animation='default',
+            frame=5,
+            old_pixels=[],
+            old_duration=0.1,
+            new_pixels=[],
+            new_duration=0.5,
+        )
+        result = command.execute()
         assert result is False
 
     def test_updates_canvas_pixels_if_current(self, mock_editor, mocker):
         """Updates canvas pixels when pasting to currently displayed frame."""
+        from glitchygames.bitmappy.history.commands import FramePasteCommand
+
         mock_frame = mocker.Mock()
         mock_editor.canvas.animated_sprite._animations = {'default': [mock_frame]}
         mock_editor.selected_animation = 'default'
         mock_editor.selected_frame = 0
-        pixels = [(100, 50, 25)] * 10
+        new_pixels = [(100, 50, 25)] * 10
         mock_editor.canvas.pixels = [(0, 0, 0)] * 10
         mock_editor.canvas.dirty_pixels = [False] * 10
-        result = mock_editor._apply_frame_paste_for_undo_redo('default', 0, pixels, 0.5)
+        command = FramePasteCommand(
+            editor=mock_editor,
+            animation='default',
+            frame=0,
+            old_pixels=[(0, 0, 0)] * 10,
+            old_duration=0.1,
+            new_pixels=new_pixels,
+            new_duration=0.5,
+        )
+        result = command.execute()
         assert result is True
-        assert mock_editor.canvas.pixels == pixels
+        assert mock_editor.canvas.pixels == new_pixels
 
 
 # ===========================================================================
@@ -1615,12 +1724,12 @@ class TestApplyFramePasteForUndoRedo:
 
 
 class TestUpdateSliderTextFormat:
-    """Tests for _update_slider_text_format."""
+    """Tests for SliderManager._update_slider_text_format."""
 
     def test_decimal_format(self, mock_editor):
         """Updates slider text in decimal format."""
         mock_editor.slider_input_format = '%d'
-        mock_editor._update_slider_text_format()
+        mock_editor._slider_manager._update_slider_text_format()
         assert mock_editor.red_slider.text_sprite.text == '128'
         assert mock_editor.green_slider.text_sprite.text == '64'
         assert mock_editor.blue_slider.text_sprite.text == '32'
@@ -1628,7 +1737,7 @@ class TestUpdateSliderTextFormat:
     def test_hex_format(self, mock_editor):
         """Updates slider text in hex format."""
         mock_editor.slider_input_format = '%X'
-        mock_editor._update_slider_text_format()
+        mock_editor._slider_manager._update_slider_text_format()
         assert mock_editor.red_slider.text_sprite.text == '80'
         assert mock_editor.green_slider.text_sprite.text == '40'
         assert mock_editor.blue_slider.text_sprite.text == '20'
@@ -1701,7 +1810,7 @@ class TestOnLeftMouseDragEvent:
         mocker.patch.object(mock_editor.film_strip_coordinator, 'handle_film_strip_drag_scroll')
         mock_editor.on_left_mouse_drag_event(event, trigger)
         mock_editor.film_strip_coordinator.handle_film_strip_drag_scroll.assert_called_once_with(
-            200
+            200,
         )
 
     def test_canvas_drag_optimized(self, mock_editor, mocker):
@@ -1718,35 +1827,35 @@ class TestOnLeftMouseDragEvent:
 
 
 class TestSliderBboxHover:
-    """Tests for _update_slider_bbox_hover."""
+    """Tests for SliderManager._update_slider_bbox_hover."""
 
     def test_hover_shows_border(self, mock_editor, mocker):
         """Shows border on hover."""
-        mock_editor._update_slider_bbox_hover(
-            'red_slider_bbox', is_hovered=True, border_color=(255, 0, 0)
+        mock_editor._slider_manager._update_slider_bbox_hover(
+            'red_slider_bbox', is_hovered=True, border_color=(255, 0, 0),
         )
-        assert mock_editor.red_slider_bbox.visible is True
-        assert mock_editor.red_slider_bbox.dirty == 1
+        assert mock_editor._slider_manager.red_slider_bbox.visible is True
+        assert mock_editor._slider_manager.red_slider_bbox.dirty == 1
 
     def test_unhover_hides_border(self, mock_editor, mocker):
         """Hides border on unhover."""
-        mock_editor.red_slider_bbox.visible = True
-        mock_editor._update_slider_bbox_hover(
-            'red_slider_bbox', is_hovered=False, border_color=(255, 0, 0)
+        mock_editor._slider_manager.red_slider_bbox.visible = True
+        mock_editor._slider_manager._update_slider_bbox_hover(
+            'red_slider_bbox', is_hovered=False, border_color=(255, 0, 0),
         )
-        assert mock_editor.red_slider_bbox.visible is False
+        assert mock_editor._slider_manager.red_slider_bbox.visible is False
 
     def test_already_visible_no_change(self, mock_editor, mocker):
         """No change when already hovered and still hovering."""
-        mock_editor.red_slider_bbox.visible = True
-        mock_editor._update_slider_bbox_hover(
-            'red_slider_bbox', is_hovered=True, border_color=(255, 0, 0)
+        mock_editor._slider_manager.red_slider_bbox.visible = True
+        mock_editor._slider_manager._update_slider_bbox_hover(
+            'red_slider_bbox', is_hovered=True, border_color=(255, 0, 0),
         )
 
     def test_nonexistent_bbox(self, mock_editor):
         """Does nothing when bbox attribute does not exist."""
-        mock_editor._update_slider_bbox_hover(
-            'nonexistent_bbox', is_hovered=True, border_color=(255, 0, 0)
+        mock_editor._slider_manager._update_slider_bbox_hover(
+            'nonexistent_bbox', is_hovered=True, border_color=(255, 0, 0),
         )
 
 
@@ -1756,7 +1865,7 @@ class TestSliderBboxHover:
 
 
 class TestSliderTextHoverBorder:
-    """Tests for _update_slider_text_hover_border."""
+    """Tests for SliderManager._update_slider_text_hover_border."""
 
     def test_add_hover_border(self, mock_editor, mocker):
         """Adds white border on hover."""
@@ -1764,18 +1873,24 @@ class TestSliderTextHoverBorder:
         del mock_editor.red_slider.text_sprite.hover_border_added
         mock_editor.red_slider.text_sprite.image = pygame.Surface((50, 10))
         mock_editor.red_slider.text_sprite.rect = pygame.Rect(0, 0, 50, 10)
-        mock_editor._update_slider_text_hover_border('red_slider', is_text_hovered=True)
+        mock_editor._slider_manager._update_slider_text_hover_border(
+            'red_slider', is_text_hovered=True,
+        )
         assert mock_editor.red_slider.text_sprite.hover_border_added is True
 
     def test_remove_hover_border(self, mock_editor, mocker):
         """Removes hover border when no longer hovering."""
         mock_editor.red_slider.text_sprite.hover_border_added = True
-        mock_editor._update_slider_text_hover_border('red_slider', is_text_hovered=False)
+        mock_editor._slider_manager._update_slider_text_hover_border(
+            'red_slider', is_text_hovered=False,
+        )
         assert mock_editor.red_slider.text_sprite.hover_border_added is False
 
     def test_nonexistent_slider(self, mock_editor):
         """Does nothing for nonexistent slider."""
-        mock_editor._update_slider_text_hover_border('nonexistent_slider', is_text_hovered=True)
+        mock_editor._slider_manager._update_slider_text_hover_border(
+            'nonexistent_slider', is_text_hovered=True,
+        )
 
 
 # ===========================================================================
@@ -1823,7 +1938,7 @@ class TestOnDebugTextChange:
         mocker.patch.object(mock_editor._ai_integration, '_update_sprite_description')
         mock_editor._ai_integration._on_debug_text_change('new description')
         mock_editor._ai_integration._update_sprite_description.assert_called_once_with(
-            'new description'
+            'new description',
         )
 
 
@@ -1964,10 +2079,10 @@ class TestContinuousMovement:
     def test_start_canvas_continuous_movement(self, mock_editor, mocker):
         """Starts continuous canvas movement."""
         mock_editor.mode_switcher.get_controller_position.return_value = mocker.Mock(
-            position=(5, 10)
+            position=(5, 10),
         )
         mocker.patch.object(mock_editor.controller_handler, '_canvas_move_cursor')
-        mock_editor.controller_handler._start_canvas_continuous_movement(0, 1, 0)
+        mock_editor.controller_handler.start_canvas_continuous_movement(0, 1, 0)
         assert 0 in mock_editor.controller_handler.canvas_continuous_movements
         mock_editor.controller_handler._canvas_move_cursor.assert_called_once_with(0, 1, 0)
 
@@ -1982,21 +2097,21 @@ class TestContinuousMovement:
                 'acceleration_level': 0,
                 'start_x': 5,
                 'start_y': 10,
-            }
+            },
         }
         mock_editor.controller_handler.canvas_continuous_movements = movements
         mock_editor.canvas_continuous_movements = movements
         mock_editor.mode_switcher.get_controller_position.return_value = mocker.Mock(
-            position=(6, 10)
+            position=(6, 10),
         )
         mock_editor.mode_switcher.get_controller_mode.return_value = mocker.Mock(value='canvas')
-        mock_editor.controller_handler._stop_canvas_continuous_movement(0)
+        mock_editor.controller_handler.stop_canvas_continuous_movement(0)
         assert 0 not in mock_editor.controller_handler.canvas_continuous_movements
 
     def test_stop_nonexistent_movement(self, mock_editor):
         """Does nothing when stopping nonexistent movement."""
         mock_editor.controller_handler.canvas_continuous_movements = {}
-        mock_editor.controller_handler._stop_canvas_continuous_movement(0)
+        mock_editor.controller_handler.stop_canvas_continuous_movement(0)
 
     def test_update_canvas_no_movements(self, mock_editor):
         """Does nothing when no continuous movements exist."""
@@ -2010,29 +2125,29 @@ class TestContinuousMovement:
 
 
 class TestDetectClickedSlider:
-    """Tests for _detect_clicked_slider."""
+    """Tests for SliderManager.detect_clicked_slider."""
 
     def test_detects_red_slider(self, mock_editor):
         """Detects click on red slider text sprite."""
         mock_editor.red_slider.text_sprite.rect = pygame.Rect(270, 550, 50, 10)
-        result = mock_editor._detect_clicked_slider((280, 555))
+        result = mock_editor._slider_manager.detect_clicked_slider((280, 555))
         assert result == 'red'
 
     def test_detects_green_slider(self, mock_editor):
         """Detects click on green slider text sprite."""
         mock_editor.green_slider.text_sprite.rect = pygame.Rect(270, 560, 50, 10)
-        result = mock_editor._detect_clicked_slider((280, 565))
+        result = mock_editor._slider_manager.detect_clicked_slider((280, 565))
         assert result == 'green'
 
     def test_detects_blue_slider(self, mock_editor):
         """Detects click on blue slider text sprite."""
         mock_editor.blue_slider.text_sprite.rect = pygame.Rect(270, 570, 50, 10)
-        result = mock_editor._detect_clicked_slider((280, 575))
+        result = mock_editor._slider_manager.detect_clicked_slider((280, 575))
         assert result == 'blue'
 
     def test_no_slider_clicked(self, mock_editor):
         """Returns None when no slider is clicked."""
-        result = mock_editor._detect_clicked_slider((0, 0))
+        result = mock_editor._slider_manager.detect_clicked_slider((0, 0))
         assert result is None
 
 
@@ -2056,7 +2171,7 @@ class TestRenameFilmStripDict:
         mock_editor.film_strips = {'old': mock_strip}
         mock_editor.film_strip_sprites = {'old': mocker.Mock()}
         mocker.patch.object(
-            mock_editor.film_strip_coordinator, '_update_film_strip_layout_after_rename'
+            mock_editor.film_strip_coordinator, '_update_film_strip_layout_after_rename',
         )
         mock_editor.film_strip_coordinator._rename_in_film_strips_dict('old', 'new')
         assert 'new' in mock_editor.film_strips
@@ -2116,7 +2231,7 @@ class TestIsAiErrorMessage:
             return_value=(False, 'Missing sprite section'),
         )
         result = mock_editor._ai_integration._is_ai_error_message(
-            'I apologize, I cannot generate that'
+            'I apologize, I cannot generate that',
         )
         assert result is True
 

@@ -42,6 +42,7 @@ dependencies = [
   "hypothesis>=6.151.9",
   "taplo>=0.9.3",
   "yamllint>=1.38.0",
+  "wily>=1.25.0",
 ]
 
 [project.urls]
@@ -167,34 +168,17 @@ select = ["ALL"]
 ignore = [
   # --- Previously ignored ---
   #"ASYN",
-  "FIX002",  # Line contains TODO, consider resolving the issue
   "SLF001",  # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
   "S311",    # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-  "COM812",  # Trailing comma missing
-  "G004",    # Logging statement uses f-string
-  "ISC002",  # Use of implicit string concatenation
-  "ERA001",  # Found commented-out code
-  "PLR0911", # Too many return statements
-  "C901",    # Function is too complex
-  "EM102",   # Exception must not use an f-string literal, assign to variable first
-  "TRY003",  # Avoid specifying long messages outside the exception class
-  "ARG002",  # Unused method argument
-  "TD003",   # Missing issue link on the line following this TODO
-  "PLR0913", # Too many arguments to function call
-  "TD002",   # Missing author in TODO
-  "PLR0917", # Too many positional arguments
-  "PLR0904", # Too many public methods
+  "ISC002",  # Use of implicit string concatenation (this conflicts with ruff format)
   "CPY001",  # Missing copyright notice at top of file
-  "B019",    # Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
-  "EM101",   # Exception must not use a string literal, assign to variable first
   "ISC001",  # Use of implicit string concatenation (this conflicts with ruff format)
   "D203",    # Incorrect blank line before class (conflicts with D211)
   "D213",    # Multi-line summary second line (conflicts with D212)
-  "TRY300",  # Consider moving this statement to an `else` block
-  "PLR6301", # Method could be a function/staticmethod
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
   "S101",    # assert is used intentionally for type narrowing and runtime invariant checks
   "ANN401",  # Any is needed for dynamic dispatch, loosely-typed game objects, and AI client APIs
+  "PLR6301", # Method could be a function/staticmethod
 ]
 fixable = ["ALL"]
 
@@ -216,6 +200,7 @@ fixable = ["ALL"]
   "RUF069",  # Exact float comparisons are intentional in property-based tests
   "B905",    # zip() without strict= is fine in tests
   "B002",    # False positive on double-negation test: -(-speed)
+  "ARG002", # Pytest fixtures are activated by parameter presence, not by direct use
 ]
 "glitchygames/api/**/*.py" = [
   "RUF029", # FastAPI requires async def for route handlers even without await
@@ -305,6 +290,7 @@ DEP002 = [
   "hypothesis",
   "taplo",
   "yamllint",
+  "wily",
 ]
 
 [build-system]

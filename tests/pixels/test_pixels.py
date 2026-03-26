@@ -197,7 +197,7 @@ class TestPixelsCoverage:
     def test_pixels_from_path(self, mocker):
         """Test pixels_from_path function."""
         mocker.patch(
-            'pathlib.Path.open', mocker.mock_open(read_data=b'\xff\x00\x00\x00\xff\x00\x00\x00\xff')
+            'pathlib.Path.open', mocker.mock_open(read_data=b'\xff\x00\x00\x00\xff\x00\x00\x00\xff'),
         )
         # Test with valid file path
         result = pixels_from_path('test_file.txt')

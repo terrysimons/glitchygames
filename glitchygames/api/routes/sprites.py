@@ -105,7 +105,7 @@ def _save_sprite_files(
 
     # Create directory if it doesn't exist
     save_dir.mkdir(parents=True, exist_ok=True)
-    LOG.info(f'Saving sprite files to: {save_dir}')
+    LOG.info('Saving sprite files to: %s', save_dir)
 
     # Sanitize sprite name for filename
     safe_name = ''.join(c if c.isalnum() or c in '-_' else '_' for c in sprite_name)
@@ -117,14 +117,14 @@ def _save_sprite_files(
         toml_path = save_dir / f'{safe_name}.toml'
         toml_path.write_text(toml_content, encoding='utf-8')
         saved_files.append(str(toml_path))
-        LOG.info(f'Saved TOML: {toml_path}')
+        LOG.info('Saved TOML: %s', toml_path)
 
     # Save PNG if requested
     if OUTPUT_FORMAT_PNG in output_format and png_bytes:
         png_path = save_dir / f'{safe_name}.png'
         png_path.write_bytes(png_bytes)
         saved_files.append(str(png_path))
-        LOG.info(f'Saved PNG: {png_path}')
+        LOG.info('Saved PNG: %s', png_path)
 
     # Save animation frames if provided (using animation-#-frame-#.png naming)
     if rendered_frames:
@@ -135,7 +135,7 @@ def _save_sprite_files(
             )
             frame_path.write_bytes(frame_bytes)
             saved_files.append(str(frame_path))
-            LOG.info(f'Saved frame: {frame_path}')
+            LOG.info('Saved frame: %s', frame_path)
 
     return saved_files
 
@@ -366,7 +366,7 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
 
 
 def _extract_single_frame(
-    png: apng_types.PNG, control: apng_types.FrameControl | None, index: int
+    png: apng_types.PNG, control: apng_types.FrameControl | None, index: int,
 ) -> tuple[ApngFrameInfo, int]:
     """Extract a single frame and its metadata from an APNG frame pair.
 
@@ -424,7 +424,7 @@ def _extract_single_frame(
 
 
 def _extract_png_dimensions(
-    frame_bytes: bytes, default_width: int, default_height: int
+    frame_bytes: bytes, default_width: int, default_height: int,
 ) -> tuple[int, int]:
     """Extract width and height from PNG IHDR chunk bytes.
 
@@ -474,7 +474,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         try:
             apng_bytes = base64.b64decode(request.apng_base64)
         except (ValueError, TypeError) as e:
-            LOG.warning(f'Failed to decode base64: {e}')
+            LOG.warning('Failed to decode base64: %s', e)
             return ApngExtractResponse(
                 success=False,
                 error=f'Invalid base64 data: {e}',
@@ -484,7 +484,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
         try:
             apng: APNG = APNG.from_bytes(apng_bytes)
         except (ValueError, OSError) as e:
-            LOG.warning(f'Failed to parse APNG: {e}')
+            LOG.warning('Failed to parse APNG: %s', e)
             return ApngExtractResponse(
                 success=False,
                 error=f'Invalid APNG file: {e}',
@@ -512,7 +512,7 @@ async def extract_apng_frames(request: ApngExtractRequest) -> ApngExtractRespons
 
         LOG.info(
             f'Extracted {len(frames_info)} frames from APNG '
-            f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)'
+            f'({canvas_width}x{canvas_height}, {total_duration_ms}ms total)',
         )
 
         return ApngExtractResponse(

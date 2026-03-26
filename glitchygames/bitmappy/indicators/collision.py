@@ -204,7 +204,7 @@ class VisualCollisionManager:
             LOG.debug('Removed indicator for controller %s', controller_id)
 
     def remove_controller_indicator_for_location(
-        self, controller_id: int, location_type: LocationType
+        self, controller_id: int, location_type: LocationType,
     ) -> None:
         """Remove a visual indicator for a controller from a specific location.
 
@@ -252,7 +252,7 @@ class VisualCollisionManager:
         return self.indicators.get(controller_id)
 
     def get_indicators_for_position(
-        self, position: tuple[int, int], location_type: LocationType | None = None
+        self, position: tuple[int, int], location_type: LocationType | None = None,
     ) -> list[VisualIndicator]:
         """Get all indicators at a specific position.
 
@@ -330,7 +330,7 @@ class VisualCollisionManager:
                 self._apply_collision_avoidance(position, controller_ids, location_type)
 
     def _get_collision_groups_for_location(
-        self, location_type: LocationType
+        self, location_type: LocationType,
     ) -> dict[tuple[int, int], list[int]]:
         """Get collision groups for a specific location type.
 

@@ -63,8 +63,8 @@ class TestDropEvents:
                 'on_drop_begin_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test drop begin
@@ -84,8 +84,8 @@ class TestDropEvents:
                 'on_drop_file_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test drop file
@@ -106,8 +106,8 @@ class TestDropEvents:
                 'on_drop_text_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test drop text
@@ -128,8 +128,8 @@ class TestDropEvents:
                 'on_drop_complete_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test drop complete
@@ -149,8 +149,8 @@ class TestDropEvents:
                 'on_drop_file_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test multiple file drops
@@ -181,8 +181,8 @@ class TestDropEvents:
                 'on_drop_text_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test multiple text drops
@@ -226,7 +226,7 @@ class TestDropEvents:
                     scene.drop_events_received.append(event),
                     True,
                 )[1],
-            }
+            },
         )
 
         # Test drop begin with position
@@ -263,8 +263,8 @@ class TestDropEvents:
                 'on_drop_file_event': lambda event: (
                     scene.drop_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different file types
@@ -303,7 +303,7 @@ class TestDropEvents:
                     scene.drop_events_received.append(event),
                     True,
                 )[1],
-            }
+            },
         )
 
         # Test file paths with special characters

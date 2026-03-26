@@ -68,12 +68,12 @@ class FileIOManager:
         """
         # Get the file path from the event
         file_path = event.file
-        self.log.info(f'File dropped: {file_path}')
+        self.log.info('File dropped: %s', file_path)
 
         # Get file size
         try:
             file_size = Path(file_path).stat().st_size
-            self.log.info(f'File size: {file_size} bytes')
+            self.log.info('File size: %s bytes', file_size)
         except OSError:
             self.log.exception('Could not get file size')
             return
@@ -103,7 +103,7 @@ class FileIOManager:
                 continue
             try:
                 if film_strip_sprite.on_drop_file_event(event):
-                    self.log.info(f"Film strip '{strip_name}' handled the drop")
+                    self.log.info("Film strip '%s' handled the drop", strip_name)
                     return True
             except AttributeError, TypeError, ValueError, OSError, pygame.error:
                 self.log.exception('Error in film strip drop handler')
@@ -125,10 +125,10 @@ class FileIOManager:
             and self.editor.canvas.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
             and self.editor.canvas.rect.collidepoint(mouse_pos)
         ):
-            self.log.info(f'Drop not on canvas or film strip - ignoring drop at {mouse_pos}')
+            self.log.info('Drop not on canvas or film strip - ignoring drop at %s', mouse_pos)
             return
 
-        self.log.info(f'Drop detected on canvas at {mouse_pos}')
+        self.log.info('Drop detected on canvas at %s', mouse_pos)
         if file_path.lower().endswith('.png'):
             self.log.info('PNG file detected - converting to bitmappy format')
             converted_toml_path = self._convert_png_to_bitmappy(file_path)
@@ -142,7 +142,7 @@ class FileIOManager:
             # Load the TOML file directly
             self._load_converted_sprite(file_path)
         else:
-            self.log.info(f'Unsupported file type dropped on canvas: {file_path}')
+            self.log.info('Unsupported file type dropped on canvas: %s', file_path)
 
     # ──────────────────────────────────────────────────────────────────────
     # PNG-to-TOML conversion pipeline
@@ -174,18 +174,17 @@ class FileIOManager:
 
             if has_transparency:
                 self.log.info(
-                    f'Found {transparent_pixels} transparent pixels, mapped to magenta'
-                    f' (255, 0, 255)'
+                    'Found %s transparent pixels, mapped to magenta (255, 0, 255)', transparent_pixels,
                 )
             self.log.info(
-                f'Sampled {sample_count} pixels, found {len(unique_colors)} unique colors'
+                f'Sampled {sample_count} pixels, found {len(unique_colors)} unique colors',
             )
 
             unique_colors = quantize_colors_if_needed(
-                unique_colors, has_transparency=has_transparency, log=self.log
+                unique_colors, has_transparency=has_transparency, log=self.log,
             )
             color_mapping = build_color_to_glyph_mapping(
-                unique_colors, has_transparency=has_transparency, log=self.log
+                unique_colors, has_transparency=has_transparency, log=self.log,
             )
 
             pixel_string = generate_pixel_string(
@@ -199,11 +198,11 @@ class FileIOManager:
             )
 
             toml_content = generate_toml_content(
-                file_path, pixel_string, color_mapping, log=self.log
+                file_path, pixel_string, color_mapping, log=self.log,
             )
             output_path = self._save_and_validate_toml(file_path, toml_content)
 
-            self.log.info(f'Successfully converted PNG to bitmappy format: {output_path}')
+            self.log.info('Successfully converted PNG to bitmappy format: %s', output_path)
             return str(output_path)
 
         except OSError, ValueError, TypeError, AttributeError, pygame.error:
@@ -220,29 +219,28 @@ class FileIOManager:
             Tuple of (image surface, width, height).
 
         """
-        self.log.info(f'Loading PNG image: {file_path}')
+        self.log.info('Loading PNG image: %s', file_path)
         image = pygame.image.load(file_path)
         width, height = image.get_size()
-        self.log.info(f'Image dimensions: {width}x{height}')
+        self.log.info('Image dimensions: %sx%s', width, height)
 
         # Get current canvas size for resizing
         canvas_width, canvas_height = 32, 32  # Default fallback
         if hasattr(self.editor, 'canvas') and self.editor.canvas:
             canvas_width = self.editor.canvas.pixels_across
             canvas_height = self.editor.canvas.pixels_tall
-            self.log.info(f'Using current canvas size: {canvas_width}x{canvas_height}')
+            self.log.info('Using current canvas size: %sx%s', canvas_width, canvas_height)
         else:
             self.log.info('No canvas found, using default size: 32x32')
 
         # Check if image needs resizing to match canvas size
         if width != canvas_width or height != canvas_height:
             self.log.info(
-                f'Resizing image from {width}x{height} to {canvas_width}x{canvas_height} to'
-                f' match canvas'
+                'Resizing image from %sx%s to %sx%s to match canvas', width, height, canvas_width, canvas_height,
             )
             image = pygame.transform.scale(image, (canvas_width, canvas_height))
             width, height = canvas_width, canvas_height
-            self.log.info(f'Resized image to {width}x{height}')
+            self.log.info('Resized image to %sx%s', width, height)
 
         # Convert to RGB if needed, handling transparency
         if image.get_flags() & pygame.SRCALPHA:
@@ -255,7 +253,7 @@ class FileIOManager:
         return image, width, height
 
     def _detect_png_transparency(
-        self, image: pygame.Surface, file_path: str
+        self, image: pygame.Surface, file_path: str,
     ) -> tuple[bool, pygame.Surface | None]:
         """Detect whether the original PNG image has transparency.
 
@@ -273,7 +271,7 @@ class FileIOManager:
         original_image = pygame.image.load(file_path)
         if original_image.get_flags() & pygame.SRCALPHA:
             self.log.info(
-                'Image has transparency - will map transparent pixels to magenta (255, 0, 255)'
+                'Image has transparency - will map transparent pixels to magenta (255, 0, 255)',
             )
             return True, original_image
         return False, None
@@ -302,7 +300,7 @@ class FileIOManager:
         """
         # Use a more efficient approach for large images
         sample_step = max(1, (width * height) // 10000)  # Sample up to 10k pixels
-        self.log.info(f'Sampling every {sample_step} pixels for color analysis')
+        self.log.info('Sampling every %s pixels for color analysis', sample_step)
 
         unique_colors: set[tuple[int, int, int]] = set()
         sample_count = 0
@@ -376,7 +374,7 @@ class FileIOManager:
             self.log.error('TOML file has no color definitions!')
             raise ValueError('Generated TOML file has no color definitions')
 
-        self.log.info(f'TOML validation passed: {color_count} colors defined')
+        self.log.info('TOML validation passed: %s colors defined', color_count)
 
     # ──────────────────────────────────────────────────────────────────────
     # Sprite loading into canvas
@@ -423,7 +421,7 @@ class FileIOManager:
         for i, sprite in enumerate(all_sprites):
             self.log.info(
                 f'Sprite {i}: {type(sprite)} - has on_load_file_event:'
-                f' {hasattr(sprite, "on_load_file_event")}'
+                f' {hasattr(sprite, "on_load_file_event")}',
             )
             if hasattr(sprite, 'on_load_file_event'):
                 self.log.info(f'Found canvas sprite: {type(sprite)}')
@@ -438,7 +436,7 @@ class FileIOManager:
             toml_path: Path to the TOML file.
 
         """
-        self.log.info(f'Loading converted sprite: {toml_path}')
+        self.log.info('Loading converted sprite: %s', toml_path)
         self.log.info(f'Found canvas sprite: {type(canvas_sprite)}')
 
         # Create a mock event for loading
@@ -464,7 +462,7 @@ class FileIOManager:
         """
         self.log.info(f'Canvas sprite type: {type(canvas_sprite)}')
         self.log.info(
-            f'Canvas sprite has animated_sprite: {hasattr(canvas_sprite, "animated_sprite")}'
+            f'Canvas sprite has animated_sprite: {hasattr(canvas_sprite, "animated_sprite")}',
         )
         if hasattr(canvas_sprite, 'animated_sprite'):
             self.log.info(f'animated_sprite value: {canvas_sprite.animated_sprite}')
@@ -476,7 +474,7 @@ class FileIOManager:
             return
 
         animations = list(canvas_sprite.animated_sprite._animations.keys())  # type: ignore[reportPrivateUsage]
-        self.log.info(f'Animations: {animations}')
+        self.log.info('Animations: %s', animations)
         if not animations:
             return
 
@@ -491,7 +489,7 @@ class FileIOManager:
         self._apply_frame_pixels_to_canvas(canvas_sprite, first_frame)
 
     def _apply_frame_pixels_to_canvas(
-        self, canvas_sprite: AnimatedCanvasSprite, first_frame: SpriteFrame
+        self, canvas_sprite: AnimatedCanvasSprite, first_frame: SpriteFrame,
     ) -> None:
         """Apply pixel data from a frame to the canvas.
 
@@ -506,7 +504,7 @@ class FileIOManager:
 
         frame_surface = first_frame.image
         frame_width, frame_height = frame_surface.get_size()
-        self.log.info(f'Frame surface size: {frame_width}x{frame_height}')
+        self.log.info('Frame surface size: %sx%s', frame_width, frame_height)
 
         # Convert the frame surface to pixel data
         pixel_data: list[tuple[int, ...]] = []
@@ -577,7 +575,7 @@ class FileIOManager:
             if hasattr(loaded_sprite, '_animations') and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
                 for animation_name in loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
                     onion_manager.clear_animation_onion_skinning(animation_name)
-                    self.log.debug(f'Cleared onion skinning state for animation: {animation_name}')
+                    self.log.debug('Cleared onion skinning state for animation: %s', animation_name)
 
             # Initialize onion skinning for all animations in the loaded sprite
             if hasattr(loaded_sprite, '_animations') and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
@@ -591,7 +589,7 @@ class FileIOManager:
                     onion_manager.set_animation_onion_state(animation_name, frame_states)  # type: ignore[arg-type]
                     self.log.debug(
                         f"Initialized onion skinning for animation '{animation_name}' with"
-                        f' {len(frames)} frames'
+                        f' {len(frames)} frames',
                     )
 
             # Ensure global onion skinning is enabled

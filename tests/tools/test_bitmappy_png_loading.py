@@ -44,7 +44,7 @@ class TestPNGLoading:
         self.mock_canvas.pixels_across = 32
         self.mock_canvas.pixels_tall = 32
         canvas_pixel_data = cast(
-            'list[tuple[int, ...]]', [(255, 255, 255)] * (32 * 32)
+            'list[tuple[int, ...]]', [(255, 255, 255)] * (32 * 32),
         )  # White pixels
         self.mock_canvas.pixels = canvas_pixel_data  # type: ignore[invalid-assignment]
         self.mock_canvas.on_load_file_event = mocker.Mock()
@@ -73,7 +73,7 @@ class TestPNGLoading:
 
             # Mock the AnimatedSprite.load method
             mock_sprite_class = self._mocker.patch(
-                'glitchygames.bitmappy.animated_canvas.AnimatedSprite'
+                'glitchygames.bitmappy.animated_canvas.AnimatedSprite',
             )
             mock_sprite = self._mocker.Mock()
             mock_sprite._animations = {}  # Add required attribute
@@ -115,7 +115,7 @@ class TestPNGLoading:
     def test_non_png_files_passthrough(self):
         """Test that non-PNG files are passed through unchanged."""
         mock_sprite_class = self._mocker.patch(
-            'glitchygames.bitmappy.animated_canvas.AnimatedSprite'
+            'glitchygames.bitmappy.animated_canvas.AnimatedSprite',
         )
         mock_sprite = self._mocker.Mock()
         mock_sprite._animations = {}  # Add required attribute
@@ -187,8 +187,8 @@ class TestTOMLNormalization:
                         {'frame_index': 0, 'pixels': 'ABC\\nDEF\\nGHI\\n'},
                         {'frame_index': 1, 'pixels': 'XYZ\\n123\\n456\\n'},
                     ],
-                }
-            ]
+                },
+            ],
         }
 
         # Normalize the data
@@ -239,7 +239,7 @@ class TestTOMLConstruction:
                 'name': 'test_sprite',
                 'description': 'A test sprite',
                 'pixels': 'ABC\nDEF\nGHI\n',
-            }
+            },
         }
 
         result = self.mock_scene._ai_integration._construct_toml_with_preserved_formatting(data)
@@ -261,8 +261,8 @@ class TestTOMLConstruction:
                     'frame_interval': 100,
                     'loop': True,
                     'frame': [{'frame_index': 0, 'pixels': 'ABC\nDEF\nGHI\n'}],
-                }
-            ]
+                },
+            ],
         }
 
         result = self.mock_scene._ai_integration._construct_toml_with_preserved_formatting(data)
@@ -285,7 +285,7 @@ class TestTOMLConstruction:
             'colors': {
                 'A': {'red': 255, 'green': 0, 'blue': 0},
                 'B': {'red': 0, 'green': 255, 'blue': 0},
-            }
+            },
         }
 
         result = self.mock_scene._ai_integration._construct_toml_with_preserved_formatting(data)
@@ -451,10 +451,10 @@ class TestDragAndDropPNG:
         try:
             # Mock the conversion and loading methods
             mock_convert = self._mocker.patch.object(
-                self.mock_scene._file_io, '_convert_png_to_bitmappy'
+                self.mock_scene._file_io, '_convert_png_to_bitmappy',
             )
             mock_load = self._mocker.patch.object(
-                self.mock_scene._file_io, '_load_converted_sprite'
+                self.mock_scene._file_io, '_load_converted_sprite',
             )
 
             mock_convert.return_value = '/tmp/test.toml'  # noqa: S108
@@ -487,7 +487,7 @@ class TestDragAndDropPNG:
         try:
             # Mock the conversion method (should not be called)
             mock_convert = self._mocker.patch.object(
-                self.mock_scene._file_io, '_convert_png_to_bitmappy'
+                self.mock_scene._file_io, '_convert_png_to_bitmappy',
             )
 
             # Create a mock event with the correct attribute
@@ -614,13 +614,13 @@ blue = 10
 """
 
         mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+            self.mock_scene._ai_integration, '_generate_frame_toml_content',
         )
         mock_generate.return_value = expected_toml
 
         # Call without force_single_char_glyphs
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
-            self.mock_canvas.pixels, force_single_char_glyphs=False
+            self.mock_canvas.pixels, force_single_char_glyphs=False,
         )
 
         assert toml_content is not None
@@ -630,7 +630,7 @@ blue = 10
 
         # Verify the method was called with the correct parameters
         mock_generate.assert_called_once_with(
-            self.mock_canvas.pixels, force_single_char_glyphs=False
+            self.mock_canvas.pixels, force_single_char_glyphs=False,
         )
 
     def test_generate_frame_toml_with_quantization(self):
@@ -685,13 +685,13 @@ blue = 5
 """
 
         mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+            self.mock_scene._ai_integration, '_generate_frame_toml_content',
         )
         mock_generate.return_value = expected_toml
 
         # Call with force_single_char_glyphs=True
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
-            self.mock_canvas.pixels, force_single_char_glyphs=True
+            self.mock_canvas.pixels, force_single_char_glyphs=True,
         )
 
         assert toml_content is not None
@@ -712,7 +712,7 @@ blue = 5
 
         # Verify the method was called with the correct parameters
         mock_generate.assert_called_once_with(
-            self.mock_canvas.pixels, force_single_char_glyphs=True
+            self.mock_canvas.pixels, force_single_char_glyphs=True,
         )
 
     def test_save_current_frame_to_temp_toml_uses_quantization(self):
@@ -720,7 +720,7 @@ blue = 5
         # Mock the _save_current_frame_to_temp_toml method to verify it calls
         # _generate_frame_toml_content with quantization
         mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+            self.mock_scene._ai_integration, '_generate_frame_toml_content',
         )
         mock_generate.return_value = (
             '[sprite]\nname = "test"\npixels = """\naa\nbb\n"""\n\n'
@@ -729,7 +729,7 @@ blue = 5
 
         # Mock the _save_current_frame_to_temp_toml method
         mock_save = self._mocker.patch.object(
-            self.mock_scene._ai_integration, '_save_current_frame_to_temp_toml'
+            self.mock_scene._ai_integration, '_save_current_frame_to_temp_toml',
         )
         mock_save.return_value = '/tmp/test.toml'  # noqa: S108
 
@@ -808,12 +808,12 @@ blue = 0
 """
 
         mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+            self.mock_scene._ai_integration, '_generate_frame_toml_content',
         )
         mock_generate.return_value = expected_toml
 
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
-            pixels, force_single_char_glyphs=True
+            pixels, force_single_char_glyphs=True,
         )
 
         # Parse the TOML
@@ -878,12 +878,12 @@ blue = 0
 """
 
         mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+            self.mock_scene._ai_integration, '_generate_frame_toml_content',
         )
         mock_generate.return_value = expected_toml
 
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
-            single_color_pixels, force_single_char_glyphs=True
+            single_color_pixels, force_single_char_glyphs=True,
         )
 
         assert toml_content is not None
@@ -953,12 +953,12 @@ blue = 5
 """
 
         mock_generate = self._mocker.patch.object(
-            self.mock_scene._ai_integration, '_generate_frame_toml_content'
+            self.mock_scene._ai_integration, '_generate_frame_toml_content',
         )
         mock_generate.return_value = expected_toml
 
         toml_content = self.mock_scene._ai_integration._generate_frame_toml_content(
-            pixels, force_single_char_glyphs=True
+            pixels, force_single_char_glyphs=True,
         )
 
         assert toml_content is not None
@@ -1009,7 +1009,7 @@ blue = 255
 
         # Create temporary TOML file
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w', suffix='.toml', delete=False, encoding='utf-8',
         ) as f:
             f.write(test_toml_content)
             temp_path = f.name

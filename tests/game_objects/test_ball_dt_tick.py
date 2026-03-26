@@ -64,5 +64,5 @@ class TestBallDtTick:
             LOG.debug(
                 f'{direction:8d}° | ({initial_x:3d},{initial_y:3d})'
                 f'     | ({final_x:3d},{final_y:3d})'
-                f'    | {distance:6.1f} | {actual_speed:6.1f}'
+                f'    | {distance:6.1f} | {actual_speed:6.1f}',
             )

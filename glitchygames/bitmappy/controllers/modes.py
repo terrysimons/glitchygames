@@ -11,10 +11,17 @@ Features:
 - Visual indicator management per mode
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from glitchygames.bitmappy.indicators import LocationType
+
+if TYPE_CHECKING:
+    from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
+    from glitchygames.bitmappy.controllers.strategies import ModeStrategy
 
 MAX_MODE_HISTORY_SIZE = 10
 
@@ -50,7 +57,7 @@ class ControllerModeState:
     last_mode_switch_time: float = 0.0
 
     def __init__(
-        self, controller_id: int, initial_mode: ControllerMode = ControllerMode.FILM_STRIP
+        self, controller_id: int, initial_mode: ControllerMode = ControllerMode.FILM_STRIP,
     ) -> None:
         """Initialize the controller mode state for a given controller."""
         self.controller_id = controller_id
@@ -147,7 +154,7 @@ class TriggerDetector:
         self.last_trigger_times: dict[int, dict[str, float]] = {}
 
     def detect_trigger_press(
-        self, controller_id: int, trigger_value: float, trigger_type: str, current_time: float
+        self, controller_id: int, trigger_value: float, trigger_type: str, current_time: float,
     ) -> bool:
         """Detect if a trigger was pressed (crossed threshold).
 
@@ -203,6 +210,7 @@ class ModeSwitcher:
         """Initialize the mode switcher with empty controller mode tracking."""
         self.controller_modes: dict[int, ControllerModeState] = {}
         self.trigger_detector = TriggerDetector()
+        self._strategies: dict[ControllerMode, ModeStrategy] = {}
         # R2 cycle: B -> G -> R -> canvas -> film strip
         self.r2_cycle = [
             ControllerMode.B_SLIDER,
@@ -220,8 +228,51 @@ class ModeSwitcher:
             ControllerMode.B_SLIDER,
         ]
 
+    def set_handler(self, handler: ControllerEventHandler) -> None:
+        """Set the controller event handler and initialize mode strategies.
+
+        Must be called after both ModeSwitcher and ControllerEventHandler exist,
+        since they have a circular dependency at construction time.
+
+        Args:
+            handler: The controller event handler to bind strategies to.
+
+        """
+        from glitchygames.bitmappy.controllers.strategies import (
+            CanvasModeStrategy,
+            FilmStripModeStrategy,
+            SliderModeStrategy,
+        )
+
+        film_strip_strategy = FilmStripModeStrategy(handler)
+        canvas_strategy = CanvasModeStrategy(handler)
+        slider_strategy = SliderModeStrategy(handler)
+
+        self._strategies = {
+            ControllerMode.FILM_STRIP: film_strip_strategy,
+            ControllerMode.CANVAS: canvas_strategy,
+            ControllerMode.R_SLIDER: slider_strategy,
+            ControllerMode.G_SLIDER: slider_strategy,
+            ControllerMode.B_SLIDER: slider_strategy,
+        }
+
+    def get_strategy(self, controller_id: int) -> ModeStrategy | None:
+        """Get the mode strategy for the given controller's current mode.
+
+        Args:
+            controller_id: The controller to look up.
+
+        Returns:
+            The strategy for the controller's mode, or None if unknown.
+
+        """
+        mode = self.get_controller_mode(controller_id)
+        if mode is None:
+            return None
+        return self._strategies.get(mode)
+
     def register_controller(
-        self, controller_id: int, initial_mode: ControllerMode = ControllerMode.CANVAS
+        self, controller_id: int, initial_mode: ControllerMode = ControllerMode.CANVAS,
     ) -> None:
         """Register a new controller with mode state."""
         self.controller_modes[controller_id] = ControllerModeState(controller_id, initial_mode)
@@ -254,7 +305,7 @@ class ModeSwitcher:
         return None
 
     def handle_trigger_input(
-        self, controller_id: int, l2_value: float, r2_value: float, current_time: float
+        self, controller_id: int, l2_value: float, r2_value: float, current_time: float,
     ) -> ControllerMode | None:
         """Handle trigger input and return new mode if switched.
 
@@ -273,10 +324,10 @@ class ModeSwitcher:
 
         # Check for trigger presses
         l2_pressed = self.trigger_detector.detect_trigger_press(
-            controller_id, l2_value, 'L2', current_time
+            controller_id, l2_value, 'L2', current_time,
         )
         r2_pressed = self.trigger_detector.detect_trigger_press(
-            controller_id, r2_value, 'R2', current_time
+            controller_id, r2_value, 'R2', current_time,
         )
 
         if not (l2_pressed or r2_pressed):

@@ -111,10 +111,10 @@ class TestFrameSpecificUndoRedo:
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description='Frame-specific brush stroke',
             undo_data={
-                'pixels': [(10, 20, (0, 255, 0), (255, 0, 0))]
+                'pixels': [(10, 20, (0, 255, 0), (255, 0, 0))],
             },  # (x, y, new_color, old_color)
             redo_data={
-                'pixels': [(10, 20, (255, 0, 0), (0, 255, 0))]
+                'pixels': [(10, 20, (255, 0, 0), (0, 255, 0))],
             },  # (x, y, old_color, new_color)
         )
 
@@ -144,6 +144,9 @@ class TestFrameSpecificUndoRedo:
 
     def test_can_redo_frame(self):
         """Test checking if frame-specific redo is available."""
+        # Set a pixel change callback so the legacy adapter can dispatch
+        self.manager.set_pixel_change_callback(lambda x, y, color: True)
+
         # Add and undo frame operation
         self.manager.add_frame_operation(
             animation='walk_animation',
@@ -176,10 +179,10 @@ class TestFrameSpecificUndoRedo:
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description='Test operation',
             undo_data={
-                'pixels': [(10, 20, (0, 255, 0), (255, 0, 0))]
+                'pixels': [(10, 20, (0, 255, 0), (255, 0, 0))],
             },  # (x, y, new_color, old_color)
             redo_data={
-                'pixels': [(10, 20, (255, 0, 0), (0, 255, 0))]
+                'pixels': [(10, 20, (255, 0, 0), (0, 255, 0))],
             },  # (x, y, old_color, new_color)
         )
 
@@ -205,10 +208,10 @@ class TestFrameSpecificUndoRedo:
             operation_type=OperationType.CANVAS_BRUSH_STROKE,
             description='Test operation',
             undo_data={
-                'pixels': [(10, 20, (0, 255, 0), (255, 0, 0))]
+                'pixels': [(10, 20, (0, 255, 0), (255, 0, 0))],
             },  # (x, y, new_color, old_color)
             redo_data={
-                'pixels': [(10, 20, (255, 0, 0), (0, 255, 0))]
+                'pixels': [(10, 20, (255, 0, 0), (0, 255, 0))],
             },  # (x, y, old_color, new_color)
         )
 
@@ -247,7 +250,8 @@ class TestCanvasOperationTracker:
 
         operation = self.manager.frame_undo_stacks[frame_key][0]
         assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
-        assert 'walk_animation[1]' in operation.description
+        # BrushStrokeCommand generates description based on pixel count, not animation name
+        assert 'Brush stroke' in operation.description or 'Pixel change' in operation.description
 
     def test_add_frame_pixel_changes_with_tuples(self):
         """Test adding frame-specific pixel changes with tuple format."""
@@ -261,7 +265,8 @@ class TestCanvasOperationTracker:
 
         operation = self.manager.frame_undo_stacks[frame_key][0]
         assert operation.operation_type == OperationType.CANVAS_BRUSH_STROKE
-        assert 'run_animation[2]' in operation.description
+        # BrushStrokeCommand generates description based on pixel count, not animation name
+        assert 'Brush stroke' in operation.description or 'Pixel change' in operation.description
 
     def test_add_pixel_changes_global_fallback(self):
         """Test that global tracking still works as fallback."""
@@ -308,7 +313,7 @@ class TestFilmStripOperationTracker:
             'frames': [
                 {'width': 32, 'height': 32, 'pixels': [255, 0, 0] * 32 * 32, 'duration': 1.0},
                 {'width': 32, 'height': 32, 'pixels': [0, 255, 0] * 32 * 32, 'duration': 1.0},
-            ]
+            ],
         }
         self.tracker.add_animation_added('new_animation', animation_data)
 
@@ -321,8 +326,8 @@ class TestFilmStripOperationTracker:
         """Test tracking animation deletion."""
         animation_data = {
             'frames': [
-                {'width': 32, 'height': 32, 'pixels': [255, 0, 0] * 32 * 32, 'duration': 1.0}
-            ]
+                {'width': 32, 'height': 32, 'pixels': [255, 0, 0] * 32 * 32, 'duration': 1.0},
+            ],
         }
         self.tracker.add_animation_deleted('old_animation', animation_data)
 
@@ -419,31 +424,38 @@ class TestUndoRedoCallbacks:
 class TestIntegrationScenarios:
     """Test complex integration scenarios."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_fixtures(self, mocker):
         """Set up test fixtures."""
         self.manager = UndoRedoManager()
-        self.canvas_tracker = CanvasOperationTracker(self.manager)
-        self.film_tracker = FilmStripOperationTracker(self.manager)
+        # Create a mock editor so command objects can access editor._applying_undo_redo
+        # and editor.canvas.canvas_interface.set_pixel_at()
+        self.mock_editor = mocker.Mock()
+        self.mock_editor._applying_undo_redo = False
+        # Use a real dict for _animations so FrameAddCommand._delete_frame can check membership
+        self.mock_editor.canvas.animated_sprite._animations = {}
+        self.mock_editor.canvas.animated_sprite._is_playing = False
+        self.canvas_tracker = CanvasOperationTracker(self.manager, editor=self.mock_editor)
+        self.film_tracker = FilmStripOperationTracker(self.manager, editor=self.mock_editor)
 
     def test_mixed_operations_undo_sequence(self, mocker):
         """Test undoing a sequence of mixed canvas and film strip operations."""
-        # Set up callbacks
-        mock_pixel_callback = mocker.Mock(return_value=True)
-        mock_add_frame_callback = mocker.Mock(return_value=True)
-        mock_delete_frame_callback = mocker.Mock(return_value=True)
-
-        self.manager.set_pixel_change_callback(mock_pixel_callback)
-        self.manager.set_film_strip_callbacks(
-            add_frame_callback=mock_add_frame_callback,
-            delete_frame_callback=mock_delete_frame_callback,
-            reorder_frame_callback=mocker.Mock(return_value=True),
-            add_animation_callback=mocker.Mock(return_value=True),
-            delete_animation_callback=mocker.Mock(return_value=True),
-        )
-
         # Add canvas operation
         pixels = [(10, 20, (255, 0, 0), (0, 255, 0))]
         self.canvas_tracker.add_pixel_changes(pixels)
+
+        # Pre-populate the animation so FrameAddCommand._delete_frame can find it
+        import pygame
+
+        from glitchygames.sprites.animated import SpriteFrame
+
+        placeholder = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+        added_frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+        self.mock_editor.canvas.animated_sprite._animations = {
+            'walk_animation': [placeholder, added_frame],
+        }
+        self.mock_editor.canvas.animated_sprite.frame_manager = mocker.Mock()
+        self.mock_editor.canvas.animated_sprite.frame_manager.current_animation = ''
 
         # Add frame operation
         frame_data = {'width': 32, 'height': 32, 'pixels': [], 'duration': 1.0}
@@ -502,8 +514,9 @@ class TestIntegrationScenarios:
 
         frame_key = ('walk_animation', 1)
         frame_operation = self.manager.frame_undo_stacks[frame_key][0]
-        assert 'walk_animation[1]' in frame_operation.description
-        assert 'pixel change' in frame_operation.description  # Singular for single pixel
+        # BrushStrokeCommand describes the pixel operation without animation prefix
+        assert 'Pixel change' in frame_operation.description
+        assert '(15, 25)' in frame_operation.description
 
 
 class TestEdgeCases:

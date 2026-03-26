@@ -55,7 +55,7 @@ class Game(Scene):
         """
         super().__init__(options=options)
         # These are set up in the GameEngine class.
-        self.log.info(f'Game Options: {options}')
+        self.log.info('Game Options: %s', options)
 
         self.next_scene = IntroScene()
 
@@ -68,7 +68,7 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v', '--version', action='store_true', help='print the game version and exit',
         )
 
 

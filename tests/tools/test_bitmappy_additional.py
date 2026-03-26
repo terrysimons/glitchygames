@@ -127,7 +127,7 @@ class TestNormalizeTomlData:
                     'frame': [
                         {'pixels': '##\\n..'},
                     ],
-                }
+                },
             ],
         }
         result = normalize_toml_data(config_data)
@@ -210,8 +210,8 @@ class TestDetectAlphaChannelInAnimation:
             'walk': {
                 'colors': {
                     '#': {'red': 0, 'green': 0, 'blue': 0, 'alpha': 128},
-                }
-            }
+                },
+            },
         }
         assert _detect_alpha_channel_in_animation(animation_data) is True
 
@@ -221,8 +221,8 @@ class TestDetectAlphaChannelInAnimation:
             'walk': {
                 'colors': {
                     '#': {'red': 0, 'green': 0, 'blue': 0},
-                }
-            }
+                },
+            },
         }
         assert _detect_alpha_channel_in_animation(animation_data) is False
 
@@ -232,8 +232,8 @@ class TestDetectAlphaChannelInAnimation:
             {
                 'colors': {
                     '#': {'red': 255, 'green': 0, 'blue': 255},
-                }
-            }
+                },
+            },
         ]
         assert _detect_alpha_channel_in_animation(animation_data) is True
 
@@ -243,8 +243,8 @@ class TestDetectAlphaChannelInAnimation:
             {
                 'colors': {
                     '#': {'red': 100, 'green': 100, 'blue': 100},
-                }
-            }
+                },
+            },
         ]
         assert _detect_alpha_channel_in_animation(animation_data) is False
 
@@ -414,7 +414,7 @@ class TestExtractResponseContent:
             choices: list
 
         result = _extract_response_content(
-            MockResponse(choices=[MockChoice(message=MessageNoContent())]), logger
+            MockResponse(choices=[MockChoice(message=MessageNoContent())]), logger,
         )
         assert result.content is None
         assert result.error is not None
@@ -1029,7 +1029,7 @@ class TestConvertAnimationColorsToRgba:
             'walk': {
                 'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
                 'pixels': '##',
-            }
+            },
         }
         result = _convert_animation_colors_to_rgba(animations)
         assert result['walk']['colors']['#']['alpha'] == 255
@@ -1075,7 +1075,7 @@ class TestConvertSpriteToAlphaFormat:
             'animations': {
                 'walk': {
                     'colors': {'#': {'red': 100, 'green': 100, 'blue': 100}},
-                }
+                },
             },
         }
         result = convert_sprite_to_alpha_format(sprite_data)

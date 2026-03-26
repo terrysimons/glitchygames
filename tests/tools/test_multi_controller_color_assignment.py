@@ -102,7 +102,7 @@ class TestColorAssignmentOrder:
         """Test that color assignment resets properly."""
         # Add controller and assign color
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(128, 128, 128)
+            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(128, 128, 128),
         )
         self.manager.assign_color_to_controller(0)
 
@@ -225,9 +225,9 @@ class TestShoulderButtonFunctionality:
 
     def test_left_shoulder_button_behavior(self, mocker):
         """Test that left shoulder button moves indicator left."""
-        # Mock the _multi_controller_previous_frame method
+        # Mock the multi_controller_previous_frame method
         mock_prev = mocker.patch(
-            'glitchygames.bitmappy.controller_handler.ControllerEventHandler._multi_controller_previous_frame'
+            'glitchygames.bitmappy.controllers.event_handler.ControllerEventHandler.multi_controller_previous_frame',
         )
         # Simulate left shoulder button press
         controller_id = 0
@@ -241,9 +241,9 @@ class TestShoulderButtonFunctionality:
 
     def test_right_shoulder_button_behavior(self, mocker):
         """Test that right shoulder button moves indicator right."""
-        # Mock the _multi_controller_next_frame method
+        # Mock the multi_controller_next_frame method
         mock_next = mocker.patch(
-            'glitchygames.bitmappy.controller_handler.ControllerEventHandler._multi_controller_next_frame'
+            'glitchygames.bitmappy.controllers.event_handler.ControllerEventHandler.multi_controller_next_frame',
         )
         # Simulate right shoulder button press
         controller_id = 0
@@ -267,7 +267,7 @@ class TestShoulderButtonFunctionality:
         controller_selection.set_selection('test_animation', 3)
 
         # Simulate frame navigation that should trigger scrolling
-        # This would be called by _multi_controller_previous_frame/_next_frame
+        # This would be called by multi_controller_previous_frame/_next_frame
         mock_film_strip.update_scroll_for_frame('test_animation', 2)
         mock_film_strip.update_scroll_for_frame.assert_called_with('test_animation', 2)
 

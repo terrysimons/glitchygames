@@ -35,10 +35,10 @@ def _detect_alpha_channel(colors: dict[str, Any]) -> bool:
             # Check for magenta transparency (255, 0, 255)
             r_val = int(color_data.get('red', 0) if 'red' in color_data else color_data.get('r', 0))
             g_val = int(
-                color_data.get('green', 0) if 'green' in color_data else color_data.get('g', 0)
+                color_data.get('green', 0) if 'green' in color_data else color_data.get('g', 0),
             )
             b_val = int(
-                color_data.get('blue', 0) if 'blue' in color_data else color_data.get('b', 0)
+                color_data.get('blue', 0) if 'blue' in color_data else color_data.get('b', 0),
             )
             if r_val == MAX_COLOR_CHANNEL_VALUE and g_val == 0 and b_val == MAX_COLOR_CHANNEL_VALUE:
                 return True
@@ -96,7 +96,7 @@ def convert_sprite_to_alpha_format(sprite_data: dict[str, Any]) -> dict[str, Any
         # Convert animation colors if present
         if 'animations' in converted_data:
             converted_data['animations'] = _convert_animation_colors_to_rgba(
-                converted_data['animations']
+                converted_data['animations'],
             )
 
     return converted_data
@@ -129,7 +129,7 @@ def _convert_colors_to_rgba(colors: dict[str, Any]) -> dict[str, Any]:
                 a = int(
                     color_data.get('alpha', 255)
                     if 'alpha' in color_data
-                    else color_data.get('a', 255)
+                    else color_data.get('a', 255),
                 )  # Default to opaque
 
             converted_colors[color_key] = {'red': r, 'green': g, 'blue': b, 'alpha': a}
@@ -155,7 +155,7 @@ def _convert_animation_colors_to_rgba(animations: dict[str, Any]) -> dict[str, A
         if isinstance(frame_data, dict) and 'colors' in frame_data:
             converted_animations[frame_name] = frame_data.copy()
             converted_animations[frame_name]['colors'] = _convert_colors_to_rgba(
-                frame_data['colors']  # type: ignore[arg-type]
+                frame_data['colors'],  # type: ignore[arg-type]
             )
         else:
             converted_animations[frame_name] = frame_data

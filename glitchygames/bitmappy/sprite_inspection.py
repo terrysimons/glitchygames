@@ -58,7 +58,7 @@ def _pixels_have_alpha(pixels: list[tuple[int, ...]]) -> bool:
 
 
 def _render_static_sprite_ascii(
-    sprite: AnimatedSprite | BitmappySprite, renderer: ASCIIRenderer
+    sprite: AnimatedSprite | BitmappySprite, renderer: ASCIIRenderer,
 ) -> None:
     """Render ASCII output for a single-frame (static) sprite.
 
@@ -79,7 +79,7 @@ def _render_static_sprite_ascii(
 
 
 def _render_animated_sprite_ascii(
-    sprite: AnimatedSprite | BitmappySprite, renderer: ASCIIRenderer
+    sprite: AnimatedSprite | BitmappySprite, renderer: ASCIIRenderer,
 ) -> None:
     """Render ASCII output for all animation frames side-by-side.
 
@@ -138,7 +138,7 @@ def _get_sprite_alpha_type(sprite: AnimatedSprite | BitmappySprite) -> str:
 
 
 def _calculate_animation_duration(
-    sprite: AnimatedSprite | BitmappySprite, sprite_type: str
+    sprite: AnimatedSprite | BitmappySprite, sprite_type: str,
 ) -> tuple[float, bool]:
     """Calculate total animation duration and loop status.
 
@@ -211,14 +211,14 @@ def _log_colorized_sprite_output(
         if is_static:
             LOG.info(
                 f'Loaded "{sprite_name}" (filename: {config_file.name}, type:'
-                f' single-frame, per-pixel alpha: {has_alpha})'
+                f' single-frame, per-pixel alpha: {has_alpha})',
             )
             _render_static_sprite_ascii(sprite, renderer)
         else:
             LOG.info(
                 f'Loaded "{sprite_name}" (filename: {config_file.name}, type:'
                 f' animated, animations: {animation_count}, per-pixel alpha:'
-                f' {has_alpha})'
+                f' {has_alpha})',
             )
             _render_animated_sprite_ascii(sprite, renderer)
     else:
@@ -226,7 +226,7 @@ def _log_colorized_sprite_output(
         has_alpha = _pixels_have_alpha(sprite.pixels) if hasattr(sprite, 'pixels') else False
         LOG.info(
             f'Loaded "{sprite_name}" (filename: {config_file.name}, type:'
-            f' single-frame, per-pixel alpha: {has_alpha})'
+            f' single-frame, per-pixel alpha: {has_alpha})',
         )
 
     sprite_type = 'animated' if isinstance(sprite, AnimatedSprite) else 'static'
@@ -237,12 +237,12 @@ def _log_colorized_sprite_output(
 
     colorized_output = renderer.render_sprite(config_data)
     LOG.debug(
-        f'Generated colorized output for {config_file.name}: {len(colorized_output)} characters'
+        f'Generated colorized output for {config_file.name}: {len(colorized_output)} characters',
     )
     LOG.debug(f'\n🎨 Colorized ASCII Output for {config_file.name}:')
     LOG.debug(
         f'   Type: {sprite_type}, Frames: {frame_count}, Colors: {color_count},'
-        f' Alpha: {alpha_type}, Duration: {duration_str}'
+        f' Alpha: {alpha_type}, Duration: {duration_str}',
     )
     LOG.debug(colorized_output)
     LOG.debug(f'Successfully printed colorized output for {config_file.name}')

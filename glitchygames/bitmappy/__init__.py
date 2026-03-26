@@ -70,7 +70,6 @@ from .constants import (
     TRANSPARENT_GLYPH,
     ai_training_state,
 )
-from .controller_handler import ControllerEventHandler
 from .controllers import (
     MAX_CONTROLLER_ACTION_HISTORY,
     BitmappyMultiControllerEnhancements,
@@ -96,6 +95,7 @@ from .controllers import (
     PerformanceMonitor,
     TriggerDetector,
 )
+from .controllers.event_handler import ControllerEventHandler
 
 # Main editor class and entry point
 from .editor import (
@@ -138,6 +138,7 @@ from .onion_skinning import OnionSkinningManager, get_onion_skinning_manager
 from .pixel_sprite import BitmapPixelSprite
 from .protocols import EditorContext
 from .scroll_arrow import ScrollArrowSprite
+from .slider_manager import SliderManager
 from .sprite_inspection import load_ai_training_data
 from .toml_processing import parse_toml_robustly
 from .utils import SPRITE_CONFIG_DIR, detect_file_format, resource_path
@@ -245,6 +246,7 @@ __all__ = [
     'PerformanceMonitor',
     'PixelChange',
     'ScrollArrowSprite',
+    'SliderManager',
     'StaticCanvasInterface',
     'StaticSpriteSerializer',
     'TriggerDetector',

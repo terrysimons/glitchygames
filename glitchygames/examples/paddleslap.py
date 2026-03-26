@@ -148,7 +148,7 @@ class TextSprite(Sprite):
 
                 pygame.freetype.set_default_resolution(font_controller.font_dpi)  # type: ignore[attr-defined]
                 self.font = pygame.freetype.SysFont(  # type: ignore[attr-defined]
-                    name=font_controller.font, size=font_controller.font_size
+                    name=font_controller.font, size=font_controller.font_size,
                 )
 
             def print_text(self: Self, surface: pygame.surface.Surface, string: str) -> None:
@@ -229,7 +229,7 @@ class Game(Scene):
         # Set random seed for reproducible randomness
         seed = int(time.perf_counter() * 1000000) % 2**32
         random.seed(seed)
-        log.info(f'Random seed set to: {seed}')
+        log.info('Random seed set to: %s', seed)
 
         v_center = self.screen_height // 2
         self.player1 = VerticalPaddle(
@@ -310,11 +310,11 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v', '--version', action='store_true', help='print the game version and exit',
         )
 
         parser.add_argument(
-            '-b', '--balls', type=int, help='the number of balls to start with', default=1
+            '-b', '--balls', type=int, help='the number of balls to start with', default=1,
         )
 
         parser.add_argument(
@@ -376,13 +376,13 @@ class Game(Scene):
                             log.debug(
                                 f'BALL {i + 1} UPWARD CURVE DETECTED: '
                                 f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
-                                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
+                                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})',
                             )
 
                 log.debug(
                     f'BALL {i + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
                     f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
+                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
                 )
 
         for sprite in self.all_sprites:
@@ -394,7 +394,7 @@ class Game(Scene):
                 log.debug(
                     f'BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
                     f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
+                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
                 )
 
     @override
@@ -420,7 +420,7 @@ class Game(Scene):
                 f'paddle2_rect=({self.player2.rect.x},'
                 f'{self.player2.rect.y},'
                 f'{self.player2.rect.width},'
-                f'{self.player2.rect.height})'
+                f'{self.player2.rect.height})',
             )
 
             # Paddle collision handling is now done in BallSprite._check_paddle_collisions()
@@ -568,7 +568,7 @@ class Game(Scene):
                 log.debug(
                     'Ball spawn cooldown active '
                     f'({current_time - self.last_ball_spawn_time:.1f}s'
-                    f' < {cooldown}s), not spawning'
+                    f' < {cooldown}s), not spawning',
                 )
                 return
 
@@ -652,7 +652,7 @@ class Game(Scene):
                 self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
                 self._cap_ball_speeds(ball1, ball2)
                 self._separate_overlapping_balls(
-                    ball1, ball2, normal_x, normal_y, collision_distance, distance
+                    ball1, ball2, normal_x, normal_y, collision_distance, distance,
                 )
 
                 # Set cooldown for this pair to prevent duplicate processing
@@ -670,7 +670,7 @@ class Game(Scene):
 
     @staticmethod
     def _calculate_ball_distance(
-        ball1: BallSprite, ball2: BallSprite
+        ball1: BallSprite, ball2: BallSprite,
     ) -> tuple[float, float, float, int]:
         """Calculate distance and collision threshold between two balls.
 
@@ -701,7 +701,7 @@ class Game(Scene):
 
         log.debug(
             f'BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, '
-            f'ball2 speed before={ball2_speed_before:.2f}'
+            f'ball2 speed before={ball2_speed_before:.2f}',
         )
 
         # Decompose velocities into normal and tangential components
@@ -732,7 +732,7 @@ class Game(Scene):
             f'BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, '
             f'ball2 speed after={ball2_speed_after:.2f}, '
             f'energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, '
-            f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}'
+            f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}',
         )
 
     @staticmethod
@@ -792,7 +792,7 @@ class Game(Scene):
             player = self.player1 if event.instance_id == 0 else self.player2
             player.stop()
 
-        self.log.info(f'GOT on_controller_button_down_event: {event}')
+        self.log.info('GOT on_controller_button_down_event: %s', event)
 
     @override
     def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -808,7 +808,7 @@ class Game(Scene):
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
             player.down()
 
-        self.log.info(f'GOT on_controller_button_up_event: {event}')
+        self.log.info('GOT on_controller_button_up_event: %s', event)
 
     @override
     def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
@@ -826,7 +826,7 @@ class Game(Scene):
                 player.stop()
             if event.value > 0:
                 player.down()
-            self.log.info(f'GOT on_controller_axis_motion_event: {event}')
+            self.log.info('GOT on_controller_axis_motion_event: %s', event)
 
     @override
     def on_key_down_event(self: Self, event: HashableEvent) -> None:
@@ -842,22 +842,22 @@ class Game(Scene):
             self._space_pressed = True
         elif event.key == pygame.K_w:
             log.debug(
-                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}'  # type: ignore[reportPrivateUsage]
+                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}',  # type: ignore[reportPrivateUsage]
             )
             self.player1.up()
         elif event.key == pygame.K_s:
             log.debug(
-                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}'  # type: ignore[reportPrivateUsage]
+                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}',  # type: ignore[reportPrivateUsage]
             )
             self.player1.down()
         elif event.key == pygame.K_UP:
             log.debug(
-                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}'  # type: ignore[reportPrivateUsage]
+                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}',  # type: ignore[reportPrivateUsage]
             )
             self.player2.up()
         elif event.key == pygame.K_DOWN:
             log.debug(
-                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}'  # type: ignore[reportPrivateUsage]
+                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}',  # type: ignore[reportPrivateUsage]
             )
             self.player2.down()
 

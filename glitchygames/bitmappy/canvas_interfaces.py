@@ -58,7 +58,7 @@ class CanvasInterface(Protocol):
         ...
 
     def set_pixel_at(
-        self, x: int, y: int, color: tuple[int, int, int] | tuple[int, int, int, int]
+        self, x: int, y: int, color: tuple[int, int, int] | tuple[int, int, int, int],
     ) -> None:
         """Set the color of a pixel at the given coordinates."""
         ...
@@ -77,7 +77,7 @@ class SpriteSerializer(ABC):
 
     @abstractmethod
     def save(
-        self, sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT
+        self, sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT,
     ) -> None:
         """Save a sprite to a file.
 
@@ -186,7 +186,7 @@ class StaticCanvasInterface:
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
     def set_pixel_at(
-        self, x: int, y: int, color: tuple[int, int, int] | tuple[int, int, int, int]
+        self, x: int, y: int, color: tuple[int, int, int] | tuple[int, int, int, int],
     ) -> None:
         """Set the color of a pixel at the given coordinates."""
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
@@ -349,7 +349,7 @@ class AnimatedCanvasInterface:
             return False
         parent = self.canvas_sprite.parent_scene
         return hasattr(parent, 'canvas_operation_tracker') and not getattr(
-            parent, '_applying_undo_redo', False
+            parent, '_applying_undo_redo', False,
         )
 
     def set_pixel_at(
@@ -391,13 +391,13 @@ class AnimatedCanvasInterface:
         controller_drag_active = self._is_controller_drag_active()
 
         if self._should_track_color_change(
-            old_color, color, controller_drag_active=controller_drag_active
+            old_color, color, controller_drag_active=controller_drag_active,
         ):
             self._collect_pixel_change(x, y, old_color, color)
         elif controller_drag_active:
             # Controller drag is active with pixels, don't collect pixels in canvas interface
             LOG.debug(
-                'Controller drag active with pixels, skipping canvas interface pixel collection'
+                'Controller drag active with pixels, skipping canvas interface pixel collection',
             )
             # But still update the frame data - don't return early
 
@@ -469,7 +469,7 @@ class AnimatedCanvasInterface:
         # This prevents unbounded growth during long drags on the same pixels
         pixel_key = (x, y)
         pixel_changes_dict: dict[tuple[int, int], Any] = cast(
-            'dict[tuple[int, int], Any]', parent_scene.current_pixel_changes_dict
+            'dict[tuple[int, int], Any]', parent_scene.current_pixel_changes_dict,
         )
 
         # Store or update the pixel change (keeps original old_color, updates new_color)
@@ -637,11 +637,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         animated: AnimatedSprite = self.canvas_sprite.animated_sprite
         frames: dict[str, list[SpriteFrame]] = animated.frames
 
-        LOG.debug(f'DEBUG: current_animation={current_animation}, current_frame={current_frame}')
+        LOG.debug('DEBUG: current_animation=%s, current_frame=%s', current_animation, current_frame)
         LOG.debug(f'DEBUG: frames keys={list(frames.keys()) if frames else "None"}')
         LOG.debug(
             'DEBUG: frames[current_animation] length='
-            f'{len(frames[current_animation]) if current_animation in frames else "N/A"}'
+            f'{len(frames[current_animation]) if current_animation in frames else "N/A"}',
         )
 
         if current_animation not in frames or current_frame >= len(frames[current_animation]):
@@ -668,11 +668,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         selected_frame_visible = True
         if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
             selected_frame_visible = getattr(
-                self.canvas_sprite.parent_scene, 'selected_frame_visible', True
+                self.canvas_sprite.parent_scene, 'selected_frame_visible', True,
             )
 
         border_thickness = self.canvas_sprite.border_thickness
-        LOG.debug(f'DEBUG RENDERER: border_thickness={border_thickness}')
+        LOG.debug('DEBUG RENDERER: border_thickness=%s', border_thickness)
 
         if selected_frame_visible:
             self._draw_visible_frame_pixels(frame_pixels)
@@ -684,7 +684,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             self._draw_pixel_grid_borders(frame_pixels, border_thickness)
 
     def _render_onion_layers(
-        self, frames: dict[str, list[SpriteFrame]], current_animation: str, current_frame: int
+        self, frames: dict[str, list[SpriteFrame]], current_animation: str, current_frame: int,
     ) -> None:
         """Render onion skinning layers onto the canvas."""
         from .onion_skinning import get_onion_skinning_manager
@@ -701,7 +701,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             if frame_idx != current_frame
             and onion_manager.is_frame_onion_skinned(current_animation, frame_idx)
         }
-        LOG.debug(f'Rendering onion frames: {onion_frames}')
+        LOG.debug('Rendering onion frames: %s', onion_frames)
 
         # Create a temporary surface to accumulate onion layers (hardware accelerated)
         onion_accumulator = pygame.Surface(
@@ -811,14 +811,14 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             LOG.debug(
                 'DEBUG: Using panned canvas pixels: '
                 f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}'
+                f'first few: {frame_pixels[:3]}',
             )
         elif hasattr(frame, 'get_pixel_data'):
             frame_pixels = frame.get_pixel_data()
             LOG.debug(
                 'DEBUG: Using frame.get_pixel_data(): '
                 f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}'
+                f'first few: {frame_pixels[:3]}',
             )
         else:
             frame_pixels = getattr(
@@ -830,7 +830,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             LOG.debug(
                 'DEBUG: Using fallback frame pixels: '
                 f'{len(frame_pixels)} pixels, '
-                f'first few: {frame_pixels[:3]}'
+                f'first few: {frame_pixels[:3]}',
             )
         return frame_pixels
 

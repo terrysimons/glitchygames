@@ -2029,7 +2029,7 @@ pixels = \"\"\"
 
         # Mock _render_animated_str to verify it gets called
         mock_render = mocker.patch.object(
-            BitmappySprite, '_render_animated_str', return_value='animated output'
+            BitmappySprite, '_render_animated_str', return_value='animated output',
         )
         result = str(sprite)
         mock_render.assert_called_once()

@@ -198,7 +198,7 @@ class ControllerSelection:
             LOG.debug('Controller %s fill direction set to %s', self.controller_id, direction)
         else:
             LOG.debug(
-                "Invalid fill direction '%s' for controller %s", direction, self.controller_id
+                "Invalid fill direction '%s' for controller %s", direction, self.controller_id,
             )
 
     def get_fill_direction(self) -> str:

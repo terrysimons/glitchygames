@@ -237,7 +237,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 f' p95={p95} p99={p99}'
                 f' max={p100} frames={count}'
                 f' avg_fps={avg_fps:.1f}'
-                f' late={late_pct:.1f}%'
+                f' late={late_pct:.1f}%',
             )
         self._jitter_last_log_ns = now_ns
         self._jitter_interval_start_ns = now_ns
@@ -277,7 +277,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.clock.tick()
 
     def _track_performance(
-        self: Self, timer: object | None, period_ns: int, processing_time: float
+        self: Self, timer: object | None, period_ns: int, processing_time: float,
     ) -> None:
         """Feed FPS data to the performance manager.
 
@@ -420,8 +420,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.game_engine.registered_events[event_subtype](event)
         except KeyError:
             self.log.error(  # noqa: TRY400
-                f'Unregistered Event: {event} '
-                '(call self.register_game_event(<event subtype>, <event data>))'
+                'Unregistered Event: %s (call self.register_game_event(<event subtype>, <event data>))', event,
             )
 
     def register_game_event(self: Self, event_type: int, callback: Callable[..., Any]) -> None:
@@ -578,7 +577,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """Log quit information."""
         self.log.info(
             f'Game Quitting: Active Scene: {self.active_scene}, '
-            f'Quit Requested: {self.quit_requested}'
+            f'Quit Requested: {self.quit_requested}',
         )
 
     def _reset_scene_timers(self) -> None:
@@ -600,7 +599,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def _setup_new_scene(self, next_scene: Scene | None) -> None:
         """Set up the new scene."""
         if next_scene:
-            self.log.info(f'Setting up new scene {next_scene}.')
+            self.log.info('Setting up new scene %s.', next_scene)
             # Ensure the new scene has access to the game engine
             if hasattr(self, 'game_engine') and self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined]
@@ -669,7 +668,7 @@ class SceneManager(SceneInterface, events.EventManager):
         )
         self.log.info(
             f'Rendering Scene "{self.active_scene.NAME}({type(self.active_scene)})"'
-            f' at {fps_display} FPS'
+            f' at {fps_display} FPS',
         )
 
     def _setup_event_proxies(self) -> None:
@@ -1341,20 +1340,20 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.log.debug('=== Scene: Mouse Button Down ===')
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
-        self.log.debug(f'Click position: {event_pos}')
+        self.log.debug('Click position: %s', event_pos)
 
         # Get sprites at click position
         collided_sprites = self._get_collided_sprites(event_pos)
         self.log.debug(f'Collided sprites: {[type(s).__name__ for s in collided_sprites]}')
         focusable_sprites = self._get_focusable_sprites(collided_sprites)
-        self.log.debug(f'Focusable sprites: {focusable_sprites}')
+        self.log.debug('Focusable sprites: %s', focusable_sprites)
 
         # Diagnostics: log the top-most collided sprite and its active state
         if collided_sprites:
             top_sprite = collided_sprites[-1]
             self.log.debug(
                 f'Top sprite @ DOWN: {type(top_sprite).__name__}, '
-                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}'
+                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}',
             )
 
         # Find currently focused sprites
@@ -1402,7 +1401,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             top_sprite = collided_sprites[-1]
             self.log.debug(
                 f'Top sprite @ DRAG: {type(top_sprite).__name__}, '
-                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}'
+                f'active={getattr(top_sprite, "active", None)}, pos={event_pos}',
             )
 
         for sprite in collided_sprites:
@@ -1470,7 +1469,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     @override
     def on_middle_mouse_drag_event(  # type: ignore[override]
-        self: Self, event: events.HashableEvent, trigger: object
+        self: Self, event: events.HashableEvent, trigger: object,
     ) -> None:
         """Handle middle mouse drag events.
 
@@ -1488,7 +1487,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     @override
     def on_middle_mouse_drop_event(  # type: ignore[override]
-        self: Self, event: events.HashableEvent, trigger: object
+        self: Self, event: events.HashableEvent, trigger: object,
     ) -> None:
         """Handle middle mouse drop events.
 
@@ -1597,13 +1596,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.log.debug('=== Scene: Left Mouse Button Down ===')
         event_pos: tuple[int, int] = getattr(event, 'pos', (0, 0))
-        self.log.debug(f'Click position: {event_pos}')
+        self.log.debug('Click position: %s', event_pos)
 
         # Get sprites at click position
         collided_sprites = self._get_collided_sprites(event_pos)
         self.log.debug(f'Collided sprites: {[type(s).__name__ for s in collided_sprites]}')
         focusable_sprites = self._get_focusable_sprites(collided_sprites)
-        self.log.debug(f'Focusable sprites: {focusable_sprites}')
+        self.log.debug('Focusable sprites: %s', focusable_sprites)
 
         # Find currently focused sprites
         focused_sprites = self._get_focused_sprites()
@@ -2107,7 +2106,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             text (str): The submitted text.
 
         """
-        self.log.info(f"Text submitted: '{text}'")
+        self.log.info("Text submitted: '%s'", text)
 
     @override
     def pause(self: Self) -> None:

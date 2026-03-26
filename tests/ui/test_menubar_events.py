@@ -471,7 +471,7 @@ class TestMenuItemLeftMouseButtonUpEvent:
         # Use a real MenuItem so isinstance() check passes
         collided_groups = _RealLayeredDirty()
         collided_item = MenuItem(
-            x=0, y=0, width=100, height=30, name='NewFile', groups=collided_groups
+            x=0, y=0, width=100, height=30, name='NewFile', groups=collided_groups,
         )
         collided_item.callbacks = {'on_menu_item_event': callback}
         collided_item.menu_items = {}
@@ -494,7 +494,7 @@ class TestMenuItemLeftMouseButtonUpEvent:
         # Use a real MenuItem so isinstance() check passes
         collided_groups = _RealLayeredDirty()
         collided_item = MenuItem(
-            x=0, y=0, width=100, height=30, name='NewFile', groups=collided_groups
+            x=0, y=0, width=100, height=30, name='NewFile', groups=collided_groups,
         )
         collided_item.callbacks = {}
         collided_item.menu_items = {}

@@ -343,8 +343,8 @@ class TestWindowEvents:
                 'on_window_close_event': lambda event: (
                     scene.window_events_received.append(('window_close', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window close
@@ -365,8 +365,8 @@ class TestWindowEvents:
                 'on_window_enter_event': lambda event: (
                     scene.window_events_received.append(('window_enter', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window enter
@@ -387,8 +387,8 @@ class TestWindowEvents:
                 'on_window_leave_event': lambda event: (
                     scene.window_events_received.append(('window_leave', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window leave
@@ -409,8 +409,8 @@ class TestWindowEvents:
                 'on_window_focus_gained_event': lambda event: (
                     scene.window_events_received.append(('window_focus_gained', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window focus gained
@@ -431,8 +431,8 @@ class TestWindowEvents:
                 'on_window_focus_lost_event': lambda event: (
                     scene.window_events_received.append(('window_focus_lost', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window focus lost
@@ -453,8 +453,8 @@ class TestWindowEvents:
                 'on_window_resized_event': lambda event: (
                     scene.window_events_received.append(('window_resized', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window resized
@@ -477,8 +477,8 @@ class TestWindowEvents:
                 'on_window_moved_event': lambda event: (
                     scene.window_events_received.append(('window_moved', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window moved
@@ -501,8 +501,8 @@ class TestWindowEvents:
                 'on_window_minimized_event': lambda event: (
                     scene.window_events_received.append(('window_minimized', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window minimized
@@ -523,8 +523,8 @@ class TestWindowEvents:
                 'on_window_maximized_event': lambda event: (
                     scene.window_events_received.append(('window_maximized', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window maximized
@@ -545,8 +545,8 @@ class TestWindowEvents:
                 'on_window_restored_event': lambda event: (
                     scene.window_events_received.append(('window_restored', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window restored
@@ -567,8 +567,8 @@ class TestWindowEvents:
                 'on_window_shown_event': lambda event: (
                     scene.window_events_received.append(('window_shown', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window shown
@@ -589,8 +589,8 @@ class TestWindowEvents:
                 'on_window_hidden_event': lambda event: (
                     scene.window_events_received.append(('window_hidden', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window hidden
@@ -611,8 +611,8 @@ class TestWindowEvents:
                 'on_window_exposed_event': lambda event: (
                     scene.window_events_received.append(('window_exposed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window exposed
@@ -633,8 +633,8 @@ class TestWindowEvents:
                 'on_window_take_focus_event': lambda event: (
                     scene.window_events_received.append(('window_take_focus', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window take focus
@@ -655,8 +655,8 @@ class TestWindowEvents:
                 'on_window_size_changed_event': lambda event: (
                     scene.window_events_received.append(('window_size_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window size changed
@@ -679,8 +679,8 @@ class TestWindowEvents:
                 'on_window_hit_test_event': lambda event: (
                     scene.window_events_received.append(('window_hit_test', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test window hit test
@@ -731,7 +731,7 @@ class TestWindowEvents:
 
         """
         scene_mock = MockFactory.create_event_test_scene_mock(
-            options={'debug_events': False, 'no_unhandled_events': True}
+            options={'debug_events': False, 'no_unhandled_events': True},
         )
         stub.options = scene_mock.options
         return scene_mock

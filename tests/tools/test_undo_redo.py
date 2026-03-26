@@ -169,7 +169,7 @@ class TestUndoRedoManager:
     def test_get_history_info(self):
         """Test getting history information."""
         self.manager.add_operation(
-            OperationType.CANVAS_PIXEL_CHANGE, 'Test operation', {'data': 'undo'}, {'data': 'redo'}
+            OperationType.CANVAS_PIXEL_CHANGE, 'Test operation', {'data': 'undo'}, {'data': 'redo'},
         )
 
         info = self.manager.get_history_info()
@@ -1847,7 +1847,7 @@ class TestFilmStripHelperMethodsNoCallback:
         mock_add = mocker.Mock(return_value=True)
         mock_delete = mocker.Mock(return_value=True)
         self.manager.set_film_strip_callbacks(
-            add_frame_callback=mock_add, delete_frame_callback=mock_delete
+            add_frame_callback=mock_add, delete_frame_callback=mock_delete,
         )
 
         self.manager.add_operation(
@@ -1903,7 +1903,7 @@ class TestFilmStripHelperMethodsNoCallback:
         mock_add = mocker.Mock(return_value=True)
         mock_delete = mocker.Mock(return_value=True)
         self.manager.set_film_strip_callbacks(
-            add_animation_callback=mock_add, delete_animation_callback=mock_delete
+            add_animation_callback=mock_add, delete_animation_callback=mock_delete,
         )
 
         self.manager.add_operation(
@@ -2299,7 +2299,7 @@ class TestFrameOperationRedoClear:
         )
         self.manager.frame_undo_stacks[frame_key] = []
         self.manager.frame_redo_stacks[frame_key] = [
-            _OperationAdapter(stale_operation, self.manager)
+            _OperationAdapter(stale_operation, self.manager),
         ]
 
         # Confirm we are not in undo/redo state

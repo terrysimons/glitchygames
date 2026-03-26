@@ -44,7 +44,7 @@ class TestFilmStripButtonHover:
                 mocker.Mock(spec=SpriteFrame),
                 mocker.Mock(spec=SpriteFrame),
                 mocker.Mock(spec=SpriteFrame),
-            ]
+            ],
         }
         self.mock_animated_sprite._animations = animations_data
         self.mock_animated_sprite.animations = animations_data

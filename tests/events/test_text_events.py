@@ -301,7 +301,7 @@ class TestTextEventsKeyboardManager:
 
         # Use centralized mock for scene without event handlers (stub behavior)
         mock_game = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
         manager = KeyboardEventManager(game=mock_game)
 

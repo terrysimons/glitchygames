@@ -93,7 +93,7 @@ class TestOnLoadFileEvent:
 
         """
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w', suffix='.toml', delete=False, encoding='utf-8',
         ) as f:
             f.write(content)
             return f.name
@@ -477,7 +477,7 @@ pixels = \"\"\"
 
             # Create a mock loaded sprite using the centralized factory
             mock_loaded_sprite = MockFactory.create_animated_sprite_mock(
-                animation_name='test_sprite', frame_size=(8, 8), pixel_color=(255, 0, 0)
+                animation_name='test_sprite', frame_size=(8, 8), pixel_color=(255, 0, 0),
             )
 
             # Mock the entire loading process by patching the method that loads the sprite

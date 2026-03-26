@@ -292,7 +292,7 @@ class MockFactory:
 
     @staticmethod
     def _configure_sprite_playback_methods(
-        mock_sprite: Mock, frame_size: tuple, pixel_color: tuple, pixel_count: int
+        mock_sprite: Mock, frame_size: tuple, pixel_color: tuple, pixel_count: int,
     ) -> None:
         """Configure playback and pixel data methods on a sprite mock.
 
@@ -332,7 +332,7 @@ class MockFactory:
             mock_sprite.current_frame = frame_idx
             # Update the sprite's image and rect to match the current frame
             if mock_sprite.current_animation in mock_sprite._animations and frame_idx < len(
-                mock_sprite._animations[mock_sprite.current_animation]
+                mock_sprite._animations[mock_sprite.current_animation],
             ):
                 current_frame = mock_sprite._animations[mock_sprite.current_animation][frame_idx]
                 mock_sprite.image = current_frame.image
@@ -351,7 +351,7 @@ class MockFactory:
             current_anim = mock_sprite.current_animation
             current_frame = mock_sprite.current_frame
             if current_anim in mock_sprite._animations and current_frame < len(
-                mock_sprite._animations[current_anim]
+                mock_sprite._animations[current_anim],
             ):
                 frame = mock_sprite._animations[current_anim][current_frame]
                 return frame.get_pixel_data()
@@ -362,7 +362,7 @@ class MockFactory:
         # Also add a method to get pixel data for a specific frame
         def mock_get_frame_pixel_data(frame_idx):
             if mock_sprite.current_animation in mock_sprite._animations and frame_idx < len(
-                mock_sprite._animations[mock_sprite.current_animation]
+                mock_sprite._animations[mock_sprite.current_animation],
             ):
                 frame = mock_sprite._animations[mock_sprite.current_animation][frame_idx]
                 return frame.get_pixel_data()
@@ -420,7 +420,7 @@ class MockFactory:
                 raise ValueError(f"Animation '{animation_name}' not found")
             if frame_idx < 0 or frame_idx >= len(mock_sprite._animations[animation_name]):
                 raise IndexError(
-                    f"Frame index {frame_idx} out of range for animation '{animation_name}'"
+                    f"Frame index {frame_idx} out of range for animation '{animation_name}'",
                 )
             return mock_sprite._animations[animation_name][frame_idx]
 
@@ -446,7 +446,7 @@ class MockFactory:
 
     @staticmethod
     def _configure_sprite_methods(
-        mock_sprite: Mock, frame_size: tuple, pixel_color: tuple, pixel_count: int
+        mock_sprite: Mock, frame_size: tuple, pixel_color: tuple, pixel_count: int,
     ) -> None:
         """Configure all methods on a sprite mock.
 
@@ -461,13 +461,13 @@ class MockFactory:
 
         """
         MockFactory._configure_sprite_playback_methods(
-            mock_sprite, frame_size, pixel_color, pixel_count
+            mock_sprite, frame_size, pixel_color, pixel_count,
         )
         MockFactory._configure_sprite_animation_management(mock_sprite)
 
     @staticmethod
     def _setup_default_event_handler(
-        scene_mock: Mock, handler_name: str, event_list: list, tag: str | None = None
+        scene_mock: Mock, handler_name: str, event_list: list, tag: str | None = None,
     ) -> None:
         """Create and attach a default event handler to a scene mock.
 
@@ -823,7 +823,7 @@ class MockFactory:
                 if event_handlers is None or handler_name not in event_handlers:
                     event_list = getattr(scene_mock, event_list_attr)
                     MockFactory._setup_default_event_handler(
-                        scene_mock, handler_name, event_list, tag
+                        scene_mock, handler_name, event_list, tag,
                     )
 
         return scene_mock
@@ -1335,7 +1335,7 @@ class MockFactory:
         # Only patch display-related functions
         display_patcher = patch('pygame.display', display_mock)
         display_get_surface_patcher = patch(
-            'pygame.display.get_surface', return_value=display_surface
+            'pygame.display.get_surface', return_value=display_surface,
         )
 
         return (display_patcher, display_get_surface_patcher)
@@ -1829,12 +1829,12 @@ def create_10x10_sprite_mock(animation_name: str = 'idle') -> Mock:
 
     """
     return MockFactory.create_animated_sprite_mock(
-        animation_name=animation_name, frame_size=(10, 10)
+        animation_name=animation_name, frame_size=(10, 10),
     )
 
 
 def create_custom_sprite_mock(
-    animation_name: str, frame_size: tuple, pixel_color: tuple = (255, 0, 0)
+    animation_name: str, frame_size: tuple, pixel_color: tuple = (255, 0, 0),
 ) -> Mock:
     """Create a custom sprite mock with specified parameters.
 
@@ -1843,7 +1843,7 @@ def create_custom_sprite_mock(
 
     """
     return MockFactory.create_animated_sprite_mock(
-        animation_name=animation_name, frame_size=frame_size, pixel_color=pixel_color
+        animation_name=animation_name, frame_size=frame_size, pixel_color=pixel_color,
     )
 
 

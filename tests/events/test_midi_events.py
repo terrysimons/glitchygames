@@ -46,7 +46,7 @@ class TestMidiEvents:
         """Test MidiEventStubs implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
         # Test that stub methods can be called
@@ -70,8 +70,8 @@ class TestMidiEvents:
                 'on_midi_in_event': lambda event: (
                     scene.midi_events_received.append(('midi_in', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test MIDI input
@@ -93,8 +93,8 @@ class TestMidiEvents:
                 'on_midi_out_event': lambda event: (
                     scene.midi_events_received.append(('midi_out', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test MIDI output
@@ -116,8 +116,8 @@ class TestMidiEvents:
                 'on_midi_in_event': lambda event: (
                     scene.midi_events_received.append(('note_on', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test note on events (status 144 = 0x90)
@@ -139,8 +139,8 @@ class TestMidiEvents:
                 'on_midi_in_event': lambda event: (
                     scene.midi_events_received.append(('note_off', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test note off events (status 128 = 0x80)
@@ -164,7 +164,7 @@ class TestMidiEvents:
         mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
         for controller in range(1, 128):  # All MIDI controllers
             event = HashableEvent(
-                pygame.MIDIIN, device_id=1, status=176, data1=controller, data2=64
+                pygame.MIDIIN, device_id=1, status=176, data1=controller, data2=64,
             )
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
@@ -225,7 +225,7 @@ class TestMidiEvents:
         for note in range(60, 72):  # C4 to C5
             for pressure in range(0, 128, 16):  # Various pressure values
                 event = HashableEvent(
-                    pygame.MIDIIN, device_id=1, status=160, data1=note, data2=pressure
+                    pygame.MIDIIN, device_id=1, status=160, data1=note, data2=pressure,
                 )
                 with pytest.raises(UnhandledEventError):
                     stub.on_midi_in_event(event)
@@ -253,7 +253,7 @@ class TestMidiEvents:
         mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
         for status, data1, data2 in system_events:
             event = HashableEvent(
-                pygame.MIDIIN, device_id=1, status=status, data1=data1, data2=data2
+                pygame.MIDIIN, device_id=1, status=status, data1=data1, data2=data2,
             )
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
@@ -269,7 +269,7 @@ class TestMidiEvents:
         for device_id in range(5):
             # Test MIDI input
             event = HashableEvent(
-                pygame.MIDIIN, device_id=device_id, status=144, data1=60, data2=127
+                pygame.MIDIIN, device_id=device_id, status=144, data1=60, data2=127,
             )
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
@@ -277,7 +277,7 @@ class TestMidiEvents:
 
             # Test MIDI output
             event = HashableEvent(
-                pygame.MIDIOUT, device_id=device_id, status=144, data1=60, data2=127
+                pygame.MIDIOUT, device_id=device_id, status=144, data1=60, data2=127,
             )
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_out_event(event)

@@ -127,10 +127,10 @@ def _log_speed_up_mode_flags():
     LOG.debug(f'SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X = {SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X}')
     LOG.debug(f'SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y = {SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y}')
     LOG.debug(
-        f'SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X = {SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X}'
+        f'SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X = {SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X}',
     )
     LOG.debug(
-        f'SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y = {SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y}'
+        f'SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y = {SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y}',
     )
     LOG.debug(f'SpeedUpMode.ALL_LOGARITHMIC_X = {SpeedUpMode.ALL_LOGARITHMIC_X}')
     LOG.debug(f'SpeedUpMode.ALL_LOGARITHMIC_Y = {SpeedUpMode.ALL_LOGARITHMIC_Y}')
@@ -155,7 +155,7 @@ def _log_speed_up_mode_flags():
     LOG.debug(
         '  SpeedUpMode.ALL_LOGARITHMIC'
         ' & ~SpeedUpMode.CONTINUOUS_LOGARITHMIC_X'
-        '  # All except continuous'
+        '  # All except continuous',
     )
 
 

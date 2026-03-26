@@ -15,8 +15,8 @@ def _test_overlapping_balls():
     nx = dx / distance  # 1.0
     ny = dy / distance  # 0.0
 
-    LOG.debug(f'  Normal vector: ({nx}, {ny})')
-    LOG.debug(f'  Distance: {distance}')
+    LOG.debug('  Normal vector: (%s, %s)', nx, ny)
+    LOG.debug('  Distance: %s', distance)
 
 
 def _test_zero_distance():
@@ -45,8 +45,8 @@ def _test_same_direction():
     dvy = ball2_speed[1] - ball1_speed[1]
     dvn = dvx * nx + dvy * ny
 
-    LOG.debug(f'  Relative velocity: ({dvx}, {dvy})')
-    LOG.debug(f'  Relative velocity along normal: {dvn}')
+    LOG.debug('  Relative velocity: (%s, %s)', dvx, dvy)
+    LOG.debug('  Relative velocity along normal: %s', dvn)
     LOG.debug(f'  Should collide: {dvn < 0}')
 
 
@@ -65,8 +65,8 @@ def _test_moving_away():
     dvy = ball2_speed[1] - ball1_speed[1]
     dvn = dvx * nx + dvy * ny
 
-    LOG.debug(f'  Relative velocity: ({dvx}, {dvy})')
-    LOG.debug(f'  Relative velocity along normal: {dvn}')
+    LOG.debug('  Relative velocity: (%s, %s)', dvx, dvy)
+    LOG.debug('  Relative velocity along normal: %s', dvn)
     LOG.debug(f'  Should collide: {dvn < 0}')
 
 
@@ -91,11 +91,11 @@ def _test_small_velocity():
 
     LOG.debug(
         f'  Before: ball1=({ball1_speed[0]}, {ball1_speed[1]}),'
-        f' ball2=({ball2_speed[0]}, {ball2_speed[1]})'
+        f' ball2=({ball2_speed[0]}, {ball2_speed[1]})',
     )
     LOG.debug(
         f'  After:  ball1=({new_ball1_x:.3f}, {new_ball1_y:.3f}),'
-        f' ball2=({new_ball2_x:.3f}, {new_ball2_y:.3f})'
+        f' ball2=({new_ball2_x:.3f}, {new_ball2_y:.3f})',
     )
 
 

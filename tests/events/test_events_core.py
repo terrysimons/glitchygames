@@ -1023,7 +1023,7 @@ class TestEventSystemUtilities:
         unhandled_event(mock_game, mock_event)
 
         mock_log.error.assert_called_once_with(
-            "Error: debug_events is missing from the game options. This shouldn't be possible."
+            "Error: debug_events is missing from the game options. This shouldn't be possible.",
         )
 
     def test_unhandled_event_both_false(self, mock_pygame_patches, mocker):
@@ -1060,7 +1060,7 @@ class TestEventSystemUtilities:
         mock_exit.assert_not_called()
 
     def test_unhandled_event_no_exit_when_debug_true_unhandled_false(
-        self, mock_pygame_patches, mocker
+        self, mock_pygame_patches, mocker,
     ):
         """Test that unhandled_event does NOT raise SystemExit.
 

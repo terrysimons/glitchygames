@@ -390,8 +390,8 @@ class TestControllerEvents:
             event_handlers={
                 'on_controller_axis_motion_event': lambda event: (
                     scene.controller_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -411,8 +411,8 @@ class TestControllerEvents:
             event_handlers={
                 'on_controller_button_down_event': lambda event: (
                     scene.controller_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -432,8 +432,8 @@ class TestControllerEvents:
                 'on_controller_button_up_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -453,8 +453,8 @@ class TestControllerEvents:
                 'on_controller_device_added_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -474,8 +474,8 @@ class TestControllerEvents:
                 'on_controller_device_removed_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -495,8 +495,8 @@ class TestControllerEvents:
                 'on_controller_device_remapped_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -516,8 +516,8 @@ class TestControllerEvents:
                 'on_controller_touchpad_down_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -538,8 +538,8 @@ class TestControllerEvents:
                 'on_controller_touchpad_motion_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -560,8 +560,8 @@ class TestControllerEvents:
                 'on_controller_touchpad_up_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test that the scene can handle the event
@@ -582,8 +582,8 @@ class TestControllerEvents:
                 'on_controller_axis_motion_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different axis values
@@ -611,7 +611,7 @@ class TestControllerEvents:
                     scene.controller_events_received.append(event),
                     True,
                 )[1],
-            }
+            },
         )
 
         # Test different controller buttons
@@ -655,8 +655,8 @@ class TestControllerEvents:
                 'on_controller_axis_motion_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different controller axes
@@ -691,7 +691,7 @@ class TestControllerEvents:
             options={
                 'debug_events': False,
                 'no_unhandled_events': True,  # This will cause UnhandledEventError to be raised
-            }
+            },
         )
         # Set the options on the stub so unhandled_event can access them
         stub.options = scene_mock.options
@@ -709,8 +709,8 @@ class TestControllerEventFlow:
                 'on_controller_axis_motion_event': lambda event: (
                     scene.controller_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Create a HashableEvent with proper attributes
@@ -732,7 +732,7 @@ class TestControllerEventFlow:
         """
         # Use centralized mock for scene without event handlers
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
         # Create a HashableEvent that will fall back to stubs

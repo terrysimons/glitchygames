@@ -28,7 +28,8 @@ class TestCanvasOperationTracker:
 
         operation = self.manager.frame_undo_stacks[frame_key][0]
         assert operation.operation_type.value == 'canvas_brush_stroke'
-        assert 'walk_animation[1]' in operation.description
+        # BrushStrokeCommand description is pixel-count based, not animation-specific
+        assert 'Brush stroke (2 pixels)' in operation.description
 
     def test_add_frame_pixel_changes_with_tuples(self):
         """Test adding frame-specific pixel changes with tuple format."""
@@ -42,7 +43,8 @@ class TestCanvasOperationTracker:
 
         operation = self.manager.frame_undo_stacks[frame_key][0]
         assert operation.operation_type.value == 'canvas_brush_stroke'
-        assert 'run_animation[2]' in operation.description
+        # BrushStrokeCommand description is pixel-count based, not animation-specific
+        assert 'Brush stroke (2 pixels)' in operation.description
 
     def test_add_pixel_changes_global_fallback(self):
         """Test that global tracking still works as fallback."""

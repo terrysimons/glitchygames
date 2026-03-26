@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def _alpha_blend_pixel(
-    source: tuple[int, ...], destination: tuple[int, ...], additional_alpha: float
+    source: tuple[int, ...], destination: tuple[int, ...], additional_alpha: float,
 ) -> tuple[int, int, int, int] | None:
     """Alpha-blend a single source pixel over a destination pixel.
 
@@ -64,7 +64,7 @@ def _alpha_blend_pixel(
 
 
 def _composite_frames_with_alpha(  # pyright: ignore[reportUnusedFunction]
-    frames: list[SpriteFrame], additional_alpha: float = 0.5
+    frames: list[SpriteFrame], additional_alpha: float = 0.5,
 ) -> list[tuple[int, ...]]:
     """Composite multiple frames together with additional alpha transparency.
 
@@ -99,7 +99,7 @@ def _composite_frames_with_alpha(  # pyright: ignore[reportUnusedFunction]
 
 
 def _create_composite_frame_from_pixels(  # type: ignore[reportUnusedFunction]
-    pixels: list[tuple[int, ...]], width: int, height: int, duration: float = 0.5
+    pixels: list[tuple[int, ...]], width: int, height: int, duration: float = 0.5,
 ) -> SpriteFrame:
     """Create a SpriteFrame from composited pixel data.
 
@@ -147,7 +147,7 @@ def _get_visible_width(text: str) -> int:
 
 
 def render_frames_side_by_side(
-    frames: list[SpriteFrame], renderer: ASCIIRenderer, separator: str = '  '
+    frames: list[SpriteFrame], renderer: ASCIIRenderer, separator: str = '  ',
 ) -> str:
     """Render multiple frames side-by-side as ASCII art, wrapping to screen width.
 
@@ -250,14 +250,14 @@ def _build_color_to_glyph_map(pixels: list[tuple[int, ...]]) -> dict[tuple[int, 
         LOG.debug(f'render_frame_to_ascii: Found {len(unique_colors)} unique colors')
         LOG.debug(
             f'render_frame_to_ascii: First unique color: {next(iter(unique_colors.keys()))} ->'
-            f" '{next(iter(unique_colors.values()))}'"
+            f" '{next(iter(unique_colors.values()))}'",
         )
 
     return unique_colors
 
 
 def _build_ascii_grid(
-    pixels: list[tuple[int, ...]], width: int, height: int, color_map: dict[tuple[int, ...], str]
+    pixels: list[tuple[int, ...]], width: int, height: int, color_map: dict[tuple[int, ...], str],
 ) -> str:
     """Build an ASCII grid string from pixel data and a color-to-glyph map.
 
@@ -285,7 +285,7 @@ def _build_ascii_grid(
 
 
 def _build_renderer_color_dict(
-    pixels: list[tuple[int, ...]], color_map: dict[tuple[int, ...], str]
+    pixels: list[tuple[int, ...]], color_map: dict[tuple[int, ...], str],
 ) -> dict[str, tuple[int, ...]]:
     """Build an RGBA color dictionary for the ASCII renderer.
 

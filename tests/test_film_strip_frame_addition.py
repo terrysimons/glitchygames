@@ -49,7 +49,7 @@ def _mock_parent_scene(animated_sprite, mocker):
     parent_scene.canvas.pixels_tall = CANVAS_HEIGHT
     parent_scene.canvas.animated_sprite = animated_sprite
     parent_scene._create_blank_frame = mocker.Mock(
-        side_effect=lambda w, h, duration=0.5: _create_blank_frame_mock(w, h, duration)
+        side_effect=lambda w, h, duration=0.5: _create_blank_frame_mock(w, h, duration),
     )
     return parent_scene
 
@@ -242,7 +242,7 @@ class TestFilmStripFrameAddition:
 
         # Verify preview animation timing was reinitialized
         assert math.isclose(
-            film_strip.preview_animation_times['idle'], 0.0, abs_tol=1e-9
+            film_strip.preview_animation_times['idle'], 0.0, abs_tol=1e-9,
         )  # Multi-frame timing
         assert math.isclose(film_strip.preview_animation_speeds['idle'], 1.0)
         assert len(film_strip.preview_frame_durations['idle']) == TEST_SIZE_2

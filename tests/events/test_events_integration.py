@@ -25,7 +25,7 @@ class TestEventIntegration:
         # Use global mocks from mock_pygame_patches fixture
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={'on_audio_device_added_event': lambda event: True}
+            event_handlers={'on_audio_device_added_event': lambda event: True},
         )
 
         # Mock sys.argv to prevent argument parsing issues
@@ -55,7 +55,7 @@ class TestEventIntegration:
         # Use global mocks from mock_pygame_patches fixture
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={'on_controller_axis_motion_event': lambda event: True}
+            event_handlers={'on_controller_axis_motion_event': lambda event: True},
         )
 
         # Mock sys.argv to prevent argument parsing issues
@@ -140,7 +140,7 @@ class TestEventIntegration:
             event_handlers={
                 'on_audio_device_added_event': lambda event: (
                     scene.audio_events_received.append(event) or True
-                )
+                ),
             },
         )
 

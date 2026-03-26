@@ -23,7 +23,7 @@ class TestSpriteGenerationMessages:
     def test_basic_message_structure(self):
         """Test basic message structure is correct."""
         messages = build_sprite_generation_messages(
-            user_request='Create a red square', training_examples=None
+            user_request='Create a red square', training_examples=None,
         )
 
         assert len(messages) == 4
@@ -42,11 +42,11 @@ class TestSpriteGenerationMessages:
                 'has_alpha': False,
                 'pixels': 'ABC\nDEF',
                 'colors': {'A': {'red': 255, 'green': 0, 'blue': 0}},
-            }
+            },
         ]
 
         messages = build_sprite_generation_messages(
-            user_request='Create a sprite', training_examples=examples, max_examples=3
+            user_request='Create a sprite', training_examples=examples, max_examples=3,
         )
 
         # Check example is included in context
@@ -55,7 +55,7 @@ class TestSpriteGenerationMessages:
     def test_size_hint_injection(self):
         """Test that size hints are added to request."""
         messages = build_sprite_generation_messages(
-            user_request='Create a 32x32 sprite', training_examples=None, include_size_hint=True
+            user_request='Create a 32x32 sprite', training_examples=None, include_size_hint=True,
         )
 
         last_message = messages[3]['content']
@@ -79,7 +79,7 @@ class TestSpriteGenerationMessages:
         examples = [{'name': f'sprite_{i}'} for i in range(10)]
 
         messages = build_sprite_generation_messages(
-            user_request='Create a sprite', training_examples=examples, max_examples=2
+            user_request='Create a sprite', training_examples=examples, max_examples=2,
         )
 
         # Should only include 2 examples
@@ -123,7 +123,7 @@ class TestTrainingExampleFormatting:
                     'frame_interval': 0.3,
                     'loop': True,
                     'frame': [{'frame_index': 0, 'pixels': 'AB\nCD'}],
-                }
+                },
             ],
             'colors': {'A': {'red': 255, 'green': 0, 'blue': 0}},
         }
@@ -447,7 +447,7 @@ class TestRefinementMessages:
         """Test basic refinement message structure."""
         last_sprite = '[sprite]\nname = "test"\npixels = "X"'
         messages = build_refinement_messages(
-            user_request='Make it bigger', last_sprite_content=last_sprite
+            user_request='Make it bigger', last_sprite_content=last_sprite,
         )
 
         assert len(messages) == 4
@@ -485,7 +485,7 @@ class TestRefinementMessages:
         """Test that refinement requests include the user's size request."""
         last_sprite = '[sprite]\nname = "test"\npixels = "X"'
         messages = build_refinement_messages(
-            user_request='Make it 32x32', last_sprite_content=last_sprite, include_size_hint=True
+            user_request='Make it 32x32', last_sprite_content=last_sprite, include_size_hint=True,
         )
 
         last_message = messages[-1]['content']
@@ -535,7 +535,7 @@ pixels = "C"
 red = 255
 """
         messages = build_refinement_messages(
-            user_request='Make it red', last_sprite_content=last_sprite
+            user_request='Make it red', last_sprite_content=last_sprite,
         )
 
         last_message = messages[-1]['content']
@@ -624,7 +624,7 @@ class TestFormatTrainingExample:
                     'frame_interval': 0.5,
                     'loop': True,
                     'frame': [{'frame_index': 0, 'pixels': 'AB'}],
-                }
+                },
             ],
             'colors': {'A': {'red': 255, 'green': 0, 'blue': 0}},
         }
@@ -687,7 +687,7 @@ class TestReconstructAnimatedSprite:
                     'frame_interval': 0.5,
                     'loop': True,
                     'frame': [{'frame_index': 0, 'pixels': 'AB'}],
-                }
+                },
             ],
             'colors': {'A': {'red': 255, 'green': 0, 'blue': 0}},
         }
@@ -702,7 +702,7 @@ class TestReconstructAnimatedSprite:
                 {
                     'namespace': 'idle',
                     'frame': [{'frame_index': 0, 'pixels': 'A', 'frame_interval': 1.0}],
-                }
+                },
             ],
             'colors': {},
         }
@@ -725,7 +725,7 @@ class TestReconstructAnimatedSprite:
                 {
                     'namespace': 'idle',
                     'frame': ['not_a_dict'],
-                }
+                },
             ],
             'colors': {},
         }
@@ -763,7 +763,7 @@ class TestBuildSpriteGenerationMessages:
 
     def test_no_animation_hint(self):
         messages = build_sprite_generation_messages(
-            'Create an animated mushroom', include_animation_hint=False
+            'Create an animated mushroom', include_animation_hint=False,
         )
         assert 'ANIMATED' not in messages[-1]['content']
 
@@ -833,7 +833,7 @@ class TestValidateAiResponse:
 
     def test_comma_separated_colors(self):
         is_valid, _msg = validate_ai_response(
-            '[sprite]\nname="test"\n[colors."A"]\nred = 255, green = 0'
+            '[sprite]\nname="test"\n[colors."A"]\nred = 255, green = 0',
         )
         assert is_valid is False
 

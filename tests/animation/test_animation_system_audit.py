@@ -36,7 +36,7 @@ def get_resource_path(filename: str) -> str:
         / 'examples'
         / 'resources'
         / 'sprites'
-        / filename
+        / filename,
     )
 
 

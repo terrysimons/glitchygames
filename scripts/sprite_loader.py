@@ -98,7 +98,7 @@ class BitmappySprite(Sprite):
 
     @classmethod
     def rgb_triplet_generator(
-        cls: type[BitmappySprite], buffer: list[int]
+        cls: type[BitmappySprite], buffer: list[int],
     ) -> Iterator[tuple[int, ...]]:
         """Yield (R, G, B) tuples for the provided pixel data.
 
@@ -183,7 +183,7 @@ class BitmappySprite(Sprite):
 
         # TODO: migrate to tobytes once test mocks provide real Surfaces
         raw_pixels_iter = self.rgb_triplet_generator(
-            list(pygame.image.tostring(self.image, 'RGB'))  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+            list(pygame.image.tostring(self.image, 'RGB')),  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
         )
 
         # We're utilizing the generator to give us RGB triplets.
@@ -207,7 +207,7 @@ class BitmappySprite(Sprite):
 
             color_map[color] = color_key
 
-            log.debug(f'Key: {color} -> {color_key}')
+            log.debug('Key: %s -> %s', color, color_key)
 
             red: int = color[0]
             config.set(color_key, 'red', str(red))
@@ -225,7 +225,7 @@ class BitmappySprite(Sprite):
             x += 1
 
             if self.rect is not None and x % self.rect.width == 0:
-                log.debug(f'Row: {row}')
+                log.debug('Row: %s', row)
                 pixels.append(''.join(row))
                 row = []
                 x = 0
@@ -234,7 +234,7 @@ class BitmappySprite(Sprite):
 
         config.set('sprite', 'pixels', '\n'.join(pixels))
 
-        log.debug(f'Deflated Sprite: {config}')
+        log.debug('Deflated Sprite: %s', config)
 
         return config
 
@@ -303,7 +303,7 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v', '--version', action='store_true', help='print the game version and exit',
         )
 
         parser.add_argument('--filename', help='the file to load', required=True)

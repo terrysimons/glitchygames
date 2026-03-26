@@ -412,7 +412,7 @@ class TestGameEngineInitializeEventHandlers:
         assert len(GameEngine.EVENT_HANDLERS) > 0
 
     def test_input_event_handlers_include_all_types(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test that input event handlers cover controller, keyboard, mouse, etc."""
         mock_parse_args = mocker.patch('argparse.ArgumentParser.parse_args')
@@ -720,7 +720,7 @@ class TestBuildWindowEventDispatch:
     """Test GameEngine._build_window_event_dispatch method."""
 
     def test_dispatch_table_has_all_window_events(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test dispatch table includes all expected window event types."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -889,7 +889,7 @@ class TestProcessUnimplementedEvent:
         assert 55555 in GameEngine.UNIMPLEMENTED_EVENTS
 
     def test_duplicate_unimplemented_event_not_added_twice(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test duplicate unimplemented events are not appended again."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -998,7 +998,7 @@ class TestProcessEvents:
     """Test GameEngine.process_events main event loop."""
 
     def test_process_events_with_scene_process_event(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test process_events bypasses engine processing when scene has process_event."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -1017,7 +1017,7 @@ class TestProcessEvents:
         mock_scene.process_event.assert_called_once_with(mock_raw_event)
 
     def test_process_events_handles_event_through_handlers(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test process_events routes events through EVENT_HANDLERS."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -1036,7 +1036,7 @@ class TestProcessEvents:
         assert result is True
 
     def test_process_events_no_events_returns_false(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test process_events returns False when no events in queue."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -1098,7 +1098,7 @@ class TestHandleEventAdditionalPaths:
         engine.scene_manager.handle_event.assert_called_once_with(event)
 
     def test_handle_event_non_key_event_passes_to_scene_manager(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test non-KEYDOWN events always pass to scene_manager."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -1172,7 +1172,7 @@ class TestInitializeEventManagers:
     """Test GameEngine._initialize_event_managers method."""
 
     def test_initialize_event_managers_sets_up_all_managers(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test _initialize_event_managers creates all required managers."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -1863,7 +1863,7 @@ class TestGameEngineHandleEventDeeper:
     """Test GameEngine.handle_event deeper paths."""
 
     def test_handle_event_keydown_q_with_no_focused_sprites(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test handle_event with K_q and no focused sprites sets quit_requested."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
@@ -1879,7 +1879,7 @@ class TestGameEngineHandleEventDeeper:
         assert engine.scene_manager.quit_requested is True
 
     def test_handle_event_passes_non_key_events_to_scene_manager(
-        self, mock_pygame_patches, mock_game_args, mocker
+        self, mock_pygame_patches, mock_game_args, mocker,
     ):
         """Test handle_event passes non-key events to scene_manager."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)

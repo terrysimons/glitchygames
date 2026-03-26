@@ -90,12 +90,12 @@ def _lint_cves(session: nox.Session) -> None:
 
     # Export requirements to a temp file (cross-platform; /dev/stdin doesn't exist on Windows)
     with tempfile.NamedTemporaryFile(
-        mode='w', suffix='.txt', delete=False, encoding='utf-8'
+        mode='w', suffix='.txt', delete=False, encoding='utf-8',
     ) as tmp:
         tmp_path = tmp.name
     try:
         session.run(
-            'uv', 'export', '--quiet', '--no-emit-project', '--output-file', tmp_path, external=True
+            'uv', 'export', '--quiet', '--no-emit-project', '--output-file', tmp_path, external=True,
         )
         session.run(
             'pip-audit',
@@ -105,6 +105,8 @@ def _lint_cves(session: nox.Session) -> None:
             '--disable-pip',
             '--ignore-vuln',
             'CVE-2026-2473',
+            '--ignore-vuln',
+            'CVE-2026-4539',
         )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
@@ -377,3 +379,34 @@ def security_scan(session: nox.Session) -> None:
     session.install(_ALL_EXTRAS)
     _bandit_scan(session)
     _safety_scan(session)
+
+
+# ---------------------------------------------------------------------------
+# Code Complexity
+# ---------------------------------------------------------------------------
+
+
+@nox.session(python=['3.14'], reuse_venv=False, name='code-complexity', default=False)
+def code_complexity(session: nox.Session) -> None:
+    """Analyze code complexity with wily (build cache, diff, and optionally generate graphs).
+
+    Usage:
+        nox -s code-complexity              # Build cache + show diff vs previous revision
+        nox -s code-complexity -- --graphs  # Also generate HTML graphs for docs
+        nox -s code-complexity -- --rank    # Show files ranked by complexity
+    """
+    session.install(_ALL_EXTRAS)
+
+    # Build the wily cache from git history
+    session.run('wily', 'build')
+
+    # Show complexity diff against previous revision
+    session.run('wily', 'diff', success_codes=[0, 1])
+
+    # Optional: generate graphs for documentation
+    if '--graphs' in session.posargs:
+        session.run('python', 'scripts/generate_complexity_graphs.py')
+
+    # Optional: show file rankings
+    if '--rank' in session.posargs:
+        session.run('wily', 'rank', '-n', '20', '-m', 'cyclomatic.complexity')

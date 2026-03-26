@@ -169,7 +169,7 @@ class SpriteGenerationService:
 
         # Make the API call
         try:
-            LOG.info(f'Generating sprite with model: {model_string}')
+            LOG.info('Generating sprite with model: %s', model_string)
             response = client.chat.completions.create(
                 model=model_string,
                 messages=messages,
@@ -206,7 +206,7 @@ class SpriteGenerationService:
         is_valid, error_message = validate_ai_response(cleaned_content)
 
         if not is_valid:
-            LOG.warning(f'AI response validation failed: {error_message}')
+            LOG.warning('AI response validation failed: %s', error_message)
             return GenerationResult(
                 success=False,
                 error=error_message,
@@ -217,8 +217,7 @@ class SpriteGenerationService:
         sprite_name, is_animated, frame_count = self._extract_sprite_metadata(cleaned_content)
 
         LOG.info(
-            f'Successfully generated sprite: {sprite_name} '
-            f'(animated={is_animated}, frames={frame_count})'
+            'Successfully generated sprite: %s (animated=%s, frames=%s)', sprite_name, is_animated, frame_count,
         )
 
         return GenerationResult(
@@ -298,7 +297,7 @@ class SpriteGenerationService:
         is_valid, error_message = validate_ai_response(cleaned_content)
 
         if not is_valid:
-            LOG.warning(f'AI response validation failed: {error_message}')
+            LOG.warning('AI response validation failed: %s', error_message)
             return GenerationResult(
                 success=False,
                 error=error_message,
@@ -309,8 +308,7 @@ class SpriteGenerationService:
         sprite_name, is_animated, frame_count = self._extract_sprite_metadata(cleaned_content)
 
         LOG.info(
-            f'Successfully refined sprite: {sprite_name} '
-            f'(animated={is_animated}, frames={frame_count})'
+            'Successfully refined sprite: %s (animated=%s, frames=%s)', sprite_name, is_animated, frame_count,
         )
 
         return GenerationResult(
@@ -337,7 +335,7 @@ class SpriteGenerationService:
         try:
             data = tomllib.loads(toml_content)
         except (ValueError, KeyError, TypeError) as e:
-            LOG.warning(f'Failed to parse TOML for metadata: {e}')
+            LOG.warning('Failed to parse TOML for metadata: %s', e)
             return 'unknown', False, 1
 
         # Get sprite name

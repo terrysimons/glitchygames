@@ -132,19 +132,19 @@ class TestAISStripIntegration:
 
         # Mock the helper methods (these are on _ai_integration, not the scene)
         scene._ai_integration._check_current_frame_has_content = self._mocker.Mock(
-            return_value=True
+            return_value=True,
         )
         scene._ai_integration._save_current_frame_to_temp_toml = self._mocker.Mock(
-            return_value='/tmp/frame.toml'  # noqa: S108
+            return_value='/tmp/frame.toml',  # noqa: S108
         )
         scene._ai_integration._save_current_strip_to_temp_toml = self._mocker.Mock(
-            return_value='/tmp/strip.toml'  # noqa: S108
+            return_value='/tmp/strip.toml',  # noqa: S108
         )
         scene._ai_integration._load_temp_toml_as_example = self._mocker.Mock(
             side_effect=[
                 {'name': 'selected_frame', 'sprite_type': 'static', 'pixels': 'test_frame'},
                 {'name': 'selected_strip', 'sprite_type': 'animated', 'pixels': 'test_strip'},
-            ]
+            ],
         )
 
         # Mock debug_text
@@ -156,7 +156,7 @@ class TestAISStripIntegration:
         mocker.patch('glitchygames.bitmappy.editor.SPRITE_GLYPHS', '0123456789ABCDEF')
         mocker.patch('glitchygames.bitmappy.editor.COMPLETE_TOML_FORMAT', 'test format')
         mock_select = mocker.patch(
-            'glitchygames.bitmappy.editor._select_relevant_training_examples'
+            'glitchygames.bitmappy.editor._select_relevant_training_examples',
         )
 
         mock_select.return_value = []
@@ -190,13 +190,13 @@ class TestAISStripIntegration:
 
         # Mock the helper methods to fail (these are on _ai_integration)
         scene._ai_integration._check_current_frame_has_content = self._mocker.Mock(
-            return_value=True
+            return_value=True,
         )
         scene._ai_integration._save_current_frame_to_temp_toml = self._mocker.Mock(
-            return_value=None
+            return_value=None,
         )
         scene._ai_integration._save_current_strip_to_temp_toml = self._mocker.Mock(
-            return_value=None
+            return_value=None,
         )
 
         # Mock debug_text
@@ -208,7 +208,7 @@ class TestAISStripIntegration:
         mocker.patch('glitchygames.bitmappy.editor.SPRITE_GLYPHS', '0123456789ABCDEF')
         mocker.patch('glitchygames.bitmappy.editor.COMPLETE_TOML_FORMAT', 'test format')
         mock_select = mocker.patch(
-            'glitchygames.bitmappy.editor._select_relevant_training_examples'
+            'glitchygames.bitmappy.editor._select_relevant_training_examples',
         )
 
         mock_select.return_value = []

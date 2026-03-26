@@ -84,7 +84,7 @@ class FilmStripSprite(BitmappySprite):
         if not hasattr(self, 'groups') or not self.groups() or len(self.groups()) == 0:
             LOG.debug(
                 f'DEBUG: FilmStripSprite update skipped - not in groups: {hasattr(self, "groups")},'
-                f' groups: {self.groups() if hasattr(self, "groups") else "None"}'
+                f' groups: {self.groups() if hasattr(self, "groups") else "None"}',
             )
             # Clear the widget reference to prevent any lingering updates
             if hasattr(self, 'film_strip_widget'):
@@ -160,7 +160,7 @@ class FilmStripSprite(BitmappySprite):
         if self.rect.collidepoint(event.pos) and self.film_strip_widget and self.visible:
             LOG.debug(
                 'FilmStripSprite: Click is within bounds and sprite is visible, converting '
-                'coordinates'
+                'coordinates',
             )
             # Convert screen coordinates to film strip coordinates
             film_x = event.pos[0] - self.rect.x
@@ -175,10 +175,10 @@ class FilmStripSprite(BitmappySprite):
             # Handle click in the film strip widget
             LOG.debug(
                 f'FilmStripSprite: Calling handle_click with coordinates ({film_x}, {film_y}),'
-                f' shift={is_shift_click}'
+                f' shift={is_shift_click}',
             )
             clicked_frame = self.film_strip_widget.handle_click(
-                (film_x, film_y), is_shift_click=is_shift_click
+                (film_x, film_y), is_shift_click=is_shift_click,
             )
             LOG.debug(f'FilmStripSprite: Clicked frame: {clicked_frame}')
 
@@ -193,7 +193,7 @@ class FilmStripSprite(BitmappySprite):
                 # Notify the parent scene about the selection change
                 if hasattr(self, 'parent_scene') and self.parent_scene:
                     self.parent_scene.on_film_strip_frame_selected(
-                        self.film_strip_widget, animation, frame_idx
+                        self.film_strip_widget, animation, frame_idx,
                     )
             else:
                 LOG.debug('FilmStripSprite: No frame clicked, handle_click returned None')
@@ -213,7 +213,7 @@ class FilmStripSprite(BitmappySprite):
             LOG.info(
                 'FilmStripSprite: Right click UP is within '
                 'bounds and sprite is visible, '
-                'converting coordinates'
+                'converting coordinates',
             )
             # Convert screen coordinates to film strip coordinates
             film_x = event.pos[0] - self.rect.x
@@ -231,16 +231,16 @@ class FilmStripSprite(BitmappySprite):
                 animation, frame_idx = clicked_frame
                 LOG.info(
                     f'FilmStripSprite: Right-clicked frame {animation}[{frame_idx}] for color'
-                    f' sampling'
+                    f' sampling',
                 )
 
                 if is_shift_click:
                     # Shift-right-click: sample screen directly (RGB only)
                     LOG.info(
-                        'FilmStripSprite: Shift-right-click detected - sampling screen directly'
+                        'FilmStripSprite: Shift-right-click detected - sampling screen directly',
                     )
                     if hasattr(self, 'parent_scene') and self.parent_scene:
-                        self.parent_scene._sample_color_from_screen(event.pos)  # type: ignore[reportPrivateUsage]
+                        self.parent_scene._slider_manager.sample_color_from_screen(event.pos)  # type: ignore[reportPrivateUsage]
                 else:
                     # Regular right-click: sample from sprite frame pixel data (RGBA)
                     self._sample_color_from_frame(animation, frame_idx, film_x, film_y)
@@ -250,10 +250,10 @@ class FilmStripSprite(BitmappySprite):
             # Handle right-click in the film strip widget for onion skinning
             LOG.debug(
                 f'FilmStripSprite: Calling handle_click with coordinates ({film_x}, {film_y}),'
-                f' right_click=True'
+                f' right_click=True',
             )
             clicked_frame = self.film_strip_widget.handle_click(
-                (film_x, film_y), is_right_click=True
+                (film_x, film_y), is_right_click=True,
             )
             LOG.debug(f'FilmStripSprite: Right-clicked frame: {clicked_frame}')
             return True  # Event was handled
@@ -261,7 +261,7 @@ class FilmStripSprite(BitmappySprite):
         return False  # Event not handled
 
     def _get_frame_pixel_data(
-        self, animation: str, frame_idx: int
+        self, animation: str, frame_idx: int,
     ) -> tuple[Any, list[tuple[int, ...]]] | None:
         """Get pixel data and frame object for a specific animation frame.
 
@@ -398,11 +398,11 @@ class FilmStripSprite(BitmappySprite):
 
         LOG.info(
             f'FilmStripSprite: Updated sliders with sampled color R:{red}, G:{green},'
-            f' B:{blue}, A:{alpha}'
+            f' B:{blue}, A:{alpha}',
         )
 
     def _sample_color_from_frame(
-        self, animation: str, frame_idx: int, film_x: int, film_y: int
+        self, animation: str, frame_idx: int, film_x: int, film_y: int,
     ) -> None:
         """Sample color from a sprite frame pixel data.
 
@@ -426,7 +426,7 @@ class FilmStripSprite(BitmappySprite):
                 return
 
             pixel_coords = self._screen_to_pixel_coords(
-                film_x, film_y, frame_layout, actual_width, actual_height
+                film_x, film_y, frame_layout, actual_width, actual_height,
             )
             if pixel_coords is None:
                 return
@@ -437,7 +437,7 @@ class FilmStripSprite(BitmappySprite):
             if pixel_num >= len(pixel_data):
                 LOG.debug(
                     f'FilmStripSprite: Pixel index {pixel_num} out of range for pixel data length'
-                    f' {len(pixel_data)}'
+                    f' {len(pixel_data)}',
                 )
                 return
 
@@ -450,7 +450,7 @@ class FilmStripSprite(BitmappySprite):
 
             LOG.debug(
                 f'FilmStripSprite: Sampled color from frame {animation}[{frame_idx}] pixel'
-                f' ({pixel_x}, {pixel_y}) - R:{red}, G:{green}, B:{blue}, A:{alpha}'
+                f' ({pixel_x}, {pixel_y}) - R:{red}, G:{green}, B:{blue}, A:{alpha}',
             )
 
             self._update_color_sliders(red, green, blue, alpha)
@@ -738,7 +738,7 @@ class FilmStripSprite(BitmappySprite):
             and parent.selected_animation == animation
             and parent.selected_frame == frame_idx
             and hasattr(parent, 'canvas')
-            and parent.canvas
+            and parent.canvas,
         )
 
     def _replace_frame_with_image(self, file_path: str, animation: str, frame_idx: int) -> bool:
@@ -836,6 +836,6 @@ class FilmStripSprite(BitmappySprite):
 
         LOG.debug(
             'FilmStripSprite: Successfully inserted new frame at'
-            f' {current_animation}[{insert_index}]'
+            f' {current_animation}[{insert_index}]',
         )
         return True

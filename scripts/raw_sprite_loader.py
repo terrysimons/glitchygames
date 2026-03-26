@@ -48,7 +48,7 @@ class BitmappyLegacySprite(Sprite):
         self.save(filename + '.cfg')
 
     def load(
-        self: Self, filename: str, width: int, height: int
+        self: Self, filename: str, width: int, height: int,
     ) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a sprite from a config file.
 
@@ -69,7 +69,7 @@ class BitmappyLegacySprite(Sprite):
         packed_rgb_data = struct.iter_unpack('<H', data)
 
         pixels: list[tuple[int, int, int]] = list(
-            rgb_565_triplet_generator(pixel_data=packed_rgb_data)
+            rgb_565_triplet_generator(pixel_data=packed_rgb_data),
         )
 
         for pixel in pixels:
@@ -160,8 +160,8 @@ class BitmappyLegacySprite(Sprite):
                 assert self.image is not None  # narrowing for type checker
                 raw_pixels = list(
                     rgb_triplet_generator(
-                        pygame.image.tostring(self.image, 'RGB')  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
-                    )
+                        pygame.image.tostring(self.image, 'RGB'),  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+                    ),
                 )
                 # This gives us the unique rgb triplets in the image.
                 colors = set(raw_pixels)
@@ -188,7 +188,7 @@ class BitmappyLegacySprite(Sprite):
             config.add_section(color_key)
             color_map[color] = color_key
 
-            self.log.debug(f'Key: {color} -> {color_key}')
+            self.log.debug('Key: %s -> %s', color, color_key)
 
             red: int = color[0]
             config.set(color_key, 'red', str(red))
@@ -208,7 +208,7 @@ class BitmappyLegacySprite(Sprite):
                 x += 1
 
                 if self.rect is not None and x % self.rect.width == 0:
-                    self.log.debug(f'Row: {row}')
+                    self.log.debug('Row: %s', row)
                     pixels.append(''.join(row))
                     row = []
                     x = 0
@@ -219,7 +219,7 @@ class BitmappyLegacySprite(Sprite):
             # Empty surface - set empty pixels
             config.set('sprite', 'pixels', '')
 
-        self.log.debug(f'Deflated Sprite: {config}')
+        self.log.debug('Deflated Sprite: %s', config)
 
         return config
 
@@ -288,7 +288,7 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v', '--version', action='store_true', help='print the game version and exit',
         )
 
         parser.add_argument('--filename', help='the file to load', required=True)

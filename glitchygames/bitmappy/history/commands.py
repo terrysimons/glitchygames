@@ -158,7 +158,7 @@ class BrushStrokeCommand(_ApplyingUndoRedoGuard):
             LOG.warning('Canvas not available for pixel change')
             return False
         except Exception:
-            LOG.exception(f'Error setting pixel at ({x}, {y})')
+            LOG.exception('Error setting pixel at (%s, %s)', x, y)
             return False
 
 
@@ -243,7 +243,7 @@ class FloodFillCommand(_ApplyingUndoRedoGuard):
             LOG.warning('Canvas not available for pixel change')
             return False
         except Exception:
-            LOG.exception(f'Error setting pixel at ({x}, {y})')
+            LOG.exception('Error setting pixel at (%s, %s)', x, y)
             return False
 
 
@@ -311,7 +311,7 @@ class FrameSelectionCommand(_ApplyingUndoRedoGuard):
             try:
                 if hasattr(self.editor, 'canvas') and self.editor.canvas:
                     self.editor.canvas.show_frame(animation, frame)
-                    LOG.debug(f'Applied frame selection: {animation}[{frame}]')
+                    LOG.debug('Applied frame selection: %s[%s]', animation, frame)
                     return True
                 LOG.warning('Canvas not available for frame selection')
                 return False
@@ -516,7 +516,7 @@ class FrameAddCommand:
             new_frame = SpriteFrame(surface=surface, duration=self.frame_data.get('duration', 1.0))
 
             self.editor.canvas.animated_sprite.add_frame(
-                self.animation_name, new_frame, self.frame_index
+                self.animation_name, new_frame, self.frame_index,
             )
 
             # Adjust canvas frame index if viewing this animation
@@ -535,7 +535,7 @@ class FrameAddCommand:
 
             self.editor.film_strip_coordinator.refresh_all_film_strip_widgets(self.animation_name)
             self.editor.film_strip_coordinator.on_frame_inserted(
-                self.animation_name, self.frame_index
+                self.animation_name, self.frame_index,
             )
 
             LOG.debug(f"Added frame {self.frame_index} to '{self.animation_name}'")
@@ -570,12 +570,12 @@ class FrameAddCommand:
             frames = animations[self.animation_name]
             if not (0 <= self.frame_index < len(frames)):
                 LOG.warning(
-                    f"Frame index {self.frame_index} out of range for '{self.animation_name}'"
+                    f"Frame index {self.frame_index} out of range for '{self.animation_name}'",
                 )
                 return False
 
             _stop_animation_and_adjust_frame_before_deletion(
-                self.editor, self.animation_name, self.frame_index
+                self.editor, self.animation_name, self.frame_index,
             )
 
             frames.pop(self.frame_index)
@@ -584,7 +584,7 @@ class FrameAddCommand:
 
             self.editor.film_strip_coordinator.refresh_all_film_strip_widgets(self.animation_name)
             self.editor.film_strip_coordinator.on_frame_removed(
-                self.animation_name, self.frame_index
+                self.animation_name, self.frame_index,
             )
 
             LOG.debug(f"Deleted frame {self.frame_index} from '{self.animation_name}'")
@@ -633,7 +633,7 @@ class FrameDeleteCommand:
         """
         # FrameAddCommand.undo() performs deletion
         inverse = FrameAddCommand(
-            self.editor, self.frame_index, self.animation_name, self.frame_data
+            self.editor, self.frame_index, self.animation_name, self.frame_data,
         )
         return inverse.undo()
 
@@ -646,7 +646,7 @@ class FrameDeleteCommand:
         """
         # FrameAddCommand.execute() performs addition
         inverse = FrameAddCommand(
-            self.editor, self.frame_index, self.animation_name, self.frame_data
+            self.editor, self.frame_index, self.animation_name, self.frame_data,
         )
         return inverse.execute()
 
@@ -1023,7 +1023,7 @@ class ControllerPositionCommand(_ApplyingUndoRedoGuard):
 
                     if hasattr(self.editor, 'controller_handler'):
                         self.editor.controller_handler.update_controller_canvas_visual_indicator(
-                            self.controller_id
+                            self.controller_id,
                         )
 
                     LOG.debug(f'Applied controller position: {self.controller_id} -> {position}')
@@ -1097,19 +1097,19 @@ class ControllerModeCommand(_ApplyingUndoRedoGuard):
                     try:
                         controller_mode = ControllerMode(mode)
                     except ValueError:
-                        LOG.warning(f'Invalid controller mode: {mode}')
+                        LOG.warning('Invalid controller mode: %s', mode)
                         return False
 
                     import time as time_module
 
                     current_time = time_module.time()
                     self.editor.mode_switcher.controller_modes[self.controller_id].switch_to_mode(
-                        controller_mode, current_time
+                        controller_mode, current_time,
                     )
 
                     if hasattr(self.editor, 'controller_handler'):
                         self.editor.controller_handler.update_controller_visual_indicator_for_mode(
-                            self.controller_id, controller_mode
+                            self.controller_id, controller_mode,
                         )
 
                     LOG.debug(f'Applied controller mode: {self.controller_id} -> {mode}')
@@ -1186,7 +1186,7 @@ class FrameCopyCommand:
 
 
 def _stop_animation_and_adjust_frame_before_deletion(
-    editor: Any, animation_name: str, frame_index: int
+    editor: Any, animation_name: str, frame_index: int,
 ) -> None:
     """Stop animation playback and adjust the frame index before frame deletion.
 

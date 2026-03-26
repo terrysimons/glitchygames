@@ -22,15 +22,11 @@ except ImportError:
 
 from glitchygames import events
 from glitchygames.color import (
-    MAX_COLOR_CHANNEL_VALUE,
     RGBA_COMPONENT_COUNT,
 )
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
-from glitchygames.sprites import (
-    BitmappySprite,
-)
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.ui import (
     ColorWellSprite,
@@ -52,13 +48,11 @@ from .animated_canvas import AnimatedCanvasSprite
 from .constants import (
     LOG,
     MAGENTA_TRANSPARENT,
-    MAX_COLOR_VALUE,
-    MIN_COLOR_VALUE,
     MIN_FILM_STRIPS_FOR_PANEL_POSITIONING,
     MIN_PIXEL_DISPLAY_SIZE,
     PIXEL_CHANGE_DEBOUNCE_SECONDS,
 )
-from .controller_handler import ControllerEventHandler
+from .controllers.event_handler import ControllerEventHandler
 from .controllers.manager import MultiControllerManager
 from .file_io import FileIOManager
 from .film_strip_coordinator import FilmStripCoordinator
@@ -71,6 +65,7 @@ from .history.operations import (
 )
 from .history.undo_redo import UndoRedoManager
 from .indicators.collision import VisualCollisionManager
+from .slider_manager import SliderManager
 from .sprite_inspection import load_ai_training_data
 from .utils import resource_path
 
@@ -91,6 +86,15 @@ class BitmapEditorScene(Scene):
     """
 
     log = LOG
+
+    # Slider/color well attributes (created by SliderManager.setup_sliders_and_color_well)
+    red_slider: SliderSprite
+    green_slider: SliderSprite
+    blue_slider: SliderSprite
+    alpha_slider: SliderSprite
+    color_well: ColorWellSprite
+    tab_control: TabControlSprite
+    slider_input_format: str
 
     # Set your game name/version here.
     NAME = 'Bitmappy'
@@ -219,7 +223,7 @@ class BitmapEditorScene(Scene):
         LOG.debug('===== DEBUG: INITIAL CANVAS SIZING =====')
         LOG.debug(
             f'Screen: {self.screen_width}x{self.screen_height}, Sprite:'
-            f' {pixels_across}x{pixels_tall}'
+            f' {pixels_across}x{pixels_tall}',
         )
         LOG.debug(f'Available height: {available_height}')
         LOG.debug(f'Height constraint: {available_height // pixels_tall}')
@@ -296,7 +300,7 @@ class BitmapEditorScene(Scene):
         return animated_sprite
 
     def _create_canvas_sprite(
-        self, animated_sprite: AnimatedSprite, pixels_across: int, pixels_tall: int, pixel_size: int
+        self, animated_sprite: AnimatedSprite, pixels_across: int, pixels_tall: int, pixel_size: int,
     ) -> None:
         """Create the main animated canvas sprite.
 
@@ -328,7 +332,7 @@ class BitmapEditorScene(Scene):
         # Debug: Log canvas position and size
         self.log.info(
             'AnimatedCanvasSprite created at position '
-            f'({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}'
+            f'({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}',
         )
         self.log.info(f'AnimatedCanvasSprite groups: {self.canvas.groups}')
         self.log.info(f'AnimatedCanvasSprite dirty: {self.canvas.dirty}')
@@ -350,368 +354,6 @@ class BitmapEditorScene(Scene):
         width, height = size_str.split('x')
         AnimatedCanvasSprite.WIDTH = int(width)  # ty: ignore[unresolved-attribute]
         AnimatedCanvasSprite.HEIGHT = int(height)  # ty: ignore[unresolved-attribute]
-
-    def _setup_sliders_and_color_well(self) -> None:
-        """Set up the color sliders and color well."""
-        # First create the sliders
-        slider_height = 9
-        slider_width = 256
-        slider_x = 13  # Moved 3 pixels to the right
-        label_padding = 10  # Padding between slider and label
-        well_padding = 20  # Padding between labels and color well
-
-        # Create the sliders - positioned so blue slider bottom touches screen bottom
-        # Account for bounding box height (slider_height + 4) in positioning
-        # Blue slider bottom should be at screen_height - 2 (one pixel up from last visible row)
-        bbox_height = slider_height + 4
-        blue_slider_y = self.screen_height - slider_height - 2  # Bottom edge at screen_height - 2
-        green_slider_y = blue_slider_y - bbox_height  # Use bounding box height for spacing
-        red_slider_y = green_slider_y - bbox_height  # Use bounding box height for spacing
-        alpha_slider_y = red_slider_y - bbox_height  # Alpha slider above red slider
-
-        slider_y_positions = {
-            'alpha': alpha_slider_y,
-            'red': red_slider_y,
-            'green': green_slider_y,
-            'blue': blue_slider_y,
-        }
-
-        self._create_slider_labels(
-            slider_x=slider_x,
-            slider_height=slider_height,
-            slider_y_positions=slider_y_positions,
-        )
-
-        self._create_slider_sprites(
-            slider_x=slider_x,
-            slider_width=slider_width,
-            slider_height=slider_height,
-            slider_y_positions=slider_y_positions,
-        )
-
-        self._create_slider_bounding_boxes(
-            slider_x=slider_x,
-            slider_width=slider_width,
-            slider_height=slider_height,
-            slider_y_positions=slider_y_positions,
-        )
-
-        # Create the color well positioned to the right of the text labels
-        # Calculate x position to the right of the text labels
-        # Text labels are at: slider_x + slider_width + label_padding
-        text_label_x = slider_x + slider_width + label_padding
-        color_well_x = text_label_x + well_padding  # Add padding after text labels
-
-        self._create_color_well_and_tab_control(
-            color_well_x=color_well_x,
-            red_slider_y=red_slider_y,
-            blue_slider_y=blue_slider_y,
-            slider_height=slider_height,
-        )
-
-        self._configure_slider_text_boxes(
-            text_label_x=text_label_x,
-            color_well_x=color_well_x,
-        )
-
-        self._initialize_slider_values()
-
-    def _create_slider_labels(
-        self,
-        *,
-        slider_x: int,
-        slider_height: int,
-        slider_y_positions: dict[str, int],
-    ) -> None:
-        """Create text labels for each color slider.
-
-        Args:
-            slider_x: X position of sliders
-            slider_height: Height of each slider
-            slider_y_positions: Dict mapping color names to Y positions
-
-        """
-        # Create text labels for each slider
-        label_x = (
-            slider_x - 13
-        )  # Position labels to the left of sliders (moved 7 pixels right total)
-        label_width = 16  # Width for text labels
-        label_height = 16  # Height for text labels
-
-        from glitchygames.fonts import FontManager
-
-        monospace_config = {'font_name': 'Courier', 'font_size': 14}
-
-        # Alpha slider label
-        self.alpha_label = TextSprite(
-            text='A',
-            x=label_x - 2,  # Move A label 2 pixels left (same as R and G)
-            y=slider_y_positions['alpha'] + (slider_height - label_height) // 2,
-            width=label_width,
-            height=label_height,
-            background_color=(0, 0, 0, 0),  # Transparent background
-            text_color=(255, 255, 255),  # White text
-            alpha=0,  # Transparent
-            groups=self.all_sprites,
-        )
-        # Set monospaced font for the label
-        self.alpha_label.font = FontManager.get_font(font_config=monospace_config)  # type: ignore[assignment]
-
-        # Red slider label
-        self.red_label = TextSprite(
-            text='R',
-            x=label_x - 2,  # Move R label 2 pixels left
-            y=slider_y_positions['red'] + (slider_height - label_height) // 2,
-            width=label_width,
-            height=label_height,
-            background_color=(0, 0, 0, 0),  # Transparent background
-            text_color=(255, 255, 255),  # White text
-            alpha=0,  # Transparent
-            groups=self.all_sprites,
-        )
-        # Set monospaced font for the label
-        self.red_label.font = FontManager.get_font(font_config=monospace_config)  # type: ignore[assignment]
-
-        # Green slider label
-        self.green_label = TextSprite(
-            text='G',
-            x=label_x - 2,  # Move G label 2 pixels left
-            y=slider_y_positions['green'] + (slider_height - label_height) // 2,
-            width=label_width,
-            height=label_height,
-            background_color=(0, 0, 0, 0),  # Transparent background
-            text_color=(255, 255, 255),  # White text
-            alpha=0,  # Transparent
-            groups=self.all_sprites,
-        )
-        # Set monospaced font for the label
-        self.green_label.font = FontManager.get_font(font_config=monospace_config)  # type: ignore[assignment]
-
-        # Blue slider label
-        self.blue_label = TextSprite(
-            text='B',
-            x=label_x - 1,  # Adjust B label 1 pixel left to align with R and G
-            y=slider_y_positions['blue'] + (slider_height - label_height) // 2,
-            width=label_width,
-            height=label_height,
-            background_color=(0, 0, 0, 0),  # Transparent background
-            text_color=(255, 255, 255),  # White text
-            alpha=0,  # Transparent
-            groups=self.all_sprites,
-        )
-        # Set monospaced font for the label
-        self.blue_label.font = FontManager.get_font(font_config=monospace_config)  # type: ignore[assignment]
-
-    def _create_slider_sprites(
-        self,
-        *,
-        slider_x: int,
-        slider_width: int,
-        slider_height: int,
-        slider_y_positions: dict[str, int],
-    ) -> None:
-        """Create the ARGB slider sprites.
-
-        Args:
-            slider_x: X position of sliders
-            slider_width: Width of each slider
-            slider_height: Height of each slider
-            slider_y_positions: Dict mapping color names to Y positions
-
-        """
-        self.alpha_slider = SliderSprite(
-            name='A',
-            x=slider_x,
-            y=slider_y_positions['alpha'],
-            width=slider_width,
-            height=slider_height,
-            parent=self,
-            groups=self.all_sprites,
-        )
-
-        self.red_slider = SliderSprite(
-            name='R',
-            x=slider_x,
-            y=slider_y_positions['red'],
-            width=slider_width,
-            height=slider_height,
-            parent=self,  # type: ignore[reportArgumentType]  # BitmapEditorScene satisfies SliderProtocol at runtime
-            groups=self.all_sprites,
-        )
-
-        self.green_slider = SliderSprite(
-            name='G',
-            x=slider_x,
-            y=slider_y_positions['green'],
-            width=slider_width,
-            height=slider_height,
-            parent=self,
-            groups=self.all_sprites,
-        )
-
-        self.blue_slider = SliderSprite(
-            name='B',
-            x=slider_x,
-            y=slider_y_positions['blue'],
-            width=slider_width,
-            height=slider_height,
-            parent=self,
-            groups=self.all_sprites,
-        )
-
-    def _create_slider_bounding_boxes(
-        self,
-        *,
-        slider_x: int,
-        slider_width: int,
-        slider_height: int,
-        slider_y_positions: dict[str, int],
-    ) -> None:
-        """Create bounding boxes around the sliders for hover effects (initially hidden).
-
-        Args:
-            slider_x: X position of sliders
-            slider_width: Width of each slider
-            slider_height: Height of each slider
-            slider_y_positions: Dict mapping color names to Y positions
-
-        """
-        bbox_configs = [
-            ('alpha_slider_bbox', 'Alpha Slider BBox', slider_y_positions['alpha']),
-            ('red_slider_bbox', 'Red Slider BBox', slider_y_positions['red']),
-            ('green_slider_bbox', 'Green Slider BBox', slider_y_positions['green']),
-            ('blue_slider_bbox', 'Blue Slider BBox', slider_y_positions['blue']),
-        ]
-
-        for attr_name, bbox_name, bbox_y in bbox_configs:
-            bbox_sprite = BitmappySprite(
-                x=slider_x - 2,
-                y=bbox_y - 2,
-                width=slider_width + 4,
-                height=slider_height + 4,
-                name=bbox_name,
-                groups=self.all_sprites,
-            )
-            # Create transparent surface (no border initially)
-            bbox_sprite.image = pygame.Surface(
-                (slider_width + 4, slider_height + 4), pygame.SRCALPHA
-            )
-            bbox_sprite.visible = False  # Start hidden
-            # Update bounding box position to match slider position
-            bbox_sprite.rect.y = bbox_y - 2
-            setattr(self, attr_name, bbox_sprite)
-
-    def _create_color_well_and_tab_control(
-        self,
-        *,
-        color_well_x: int,
-        red_slider_y: int,
-        blue_slider_y: int,
-        slider_height: int,
-    ) -> None:
-        """Create the color well and format tab control.
-
-        Args:
-            color_well_x: X position for the color well
-            red_slider_y: Y position of the red slider
-            blue_slider_y: Y position of the blue slider
-            slider_height: Height of each slider
-
-        """
-        # Position colorwell so its top y matches R slider's top y
-        # and its bottom y is shorter than blue slider's bottom y
-        blue_slider_bottom_y = blue_slider_y + slider_height
-        color_well_y = red_slider_y - 5  # Add some padding above
-        color_well_height = (
-            blue_slider_bottom_y - color_well_y
-        ) + 2  # 2 pixels taller than B slider's bottom y
-
-        # Calculate canvas right edge position
-        if hasattr(self, 'canvas') and self.canvas:
-            canvas_right_x = self.canvas.pixels_across * self.canvas.pixel_width
-        else:
-            # Fallback for tests or when canvas isn't initialized yet
-            canvas_right_x = self.screen_width - 20
-        # Set colorwell width so its right edge aligns with canvas right edge
-        color_well_width = canvas_right_x - color_well_x
-        # Ensure minimum width to prevent invalid surface creation
-        color_well_width = max(color_well_width, 50)
-        # Ensure minimum height to prevent invalid surface creation (reduced from 50)
-        color_well_height = max(color_well_height, 20)
-
-        self.color_well = ColorWellSprite(
-            name='Color Well',
-            x=color_well_x,
-            y=color_well_y,  # Top y matches R slider's top y
-            width=color_well_width,
-            height=color_well_height,  # Height spans from R top to G bottom
-            parent=self,
-            groups=self.all_sprites,
-        )
-
-        # Create tab control positioned above the color well
-        tab_control_width = color_well_width  # Match the color well width
-        tab_control_height = 20
-        tab_control_x = (
-            color_well_x + (color_well_width - tab_control_width) // 2
-        )  # Center horizontally
-        tab_control_y = (
-            color_well_y - tab_control_height
-        )  # Position so bottom touches top of color well
-
-        self.tab_control = TabControlSprite(
-            name='Format Tab Control',
-            x=tab_control_x,
-            y=tab_control_y,
-            width=tab_control_width,
-            height=tab_control_height,
-            parent=self,  # type: ignore[arg-type]  # BitmapEditorScene implements TabProtocol
-            groups=self.all_sprites,
-        )
-
-    def _configure_slider_text_boxes(
-        self,
-        *,
-        text_label_x: int,
-        color_well_x: int,
-    ) -> None:
-        """Configure slider text box widths and heights to fit the layout.
-
-        Args:
-            text_label_x: X position of the text labels
-            color_well_x: X position of the color well
-
-        """
-        # Initialize slider input format (default to decimal)
-        self.slider_input_format = '%d'
-
-        # Update text box widths to fit between slider end and color well start
-        text_box_width = color_well_x - text_label_x + 4  # Make 4 pixels wider
-        # Shrink text boxes vertically by 4 pixels
-        text_box_height = 16  # Original was 20, now 16 (4 pixels smaller)
-
-        for slider in (self.alpha_slider, self.red_slider, self.green_slider, self.blue_slider):
-            slider.text_sprite.width = text_box_width
-            slider.text_sprite.height = text_box_height
-            # Force text sprites to update with new dimensions
-            slider.text_sprite.update_text(slider.text_sprite.text)
-
-    def _initialize_slider_values(self) -> None:
-        """Initialize slider default values and sync with color well."""
-        self.alpha_slider.value = 255
-        self.red_slider.value = 0
-        self.blue_slider.value = 0
-        self.green_slider.value = 0
-
-        self.color_well.active_color = (
-            self.red_slider.value,
-            self.green_slider.value,
-            self.blue_slider.value,
-            self.alpha_slider.value,
-        )
-
-        if hasattr(self, 'canvas') and self.canvas:
-            self.canvas.active_color = self.color_well.active_color  # type: ignore[assignment]
 
     def _setup_debug_text_box(self) -> None:
         """Set up the debug text box and AI label."""
@@ -745,7 +387,7 @@ class BitmapEditorScene(Scene):
                 # Convert to list to safely access by index
                 film_strip_list = list(self.film_strips.values())
                 if len(film_strip_list) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING and hasattr(
-                    film_strip_list[1], 'rect'
+                    film_strip_list[1], 'rect',
                 ):
                     second_strip_bottom = film_strip_list[1].rect.bottom
             except IndexError, KeyError, AttributeError:
@@ -818,7 +460,7 @@ class BitmapEditorScene(Scene):
                 # Convert to list to safely access by index
                 film_strip_list = list(self.film_strips.values())
                 if len(film_strip_list) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING and hasattr(
-                    film_strip_list[1], 'rect'
+                    film_strip_list[1], 'rect',
                 ):
                     second_strip_bottom = film_strip_list[1].rect.bottom
             except IndexError, KeyError, AttributeError:
@@ -899,23 +541,23 @@ class BitmapEditorScene(Scene):
             if self.voice_manager.is_available():
                 # Register voice commands
                 self.voice_manager.register_command(
-                    'clear the ai sprite box', self._clear_ai_sprite_box
+                    'clear the ai sprite box', self._clear_ai_sprite_box,
                 )
                 self.voice_manager.register_command(
-                    'clear ai sprite box', self._clear_ai_sprite_box
+                    'clear ai sprite box', self._clear_ai_sprite_box,
                 )
                 self.voice_manager.register_command('clear ai box', self._clear_ai_sprite_box)
                 # Add commands for what speech recognition actually hears
                 self.voice_manager.register_command(
-                    'clear the ai sprite', self._clear_ai_sprite_box
+                    'clear the ai sprite', self._clear_ai_sprite_box,
                 )
                 self.voice_manager.register_command('clear ai sprite', self._clear_ai_sprite_box)
                 # Add command for "window" variation
                 self.voice_manager.register_command(
-                    'clear the ai sprite window', self._clear_ai_sprite_box
+                    'clear the ai sprite window', self._clear_ai_sprite_box,
                 )
                 self.voice_manager.register_command(
-                    'clear ai sprite window', self._clear_ai_sprite_box
+                    'clear ai sprite window', self._clear_ai_sprite_box,
                 )
 
                 # Start listening for voice commands
@@ -969,15 +611,9 @@ class BitmapEditorScene(Scene):
         # Used by _refresh_all_film_strip_widgets and undo/redo methods
         self.film_strip_widget: FilmStripWidget | None = None
 
-        # Slider bounding box sprites for hover effects (set dynamically in _create_slider_bboxes)
-        self.alpha_slider_bbox: BitmappySprite | None = None
-        self.red_slider_bbox: BitmappySprite | None = None
-        self.green_slider_bbox: BitmappySprite | None = None
-        self.blue_slider_bbox: BitmappySprite | None = None
-
         # Pixel change tracking dict for deduplication (used alongside _current_pixel_changes list)
         self.current_pixel_changes_dict: dict[
-            int, tuple[int, tuple[int, ...], tuple[int, ...]]
+            int, tuple[int, tuple[int, ...], tuple[int, ...]],
         ] = {}
 
         # Initialize scroll arrows
@@ -1024,13 +660,15 @@ class BitmapEditorScene(Scene):
         # Initialize extracted subsystem managers
         self._file_io = FileIOManager(self)
         self._ai_integration = AIManager(self)
+        self._slider_manager = SliderManager(self)
         self.controller_handler = ControllerEventHandler(self)
+        self.mode_switcher.set_handler(self.controller_handler)
         self.film_strip_coordinator = FilmStripCoordinator(self)
 
         # Set up all components
         self._setup_menu_bar()
         self._setup_canvas(options)
-        self._setup_sliders_and_color_well()
+        self._slider_manager.setup_sliders_and_color_well()
         self._setup_debug_text_box()
 
         # Set up film strips after canvas is ready
@@ -1091,13 +729,13 @@ class BitmapEditorScene(Scene):
         self.undo_redo_manager = UndoRedoManager(max_history=50)
         self.canvas_operation_tracker = CanvasOperationTracker(self.undo_redo_manager, editor=self)
         self.film_strip_operation_tracker = FilmStripOperationTracker(
-            self.undo_redo_manager, editor=self
+            self.undo_redo_manager, editor=self,
         )
         self.cross_area_operation_tracker = CrossAreaOperationTracker(
-            self.undo_redo_manager, editor=self
+            self.undo_redo_manager, editor=self,
         )
         self.controller_position_operation_tracker = ControllerPositionOperationTracker(
-            self.undo_redo_manager, editor=self
+            self.undo_redo_manager, editor=self,
         )
 
         self.current_pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]] = []
@@ -1126,7 +764,7 @@ class BitmapEditorScene(Scene):
             None
 
         """
-        self.log.info(f'Scene got menu item event: {event}')
+        self.log.info('Scene got menu item event: %s', event)
         if not event.menu.name:
             # This is for the system menu.
             self.log.info('System Menu Clicked')
@@ -1212,11 +850,11 @@ class BitmapEditorScene(Scene):
             dimensions (str): The canvas dimensions in WxH format.
 
         """
-        self.log.info(f'Creating new canvas with dimensions: {dimensions}')
+        self.log.info('Creating new canvas with dimensions: %s', dimensions)
 
         try:
             width, height = map(int, dimensions.lower().split('x'))
-            self.log.info(f'Parsed dimensions: {width}x{height}')
+            self.log.info('Parsed dimensions: %sx%s', width, height)
 
             available_height = self.screen_height - 80 - 24
             new_pixel_size = min(
@@ -1224,7 +862,7 @@ class BitmapEditorScene(Scene):
                 (self.screen_width * 1 // 2) // width,
                 350 // width,
             )
-            self.log.info(f'Calculated new pixel size: {new_pixel_size}')
+            self.log.info('Calculated new pixel size: %s', new_pixel_size)
 
             self._reset_canvas_for_new_file(width, height, new_pixel_size)
             self._create_fresh_animated_sprite(width, height, new_pixel_size)
@@ -1238,10 +876,10 @@ class BitmapEditorScene(Scene):
             self._update_ai_sprite_position()
             self.canvas.update()
             self.canvas.dirty = 1
-            self.log.info(f'Canvas resized to {width}x{height} with pixel size {new_pixel_size}')
+            self.log.info('Canvas resized to %sx%s with pixel size %s', width, height, new_pixel_size)
 
         except ValueError:
-            self.log.exception(f"Invalid dimensions format '{dimensions}'")
+            self.log.exception("Invalid dimensions format '%s'", dimensions)
             self.log.exception("Expected format: WxH (e.g., '32x32')")
 
         self.dirty = 1
@@ -1298,122 +936,14 @@ class BitmapEditorScene(Scene):
         self.dirty = 1
 
     def on_color_well_event(self: Self, event: events.HashableEvent, trigger: object) -> None:
-        """Handle the color well event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Raises:
-            None
-
-        """
-        self.log.info('COLOR WELL EVENT')
-
-    def _sample_color_from_screen(self, screen_pos: tuple[int, int]) -> None:
-        """Sample color directly from the screen (RGB only, ignores alpha).
-
-        Args:
-            screen_pos: Screen coordinates (x, y) to sample from
-
-        """
-        try:
-            # Sample directly from the screen
-            assert self.screen is not None
-            color = self.screen.get_at(screen_pos)
-
-            # Handle both RGB and RGBA screen formats
-            if len(color) == RGBA_COMPONENT_COUNT:
-                red, green, blue, _ = color  # Ignore alpha from screen
-            else:
-                red, green, blue = color
-            alpha = 255  # Screen has no meaningful alpha, default to opaque
-
-            self.log.info(
-                f'Screen pixel sampled - Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}'
-                f' (default)'
-            )
-
-            # Update all sliders with the sampled RGB values and default alpha
-            trigger = events.HashableEvent(0, name='R', value=red)
-            self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='G', value=green)
-            self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='B', value=blue)
-            self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
-
-            trigger = events.HashableEvent(0, name='A', value=alpha)
-            self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
-
-            self.log.info(
-                f'Updated sliders with screen color R:{red}, G:{green}, B:{blue}, A:{alpha}'
-            )
-
-        except Exception:
-            self.log.exception('Error sampling color from screen')
+        """Handle the color well event by delegating to SliderManager."""
+        self._slider_manager.on_color_well_event(event, trigger)
 
     def on_slider_event(
-        self: Self, event: events.HashableEvent, trigger: events.HashableEvent
+        self: Self, event: events.HashableEvent, trigger: events.HashableEvent,
     ) -> None:
-        """Handle the slider event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Raises:
-            None
-
-        """
-        value = trigger.value
-
-        self.log.debug(f'Slider: event: {event}, trigger: {trigger} value: {value}')
-
-        if value < MIN_COLOR_VALUE:
-            value = MIN_COLOR_VALUE
-            trigger.value = MIN_COLOR_VALUE  # type: ignore[misc]
-        elif value > MAX_COLOR_VALUE:
-            value = MAX_COLOR_VALUE
-            trigger.value = MAX_COLOR_VALUE  # type: ignore[misc]
-
-        if trigger.name == 'R':
-            self.red_slider.value = value
-            self.log.debug(f'Updated red slider to: {value}')
-        elif trigger.name == 'G':
-            self.green_slider.value = value
-            self.log.debug(f'Updated green slider to: {value}')
-        elif trigger.name == 'B':
-            self.blue_slider.value = value
-            self.log.debug(f'Updated blue slider to: {value}')
-        elif trigger.name == 'A':
-            self.alpha_slider.value = value
-            self.log.debug(f'Updated alpha slider to: {value}')
-
-        # Update slider text to reflect current tab format
-        # This handles slider clicks - text input is handled by SliderSprite itself
-        self._update_slider_text_format()
-
-        # Debug: Log current slider values
-        self.log.debug(
-            f'Current slider values - R: {self.red_slider.value}, '
-            f'G: {self.green_slider.value}, B: {self.blue_slider.value}, A:'
-            f' {self.alpha_slider.value}'
-        )
-
-        self.color_well.active_color = (
-            self.red_slider.value,
-            self.green_slider.value,
-            self.blue_slider.value,
-            self.alpha_slider.value,
-        )
-        self.canvas.active_color = (  # type: ignore[assignment]
-            self.red_slider.value,
-            self.green_slider.value,
-            self.blue_slider.value,
-            self.alpha_slider.value,
-        )
+        """Handle the slider event by delegating to SliderManager."""
+        self._slider_manager.on_slider_event(event, trigger)
 
     @override
     def on_right_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
@@ -1450,7 +980,7 @@ class BitmapEditorScene(Scene):
             if is_shift_click:
                 # Shift-right-click: sample screen directly (RGB only)
                 self.log.info('Shift-right-click detected on canvas - sampling screen directly')
-                self._sample_color_from_screen(event.pos)
+                self._slider_manager.sample_color_from_screen(event.pos)
                 return
             # Regular right-click: sample from canvas pixel data (RGBA)
             canvas_x = (event.pos[0] - self.canvas.rect.x) // self.canvas.pixel_width
@@ -1478,8 +1008,7 @@ class BitmapEditorScene(Scene):
                         alpha = 255  # Default to opaque for RGB pixels
 
                     self.log.info(
-                        f'Canvas pixel sampled - Red: {red}, Green: {green}, Blue: {blue}, Alpha:'
-                        f' {alpha}'
+                        'Canvas pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s', red, green, blue, alpha,
                     )
 
                     # Update all sliders with the sampled RGBA values
@@ -1506,8 +1035,7 @@ class BitmapEditorScene(Scene):
                 red, green, blue = color
             alpha = 255  # Screen has no alpha, default to opaque
             self.log.info(
-                f'Screen pixel sampled - Red: {red}, Green: {green}, Blue: {blue}, Alpha: {alpha}'
-                f' (default)'
+                'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)', red, green, blue, alpha,
             )
 
             # Update sliders with RGB values and default alpha
@@ -1524,88 +1052,6 @@ class BitmapEditorScene(Scene):
             self.on_slider_event(event=event, trigger=trigger)
         except IndexError:
             pass
-
-    def _detect_clicked_slider(self, mouse_pos: tuple[int, int]) -> str | None:
-        """Detect which slider text box was clicked.
-
-        Args:
-            mouse_pos: The mouse position (x, y)
-
-        Returns:
-            The name of the clicked slider ("red", "green", "blue") or None.
-
-        """
-        slider_names = ['red', 'green', 'blue']
-        for name in slider_names:
-            slider_attr = f'{name}_slider'
-            if (
-                hasattr(self, slider_attr)
-                and hasattr(getattr(self, slider_attr), 'text_sprite')
-                and getattr(self, slider_attr).text_sprite.rect.collidepoint(mouse_pos)
-            ):
-                return name
-        return None
-
-    def _commit_and_deactivate_slider(
-        self, slider: SliderSprite, clicked_slider: str | None, slider_name: str
-    ) -> None:
-        """Commit the slider text value and deactivate the text sprite.
-
-        Commits the current text input on a slider's text sprite, parsing as hex or
-        decimal as appropriate, then deactivates the text sprite.
-
-        Args:
-            slider: The slider object with text_sprite attribute
-            clicked_slider: Name of the slider that was clicked, or None
-            slider_name: Name of this slider ("red", "green", "blue")
-
-        """
-        if not (
-            hasattr(slider, 'text_sprite')
-            and slider.text_sprite.active
-            and (clicked_slider != slider_name or clicked_slider is None)
-        ):
-            return
-
-        # Commit any uncommitted value before deactivating
-        if not slider.text_sprite.text.strip():
-            # If empty, restore original value
-            slider.text_sprite.text = str(slider.original_value)
-        else:
-            # Try to commit the current text value - parse as hex if contains letters, otherwise
-            # decimal
-            try:
-                text = slider.text_sprite.text.strip().lower()
-                # Parse as hex if contains hex letters, otherwise decimal
-                new_value = int(text, 16) if any(c in 'abcdef' for c in text) else int(text)
-
-                if 0 <= new_value <= MAX_COLOR_CHANNEL_VALUE:
-                    slider.value = new_value
-                    # Update original value for future validations
-                    slider.original_value = new_value
-                    # Convert text to appropriate format based on selected tab
-                    LOG.debug(f'DEBUG: Current slider_input_format: {self.slider_input_format}')
-                    if self.slider_input_format == '%X':
-                        slider.text_sprite.text = f'{new_value:02X}'
-                        LOG.debug(
-                            f'DEBUG: Converting {new_value} to hex: {slider.text_sprite.text}'
-                        )
-                    else:
-                        slider.text_sprite.text = str(new_value)
-                        LOG.debug(
-                            f'DEBUG: Converting {new_value} to decimal: {slider.text_sprite.text}'
-                        )
-                    slider.text_sprite.update_text(slider.text_sprite.text)
-                    slider.text_sprite.dirty = 2  # Force redraw
-                else:
-                    # Invalid range, restore original
-                    slider.text_sprite.text = str(slider.original_value)
-            except ValueError:
-                # Invalid input, restore original
-                slider.text_sprite.text = str(slider.original_value)
-
-        slider.text_sprite.active = False
-        slider.text_sprite.update_text(slider.text_sprite.text)
 
     @override
     def on_left_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
@@ -1624,7 +1070,7 @@ class BitmapEditorScene(Scene):
         for sprite in sprites:
             if hasattr(sprite, 'direction') and hasattr(sprite, 'visible') and sprite.visible:
                 LOG.debug(
-                    f'Scroll arrow clicked: direction={sprite.direction}, visible={sprite.visible}'
+                    f'Scroll arrow clicked: direction={sprite.direction}, visible={sprite.visible}',
                 )
                 if sprite.direction == 'up':
                     # Clicked on up arrow - navigate to previous animation and scroll if needed
@@ -1638,15 +1084,15 @@ class BitmapEditorScene(Scene):
                     return
 
         # Check if click is on any slider text box and deactivate others
-        clicked_slider = self._detect_clicked_slider(event.pos)
+        clicked_slider = self._slider_manager.detect_clicked_slider(event.pos)
 
         # Deactivate all slider text boxes except the one clicked (if any)
         # Also commit values when clicking outside of any slider text box
         for slider_name in ('red', 'green', 'blue'):
             slider_attr = f'{slider_name}_slider'
             if hasattr(self, slider_attr):
-                self._commit_and_deactivate_slider(
-                    getattr(self, slider_attr), clicked_slider, slider_name
+                self._slider_manager.commit_and_deactivate_slider(
+                    getattr(self, slider_attr), clicked_slider, slider_name,
                 )
 
         # If a slider text box was clicked, also trigger the slider's normal behavior
@@ -1666,61 +1112,12 @@ class BitmapEditorScene(Scene):
             self.film_strip_drag_start_offset = self.film_strip_scroll_offset
             self.log.debug(
                 f'Started film strip drag at Y={event.pos[1]},'
-                f' offset={self.film_strip_scroll_offset}'
+                f' offset={self.film_strip_scroll_offset}',
             )
 
     def on_tab_change_event(self, tab_format: str) -> None:
-        """Handle tab control format change.
-
-        Args:
-            tab_format (str): The selected format ("%d" or "%H")
-
-        """
-        self.log.info(f'Tab control changed to format: {tab_format}')
-
-        # Store the current format for slider text input
-        self.slider_input_format = tab_format
-
-        # Update slider text display format if they have values
-        self._update_slider_text_format(tab_format)
-
-    def _update_slider_text_format(self, tab_format: str | None = None) -> None:
-        """Update slider text display format.
-
-        Args:
-            tab_format (str): The format to use ("%X" for hex, "%d" for decimal).
-                             If None, uses the current slider_input_format.
-
-        """
-        if tab_format is None:
-            tab_format = getattr(self, 'slider_input_format', '%d')
-
-        if hasattr(self, 'red_slider') and hasattr(self.red_slider, 'text_sprite'):
-            if tab_format == '%X':
-                # Convert to hex
-                self.red_slider.text_sprite.text = f'{self.red_slider.value:02X}'
-            else:
-                # Convert to decimal
-                self.red_slider.text_sprite.text = str(self.red_slider.value)
-            self.red_slider.text_sprite.update_text(self.red_slider.text_sprite.text)
-
-        if hasattr(self, 'green_slider') and hasattr(self.green_slider, 'text_sprite'):
-            if tab_format == '%X':
-                # Convert to hex
-                self.green_slider.text_sprite.text = f'{self.green_slider.value:02X}'
-            else:
-                # Convert to decimal
-                self.green_slider.text_sprite.text = str(self.green_slider.value)
-            self.green_slider.text_sprite.update_text(self.green_slider.text_sprite.text)
-
-        if hasattr(self, 'blue_slider') and hasattr(self.blue_slider, 'text_sprite'):
-            if tab_format == '%X':
-                # Convert to hex
-                self.blue_slider.text_sprite.text = f'{self.blue_slider.value:02X}'
-            else:
-                # Convert to decimal
-                self.blue_slider.text_sprite.text = str(self.blue_slider.value)
-            self.blue_slider.text_sprite.update_text(self.blue_slider.text_sprite.text)
+        """Handle tab control format change by delegating to SliderManager."""
+        self._slider_manager.on_tab_change_event(tab_format)
 
     @override
     def on_left_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
@@ -1855,183 +1252,11 @@ class BitmapEditorScene(Scene):
 
         """
         # Handle slider hover effects
-        self._update_slider_hover_effects(event.pos)
+        self._slider_manager.update_slider_hover_effects(event.pos)
 
         for sprite in self.all_sprites:
             if hasattr(sprite, 'on_mouse_motion_event'):
                 sprite.on_mouse_motion_event(event)
-
-    def _is_slider_hovered(self, slider_name: str, mouse_pos: tuple[int, int]) -> bool:
-        """Check if the mouse is hovering over a slider.
-
-        Args:
-            slider_name: The slider attribute name (e.g., "alpha_slider")
-            mouse_pos: The current mouse position (x, y)
-
-        Returns:
-            True if the mouse is hovering over the slider.
-
-        """
-        return hasattr(self, slider_name) and getattr(self, slider_name).rect.collidepoint(
-            mouse_pos
-        )
-
-    def _is_slider_text_hovered(self, slider_name: str, mouse_pos: tuple[int, int]) -> bool:
-        """Check if the mouse is hovering over a slider's text sprite.
-
-        Uses absolute coordinates for text sprites.
-
-        Args:
-            slider_name: The slider attribute name (e.g., "alpha_slider")
-            mouse_pos: The current mouse position (x, y)
-
-        Returns:
-            True if the mouse is hovering over the slider's text sprite.
-
-        """
-        if not hasattr(self, slider_name):
-            return False
-        slider = getattr(self, slider_name)
-        return hasattr(slider, 'text_sprite') and slider.text_sprite.rect.collidepoint(mouse_pos)
-
-    def _draw_alpha_slider_gradient_border(self, bbox: BitmappySprite) -> None:
-        """Draw a gradient border on the alpha slider bounding box.
-
-        The gradient goes from right (opaque) to left (transparent).
-
-        Args:
-            bbox: The alpha slider bounding box sprite
-
-        """
-        bbox.image.fill((0, 0, 0, 0))  # Clear surface
-
-        # Draw individual pixels to create gradient effect
-        width = bbox.rect.width
-        height = bbox.rect.height
-
-        # Draw border pixels with fixed gradient from right (255) to left (0)
-        for x in range(int(width)):
-            # Calculate opacity based on position: right side = 255, left side = 0
-            pixel_alpha = int((255 * x) / width) if width > 0 else 0
-            pixel_color = (pixel_alpha, 0, pixel_alpha, pixel_alpha)  # RGBA
-
-            # Draw top and bottom border lines
-            if x < width - 1:  # Don't draw the last pixel to avoid overlap
-                bbox.image.set_at((x, 0), pixel_color)  # Top border
-                bbox.image.set_at((x, height - 1), pixel_color)  # Bottom border
-
-        # Draw left and right border lines
-        for y in range(int(height)):
-            # Left border (transparent)
-            bbox.image.set_at((0, y), (0, 0, 0, 0))  # Transparent
-            # Right border (opaque magenta)
-            right_color = (255, 0, 255, 255)
-            bbox.image.set_at((width - 1, y), right_color)
-
-        bbox.visible = True
-        bbox.dirty = 1
-
-    def _update_slider_bbox_hover(
-        self, bbox_attr: str, *, is_hovered: bool, border_color: tuple[int, int, int]
-    ) -> None:
-        """Update a slider bounding box border based on hover state.
-
-        Args:
-            bbox_attr: The bounding box attribute name (e.g., "red_slider_bbox")
-            is_hovered: Whether the mouse is currently hovering over the slider
-            border_color: The RGB color for the border
-
-        """
-        if not hasattr(self, bbox_attr):
-            return
-
-        bbox = getattr(self, bbox_attr)
-        if is_hovered and not bbox.visible:
-            bbox.image.fill((0, 0, 0, 0))  # Clear surface
-            pygame.draw.rect(
-                bbox.image,
-                border_color,
-                (0, 0, bbox.rect.width, bbox.rect.height),
-                2,
-            )
-            bbox.visible = True
-            bbox.dirty = 1
-        elif not is_hovered and bbox.visible:
-            bbox.image.fill((0, 0, 0, 0))  # Clear surface
-            bbox.visible = False
-            bbox.dirty = 1
-
-    def _update_slider_text_hover_border(self, slider_name: str, *, is_text_hovered: bool) -> None:
-        """Update a slider text sprite's white hover border.
-
-        Args:
-            slider_name: The slider attribute name (e.g., "red_slider")
-            is_text_hovered: Whether the mouse is hovering over the text sprite
-
-        """
-        if not (hasattr(self, slider_name) and hasattr(getattr(self, slider_name), 'text_sprite')):
-            return
-
-        text_sprite = getattr(self, slider_name).text_sprite
-        if is_text_hovered:
-            # Add white border to text sprite
-            if not hasattr(text_sprite, 'hover_border_added'):
-                # Create a white border by drawing on the text sprite's image
-                pygame.draw.rect(
-                    text_sprite.image,
-                    (255, 255, 255),
-                    (0, 0, text_sprite.rect.width, text_sprite.rect.height),
-                    2,
-                )
-                text_sprite.hover_border_added = True
-                text_sprite.dirty = 1
-        # Remove white border
-        elif hasattr(text_sprite, 'hover_border_added') and text_sprite.hover_border_added:
-            # Force text sprite to redraw without border
-            text_sprite.update_text(text_sprite.text)
-            text_sprite.hover_border_added = False
-            text_sprite.dirty = 1
-
-    def _update_slider_hover_effects(self, mouse_pos: tuple[int, int]) -> None:
-        """Update slider hover effects based on mouse position.
-
-        Args:
-            mouse_pos: The current mouse position (x, y)
-
-        """
-        # Check if mouse is hovering over any slider
-        alpha_hover = self._is_slider_hovered('alpha_slider', mouse_pos)
-        red_hover = self._is_slider_hovered('red_slider', mouse_pos)
-        green_hover = self._is_slider_hovered('green_slider', mouse_pos)
-        blue_hover = self._is_slider_hovered('blue_slider', mouse_pos)
-
-        # Update alpha slider border (uses gradient, not solid border)
-        if hasattr(self, 'alpha_slider_bbox') and self.alpha_slider_bbox is not None:
-            if alpha_hover and not self.alpha_slider_bbox.visible:
-                self._draw_alpha_slider_gradient_border(self.alpha_slider_bbox)
-            elif not alpha_hover and self.alpha_slider_bbox.visible:
-                # Hide alpha border
-                self.alpha_slider_bbox.image.fill((0, 0, 0, 0))  # Clear surface
-                self.alpha_slider_bbox.visible = False
-                self.alpha_slider_bbox.dirty = 1
-
-        # Update colored slider borders
-        self._update_slider_bbox_hover(
-            'red_slider_bbox', is_hovered=red_hover, border_color=(255, 0, 0)
-        )
-        self._update_slider_bbox_hover(
-            'green_slider_bbox', is_hovered=green_hover, border_color=(0, 255, 0)
-        )
-        self._update_slider_bbox_hover(
-            'blue_slider_bbox', is_hovered=blue_hover, border_color=(0, 0, 255)
-        )
-
-        # Update text box hover effects (white borders)
-        # Check if mouse is hovering over any slider text boxes (use absolute coordinates)
-        slider_names = ['alpha_slider', 'red_slider', 'green_slider', 'blue_slider']
-        for slider_name in slider_names:
-            text_hovered = self._is_slider_text_hovered(slider_name, mouse_pos)
-            self._update_slider_text_hover_border(slider_name, is_text_hovered=text_hovered)
 
     # ──────────────────────────────────────────────────────────────────────
     # AI integration delegation (methods extracted to ai_integration.py)
@@ -2180,7 +1405,7 @@ class BitmapEditorScene(Scene):
 
         """
         surface = pygame.Surface(
-            (self.canvas.pixels_across, self.canvas.pixels_tall), pygame.SRCALPHA
+            (self.canvas.pixels_across, self.canvas.pixels_tall), pygame.SRCALPHA,
         )
         for y in range(self.canvas.pixels_tall):
             for x in range(self.canvas.pixels_across):
@@ -2208,7 +1433,7 @@ class BitmapEditorScene(Scene):
         # Also update the frame.image surface for film strip thumbnails with alpha support
         frame.image = self._build_surface_from_canvas_pixels()
         self.log.debug(
-            f'Committed panned pixels and image to frame {current_animation}[{current_frame}]'
+            'Committed panned pixels and image to frame %s[%s]', current_animation, current_frame,
         )
 
     def _commit_panned_film_strip_frame(self, current_animation: str, current_frame: int) -> None:
@@ -2245,8 +1470,7 @@ class BitmapEditorScene(Scene):
         # Also update the film strip frame's image surface with alpha support
         film_strip_frame.image = self._build_surface_from_canvas_pixels()
         self.log.debug(
-            'Updated film strip animated sprite frame'
-            f' {current_animation}[{current_frame}] with pixels and image'
+            'Updated film strip animated sprite frame %s[%s] with pixels and image', current_animation, current_frame,
         )
 
     def _commit_panned_buffer(self) -> None:
@@ -2287,35 +1511,13 @@ class BitmapEditorScene(Scene):
 
         # Update the film strip to reflect the pixel data changes
         self.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
-        self.log.debug(f'Updated film strip for frame {current_animation}[{current_frame}]')
+        self.log.debug('Updated film strip for frame %s[%s]', current_animation, current_frame)
 
         # Keep the panning state active so user can continue panning
         # Don't clear _original_frame_pixels, pan_offset_x, pan_offset_y, or _panning_active
         # The viewport will continue to show the panned view
 
         self.log.debug('Panned buffer committed, panning state preserved for continued panning')
-
-    def _handle_slider_text_input(self, event: events.HashableEvent) -> bool | None:
-        """Handle text input for active slider text boxes.
-
-        Args:
-            event: The key down event.
-
-        Returns:
-            True if escape was pressed (consume event), None if handled but not escape,
-            or False if no slider text box was active.
-
-        """
-        sliders = ['red_slider', 'green_slider', 'blue_slider', 'alpha_slider']
-        for slider_name in sliders:
-            slider = getattr(self, slider_name, None)
-            if slider is not None and hasattr(slider, 'text_sprite') and slider.text_sprite.active:
-                slider.text_sprite.on_key_down_event(event)
-                # If escape was pressed, consume the event to prevent game quit
-                if event.key == pygame.K_ESCAPE:
-                    return True
-                return None
-        return False
 
     def _handle_film_strip_text_input(self, event: events.HashableEvent) -> bool | None:
         """Handle text input for film strips in text editing mode.
@@ -2392,31 +1594,11 @@ class BitmapEditorScene(Scene):
             if event.key in panning_map:
                 delta_x, delta_y, direction = panning_map[event.key]
                 self.log.debug(
-                    f'Ctrl+Shift+{direction} arrow pressed - panning {direction.lower()}'
+                    f'Ctrl+Shift+{direction} arrow pressed - panning {direction.lower()}',
                 )
                 self._handle_canvas_panning(delta_x, delta_y)
                 return True
 
-        return False
-
-    def _is_any_controller_in_slider_mode(self) -> bool:
-        """Check if any controller is currently in slider mode.
-
-        Returns:
-            True if at least one controller is in a slider mode.
-
-        """
-        if not hasattr(self, 'mode_switcher'):
-            return False
-
-        for controller_id in self.mode_switcher.controller_modes:
-            controller_mode = self.mode_switcher.get_controller_mode(controller_id)
-            if controller_mode and controller_mode.value in {
-                'r_slider',
-                'g_slider',
-                'b_slider',
-            }:
-                return True
         return False
 
     def _handle_arrow_key_navigation(self, event: events.HashableEvent) -> bool:
@@ -2477,7 +1659,7 @@ class BitmapEditorScene(Scene):
             return None
 
         # Check if any slider text box is active and handle text input
-        slider_result = self._handle_slider_text_input(event)
+        slider_result = self._slider_manager.handle_slider_text_input(event)
         if slider_result is not False:
             return slider_result  # type: ignore[return-value]
 
@@ -2506,7 +1688,7 @@ class BitmapEditorScene(Scene):
             return None
 
         # Handle slider mode navigation with arrow keys
-        if self._is_any_controller_in_slider_mode():
+        if self._slider_manager.is_any_controller_in_slider_mode():
             if event.key == pygame.K_UP:
                 self.log.debug('UP arrow pressed - navigating to previous slider mode')
                 self.controller_handler.handle_slider_mode_navigation('up')
@@ -2521,7 +1703,7 @@ class BitmapEditorScene(Scene):
             return None
 
         # Route to canvas or parent (only if not in slider mode)
-        if not self._is_any_controller_in_slider_mode():
+        if not self._slider_manager.is_any_controller_in_slider_mode():
             self._route_to_canvas_or_parent(event)
 
         return None
@@ -2545,14 +1727,14 @@ class BitmapEditorScene(Scene):
                 success = self.undo_redo_manager.undo_frame(current_animation, current_frame)
                 if success:
                     self.log.info(
-                        f'Frame-specific undo successful for {current_animation}[{current_frame}]'
+                        'Frame-specific undo successful for %s[%s]', current_animation, current_frame,
                     )
                     # Force canvas redraw to show the undone changes
                     if hasattr(self, 'canvas') and self.canvas:
                         self.canvas.force_redraw()
                     return
                 self.log.warning(
-                    f'Frame-specific undo failed for {current_animation}[{current_frame}]'
+                    'Frame-specific undo failed for %s[%s]', current_animation, current_frame,
                 )
             else:
                 self.log.warning('No frame-specific undo operations available')
@@ -2595,21 +1777,20 @@ class BitmapEditorScene(Scene):
         current_frame = getattr(self.canvas, 'current_frame', None)
 
         self.log.debug(
-            f'Canvas state before sync: animation={current_animation}, frame={current_frame}'
+            'Canvas state before sync: animation=%s, frame=%s', current_animation, current_frame,
         )
         self.log.debug(f'Available animations: {list(animations.keys())}')
 
         # Check if current animation still exists
         if current_animation not in animations:
             self.log.warning(
-                f"Current animation '{current_animation}' no longer exists, switching to first"
-                f' available'
+                "Current animation '%s' no longer exists, switching to first available", current_animation,
             )
             if animations:
                 # Switch to the first available animation
                 first_animation = next(iter(animations.keys()))
                 self.canvas.show_frame(first_animation, 0)
-                self.log.info(f"Switched to animation '{first_animation}', frame 0")
+                self.log.info("Switched to animation '%s', frame 0", first_animation)
                 return
             self.log.error('No animations available - this should not happen')
             return
@@ -2619,17 +1800,17 @@ class BitmapEditorScene(Scene):
         if current_frame is None or current_frame < 0 or current_frame >= len(frames):
             self.log.warning(
                 f"Current frame {current_frame} is invalid for animation '{current_animation}' with"
-                f' {len(frames)} frames'
+                f' {len(frames)} frames',
             )
             # Switch to the last valid frame
             valid_frame = max(0, len(frames) - 1)
             self.canvas.show_frame(current_animation, valid_frame)
-            self.log.info(f"Switched to frame {valid_frame} of animation '{current_animation}'")
+            self.log.info("Switched to frame %s of animation '%s'", valid_frame, current_animation)
             return
 
         # If we get here, the canvas state is valid
         self.log.debug(
-            f"Canvas state is valid: animation='{current_animation}', frame={current_frame}"
+            "Canvas state is valid: animation='%s', frame=%s", current_animation, current_frame,
         )
 
         # Force a complete canvas refresh to ensure everything is in sync
@@ -2638,7 +1819,7 @@ class BitmapEditorScene(Scene):
         # Update film strips to reflect the current state
         if hasattr(self, 'update_film_strips_for_frame'):
             self.film_strip_coordinator.update_film_strips_for_frame(
-                current_animation, current_frame
+                current_animation, current_frame,
             )
 
     def handle_redo(self) -> None:
@@ -2660,14 +1841,14 @@ class BitmapEditorScene(Scene):
                 success = self.undo_redo_manager.redo_frame(current_animation, current_frame)
                 if success:
                     self.log.info(
-                        f'Frame-specific redo successful for {current_animation}[{current_frame}]'
+                        'Frame-specific redo successful for %s[%s]', current_animation, current_frame,
                     )
                     # Force canvas redraw to show the redone changes
                     if hasattr(self, 'canvas') and self.canvas:
                         self.canvas.force_redraw()
                     return
                 self.log.warning(
-                    f'Frame-specific redo failed for {current_animation}[{current_frame}]'
+                    'Frame-specific redo failed for %s[%s]', current_animation, current_frame,
                 )
             else:
                 self.log.warning('No frame-specific redo operations available')
@@ -2730,12 +1911,12 @@ class BitmapEditorScene(Scene):
 
         # Get the frame data
         if animation not in self.canvas.animated_sprite._animations:  # type: ignore[reportPrivateUsage]
-            self.log.warning(f"Animation '{animation}' not found for copying")
+            self.log.warning("Animation '%s' not found for copying", animation)
             return
 
         frames = self.canvas.animated_sprite._animations[animation]  # type: ignore[reportPrivateUsage]
         if frame >= len(frames):
-            self.log.warning(f"Frame {frame} not found in animation '{animation}'")
+            self.log.warning("Frame %s not found in animation '%s'", frame, animation)
             return
 
         frame_obj = frames[frame]
@@ -2761,7 +1942,7 @@ class BitmapEditorScene(Scene):
             'frame': frame,
         }
 
-        self.log.debug(f"Copied frame {frame} from animation '{animation}' to clipboard")
+        self.log.debug("Copied frame %s from animation '%s' to clipboard", frame, animation)
 
     def _handle_paste_frame(self) -> None:
         """Handle pasting a frame from clipboard to the current frame."""
@@ -2790,12 +1971,12 @@ class BitmapEditorScene(Scene):
 
         # Get the target frame
         if animation not in self.canvas.animated_sprite._animations:  # type: ignore[reportPrivateUsage]
-            self.log.warning(f"Animation '{animation}' not found for pasting")
+            self.log.warning("Animation '%s' not found for pasting", animation)
             return
 
         frames = self.canvas.animated_sprite._animations[animation]  # type: ignore[reportPrivateUsage]
         if frame >= len(frames):
-            self.log.warning(f"Frame {frame} not found in animation '{animation}'")
+            self.log.warning("Frame %s not found in animation '%s'", frame, animation)
             return
 
         target_frame = frames[frame]
@@ -2807,8 +1988,7 @@ class BitmapEditorScene(Scene):
 
         if clipboard_width != target_width or clipboard_height != target_height:
             self.log.warning(
-                'Cannot paste frame: dimension mismatch (clipboard:'
-                f' {clipboard_width}x{clipboard_height}, target: {target_width}x{target_height})'
+                'Cannot paste frame: dimension mismatch (clipboard: %sx%s, target: %sx%s)', clipboard_width, clipboard_height, target_width, target_height,
             )
             return
 
@@ -2835,7 +2015,7 @@ class BitmapEditorScene(Scene):
         if hasattr(self.canvas, 'force_redraw'):
             self.canvas.force_redraw()
 
-        self.log.debug(f'Pasted frame from clipboard to {animation}[{frame}]')
+        self.log.debug('Pasted frame from clipboard to %s[%s]', animation, frame)
 
     def _submit_pixel_changes_if_ready(self) -> None:
         """Submit collected pixel changes if they're ready (single click or drag ended)."""
@@ -2869,14 +2049,13 @@ class BitmapEditorScene(Scene):
                     pixel_changes_list,  # type: ignore[arg-type]
                 )
                 self.log.debug(
-                    f'Submitted {pixel_count} pixel changes for frame'
-                    f' {current_animation}[{current_frame}] undo/redo tracking'
+                    'Submitted %s pixel changes for frame %s[%s] undo/redo tracking', pixel_count, current_animation, current_frame,
                 )
             else:
                 # Fall back to global tracking
                 self.canvas_operation_tracker.add_pixel_changes(pixel_changes_list)  # type: ignore[arg-type]
                 self.log.debug(
-                    f'Submitted {pixel_count} pixel changes for global undo/redo tracking'
+                    'Submitted %s pixel changes for global undo/redo tracking', pixel_count,
                 )
 
             # Clear both collections after submission
@@ -2919,7 +2098,7 @@ class BitmapEditorScene(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v', '--version', action='store_true', help='print the game version and exit',
         )
         parser.add_argument('-s', '--size', default='32x32')
 
@@ -3000,7 +2179,7 @@ class BitmapEditorScene(Scene):
             # Try to get the first triplet
             try:
                 first_triplet = next(raw_pixels)
-                self.log.debug(f'First RGB triplet: {first_triplet}')
+                self.log.debug('First RGB triplet: %s', first_triplet)
                 # Reset generator
                 raw_pixels = rgb_triplet_generator(pixel_data=pixel_string)
             except StopIteration:
@@ -3035,11 +2214,11 @@ class BitmapEditorScene(Scene):
         self.film_strip_coordinator.update_scroll_arrows()
 
     def on_film_strip_frame_selected(
-        self, film_strip_widget: FilmStripWidget, animation: str, frame: int
+        self, film_strip_widget: FilmStripWidget, animation: str, frame: int,
     ) -> None:
         """Delegate to FilmStripCoordinator."""
         self.film_strip_coordinator.on_film_strip_frame_selected(
-            film_strip_widget, animation, frame
+            film_strip_widget, animation, frame,
         )
 
     def update_film_strip_selection_state(self) -> None:
@@ -3063,72 +2242,20 @@ class BitmapEditorScene(Scene):
     # ──────────────────────────────────────────────────────────────────────
 
     def get_current_color(self) -> tuple[int, ...]:
-        """Get the current color from the color picker.
+        """Get the current color by delegating to SliderManager.
 
         Returns:
-            tuple: The current color.
+            tuple: The current color from the sliders.
 
         """
-        # Get color from sliders if available
-        if (
-            hasattr(self, 'red_slider')
-            and hasattr(self, 'green_slider')
-            and hasattr(self, 'blue_slider')
-        ):
-            try:
-                red = int(self.red_slider.value)
-                green = int(self.green_slider.value)
-                blue = int(self.blue_slider.value)
-                self.log.debug(
-                    f'DEBUG: _get_current_color() returning color from sliders: ({red}, {green},'
-                    f' {blue})'
-                )
-                return (red, green, blue)
-            except (ValueError, AttributeError) as e:
-                self.log.debug(f'DEBUG: _get_current_color() error getting slider values: {e}')
-
-        # Default to white if sliders not available
-        self.log.debug('DEBUG: _get_current_color() sliders not available, returning white')
-        return (255, 255, 255)
+        return self._slider_manager.get_current_color()
 
     def update_color_well_from_sliders(self) -> None:
-        """Update the color well with current slider values."""
-        self.log.debug('DEBUG: _update_color_well_from_sliders called')
-        if hasattr(self, 'color_well') and self.color_well:
-            # Get current slider values
-            red_value = self.red_slider.value if hasattr(self, 'red_slider') else 0
-            green_value = self.green_slider.value if hasattr(self, 'green_slider') else 0
-            blue_value = self.blue_slider.value if hasattr(self, 'blue_slider') else 0
-            alpha_value = self.alpha_slider.value if hasattr(self, 'alpha_slider') else 0
-
-            self.log.debug(
-                f'DEBUG: Slider values - R:{red_value}, G:{green_value}, B:{blue_value},'
-                f' A:{alpha_value}'
-            )
-            self.log.debug(f'DEBUG: Color well before update: {self.color_well.active_color}')
-
-            # Update color well
-            self.color_well.active_color = (red_value, green_value, blue_value, alpha_value)
-
-            # Force color well to redraw
-            if hasattr(self.color_well, 'dirty'):
-                self.color_well.dirty = 1
-
-            # Also dirty the main scene to ensure redraw
-            self.dirty = 1
-
-            # Force color well to update its display
-            if hasattr(self.color_well, 'force_redraw'):
-                self.color_well.force_redraw()  # type: ignore[union-attr]
-
-            self.log.debug(
-                f'DEBUG: Updated color well to ({red_value}, {green_value}, {blue_value})'
-            )
-        else:
-            self.log.debug('DEBUG: No color_well found or color_well is None')
+        """Update the color well by delegating to SliderManager."""
+        self._slider_manager.update_color_well_from_sliders()
 
     # ──────────────────────────────────────────────────────────────────────
-    # Controller event delegation (methods extracted to controller_handler.py)
+    # Controller event delegation (methods extracted to controllers/event_handler.py)
     # ──────────────────────────────────────────────────────────────────────
 
     @override

@@ -102,7 +102,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -153,7 +153,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -190,7 +190,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -275,7 +275,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 create_mock_frame(FRAME_DURATION),
                 create_mock_frame(FRAME_DURATION),
                 create_mock_frame(FRAME_DURATION),
-            ]
+            ],
         }
         animated_sprite._animations = animations_data
         animated_sprite.animations = animations_data
@@ -366,7 +366,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -392,7 +392,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -414,7 +414,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -435,7 +435,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -459,7 +459,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -490,7 +490,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
 
         # Use centralized mock factory to create a proper canvas
@@ -526,7 +526,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(empty_sprite)
 
@@ -544,7 +544,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
                 'pixels_across': PIXELS_ACROSS,
                 'pixels_tall': PIXELS_TALL,
                 'pixel_size': PIXEL_SIZE,
-            }
+            },
         )
         scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
@@ -562,7 +562,7 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Test coordinate conversion
         mock_handle_click = mocker.patch.object(
-            film_strip_widget, 'handle_click', return_value=('idle', 1)
+            film_strip_widget, 'handle_click', return_value=('idle', 1),
         )
         film_strip_sprite.on_left_mouse_button_down_event(mock_event)
 

@@ -26,7 +26,7 @@ STATIC_TOML = str(
     / 'examples'
     / 'resources'
     / 'sprites'
-    / 'static.toml'
+    / 'static.toml',
 )
 
 # Frame time at 60 FPS
@@ -223,7 +223,7 @@ class TestControllerSelectionBenchmarks:
         def preserve_frame():
             nonlocal call_count
             selection.preserve_frame_for_animation(
-                f'animation_{call_count % 5}', available_frames=20
+                f'animation_{call_count % 5}', available_frames=20,
             )
             call_count += 1
 
@@ -307,7 +307,7 @@ class TestVisualCollisionBenchmarks:
             nonlocal call_count
             controller_id = call_count % 4
             manager.update_controller_position(
-                controller_id, (controller_id * 100 + call_count, controller_id * 100)
+                controller_id, (controller_id * 100 + call_count, controller_id * 100),
             )
             call_count += 1
 

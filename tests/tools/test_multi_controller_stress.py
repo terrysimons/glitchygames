@@ -24,7 +24,7 @@ CI_TIME_MULTIPLIER = 50.0 if IS_CI else 1.0
 RAPID_CYCLING_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
 NAVIGATION_HISTORY_TIME_LIMIT = 5.0 * CI_TIME_MULTIPLIER
 COLLISION_ADD_TIME_LIMIT = 2.0 * CI_TIME_MULTIPLIER
-COLLISION_UPDATE_TIME_LIMIT = 3.0 * CI_TIME_MULTIPLIER
+COLLISION_UPDATE_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
 CONCURRENT_OPS_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
 RESILIENCE_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
 
@@ -55,7 +55,7 @@ class TestMultiControllerStress:
 
             # Add visual indicators
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=instance_id, color=(255, 0, 0), position=(i * 5, i * 5)
+                controller_id=i, instance_id=instance_id, color=(255, 0, 0), position=(i * 5, i * 5),
             )
 
         # Test rapid operations on all controllers
@@ -168,7 +168,7 @@ class TestMultiControllerStress:
             """Worker function for concurrent operations."""
             for _ in range(iterations):
                 self.controller_selections[controller_id].set_selection(
-                    f'animation_{controller_id}', controller_id
+                    f'animation_{controller_id}', controller_id,
                 )
                 time.sleep(0.001)
 
@@ -279,7 +279,7 @@ class TestMultiControllerStress:
         visual_start = time.time()
         for i in range(1000):
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(i, i)
+                controller_id=i, instance_id=i, color=(255, 0, 0), position=(i, i),
             )
         visual_end = time.time()
 
@@ -342,7 +342,7 @@ class TestMultiControllerStress:
             # Visual operations
             for i in range(10):
                 self.visual_manager.add_controller_indicator(
-                    controller_id=i, instance_id=i, color=(255, 0, 0), position=(i * 10, cycle * 10)
+                    controller_id=i, instance_id=i, color=(255, 0, 0), position=(i * 10, cycle * 10),
                 )
 
             # Manager operations

@@ -177,10 +177,10 @@ class FilmStripCoordinator:
         """
         LOG.debug(
             f'DEBUG: Creating film strip {strip_index} for animation {anim_name} with'
-            f' {len(frames)} frames'
+            f' {len(frames)} frames',
         )
         LOG.debug(
-            f'Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames'
+            f'Creating film strip {strip_index} for animation {anim_name} with {len(frames)} frames',
         )
         # Create a single animated sprite with just this animation
         # Use the proper constructor to ensure all attributes are initialized
@@ -211,7 +211,7 @@ class FilmStripCoordinator:
 
         # Create film strip widget for this animation
         film_strip = FilmStripWidget(
-            x=film_strip_x, y=scroll_y, width=film_strip_width, height=strip_height
+            x=film_strip_x, y=scroll_y, width=film_strip_width, height=strip_height,
         )
         film_strip.set_animated_sprite(single_anim_sprite)
         film_strip.strip_index = strip_index  # type: ignore[attr-defined]  # Track which strip this is
@@ -225,7 +225,7 @@ class FilmStripCoordinator:
         film_strip.update_layout()
         LOG.debug(
             f'Film strip {strip_index} layout updated, frame_layouts has'
-            f' {len(film_strip.frame_layouts)} entries'
+            f' {len(film_strip.frame_layouts)} entries',
         )
 
         # Set parent scene reference for selection handling
@@ -246,11 +246,11 @@ class FilmStripCoordinator:
 
         # Debug: Check if film strip sprite was added to groups
         self.log.debug(
-            f'Created film strip sprite for {anim_name}, groups: {film_strip_sprite.groups()}'
+            f'Created film strip sprite for {anim_name}, groups: {film_strip_sprite.groups()}',
         )
         LOG.debug(
             f'DEBUG: Film strip sprite {anim_name} added to {len(film_strip_sprite.groups())}'
-            f' groups: {film_strip_sprite.groups()}'
+            f' groups: {film_strip_sprite.groups()}',
         )
 
         # Connect the film strip to the canvas
@@ -286,23 +286,23 @@ class FilmStripCoordinator:
             return
         LOG.debug(
             "DEBUG: hasattr(self.editor.canvas, 'animated_sprite'):"
-            f' {hasattr(self.editor.canvas, "animated_sprite")}'
+            f' {hasattr(self.editor.canvas, "animated_sprite")}',
         )
         if not hasattr(self.editor.canvas, 'animated_sprite'):
             return
         LOG.debug(
-            f'DEBUG: self.editor.canvas.animated_sprite: {self.editor.canvas.animated_sprite}'
+            f'DEBUG: self.editor.canvas.animated_sprite: {self.editor.canvas.animated_sprite}',
         )
         if not self.editor.canvas.animated_sprite:
             return
         LOG.debug(
             "DEBUG: hasattr(self.editor.canvas.animated_sprite, '_animations'):"
-            f' {hasattr(self.editor.canvas.animated_sprite, "_animations")}'
+            f' {hasattr(self.editor.canvas.animated_sprite, "_animations")}',
         )
         if hasattr(self.editor.canvas.animated_sprite, '_animations'):
             LOG.debug(
                 'DEBUG: self.editor.canvas.animated_sprite._animations:'
-                f' {self.editor.canvas.animated_sprite._animations}'  # type: ignore[reportPrivateUsage]
+                f' {self.editor.canvas.animated_sprite._animations}',  # type: ignore[reportPrivateUsage]
             )
 
     def _ensure_default_animation_exists(self, animated_sprite: AnimatedSprite) -> None:
@@ -421,7 +421,7 @@ class FilmStripCoordinator:
 
                 LOG.debug(
                     f'DEBUG: Frame {frame_idx}: has_image={has_image},'
-                    f' has_pixel_data={has_pixel_data}'
+                    f' has_pixel_data={has_pixel_data}',
                 )
 
                 if not has_image and has_pixel_data:
@@ -622,7 +622,7 @@ class FilmStripCoordinator:
             else:
                 # Add at the end (original behavior)
                 self.editor.canvas.animated_sprite._animations[new_animation_name] = [  # type: ignore[reportPrivateUsage]
-                    animated_frame
+                    animated_frame,
                 ]
 
             # Track animation creation for undo/redo
@@ -640,14 +640,14 @@ class FilmStripCoordinator:
                                 if hasattr(animated_frame, 'pixels')
                                 else [],
                                 'duration': animated_frame.duration,
-                            }
+                            },
                         ],
                         'frame_count': 1,
                     }
 
                     # Track animation addition for undo/redo
                     self.editor.film_strip_operation_tracker.add_animation_added(
-                        new_animation_name, animation_data
+                        new_animation_name, animation_data,
                     )
                 finally:
                     self._creating_animation = False
@@ -668,7 +668,7 @@ class FilmStripCoordinator:
         # Select the 0th frame of the new animation so the user can immediately start editing it
         LOG.debug(
             'BitmapEditorScene: Selecting frame 0 of newly created animation'
-            f" '{new_animation_name}'"
+            f" '{new_animation_name}'",
         )
         # Set flag to prevent frame selection tracking during animation creation
         self._creating_frame = True
@@ -680,7 +680,7 @@ class FilmStripCoordinator:
                 self.editor.undo_redo_manager.set_current_frame(new_animation_name, 0)
                 LOG.debug(
                     'BitmapEditorScene: Updated undo/redo manager to track frame 0 of'
-                    f" '{new_animation_name}'"
+                    f" '{new_animation_name}'",
                 )
         finally:
             self._creating_frame = False
@@ -712,7 +712,7 @@ class FilmStripCoordinator:
         LOG.debug(f"DEBUG: Switching to new animation '{new_animation_name}', frame 0")
         LOG.debug(
             'DEBUG: Animated sprite current animation:'
-            f' {self.editor.canvas.animated_sprite.current_animation}'
+            f' {self.editor.canvas.animated_sprite.current_animation}',
         )
         current_frame = self.editor.canvas.animated_sprite.current_frame
         LOG.debug(f'DEBUG: Animated sprite current frame: {current_frame}')
@@ -722,7 +722,7 @@ class FilmStripCoordinator:
         LOG.debug(f'DEBUG: After switch - current animation: {current_anim}')
         LOG.debug(f'DEBUG: After switch - current frame: {current_frame}')
         LOG.debug(
-            f'DEBUG: New frame surface size: {self.editor.canvas.animated_sprite.image.get_size()}'
+            f'DEBUG: New frame surface size: {self.editor.canvas.animated_sprite.image.get_size()}',
         )
 
         # Force the animated sprite to update its surface
@@ -770,7 +770,7 @@ class FilmStripCoordinator:
         self._capture_animation_deletion_for_undo(animation_name)
 
         del self.editor.canvas.animated_sprite._animations[animation_name]  # type: ignore[reportPrivateUsage]
-        self.log.info(f'Deleted animation: {animation_name} at index {deleted_index}')
+        self.log.info('Deleted animation: %s at index %s', animation_name, deleted_index)
 
         # Switch to the first remaining animation and select the previous frame
         remaining_animations = list(self.editor.canvas.animated_sprite._animations.keys())  # type: ignore[reportPrivateUsage]
@@ -807,11 +807,11 @@ class FilmStripCoordinator:
 
         # Track animation deletion for undo/redo
         self.editor.film_strip_operation_tracker.add_animation_deleted(
-            animation_name, animation_data
+            animation_name, animation_data,
         )
 
     def _select_animation_after_deletion(
-        self, remaining_animations: list[str], deleted_animation_name: str
+        self, remaining_animations: list[str], deleted_animation_name: str,
     ) -> None:
         """Select a frame in the first remaining animation after a deletion.
 
@@ -849,14 +849,12 @@ class FilmStripCoordinator:
         self.editor.selected_frame = target_frame
 
         self.log.info(
-            f"Selected frame {target_frame} in animation '{new_animation}' after deleting"
-            f" '{deleted_animation_name}'"
+            "Selected frame %s in animation '%s' after deleting '%s'", target_frame, new_animation, deleted_animation_name,
         )
 
         # Recreate film strips to reflect the deletion
         self.log.debug(
-            'Recreating film strips after animation deletion. Remaining animations:'
-            f' {remaining_animations}'
+            'Recreating film strips after animation deletion. Remaining animations: %s', remaining_animations,
         )
         self.on_sprite_loaded(self.editor.canvas.animated_sprite)
 
@@ -914,18 +912,18 @@ class FilmStripCoordinator:
             animation_name: Name of the animation to potentially delete
 
         """
-        self.log.info(f'Showing delete confirmation dialog for animation: {animation_name}')
+        self.log.info('Showing delete confirmation dialog for animation: %s', animation_name)
 
         from glitchygames.ui.dialogs import DeleteAnimationDialogScene
 
         # Create confirmation callback that deletes the animation
         def on_confirm() -> None:
-            self.log.info(f'User confirmed deletion of animation: {animation_name}')
+            self.log.info('User confirmed deletion of animation: %s', animation_name)
             self._delete_animation(animation_name, confirmed=True)
 
         # Create cancel callback that resets tab states
         def on_cancel() -> None:
-            self.log.info(f'User cancelled deletion of animation: {animation_name}')
+            self.log.info('User cancelled deletion of animation: %s', animation_name)
             # Reset all film strip tab states to unhighlight the delete button
             if hasattr(self.editor, 'film_strip_sprites'):
                 for film_strip_sprite in self.editor.film_strip_sprites.values():
@@ -959,7 +957,7 @@ class FilmStripCoordinator:
 
         """
         self.log.info(
-            f'Showing delete frame confirmation dialog for {animation_name}[{frame_index}]'
+            'Showing delete frame confirmation dialog for %s[%s]', animation_name, frame_index,
         )
 
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
@@ -967,7 +965,7 @@ class FilmStripCoordinator:
         # Create confirmation callback that deletes the frame
         def on_confirm() -> None:
             self.log.info(
-                f'User confirmed deletion of frame {frame_index} from animation: {animation_name}'
+                'User confirmed deletion of frame %s from animation: %s', frame_index, animation_name,
             )
             # Find the film strip widget for this animation and call its _remove_frame method
             if (
@@ -984,7 +982,7 @@ class FilmStripCoordinator:
         # Create cancel callback that resets removal button highlight
         def on_cancel() -> None:
             self.log.info(
-                f'User cancelled deletion of frame {frame_index} from animation: {animation_name}'
+                'User cancelled deletion of frame %s from animation: %s', frame_index, animation_name,
             )
             # Reset the removal button highlight by clearing hover state
             if (
@@ -1025,18 +1023,18 @@ class FilmStripCoordinator:
 
         """
         if not hasattr(self.editor, 'film_strip_sprites') or not self.editor.film_strip_sprites:
-            self.log.debug(f'No film strip sprites available for mouse pos {mouse_pos}')
+            self.log.debug('No film strip sprites available for mouse pos %s', mouse_pos)
             return False
 
         # Check if mouse is within any film strip sprite bounds
         for anim_name, film_strip_sprite in self.editor.film_strip_sprites.items():
             if film_strip_sprite.rect.collidepoint(mouse_pos):
                 self.log.debug(
-                    f"Mouse {mouse_pos} is in film strip '{anim_name}' at {film_strip_sprite.rect}"
+                    f"Mouse {mouse_pos} is in film strip '{anim_name}' at {film_strip_sprite.rect}",
                 )
                 return True
 
-        self.log.debug(f'Mouse {mouse_pos} is not in any film strip area')
+        self.log.debug('Mouse %s is not in any film strip area', mouse_pos)
         return False
 
     def handle_film_strip_drag_scroll(self, mouse_y: int) -> None:
@@ -1053,7 +1051,7 @@ class FilmStripCoordinator:
         # Calculate drag distance
         drag_distance = mouse_y - self.editor.film_strip_drag_start_y
         start_y = self.editor.film_strip_drag_start_y
-        self.log.debug(f'Drag distance: {drag_distance}, start Y: {start_y}, current Y: {mouse_y}')
+        self.log.debug('Drag distance: %s, start Y: %s, current Y: %s', drag_distance, start_y, mouse_y)
 
         # Convert drag distance to scroll offset change.
         # Each film strip is ~100px tall, so scroll by 1 per 100 pixels.
@@ -1076,14 +1074,13 @@ class FilmStripCoordinator:
             max_scroll = max(0, total_animations - self.editor.max_visible_strips)
             new_offset = max(0, min(new_offset, max_scroll))
             self.log.debug(
-                f'Scroll change: {scroll_change}, new offset: {new_offset}, max scroll:'
-                f' {max_scroll}'
+                'Scroll change: %s, new offset: %s, max scroll: %s', scroll_change, new_offset, max_scroll,
             )
 
         # Update scroll offset if it changed
         if new_offset != self.editor.film_strip_scroll_offset:
             old_offset = self.editor.film_strip_scroll_offset
-            self.log.debug(f'Updating scroll offset from {old_offset} to {new_offset}')
+            self.log.debug('Updating scroll offset from %s to %s', old_offset, new_offset)
             self.editor.film_strip_scroll_offset = new_offset
             self.update_film_strip_visibility()
             self.update_scroll_arrows()
@@ -1106,7 +1103,7 @@ class FilmStripCoordinator:
             and self.editor.canvas.animated_sprite
         ):
             LOG.debug(
-                f'DEBUG: self.editor.canvas.animated_sprite: {self.editor.canvas.animated_sprite}'
+                f'DEBUG: self.editor.canvas.animated_sprite: {self.editor.canvas.animated_sprite}',
             )
             has_anims = hasattr(self.editor.canvas.animated_sprite, '_animations')
             LOG.debug(f'DEBUG: hasattr(_animations): {has_anims}')
@@ -1154,10 +1151,10 @@ class FilmStripCoordinator:
         if loaded_sprite and loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
             self.log.debug(
                 f'Creating new film strips for loaded sprite with {len(loaded_sprite._animations)}'  # type: ignore[reportPrivateUsage]
-                f' animations'
+                f' animations',
             )
             LOG.debug(
-                f'DEBUG: _on_sprite_loaded recreating {len(loaded_sprite._animations)} film strips'  # type: ignore[reportPrivateUsage]
+                f'DEBUG: _on_sprite_loaded recreating {len(loaded_sprite._animations)} film strips',  # type: ignore[reportPrivateUsage]
             )
 
             # Update the canvas to use the loaded sprite's animations
@@ -1188,10 +1185,10 @@ class FilmStripCoordinator:
                 # Initialize pixels if needed (for mock sprites)
                 self.log.debug(
                     f'Checking canvas pixels: has_pixels={hasattr(self.editor.canvas, "pixels")},'
-                    f' is_list={isinstance(getattr(self.editor.canvas, "pixels", None), list)}'
+                    f' is_list={isinstance(getattr(self.editor.canvas, "pixels", None), list)}',
                 )
                 if not hasattr(self.editor.canvas, 'pixels') or not isinstance(
-                    self.editor.canvas.pixels, list
+                    self.editor.canvas.pixels, list,
                 ):  # type: ignore[reportUnnecessaryIsInstance]
                     self.log.debug('Initializing canvas pixels')
                     # Create a blank pixel array
@@ -1199,7 +1196,7 @@ class FilmStripCoordinator:
                     self.editor.canvas.pixels = [(255, 0, 255, 255)] * pixel_count  # ty: ignore[invalid-assignment]  # Magenta background
                     self.editor.canvas.dirty_pixels = [True] * pixel_count
                     self.log.debug(
-                        f'Canvas pixels initialized: len={len(self.editor.canvas.pixels)}'
+                        f'Canvas pixels initialized: len={len(self.editor.canvas.pixels)}',
                     )
 
             LOG.debug('DEBUG: About to call _create_film_strips (second call)')
@@ -1216,7 +1213,7 @@ class FilmStripCoordinator:
             self.log.debug('No animations found in loaded sprite')
 
     def on_film_strip_frame_selected(
-        self, film_strip_widget: FilmStripWidget, animation: str, frame: int
+        self, film_strip_widget: FilmStripWidget, animation: str, frame: int,
     ) -> None:
         """Handle frame selection in a film strip."""
         # Find the strip name by looking up the film_strip_widget in film_strips
@@ -1227,7 +1224,7 @@ class FilmStripCoordinator:
                     strip_name = name
                     break
         LOG.debug(
-            f"BitmapEditorScene: Frame selected - {animation}[{frame}] in strip '{strip_name}'"
+            f"BitmapEditorScene: Frame selected - {animation}[{frame}] in strip '{strip_name}'",
         )
 
         # Update canvas to show the selected frame
@@ -1276,7 +1273,7 @@ class FilmStripCoordinator:
         return None
 
     def _rename_animation_in_sprite(
-        self, sprite_to_update: AnimatedSprite, old_name: str, new_name: str
+        self, sprite_to_update: AnimatedSprite, old_name: str, new_name: str,
     ) -> None:
         """Rename an animation within an animated sprite's internal data structures.
 
@@ -1297,7 +1294,7 @@ class FilmStripCoordinator:
             ]
 
     def _rename_film_strip_widget_internals(
-        self, strip_widget: FilmStripWidget, old_name: str, new_name: str
+        self, strip_widget: FilmStripWidget, old_name: str, new_name: str,
     ) -> None:
         """Update a FilmStripWidget's internal animated_sprite after animation rename.
 
@@ -1329,11 +1326,11 @@ class FilmStripCoordinator:
                 strip_widget.animated_sprite.frame_manager.current_animation = new_name
 
             self.log.debug(
-                f"Updated FilmStripWidget's internal sprite: '{old_name}' -> '{new_name}'"
+                "Updated FilmStripWidget's internal sprite: '%s' -> '%s'", old_name, new_name,
             )
 
     def _update_film_strip_layout_after_rename(
-        self, strip_widget: FilmStripWidget, new_name: str
+        self, strip_widget: FilmStripWidget, new_name: str,
     ) -> None:
         """Recalculate film strip layout and sprite dimensions after rename.
 
@@ -1358,11 +1355,11 @@ class FilmStripCoordinator:
                 film_strip_sprite.rect.width = strip_widget.rect.width
                 # Update sprite surface size
                 film_strip_sprite.image = pygame.Surface(
-                    (strip_widget.rect.width, strip_widget.rect.height), pygame.SRCALPHA
+                    (strip_widget.rect.width, strip_widget.rect.height), pygame.SRCALPHA,
                 )
                 film_strip_sprite.dirty = 2
         except (AttributeError, KeyError, TypeError, pygame.error) as e:
-            self.log.warning(f'FilmStripWidget layout update failed after rename: {e}')
+            self.log.warning('FilmStripWidget layout update failed after rename: %s', e)
         # Ensure redraw
         if hasattr(strip_widget, 'mark_dirty'):
             strip_widget.mark_dirty()
@@ -1395,7 +1392,7 @@ class FilmStripCoordinator:
         ):
             self.editor.film_strip_sprites[new_name] = self.editor.film_strip_sprites[old_name]
             del self.editor.film_strip_sprites[old_name]
-            self.log.debug(f"Updated film_strip_sprites dict: '{old_name}' -> '{new_name}'")
+            self.log.debug("Updated film_strip_sprites dict: '%s' -> '%s'", old_name, new_name)
 
         self._update_film_strip_layout_after_rename(strip_widget, new_name)
 
@@ -1419,7 +1416,7 @@ class FilmStripCoordinator:
 
     def on_animation_rename(self, old_name: str, new_name: str) -> None:
         """Handle animation name changes from film strip editing."""
-        self.log.debug(f"BitmapEditorScene: Animation renamed from '{old_name}' to '{new_name}'")
+        self.log.debug("BitmapEditorScene: Animation renamed from '%s' to '%s'", old_name, new_name)
 
         sprite_to_update = self._get_sprite_to_update_for_rename()
 
@@ -1427,7 +1424,7 @@ class FilmStripCoordinator:
         if sprite_to_update:
             if old_name not in sprite_to_update._animations:  # type: ignore[reportPrivateUsage]
                 self.log.warning(
-                    f"BitmapEditorScene: Animation '{old_name}' not found for renaming"
+                    "BitmapEditorScene: Animation '%s' not found for renaming", old_name,
                 )
             else:
                 self._rename_animation_in_sprite(sprite_to_update, old_name, new_name)
@@ -1445,8 +1442,7 @@ class FilmStripCoordinator:
                 self.update_film_strips_for_animated_sprite_update()
 
                 self.log.debug(
-                    f"BitmapEditorScene: Successfully renamed animation '{old_name}' to"
-                    f" '{new_name}'"
+                    "BitmapEditorScene: Successfully renamed animation '%s' to '%s'", old_name, new_name,
                 )
 
         # Mark all film strips as dirty so they redraw with correct selection state
@@ -1469,7 +1465,7 @@ class FilmStripCoordinator:
             and self.editor.selected_animation == animation
         ):
             LOG.debug(
-                f'BitmapEditorScene: Updating canvas to show new frame {animation}[{frame_index}]'
+                f'BitmapEditorScene: Updating canvas to show new frame {animation}[{frame_index}]',
             )
             self.editor.canvas.show_frame(animation, frame_index)
             self.editor.selected_frame = frame_index
@@ -1482,7 +1478,7 @@ class FilmStripCoordinator:
                     strip_widget.selected_frame = frame_index
                     LOG.debug(
                         f'BitmapEditorScene: Updated film strip {strip_name} selected_frame to'
-                        f' {frame_index}'
+                        f' {frame_index}',
                     )
 
                 strip_widget.mark_dirty()
@@ -1528,7 +1524,7 @@ class FilmStripCoordinator:
         if hasattr(self.editor, 'canvas') and self.editor.canvas:
             LOG.debug(
                 'BitmapEditorScene: Updating canvas to show adjusted frame'
-                f' {animation}[{self.editor.selected_frame}]'
+                f' {animation}[{self.editor.selected_frame}]',
             )
             try:
                 self.editor.canvas.show_frame(animation, self.editor.selected_frame)
@@ -1572,7 +1568,7 @@ class FilmStripCoordinator:
                     )
                     LOG.debug(
                         f'BitmapEditorScene: Updated film strip {strip_name} selected_frame to'
-                        f' {strip_widget.selected_frame}'
+                        f' {strip_widget.selected_frame}',
                     )
 
                 strip_widget.mark_dirty()
@@ -1601,11 +1597,11 @@ class FilmStripCoordinator:
             return False
 
         LOG.debug(
-            f'BitmapEditorScene: [SCENE COPY] Found {len(self.editor.film_strips)} film strips'
+            f'BitmapEditorScene: [SCENE COPY] Found {len(self.editor.film_strips)} film strips',
         )
         LOG.debug(
             'BitmapEditorScene: [SCENE COPY] Looking for animation:'
-            f' {getattr(self.editor, "selected_animation", "None")}'
+            f' {getattr(self.editor, "selected_animation", "None")}',
         )
 
         # Find the active film strip (the one with the current animation)
@@ -1614,7 +1610,7 @@ class FilmStripCoordinator:
             for strip_name, film_strip in self.editor.film_strips.items():
                 LOG.debug(
                     f"BitmapEditorScene: [SCENE COPY] Checking film strip '{strip_name}' with"
-                    f" animation '{getattr(film_strip, 'current_animation', 'None')}'"
+                    f" animation '{getattr(film_strip, 'current_animation', 'None')}'",
                 )
                 if (
                     hasattr(film_strip, 'current_animation')
@@ -1622,7 +1618,7 @@ class FilmStripCoordinator:
                 ):
                     active_film_strip = film_strip
                     LOG.debug(
-                        f"BitmapEditorScene: [SCENE COPY] Found active film strip: '{strip_name}'"
+                        f"BitmapEditorScene: [SCENE COPY] Found active film strip: '{strip_name}'",
                     )
                     break
 
@@ -1648,11 +1644,11 @@ class FilmStripCoordinator:
             return False
 
         LOG.debug(
-            f'BitmapEditorScene: [SCENE PASTE] Found {len(self.editor.film_strips)} film strips'
+            f'BitmapEditorScene: [SCENE PASTE] Found {len(self.editor.film_strips)} film strips',
         )
         LOG.debug(
             'BitmapEditorScene: [SCENE PASTE] Looking for animation:'
-            f' {getattr(self.editor, "selected_animation", "None")}'
+            f' {getattr(self.editor, "selected_animation", "None")}',
         )
 
         # Find the active film strip (the one with the current animation)
@@ -1661,7 +1657,7 @@ class FilmStripCoordinator:
             for strip_name, film_strip in self.editor.film_strips.items():
                 LOG.debug(
                     f"BitmapEditorScene: [SCENE PASTE] Checking film strip '{strip_name}' with"
-                    f" animation '{getattr(film_strip, 'current_animation', 'None')}'"
+                    f" animation '{getattr(film_strip, 'current_animation', 'None')}'",
                 )
                 if (
                     hasattr(film_strip, 'current_animation')
@@ -1669,7 +1665,7 @@ class FilmStripCoordinator:
                 ):
                     active_film_strip = film_strip
                     LOG.debug(
-                        f"BitmapEditorScene: [SCENE PASTE] Found active film strip: '{strip_name}'"
+                        f"BitmapEditorScene: [SCENE PASTE] Found active film strip: '{strip_name}'",
                     )
                     break
 
@@ -1700,7 +1696,7 @@ class FilmStripCoordinator:
                 strip_widget.selected_frame = current_frame
                 LOG.debug(
                     f'BitmapEditorScene: Marking strip {strip_name} as selected with frame'
-                    f' {current_frame}'
+                    f' {current_frame}',
                 )
             else:
                 # This is not the selected strip - deselect it but preserve its selected_frame
@@ -1708,7 +1704,7 @@ class FilmStripCoordinator:
                 # Don't reset selected_frame - each strip maintains its own selection
                 LOG.debug(
                     f'BitmapEditorScene: Deselecting strip {strip_name} (preserving'
-                    f' selected_frame={strip_widget.selected_frame})'
+                    f' selected_frame={strip_widget.selected_frame})',
                 )
 
             # Mark the strip as dirty to trigger full redraw
@@ -1813,7 +1809,7 @@ class FilmStripCoordinator:
             # Current animation is above the visible area, scroll up
             self.editor.film_strip_scroll_offset = current_index
             self.log.debug(
-                f'Scrolling up to show animation {current_animation} at index {current_index}'
+                'Scrolling up to show animation %s at index %s', current_animation, current_index,
             )
         elif current_index >= self.editor.film_strip_scroll_offset + self.editor.max_visible_strips:
             # Current animation is below the visible area, scroll down
@@ -1821,12 +1817,12 @@ class FilmStripCoordinator:
                 current_index - self.editor.max_visible_strips + 1
             )
             self.log.debug(
-                f'Scrolling down to show animation {current_animation} at index {current_index}'
+                'Scrolling down to show animation %s at index %s', current_animation, current_index,
             )
         else:
             # Current animation is already visible, no scrolling needed
             self.log.debug(
-                f'Animation {current_animation} is already visible at index {current_index}'
+                'Animation %s is already visible at index %s', current_animation, current_index,
             )
             return
 
@@ -1897,7 +1893,7 @@ class FilmStripCoordinator:
             or not hasattr(self.editor.canvas, 'animated_sprite')
         ):
             LOG.debug(
-                'BitmapEditorScene: No canvas or animated sprite available for frame navigation'
+                'BitmapEditorScene: No canvas or animated sprite available for frame navigation',
             )
             return
 
@@ -1912,7 +1908,7 @@ class FilmStripCoordinator:
         # Get all frames for the current animation
         if current_animation not in self.editor.canvas.animated_sprite._animations:  # type: ignore[reportPrivateUsage]
             LOG.debug(
-                f"BitmapEditorScene: Animation '{current_animation}' not found in animated sprite"
+                f"BitmapEditorScene: Animation '{current_animation}' not found in animated sprite",
             )
             return
 
@@ -1928,7 +1924,7 @@ class FilmStripCoordinator:
 
         LOG.debug(
             f'BitmapEditorScene: Navigating from frame {current_frame} to frame {new_frame} in'
-            f" animation '{current_animation}' (total frames: {total_frames})"
+            f" animation '{current_animation}' (total frames: {total_frames})",
         )
 
         # Update the canvas to show the new frame
@@ -2012,7 +2008,7 @@ class FilmStripCoordinator:
     def update_film_strips_for_frame(self, animation: str, frame: int) -> None:
         """Update film strips when frame changes."""
         self.log.debug(
-            f'_update_film_strips_for_frame called: animation={animation}, frame={frame}'
+            '_update_film_strips_for_frame called: animation=%s, frame=%s', animation, frame,
         )
         if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
             strip_keys = list(self.editor.film_strips.keys())
@@ -2020,7 +2016,7 @@ class FilmStripCoordinator:
             # Update the film strip for the current animation
             if animation in self.editor.film_strips:
                 film_strip = self.editor.film_strips[animation]
-                self.log.debug(f'Updating film strip for animation {animation}')
+                self.log.debug('Updating film strip for animation %s', animation)
                 # Directly update the selection without triggering handlers to avoid infinite loops
                 film_strip.current_animation = animation
                 film_strip.current_frame = frame
@@ -2029,10 +2025,10 @@ class FilmStripCoordinator:
                 film_strip.mark_dirty()
                 self.log.debug(
                     f'Film strip updated: current_animation={film_strip.current_animation},'
-                    f' current_frame={film_strip.current_frame}'
+                    f' current_frame={film_strip.current_frame}',
                 )
             else:
-                self.log.debug(f'Animation {animation} not found in film strips')
+                self.log.debug('Animation %s not found in film strips', animation)
 
             # Mark all film strip sprites as dirty
             if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
@@ -2096,7 +2092,7 @@ class FilmStripCoordinator:
                     strip_widget.set_current_frame(current_animation, current_frame)
                     # Call the selection handler to update the scene state
                     self.on_film_strip_frame_selected(
-                        strip_widget, current_animation, current_frame
+                        strip_widget, current_animation, current_frame,
                     )
                 else:
                     # This is not the current animation - clear selection
@@ -2176,5 +2172,5 @@ class FilmStripCoordinator:
                 and self.editor.canvas.current_animation == animation_name
             ):
                 film_strip_sprite.film_strip_widget.set_frame_index(
-                    self.editor.canvas.current_frame
+                    self.editor.canvas.current_frame,
                 )

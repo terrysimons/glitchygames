@@ -101,7 +101,7 @@ class TestBitmappyMultiControllerEnhancements:
         mock_controller_selection.set_selection.assert_called()
 
     def test_enhanced_navigation_frame_backward_clamps_to_zero(
-        self, enhancements, mock_controller_selection
+        self, enhancements, mock_controller_selection,
     ):
         """Test that navigating backward past frame 0 clamps to 0."""
         mock_controller_selection.get_selection.return_value = ('walk', 0)
@@ -185,7 +185,7 @@ class TestBitmappyMultiControllerEnhancements:
         mock_controller_selection.get_selection.return_value = ('walk', 0)
 
         result = enhancements.execute_group_action(
-            'team_a', 'navigate', direction='frame', amount=1
+            'team_a', 'navigate', direction='frame', amount=1,
         )
         assert result is True
 

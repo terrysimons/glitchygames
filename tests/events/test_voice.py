@@ -920,7 +920,7 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure:
         # Mock the speech recognition module
         mock_sr.Recognizer = mocker.Mock()
         mock_sr.Microphone = mocker.Mock(
-            side_effect=AttributeError('Could not find PyAudio; check installation')
+            side_effect=AttributeError('Could not find PyAudio; check installation'),
         )
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
@@ -952,7 +952,7 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure:
         # Mock the speech recognition module
         mock_sr.Recognizer = mocker.Mock()
         mock_sr.Microphone = mocker.Mock(
-            side_effect=AttributeError('Could not find PyAudio; check installation')
+            side_effect=AttributeError('Could not find PyAudio; check installation'),
         )
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
@@ -1092,7 +1092,7 @@ class TestVoiceRecognitionManagerPositive:
         # Mock the speech recognition module
         mock_sr.Recognizer = mocker.Mock()
         mock_sr.Microphone = mocker.Mock(
-            side_effect=AttributeError('Could not find PyAudio; check installation')
+            side_effect=AttributeError('Could not find PyAudio; check installation'),
         )
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
@@ -1203,7 +1203,7 @@ class TestVoiceRecognitionManagerPositive:
         # Mock the speech recognition module
         mock_sr.Recognizer = mocker.Mock()
         mock_sr.Microphone = mocker.Mock(
-            side_effect=AttributeError('Could not find PyAudio; check installation')
+            side_effect=AttributeError('Could not find PyAudio; check installation'),
         )
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
@@ -1405,7 +1405,7 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         mock_voice_manager.is_available.return_value = True
         mock_voice_manager.has_microphone.return_value = True
         mock_voice_cls = mocker.patch(
-            'glitchygames.bitmappy.editor.VoiceEventManager', return_value=mock_voice_manager
+            'glitchygames.bitmappy.editor.VoiceEventManager', return_value=mock_voice_manager,
         )
 
         scene = BitmapEditorScene({})
@@ -1509,7 +1509,7 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
 
         # Verify warning was logged
         scene.log.warning.assert_called_with(
-            'Cannot clear AI sprite box - debug_text not available'
+            'Cannot clear AI sprite box - debug_text not available',
         )
 
     def test_voice_recognition_cleanup(self, mocker):

@@ -39,7 +39,7 @@ class PixelChange:
     """Represents a single pixel change."""
 
     def __init__(
-        self, x: int, y: int, old_color: tuple[int, int, int], new_color: tuple[int, int, int]
+        self, x: int, y: int, old_color: tuple[int, int, int], new_color: tuple[int, int, int],
     ) -> None:
         """Initialize a pixel change record with position and color data."""
         self.x = x
@@ -65,7 +65,7 @@ class CanvasOperationTracker:
         LOG.debug('CanvasOperationTracker initialized')
 
     def add_pixel_changes(
-        self, pixels: list[tuple[int, int, tuple[int, int, int], tuple[int, int, int]]]
+        self, pixels: list[tuple[int, int, tuple[int, int, int], tuple[int, int, int]]],
     ) -> None:
         """Add pixel changes to the undo/redo history.
 
@@ -86,7 +86,7 @@ class CanvasOperationTracker:
         LOG.debug(f'Tracked pixel changes: {command.description}')
 
     def add_single_pixel_change(
-        self, x: int, y: int, old_color: tuple[int, int, int], new_color: tuple[int, int, int]
+        self, x: int, y: int, old_color: tuple[int, int, int], new_color: tuple[int, int, int],
     ) -> None:
         """Add a single pixel change operation.
 
@@ -108,7 +108,7 @@ class CanvasOperationTracker:
         LOG.debug('Started brush stroke tracking')
 
     def add_pixel_change(
-        self, x: int, y: int, old_color: tuple[int, int, int], new_color: tuple[int, int, int]
+        self, x: int, y: int, old_color: tuple[int, int, int], new_color: tuple[int, int, int],
     ) -> None:
         """Add a pixel to the current brush stroke (backward-compatible API).
 
@@ -120,7 +120,7 @@ class CanvasOperationTracker:
 
         """
         self._current_brush_pixels.append((x, y, old_color, new_color))
-        LOG.debug(f'Added pixel to brush stroke: ({x}, {y})')
+        LOG.debug('Added pixel to brush stroke: (%s, %s)', x, y)
 
     def end_brush_stroke(self) -> None:
         """End brush stroke and commit to history (backward-compatible API)."""
@@ -162,7 +162,7 @@ class CanvasOperationTracker:
         LOG.debug(f'Tracked flood fill: {command.description}')
 
     def add_frame_pixel_changes(
-        self, animation: str, frame: int, pixels: Sequence[PixelChange | PixelChangeTuple]
+        self, animation: str, frame: int, pixels: Sequence[PixelChange | PixelChangeTuple],
     ) -> None:
         """Add pixel changes for a specific frame.
 
@@ -209,7 +209,7 @@ class FilmStripOperationTracker:
         LOG.debug('FilmStripOperationTracker initialized')
 
     def add_frame_added(
-        self, frame_index: int, animation_name: str, frame_data: dict[str, Any]
+        self, frame_index: int, animation_name: str, frame_data: dict[str, Any],
     ) -> None:
         """Track when a frame is added.
 
@@ -230,7 +230,7 @@ class FilmStripOperationTracker:
         LOG.debug(f'Tracked frame addition: {command.description}')
 
     def add_frame_deleted(
-        self, frame_index: int, animation_name: str, frame_data: dict[str, Any]
+        self, frame_index: int, animation_name: str, frame_data: dict[str, Any],
     ) -> None:
         """Track when a frame is deleted.
 
@@ -319,7 +319,7 @@ class FilmStripOperationTracker:
 
         # Skip if selection unchanged
         if previous_animation == animation and previous_frame == frame:
-            LOG.debug(f'Frame selection unchanged: {animation}[{frame}]')
+            LOG.debug('Frame selection unchanged: %s[%s]', animation, frame)
             return
 
         if previous_animation is None or previous_frame is None:
@@ -356,7 +356,7 @@ class CrossAreaOperationTracker:
         LOG.debug('CrossAreaOperationTracker initialized')
 
     def add_frame_copied(
-        self, source_frame: int, source_animation: str, frame_data: dict[str, Any]
+        self, source_frame: int, source_animation: str, frame_data: dict[str, Any],
     ) -> None:
         """Track when a frame is copied.
 
@@ -377,7 +377,7 @@ class CrossAreaOperationTracker:
         LOG.debug(f'Tracked frame copy: {command.description}')
 
     def add_frame_pasted(
-        self, target_frame: int, target_animation: str, frame_data: dict[str, Any]
+        self, target_frame: int, target_animation: str, frame_data: dict[str, Any],
     ) -> None:
         """Track when a frame is pasted.
 
@@ -411,7 +411,7 @@ class CrossAreaOperationTracker:
             redo_data=redo_data,
         )
 
-        LOG.debug(f'Tracked frame paste: {description}')
+        LOG.debug('Tracked frame paste: %s', description)
 
 
 class ControllerPositionOperationTracker:

@@ -70,7 +70,7 @@ class TestFilmStripSelection:
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
-            ]
+            ],
         }
         sprite._animations = animations_data
         sprite.animations = animations_data
@@ -251,7 +251,7 @@ class TestFilmStripSelection:
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2
 
     def test_multiple_strips_independent_selections(
-        self, mock_pygame_patches, sample_animated_sprite, mocker
+        self, mock_pygame_patches, sample_animated_sprite, mocker,
     ):
         """Test that multiple strips maintain independent selections."""
         # Create two strips
@@ -381,7 +381,7 @@ class TestFilmStripSelection:
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_draws_below_frame(
-        self, film_strip_widget, mock_pygame_patches, mocker
+        self, film_strip_widget, mock_pygame_patches, mocker,
     ):
         """Test that the triangle indicator is drawn below the active animation frame."""
         # Set up: frame 2 is the active animation frame
@@ -405,7 +405,7 @@ class TestFilmStripSelection:
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_uses_correct_colors(
-        self, film_strip_widget, mock_pygame_patches, mocker
+        self, film_strip_widget, mock_pygame_patches, mocker,
     ):
         """Test that the triangle indicator uses the correct colors."""
         # Set up: frame 0 is the active animation frame
@@ -426,7 +426,7 @@ class TestFilmStripSelection:
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_size_and_position(
-        self, film_strip_widget, mock_pygame_patches, mocker
+        self, film_strip_widget, mock_pygame_patches, mocker,
     ):
         """Test that the triangle indicator has the correct size and position."""
         # Set up: frame 1 is the active animation frame
@@ -447,7 +447,7 @@ class TestFilmStripSelection:
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_skips_when_no_animation(
-        self, film_strip_widget, mock_pygame_patches
+        self, film_strip_widget, mock_pygame_patches,
     ):
         """Test that triangle indicator is not drawn when there's no current animation.
 
@@ -492,7 +492,7 @@ class TestFilmStripSelection:
         assert not mock_draw.polygon.called
 
     def test_triangle_indicator_draws_when_frame_not_found(
-        self, film_strip_widget, mock_pygame_patches, mocker
+        self, film_strip_widget, mock_pygame_patches, mocker,
     ):
         """Test that triangle indicator is drawn at default position.
 

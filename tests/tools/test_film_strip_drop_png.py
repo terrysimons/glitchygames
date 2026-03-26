@@ -27,10 +27,10 @@ class TestFilmStripDropPNG:
         film_strip_widget.current_animation = 'test_animation'
         film_strip_widget.animated_sprite = self._mocker.Mock()
         film_strip_widget.animated_sprite._animations = {
-            'test_animation': [self._mocker.Mock(), self._mocker.Mock()]
+            'test_animation': [self._mocker.Mock(), self._mocker.Mock()],
         }
         film_strip_widget.get_frame_at_position = self._mocker.Mock(
-            return_value=('test_animation', 0)
+            return_value=('test_animation', 0),
         )
         film_strip_widget.mark_dirty = self._mocker.Mock()
 
@@ -44,7 +44,7 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame,
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
@@ -82,7 +82,7 @@ class TestFilmStripDropPNG:
         film_strip_widget.animated_sprite = self._mocker.Mock()
         film_strip_widget.animated_sprite._animations = {'test_animation': [self._mocker.Mock()]}
         film_strip_widget.get_frame_at_position = self._mocker.Mock(
-            return_value=None
+            return_value=None,
         )  # No frame clicked
         film_strip_widget.mark_dirty = self._mocker.Mock()
         film_strip_widget.set_current_frame = self._mocker.Mock()
@@ -100,7 +100,7 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame,
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
@@ -166,7 +166,7 @@ class TestFilmStripDropPNG:
         film_strip_sprite = FilmStripSprite(film_strip_widget, x=0, y=0, width=100, height=100)
         film_strip_sprite.rect = self._mocker.Mock()  # type: ignore[invalid-assignment]
         film_strip_sprite.rect.collidepoint = self._mocker.Mock(  # type: ignore[invalid-assignment]
-            return_value=False
+            return_value=False,
         )  # Outside bounds
 
         # Create mock drop event
@@ -205,7 +205,7 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame
+            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame,
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos

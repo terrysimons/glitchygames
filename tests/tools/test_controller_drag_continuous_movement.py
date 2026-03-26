@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from glitchygames.bitmappy.controller_handler import ControllerEventHandler
+from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
 from glitchygames.bitmappy.history.operations import (
     CanvasOperationTracker,
     FilmStripOperationTracker,
@@ -44,17 +44,17 @@ class TestControllerDragContinuousMovement:
         scene.canvas = mocker.Mock()
         scene.canvas.canvas_interface = mocker.Mock()
         scene.canvas.canvas_interface.get_pixel_at = mocker.Mock(
-            return_value=(0, 0, 0)
+            return_value=(0, 0, 0),
         )  # Default black
         scene.canvas.canvas_interface.set_pixel_at = mocker.Mock()
 
         # Mock mode switcher
         scene.mode_switcher = mocker.Mock()
         scene.mode_switcher.get_controller_mode = mocker.Mock(
-            return_value=mocker.Mock(value='canvas')
+            return_value=mocker.Mock(value='canvas'),
         )
         scene.mode_switcher.get_controller_position = mocker.Mock(
-            return_value=mocker.Mock(is_valid=True, position=(5, 5))
+            return_value=mocker.Mock(is_valid=True, position=(5, 5)),
         )
 
         # Mock color getter
@@ -62,7 +62,7 @@ class TestControllerDragContinuousMovement:
 
         # Mock canvas move cursor method
         scene._canvas_move_cursor = mocker.Mock()
-        scene._canvas_paint_at_controller_position = mocker.Mock()
+        scene.canvas_paint_at_controller_position = mocker.Mock()
 
         return scene
 
@@ -117,8 +117,8 @@ class TestControllerDragContinuousMovement:
             mock_scene.controller_handler.canvas_continuous_movements
         )
         real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
-        real_handler._canvas_paint_at_controller_position = (
-            mock_scene._canvas_paint_at_controller_position
+        real_handler.canvas_paint_at_controller_position = (
+            mock_scene.canvas_paint_at_controller_position
         )
         real_scene.controller_handler = real_handler
         # Controller handler code references self.editor.* for state
@@ -130,7 +130,7 @@ class TestControllerDragContinuousMovement:
 
         # Verify that painting was called during continuous movement
         # Should be called once for each movement (1 time since we only have one movement ready)
-        assert mock_scene._canvas_paint_at_controller_position.call_count == 1
+        assert mock_scene.canvas_paint_at_controller_position.call_count == 1
 
         # Verify that cursor movement was called
         assert mock_scene._canvas_move_cursor.call_count == 1
@@ -156,7 +156,7 @@ class TestControllerDragContinuousMovement:
         mock_scene._update_canvas_continuous_movements()
 
         # Verify that no painting was called
-        assert mock_scene._canvas_paint_at_controller_position.call_count == 0
+        assert mock_scene.canvas_paint_at_controller_position.call_count == 0
         assert mock_scene._canvas_move_cursor.call_count == 0
 
     def test_controller_drag_inactive_during_continuous_movement(self, mock_scene, mocker):
@@ -187,8 +187,8 @@ class TestControllerDragContinuousMovement:
             mock_scene.controller_handler.canvas_continuous_movements
         )
         real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
-        real_handler._canvas_paint_at_controller_position = (
-            mock_scene._canvas_paint_at_controller_position
+        real_handler.canvas_paint_at_controller_position = (
+            mock_scene.canvas_paint_at_controller_position
         )
         real_scene.controller_handler = real_handler
         # Controller handler code references self.editor.* for state
@@ -200,7 +200,7 @@ class TestControllerDragContinuousMovement:
 
         # Verify that cursor movement was called but no painting
         assert mock_scene._canvas_move_cursor.call_count == 1
-        assert mock_scene._canvas_paint_at_controller_position.call_count == 0
+        assert mock_scene.canvas_paint_at_controller_position.call_count == 0
 
     def test_controller_drag_ended_during_continuous_movement(self, mock_scene, mocker):
         """Test that no painting occurs when controller drag is ended during continuous movement."""
@@ -238,8 +238,8 @@ class TestControllerDragContinuousMovement:
             mock_scene.controller_handler.canvas_continuous_movements
         )
         real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
-        real_handler._canvas_paint_at_controller_position = (
-            mock_scene._canvas_paint_at_controller_position
+        real_handler.canvas_paint_at_controller_position = (
+            mock_scene.canvas_paint_at_controller_position
         )
         real_scene.controller_handler = real_handler
         # Controller handler code references self.editor.* for state
@@ -251,4 +251,4 @@ class TestControllerDragContinuousMovement:
 
         # Verify that cursor movement was called but no painting
         assert mock_scene._canvas_move_cursor.call_count == 1
-        assert mock_scene._canvas_paint_at_controller_position.call_count == 0
+        assert mock_scene.canvas_paint_at_controller_position.call_count == 0
