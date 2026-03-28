@@ -659,7 +659,9 @@ class FilmStripCoordinator:  # noqa: PLR0904
             self._activate_new_animation(new_animation_name)
 
     def _add_single_film_strip(
-        self, anim_name: str, frames: list[SpriteFrame],
+        self,
+        anim_name: str,
+        frames: list[SpriteFrame],
     ) -> None:
         """Add a single film strip incrementally without rebuilding all existing strips.
 
