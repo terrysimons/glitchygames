@@ -204,7 +204,8 @@ class TestMultiControllerErrorHandler:
         """Test that failing recovery handlers are handled gracefully."""
 
         def bad_recovery(error_info):
-            raise TypeError('recovery broke')
+            msg = 'recovery broke'
+            raise TypeError(msg)
 
         self.handler.register_recovery_handler('ValueError_validate', bad_recovery)
 

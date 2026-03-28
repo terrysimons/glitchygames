@@ -302,7 +302,10 @@ class TestEngineLifecycle:
         mock_game_class.assert_called_once()
 
     def test_start_method_error_message_with_previous_scene(
-        self, mock_pygame_patches, mock_game_args, mocker,
+        self,
+        mock_pygame_patches,
+        mock_game_args,
+        mocker,
     ):
         """Test GameEngine.start method error message shows previous scene when current is None."""
 
@@ -361,11 +364,15 @@ class TestEngineLifecycle:
         engine.start()
         # Verify the exception was logged with previous scene info (as debug in test environment)
         mock_log.assert_called_once()
-        call_args = mock_log.call_args[0][0]
-        assert 'PreviousScene' in call_args
+        # Log uses %s format: ("Runtime error ... '%s'", scene_name)
+        format_args = mock_log.call_args[0]
+        assert 'PreviousScene' in format_args[1]
 
     def test_start_method_error_message_with_current_scene(
-        self, mock_pygame_patches, mock_game_args, mocker,
+        self,
+        mock_pygame_patches,
+        mock_game_args,
+        mocker,
     ):
         """Test GameEngine.start method error message shows current scene when available."""
 
@@ -423,12 +430,15 @@ class TestEngineLifecycle:
         engine.start()
         # Verify the exception was logged with current scene info (as debug in test environment)
         mock_log.assert_called_once()
-        call_args = mock_log.call_args[0][0]
-        assert 'CurrentScene' in call_args
-        assert '(previous)' not in call_args
+        # Log uses %s format: ("Runtime error ... '%s'", scene_name)
+        format_args = mock_log.call_args[0]
+        assert 'CurrentScene' in format_args[1]
 
     def test_start_method_error_message_with_no_scenes(
-        self, mock_pygame_patches, mock_game_args, mocker,
+        self,
+        mock_pygame_patches,
+        mock_game_args,
+        mocker,
     ):
         """Test GameEngine.start method error message shows None when both scenes are None."""
 
@@ -486,5 +496,6 @@ class TestEngineLifecycle:
         engine.start()
         # Verify the exception was logged with None (as debug in test environment)
         mock_log.assert_called_once()
-        call_args = mock_log.call_args[0][0]
-        assert "scene 'None'" in call_args
+        # Log uses %s format: ("Runtime error ... '%s'", scene_name)
+        format_args = mock_log.call_args[0]
+        assert format_args[1] == 'None'

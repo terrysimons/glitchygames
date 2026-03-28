@@ -107,4 +107,4 @@ class TestSceneInterface:
         # Check switch_to_scene parameter type
         switch_sig = inspect.signature(SceneInterface.switch_to_scene)
         next_scene_param = switch_sig.parameters['next_scene']
-        assert next_scene_param.annotation == 'SceneInterface'
+        assert next_scene_param.annotation == 'SceneInterface | None'

@@ -29,7 +29,8 @@ class TestControllerPositionUndoRedo:
 
         # Create the tracker with editor=scene so commands can reference the editor
         scene.controller_position_operation_tracker = ControllerPositionOperationTracker(
-            scene.undo_redo_manager, editor=scene,
+            scene.undo_redo_manager,
+            editor=scene,
         )
 
         # Mock the undo/redo methods
@@ -64,7 +65,9 @@ class TestControllerPositionUndoRedo:
 
         # Track controller position change
         mock_scene.controller_position_operation_tracker.add_controller_position_change(
-            controller_id, old_position, new_position,
+            controller_id,
+            old_position,
+            new_position,
         )
 
         # Verify operation was added to undo stack
@@ -83,7 +86,9 @@ class TestControllerPositionUndoRedo:
 
         # Track controller mode change
         mock_scene.controller_position_operation_tracker.add_controller_mode_change(
-            controller_id, old_mode, new_mode,
+            controller_id,
+            old_mode,
+            new_mode,
         )
 
         # Verify operation was added to undo stack
@@ -102,7 +107,9 @@ class TestControllerPositionUndoRedo:
 
         # Track controller position change
         mock_scene.controller_position_operation_tracker.add_controller_position_change(
-            controller_id, old_position, new_position,
+            controller_id,
+            old_position,
+            new_position,
         )
 
         # Verify we can undo
@@ -114,7 +121,8 @@ class TestControllerPositionUndoRedo:
 
         # Verify mode_switcher was called with the old position
         mock_scene.mode_switcher.save_controller_position.assert_called_once_with(
-            controller_id, old_position,
+            controller_id,
+            old_position,
         )
 
     def test_controller_position_redo(self, mock_scene):
@@ -125,7 +133,9 @@ class TestControllerPositionUndoRedo:
 
         # Track controller position change
         mock_scene.controller_position_operation_tracker.add_controller_position_change(
-            controller_id, old_position, new_position,
+            controller_id,
+            old_position,
+            new_position,
         )
 
         # Undo first
@@ -140,7 +150,8 @@ class TestControllerPositionUndoRedo:
 
         # Verify mode_switcher was called with the new position (most recent call)
         mock_scene.mode_switcher.save_controller_position.assert_called_with(
-            controller_id, new_position,
+            controller_id,
+            new_position,
         )
 
     def test_controller_mode_undo(self, mock_scene):
@@ -151,12 +162,15 @@ class TestControllerPositionUndoRedo:
 
         # Set up the controller_modes dict so the command can call switch_to_mode
         mock_controller_mode_state = mock_scene.mode_switcher.controller_modes.setdefault(
-            controller_id, mock_scene.mode_switcher,
+            controller_id,
+            mock_scene.mode_switcher,
         )
 
         # Track controller mode change
         mock_scene.controller_position_operation_tracker.add_controller_mode_change(
-            controller_id, old_mode, new_mode,
+            controller_id,
+            old_mode,
+            new_mode,
         )
 
         # Verify we can undo
@@ -179,12 +193,15 @@ class TestControllerPositionUndoRedo:
 
         # Set up the controller_modes dict so the command can call switch_to_mode
         mock_controller_mode_state = mock_scene.mode_switcher.controller_modes.setdefault(
-            controller_id, mock_scene.mode_switcher,
+            controller_id,
+            mock_scene.mode_switcher,
         )
 
         # Track controller mode change
         mock_scene.controller_position_operation_tracker.add_controller_mode_change(
-            controller_id, old_mode, new_mode,
+            controller_id,
+            old_mode,
+            new_mode,
         )
 
         # Undo first
@@ -209,7 +226,9 @@ class TestControllerPositionUndoRedo:
         positions = [(5, 5), (10, 10), (15, 15), (20, 20)]
         for i in range(len(positions) - 1):
             mock_scene.controller_position_operation_tracker.add_controller_position_change(
-                controller_id, positions[i], positions[i + 1],
+                controller_id,
+                positions[i],
+                positions[i + 1],
             )
 
         # Verify we have operations to undo
@@ -237,7 +256,11 @@ class TestControllerPositionUndoRedo:
 
         # Track controller position change with mode context
         mock_scene.controller_position_operation_tracker.add_controller_position_change(
-            controller_id, old_position, new_position, old_mode, new_mode,
+            controller_id,
+            old_position,
+            new_position,
+            old_mode,
+            new_mode,
         )
 
         # Verify operation was added with mode context as direct attributes
@@ -253,7 +276,9 @@ class TestControllerPositionUndoRedo:
 
         # Track controller position change
         mock_scene.controller_position_operation_tracker.add_controller_position_change(
-            controller_id, old_position, new_position,
+            controller_id,
+            old_position,
+            new_position,
         )
 
         # Mock mode_switcher.save_controller_position to raise an error
@@ -274,12 +299,18 @@ class TestControllerPositionUndoRedo:
 
         # Track controller position change
         mock_scene.controller_position_operation_tracker.add_controller_position_change(
-            controller_id, old_position, new_position, old_mode, new_mode,
+            controller_id,
+            old_position,
+            new_position,
+            old_mode,
+            new_mode,
         )
 
         # Track controller mode change
         mock_scene.controller_position_operation_tracker.add_controller_mode_change(
-            controller_id, old_mode, new_mode,
+            controller_id,
+            old_mode,
+            new_mode,
         )
 
         # Verify descriptions - check both operations
@@ -307,21 +338,26 @@ class TestControllerPositionUndoRedo:
 
         # Set up the controller_modes dict for mode commands
         mock_scene.mode_switcher.controller_modes.setdefault(
-            controller_id, mock_scene.mode_switcher,
+            controller_id,
+            mock_scene.mode_switcher,
         )
 
         # Simulate controller movement
         positions = [(0, 0), (5, 5), (10, 10), (15, 15)]
         for i in range(len(positions) - 1):
             mock_scene.controller_position_operation_tracker.add_controller_position_change(
-                controller_id, positions[i], positions[i + 1],
+                controller_id,
+                positions[i],
+                positions[i + 1],
             )
 
         # Simulate mode changes
         modes = ['canvas', 'film_strip', 'canvas']
         for i in range(len(modes) - 1):
             mock_scene.controller_position_operation_tracker.add_controller_mode_change(
-                controller_id, modes[i], modes[i + 1],
+                controller_id,
+                modes[i],
+                modes[i + 1],
             )
 
         # Verify we have all operations

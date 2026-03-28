@@ -108,7 +108,8 @@ class FilmStripModeStrategy:
                 editor.handle_redo()
             else:
                 handler.log.debug(
-                    'Controller %s: X button pressed - DISABLED (selected frame hidden)', controller_id,
+                    'Controller %s: X button pressed - DISABLED (selected frame hidden)',
+                    controller_id,
                 )
             return
 
@@ -145,7 +146,7 @@ class CanvasModeStrategy:
         """Initialize with a reference to the controller event handler."""
         self.handler = handler
 
-    def handle_button_down(self, controller_id: int, button: int) -> None:
+    def handle_button_down(self, controller_id: int, button: int) -> None:  # noqa: C901
         """Handle a controller button press in canvas mode."""
         handler = self.handler
 
@@ -160,22 +161,26 @@ class CanvasModeStrategy:
             self._handle_x_button(controller_id)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
             handler.log.debug(
-                'Controller %s: D-pad left pressed - start continuous movement left', controller_id,
+                'Controller %s: D-pad left pressed - start continuous movement left',
+                controller_id,
             )
             handler.start_canvas_continuous_movement(controller_id, -1, 0)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
             handler.log.debug(
-                'Controller %s: D-pad right pressed - start continuous movement right', controller_id,
+                'Controller %s: D-pad right pressed - start continuous movement right',
+                controller_id,
             )
             handler.start_canvas_continuous_movement(controller_id, 1, 0)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
             handler.log.debug(
-                'Controller %s: D-pad up pressed - start continuous movement up', controller_id,
+                'Controller %s: D-pad up pressed - start continuous movement up',
+                controller_id,
             )
             handler.start_canvas_continuous_movement(controller_id, 0, -1)
         elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
             handler.log.debug(
-                'Controller %s: D-pad down pressed - start continuous movement down', controller_id,
+                'Controller %s: D-pad down pressed - start continuous movement down',
+                controller_id,
             )
             handler.start_canvas_continuous_movement(controller_id, 0, 1)
         elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
@@ -184,10 +189,14 @@ class CanvasModeStrategy:
             self._handle_shoulder_button(controller_id, is_left=False)
         else:
             handler.log.debug(
-                'DEBUG: Controller %s: Button %s not handled in canvas mode', controller_id, button,
+                'DEBUG: Controller %s: Button %s not handled in canvas mode',
+                controller_id,
+                button,
             )
             handler.log.debug(
-                'Controller %s: Button %s not handled in canvas mode', controller_id, button,
+                'Controller %s: Button %s not handled in canvas mode',
+                controller_id,
+                button,
             )
 
     def handle_button_up(self, controller_id: int, button: int) -> None:
@@ -220,12 +229,14 @@ class CanvasModeStrategy:
 
         if not editor.selected_frame_visible:
             handler.log.debug(
-                'Controller %s: A button pressed - DISABLED (selected frame hidden)', controller_id,
+                'Controller %s: A button pressed - DISABLED (selected frame hidden)',
+                controller_id,
             )
             return
 
         handler.log.debug(
-            'Controller %s: A button pressed - starting controller drag', controller_id,
+            'Controller %s: A button pressed - starting controller drag',
+            controller_id,
         )
 
         # Start drag operation for this controller
@@ -247,14 +258,16 @@ class CanvasModeStrategy:
             handler.editor.handle_redo()
         else:
             handler.log.debug(
-                'Controller %s: X button pressed - DISABLED (selected frame hidden)', controller_id,
+                'Controller %s: X button pressed - DISABLED (selected frame hidden)',
+                controller_id,
             )
 
     def _handle_y_button(self, controller_id: int) -> None:
         """Handle Y button press in canvas mode (toggle visibility or fill direction)."""
         handler = self.handler
         handler.log.debug(
-            'Controller %s: Y button pressed - toggling selected frame visibility', controller_id,
+            'Controller %s: Y button pressed - toggling selected frame visibility',
+            controller_id,
         )
         handler.multi_controller_toggle_selected_frame_visibility(controller_id)
 
@@ -328,78 +341,57 @@ class SliderModeStrategy:
         """Handle a controller button press in slider mode."""
         handler = self.handler
         handler.log.debug(
-            'DEBUG: _handle_slider_button_press called for controller %s, button %s', controller_id, button,
+            'Controller %s: slider button press, button %s',
+            controller_id,
+            button,
         )
 
-        if button == pygame.CONTROLLER_BUTTON_A:
-            # A button: No action in slider mode
+        # Build dispatch table mapping buttons to (description, action) pairs
+        button_handlers: dict[int, tuple[str, object]] = {
+            pygame.CONTROLLER_BUTTON_A: (
+                'no action in slider mode',
+                None,  # A button has no action
+            ),
+            pygame.CONTROLLER_BUTTON_DPAD_LEFT: (
+                'start continuous decrease',
+                lambda: handler.start_slider_continuous_adjustment(controller_id, -1),
+            ),
+            pygame.CONTROLLER_BUTTON_DPAD_RIGHT: (
+                'start continuous increase',
+                lambda: handler.start_slider_continuous_adjustment(controller_id, 1),
+            ),
+            pygame.CONTROLLER_BUTTON_DPAD_UP: (
+                'navigate to previous slider mode',
+                lambda: handler.handle_slider_mode_navigation('up', controller_id),
+            ),
+            pygame.CONTROLLER_BUTTON_DPAD_DOWN: (
+                'navigate to next slider mode',
+                lambda: handler.handle_slider_mode_navigation('down', controller_id),
+            ),
+            pygame.CONTROLLER_BUTTON_LEFTSHOULDER: (
+                'start continuous decrease by 8',
+                lambda: handler.start_slider_continuous_adjustment(controller_id, -8),
+            ),
+            pygame.CONTROLLER_BUTTON_RIGHTSHOULDER: (
+                'start continuous increase by 8',
+                lambda: handler.start_slider_continuous_adjustment(controller_id, 8),
+            ),
+        }
+
+        if button in button_handlers:
+            description, action = button_handlers[button]
             handler.log.debug(
-                'DEBUG: Controller %s: A button pressed - no action in slider mode', controller_id,
+                'Controller %s: %s',
+                controller_id,
+                description,
             )
-            handler.log.debug(
-                'Controller %s: A button pressed - no action in slider mode', controller_id,
-            )
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-            # D-pad left: Start continuous decrease
-            handler.log.debug(
-                'DEBUG: Controller %s: D-pad left pressed - start continuous decrease', controller_id,
-            )
-            handler.log.debug(
-                'Controller %s: D-pad left pressed - start continuous decrease', controller_id,
-            )
-            handler.start_slider_continuous_adjustment(controller_id, -1)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-            # D-pad right: Start continuous increase
-            handler.log.debug(
-                'DEBUG: Controller %s: D-pad right pressed - start continuous increase', controller_id,
-            )
-            handler.log.debug(
-                'Controller %s: D-pad right pressed - start continuous increase', controller_id,
-            )
-            handler.start_slider_continuous_adjustment(controller_id, 1)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            # D-pad up: Navigate to previous slider mode (B -> G -> R)
-            handler.log.debug(
-                'DEBUG: Controller %s: D-pad up pressed - navigate to previous slider mode', controller_id,
-            )
-            handler.log.debug(
-                'Controller %s: D-pad up pressed - navigate to previous slider mode', controller_id,
-            )
-            handler.handle_slider_mode_navigation('up', controller_id)
-        elif button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            # D-pad down: Navigate to next slider mode (R -> G -> B)
-            handler.log.debug(
-                'DEBUG: Controller %s: D-pad down pressed - navigate to next slider mode', controller_id,
-            )
-            handler.log.debug(
-                'Controller %s: D-pad down pressed - navigate to next slider mode', controller_id,
-            )
-            handler.handle_slider_mode_navigation('down', controller_id)
-        elif button == pygame.CONTROLLER_BUTTON_LEFTSHOULDER:
-            # Left shoulder (L1): Start continuous decrease by 8
-            handler.log.debug(
-                'DEBUG: Controller %s: Left shoulder pressed - start continuous decrease by 8', controller_id,
-            )
-            handler.log.debug(
-                'Controller %s: Left shoulder pressed - start continuous decrease by 8', controller_id,
-            )
-            handler.start_slider_continuous_adjustment(controller_id, -8)
-        elif button == pygame.CONTROLLER_BUTTON_RIGHTSHOULDER:
-            # Right shoulder (R1): Start continuous increase by 8
-            handler.log.debug(
-                'DEBUG: Controller %s: Right shoulder pressed - start continuous increase by 8', controller_id,
-            )
-            handler.log.debug(
-                'Controller %s: Right shoulder pressed - start continuous increase by 8', controller_id,
-            )
-            handler.start_slider_continuous_adjustment(controller_id, 8)
+            if action is not None:
+                action()  # type: ignore[operator] # ty: ignore[call-non-callable]
         else:
-            # Other buttons not handled in slider mode (including B button)
             handler.log.debug(
-                'DEBUG: Controller %s: Button %s not handled in slider mode', controller_id, button,
-            )
-            handler.log.debug(
-                'Controller %s: Button %s not handled in slider mode', controller_id, button,
+                'Controller %s: Button %s not handled in slider mode',
+                controller_id,
+                button,
             )
 
     def handle_button_up(self, controller_id: int, button: int) -> None:

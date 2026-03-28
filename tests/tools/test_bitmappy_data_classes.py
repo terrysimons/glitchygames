@@ -291,8 +291,9 @@ class TestGGUnhandledMenuItemError:
             GGUnhandledMenuItemError: Raised intentionally to test the exception class.
 
         """
+        msg = 'Unknown menu item'
         with pytest.raises(GGUnhandledMenuItemError, match='Unknown menu item'):
-            raise GGUnhandledMenuItemError('Unknown menu item')
+            raise GGUnhandledMenuItemError(msg)
 
     def test_exception_message_preserved(self):
         """Test exception message is preserved."""

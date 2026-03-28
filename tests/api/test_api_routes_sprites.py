@@ -293,7 +293,8 @@ class TestGenerateSpriteAIProviderError:
         mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
         mock_gen_service = mocker.MagicMock()
         mock_gen_service.generate_sprite.side_effect = AIProviderError(
-            'Provider down', provider='anthropic',
+            'Provider down',
+            provider='anthropic',
         )
         mock_render_service = mocker.MagicMock()
         mock_services.return_value = (mock_gen_service, mock_render_service)
@@ -335,7 +336,8 @@ class TestRefineSpriteErrors:
         mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
         mock_gen_service = mocker.MagicMock()
         mock_gen_service.refine_sprite.side_effect = AIProviderError(
-            'Provider down', provider='anthropic',
+            'Provider down',
+            provider='anthropic',
         )
         mock_render_service = mocker.MagicMock()
         mock_services.return_value = (mock_gen_service, mock_render_service)
@@ -476,7 +478,10 @@ class TestGenerateWithModelOverride:
     """Test generate endpoint with model override."""
 
     def test_generate_sprite_with_model_override(
-        self, client, successful_generation_result, mocker,
+        self,
+        client,
+        successful_generation_result,
+        mocker,
     ):
         """Test that model override is passed through to the service."""
         mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')

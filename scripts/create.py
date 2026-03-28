@@ -21,10 +21,18 @@ def get_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-l', '--list', action='store_true', required=False, help='list available templates',
+        '-l',
+        '--list',
+        action='store_true',
+        required=False,
+        help='list available templates',
     )
     parser.add_argument(
-        '-t', '--template', choices=templates.get_templates(), nargs='?', help='The template to use',
+        '-t',
+        '--template',
+        choices=templates.get_templates(),
+        nargs='?',
+        help='The template to use',
     )
     return parser.parse_args()
 

@@ -21,8 +21,9 @@ class BitmapPixelSprite(BitmappySprite):
     log = LOG
     PIXEL_CACHE: ClassVar[dict[tuple[tuple[int, ...], int], pygame.Surface]] = {}
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self: Self,
+        *,
         x: int = 0,
         y: int = 0,
         width: int = 1,
@@ -45,7 +46,10 @@ class BitmapPixelSprite(BitmappySprite):
         self.y = y
 
         self.rect = pygame.draw.rect(
-            self.image, self.color, (self.x, self.y, self.width, self.height), self.border_thickness,
+            self.image,
+            self.color,
+            (self.x, self.y, self.width, self.height),
+            self.border_thickness,
         )
 
     @property
@@ -66,7 +70,8 @@ class BitmapPixelSprite(BitmappySprite):
 
     @pixel_color.setter
     def pixel_color(
-        self: Self, new_pixel_color: tuple[int, int, int] | tuple[int, int, int, int],
+        self: Self,
+        new_pixel_color: tuple[int, int, int] | tuple[int, int, int, int],
     ) -> None:
         """Set the pixel color.
 
@@ -108,7 +113,10 @@ class BitmapPixelSprite(BitmappySprite):
             # Draw border if needed
             if self.border_thickness:
                 pygame.draw.rect(
-                    self.image, self.color, (0, 0, self.width, self.height), self.border_thickness,
+                    self.image,
+                    self.color,
+                    (0, 0, self.width, self.height),
+                    self.border_thickness,
                 )
 
             # Convert surface for better performance

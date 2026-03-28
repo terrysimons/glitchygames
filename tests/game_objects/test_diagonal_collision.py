@@ -37,7 +37,11 @@ def test_diagonal_vs_horizontal():
     new_ball2_y = ball2_speed[1] - v2n * ny + v1n * ny  # 0 - 100*0.0 + 50*0.0 = 0
 
     LOG.debug(
-        '  Result: ball1=(%s, %s), ball2=(%s, %s)', new_ball1_x, new_ball1_y, new_ball2_x, new_ball2_y,
+        '  Result: ball1=(%s, %s), ball2=(%s, %s)',
+        new_ball1_x,
+        new_ball1_y,
+        new_ball2_x,
+        new_ball2_y,
     )
     LOG.debug(
         '  Expected: ball1 should get horizontal component, ball2 should get diagonal component',

@@ -83,9 +83,11 @@ class Operation:
 
         """
         if not self.undo_data:
-            raise ValueError('Operation must have undo_data')
+            msg = 'Operation must have undo_data'
+            raise ValueError(msg)
         if not self.redo_data:
-            raise ValueError('Operation must have redo_data')
+            msg = 'Operation must have redo_data'
+            raise ValueError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +95,7 @@ class Operation:
 # ---------------------------------------------------------------------------
 
 
-class UndoRedoManager:
+class UndoRedoManager:  # noqa: PLR0904
     """Manages undo/redo command stacks for the Bitmappy editor.
 
     Commands are objects that implement the ``UndoRedoCommand`` protocol
@@ -330,7 +332,7 @@ class UndoRedoManager:
         adapter = _OperationAdapter(operation, self)
         self.push_command(adapter)
 
-    def add_frame_operation(
+    def add_frame_operation(  # noqa: PLR0913, PLR0917
         self,
         animation: str,
         frame: int,
@@ -462,11 +464,11 @@ class UndoRedoManager:
                 LOG.warning('Failed to undo frame command for %s[%s]', animation, frame)
                 self.frame_undo_stacks[frame_key].append(command)
 
-            return success
-
         except Exception:
             LOG.exception('Error undoing frame command for %s[%s]', animation, frame)
             return False
+        else:
+            return success
         finally:
             self.is_undoing = False
 
@@ -503,11 +505,11 @@ class UndoRedoManager:
                 LOG.warning('Failed to redo frame command for %s[%s]', animation, frame)
                 self.frame_redo_stacks[frame_key].append(command)
 
-            return success
-
         except Exception:
             LOG.exception('Error redoing frame command for %s[%s]', animation, frame)
             return False
+        else:
+            return success
         finally:
             self.is_redoing = False
 
@@ -649,7 +651,9 @@ class UndoRedoManager:
             if last_animation == second_animation and last_frame == second_frame:
                 self.undo_stack.pop()
                 LOG.debug(
-                    'Optimized: removed redundant frame select for %s[%s]', last_animation, last_frame,
+                    'Optimized: removed redundant frame select for %s[%s]',
+                    last_animation,
+                    last_frame,
                 )
 
 
@@ -706,7 +710,7 @@ class _OperationAdapter:
         """
         return self._dispatch(is_undo=True)
 
-    def _dispatch(self, *, is_undo: bool) -> bool:
+    def _dispatch(self, *, is_undo: bool) -> bool:  # noqa: PLR0911
         """Route to the correct legacy callback based on operation type.
 
         Returns:
@@ -760,17 +764,22 @@ class _OperationAdapter:
                 return self._dispatch_controller_mode(data, is_undo=is_undo)
 
             LOG.warning('Unknown operation type: %s', op_type)
-            return False
 
         except Exception:
             label = 'undo' if is_undo else 'redo'
             LOG.exception(f'Error executing {label} for {operation.description}')
             return False
+        else:
+            return False
 
     # -- Canvas dispatch ----------------------------------------------------
 
-    def _dispatch_canvas(
-        self, operation: Operation, data: dict[str, Any], *, is_undo: bool,
+    def _dispatch_canvas(  # noqa: C901
+        self,
+        operation: Operation,
+        data: dict[str, Any],
+        *,
+        is_undo: bool,
     ) -> bool:
         callback = getattr(self._manager, '_pixel_change_callback', None)
         if not callback:
@@ -811,8 +820,12 @@ class _OperationAdapter:
 
     # -- Film strip dispatch ------------------------------------------------
 
-    def _dispatch_film_strip(  # noqa: PLR0912, PLR0915
-        self, operation: Operation, data: dict[str, Any], *, is_undo: bool,
+    def _dispatch_film_strip(  # noqa: C901, PLR0911, PLR0912, PLR0915
+        self,
+        operation: Operation,
+        data: dict[str, Any],
+        *,
+        is_undo: bool,
     ) -> bool:
         op_type = operation.operation_type
 
@@ -898,7 +911,11 @@ class _OperationAdapter:
     # -- Cross-area dispatch ------------------------------------------------
 
     def _dispatch_cross_area(
-        self, operation: Operation, data: dict[str, Any], *, is_undo: bool,
+        self,
+        operation: Operation,
+        data: dict[str, Any],
+        *,
+        is_undo: bool,  # noqa: ARG002
     ) -> bool:
         if operation.operation_type == OperationType.FRAME_PASTE:
             callback = getattr(self._manager, '_frame_paste_callback', None)

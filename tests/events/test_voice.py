@@ -165,7 +165,10 @@ class TestProbeMicrophoneBackend:
         manager._probe_microphone_backend(mock_mic_cls)
 
         manager.log.info.assert_called_once()  # type: ignore[unresolved-attribute]
-        assert 'CustomBackend' in manager.log.info.call_args[0][0]  # type: ignore[unresolved-attribute]
+        # Log uses %s format: ("Voice backend selected: %s", backend_name)
+        format_args = manager.log.info.call_args[0]  # type: ignore[unresolved-attribute]
+        assert 'Voice backend selected' in format_args[0]
+        assert format_args[1] == 'CustomBackend'
 
     def test_probe_oserror_logs_exception_with_backend_name(self, mocker):
         """Test probing logs exception with backend name on failure."""
@@ -180,7 +183,10 @@ class TestProbeMicrophoneBackend:
         manager._probe_microphone_backend(mock_mic_cls)
 
         manager.log.exception.assert_called_once()  # type: ignore[unresolved-attribute]
-        assert 'FailingBackend' in manager.log.exception.call_args[0][0]  # type: ignore[unresolved-attribute]
+        # Log uses %s format: ("Voice backend probe failed for %s", backend_name)
+        format_args = manager.log.exception.call_args[0]  # type: ignore[unresolved-attribute]
+        assert 'Voice backend probe failed' in format_args[0]
+        assert format_args[1] == 'FailingBackend'
 
 
 class TestSetupMicrophone:
@@ -453,7 +459,8 @@ class TestListenLoop:
             call_count[0] += 1
             if call_count[0] > 1:
                 manager.is_listening = False
-            raise OSError('device error')
+            msg = 'device error'
+            raise OSError(msg)
 
         mock_recognizer.listen.side_effect = oserror_then_stop
 
@@ -1339,9 +1346,10 @@ class TestVoiceRecognitionManagerPositive:
 
         # Verify the exception was logged (voice.py uses LOG.exception for callback errors)
         mock_log.exception.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.exception.call_args[0][0]
-        assert "Error executing voice command 'test command'" in call_args
+        # Log uses %s format: ("Error executing voice command '%s'", command)
+        format_args = mock_log.exception.call_args[0]
+        assert 'Error executing voice command' in format_args[0]
+        assert format_args[1] == 'test command'
 
 
 class TestBitmapEditorSceneVoiceIntegrationNegative:
@@ -1405,7 +1413,8 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         mock_voice_manager.is_available.return_value = True
         mock_voice_manager.has_microphone.return_value = True
         mock_voice_cls = mocker.patch(
-            'glitchygames.bitmappy.editor.VoiceEventManager', return_value=mock_voice_manager,
+            'glitchygames.bitmappy.editor.VoiceEventManager',
+            return_value=mock_voice_manager,
         )
 
         scene = BitmapEditorScene({})

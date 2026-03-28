@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.history.undo_redo import OperationType
 from glitchygames.sprites.animated import SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 
 
 class TestFrameCopyPaste:
@@ -67,13 +67,16 @@ class TestFrameCopyPaste:
         # Add the copy/paste methods we're testing
 
         scene._handle_copy_frame = BitmapEditorScene._handle_copy_frame.__get__(
-            scene, BitmapEditorScene,
+            scene,
+            BitmapEditorScene,
         )
         scene._handle_paste_frame = BitmapEditorScene._handle_paste_frame.__get__(
-            scene, BitmapEditorScene,
+            scene,
+            BitmapEditorScene,
         )
         scene.on_key_down_event = BitmapEditorScene.on_key_down_event.__get__(
-            scene, BitmapEditorScene,
+            scene,
+            BitmapEditorScene,
         )
 
         # Initialize clipboard
@@ -88,7 +91,11 @@ class TestFrameCopyPaste:
 
         # Create mock animated sprite with frame data
         mock_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='test_anim', frame_size=(8, 8), pixel_color=(255, 0, 0),
+            config=MockSpriteConfig(
+                animation_name='test_anim',
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),
+            ),
         )
 
         # Set up scene state
@@ -150,7 +157,11 @@ class TestFrameCopyPaste:
 
         # Create mock animated sprite
         mock_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='test_anim', frame_size=(8, 8), pixel_color=(0, 255, 0),
+            config=MockSpriteConfig(
+                animation_name='test_anim',
+                frame_size=(8, 8),
+                pixel_color=(0, 255, 0),
+            ),
         )
 
         # Set up scene state
@@ -271,8 +282,13 @@ class TestFrameCopyPaste:
         scene._handle_film_strip_text_input = (
             BitmapEditorScene._handle_film_strip_text_input.__get__(scene, BitmapEditorScene)
         )
+        scene._handle_key_down_actions = BitmapEditorScene._handle_key_down_actions.__get__(
+            scene,
+            BitmapEditorScene,
+        )
         scene._handle_ctrl_key_shortcuts = BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(
-            scene, BitmapEditorScene,
+            scene,
+            BitmapEditorScene,
         )
 
         # Mock the copy method that the real on_key_down_event calls
@@ -318,8 +334,13 @@ class TestFrameCopyPaste:
         scene._handle_film_strip_text_input = (
             BitmapEditorScene._handle_film_strip_text_input.__get__(scene, BitmapEditorScene)
         )
+        scene._handle_key_down_actions = BitmapEditorScene._handle_key_down_actions.__get__(
+            scene,
+            BitmapEditorScene,
+        )
         scene._handle_ctrl_key_shortcuts = BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(
-            scene, BitmapEditorScene,
+            scene,
+            BitmapEditorScene,
         )
 
         # Mock the paste method that the real on_key_down_event calls

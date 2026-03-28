@@ -250,7 +250,10 @@ class TestKeyboardEventProxyChords:
 
         # Press first key
         event_ctrl = HashableEvent(
-            pygame.KEYDOWN, key=pygame.K_LCTRL, mod=pygame.KMOD_CTRL, unicode='',
+            pygame.KEYDOWN,
+            key=pygame.K_LCTRL,
+            mod=pygame.KMOD_CTRL,
+            unicode='',
         )
         proxy.on_key_down_event(event_ctrl)
 
@@ -271,7 +274,10 @@ class TestKeyboardEventProxyChords:
 
         # Press CTRL
         event_ctrl = HashableEvent(
-            pygame.KEYDOWN, key=pygame.K_LCTRL, mod=pygame.KMOD_CTRL, unicode='',
+            pygame.KEYDOWN,
+            key=pygame.K_LCTRL,
+            mod=pygame.KMOD_CTRL,
+            unicode='',
         )
         proxy.on_key_down_event(event_ctrl)
 
@@ -324,13 +330,19 @@ class TestKeyboardEventProxyChords:
 
         # Press CTRL
         event_ctrl_down = HashableEvent(
-            pygame.KEYDOWN, key=pygame.K_LCTRL, mod=pygame.KMOD_CTRL, unicode='',
+            pygame.KEYDOWN,
+            key=pygame.K_LCTRL,
+            mod=pygame.KMOD_CTRL,
+            unicode='',
         )
         proxy.on_key_down_event(event_ctrl_down)
 
         # Press 'c'
         event_c_down = HashableEvent(
-            pygame.KEYDOWN, key=pygame.K_c, mod=pygame.KMOD_CTRL, unicode='c',
+            pygame.KEYDOWN,
+            key=pygame.K_c,
+            mod=pygame.KMOD_CTRL,
+            unicode='c',
         )
         proxy.on_key_down_event(event_c_down)
 

@@ -167,7 +167,7 @@ task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
 select = ["ALL"]
 ignore = [
   # --- Previously ignored ---
-  #"ASYN",
+  "COM812",  # Commented-out code is intentional for debugging and development
   "SLF001",  # Private member accessed (Needed for some annotations, like argparse._ArgumentGroup)
   "S311",    # Standard pseudo-random generators are not suitable for security/cryptographic purposes.
   "ISC002",  # Use of implicit string concatenation (this conflicts with ruff format)
@@ -179,6 +179,9 @@ ignore = [
   "S101",    # assert is used intentionally for type narrowing and runtime invariant checks
   "ANN401",  # Any is needed for dynamic dispatch, loosely-typed game objects, and AI client APIs
   "PLR6301", # Method could be a function/staticmethod
+  "G004",    # Logging statement uses f-string
+  "EM101",   # Exception must not use a string literal, assign to variable first
+  "EM102",   # Exception must not use an f-string literal, assign to variable first
 ]
 fixable = ["ALL"]
 
@@ -200,13 +203,37 @@ fixable = ["ALL"]
   "RUF069",  # Exact float comparisons are intentional in property-based tests
   "B905",    # zip() without strict= is fine in tests
   "B002",    # False positive on double-negation test: -(-speed)
-  "ARG002", # Pytest fixtures are activated by parameter presence, not by direct use
+  "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
 ]
 "glitchygames/api/**/*.py" = [
   "RUF029", # FastAPI requires async def for route handlers even without await
 ]
 "scripts/**/*.py" = [
   "TC003", # Scripts use stdlib imports at runtime, not just for type checking
+]
+"glitchygames/ui/widgets.py" = [
+  "PLR0913", # UI widget constructors inherently need geometry (x, y, w, h) + identity + container params
+]
+"glitchygames/ui/dialogs.py" = [
+  "PLR0913", # Dialog constructors need scene, callbacks, options, and group params
+]
+"glitchygames/scenes/scene.py" = [
+  "PLR0904", # Scene base class provides one handler method per pygame event type
+]
+"glitchygames/game_objects/ball.py" = [
+  "PLR0913", # BallSprite constructor needs physics, speed, collision, and display params
+]
+"glitchygames/game_objects/paddle.py" = [
+  "PLR0913", # Paddle constructors need geometry, speed, color, collision params
+]
+"glitchygames/examples/joystick_demo.py" = [
+  "PLR0913", # Demo widget constructors follow standard UI geometry pattern
+]
+"glitchygames/examples/paddleslap.py" = [
+  "PLR0913", # Game helper functions need ball geometry and physics params
+]
+"glitchygames/services/sprite_generation_service.py" = [
+  "PLR0913", # Sprite generation needs provider, model, prompt, and dimension params
 ]
 
 [tool.ruff.format]
@@ -237,7 +264,10 @@ python-version = "3.14"
 extra-paths = ["scripts"]
 
 [tool.ty.src]
-include = ["glitchygames", "tests", "scripts"]
+include = ["glitchygames", "scripts"]
+# Tests excluded: ty doesn't understand pytest-mock's mocker.patch semantics,
+# generating hundreds of false positives on mock attribute access and assignments.
+exclude = ["tests", ".venv", ".nox"]
 
 [tool.ty.rules]
 # type: ignore comments are shared with basedpyright — don't flag them as unused

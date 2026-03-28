@@ -15,18 +15,15 @@ from __future__ import annotations
 
 import abc
 import collections
-import functools
 import inspect
 import logging
 import re
-from typing import TYPE_CHECKING, Any, ClassVar, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, cast, override
 
 import pygame
 
 if TYPE_CHECKING:
     from collections.abc import Callable, KeysView, ValuesView
-
-    from glitchygames.scenes import Scene
 
 
 class UnhandledEventError(Exception):
@@ -39,6 +36,10 @@ class UnhandledEventError(Exception):
 
 LOG: logging.Logger = logging.getLogger('game.events')
 LOG.addHandler(logging.NullHandler())
+
+UNHANDLED_EVENT_MSG = 'Unhandled event: {event_name} {event}'
+NO_PROXIES_MSG = 'No proxies for {cls}.{attr}'
+MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 
 
 def supported_events(like: str = '.*') -> list[int]:
@@ -144,32 +145,30 @@ GAME_EVENTS = list(
 GAME_EVENTS.extend([FPSEVENT, GAMEEVENT, MENUEVENT])
 
 
-def dump_cache_info(func: Callable[..., Any], **kwargs: Any) -> Callable[..., None]:  # noqa: ARG001
-    """Dump the cache info for a function.
+class GameOptionsProvider(Protocol):
+    """Protocol for objects that provide game options to the event system.
 
-    Expects a @functools.cache-decorated callable with cache_info().
-
-    Returns:
-        Callable[..., None]: The result.
-
+    Satisfied by Scene and all EventStubs mixins at runtime, since they
+    inherit options through the ResourceManager/GameEngine chain.
     """
 
-    def wrapper(game: Scene, *args: Any, **kwargs: Any) -> None:
-        cache_info = getattr(func, 'cache_info', None)
-        if cache_info is not None:
-            LOG.debug(f'Cache Info: {func.__name__} {cache_info()}')  # ty: ignore[unresolved-attribute]
-        func(game, *args, **kwargs)
-
-    return wrapper
+    options: dict[str, Any]
 
 
-@dump_cache_info
-@functools.cache
-def unhandled_event(game: Scene, event: HashableEvent, *args: Any, **kwargs: Any) -> None:
+_unhandled_event_types: set[int] = set()
+
+
+def unhandled_event(
+    game: GameOptionsProvider,
+    event: HashableEvent,
+    *_args: Any,
+    **_kwargs: Any,
+) -> None:
     """Handle unhandled events.
 
     This method is called when an event is not handled by
-    any of the event handlers.
+    any of the event handlers.  Each event type is only logged
+    once to avoid per-frame log spam.
 
     This is helpful for us to debug events that we haven't
     implemented yet.
@@ -177,34 +176,48 @@ def unhandled_event(game: Scene, event: HashableEvent, *args: Any, **kwargs: Any
     Args:
         game: The game instance.
         event: The event that wasn't handled.
-        *args: The positional arguments.
-        **kwargs: The keyword arguments.
+        *_args: The positional arguments.
+        **_kwargs: The keyword arguments.
 
     Raises:
         UnhandledEventError: If no_unhandled_events is enabled and the event is not handled.
 
     """
-    debug_events: bool | None = game.options.get('debug_events', None)
-    no_unhandled_events: bool | None = game.options.get('no_unhandled_events', None)
+    raw_options = getattr(game, 'options', None)
+    if not isinstance(raw_options, dict):
+        # No options available (standalone stub without game context) — silently skip
+        return
 
-    if debug_events:
-        LOG.error(
-            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}',
-        )
-    elif debug_events is None:
-        LOG.error(
-            "Error: debug_events is missing from the game options. This shouldn't be possible.",
-        )
+    options: dict[str, Any] = cast('dict[str, Any]', raw_options)
+    no_unhandled_events: bool | None = options.get('no_unhandled_events')
 
+    # Always raise if configured to treat unhandled events as errors
     if no_unhandled_events:
-        LOG.error(
-            f'Unhandled Event: args: {pygame.event.event_name(event.type)} {event} {args} {kwargs}',
+        raise UnhandledEventError(
+            UNHANDLED_EVENT_MSG.format(
+                event_name=pygame.event.event_name(event.type),
+                event=event,
+            ),
         )
-        raise UnhandledEventError(f'Unhandled event: {pygame.event.event_name(event.type)} {event}')
     if no_unhandled_events is None:
         LOG.error(
             'Error: no_unhandled_events is missing from the game options. '
             "This shouldn't be possible.",
+        )
+        return
+
+    # Log each unhandled event type only once
+    debug_events: bool | None = options.get('debug_events')
+    if debug_events and event.type not in _unhandled_event_types:
+        _unhandled_event_types.add(event.type)
+        LOG.warning(
+            'Unhandled Event: %s %s',
+            pygame.event.event_name(event.type),
+            event,
+        )
+    elif debug_events is None:
+        LOG.error(
+            "Error: debug_events is missing from the game options. This shouldn't be possible.",
         )
 
 
@@ -265,11 +278,11 @@ class ResourceManager:
 
         return cls.__instances__[cls]
 
-    def __init__(self: Self, game: object) -> None:
+    def __init__(self: Self, game: object) -> None:  # noqa: ARG002
         """Initialize the resource manager.
 
         Args:
-            game: The game instance.
+            game: The game instance (accepted for subclass compatibility).
 
         """
         super().__init__()
@@ -298,11 +311,11 @@ class ResourceManager:
             self.log.error(f'No proxies for {type(self)}.{attr}')  # noqa: TRY400
             raise
 
-        raise AttributeError(f'No proxies for {type(self)}.{attr}')
+        raise AttributeError(NO_PROXIES_MSG.format(cls=type(self), attr=attr))
 
 
 # Note, we can't subclass HashableEvent because it's a C type.
-class HashableEvent(collections.UserDict[str, Any]):
+class HashableEvent(collections.UserDict[str, Any]):  # noqa: PLR0904
     """Hashable event class.
 
     Hashable events are cacheable, so we can mitigate some of the
@@ -317,14 +330,14 @@ class HashableEvent(collections.UserDict[str, Any]):
     which allows us to extend them with additional information.
     """
 
-    def __init__(self: Self, type: int, *args: Any, **attributes: Any) -> None:  # noqa: A002
+    def __init__(self: Self, type: int, *_args: Any, **attributes: Any) -> None:  # noqa: A002
         """Create a hashable event.
 
         Pygames events are not hashable by default.
 
         Args:
             type: The type of the event.
-            *args: The positional arguments.
+            *_args: Additional positional arguments (unused).
             **attributes: The keyword arguments.
 
         """
@@ -532,14 +545,19 @@ class HashableEvent(collections.UserDict[str, Any]):
             AttributeError: If the attribute is not found.
 
         """
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        raise AttributeError(MISSING_ATTRIBUTE_MSG.format(cls=type(self).__name__, attr=name))
 
 
 # We intentionally don't implement any methods here.
-class EventInterface(abc.ABC):  # noqa: B024
+class EventInterface(abc.ABC):
     """Abstract base class for event interfaces."""
 
     log: ClassVar[logging.Logger] = LOG
+
+    # Declared here so EventStubs satisfy GameOptionsProvider when passed to
+    # unhandled_event(). At runtime, the concrete class (Scene/GameEngine)
+    # provides the real options dict via the ResourceManager singleton chain.
+    options: dict[str, Any]
 
     @classmethod
     @override
@@ -607,7 +625,6 @@ class AudioEvents(EventInterface):
 class AudioEventStubs(AudioEvents):
     """Mixin for audio events."""
 
-    @functools.cache
     def on_audio_device_added_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle audio device added events.
 
@@ -618,7 +635,6 @@ class AudioEventStubs(AudioEvents):
         # AUDIODEVICEADDED   which, iscapture
         return unhandled_event(self, event)
 
-    @functools.cache
     def on_audio_device_removed_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle audio device removed events.
 
@@ -728,7 +744,6 @@ class ControllerEvents(EventInterface):
 class ControllerEventStubs(ControllerEvents):
     """Mixin for controller events."""
 
-    @functools.cache
     def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller axis motion events.
 
@@ -739,7 +754,6 @@ class ControllerEventStubs(ControllerEvents):
         # CONTROLLERAXISMOTION joy, axis, value
         unhandled_event(self, event)
 
-    @functools.cache
     def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller button down events.
 
@@ -750,7 +764,6 @@ class ControllerEventStubs(ControllerEvents):
         # CONTROLLERBUTTONDOWN joy, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller button up events.
 
@@ -761,7 +774,6 @@ class ControllerEventStubs(ControllerEvents):
         # CONTROLLERBUTTONUP   joy, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_controller_device_added_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller device added events.
 
@@ -772,7 +784,6 @@ class ControllerEventStubs(ControllerEvents):
         # CONTROLLERDEVICEADDED device_index, guid
         unhandled_event(self, event)
 
-    @functools.cache
     def on_controller_device_remapped_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller device remapped events.
 
@@ -783,7 +794,6 @@ class ControllerEventStubs(ControllerEvents):
         # CONTROLLERDEVICEREMAPPED device_index
         unhandled_event(self, event)
 
-    @functools.cache
     def on_controller_device_removed_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller device removed events.
 
@@ -794,7 +804,6 @@ class ControllerEventStubs(ControllerEvents):
         # CONTROLLERDEVICEREMOVED device_index
         unhandled_event(self, event)
 
-    @functools.cache
     def on_controller_touchpad_down_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller touchpad down events.
 
@@ -805,7 +814,6 @@ class ControllerEventStubs(ControllerEvents):
         # CONTROLLERTOUCHPADDOWN joy, touchpad
         unhandled_event(self, event)
 
-    @functools.cache
     def on_controller_touchpad_motion_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller touchpad motion events.
 
@@ -816,7 +824,6 @@ class ControllerEventStubs(ControllerEvents):
         # CONTROLLERTOUCHPADMOTION joy, touchpad
         unhandled_event(self, event)
 
-    @functools.cache
     def on_controller_touchpad_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
         """Handle controller touchpad up events.
 
@@ -877,7 +884,6 @@ class DropEvents(EventInterface):
 class DropEventStubs(EventInterface):
     """Mixin for drop events."""
 
-    @functools.cache
     def on_drop_begin_event(self: Self, event: HashableEvent) -> None:
         """Handle drop begin event.
 
@@ -888,7 +894,6 @@ class DropEventStubs(EventInterface):
         # DROPBEGIN        none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_drop_file_event(self: Self, event: HashableEvent) -> None:
         """Handle drop file event.
 
@@ -899,7 +904,6 @@ class DropEventStubs(EventInterface):
         # DROPFILE         file
         unhandled_event(self, event)
 
-    @functools.cache
     def on_drop_text_event(self: Self, event: HashableEvent) -> None:
         """Handle drop text event.
 
@@ -910,7 +914,6 @@ class DropEventStubs(EventInterface):
         # DROPTEXT         text
         unhandled_event(self, event)
 
-    @functools.cache
     def on_drop_complete_event(self: Self, event: HashableEvent) -> None:
         """Handle drop complete event.
 
@@ -991,7 +994,6 @@ class TouchEvents(EventInterface):
 class TouchEventStubs(EventInterface):
     """Mixin for touch events."""
 
-    @functools.cache
     def on_touch_down_event(self: Self, event: HashableEvent) -> None:
         """Handle finger down event.
 
@@ -1002,7 +1004,6 @@ class TouchEventStubs(EventInterface):
         # FINGERDOWN       finger_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
 
-    @functools.cache
     def on_touch_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle finger motion event.
 
@@ -1013,7 +1014,6 @@ class TouchEventStubs(EventInterface):
         # FINGERMOTION     finger_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
 
-    @functools.cache
     def on_touch_up_event(self: Self, event: HashableEvent) -> None:
         """Handle finger up event.
 
@@ -1024,7 +1024,6 @@ class TouchEventStubs(EventInterface):
         # FINGERUP         finger_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
 
-    @functools.cache
     def on_multi_touch_down_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger down event.
 
@@ -1035,7 +1034,6 @@ class TouchEventStubs(EventInterface):
         # MULTIFINGERDOWN  touch_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
 
-    @functools.cache
     def on_multi_touch_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger motion event.
 
@@ -1046,7 +1044,6 @@ class TouchEventStubs(EventInterface):
         # MULTIFINGERMOTION touch_id, x, y, dx, dy, pressure
         unhandled_event(self, event)
 
-    @functools.cache
     def on_multi_touch_up_event(self: Self, event: HashableEvent) -> None:
         """Handle multi finger up event.
 
@@ -1059,7 +1056,7 @@ class TouchEventStubs(EventInterface):
 
 
 # Mixin
-# TODO: Add a glitchy games event index to allow
+# NOTE: Consider adding a glitchy games event index to allow
 # games to easily extend pygame further without impacting
 # the core engine.
 class GameEvents(EventInterface):
@@ -1213,7 +1210,6 @@ class GameEventStubs(EventInterface):
     a good home otherwise.
     """
 
-    @functools.cache
     def on_active_event(self: Self, event: HashableEvent) -> None:
         """Handle active events.
 
@@ -1224,7 +1220,6 @@ class GameEventStubs(EventInterface):
         # ACTIVEEVENT      gain, state
         unhandled_event(self, event)
 
-    @functools.cache
     def on_fps_event(self: Self, event: HashableEvent) -> None:
         """Handle FPS events.
 
@@ -1235,7 +1230,6 @@ class GameEventStubs(EventInterface):
         # FPSEVENT is pygame.USEREVENT + 1
         unhandled_event(self, event)
 
-    @functools.cache
     def on_game_event(self: Self, event: HashableEvent) -> None:
         """Handle game events.
 
@@ -1246,7 +1240,6 @@ class GameEventStubs(EventInterface):
         # GAMEEVENT is pygame.USEREVENT + 2
         unhandled_event(self, event)
 
-    @functools.cache
     def on_menu_item_event(self: Self, event: HashableEvent) -> None:
         """Handle menu item events.
 
@@ -1257,7 +1250,6 @@ class GameEventStubs(EventInterface):
         # MENUEVENT is pygame.USEREVENT + 3
         unhandled_event(self, event)
 
-    @functools.cache
     def on_sys_wm_event(self: Self, event: HashableEvent) -> None:
         """Handle sys wm events.
 
@@ -1268,7 +1260,6 @@ class GameEventStubs(EventInterface):
         # SYSWMEVENT
         unhandled_event(self, event)
 
-    @functools.cache
     def on_user_event(self: Self, event: HashableEvent) -> None:
         """Handle user events.
 
@@ -1279,7 +1270,6 @@ class GameEventStubs(EventInterface):
         # USEREVENT        code
         unhandled_event(self, event)
 
-    @functools.cache
     def on_video_expose_event(self: Self, event: HashableEvent) -> None:
         """Handle video expose events.
 
@@ -1290,7 +1280,6 @@ class GameEventStubs(EventInterface):
         # VIDEOEXPOSE      none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_video_resize_event(self: Self, event: HashableEvent) -> None:
         """Handle video resize events.
 
@@ -1301,7 +1290,6 @@ class GameEventStubs(EventInterface):
         # VIDEORESIZE      size, w, h
         unhandled_event(self, event)
 
-    @functools.cache
     def on_quit_event(self: Self, event: HashableEvent) -> None:
         """Handle quit events.
 
@@ -1312,7 +1300,6 @@ class GameEventStubs(EventInterface):
         # QUIT             none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_render_device_reset_event(self: Self, event: HashableEvent) -> None:
         """Handle render device reset events.
 
@@ -1323,7 +1310,6 @@ class GameEventStubs(EventInterface):
         # RENDER_DEVICE_RESET
         unhandled_event(self, event)
 
-    @functools.cache
     def on_render_targets_reset_event(self: Self, event: HashableEvent) -> None:
         """Handle render targets reset events.
 
@@ -1334,7 +1320,6 @@ class GameEventStubs(EventInterface):
         # RENDER_TARGETS_RESET
         unhandled_event(self, event)
 
-    @functools.cache
     def on_clipboard_update_event(self: Self, event: HashableEvent) -> None:
         """Handle clipboard update events.
 
@@ -1345,7 +1330,6 @@ class GameEventStubs(EventInterface):
         # CLIPBOARDUPDATE
         unhandled_event(self, event)
 
-    @functools.cache
     def on_locale_changed_event(self: Self, event: HashableEvent) -> None:
         """Handle locale changed events.
 
@@ -1433,32 +1417,26 @@ class AppEventStubs(EventInterface):
         super().__init__()
         self.options = {'debug_events': False, 'no_unhandled_events': True}
 
-    @functools.cache
     def on_app_did_enter_background_event(self: Self, event: HashableEvent) -> None:
         """Log and raise UnhandledEventError by default."""
         unhandled_event(self, event)
 
-    @functools.cache
     def on_app_did_enter_foreground_event(self: Self, event: HashableEvent) -> None:
         """Log and raise UnhandledEventError by default."""
         unhandled_event(self, event)
 
-    @functools.cache
     def on_app_will_enter_background_event(self: Self, event: HashableEvent) -> None:
         """Log and raise UnhandledEventError by default."""
         unhandled_event(self, event)
 
-    @functools.cache
     def on_app_will_enter_foreground_event(self: Self, event: HashableEvent) -> None:
         """Log and raise UnhandledEventError by default."""
         unhandled_event(self, event)
 
-    @functools.cache
     def on_app_low_memory_event(self: Self, event: HashableEvent) -> None:
         """Log and raise UnhandledEventError by default."""
         unhandled_event(self, event)
 
-    @functools.cache
     def on_app_terminating_event(self: Self, event: HashableEvent) -> None:
         """Log and raise UnhandledEventError by default."""
         unhandled_event(self, event)
@@ -1483,7 +1461,6 @@ class FontEvents(EventInterface):
 class FontEventStubs(EventInterface):
     """Mixin for font events."""
 
-    @functools.cache
     def on_font_changed_event(self: Self, event: HashableEvent) -> None:
         """Handle font changed events.
 
@@ -1546,7 +1523,6 @@ class KeyboardEvents(EventInterface):
 class KeyboardEventStubs(EventInterface):
     """Mixin for keyboard events."""
 
-    @functools.cache
     def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle key down events.
 
@@ -1557,7 +1533,6 @@ class KeyboardEventStubs(EventInterface):
         # KEYDOWN          unicode, key, mod
         unhandled_event(self, event)
 
-    @functools.cache
     def on_key_up_event(self: Self, event: HashableEvent) -> None:
         """Handle key up events.
 
@@ -1568,7 +1543,6 @@ class KeyboardEventStubs(EventInterface):
         # KEYUP            key, mod
         unhandled_event(self, event)
 
-    @functools.cache
     def on_key_chord_up_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle key chord up events.
 
@@ -1580,7 +1554,6 @@ class KeyboardEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, keys)
 
-    @functools.cache
     def on_key_chord_down_event(self: Self, event: HashableEvent, keys: list[int]) -> None:
         """Handle key chord down events.
 
@@ -1672,7 +1645,6 @@ class JoystickEvents(EventInterface):
 class JoystickEventStubs(EventInterface):
     """Mixin for joystick events."""
 
-    @functools.cache
     def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick axis motion events.
 
@@ -1683,7 +1655,6 @@ class JoystickEventStubs(EventInterface):
         # JOYAXISMOTION    joy, axis, value
         unhandled_event(self, event)
 
-    @functools.cache
     def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick button down events.
 
@@ -1694,7 +1665,6 @@ class JoystickEventStubs(EventInterface):
         # JOYBUTTONDOWN    joy, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick button up events.
 
@@ -1705,7 +1675,6 @@ class JoystickEventStubs(EventInterface):
         # JOYBUTTONUP      joy, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_joy_hat_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick hat motion events.
 
@@ -1716,7 +1685,6 @@ class JoystickEventStubs(EventInterface):
         # JOYHATMOTION     joy, hat, value
         unhandled_event(self, event)
 
-    @functools.cache
     def on_joy_ball_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick ball motion events.
 
@@ -1727,7 +1695,6 @@ class JoystickEventStubs(EventInterface):
         # JOYBALLMOTION    joy, ball, rel
         unhandled_event(self, event)
 
-    @functools.cache
     def on_joy_device_added_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick device added events.
 
@@ -1738,7 +1705,6 @@ class JoystickEventStubs(EventInterface):
         # JOYDEVICEADDED device_index, guid
         unhandled_event(self, event)
 
-    @functools.cache
     def on_joy_device_removed_event(self: Self, event: HashableEvent) -> None:
         """Handle joystick device removed events.
 
@@ -1799,7 +1765,7 @@ class MidiEventStubs(EventInterface):
 
 
 # Mixin
-class MouseEvents(EventInterface):
+class MouseEvents(EventInterface):  # noqa: PLR0904
     """Mixin for mouse events."""
 
     @abc.abstractmethod
@@ -1858,7 +1824,9 @@ class MouseEvents(EventInterface):
 
     @abc.abstractmethod
     def on_middle_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent,
+        self: Self,
+        event: HashableEvent,
+        trigger: HashableEvent,
     ) -> None:
         """Handle middle mouse drag events.
 
@@ -1871,7 +1839,9 @@ class MouseEvents(EventInterface):
 
     @abc.abstractmethod
     def on_middle_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent,
+        self: Self,
+        event: HashableEvent,
+        trigger: HashableEvent,
     ) -> None:
         """Handle middle mouse drop events.
 
@@ -2038,10 +2008,9 @@ class MouseEvents(EventInterface):
 
 
 # Mixin
-class MouseEventStubs(EventInterface):
+class MouseEventStubs(EventInterface):  # noqa: PLR0904
     """Mixin for mouse events."""
 
-    @functools.cache
     def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse motion events.
 
@@ -2052,7 +2021,6 @@ class MouseEventStubs(EventInterface):
         # MOUSEMOTION      pos, rel, buttons
         unhandled_event(self, event)
 
-    @functools.cache
     def on_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle mouse drag events.
 
@@ -2064,7 +2032,6 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
-    @functools.cache
     def on_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle mouse drop events.
 
@@ -2076,7 +2043,6 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
-    @functools.cache
     def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle left mouse drag events.
 
@@ -2088,7 +2054,6 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
-    @functools.cache
     def on_left_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle left mouse drop events.
 
@@ -2100,9 +2065,10 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
-    @functools.cache
     def on_middle_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent,
+        self: Self,
+        event: HashableEvent,
+        trigger: HashableEvent,
     ) -> None:
         """Handle middle mouse drag events.
 
@@ -2114,9 +2080,10 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
-    @functools.cache
     def on_middle_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent,
+        self: Self,
+        event: HashableEvent,
+        trigger: HashableEvent,
     ) -> None:
         """Handle middle mouse drop events.
 
@@ -2128,7 +2095,6 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
-    @functools.cache
     def on_right_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle right mouse drag events.
 
@@ -2140,7 +2106,6 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
-    @functools.cache
     def on_right_mouse_drop_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
         """Handle right mouse drop events.
 
@@ -2152,7 +2117,6 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, trigger)
 
-    @functools.cache
     def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
         """Handle mouse focus events.
 
@@ -2164,7 +2128,6 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, entering_focus)
 
-    @functools.cache
     def on_mouse_unfocus_event(self: Self, event: HashableEvent, leaving_focus: object) -> None:
         """Handle mouse unfocus events.
 
@@ -2176,7 +2139,6 @@ class MouseEventStubs(EventInterface):
         # Synthesized event.
         unhandled_event(self, event, leaving_focus)
 
-    @functools.cache
     def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse button up events.
 
@@ -2187,7 +2149,6 @@ class MouseEventStubs(EventInterface):
         # MOUSEBUTTONUP    pos, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle left mouse button up events.
 
@@ -2198,7 +2159,6 @@ class MouseEventStubs(EventInterface):
         # Left Mouse Button Up pos, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_middle_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle middle mouse button up events.
 
@@ -2209,7 +2169,6 @@ class MouseEventStubs(EventInterface):
         # Middle Mouse Button Up pos, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_right_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle right mouse button up events.
 
@@ -2220,7 +2179,6 @@ class MouseEventStubs(EventInterface):
         # Right Mouse Button Up pos, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse button down events.
 
@@ -2231,7 +2189,6 @@ class MouseEventStubs(EventInterface):
         # MOUSEBUTTONDOWN  pos, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_left_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle left mouse button down events.
 
@@ -2242,7 +2199,6 @@ class MouseEventStubs(EventInterface):
         # Left Mouse Button Down pos, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_middle_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle middle mouse button down events.
 
@@ -2253,7 +2209,6 @@ class MouseEventStubs(EventInterface):
         # Middle Mouse Button Down pos, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_right_mouse_button_down_event(self: Self, event: HashableEvent) -> None:
         """Handle right mouse button down events.
 
@@ -2264,7 +2219,6 @@ class MouseEventStubs(EventInterface):
         # Right Mouse Button Down pos, button
         unhandled_event(self, event)
 
-    @functools.cache
     def on_mouse_scroll_down_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse scroll down events.
 
@@ -2275,7 +2229,6 @@ class MouseEventStubs(EventInterface):
         # This is a synthesized event.
         unhandled_event(self, event)
 
-    @functools.cache
     def on_mouse_scroll_up_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse scroll up events.
 
@@ -2286,7 +2239,6 @@ class MouseEventStubs(EventInterface):
         # This is a synthesized event.
         unhandled_event(self, event)
 
-    @functools.cache
     def on_mouse_wheel_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse wheel events.
 
@@ -2325,7 +2277,6 @@ class TextEvents(EventInterface):
 class TextEventStubs(EventInterface):
     """Mixin for text events."""
 
-    @functools.cache
     def on_text_editing_event(self: Self, event: HashableEvent) -> None:
         """Handle text editing events.
 
@@ -2336,7 +2287,6 @@ class TextEventStubs(EventInterface):
         # TEXTEDITING      text, start, length
         unhandled_event(self, event)
 
-    @functools.cache
     def on_text_input_event(self: Self, event: HashableEvent) -> None:
         """Handle text input events.
 
@@ -2515,7 +2465,6 @@ class WindowEvents(EventInterface):
 class WindowEventStubs(EventInterface):
     """Mixin for window events."""
 
-    @functools.cache
     def on_window_close_event(self: Self, event: HashableEvent) -> None:
         """Handle window close events.
 
@@ -2526,7 +2475,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWCLOSE      none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_enter_event(self: Self, event: HashableEvent) -> None:
         """Handle window enter events.
 
@@ -2537,7 +2485,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWENTER      none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_exposed_event(self: Self, event: HashableEvent) -> None:
         """Handle window exposed events.
 
@@ -2548,7 +2495,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWEXPOSED    none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_focus_gained_event(self: Self, event: HashableEvent) -> None:
         """Handle window focus gained events.
 
@@ -2559,7 +2505,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWFOCUSGAINED none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_focus_lost_event(self: Self, event: HashableEvent) -> None:
         """Handle window focus lost events.
 
@@ -2570,7 +2515,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWFOCUSLOST  none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_hidden_event(self: Self, event: HashableEvent) -> None:
         """Handle window hidden events.
 
@@ -2581,7 +2525,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWHIDDEN     none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_hit_test_event(self: Self, event: HashableEvent) -> None:
         """Handle window hit test events.
 
@@ -2592,7 +2535,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWHITTEST    none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_leave_event(self: Self, event: HashableEvent) -> None:
         """Handle window leave events.
 
@@ -2603,7 +2545,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWLEAVE      none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_maximized_event(self: Self, event: HashableEvent) -> None:
         """Handle window maximized events.
 
@@ -2614,7 +2555,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWMAXIMIZED  none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_minimized_event(self: Self, event: HashableEvent) -> None:
         """Handle window minimized events.
 
@@ -2625,7 +2565,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWMINIMIZED  none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_moved_event(self: Self, event: HashableEvent) -> None:
         """Handle window moved events.
 
@@ -2636,7 +2575,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWMOVED      none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_resized_event(self: Self, event: HashableEvent) -> None:
         """Handle window resized events.
 
@@ -2647,7 +2585,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWRESIZED    size, w, h
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_restored_event(self: Self, event: HashableEvent) -> None:
         """Handle window restored events.
 
@@ -2658,7 +2595,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWRESTORED   none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_shown_event(self: Self, event: HashableEvent) -> None:
         """Handle window shown events.
 
@@ -2669,7 +2605,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWSHOWN      none
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_size_changed_event(self: Self, event: HashableEvent) -> None:
         """Handle window size changed events.
 
@@ -2680,7 +2615,6 @@ class WindowEventStubs(EventInterface):
         # WINDOWSIZECHANGED size, w, h
         unhandled_event(self, event)
 
-    @functools.cache
     def on_window_take_focus_event(self: Self, event: HashableEvent) -> None:
         """Handle window take focus events.
 
@@ -2762,11 +2696,11 @@ class EventManager(ResourceManager):
             # will not have this.
             self.event_source = event_source
 
-        def unhandled_event(self: Self, *args: Any, **kwargs: Any) -> None:
+        def unhandled_event(self: Self, *_args: Any, **kwargs: Any) -> None:
             """Handle unhandled events.
 
             Args:
-                *args: The positional arguments.
+                *_args: Additional positional arguments (unused).
                 **kwargs: The keyword arguments.
 
             """

@@ -38,7 +38,7 @@ class BitmappyLegacySprite(Sprite):
             **kwargs: Keyword arguments to pass to the parent class.
 
         """
-        super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type]
+        super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         self.image: pygame.Surface | None = None
         self.rect: pygame.Rect | None = None
         self.name: str | None = None
@@ -48,7 +48,10 @@ class BitmappyLegacySprite(Sprite):
         self.save(filename + '.cfg')
 
     def load(
-        self: Self, filename: str, width: int, height: int,
+        self: Self,
+        filename: str,
+        width: int,
+        height: int,
     ) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a sprite from a config file.
 
@@ -156,11 +159,10 @@ class BitmappyLegacySprite(Sprite):
             colors: set[tuple[int, int, int]] = set()
         else:
             try:
-                # TODO: migrate to tobytes once test mocks provide real Surfaces
                 assert self.image is not None  # narrowing for type checker
                 raw_pixels = list(
                     rgb_triplet_generator(
-                        pygame.image.tostring(self.image, 'RGB'),  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+                        pygame.image.tobytes(self.image, 'RGB'),
                     ),
                 )
                 # This gives us the unique rgb triplets in the image.
@@ -182,7 +184,8 @@ class BitmappyLegacySprite(Sprite):
         # Assign characters sequentially from SPRITE_GLYPHS
         for char_index, color in enumerate(colors):
             if char_index >= len(universal_chars):
-                raise ValueError(f'Too many colors (max {len(universal_chars)})')
+                msg = f'Too many colors (max {len(universal_chars)})'
+                raise ValueError(msg)
 
             color_key: str = universal_chars[char_index]
             config.add_section(color_key)
@@ -190,14 +193,9 @@ class BitmappyLegacySprite(Sprite):
 
             self.log.debug('Key: %s -> %s', color, color_key)
 
-            red: int = color[0]
-            config.set(color_key, 'red', str(red))
-
-            green: int = color[1]
-            config.set(color_key, 'green', str(green))
-
-            blue: int = color[2]
-            config.set(color_key, 'blue', str(blue))
+            config.set(color_key, 'red', str(color[0]))
+            config.set(color_key, 'green', str(color[1]))
+            config.set(color_key, 'blue', str(color[2]))
 
         # Process pixels only if we have any
         if raw_pixels:
@@ -288,7 +286,10 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
         parser.add_argument('--filename', help='the file to load', required=True)

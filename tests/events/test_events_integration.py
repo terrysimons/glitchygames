@@ -118,16 +118,9 @@ class TestEventIntegration:
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
 
         mocker.patch('pygame.event.get', return_value=[event])
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        # Should raise UnhandledEventError (no logging before raise)
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             engine.process_events()
-
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: AudioDeviceAdded' in call_args
 
     def test_event_routing_through_managers(self, mock_pygame_patches, mock_managers, mocker):
         """Test that events are properly routed through managers."""

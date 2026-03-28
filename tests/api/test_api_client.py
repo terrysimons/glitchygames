@@ -1128,7 +1128,8 @@ class TestHandleGenerateSprite:
     def test_generation_with_model_override(self, mocker):
         """Test that model override is passed and logged."""
         parsed_args = self._make_parsed_args(
-            mocker, animation_language_model='anthropic:claude-sonnet-4-5',
+            mocker,
+            animation_language_model='anthropic:claude-sonnet-4-5',
         )
 
         mock_generate = mocker.patch(

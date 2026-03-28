@@ -31,7 +31,11 @@ class TestShiftRightClickSampling:
 
         # Create film strip sprite
         self.film_strip_sprite = film_strip_sprite_module.FilmStripSprite(
-            film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100,
+            film_strip_widget=self.film_strip_widget,
+            x=100,
+            y=100,
+            width=200,
+            height=100,
         )
 
         # Create a mock parent scene with _slider_manager.sample_color_from_screen

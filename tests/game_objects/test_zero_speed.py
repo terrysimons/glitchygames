@@ -112,7 +112,7 @@ def _run_continuous_speedup_scenarios(ball):
         LOG.debug(
             f'   Iteration {iteration + 1}:'
             f' position=({ball.rect.x}, {ball.rect.y}),'
-            f' speed=({ball.speed.x}, {ball.speed.y})'
+            f' speed=({ball.speed.x}, {ball.speed.y})',
         )
         time.sleep(0.05)  # Small delay
 
@@ -160,7 +160,9 @@ def _run_continuous_speedup_test(ball, x_speed, y_speed, description, label_inde
         time.sleep(0.1)
 
     both_nonzero = not math.isclose(x_speed, 0.0, abs_tol=1e-9) and not math.isclose(
-        y_speed, 0.0, abs_tol=1e-9
+        y_speed,
+        0.0,
+        abs_tol=1e-9,
     )
     result_msg = 'X and Y speeds increase' if both_nonzero else 'Only non-zero components increase'
     LOG.debug(f'   Result: {result_msg}\n')

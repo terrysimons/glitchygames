@@ -40,7 +40,7 @@ class AnimationGame(Scene):
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
+        super().__init__(options=options, groups=groups)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
         # Set up the scene
         self.background_color = (20, 20, 40)
@@ -121,7 +121,10 @@ class AnimationGame(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
         return parser
 

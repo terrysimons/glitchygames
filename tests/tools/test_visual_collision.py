@@ -377,7 +377,8 @@ class TestGetIndicatorsForPositionByLocation:
         )
 
         result = self.manager.get_indicators_for_position(
-            (10, 10), location_type=LocationType.CANVAS,
+            (10, 10),
+            location_type=LocationType.CANVAS,
         )
 
         assert len(result) == 1
@@ -394,7 +395,8 @@ class TestGetIndicatorsForPositionByLocation:
         )
 
         result = self.manager.get_indicators_for_position(
-            (10, 10), location_type=LocationType.SLIDER,
+            (10, 10),
+            location_type=LocationType.SLIDER,
         )
 
         assert len(result) == 1

@@ -90,7 +90,8 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[union-attr]
 
         """
         if mi is None:
-            raise RuntimeError('miniaudio is not installed')
+            message = 'miniaudio is not installed'
+            raise RuntimeError(message)
         self.device_index = device_index
         self.SAMPLE_RATE = sample_rate
         self.CHANNELS = channels

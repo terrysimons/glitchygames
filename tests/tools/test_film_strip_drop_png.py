@@ -44,7 +44,9 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame,
+            film_strip_sprite,
+            '_convert_image_to_sprite_frame',
+            return_value=mock_frame,
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
@@ -100,7 +102,9 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame,
+            film_strip_sprite,
+            '_convert_image_to_sprite_frame',
+            return_value=mock_frame,
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
@@ -205,7 +209,9 @@ class TestFilmStripDropPNG:
         # Mock _convert_image_to_sprite_frame to avoid pygame C-level surface issues
         mock_frame = self._mocker.Mock()
         self._mocker.patch.object(
-            film_strip_sprite, '_convert_image_to_sprite_frame', return_value=mock_frame,
+            film_strip_sprite,
+            '_convert_image_to_sprite_frame',
+            return_value=mock_frame,
         )
 
         # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos

@@ -377,7 +377,8 @@ class TestStaticSpriteSerializer:
     def test_save_delegates_to_sprite(self, mocker):
         """Test save delegates to the sprite's save method."""
         sprite = mocker.Mock()
-        StaticSpriteSerializer.save(sprite, 'test.toml', 'toml')
+        serializer = StaticSpriteSerializer()
+        serializer.save(sprite, 'test.toml', 'toml')
         sprite.save.assert_called_once_with('test.toml', 'toml')
 
     def test_load_returns_none(self):
@@ -708,7 +709,8 @@ class TestAnimatedSpriteSerializer:
     def test_save_delegates_to_sprite(self, mocker):
         """Test save delegates to the sprite's save method."""
         sprite = mocker.Mock()
-        AnimatedSpriteSerializer.save(sprite, 'test.toml', 'toml')
+        serializer = AnimatedSpriteSerializer()
+        serializer.save(sprite, 'test.toml', 'toml')
         sprite.save.assert_called_once_with('test.toml', 'toml')
 
     def test_load_returns_none(self):
@@ -1202,7 +1204,9 @@ class TestAnimatedCanvasRendererForceRedraw:
 
         renderer = AnimatedCanvasRenderer(canvas_sprite)
         mock_force_redraw = mocker.patch.object(
-            renderer, 'force_redraw', return_value=canvas_sprite.image,
+            renderer,
+            'force_redraw',
+            return_value=canvas_sprite.image,
         )
 
         result = renderer.render(canvas_sprite)
@@ -1379,7 +1383,8 @@ class TestCanvasRendererDrawIndicatorsOnly:
         mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
 
         frame_pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
+            'list[tuple[int, ...]]',
+            [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
         )
 
         renderer._draw_controller_indicators_only(frame_pixels)
@@ -1416,7 +1421,8 @@ class TestCanvasRendererVisibleFrameWithControllerIndicator:
         mock_draw_plus = mocker.patch.object(renderer, '_draw_plus_indicator')
 
         frame_pixels = cast(
-            'list[tuple[int, ...]]', [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)],
+            'list[tuple[int, ...]]',
+            [(100, 100, 100), (200, 200, 200), (50, 50, 50), (10, 10, 10)],
         )
 
         renderer._draw_visible_frame_pixels(frame_pixels)

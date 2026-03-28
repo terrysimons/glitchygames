@@ -738,7 +738,11 @@ class TestTextBoxSpriteFunctionality:
 
         # Act
         textbox = TextBoxSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestTextBox',
         )
 
         # Assert
@@ -760,7 +764,11 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestTextBox',
         )
 
         # Act: simulate text input by directly setting the text_box text
@@ -780,7 +788,11 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestTextBox',
         )
         textbox.text = 'Hello'  # type: ignore[unresolved-attribute]
 
@@ -801,7 +813,11 @@ class TestTextBoxSpriteFunctionality:
         mock_get_font.return_value = font
 
         textbox = TextBoxSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestTextBox',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestTextBox',
         )
 
         # Act: gain focus by clicking on the textbox
@@ -1313,12 +1329,18 @@ class TestMenuItemAddMenu:
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    def _create_menuitem_with_x(self, mocker, x, y, width, height, name):
+    def _create_menuitem_with_x(self, mocker, rect, name):
         """Create a MenuItem and ensure self.x is set for add_menu compatibility.
+
+        Args:
+            mocker: The pytest-mock mocker fixture.
+            rect: A tuple of (x, y, width, height) for the menu item bounds.
+            name: The name of the menu item.
 
         Returns:
             A MenuItem with self.x set.
         """
+        x, y, width, height = rect
         mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -1334,8 +1356,8 @@ class TestMenuItemAddMenu:
 
     def test_add_menu_first_item(self, mocker):
         """Test MenuItem.add_menu adds first submenu item."""
-        parent_item = self._create_menuitem_with_x(mocker, 0, 0, 100, 20, 'FileMenu')
-        sub_item = self._create_menuitem_with_x(mocker, 0, 0, 80, 20, 'Open')
+        parent_item = self._create_menuitem_with_x(mocker, (0, 0, 100, 20), 'FileMenu')
+        sub_item = self._create_menuitem_with_x(mocker, (0, 0, 80, 20), 'Open')
 
         parent_item.add_menu(sub_item)
         assert 'Open' in parent_item.menu_items
@@ -1343,9 +1365,9 @@ class TestMenuItemAddMenu:
 
     def test_add_menu_second_item_adjusts_offset(self, mocker):
         """Test MenuItem.add_menu adjusts y offset for second item."""
-        parent_item = self._create_menuitem_with_x(mocker, 0, 0, 100, 20, 'FileMenu')
-        sub_item1 = self._create_menuitem_with_x(mocker, 0, 0, 80, 20, 'Open')
-        sub_item2 = self._create_menuitem_with_x(mocker, 0, 0, 80, 20, 'Save')
+        parent_item = self._create_menuitem_with_x(mocker, (0, 0, 100, 20), 'FileMenu')
+        sub_item1 = self._create_menuitem_with_x(mocker, (0, 0, 80, 20), 'Open')
+        sub_item2 = self._create_menuitem_with_x(mocker, (0, 0, 80, 20), 'Save')
 
         parent_item.add_menu(sub_item1)
         parent_item.add_menu(sub_item2)
@@ -1354,8 +1376,8 @@ class TestMenuItemAddMenu:
 
     def test_add_menu_recalculates_image_dimensions(self, mocker):
         """Test MenuItem.add_menu recalculates menu_down_image dimensions."""
-        parent_item = self._create_menuitem_with_x(mocker, 0, 0, 100, 20, 'FileMenu')
-        sub_item = self._create_menuitem_with_x(mocker, 0, 0, 80, 20, 'Open')
+        parent_item = self._create_menuitem_with_x(mocker, (0, 0, 100, 20), 'FileMenu')
+        sub_item = self._create_menuitem_with_x(mocker, (0, 0, 80, 20), 'Open')
         parent_item.add_menu(sub_item)
 
         # menu_down_image should have been created with calculated dimensions
@@ -1366,8 +1388,8 @@ class TestMenuItemAddMenu:
 
     def test_add_menu_updates_rect_dimensions(self, mocker):
         """Test MenuItem.add_menu updates parent rect width and height."""
-        parent_item = self._create_menuitem_with_x(mocker, 0, 0, 100, 20, 'FileMenu')
-        sub_item = self._create_menuitem_with_x(mocker, 0, 0, 80, 20, 'Open')
+        parent_item = self._create_menuitem_with_x(mocker, (0, 0, 100, 20), 'FileMenu')
+        sub_item = self._create_menuitem_with_x(mocker, (0, 0, 80, 20), 'Open')
         parent_item.add_menu(sub_item)
 
         # After adding menu, rect should have been resized
@@ -1377,9 +1399,9 @@ class TestMenuItemAddMenu:
 
     def test_add_menu_multiple_items_layouts_correctly(self, mocker):
         """Test MenuItem.add_menu correctly positions multiple sub items."""
-        parent_item = self._create_menuitem_with_x(mocker, 10, 5, 100, 20, 'FileMenu')
+        parent_item = self._create_menuitem_with_x(mocker, (10, 5, 100, 20), 'FileMenu')
         for name in ['New', 'Open', 'Save', 'Close']:
-            item = self._create_menuitem_with_x(mocker, 0, 0, 80, 20, name)
+            item = self._create_menuitem_with_x(mocker, (0, 0, 80, 20), name)
             parent_item.add_menu(item)
 
         assert len(parent_item.menu_items) == 4
@@ -4231,7 +4253,10 @@ class TestTextSpiteRenderPygameFont:
         mock_font.render.return_value = pygame.Surface((50, 20))
 
         surface = text_sprite._render_with_pygame_font(
-            mock_font, 'hello', (255, 255, 255), is_transparent=False,
+            mock_font,
+            'hello',
+            (255, 255, 255),
+            is_transparent=False,
         )
         assert surface is not None
         # render is called twice: once in the isinstance() check of the ternary
@@ -4253,7 +4278,10 @@ class TestTextSpiteRenderPygameFont:
         mock_font.render.return_value = pygame.Surface((50, 20))
 
         surface = text_sprite._render_with_pygame_font(
-            mock_font, 'hello', (255, 255, 255), is_transparent=True,
+            mock_font,
+            'hello',
+            (255, 255, 255),
+            is_transparent=True,
         )
         assert surface is not None
 

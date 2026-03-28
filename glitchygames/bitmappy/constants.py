@@ -64,8 +64,6 @@ AI_VALIDATION_MAX_RETRIES = 2  # Maximum retries for AI response validation
 
 # AI model configuration
 AI_MODEL: str = 'anthropic:claude-sonnet-4-5'
-# AI_MODEL = "ollama:gpt-oss:20b"
-# AI_MODEL = "ollama:mistral-nemo:12b"
 AI_TIMEOUT = 600  # Seconds to wait for AI response (10 minutes for ollama models)
 AI_QUEUE_SIZE = 10
 AI_MAX_CONTEXT_SIZE = 65536  # Total context window size

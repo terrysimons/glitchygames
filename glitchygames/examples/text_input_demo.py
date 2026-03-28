@@ -93,7 +93,7 @@ class Game(Scene):
         self.log.info(f'{self.name} Got text input from: {control.name}: {control.text}')
 
     @override
-    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
+    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle mouse button up events.
 
         Args:

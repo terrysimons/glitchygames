@@ -37,7 +37,8 @@ class TestPauseScreen:
         # Mock the PauseScene import to avoid pygame initialization issues
         mock_pause_scene = mocker.Mock()
         mock_pause_scene_class = mocker.patch(
-            PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene,
+            PATCH_TARGET_PAUSE_SCENE,
+            return_value=mock_pause_scene,
         )
 
         # Create a game instance
@@ -82,7 +83,8 @@ class TestPauseScreen:
         # Mock the PauseScene to avoid pygame initialization issues
         mock_pause_scene = mocker.Mock()
         mock_pause_scene_class = mocker.patch(
-            PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene,
+            PATCH_TARGET_PAUSE_SCENE,
+            return_value=mock_pause_scene,
         )
 
         # Create a game instance
@@ -122,7 +124,8 @@ class TestPauseScreen:
         # Mock the PauseScene to avoid pygame initialization issues
         mock_pause_scene = mocker.Mock()
         mock_pause_scene_class = mocker.patch(
-            PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene,
+            PATCH_TARGET_PAUSE_SCENE,
+            return_value=mock_pause_scene,
         )
 
         # Test the scene manager's _setup_new_scene method directly
@@ -162,7 +165,8 @@ class TestPauseScreenIntegration:
         # Mock the PauseScene to avoid pygame initialization issues
         mock_pause_scene = mocker.Mock()
         mock_pause_scene_class = mocker.patch(
-            PATCH_TARGET_PAUSE_SCENE, return_value=mock_pause_scene,
+            PATCH_TARGET_PAUSE_SCENE,
+            return_value=mock_pause_scene,
         )
 
         # Create a game instance

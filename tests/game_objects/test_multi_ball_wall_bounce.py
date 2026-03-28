@@ -83,7 +83,10 @@ def _run_wall_bounce_simulation(balls, max_frames, dt, screen_width=800, screen_
         if frame_count % 300 == 0:
             alive_count = sum(1 for ball in balls if ball.alive())
             LOG.debug(
-                '  Frame %s: %s balls alive, %s total bounces', frame_count, alive_count, total_bounces,
+                '  Frame %s: %s balls alive, %s total bounces',
+                frame_count,
+                alive_count,
+                total_bounces,
             )
 
     return {

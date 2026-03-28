@@ -137,7 +137,10 @@ class TestTriggerDetector:
         current_time = time.time()
 
         result = self.trigger_detector.detect_trigger_press(
-            controller_id, trigger_value, trigger_name, current_time,
+            controller_id,
+            trigger_value,
+            trigger_name,
+            current_time,
         )
 
         assert result is True
@@ -150,7 +153,10 @@ class TestTriggerDetector:
         current_time = time.time()
 
         result = self.trigger_detector.detect_trigger_press(
-            controller_id, trigger_value, trigger_name, current_time,
+            controller_id,
+            trigger_value,
+            trigger_name,
+            current_time,
         )
 
         assert result is False
@@ -164,13 +170,19 @@ class TestTriggerDetector:
 
         # First press should succeed
         result1 = self.trigger_detector.detect_trigger_press(
-            controller_id, trigger_value, trigger_name, current_time,
+            controller_id,
+            trigger_value,
+            trigger_name,
+            current_time,
         )
         assert result1 is True
 
         # Second press immediately after should be debounced
         result2 = self.trigger_detector.detect_trigger_press(
-            controller_id, trigger_value, trigger_name, current_time + 0.01,
+            controller_id,
+            trigger_value,
+            trigger_name,
+            current_time + 0.01,
         )
         assert result2 is False
 
@@ -182,20 +194,29 @@ class TestTriggerDetector:
 
         # First press (0.0 -> 1.0)
         result1 = self.trigger_detector.detect_trigger_press(
-            controller_id, 1.0, trigger_name, current_time,
+            controller_id,
+            1.0,
+            trigger_name,
+            current_time,
         )
         assert result1 is True
 
         # Keep trigger pressed (1.0 -> 1.0) - should not trigger
         result_middle = self.trigger_detector.detect_trigger_press(
-            controller_id, 1.0, trigger_name, current_time + 0.05,
+            controller_id,
+            1.0,
+            trigger_name,
+            current_time + 0.05,
         )
         assert result_middle is False
 
         # Test that debounce prevents rapid successive presses
         # This is the main functionality we want to test
         result_rapid = self.trigger_detector.detect_trigger_press(
-            controller_id, 1.0, trigger_name, current_time + 0.01,
+            controller_id,
+            1.0,
+            trigger_name,
+            current_time + 0.01,
         )
         assert result_rapid is False
 
@@ -207,13 +228,19 @@ class TestTriggerDetector:
 
         # Controller 0 press
         result0 = self.trigger_detector.detect_trigger_press(
-            0, trigger_value, trigger_name, current_time,
+            0,
+            trigger_value,
+            trigger_name,
+            current_time,
         )
         assert result0 is True
 
         # Controller 1 press immediately after (should work)
         result1 = self.trigger_detector.detect_trigger_press(
-            1, trigger_value, trigger_name, current_time + 0.01,
+            1,
+            trigger_value,
+            trigger_name,
+            current_time + 0.01,
         )
         assert result1 is True
 
@@ -225,13 +252,19 @@ class TestTriggerDetector:
 
         # L2 press
         result_l2 = self.trigger_detector.detect_trigger_press(
-            controller_id, trigger_value, 'L2', current_time,
+            controller_id,
+            trigger_value,
+            'L2',
+            current_time,
         )
         assert result_l2 is True
 
         # R2 press immediately after (should work)
         result_r2 = self.trigger_detector.detect_trigger_press(
-            controller_id, trigger_value, 'R2', current_time + 0.01,
+            controller_id,
+            trigger_value,
+            'R2',
+            current_time + 0.01,
         )
         assert result_r2 is True
 
@@ -366,7 +399,10 @@ class TestModeSwitcher:
 
         # CANVAS -> R_SLIDER (L2 press: 0.0 -> 1.0)
         new_mode = self.mode_switcher.handle_trigger_input(
-            controller_id, 1.0, 0.0, current_time + 0.2,
+            controller_id,
+            1.0,
+            0.0,
+            current_time + 0.2,
         )
         assert new_mode == ControllerMode.R_SLIDER
 
@@ -375,7 +411,10 @@ class TestModeSwitcher:
 
         # R_SLIDER -> G_SLIDER (L2 press: 0.0 -> 1.0)
         new_mode = self.mode_switcher.handle_trigger_input(
-            controller_id, 1.0, 0.0, current_time + 0.4,
+            controller_id,
+            1.0,
+            0.0,
+            current_time + 0.4,
         )
         assert new_mode == ControllerMode.G_SLIDER
 
@@ -453,7 +492,10 @@ class TestModeSwitcher:
 
         # Test debouncing
         new_mode = self.mode_switcher.handle_trigger_input(
-            controller_id, 1.0, 0.0, current_time + 0.01,
+            controller_id,
+            1.0,
+            0.0,
+            current_time + 0.01,
         )
 
         assert new_mode is None  # Should be debounced

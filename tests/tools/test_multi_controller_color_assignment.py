@@ -102,7 +102,10 @@ class TestColorAssignmentOrder:
         """Test that color assignment resets properly."""
         # Add controller and assign color
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(128, 128, 128),
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(128, 128, 128),
         )
         self.manager.assign_color_to_controller(0)
 

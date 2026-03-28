@@ -402,6 +402,21 @@ name = "TestEmptySprite"
         assert isinstance(sprite, AnimatedSprite)
         assert sprite.name == 'Tiley McTile Face'  # From raspberry.toml
 
+
+class TestBitmappySpriteLoadDefault:
+    """Test BitmappySprite default loading via SpriteFactory."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
     def test_bitmappy_sprite_load_default(self, mocker):
         """Test that BitmappySprite.load() with no filename loads default sprite."""
         # Use centralized mocks
@@ -2110,7 +2125,8 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
     def test_rgb_pixels(self):
         """Test surface creation from RGB pixel data."""
         pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)],
+            'list[tuple[int, ...]]',
+            [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)],
         )
         surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
         assert surface.get_size() == (2, 2)

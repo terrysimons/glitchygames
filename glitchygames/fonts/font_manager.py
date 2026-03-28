@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from glitchygames.events.core import HashableEvent
 
 import pygame
+import pygame.freetype
 
 
 @runtime_checkable
@@ -114,7 +115,7 @@ class FontManager(ResourceManager):
             """
             super().__init__(game=game)
             self.game: Any = game
-            self.proxies: list[Any] = [self.game, pygame.freetype]  # type: ignore[attr-defined]
+            self.proxies: list[Any] = [self.game, pygame.freetype]
 
         @override
         def on_font_changed_event(self: Self, event: HashableEvent) -> None:
@@ -138,10 +139,10 @@ class FontManager(ResourceManager):
 
         # Register pygame.freetype if available
         try:
-            pygame.freetype.init()  # type: ignore[attr-defined]
-            log.info(f'Freetype Font Cache Size: {pygame.freetype.get_cache_size()}')  # type: ignore[attr-defined]
+            pygame.freetype.init()
+            log.info(f'Freetype Font Cache Size: {pygame.freetype.get_cache_size()}')
             log.info(
-                f'Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}',  # type: ignore[attr-defined]
+                f'Freetype Font Default Resolution: {pygame.freetype.get_default_resolution()}',
             )
         except AttributeError:
             log.warning('pygame.freetype not available, using pygame.font instead')
@@ -160,7 +161,7 @@ class FontManager(ResourceManager):
         FontManager.OPTIONS['use_freetype'] = font_system == 'freetype'
         log.info('Font system initialized: %s', font_system)
 
-        pygame.freetype.set_default_resolution(FontManager.OPTIONS['font_dpi'])  # type: ignore[attr-defined]
+        pygame.freetype.set_default_resolution(FontManager.OPTIONS['font_dpi'])
 
         # Ideas:
         #
@@ -186,11 +187,10 @@ class FontManager(ResourceManager):
         # than 'uFFFF'. If pygame.freetypeEnhanced pygame module for loading and
         # rendering computer fonts is unavailable then the SDL_ttf font module
         # will be loaded instead.
-        # pygame.ftfont.init()
 
         # Set up proxies based on available font system
         try:
-            self.proxies: list[Any] = [FontManager.FontProxy(game=game), pygame.freetype]  # type: ignore[attr-defined]
+            self.proxies: list[Any] = [FontManager.FontProxy(game=game), pygame.freetype]
         except AttributeError:
             # Fallback to pygame.font if freetype is not available
             self.proxies = [FontManager.FontProxy(game=game), pygame.font]
@@ -223,10 +223,8 @@ class FontManager(ResourceManager):
 
         return parser
 
-    # TODO: Make it so that we can run pyinstaller compiled games
-    # with a system font by passing an explicit path.
-    #
-    # We can also use a config file to specify the font path.
+    # PyInstaller-compiled games fall back to the bundled Vera.ttf font
+    # since system font paths are not available in frozen environments.
     @classmethod
     def font(cls, font_config: dict[str, Any] | None = None) -> GameFont:
         """Return a font object.
@@ -268,8 +266,9 @@ class FontManager(ResourceManager):
         try:
             loaded_font: GameFont = cast(
                 'GameFont',
-                pygame.freetype.SysFont(  # type: ignore[attr-defined]
-                    name=font_config['font_name'], size=font_config['font_size'],
+                pygame.freetype.SysFont(
+                    name=font_config['font_name'],
+                    size=font_config['font_size'],
                 ),
             )
         except TypeError, FileNotFoundError:
@@ -277,22 +276,13 @@ class FontManager(ResourceManager):
             # seem to work with pyinstaller packaged games.
             log.info('Loading Font: Built-In')
 
-            # BUG: pygame's documentation claims that passing None
-            # as the font name will load the default font.  However,
-            # this emits an error when running a pyinstaller packaged
-            # pygame game.
-            #
-            # File "glitchygames/fonts.py", line 131, in font
-            #     return pygame.freetype.SysFont(name=None, size=12)
-            #         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            # File "pygame/freetype.py", line 78, in SysFont
-            # File "pygame/sysfont.py", line 462, in SysFont
-            # File "pygame/freetype.py", line 73, in constructor
-            # TypeError: not a file object
+            # BUG: pygame's documentation claims that passing None as the font name
+            # will load the default font, but this raises TypeError ("not a file object")
+            # in PyInstaller-packaged games. Load the bundled Vera.ttf instead.
             font_path = Path(__file__).parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
             loaded_font = cast(
                 'GameFont',
-                pygame.freetype.Font(file=font_path, size=12),  # type: ignore[attr-defined]
+                pygame.freetype.Font(file=font_path, size=12),
             )
 
         # Cache the result
@@ -395,7 +385,9 @@ class FontManager(ResourceManager):
 
     @classmethod
     def compare_font_systems(
-        cls, text: str = 'Hello World', size: int = 24,
+        cls,
+        text: str = 'Hello World',
+        size: int = 24,
     ) -> dict[str, dict[str, Any]]:
         """Compare both font systems side by side.
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import operator
 import time
-from typing import Any, Self
+from typing import Any, ClassVar, Self
 
 LOG = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ class AdaptiveClamping:
                 LOG.info(
                     f'Adjusted dt from {dt * 1000:.1f}ms to '
                     f'{adjusted_dt * 1000:.1f}ms per frame '
-                    f'(avg_fps={avg_fps:.1f})'
+                    f'(avg_fps={avg_fps:.1f})',
                 )
                 self._last_performance_log_time = current_time
 
@@ -481,6 +481,26 @@ class AdaptiveClamping:
 
         return per_scene_stats
 
+    # Absolute FPS grade thresholds: (min_fps, grade_label)
+    # Ordered from highest to lowest threshold
+    _ABSOLUTE_GRADE_THRESHOLDS: ClassVar[list[tuple[float, str]]] = [
+        (FPS_GRADE_EXCELLENT, 'A+ (Excellent)'),
+        (FPS_GRADE_VERY_GOOD, 'A (Very Good)'),
+        (FPS_GRADE_GOOD, 'B (Good)'),
+        (FPS_GRADE_FAIR, 'C (Fair)'),
+        (FPS_GRADE_POOR, 'D (Poor)'),
+    ]
+
+    # Relative FPS ratio grade thresholds: (min_ratio, grade_label)
+    # Ordered from highest to lowest threshold
+    _RELATIVE_GRADE_THRESHOLDS: ClassVar[list[tuple[float, str]]] = [
+        (1.0, 'A+ (Excellent)'),
+        (FPS_RATIO_EXCELLENT, 'A (Very Good)'),
+        (FPS_RATIO_VERY_GOOD, 'B (Good)'),
+        (FPS_RATIO_GOOD, 'C (Fair)'),
+        (FPS_RATIO_POOR, 'D (Poor)'),
+    ]
+
     def _calculate_performance_grade(self: Self, fps_values: list[float]) -> str:
         """Calculate a performance grade based on FPS distribution relative to target FPS.
 
@@ -498,32 +518,18 @@ class AdaptiveClamping:
 
         # If target FPS is 0 (unlimited), use absolute grading
         if self._target_fps == 0:
-            if avg_fps >= FPS_GRADE_EXCELLENT:
-                return 'A+ (Excellent)'
-            if avg_fps >= FPS_GRADE_VERY_GOOD:
-                return 'A (Very Good)'
-            if avg_fps >= FPS_GRADE_GOOD:
-                return 'B (Good)'
-            if avg_fps >= FPS_GRADE_FAIR:
-                return 'C (Fair)'  # 30 FPS is playable but not great
-            if avg_fps >= FPS_GRADE_POOR:
-                return 'D (Poor)'
-            return 'F (Very Poor)'
+            thresholds = self._ABSOLUTE_GRADE_THRESHOLDS
+            value = avg_fps
+        else:
+            # For target FPS > 0, grade relative to target
+            thresholds = self._RELATIVE_GRADE_THRESHOLDS
+            value = avg_fps / self._target_fps
 
-        # For target FPS > 0, grade relative to target
-        fps_ratio = avg_fps / self._target_fps
+        for threshold, grade in thresholds:
+            if value >= threshold:
+                return grade
 
-        if fps_ratio >= 1.0:
-            return 'A+ (Excellent)'  # Meeting or exceeding target
-        if fps_ratio >= FPS_RATIO_EXCELLENT:
-            return 'A (Very Good)'  # 95%+ of target
-        if fps_ratio >= FPS_RATIO_VERY_GOOD:
-            return 'B (Good)'  # 90%+ of target
-        if fps_ratio >= FPS_RATIO_GOOD:
-            return 'C (Fair)'  # 80%+ of target
-        if fps_ratio >= FPS_RATIO_POOR:
-            return 'D (Poor)'  # 70%+ of target
-        return 'F (Very Poor)'  # <70% of target
+        return 'F (Very Poor)'
 
     def get_spare_time_stats(self: Self, scene_name: str | None = None) -> dict[str, Any]:
         """Calculate spare time statistics for capped frame rates.
@@ -603,12 +609,12 @@ class AdaptiveClamping:
             LOG.info(
                 f'⏱️  Spare Time: {spare_stats["avg_spare_time_ms"]:.1f}ms'
                 f' per-tick ({spare_stats["spare_capacity_percent"]:.1f}%'
-                ' of scheduled capacity)'
+                ' of scheduled capacity)',
             )
             LOG.info(
                 f'🎨 Draw Time: {spare_stats["avg_frame_time_ms"]:.1f}ms'
                 f' per-tick ({(100 - spare_stats["spare_capacity_percent"]):.1f}%'
-                ' of scheduled capacity)'
+                ' of scheduled capacity)',
             )
             LOG.info(f'🔄 Could Tick: {spare_stats["could_tick_times"]:.1f}x faster')
 

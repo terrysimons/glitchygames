@@ -56,7 +56,12 @@ class GameScene(Scene):
         self.screen.fill((255, 255, 0))
 
         self.menu_bar = MenuBar(
-            name='Menu Bar', x=0, y=0, width=self.screen_width, height=20, groups=self.all_sprites,
+            name='Menu Bar',
+            x=0,
+            y=0,
+            width=self.screen_width,
+            height=20,
+            groups=self.all_sprites,
         )
 
         # Note: Why is the file menu 2 pixels down from the menu icon?
@@ -78,23 +83,6 @@ class GameScene(Scene):
 
         self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
 
-        # self.file_menu = MenuItem(name='File',
-        #                          x=self.menu_icon.width,
-        #                          y=self.menu_icon.y,
-        #                          width=50,
-        #                          height=16)
-        # self.file_save = MenuItem(name='Save', x=16, y=18, width=32, height=16)
-        # self.file_load = MenuItem(name='Load', x=16, y=18, width=32, height=16)
-        # self.menu_bar.add_menu_item(menu_item=self.file_menu, menu=None)
-        # self.file_menu.add_menu_item(menu_item=self.file_save, menu=self.file_menu)
-        # self.file_menu.add_menu_item(menu_item=self.file_load, menu=self.file_menu)
-
-        # self.file_menu = MenuItem(name='File',
-        #                          x=self.menu_icon.width,
-        #                          y=self.menu_icon.y,
-        #                          width=32,
-        #                          height=16,
-        #                          groups=self.all_sprites)
         self.save_menu_item = MenuItem(
             name='Save',
             x=self.menu_icon.width + 5,
@@ -120,15 +108,6 @@ class GameScene(Scene):
             groups=self.all_sprites,
         )
 
-        # Add the menu icon as a root level menu item.
-        # self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
-        # self.menu_bar.add_menu_item(menu_item=self.file_menu, menu=None)
-
-        # self.file_menu.add_menu_item(menu_item=self.save_menu_item, menu=None)
-        # self.file_menu.add_menu_item(menu_item=self.load_menu_item, menu=None)
-        # self.file_menu.add_menu_item(menu_item=self.spacer_menu_item, menu=None)
-        # self.file_menu.add_menu_item(menu_item=self.quit_menu_item, menu=None)
-
         button_width = self.screen_width // 2 // 2
         button_height = self.screen_height // 2 // 2
         screen_rect = self.screen.get_rect()
@@ -144,19 +123,8 @@ class GameScene(Scene):
         self.button.x = screen_rect.centerx // 2
         self.button.y = screen_rect.centery // 2
 
-        # self.button.border_color = (0, 255, 0)
-        # self.button.background_color = (255, 0, 255)
-
         self.all_sprites.clear(self.screen, self.background)
 
-    # def update(self):
-    #     super().update()
-
-    # def render(self, screen):
-    #     super().render(screen)
-
-    # def switch_to_scene(self, next_scene):
-    #     super().switch_to_scene(next_scene)
     def on_mouse_up_event(self: Self, event: pygame.event.Event) -> None:
         """Handle mouse up events.
 
@@ -197,7 +165,10 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
 

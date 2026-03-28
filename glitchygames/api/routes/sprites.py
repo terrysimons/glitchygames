@@ -59,9 +59,10 @@ def _get_services() -> tuple[SpriteGenerationService, RendererService]:
     return sprite_service, renderer_service
 
 
-def _save_sprite_files(
+def _save_sprite_files(  # noqa: PLR0913
     output_path: str,
     sprite_name: str,
+    *,
     toml_content: str | None,
     png_bytes: bytes | None,
     rendered_frames: list[RenderedFrameInfo] | None,
@@ -140,6 +141,56 @@ def _save_sprite_files(
     return saved_files
 
 
+def _render_png_to_response(
+    renderer_service: RendererService,
+    response: SpriteGenerationResponse,
+    toml_content: str,
+    *,
+    png_scale: int,
+    frame_count: int,
+) -> bytes | None:
+    """Render PNG frames and populate the response object.
+
+    Args:
+        renderer_service: The renderer service instance
+        response: The response object to populate
+        toml_content: TOML content to render
+        png_scale: Scale factor for PNG output
+        frame_count: Number of frames (>1 triggers multi-frame rendering)
+
+    Returns:
+        Raw PNG bytes for the first frame, or None if rendering failed
+
+    """
+    render_all_frames = frame_count > 1
+    render_result = renderer_service.render_from_toml(
+        toml_content,
+        scale=png_scale,
+        render_all_frames=render_all_frames,
+    )
+    if not render_result.success:
+        LOG.warning(f'PNG rendering failed: {render_result.error}')
+        return None
+
+    response.png_base64 = render_result.png_base64
+    response.width = render_result.width
+    response.height = render_result.height
+
+    if render_all_frames and render_result.all_frames_png_base64:
+        response.all_frames_png_base64 = render_result.all_frames_png_base64
+        # Convert rendered_frames to API model
+        response.rendered_frames = [
+            RenderedFrameInfo(
+                animation_index=rf.animation_index,
+                frame_index=rf.frame_index,
+                png_base64=rf.png_base64,
+            )
+            for rf in render_result.rendered_frames
+        ]
+
+    return render_result.png_bytes
+
+
 @router.post('/generate')
 async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationResponse:
     """Generate a new sprite from a text prompt.
@@ -196,37 +247,19 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
         # Render PNG if requested
         png_bytes = None
         if OUTPUT_FORMAT_PNG in request.output_format and result.toml_content:
-            # Auto-render all frames if frame_count > 1
-            render_all_frames = result.frame_count > 1
-            render_result = renderer_service.render_from_toml(
+            png_bytes = _render_png_to_response(
+                renderer_service,
+                response,
                 result.toml_content,
-                scale=request.png_scale,
-                render_all_frames=render_all_frames,
+                png_scale=request.png_scale,
+                frame_count=result.frame_count,
             )
-            if render_result.success:
-                response.png_base64 = render_result.png_base64
-                response.width = render_result.width
-                response.height = render_result.height
-                png_bytes = render_result.png_bytes
-                if render_all_frames and render_result.all_frames_png_base64:
-                    response.all_frames_png_base64 = render_result.all_frames_png_base64
-                    # Convert rendered_frames to API model
-                    response.rendered_frames = [
-                        RenderedFrameInfo(
-                            animation_index=rf.animation_index,
-                            frame_index=rf.frame_index,
-                            png_base64=rf.png_base64,
-                        )
-                        for rf in render_result.rendered_frames
-                    ]
-            else:
-                LOG.warning(f'PNG rendering failed: {render_result.error}')
-                # Only fail if PNG was the only requested format
-                if request.output_format == [OUTPUT_FORMAT_PNG]:
-                    return SpriteGenerationResponse(
-                        success=False,
-                        error=f'PNG rendering failed: {render_result.error}',
-                    )
+            # Only fail if PNG was the only requested format and rendering failed
+            if png_bytes is None and request.output_format == [OUTPUT_FORMAT_PNG]:
+                return SpriteGenerationResponse(
+                    success=False,
+                    error='PNG rendering failed',
+                )
 
         # Save files if output_path is specified
         if request.output_path and result.sprite_name:
@@ -239,9 +272,6 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
                 output_format=request.output_format,
             )
             response.saved_files = saved_files
-
-        return response
-
     except AIProviderError as e:
         LOG.exception('AI provider error')
         raise HTTPException(
@@ -254,6 +284,8 @@ async def generate_sprite(request: SpriteGenerationRequest) -> SpriteGenerationR
             status_code=500,
             detail=f'Internal server error: {e}',
         ) from e
+    else:
+        return response
 
 
 @router.post('/refine')
@@ -305,37 +337,19 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
         # Render PNG if requested
         png_bytes = None
         if OUTPUT_FORMAT_PNG in request.output_format and result.toml_content:
-            # Auto-render all frames if frame_count > 1
-            render_all_frames = result.frame_count > 1
-            render_result = renderer_service.render_from_toml(
+            png_bytes = _render_png_to_response(
+                renderer_service,
+                response,
                 result.toml_content,
-                scale=request.png_scale,
-                render_all_frames=render_all_frames,
+                png_scale=request.png_scale,
+                frame_count=result.frame_count,
             )
-            if render_result.success:
-                response.png_base64 = render_result.png_base64
-                response.width = render_result.width
-                response.height = render_result.height
-                png_bytes = render_result.png_bytes
-                if render_all_frames and render_result.all_frames_png_base64:
-                    response.all_frames_png_base64 = render_result.all_frames_png_base64
-                    # Convert rendered_frames to API model
-                    response.rendered_frames = [
-                        RenderedFrameInfo(
-                            animation_index=rf.animation_index,
-                            frame_index=rf.frame_index,
-                            png_base64=rf.png_base64,
-                        )
-                        for rf in render_result.rendered_frames
-                    ]
-            else:
-                LOG.warning(f'PNG rendering failed: {render_result.error}')
-                # Only fail if PNG was the only requested format
-                if request.output_format == [OUTPUT_FORMAT_PNG]:
-                    return SpriteGenerationResponse(
-                        success=False,
-                        error=f'PNG rendering failed: {render_result.error}',
-                    )
+            # Only fail if PNG was the only requested format and rendering failed
+            if png_bytes is None and request.output_format == [OUTPUT_FORMAT_PNG]:
+                return SpriteGenerationResponse(
+                    success=False,
+                    error='PNG rendering failed',
+                )
 
         # Save files if output_path is specified
         if request.output_path and result.sprite_name:
@@ -348,9 +362,6 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
                 output_format=request.output_format,
             )
             response.saved_files = saved_files
-
-        return response
-
     except AIProviderError as e:
         LOG.exception('AI provider error')
         raise HTTPException(
@@ -363,10 +374,14 @@ async def refine_sprite(request: SpriteRefinementRequest) -> SpriteGenerationRes
             status_code=500,
             detail=f'Internal server error: {e}',
         ) from e
+    else:
+        return response
 
 
 def _extract_single_frame(
-    png: apng_types.PNG, control: apng_types.FrameControl | None, index: int,
+    png: apng_types.PNG,
+    control: apng_types.FrameControl | None,
+    index: int,
 ) -> tuple[ApngFrameInfo, int]:
     """Extract a single frame and its metadata from an APNG frame pair.
 
@@ -424,7 +439,9 @@ def _extract_single_frame(
 
 
 def _extract_png_dimensions(
-    frame_bytes: bytes, default_width: int, default_height: int,
+    frame_bytes: bytes,
+    default_width: int,
+    default_height: int,
 ) -> tuple[int, int]:
     """Extract width and height from PNG IHDR chunk bytes.
 

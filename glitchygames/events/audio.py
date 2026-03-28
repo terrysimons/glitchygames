@@ -80,7 +80,10 @@ class AudioEventManager(ResourceManager):
         (sound_frequency, sound_format, sound_channels) = pygame.mixer.get_init()
         log.info('Mixer Settings:')
         log.info(
-            'Frequency: %s, Format: %s, Channels: %s', sound_frequency, sound_format, sound_channels,
+            'Frequency: %s, Format: %s, Channels: %s',
+            sound_frequency,
+            sound_format,
+            sound_channels,
         )
 
         self.proxies = [AudioEventManager.AudioEventProxy(game=game)]

@@ -604,6 +604,78 @@ class TestMultiLineTextBoxCursorBoundaries:
         assert line == 2, f'Position 8 should be on line 2, got {line}'
         assert column == 0, f'Position 8 should have column 0, got {column}'
 
+
+class TestMultiLineTextBoxCursorEditing:
+    """Test MultiLineTextBox editing and selection at cursor boundaries."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+        pygame.init()
+        pygame.display.set_mode((800, 600), pygame.HIDDEN)
+
+    def _create_textbox(self, mocker, width=TEST_TEXTBOX_WIDTH_MEDIUM, text=''):
+        """Create a test textbox with proper font mocking.
+
+        Args:
+            mocker: pytest-mock mocker fixture
+            width: Width of the textbox (affects wrapping)
+            text: Initial text content
+
+        Returns:
+            Configured MultiLineTextBox instance
+
+        """
+        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        font = pygame.font.Font(None, TEST_LINE_HEIGHT)
+        mock_get_font.return_value = font
+        textbox = MultiLineTextBox(
+            x=TEST_TEXTBOX_X,
+            y=TEST_TEXTBOX_Y,
+            width=width,
+            height=TEST_TEXTBOX_HEIGHT,
+            name='TestTextBox',
+        )
+        if text:
+            textbox.text = text
+        textbox.active = True
+        return textbox
+
+    def _simulate_key_press(self, mocker, textbox, key, unicode_char=''):
+        """Simulate a key press event.
+
+        Args:
+            mocker: pytest-mock mocker fixture
+            textbox: The textbox to send the event to
+            key: pygame key constant (e.g., pygame.K_RIGHT)
+            unicode_char: Unicode character for text input events
+
+        """
+        mock_event = mocker.Mock()
+        mock_event.key = key
+        mock_event.unicode = unicode_char
+        textbox.on_key_down_event(mock_event)
+
+    def _simulate_mouse_click(self, mocker, textbox, x_offset, y_offset):
+        """Simulate mouse click at offset from textbox origin.
+
+        Args:
+            mocker: pytest-mock mocker fixture
+            textbox: The textbox to click on
+            x_offset: X offset from textbox left edge
+            y_offset: Y offset from textbox top edge
+
+        """
+        assert textbox.rect is not None
+        mock_event = mocker.Mock()
+        mock_event.pos = (textbox.rect.x + x_offset, textbox.rect.y + y_offset)
+        textbox.on_left_mouse_button_down_event(mock_event)
+
+    # =========================================================================
+    # Section 5b: Wrapped Line with Explicit Newline
+    # =========================================================================
+
     def test_wrapped_line_ending_with_explicit_newline(self, mocker):
         """Test auto-wrapped line that also ends with explicit newline."""
         mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')

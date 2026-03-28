@@ -16,7 +16,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import (  # noqa: I001
-    dump_cache_info,
     EventInterface,
     EventManager,
     HashableEvent,
@@ -713,7 +712,8 @@ class TestEventManager:
         # Create a custom proxy class that raises AttributeError
         class FailingProxy:
             def __getattr__(self, name):
-                raise AttributeError('Proxy method not found')
+                msg = 'Proxy method not found'
+                raise AttributeError(msg)
 
         event_manager.proxies = [FailingProxy()]
         type(event_manager).log = mocker.Mock()
@@ -854,40 +854,26 @@ class TestEventSystemUtilities:
         assert isinstance(events, list)
 
     def test_unhandled_event_functionality(self, mock_pygame_patches, mocker):
-        """Test unhandled_event function with various scenarios."""
-        # Mock a game object with options
+        """Test unhandled_event raises when no_unhandled_events is True."""
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': True, 'no_unhandled_events': True}
 
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
-        # Test with debug_events enabled
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        # Should raise UnhandledEventError immediately (no logging before raise)
         with pytest.raises(UnhandledEventError):
             unhandled_event(mock_game, event)
 
-        # Verify logging was called
-        mock_log.error.assert_called()
-
     def test_unhandled_event_with_no_unhandled_events(self, mock_pygame_patches, mocker):
-        """Test unhandled_event function with no_unhandled_events enabled."""
-        # Mock a game object with options
+        """Test unhandled_event raises UnhandledEventError when enabled."""
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': False, 'no_unhandled_events': True}
 
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
-        # Test with no_unhandled_events enabled (should raise UnhandledEventError)
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        # Should raise UnhandledEventError
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             unhandled_event(mock_game, event)
-
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: KeyDown' in call_args
 
     def test_unhandled_event_with_missing_options(self, mock_pygame_patches, mocker):
         """Test unhandled_event with missing options."""
@@ -903,116 +889,34 @@ class TestEventSystemUtilities:
         # Verify error logging was called
         mock_log.error.assert_called()
 
-    def test_dump_cache_info_with_func(self, mock_pygame_patches, mocker):
-        """Test dump_cache_info function with func parameter."""
-        mock_func = mocker.Mock()
-        mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = 'test_func'
-
-        # Test dump_cache_info with func - it returns a wrapper
-        wrapper = dump_cache_info(mock_func)
-        assert callable(wrapper)
-
-        # Test calling the wrapper
-        mock_game = mocker.Mock()
-        wrapper(mock_game)
-        mock_func.cache_info.assert_called_once()
-
-    def test_dump_cache_info_with_all_parameters(self, mock_pygame_patches, mocker):
-        """Test dump_cache_info function with all parameters."""
-        mock_func = mocker.Mock()
-        mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = 'test_func'
-
-        # Test dump_cache_info with all parameters (they're ignored in the current implementation)
-        wrapper = dump_cache_info(mock_func, file=mocker.Mock(), sep=',', end='\n', flush=True)
-        assert callable(wrapper)
-
-        # Test calling the wrapper
-        mock_game = mocker.Mock()
-        wrapper(mock_game)
-        mock_func.cache_info.assert_called_once()
-
-    def test_dump_cache_info_with_file(self, mock_pygame_patches, mocker):
-        """Test dump_cache_info function with file parameter."""
-        mock_func = mocker.Mock()
-        mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = 'test_func'
-        mock_file = mocker.Mock()
-
-        wrapper = dump_cache_info(mock_func, file=mock_file)
-        assert callable(wrapper)
-
-        # Test calling the wrapper
-        mock_game = mocker.Mock()
-        wrapper(mock_game)
-        mock_func.cache_info.assert_called_once()
-
-    def test_dump_cache_info_with_sep(self, mock_pygame_patches, mocker):
-        """Test dump_cache_info function with sep parameter."""
-        mock_func = mocker.Mock()
-        mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = 'test_func'
-
-        wrapper = dump_cache_info(mock_func, sep='|')
-        assert callable(wrapper)
-
-        # Test calling the wrapper
-        mock_game = mocker.Mock()
-        wrapper(mock_game)
-        mock_func.cache_info.assert_called_once()
-
-    def test_dump_cache_info_with_end(self, mock_pygame_patches, mocker):
-        """Test dump_cache_info function with end parameter."""
-        mock_func = mocker.Mock()
-        mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = 'test_func'
-
-        wrapper = dump_cache_info(mock_func, end='\r\n')
-        assert callable(wrapper)
-
-        # Test calling the wrapper
-        mock_game = mocker.Mock()
-        wrapper(mock_game)
-        mock_func.cache_info.assert_called_once()
-
-    def test_dump_cache_info_with_flush(self, mock_pygame_patches, mocker):
-        """Test dump_cache_info function with flush parameter."""
-        mock_func = mocker.Mock()
-        mock_func.cache_info.return_value = mocker.Mock()
-        mock_func.__name__ = 'test_func'
-
-        wrapper = dump_cache_info(mock_func, flush=True)
-        assert callable(wrapper)
-
-        # Test calling the wrapper
-        mock_game = mocker.Mock()
-        wrapper(mock_game)
-        mock_func.cache_info.assert_called_once()
-
     def test_unhandled_event_debug_events_true(self, mock_pygame_patches, mocker):
-        """Test unhandled_event with debug_events=True."""
+        """Test unhandled_event with debug_events=True logs once per event type."""
+        from glitchygames.events import core as events_core
+
+        events_core._unhandled_event_types.discard(pygame.KEYDOWN)
+
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': True, 'no_unhandled_events': False}
 
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_event_name = mocker.patch('pygame.event.event_name', return_value='KEYDOWN')
+        mocker.patch('pygame.event.event_name', return_value='KEYDOWN')
         mock_log = mocker.patch('glitchygames.events.core.LOG')
 
-        unhandled_event(mock_game, mock_event, 'arg1', kwarg1='value1')
+        unhandled_event(mock_game, mock_event)
 
-        mock_event_name.assert_called_once_with(pygame.KEYDOWN)
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: KEYDOWN' in call_args
-        assert 'arg1' in call_args
-        assert "'kwarg1': 'value1'" in call_args
+        # Logs as warning (not error) with the event type name
+        mock_log.warning.assert_called_once()
+        assert pygame.KEYDOWN in events_core._unhandled_event_types
+
+        # Calling again with the same event type should NOT log again
+        mock_log.warning.reset_mock()
+        unhandled_event(mock_game, mock_event)
+        mock_log.warning.assert_not_called()
 
     def test_unhandled_event_debug_events_none(self, mock_pygame_patches, mocker):
-        """Test unhandled_event with debug_events=None."""
+        """Test unhandled_event with debug_events=None logs error about missing option."""
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': None, 'no_unhandled_events': False}
 
@@ -1027,7 +931,7 @@ class TestEventSystemUtilities:
         )
 
     def test_unhandled_event_both_false(self, mock_pygame_patches, mocker):
-        """Test unhandled_event with both options False."""
+        """Test unhandled_event with both options False does not log."""
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': False, 'no_unhandled_events': False}
 
@@ -1035,37 +939,38 @@ class TestEventSystemUtilities:
         mock_event.type = pygame.KEYDOWN
 
         mock_log = mocker.patch('glitchygames.events.core.LOG')
-        mock_exit = mocker.patch('sys.exit')
         unhandled_event(mock_game, mock_event)
 
         # Should not log anything when both are False
+        mock_log.warning.assert_not_called()
         mock_log.error.assert_not_called()
-        # Should not exit when no_unhandled_events is False
-        mock_exit.assert_not_called()
 
-    def test_unhandled_event_no_exit_when_none(self, mock_pygame_patches, mocker):
-        """Test that unhandled_event does NOT raise SystemExit when no_unhandled_events=None."""
+    def test_unhandled_event_no_unhandled_events_none(self, mock_pygame_patches, mocker):
+        """Test unhandled_event logs error when no_unhandled_events is None."""
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': False, 'no_unhandled_events': None}
 
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        # This should NOT raise any exception (but should log an error about missing option)
         mock_log = mocker.patch('glitchygames.events.core.LOG')
-        mock_exit = mocker.patch('sys.exit')
         unhandled_event(mock_game, mock_event)
-        # Should log error about missing option but not exit
+        # Should log error about missing option
         mock_log.error.assert_called()
-        mock_exit.assert_not_called()
 
     def test_unhandled_event_no_exit_when_debug_true_unhandled_false(
-        self, mock_pygame_patches, mocker,
+        self,
+        mock_pygame_patches,
+        mocker,
     ):
-        """Test that unhandled_event does NOT raise SystemExit.
+        """Test that unhandled_event does NOT raise UnhandledEventError.
 
         Tests when debug_events=True and no_unhandled_events=False.
         """
+        from glitchygames.events import core as events_core
+
+        events_core._unhandled_event_types.discard(pygame.KEYDOWN)
+
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': True, 'no_unhandled_events': False}
 
@@ -1074,12 +979,10 @@ class TestEventSystemUtilities:
 
         mocker.patch('pygame.event.event_name', return_value='KEYDOWN')
         mock_log = mocker.patch('glitchygames.events.core.LOG')
-        mock_exit = mocker.patch('sys.exit')
-        unhandled_event(mock_game, mock_event, 'arg1', kwarg1='value1')
+        unhandled_event(mock_game, mock_event)
 
-        # Should log debug message but NOT exit
-        mock_log.error.assert_called_once()
-        mock_exit.assert_not_called()
+        # Should log as warning, not raise
+        mock_log.warning.assert_called_once()
 
     def test_unhandled_event_both_true(self, mock_pygame_patches, mocker):
         """Test unhandled_event with both options True."""
@@ -1090,19 +993,13 @@ class TestEventSystemUtilities:
         # Use a proper HashableEvent instead of Mock
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
 
-        # Test that UnhandledEventError is raised instead of sys.exit
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        # Should raise UnhandledEventError (no_unhandled_events takes precedence)
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             unhandled_event(mock_game, event)
 
-        # Verify the ERROR log messages were called (should be called twice)
-        assert mock_log.error.call_count == 2
-        # Check that both log messages contain the expected content
-        first_call = mock_log.error.call_args_list[0][0][0]
-        second_call = mock_log.error.call_args_list[1][0][0]
-        assert 'Unhandled Event: args: KeyDown' in first_call
-        assert 'Unhandled Event: args: KeyDown' in second_call
+
+class TestEventSystemEdgeCases:
+    """Test event system edge cases including filtering, delegation, and proxy behavior."""
 
     def test_supported_events_filters_and_patches(self, mock_pygame_patches, mocker):
         """supported_events should filter by regex and patch known names."""

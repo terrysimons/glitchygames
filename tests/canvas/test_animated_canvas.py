@@ -251,7 +251,10 @@ class TestAnimatedCanvasSprite:
         """Test saving and loading animated sprites."""
         # Create a temporary file
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8',
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_filename = f.name
 

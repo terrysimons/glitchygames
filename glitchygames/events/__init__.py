@@ -62,7 +62,6 @@ from glitchygames.events.core import (
     UnhandledEventError,
     WindowEvents,
     WindowEventStubs,
-    dump_cache_info,
     supported_events,
     unhandled_event,
 )
@@ -118,7 +117,6 @@ __all__ = [
     'UnhandledEventError',
     'WindowEventStubs',
     'WindowEvents',
-    'dump_cache_info',
     'supported_events',
     'unhandled_event',
 ]

@@ -382,7 +382,8 @@ class TestFontManagerCoverage:
 
         # Test that FontManager handles missing freetype gracefully
         mocker.patch(
-            'pygame.freetype', side_effect=AttributeError("No module named 'pygame.freetype'"),
+            'pygame.freetype',
+            side_effect=AttributeError("No module named 'pygame.freetype'"),
         )
         manager = FontManager(game=mock_game)
 

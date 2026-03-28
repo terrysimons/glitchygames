@@ -22,7 +22,6 @@ class OnionSkinningManager:
     def __init__(self) -> None:
         """Initialize the onion skinning manager."""
         # Track onion skinning state per animation and frame
-        # Format: {animation_name: {frame_index: bool}}
         self.onion_skinning_enabled: dict[str, dict[int, bool]] = {}
 
         # Global onion skinning toggle
@@ -71,12 +70,15 @@ class OnionSkinningManager:
         return self.onion_skinning_enabled.get(animation, {}).get(frame, False)
 
     def get_onion_skinned_frames(
-        self, animation: str, current_frame: int, total_frames: int,
+        self,
+        _animation: str,
+        current_frame: int,
+        total_frames: int,
     ) -> set[int]:
         """Get all frames that should be rendered with onion skinning.
 
         Args:
-            animation: Name of the animation
+            _animation: Name of the animation (unused, kept for future per-animation filtering)
             current_frame: Current frame being edited (excluded from onion frames)
             total_frames: Total number of frames in the animation
 

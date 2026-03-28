@@ -57,7 +57,9 @@ class ControllerModeState:
     last_mode_switch_time: float = 0.0
 
     def __init__(
-        self, controller_id: int, initial_mode: ControllerMode = ControllerMode.FILM_STRIP,
+        self,
+        controller_id: int,
+        initial_mode: ControllerMode = ControllerMode.FILM_STRIP,
     ) -> None:
         """Initialize the controller mode state for a given controller."""
         self.controller_id = controller_id
@@ -154,7 +156,11 @@ class TriggerDetector:
         self.last_trigger_times: dict[int, dict[str, float]] = {}
 
     def detect_trigger_press(
-        self, controller_id: int, trigger_value: float, trigger_type: str, current_time: float,
+        self,
+        controller_id: int,
+        trigger_value: float,
+        trigger_type: str,
+        current_time: float,
     ) -> bool:
         """Detect if a trigger was pressed (crossed threshold).
 
@@ -272,7 +278,9 @@ class ModeSwitcher:
         return self._strategies.get(mode)
 
     def register_controller(
-        self, controller_id: int, initial_mode: ControllerMode = ControllerMode.CANVAS,
+        self,
+        controller_id: int,
+        initial_mode: ControllerMode = ControllerMode.CANVAS,
     ) -> None:
         """Register a new controller with mode state."""
         self.controller_modes[controller_id] = ControllerModeState(controller_id, initial_mode)
@@ -305,7 +313,11 @@ class ModeSwitcher:
         return None
 
     def handle_trigger_input(
-        self, controller_id: int, l2_value: float, r2_value: float, current_time: float,
+        self,
+        controller_id: int,
+        l2_value: float,
+        r2_value: float,
+        current_time: float,
     ) -> ControllerMode | None:
         """Handle trigger input and return new mode if switched.
 
@@ -324,10 +336,16 @@ class ModeSwitcher:
 
         # Check for trigger presses
         l2_pressed = self.trigger_detector.detect_trigger_press(
-            controller_id, l2_value, 'L2', current_time,
+            controller_id,
+            l2_value,
+            'L2',
+            current_time,
         )
         r2_pressed = self.trigger_detector.detect_trigger_press(
-            controller_id, r2_value, 'R2', current_time,
+            controller_id,
+            r2_value,
+            'R2',
+            current_time,
         )
 
         if not (l2_pressed or r2_pressed):

@@ -182,7 +182,10 @@ def _get_provider_timeout_value(log: logging.Logger) -> int:
 
 
 def _configure_provider_client_timeout(
-    log: logging.Logger, provider_name: str, provider: Any, timeout_value: int,
+    log: logging.Logger,
+    provider_name: str,
+    provider: Any,
+    timeout_value: int,
 ) -> None:
     """Configure timeout on a provider's client and underlying HTTP client.
 
@@ -202,12 +205,20 @@ def _configure_provider_client_timeout(
     if hasattr(provider.client, 'timeout'):
         old_timeout = getattr(provider.client, 'timeout', 'unknown')
         provider.client.timeout = timeout_value
-        log.info('Set %ss timeout for %s provider (was: %s)', timeout_value, provider_name, old_timeout)
+        log.info(
+            'Set %ss timeout for %s provider (was: %s)',
+            timeout_value,
+            provider_name,
+            old_timeout,
+        )
     elif hasattr(provider.client, '_client') and hasattr(provider.client._client, 'timeout'):
         old_timeout = getattr(provider.client._client, 'timeout', 'unknown')
         provider.client._client.timeout = timeout_value
         log.info(
-            'Set %ss timeout for %s provider HTTP client (was: %s)', timeout_value, provider_name, old_timeout,
+            'Set %ss timeout for %s provider HTTP client (was: %s)',
+            timeout_value,
+            provider_name,
+            old_timeout,
         )
 
     # Additional timeout configurations for ollama
@@ -302,7 +313,8 @@ def _check_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
 
         # Check if model exists locally
         request = urllib.request.Request('http://localhost:11434/api/tags')
-        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310  # nosec B310 -- hardcoded http://localhost URL
+        # URL is constructed from hardcoded http://localhost for local ollama API only
+        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 # nosec B310 -- hardcoded http://localhost URL
             if response.status == HTTPStatus.OK:
                 data = json.loads(response.read().decode())
                 models = data.get('models', [])
@@ -375,13 +387,15 @@ def _parse_capabilities_response(log: logging.Logger, content: str) -> dict[str,
         max_tokens = int(content.strip())
         log.info('Detected max tokens: %s', max_tokens)
         _log_capabilities_dump(log, **{'Max Output Tokens': max_tokens, 'Model Response': content})
-        return {'max_tokens': max_tokens}
     except ValueError:
         log.warning('Could not parse max tokens from response: %s', content)
         _log_capabilities_dump(
-            log, **{'Max Output Tokens': 'Could not parse', 'Model Response': content},
+            log,
+            **{'Max Output Tokens': 'Could not parse', 'Model Response': content},
         )
         return {'max_tokens': None, 'raw_response': content}
+    else:
+        return {'max_tokens': max_tokens}
 
 
 def _query_model_capabilities(log: logging.Logger, client: Any) -> dict[str, Any]:
@@ -503,8 +517,8 @@ def _create_ai_retry_decorator(
         base=AI_BASE_DELAY,
         max_value=AI_MAX_DELAY,
         giveup=lambda e: isinstance(e, (ValueError, KeyboardInterrupt, SystemExit)),
-        on_giveup=giveup_handler,  # type: ignore[arg-type]
-        on_backoff=backoff_handler,  # type: ignore[arg-type]
+        on_giveup=giveup_handler,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+        on_backoff=backoff_handler,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
     )
 
 
@@ -701,7 +715,8 @@ def _score_training_example(
 
 
 def select_relevant_training_examples(
-    user_request: str, max_examples: int = AI_MAX_TRAINING_EXAMPLES,
+    user_request: str,
+    max_examples: int = AI_MAX_TRAINING_EXAMPLES,
 ) -> list[dict[str, Any]]:
     """Select the most relevant training examples based on user request.
 
@@ -846,7 +861,7 @@ def _extract_response_content(response: object, log: logging.Logger) -> AIRespon
         log.error('No choices in response or empty choices')
         return AIResponse(content=None, error='No choices in response')
 
-    first_choice: Any = response.choices[0]  # type: ignore[union-attr]
+    first_choice: Any = response.choices[0]  # type: ignore[union-attr] # ty: ignore[not-subscriptable]
     if not hasattr(first_choice, 'message'):  # type: ignore[arg-type]
         log.error("No 'message' attribute in choice")
         return AIResponse(content=None, error='No message in response choice')

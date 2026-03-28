@@ -58,7 +58,10 @@ class CanvasInterface(Protocol):
         ...
 
     def set_pixel_at(
-        self, x: int, y: int, color: tuple[int, int, int] | tuple[int, int, int, int],
+        self,
+        x: int,
+        y: int,
+        color: tuple[int, int, int] | tuple[int, int, int, int],
     ) -> None:
         """Set the color of a pixel at the given coordinates."""
         ...
@@ -77,7 +80,10 @@ class SpriteSerializer(ABC):
 
     @abstractmethod
     def save(
-        self, sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT,
+        self,
+        sprite: BitmappySprite,
+        filename: str,
+        file_format: str = DEFAULT_FILE_FORMAT,
     ) -> None:
         """Save a sprite to a file.
 
@@ -186,7 +192,10 @@ class StaticCanvasInterface:
         return (255, 0, 255, 255)  # Return magenta for out-of-bounds
 
     def set_pixel_at(
-        self, x: int, y: int, color: tuple[int, int, int] | tuple[int, int, int, int],
+        self,
+        x: int,
+        y: int,
+        color: tuple[int, int, int] | tuple[int, int, int, int],
     ) -> None:
         """Set the color of a pixel at the given coordinates."""
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
@@ -212,9 +221,13 @@ class StaticCanvasInterface:
 class StaticSpriteSerializer(SpriteSerializer):
     """Serializer for static BitmappySprites."""
 
-    @staticmethod
     @override
-    def save(sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:  # type: ignore[override]
+    def save(
+        self,
+        sprite: BitmappySprite,
+        filename: str,
+        file_format: str = DEFAULT_FILE_FORMAT,
+    ) -> None:
         """Save a static sprite to a file."""
         # Delegate to the sprite's save method
         sprite.save(filename, file_format)
@@ -349,7 +362,9 @@ class AnimatedCanvasInterface:
             return False
         parent = self.canvas_sprite.parent_scene
         return hasattr(parent, 'canvas_operation_tracker') and not getattr(
-            parent, '_applying_undo_redo', False,
+            parent,
+            '_applying_undo_redo',
+            False,
         )
 
     def set_pixel_at(
@@ -391,7 +406,9 @@ class AnimatedCanvasInterface:
         controller_drag_active = self._is_controller_drag_active()
 
         if self._should_track_color_change(
-            old_color, color, controller_drag_active=controller_drag_active,
+            old_color,
+            color,
+            controller_drag_active=controller_drag_active,
         ):
             self._collect_pixel_change(x, y, old_color, color)
         elif controller_drag_active:
@@ -469,7 +486,8 @@ class AnimatedCanvasInterface:
         # This prevents unbounded growth during long drags on the same pixels
         pixel_key = (x, y)
         pixel_changes_dict: dict[tuple[int, int], Any] = cast(
-            'dict[tuple[int, int], Any]', parent_scene.current_pixel_changes_dict,
+            'dict[tuple[int, int], Any]',
+            parent_scene.current_pixel_changes_dict,
         )
 
         # Store or update the pixel change (keeps original old_color, updates new_color)
@@ -579,9 +597,13 @@ class AnimatedCanvasInterface:
 class AnimatedSpriteSerializer(SpriteSerializer):
     """Serializer for animated sprites."""
 
-    @staticmethod
     @override
-    def save(sprite: BitmappySprite, filename: str, file_format: str = DEFAULT_FILE_FORMAT) -> None:  # type: ignore[override]
+    def save(
+        self,
+        sprite: BitmappySprite,
+        filename: str,
+        file_format: str = DEFAULT_FILE_FORMAT,
+    ) -> None:
         """Save an animated sprite to a file."""
         # Delegate to the sprite's save method
         sprite.save(filename, file_format)
@@ -668,7 +690,9 @@ class AnimatedCanvasRenderer(CanvasRenderer):
         selected_frame_visible = True
         if hasattr(self.canvas_sprite, 'parent_scene') and self.canvas_sprite.parent_scene:
             selected_frame_visible = getattr(
-                self.canvas_sprite.parent_scene, 'selected_frame_visible', True,
+                self.canvas_sprite.parent_scene,
+                'selected_frame_visible',
+                True,
             )
 
         border_thickness = self.canvas_sprite.border_thickness
@@ -684,7 +708,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
             self._draw_pixel_grid_borders(frame_pixels, border_thickness)
 
     def _render_onion_layers(
-        self, frames: dict[str, list[SpriteFrame]], current_animation: str, current_frame: int,
+        self,
+        frames: dict[str, list[SpriteFrame]],
+        current_animation: str,
+        current_frame: int,
     ) -> None:
         """Render onion skinning layers onto the canvas."""
         from .onion_skinning import get_onion_skinning_manager
@@ -880,10 +907,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                     self._draw_plus_indicator(
                         self.canvas_sprite.image,
                         controller_indicator_color,
-                        x,
-                        y,
-                        self.canvas_sprite.pixel_width,
-                        self.canvas_sprite.pixel_height,
+                        x=x,
+                        y=y,
+                        width=self.canvas_sprite.pixel_width,
+                        height=self.canvas_sprite.pixel_height,
                     )
                 continue
 
@@ -895,10 +922,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self._draw_plus_indicator(
                     self.canvas_sprite.image,
                     controller_indicator_color,
-                    x,
-                    y,
-                    self.canvas_sprite.pixel_width,
-                    self.canvas_sprite.pixel_height,
+                    x=x,
+                    y=y,
+                    width=self.canvas_sprite.pixel_width,
+                    height=self.canvas_sprite.pixel_height,
                 )
 
     def _draw_controller_indicators_only(
@@ -920,10 +947,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self._draw_plus_indicator(
                     self.canvas_sprite.image,
                     controller_indicator_color,
-                    x,
-                    y,
-                    self.canvas_sprite.pixel_width,
-                    self.canvas_sprite.pixel_height,
+                    x=x,
+                    y=y,
+                    width=self.canvas_sprite.pixel_width,
+                    height=self.canvas_sprite.pixel_height,
                 )
 
     def _draw_pixel_grid_borders(
@@ -974,10 +1001,10 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 self._draw_plus_indicator(
                     self.canvas_sprite.image,
                     controller_indicator_color,
-                    x,
-                    y,
-                    self.canvas_sprite.pixel_width,
-                    self.canvas_sprite.pixel_height,
+                    x=x,
+                    y=y,
+                    width=self.canvas_sprite.pixel_width,
+                    height=self.canvas_sprite.pixel_height,
                 )
             else:
                 # Draw normal pixel
@@ -1112,10 +1139,11 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 return controller_info.color
         return None
 
-    def _draw_plus_indicator(
+    def _draw_plus_indicator(  # noqa: PLR0913
         self,
         surface: pygame.Surface,
         color: tuple[int, int, int],
+        *,
         x: int,
         y: int,
         width: int,

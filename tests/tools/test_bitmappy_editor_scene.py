@@ -1372,10 +1372,12 @@ class TestAnimationRename:
         mock_editor.selected_animation = 'old_name'
 
         mocker.patch.object(
-            mock_editor.film_strip_coordinator, 'update_film_strips_for_animated_sprite_update',
+            mock_editor.film_strip_coordinator,
+            'update_film_strips_for_animated_sprite_update',
         )
         mocker.patch.object(
-            mock_editor.film_strip_coordinator, '_update_film_strip_layout_after_rename',
+            mock_editor.film_strip_coordinator,
+            '_update_film_strip_layout_after_rename',
         )
         mock_editor.on_animation_rename('old_name', 'new_name')
 
@@ -1386,7 +1388,8 @@ class TestAnimationRename:
         """Warns when trying to rename nonexistent animation."""
         mock_editor.canvas.animated_sprite._animations = {'default': [mocker.Mock()]}
         mocker.patch.object(
-            mock_editor.film_strip_coordinator, 'update_film_strips_for_animated_sprite_update',
+            mock_editor.film_strip_coordinator,
+            'update_film_strips_for_animated_sprite_update',
         )
         mock_editor.on_animation_rename('nonexistent', 'new_name')
         # Should not raise
@@ -1414,7 +1417,8 @@ class TestAiMethods:
         """Handles AI error message by showing in debug text."""
         mock_editor.debug_text.text = ''
         mock_editor._ai_integration._handle_ai_error_message(
-            'req-123', 'Sorry I cannot generate sprites',
+            'req-123',
+            'Sorry I cannot generate sprites',
         )
         assert 'Sorry I cannot generate sprites' in mock_editor.debug_text.text
 
@@ -1478,7 +1482,9 @@ class TestAiMethods:
         request_state.conversation_history = []
         mock_editor._ai_integration.pending_ai_requests = {'req-1': request_state}
         mock_editor._ai_integration._update_conversation_history(
-            'req-1', 'draw a cat', '[sprite]...',
+            'req-1',
+            'draw a cat',
+            '[sprite]...',
         )
         assert mock_editor._ai_integration.last_conversation_history is not None
         assert len(mock_editor._ai_integration.last_conversation_history) == 2
@@ -1492,7 +1498,9 @@ class TestAiMethods:
         ]
         mock_editor._ai_integration.pending_ai_requests = {'req-1': request_state}
         mock_editor._ai_integration._update_conversation_history(
-            'req-1', 'refine it', '[sprite]...',
+            'req-1',
+            'refine it',
+            '[sprite]...',
         )
         assert len(mock_editor._ai_integration.last_conversation_history) == 4
 
@@ -1832,7 +1840,9 @@ class TestSliderBboxHover:
     def test_hover_shows_border(self, mock_editor, mocker):
         """Shows border on hover."""
         mock_editor._slider_manager._update_slider_bbox_hover(
-            'red_slider_bbox', is_hovered=True, border_color=(255, 0, 0),
+            'red_slider_bbox',
+            is_hovered=True,
+            border_color=(255, 0, 0),
         )
         assert mock_editor._slider_manager.red_slider_bbox.visible is True
         assert mock_editor._slider_manager.red_slider_bbox.dirty == 1
@@ -1841,7 +1851,9 @@ class TestSliderBboxHover:
         """Hides border on unhover."""
         mock_editor._slider_manager.red_slider_bbox.visible = True
         mock_editor._slider_manager._update_slider_bbox_hover(
-            'red_slider_bbox', is_hovered=False, border_color=(255, 0, 0),
+            'red_slider_bbox',
+            is_hovered=False,
+            border_color=(255, 0, 0),
         )
         assert mock_editor._slider_manager.red_slider_bbox.visible is False
 
@@ -1849,13 +1861,17 @@ class TestSliderBboxHover:
         """No change when already hovered and still hovering."""
         mock_editor._slider_manager.red_slider_bbox.visible = True
         mock_editor._slider_manager._update_slider_bbox_hover(
-            'red_slider_bbox', is_hovered=True, border_color=(255, 0, 0),
+            'red_slider_bbox',
+            is_hovered=True,
+            border_color=(255, 0, 0),
         )
 
     def test_nonexistent_bbox(self, mock_editor):
         """Does nothing when bbox attribute does not exist."""
         mock_editor._slider_manager._update_slider_bbox_hover(
-            'nonexistent_bbox', is_hovered=True, border_color=(255, 0, 0),
+            'nonexistent_bbox',
+            is_hovered=True,
+            border_color=(255, 0, 0),
         )
 
 
@@ -1874,7 +1890,8 @@ class TestSliderTextHoverBorder:
         mock_editor.red_slider.text_sprite.image = pygame.Surface((50, 10))
         mock_editor.red_slider.text_sprite.rect = pygame.Rect(0, 0, 50, 10)
         mock_editor._slider_manager._update_slider_text_hover_border(
-            'red_slider', is_text_hovered=True,
+            'red_slider',
+            is_text_hovered=True,
         )
         assert mock_editor.red_slider.text_sprite.hover_border_added is True
 
@@ -1882,14 +1899,16 @@ class TestSliderTextHoverBorder:
         """Removes hover border when no longer hovering."""
         mock_editor.red_slider.text_sprite.hover_border_added = True
         mock_editor._slider_manager._update_slider_text_hover_border(
-            'red_slider', is_text_hovered=False,
+            'red_slider',
+            is_text_hovered=False,
         )
         assert mock_editor.red_slider.text_sprite.hover_border_added is False
 
     def test_nonexistent_slider(self, mock_editor):
         """Does nothing for nonexistent slider."""
         mock_editor._slider_manager._update_slider_text_hover_border(
-            'nonexistent_slider', is_text_hovered=True,
+            'nonexistent_slider',
+            is_text_hovered=True,
         )
 
 
@@ -2171,7 +2190,8 @@ class TestRenameFilmStripDict:
         mock_editor.film_strips = {'old': mock_strip}
         mock_editor.film_strip_sprites = {'old': mocker.Mock()}
         mocker.patch.object(
-            mock_editor.film_strip_coordinator, '_update_film_strip_layout_after_rename',
+            mock_editor.film_strip_coordinator,
+            '_update_film_strip_layout_after_rename',
         )
         mock_editor.film_strip_coordinator._rename_in_film_strips_dict('old', 'new')
         assert 'new' in mock_editor.film_strips

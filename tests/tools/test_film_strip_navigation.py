@@ -3,7 +3,7 @@
 import pygame
 import pytest
 
-from tests.mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 from tests.tools.test_film_strip_base import FilmStripTestBase
 
 # Additional test constants
@@ -34,9 +34,15 @@ class TestFilmStripNavigation(FilmStripTestBase):
         # Set up multiple animations for navigation testing using centralized mocks
 
         # Create additional animations using the centralized mock factory
-        walk_sprite = MockFactory.create_animated_sprite_mock('walk', use_cache=True)
-        jump_sprite = MockFactory.create_animated_sprite_mock('jump', use_cache=True)
-        attack_sprite = MockFactory.create_animated_sprite_mock('attack', use_cache=True)
+        walk_sprite = MockFactory.create_animated_sprite_mock(
+            config=MockSpriteConfig(animation_name='walk'),
+        )
+        jump_sprite = MockFactory.create_animated_sprite_mock(
+            config=MockSpriteConfig(animation_name='jump'),
+        )
+        attack_sprite = MockFactory.create_animated_sprite_mock(
+            config=MockSpriteConfig(animation_name='attack'),
+        )
 
         # Replace mock frame images with real pygame Surfaces for rendering
         self._replace_mock_images_with_real_surfaces(walk_sprite)

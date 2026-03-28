@@ -402,6 +402,23 @@ class TestSceneRendering:
         assert hasattr(mock_scene1, 'render')
         assert hasattr(mock_scene2, 'render')
 
+
+class TestSceneRenderingEdgeCases:
+    """Test scene rendering edge cases."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        # Reset singleton state for clean test
+        SceneManager._reset()
+
+        # Create a simple scene manager for testing (centralized mocks handle pygame)
+        self.scene_manager = SceneManager()
+
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        # Reset singleton state for clean test
+        SceneManager._reset()
+
     def test_scene_rendering_with_render_state_changes(self, mocker):
         """Test scene rendering with render state changes."""
         # Create a mock scene using centralized mocks

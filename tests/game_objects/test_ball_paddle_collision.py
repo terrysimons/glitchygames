@@ -96,7 +96,12 @@ class TestBallPaddleCollision:
         # Create a ball and paddle with collision sound
         ball = BallSprite(x=100, y=100)
         paddle = VerticalPaddle(
-            'Test Paddle', (20, 100), (50, 50), (255, 255, 255), 400, collision_sound='test.wav',
+            'Test Paddle',
+            (20, 100),
+            (50, 50),
+            (255, 255, 255),
+            400,
+            collision_sound='test.wav',
         )
 
         # Add both to a real pygame group

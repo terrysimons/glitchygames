@@ -336,7 +336,9 @@ class TestHorizontalPaddle(BasePaddleTest):
         assert groups in paddle.groups()
 
     def test_horizontal_paddle_initialization_with_collision_sound(
-        self, mock_pygame_patches, mocker,
+        self,
+        mock_pygame_patches,
+        mocker,
     ):
         """Test HorizontalPaddle initialization with collision sound."""
         mock_load_sound = mocker.patch('glitchygames.game_objects.paddle.load_sound')

@@ -31,31 +31,22 @@ from glitchygames.interfaces import SpriteInterface
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 
 LOG = logging.getLogger('game.sprites')
-# LOG.addHandler(logging.NullHandler())
 
-# Configure logger
-# LOG = logging.getLogger("game.sprites")
-
-# Add console handler if none exists
-# if not LOG.handlers:
-#     ch = logging.StreamHandler()
-#     ch.setLevel(logging.DEBUG)
-#     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-#     ch.setFormatter(formatter)
-#     LOG.addHandler(ch)
-
-
-# Configure logger
-# LOG = logging.getLogger("game.sprites")
-# LOG.setLevel(logging.DEBUG)
-
-# Add console handler if none exists
-# if not LOG.handlers:
-#     ch = logging.StreamHandler()
-#     ch.setLevel(logging.DEBUG)
-#     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
-#     ch.setFormatter(formatter)
-#     LOG.addHandler(ch)
+# Error message constants for TRY003 compliance
+_ERR_CANNOT_CREATE_SURFACE = "Can't create Surface(({width}, {height}))."
+_ERR_ANIMATED_SPRITE_USE_CORRECT_CLASS = (
+    'File {filename} contains animated sprite data. '
+    'Use AnimatedSprite class instead of BitmappySprite.'
+)
+_ERR_UNSUPPORTED_FORMAT_TOML_ONLY = (
+    'Unsupported file format: {file_format}. Only TOML format is supported.'
+)
+_ERR_TOO_MANY_COLORS = 'Too many colors: {color_count} > {max_glyphs}'
+_ERR_UNSUPPORTED_FORMAT = 'Unsupported format: {file_format}'
+_ERR_INVALID_SPRITE_FILE = 'Invalid sprite file'
+_ERR_UNSUPPORTED_FORMAT_ANALYZE = (
+    'Unsupported format: {file_format}. Only TOML is currently supported.'
+)
 
 
 class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
@@ -103,7 +94,7 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
         self._gg_image = pygame.Surface((0, 0))  # Non-null placeholder; subclasses replace
 
 
-class Sprite(RootSprite):
+class Sprite(RootSprite):  # noqa: PLR0904
     """A convenience class for handling all of the common sprite behaviors."""
 
     log = LOG
@@ -137,12 +128,13 @@ class Sprite(RootSprite):
         else:
             LOG.info('Register break when sprite_type==<any>')
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self: Self,
         x: float,
         y: float,
         width: float,
         height: float,
+        *,
         name: str | None = None,
         parent: object | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
@@ -369,7 +361,9 @@ class Sprite(RootSprite):
 
     @override
     def on_mouse_unfocus_event(
-        self: Self, event: HashableEvent, leaving_focus: object = None,
+        self: Self,
+        event: HashableEvent,
+        leaving_focus: object = None,
     ) -> None:
         """Handle a mouse unfocus event.
 
@@ -412,7 +406,9 @@ class Sprite(RootSprite):
         self.log.debug(f'Mouse Drag Down Event: {type(self)}: event: {event}, trigger: {trigger}')
 
     def on_left_mouse_drag_down_event(
-        self: Self, event: HashableEvent, trigger: object | None,
+        self: Self,
+        event: HashableEvent,
+        trigger: object | None,
     ) -> None:
         """Handle a left mouse drag down event.
 
@@ -426,7 +422,9 @@ class Sprite(RootSprite):
         )
 
     def on_left_mouse_drag_up_event(
-        self: Self, event: HashableEvent, trigger: object | None,
+        self: Self,
+        event: HashableEvent,
+        trigger: object | None,
     ) -> None:
         """Handle a left mouse drag up event.
 
@@ -440,7 +438,9 @@ class Sprite(RootSprite):
         )
 
     def on_middle_mouse_drag_down_event(
-        self: Self, event: HashableEvent, trigger: object | None,
+        self: Self,
+        event: HashableEvent,
+        trigger: object | None,
     ) -> None:
         """Handle a middle mouse drag down event.
 
@@ -454,7 +454,9 @@ class Sprite(RootSprite):
         )
 
     def on_middle_mouse_drag_up_event(
-        self: Self, event: HashableEvent, trigger: object | None,
+        self: Self,
+        event: HashableEvent,
+        trigger: object | None,
     ) -> None:
         """Handle a middle mouse drag up event.
 
@@ -468,7 +470,9 @@ class Sprite(RootSprite):
         )
 
     def on_right_mouse_drag_down_event(
-        self: Self, event: HashableEvent, trigger: object | None,
+        self: Self,
+        event: HashableEvent,
+        trigger: object | None,
     ) -> None:
         """Handle a right mouse drag down event.
 
@@ -482,7 +486,9 @@ class Sprite(RootSprite):
         )
 
     def on_right_mouse_drag_up_event(
-        self: Self, event: HashableEvent, trigger: object | None,
+        self: Self,
+        event: HashableEvent,
+        trigger: object | None,
     ) -> None:
         """Handle a right mouse drag up event.
 
@@ -772,7 +778,9 @@ class Sprite(RootSprite):
 
     @override
     def on_middle_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent,
+        self: Self,
+        event: HashableEvent,
+        trigger: HashableEvent,
     ) -> None:
         """Handle a middle mouse drag event.
 
@@ -807,7 +815,9 @@ class Sprite(RootSprite):
 
     @override
     def on_middle_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent,
+        self: Self,
+        event: HashableEvent,
+        trigger: HashableEvent,
     ) -> None:
         """Handle a middle mouse drop event.
 
@@ -861,18 +871,6 @@ class Sprite(RootSprite):
         """
         self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self}')
 
-    # def __getattr__(self: Self,attr):
-    #    import pdb; pdb.set_trace()
-
-    #    # Try each proxy in turn
-    #    for proxy in type(self).PROXIES:
-    #        try:
-    #            it = getattr(super(), attr)
-    #            import pdb; pdb.set_trace()
-    #            return getattr(proxy, attr)
-    #        except AttributeError:
-    #            log.error(f'No proxies for {type(self)}.{attr}')
-
     @override
     def __str__(self: Self) -> str:
         """Return a string representation of the sprite.
@@ -895,15 +893,15 @@ class BitmappySprite(Sprite):
     # Use the universal character set from constants
     from .constants import SPRITE_GLYPHS
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self: Self,
         x: float = 0,
         y: float = 0,
         width: float = 32,
         height: float = 32,
+        *,
         name: str | None = None,
         filename: str | None = None,
-        *,
         focusable: bool = False,
         parent: object | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
@@ -929,13 +927,17 @@ class BitmappySprite(Sprite):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(
-            x=x, y=y, width=width, height=height, name=name, parent=parent, groups=groups,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            parent=parent,
+            groups=groups,
         )
         self.filename: str = filename or ''
         self.focusable: bool = focusable
         self.active: bool = False
-        # self.width = width
-        # self.height = height
 
         # Initialize pixel data attributes
         self.pixels: list[tuple[int, ...]] = []
@@ -953,7 +955,9 @@ class BitmappySprite(Sprite):
             self.image = pygame.Surface((self.width, self.height))
             self.image.convert()
         else:
-            raise pygame.error(f"Can't create Surface(({self.width}, {self.height})).")
+            raise pygame.error(
+                _ERR_CANNOT_CREATE_SURFACE.format(width=self.width, height=self.height),
+            )
 
         self.rect = self.image.get_rect()
         self.parent = parent
@@ -991,13 +995,13 @@ class BitmappySprite(Sprite):
             self.name = animated_sprite.name
             self.width = self.rect.width
             self.height = self.rect.height
-
-            return (self.image, self.rect, self.name)
         except ValueError as e:
             # If factory fails, fall back to old static-only loading
             self.log.debug('Factory failed, falling back to static-only loading: %s', e)
             assert filename is not None, 'filename must be provided for static-only loading'
             return self._load_static_only(filename)
+        else:
+            return (self.image, self.rect, self.name)
 
     @staticmethod
     def _raise_animated_sprite_error(filename: str) -> None:
@@ -1008,8 +1012,7 @@ class BitmappySprite(Sprite):
 
         """
         raise ValueError(
-            f'File {filename} contains animated sprite data. '
-            f'Use AnimatedSprite class instead of BitmappySprite.',
+            _ERR_ANIMATED_SPRITE_USE_CORRECT_CLASS.format(filename=filename),
         )
 
     def _load_static_only(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
@@ -1029,7 +1032,9 @@ class BitmappySprite(Sprite):
 
         if file_format == 'toml':
             return self._load_static_toml(filename)
-        raise ValueError(f'Unsupported file format: {file_format}. Only TOML format is supported.')
+        raise ValueError(
+            _ERR_UNSUPPORTED_FORMAT_TOML_ONLY.format(file_format=file_format),
+        )
 
     def _raise_too_many_colors_error(self, color_count: int) -> None:
         """Raise an error for too many colors.
@@ -1038,7 +1043,9 @@ class BitmappySprite(Sprite):
             ValueError: If the color count exceeds the maximum number of sprite glyphs.
 
         """
-        raise ValueError(f'Too many colors: {color_count} > {len(SPRITE_GLYPHS)}')
+        raise ValueError(
+            _ERR_TOO_MANY_COLORS.format(color_count=color_count, max_glyphs=len(SPRITE_GLYPHS)),
+        )
 
     def _load_static_toml(self: Self, filename: str) -> tuple[pygame.Surface, pygame.Rect, str]:
         """Load a static sprite from a TOML file.
@@ -1086,14 +1093,23 @@ class BitmappySprite(Sprite):
                     green = color_data['green']
                     blue = color_data['blue']
                     color_map[str(color_key)] = (red, green, blue)
-                    self.log.debug("Color map entry: '%s' -> RGB(%s, %s, %s)", color_key, red, green, blue)
+                    self.log.debug(
+                        "Color map entry: '%s' -> RGB(%s, %s, %s)",
+                        color_key,
+                        red,
+                        green,
+                        blue,
+                    )
 
             self.log.debug(f'Total colors in map: {len(color_map)}')
 
             # Create image and rect
             self.log.debug('Creating image and rect...')
             (image, rect) = self.inflate(
-                width=width, height=height, pixels=rows, color_map=color_map,
+                width=width,
+                height=height,
+                pixels=rows,
+                color_map=color_map,
             )
             self.log.debug(f'Created image size: {image.get_size()}')
             self.log.debug('Created rect: %s', rect)
@@ -1107,7 +1123,11 @@ class BitmappySprite(Sprite):
 
     @classmethod
     def inflate(
-        cls: Any, width: int, height: int, pixels: list[str], color_map: dict[str, Any],
+        cls: Any,
+        width: int,
+        height: int,
+        pixels: list[str],
+        color_map: dict[str, Any],
     ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 
@@ -1159,7 +1179,9 @@ class BitmappySprite(Sprite):
         return self._load_static_only(filename)
 
     def _save_static_only(
-        self: Self, filename: str, file_format: str = DEFAULT_FILE_FORMAT,
+        self: Self,
+        filename: str,
+        file_format: str = DEFAULT_FILE_FORMAT,
     ) -> None:
         """Save a static sprite to a file (legacy method).
 
@@ -1188,6 +1210,38 @@ class BitmappySprite(Sprite):
         except Exception:
             self.log.exception('Error in save')
             raise
+
+    def _validate_and_normalize_pixels(
+        self: Self,
+        pixels_across: int,
+        pixels_tall: int,
+    ) -> None:
+        """Validate and normalize the pixel list to match expected dimensions.
+
+        Pads with magenta (255, 0, 255) if too short, truncates if too long.
+
+        Args:
+            pixels_across: Number of pixels across.
+            pixels_tall: Number of pixels tall.
+
+        """
+        expected_pixels = pixels_across * pixels_tall
+
+        # Ensure pixels attribute exists
+        if not hasattr(self, 'pixels'):
+            self.pixels = []
+
+        # Validate pixels list
+        if len(self.pixels) != expected_pixels:
+            self.log.error(
+                f'Pixels list length mismatch: {len(self.pixels)} vs expected {expected_pixels}',
+            )
+            # Pad with default color if too short
+            if len(self.pixels) < expected_pixels:
+                self.pixels.extend([(255, 0, 255)] * (expected_pixels - len(self.pixels)))
+            # Truncate if too long
+            elif len(self.pixels) > expected_pixels:
+                self.pixels = self.pixels[:expected_pixels]
 
     def deflate(self: Self, file_format: str = 'toml') -> dict[str, Any]:
         """Deflate a sprite to a configuration format.
@@ -1224,21 +1278,7 @@ class BitmappySprite(Sprite):
                     }
                 self._raise_unsupported_format_error(file_format)
 
-            # Ensure pixels attribute exists
-            if not hasattr(self, 'pixels'):
-                self.pixels = []
-
-            # Validate pixels list
-            if len(self.pixels) != expected_pixels:
-                self.log.error(
-                    f'Pixels list length mismatch: {len(self.pixels)} vs expected {expected_pixels}',
-                )
-                # Pad with default color if too short
-                if len(self.pixels) < expected_pixels:
-                    self.pixels.extend([(255, 0, 255)] * (expected_pixels - len(self.pixels)))
-                # Truncate if too long
-                elif len(self.pixels) > expected_pixels:
-                    self.pixels = self.pixels[:expected_pixels]
+            self._validate_and_normalize_pixels(pixels_across, pixels_tall)
 
             # Get unique colors from the pixels list
             unique_colors = set(self.pixels)
@@ -1317,7 +1357,8 @@ class BitmappySprite(Sprite):
         return pixel_rows
 
     def _generate_pixel_rows(
-        self, color_map: dict[str, Any] | None = None,
+        self,
+        color_map: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any]]:
         """Generate pixel rows from the sprite's pixel data.
 
@@ -1343,7 +1384,7 @@ class BitmappySprite(Sprite):
                 pixel_index = y * pixels_across + x
                 if pixel_index < len(self.pixels):
                     pixel_color = self.pixels[pixel_index]
-                    matched_char: str = cast('str', color_map.get(pixel_color, '.'))  # type: ignore[arg-type]
+                    matched_char: str = cast('str', color_map.get(pixel_color, '.'))  # type: ignore[arg-type] # ty: ignore[no-matching-overload]
                     row += matched_char
                 else:
                     row += '.'  # Default character for missing pixels
@@ -1352,7 +1393,9 @@ class BitmappySprite(Sprite):
         return pixel_rows, color_map
 
     def _create_toml_config(
-        self, pixel_rows: list[str] | None = None, color_map: dict[str, Any] | None = None,
+        self,
+        pixel_rows: list[str] | None = None,
+        color_map: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Create TOML configuration.
 
@@ -1394,7 +1437,7 @@ class BitmappySprite(Sprite):
             ValueError: Always raised to indicate an unsupported file format.
 
         """
-        raise ValueError(f'Unsupported format: {file_format}')
+        raise ValueError(_ERR_UNSUPPORTED_FORMAT.format(file_format=file_format))
 
     def _create_color_map(self: Self) -> dict[str, Any]:
         """Create a color map from the sprite's pixels.
@@ -1482,7 +1525,13 @@ class BitmappySprite(Sprite):
                     green = color_data['green']
                     blue = color_data['blue']
                     color_map[str(color_key)] = (red, green, blue)
-                    self.log.debug("Color map entry: '%s' -> RGB(%s, %s, %s)", color_key, red, green, blue)
+                    self.log.debug(
+                        "Color map entry: '%s' -> RGB(%s, %s, %s)",
+                        color_key,
+                        red,
+                        green,
+                        blue,
+                    )
 
             self.log.debug(f'Total colors in map: {len(color_map)}')
 
@@ -1520,7 +1569,7 @@ class BitmappySprite(Sprite):
 
         if file_format == 'toml':
             return self._inflate_toml(filename)
-        raise ValueError(f'Unsupported format: {file_format}')
+        raise ValueError(_ERR_UNSUPPORTED_FORMAT.format(file_format=file_format))
 
     @override
     def on_left_mouse_drag_event(self: Self, event: HashableEvent, trigger: HashableEvent) -> None:
@@ -1535,7 +1584,9 @@ class BitmappySprite(Sprite):
 
     @override
     def on_middle_mouse_drag_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent,
+        self: Self,
+        event: HashableEvent,
+        trigger: HashableEvent,
     ) -> None:
         """Handle a middle mouse drag event.
 
@@ -1570,7 +1621,9 @@ class BitmappySprite(Sprite):
 
     @override
     def on_middle_mouse_drop_event(
-        self: Self, event: HashableEvent, trigger: HashableEvent,
+        self: Self,
+        event: HashableEvent,
+        trigger: HashableEvent,
     ) -> None:
         """Handle a middle mouse drop event.
 
@@ -1625,23 +1678,31 @@ class BitmappySprite(Sprite):
         self.log.debug(f'{type(self)}: Mouse Wheel Event: {event} @ {self}')
 
     @override
-    def on_mouse_chord_down_event(self: Self, event: HashableEvent, keys: list[int]) -> None:  # type: ignore[override]
+    def on_mouse_chord_down_event(
+        self: Self,
+        event: HashableEvent,
+        keys: list[int] | None = None,
+    ) -> None:
         """Handle a mouse chord down event.
 
         Args:
             event (HashableEvent): The event to handle.
-            keys (list[int]): The keys that were pressed.
+            keys (list[int] | None): The keys that were pressed.
 
         """
         self.log.debug(f'{type(self)}: Mouse Chord Down Event: {event} @ {self} for {keys}')
 
     @override
-    def on_mouse_chord_up_event(self: Self, event: HashableEvent, keys: list[int]) -> None:  # type: ignore[override]
+    def on_mouse_chord_up_event(
+        self: Self,
+        event: HashableEvent,
+        keys: list[int] | None = None,
+    ) -> None:
         """Handle a mouse chord up event.
 
         Args:
             event (HashableEvent): The event to handle.
-            keys (list[int]): The keys that were pressed.
+            keys (list[int] | None): The keys that were pressed.
 
         """
         self.log.debug(f'{type(self)}: Mouse Chord Up Event: {event} @ {self} for {keys}')
@@ -1756,7 +1817,7 @@ class Singleton:
             cls.__instance__ = object.__new__(cls)
         cls.__instance__.args = args
         cls.__instance__.kwargs = kwargs
-        return cast('Singleton', cls.__instance__)  # type: ignore[return-value]
+        return cast('Singleton', cls.__instance__)  # type: ignore[return-value] # ty: ignore[invalid-return-type]
 
 
 # This is a root class for sprites that should be singletons, like
@@ -1775,14 +1836,15 @@ class SingletonBitmappySprite(BitmappySprite):
         """
         if cls.__instance__ is None:
             cls.__instance__ = object.__new__(cls)
-        return cast('SingletonBitmappySprite', cls.__instance__)  # type: ignore[return-value]
+        return cast('SingletonBitmappySprite', cls.__instance__)  # type: ignore[return-value] # ty: ignore[invalid-return-type]
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self: Self,
         x: int = 0,
         y: int = 0,
         width: int = 32,
         height: int = 32,
+        *,
         name: str | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
@@ -1819,14 +1881,15 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
         """
         if cls.__instance__ is None:
             cls.__instance__ = object.__new__(cls)
-        return cast('FocusableSingletonBitmappySprite', cls.__instance__)  # type: ignore[return-value]
+        return cast('FocusableSingletonBitmappySprite', cls.__instance__)  # type: ignore[return-value] # ty: ignore[invalid-return-type]
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self: Self,
         x: float = 0,
         y: float = 0,
         width: float = 32,
         height: float = 32,
+        *,
         name: str | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
@@ -1845,7 +1908,13 @@ class FocusableSingletonBitmappySprite(BitmappySprite):
             groups = pygame.sprite.LayeredDirty()
 
         super().__init__(
-            x=x, y=y, width=width, height=height, name=name, focusable=True, groups=groups,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+            name=name,
+            focusable=True,
+            groups=groups,
         )
 
 
@@ -1882,13 +1951,13 @@ class SpriteFactory:
             or analysis['has_animation_sections']
             or analysis['has_frame_sections']
         ):
-            raise ValueError('Invalid sprite file')
+            raise ValueError(_ERR_INVALID_SPRITE_FILE)
 
         # Check for mixed content (both static and animated data)
         if analysis['has_sprite_pixels'] and (
             analysis['has_animation_sections'] or analysis['has_frame_sections']
         ):
-            raise ValueError('Invalid sprite file')
+            raise ValueError(_ERR_INVALID_SPRITE_FILE)
 
         # Always return AnimatedSprite - it handles both static and animated content
         from glitchygames.sprites.animated import AnimatedSprite
@@ -1935,7 +2004,9 @@ class SpriteFactory:
         if file_format == 'toml':
             return SpriteFactory._analyze_toml_file(filename)
 
-        raise ValueError(f'Unsupported format: {file_format}. Only TOML is currently supported.')
+        raise ValueError(
+            _ERR_UNSUPPORTED_FORMAT_ANALYZE.format(file_format=file_format),
+        )
 
     @staticmethod
     def _analyze_toml_file(filename: str) -> dict[str, Any]:
@@ -2039,7 +2110,7 @@ class SpriteFactory:
 
         """
         if hasattr(sprite, 'animations'):  # It's an AnimatedSprite
-            SpriteFactory._save_animated_sprite(sprite, filename, file_format)  # type: ignore[arg-type]
+            SpriteFactory._save_animated_sprite(sprite, filename, file_format)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         else:  # It's a BitmappySprite
             SpriteFactory._save_static_sprite(sprite, filename, file_format)  # type: ignore[arg-type]
 
@@ -2108,5 +2179,5 @@ def _get_color_map(self: BitmappySprite) -> dict[str, Any]:
 
 
 # Add methods to BitmappySprite class
-BitmappySprite._get_pixel_string = _get_pixel_string  # type: ignore[attr-defined]
-BitmappySprite._get_color_map = _get_color_map  # type: ignore[attr-defined]
+BitmappySprite._get_pixel_string = _get_pixel_string  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+BitmappySprite._get_color_map = _get_color_map  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]

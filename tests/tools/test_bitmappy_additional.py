@@ -414,7 +414,8 @@ class TestExtractResponseContent:
             choices: list
 
         result = _extract_response_content(
-            MockResponse(choices=[MockChoice(message=MessageNoContent())]), logger,
+            MockResponse(choices=[MockChoice(message=MessageNoContent())]),
+            logger,
         )
         assert result.content is None
         assert result.error is not None

@@ -177,7 +177,7 @@ class SliderManager:
             groups=self.editor.all_sprites,
         )
         # Set monospaced font for the label
-        self.alpha_label.font = FontManager.get_font(font_config=monospace_config)  # type: ignore[assignment]
+        self.alpha_label.font = FontManager.get_font(font_config=monospace_config)
 
         # Red slider label
         self.red_label = TextSprite(
@@ -192,7 +192,7 @@ class SliderManager:
             groups=self.editor.all_sprites,
         )
         # Set monospaced font for the label
-        self.red_label.font = FontManager.get_font(font_config=monospace_config)  # type: ignore[assignment]
+        self.red_label.font = FontManager.get_font(font_config=monospace_config)
 
         # Green slider label
         self.green_label = TextSprite(
@@ -207,7 +207,7 @@ class SliderManager:
             groups=self.editor.all_sprites,
         )
         # Set monospaced font for the label
-        self.green_label.font = FontManager.get_font(font_config=monospace_config)  # type: ignore[assignment]
+        self.green_label.font = FontManager.get_font(font_config=monospace_config)
 
         # Blue slider label
         self.blue_label = TextSprite(
@@ -222,7 +222,7 @@ class SliderManager:
             groups=self.editor.all_sprites,
         )
         # Set monospaced font for the label
-        self.blue_label.font = FontManager.get_font(font_config=monospace_config)  # type: ignore[assignment]
+        self.blue_label.font = FontManager.get_font(font_config=monospace_config)
 
     def _create_slider_sprites(
         self,
@@ -247,7 +247,7 @@ class SliderManager:
             y=slider_y_positions['alpha'],
             width=slider_width,
             height=slider_height,
-            parent=self.editor,
+            parent=self.editor,  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]  # BitmapEditorScene satisfies SliderProtocol at runtime
             groups=self.editor.all_sprites,
         )
 
@@ -257,7 +257,7 @@ class SliderManager:
             y=slider_y_positions['red'],
             width=slider_width,
             height=slider_height,
-            parent=self.editor,  # type: ignore[reportArgumentType]  # BitmapEditorScene satisfies SliderProtocol at runtime
+            parent=self.editor,  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]  # BitmapEditorScene satisfies SliderProtocol at runtime
             groups=self.editor.all_sprites,
         )
 
@@ -267,7 +267,7 @@ class SliderManager:
             y=slider_y_positions['green'],
             width=slider_width,
             height=slider_height,
-            parent=self.editor,
+            parent=self.editor,  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]  # BitmapEditorScene satisfies SliderProtocol at runtime
             groups=self.editor.all_sprites,
         )
 
@@ -277,7 +277,7 @@ class SliderManager:
             y=slider_y_positions['blue'],
             width=slider_width,
             height=slider_height,
-            parent=self.editor,
+            parent=self.editor,  # type: ignore[reportArgumentType] # ty: ignore[invalid-argument-type]  # BitmapEditorScene satisfies SliderProtocol at runtime
             groups=self.editor.all_sprites,
         )
 
@@ -316,7 +316,8 @@ class SliderManager:
             )
             # Create transparent surface (no border initially)
             bbox_sprite.image = pygame.Surface(
-                (slider_width + 4, slider_height + 4), pygame.SRCALPHA,
+                (slider_width + 4, slider_height + 4),
+                pygame.SRCALPHA,
             )
             bbox_sprite.visible = False  # Start hidden
             # Update bounding box position to match slider position
@@ -387,7 +388,7 @@ class SliderManager:
             y=tab_control_y,
             width=tab_control_width,
             height=tab_control_height,
-            parent=self.editor,  # type: ignore[arg-type]  # BitmapEditorScene implements TabProtocol
+            parent=self.editor,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]  # BitmapEditorScene implements TabProtocol
             groups=self.editor.all_sprites,
         )
 
@@ -456,7 +457,8 @@ class SliderManager:
 
         """
         return hasattr(self.editor, slider_name) and getattr(
-            self.editor, slider_name,
+            self.editor,
+            slider_name,
         ).rect.collidepoint(mouse_pos)
 
     def _is_slider_text_hovered(self, slider_name: str, mouse_pos: tuple[int, int]) -> bool:
@@ -515,7 +517,11 @@ class SliderManager:
         bbox.dirty = 1
 
     def _update_slider_bbox_hover(
-        self, bbox_attr: str, *, is_hovered: bool, border_color: tuple[int, int, int],
+        self,
+        bbox_attr: str,
+        *,
+        is_hovered: bool,
+        border_color: tuple[int, int, int],
     ) -> None:
         """Update a slider bounding box border based on hover state.
 
@@ -603,13 +609,19 @@ class SliderManager:
 
         # Update colored slider borders
         self._update_slider_bbox_hover(
-            'red_slider_bbox', is_hovered=red_hover, border_color=(255, 0, 0),
+            'red_slider_bbox',
+            is_hovered=red_hover,
+            border_color=(255, 0, 0),
         )
         self._update_slider_bbox_hover(
-            'green_slider_bbox', is_hovered=green_hover, border_color=(0, 255, 0),
+            'green_slider_bbox',
+            is_hovered=green_hover,
+            border_color=(0, 255, 0),
         )
         self._update_slider_bbox_hover(
-            'blue_slider_bbox', is_hovered=blue_hover, border_color=(0, 0, 255),
+            'blue_slider_bbox',
+            is_hovered=blue_hover,
+            border_color=(0, 0, 255),
         )
 
         # Update text box hover effects (white borders)
@@ -628,7 +640,7 @@ class SliderManager:
 
         Args:
             event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
+            trigger (HashableEvent): The slider trigger (typically a SliderSprite).
 
         Raises:
             None
@@ -640,10 +652,10 @@ class SliderManager:
 
         if value < MIN_COLOR_VALUE:
             value = MIN_COLOR_VALUE
-            trigger.value = MIN_COLOR_VALUE  # type: ignore[misc]
+            trigger.value = MIN_COLOR_VALUE  # pyright: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
         elif value > MAX_COLOR_VALUE:
             value = MAX_COLOR_VALUE
-            trigger.value = MAX_COLOR_VALUE  # type: ignore[misc]
+            trigger.value = MAX_COLOR_VALUE  # pyright: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
 
         if trigger.name == 'R':
             self.editor.red_slider.value = value
@@ -682,17 +694,8 @@ class SliderManager:
             self.editor.alpha_slider.value,
         )
 
-    def on_color_well_event(self, event: events.HashableEvent, trigger: object) -> None:
-        """Handle the color well event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-            trigger (object): The trigger object.
-
-        Raises:
-            None
-
-        """
+    def on_color_well_event(self, _event: events.HashableEvent, _trigger: object) -> None:
+        """Handle the color well event."""
         self.log.info('COLOR WELL EVENT')
 
     def _update_slider_text_format(self, tab_format: str | None = None) -> None:
@@ -716,7 +719,8 @@ class SliderManager:
             self.editor.red_slider.text_sprite.update_text(self.editor.red_slider.text_sprite.text)
 
         if hasattr(self.editor, 'green_slider') and hasattr(
-            self.editor.green_slider, 'text_sprite',
+            self.editor.green_slider,
+            'text_sprite',
         ):
             if tab_format == '%X':
                 # Convert to hex
@@ -765,7 +769,10 @@ class SliderManager:
         return None
 
     def commit_and_deactivate_slider(
-        self, slider: SliderSprite, clicked_slider: str | None, slider_name: str,
+        self,
+        slider: SliderSprite,
+        clicked_slider: str | None,
+        slider_name: str,
     ) -> None:
         """Commit the slider text value and deactivate the text sprite.
 
@@ -871,11 +878,15 @@ class SliderManager:
                 green = int(self.editor.green_slider.value)
                 blue = int(self.editor.blue_slider.value)
                 self.log.debug(
-                    'DEBUG: _get_current_color() returning color from sliders: (%s, %s, %s)', red, green, blue,
+                    'DEBUG: _get_current_color() returning color from sliders: (%s, %s, %s)',
+                    red,
+                    green,
+                    blue,
                 )
-                return (red, green, blue)
             except (ValueError, AttributeError) as e:
                 self.log.debug('DEBUG: _get_current_color() error getting slider values: %s', e)
+            else:
+                return (red, green, blue)
 
         # Default to white if sliders not available
         self.log.debug('DEBUG: _get_current_color() sliders not available, returning white')
@@ -896,7 +907,11 @@ class SliderManager:
             )
 
             self.log.debug(
-                'DEBUG: Slider values - R:%s, G:%s, B:%s, A:%s', red_value, green_value, blue_value, alpha_value,
+                'DEBUG: Slider values - R:%s, G:%s, B:%s, A:%s',
+                red_value,
+                green_value,
+                blue_value,
+                alpha_value,
             )
             self.log.debug(
                 f'DEBUG: Color well before update: {self.editor.color_well.active_color}',
@@ -914,10 +929,13 @@ class SliderManager:
 
             # Force color well to update its display
             if hasattr(self.editor.color_well, 'force_redraw'):
-                self.editor.color_well.force_redraw()  # type: ignore[union-attr]
+                self.editor.color_well.force_redraw()  # type: ignore[union-attr] # ty: ignore[call-non-callable]
 
             self.log.debug(
-                'DEBUG: Updated color well to (%s, %s, %s)', red_value, green_value, blue_value,
+                'DEBUG: Updated color well to (%s, %s, %s)',
+                red_value,
+                green_value,
+                blue_value,
             )
         else:
             self.log.debug('DEBUG: No color_well found or color_well is None')
@@ -942,7 +960,11 @@ class SliderManager:
             alpha = 255  # Screen has no meaningful alpha, default to opaque
 
             self.log.info(
-                'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)', red, green, blue, alpha,
+                'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)',
+                red,
+                green,
+                blue,
+                alpha,
             )
 
             # Update all sliders with the sampled RGB values and default alpha
@@ -959,7 +981,11 @@ class SliderManager:
             self.on_slider_event(event=events.HashableEvent(0), trigger=trigger)
 
             self.log.info(
-                'Updated sliders with screen color R:%s, G:%s, B:%s, A:%s', red, green, blue, alpha,
+                'Updated sliders with screen color R:%s, G:%s, B:%s, A:%s',
+                red,
+                green,
+                blue,
+                alpha,
             )
 
         except Exception:

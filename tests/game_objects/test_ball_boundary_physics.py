@@ -18,7 +18,9 @@ class TestBallBoundaryPhysics:
     def test_ball_initialization_with_boundary_settings(self):
         """Test that ball initializes with correct boundary settings."""
         ball = BallSprite(
-            bounce_top_bottom=True, bounce_left_right=False, speed_up_mode=SpeedUpMode.NONE,
+            bounce_top_bottom=True,
+            bounce_left_right=False,
+            speed_up_mode=SpeedUpMode.NONE,
         )
 
         assert ball.bounce_top_bottom
@@ -130,7 +132,11 @@ class TestBallBoundaryPhysics:
         """Test ball behavior when hitting corners."""
         # Test top-left corner
         ball = BallSprite(
-            x=0, y=0, bounce_top_bottom=True, bounce_left_right=True, speed_up_mode=SpeedUpMode.NONE,
+            x=0,
+            y=0,
+            bounce_top_bottom=True,
+            bounce_left_right=True,
+            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(-50.0, -50.0)  # Moving up-left
 

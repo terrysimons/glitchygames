@@ -149,10 +149,7 @@ class TestControllerDragContinuousMovement:
             'end_position': None,
         }
 
-        # Don't set up continuous movement
-        # mock_scene.controller_handler.canvas_continuous_movements = {}  # Empty
-
-        # Simulate continuous movement update
+        # Simulate continuous movement update (no continuous movements configured)
         mock_scene._update_canvas_continuous_movements()
 
         # Verify that no painting was called

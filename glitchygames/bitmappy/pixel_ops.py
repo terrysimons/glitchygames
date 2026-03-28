@@ -16,7 +16,9 @@ if TYPE_CHECKING:
 
 
 def _alpha_blend_pixel(
-    source: tuple[int, ...], destination: tuple[int, ...], additional_alpha: float,
+    source: tuple[int, ...],
+    destination: tuple[int, ...],
+    additional_alpha: float,
 ) -> tuple[int, int, int, int] | None:
     """Alpha-blend a single source pixel over a destination pixel.
 
@@ -64,7 +66,8 @@ def _alpha_blend_pixel(
 
 
 def _composite_frames_with_alpha(  # pyright: ignore[reportUnusedFunction]
-    frames: list[SpriteFrame], additional_alpha: float = 0.5,
+    frames: list[SpriteFrame],
+    additional_alpha: float = 0.5,
 ) -> list[tuple[int, ...]]:
     """Composite multiple frames together with additional alpha transparency.
 
@@ -99,7 +102,10 @@ def _composite_frames_with_alpha(  # pyright: ignore[reportUnusedFunction]
 
 
 def _create_composite_frame_from_pixels(  # type: ignore[reportUnusedFunction]
-    pixels: list[tuple[int, ...]], width: int, height: int, duration: float = 0.5,
+    pixels: list[tuple[int, ...]],
+    width: int,
+    height: int,
+    duration: float = 0.5,
 ) -> SpriteFrame:
     """Create a SpriteFrame from composited pixel data.
 
@@ -146,8 +152,42 @@ def _get_visible_width(text: str) -> int:
     return len(ansi_escape.sub('', text))
 
 
+def _combine_row_frames(row_frames: list[list[str]], separator: str) -> list[str]:
+    """Combine multiple frame line lists horizontally into a single row.
+
+    Args:
+        row_frames: List of frame line lists.
+        separator: String to place between frames.
+
+    Returns:
+        List of combined lines for this row.
+
+    """
+    max_lines = max(len(lines) for lines in row_frames)
+
+    # Pad frames to have the same number of lines
+    for lines in row_frames:
+        if lines and len(lines) < max_lines:
+            width = _get_visible_width(lines[0]) if lines else 0
+            lines.extend([' ' * width] * (max_lines - len(lines)))
+
+    # Combine frames horizontally
+    row_lines: list[str] = []
+    for line_idx in range(max_lines):
+        line_parts: list[str] = []
+        for frame_lines in row_frames:
+            if line_idx < len(frame_lines):
+                line_parts.append(frame_lines[line_idx])
+            else:
+                line_parts.append('')
+        row_lines.append(separator.join(line_parts))
+    return row_lines
+
+
 def render_frames_side_by_side(
-    frames: list[SpriteFrame], renderer: ASCIIRenderer, separator: str = '  ',
+    frames: list[SpriteFrame],
+    renderer: ASCIIRenderer,
+    separator: str = '  ',
 ) -> str:
     """Render multiple frames side-by-side as ASCII art, wrapping to screen width.
 
@@ -197,27 +237,7 @@ def render_frames_side_by_side(
     # Render each row and combine vertically
     all_rows: list[str] = []
     for row_frames in frame_rows:
-        # Find the maximum number of lines in this row
-        max_lines = max(len(lines) for lines in row_frames)
-
-        # Pad frames in this row to have the same number of lines
-        for lines in row_frames:
-            if lines and len(lines) < max_lines:
-                # Get visible width from first line (excluding ANSI codes)
-                width = _get_visible_width(lines[0]) if lines else 0
-                # Pad with empty lines
-                lines.extend([' ' * width] * (max_lines - len(lines)))
-
-        # Combine frames in this row horizontally
-        row_lines: list[str] = []
-        for line_idx in range(max_lines):
-            line_parts: list[str] = []
-            for frame_lines in row_frames:
-                if line_idx < len(frame_lines):
-                    line_parts.append(frame_lines[line_idx])
-                else:
-                    line_parts.append('')
-            row_lines.append(separator.join(line_parts))
+        row_lines = _combine_row_frames(row_frames, separator)
 
         # Add this row to all rows
         all_rows.append('\n'.join(row_lines))
@@ -257,7 +277,10 @@ def _build_color_to_glyph_map(pixels: list[tuple[int, ...]]) -> dict[tuple[int, 
 
 
 def _build_ascii_grid(
-    pixels: list[tuple[int, ...]], width: int, height: int, color_map: dict[tuple[int, ...], str],
+    pixels: list[tuple[int, ...]],
+    width: int,
+    height: int,
+    color_map: dict[tuple[int, ...], str],
 ) -> str:
     """Build an ASCII grid string from pixel data and a color-to-glyph map.
 
@@ -285,7 +308,8 @@ def _build_ascii_grid(
 
 
 def _build_renderer_color_dict(
-    pixels: list[tuple[int, ...]], color_map: dict[tuple[int, ...], str],
+    pixels: list[tuple[int, ...]],
+    color_map: dict[tuple[int, ...], str],
 ) -> dict[str, tuple[int, ...]]:
     """Build an RGBA color dictionary for the ASCII renderer.
 
@@ -336,7 +360,7 @@ def render_frame_to_ascii(frame: SpriteFrame, renderer: ASCIIRenderer) -> str:
         colors_dict = _build_renderer_color_dict(pixels, color_map)
 
         try:
-            return renderer.colorize_pixels(pixels_str, colors_dict)  # type: ignore[arg-type]
+            return renderer.colorize_pixels(pixels_str, colors_dict)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         except (AttributeError, KeyError, TypeError) as e:
             LOG.debug(f'Error colorizing pixels: {e}')
             return pixels_str

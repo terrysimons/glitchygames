@@ -175,6 +175,10 @@ class TestTerminalDetector:
         detector = TerminalDetector()
         assert detector.has_color_support() is False
 
+
+class TestTerminalDetectorCaching:
+    """Test TerminalDetector caching behavior."""
+
     def test_has_color_support_caching(self, mocker):
         """Test that has_color_support caches the result after first call."""
         mocker.patch.object(sys.stdout, 'isatty', return_value=False)

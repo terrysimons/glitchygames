@@ -68,7 +68,10 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
 

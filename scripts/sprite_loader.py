@@ -54,12 +54,8 @@ class BitmappySprite(Sprite):
 
         config.read(filename, encoding='utf-8')
 
-        # Example config:
-        # [sprite]
-        # name = <name>
         name: str = config.get(section='sprite', option='name')
 
-        # pixels = <pixels>
         pixels: list[str] = config.get(section='sprite', option='pixels').split('\n')
 
         # Set our sprite's length and width.
@@ -98,7 +94,8 @@ class BitmappySprite(Sprite):
 
     @classmethod
     def rgb_triplet_generator(
-        cls: type[BitmappySprite], buffer: list[int],
+        cls: type[BitmappySprite],
+        buffer: list[int],
     ) -> Iterator[tuple[int, ...]]:
         """Yield (R, G, B) tuples for the provided pixel data.
 
@@ -181,9 +178,8 @@ class BitmappySprite(Sprite):
             config.set('sprite', 'pixels', '')
             return config
 
-        # TODO: migrate to tobytes once test mocks provide real Surfaces
         raw_pixels_iter = self.rgb_triplet_generator(
-            list(pygame.image.tostring(self.image, 'RGB')),  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+            list(pygame.image.tobytes(self.image, 'RGB')),
         )
 
         # We're utilizing the generator to give us RGB triplets.
@@ -303,7 +299,10 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
         parser.add_argument('--filename', help='the file to load', required=True)

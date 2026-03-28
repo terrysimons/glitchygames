@@ -315,7 +315,9 @@ class TestAppEvents:
             scene.game_events_received.append(('app_will_enter_background', event))
 
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={'on_app_will_enter_background_event': app_will_enter_background_handler},
+            event_handlers={
+                'on_app_will_enter_background_event': app_will_enter_background_handler,
+            },
         )
 
         # Test app will enter background event
@@ -336,7 +338,9 @@ class TestAppEvents:
             scene.game_events_received.append(('app_will_enter_foreground', event))
 
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={'on_app_will_enter_foreground_event': app_will_enter_foreground_handler},
+            event_handlers={
+                'on_app_will_enter_foreground_event': app_will_enter_foreground_handler,
+            },
         )
 
         # Test app will enter foreground event

@@ -7,7 +7,7 @@ operations, and rendering state management.
 
 import sys
 from pathlib import Path
-from typing import cast
+from typing import NamedTuple, cast
 
 import pygame
 import pytest
@@ -39,6 +39,20 @@ BLACK_RGBA = (0, 0, 0, 255)
 RED_RGB = (255, 0, 0)
 
 
+class CanvasConfig(NamedTuple):
+    """Configuration for creating an AnimatedCanvasSprite in tests."""
+
+    pixels_across: int = CANVAS_SIZE
+    pixels_tall: int = CANVAS_SIZE
+    pixel_width: int = PIXEL_WIDTH
+    pixel_height: int = PIXEL_HEIGHT
+    animation_name: str = 'idle'
+    frame_count: int = 3
+
+
+DEFAULT_CANVAS_CONFIG = CanvasConfig()
+
+
 def _make_animated_sprite_with_frames(animation_name='idle', frame_count=3, frame_size=CANVAS_SIZE):
     """Create an AnimatedSprite with the given number of frames.
 
@@ -67,34 +81,21 @@ def _make_animated_sprite_with_frames(animation_name='idle', frame_count=3, fram
     return animated_sprite
 
 
-def _make_canvas(
-    mocker,
-    pixels_across=CANVAS_SIZE,
-    pixels_tall=CANVAS_SIZE,
-    pixel_width=PIXEL_WIDTH,
-    pixel_height=PIXEL_HEIGHT,
-    animation_name='idle',
-    frame_count=3,
-):
+def _make_canvas(mocker, config=DEFAULT_CANVAS_CONFIG):
     """Create an AnimatedCanvasSprite with minimal mocked dependencies.
 
     Args:
         mocker: The pytest-mock mocker fixture.
-        pixels_across: Number of pixels across the canvas.
-        pixels_tall: Number of pixels tall the canvas.
-        pixel_width: Width of each pixel in screen coordinates.
-        pixel_height: Height of each pixel in screen coordinates.
-        animation_name: Name of the animation to create.
-        frame_count: Number of frames to add.
+        config: Canvas configuration parameters.
 
     Returns:
         A tuple of (AnimatedCanvasSprite, AnimatedSprite).
 
     """
     animated_sprite = _make_animated_sprite_with_frames(
-        animation_name=animation_name,
-        frame_count=frame_count,
-        frame_size=pixels_across,
+        animation_name=config.animation_name,
+        frame_count=config.frame_count,
+        frame_size=config.pixels_across,
     )
 
     canvas = AnimatedCanvasSprite(
@@ -102,10 +103,10 @@ def _make_canvas(
         name='Test Canvas',
         x=0,
         y=0,
-        pixels_across=pixels_across,
-        pixels_tall=pixels_tall,
-        pixel_width=pixel_width,
-        pixel_height=pixel_height,
+        pixels_across=config.pixels_across,
+        pixels_tall=config.pixels_tall,
+        pixel_width=config.pixel_width,
+        pixel_height=config.pixel_height,
     )
 
     return canvas, animated_sprite
@@ -122,7 +123,13 @@ class TestInitializeDimensions:
     def test_initialize_dimensions_basic(self, mocker):
         """Test basic dimension initialization returns correct width and height."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=8, pixels_tall=8, pixel_width=10, pixel_height=10,
+            mocker,
+            config=CanvasConfig(
+                pixels_across=8,
+                pixels_tall=8,
+                pixel_width=10,
+                pixel_height=10,
+            ),
         )
         assert canvas.pixels_across == 8
         assert canvas.pixels_tall == 8
@@ -132,7 +139,13 @@ class TestInitializeDimensions:
     def test_initialize_dimensions_rectangular(self, mocker):
         """Test dimensions for a non-square canvas."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=16, pixels_tall=8, pixel_width=4, pixel_height=8,
+            mocker,
+            config=CanvasConfig(
+                pixels_across=16,
+                pixels_tall=8,
+                pixel_width=4,
+                pixel_height=8,
+            ),
         )
         assert canvas.pixels_across == 16
         assert canvas.pixels_tall == 8
@@ -142,7 +155,13 @@ class TestInitializeDimensions:
     def test_initialize_dimensions_computes_canvas_size(self, mocker):
         """Test that canvas surface dimensions are pixels_across * pixel_width."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16,
+            mocker,
+            config=CanvasConfig(
+                pixels_across=4,
+                pixels_tall=4,
+                pixel_width=16,
+                pixel_height=16,
+            ),
         )
         # The image should be pixels_across * pixel_width by pixels_tall * pixel_height
         expected_width = 4 * 16
@@ -153,7 +172,13 @@ class TestInitializeDimensions:
     def test_initialize_dimensions_small_pixel_size(self, mocker):
         """Test dimensions with pixel size of 1."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=32, pixels_tall=32, pixel_width=1, pixel_height=1,
+            mocker,
+            config=CanvasConfig(
+                pixels_across=32,
+                pixels_tall=32,
+                pixel_width=1,
+                pixel_height=1,
+            ),
         )
         assert canvas.pixel_width == 1
         assert canvas.pixel_height == 1
@@ -169,24 +194,24 @@ class TestInitializePixelArrays:
 
     def test_pixel_array_length(self, mocker):
         """Test pixel array has correct length for canvas size."""
-        canvas, _ = _make_canvas(mocker, pixels_across=4, pixels_tall=4)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
         # Pixels are updated from animated sprite frame data during init,
         # but dirty_pixels should match the expected count
         assert len(canvas.dirty_pixels) == PIXEL_COUNT
 
     def test_dirty_pixels_initialized_true(self, mocker):
         """Test all dirty pixels start as True after initialization."""
-        canvas, _ = _make_canvas(mocker, pixels_across=4, pixels_tall=4)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
         assert all(canvas.dirty_pixels)
 
     def test_background_color_set(self, mocker):
         """Test background color is set to gray."""
-        canvas, _ = _make_canvas(mocker, pixels_across=4, pixels_tall=4)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
         assert canvas.background_color == (128, 128, 128)
 
     def test_active_color_set(self, mocker):
         """Test active color is set to black RGBA."""
-        canvas, _ = _make_canvas(mocker, pixels_across=4, pixels_tall=4)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
         assert canvas.active_color == BLACK_RGBA
 
 
@@ -221,21 +246,40 @@ class TestUpdateBorderThickness:
     def test_normal_pixel_size_has_border(self, mocker):
         """Test border thickness is 1 for normal pixel sizes."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16,
+            mocker,
+            config=CanvasConfig(
+                pixels_across=4,
+                pixels_tall=4,
+                pixel_width=16,
+                pixel_height=16,
+            ),
         )
         assert canvas.border_thickness == 1
 
     def test_small_pixel_size_disables_border(self, mocker):
         """Test border is disabled for pixel size <= 2."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=4, pixels_tall=4, pixel_width=2, pixel_height=2,
+            mocker,
+            config=CanvasConfig(
+                pixels_across=4,
+                pixels_tall=4,
+                pixel_width=2,
+                pixel_height=2,
+            ),
         )
         assert canvas.border_thickness == 0
 
     def test_large_sprite_disables_border(self, mocker):
         """Test border is disabled for sprites >= 128 pixels across."""
         canvas, _ = _make_canvas(
-            mocker, pixels_across=128, pixels_tall=128, pixel_width=4, pixel_height=4, frame_count=1,
+            mocker,
+            config=CanvasConfig(
+                pixels_across=128,
+                pixels_tall=128,
+                pixel_width=4,
+                pixel_height=4,
+                frame_count=1,
+            ),
         )
         assert canvas.border_thickness == 0
 
@@ -245,7 +289,13 @@ class TestUpdateBorderThickness:
         BitmapPixelSprite.PIXEL_CACHE['test_key'] = 'test_value'  # type: ignore[invalid-assignment]
 
         canvas, _ = _make_canvas(
-            mocker, pixels_across=4, pixels_tall=4, pixel_width=16, pixel_height=16,
+            mocker,
+            config=CanvasConfig(
+                pixels_across=4,
+                pixels_tall=4,
+                pixel_width=16,
+                pixel_height=16,
+            ),
         )
         # Manually trigger a border thickness change
         canvas.pixel_width = 2
@@ -265,19 +315,19 @@ class TestGetCurrentFrameKey:
 
     def test_returns_animation_frame_string(self, mocker):
         """Test frame key format is 'animation_frame'."""
-        canvas, _ = _make_canvas(mocker, animation_name='walk')
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(animation_name='walk'))
         canvas.current_animation = 'walk'
         canvas.current_frame = 2
         assert canvas._get_current_frame_key() == 'walk_2'
 
     def test_frame_key_with_default_animation(self, mocker):
         """Test frame key for default idle animation at frame 0."""
-        canvas, _ = _make_canvas(mocker, animation_name='idle')
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(animation_name='idle'))
         assert canvas._get_current_frame_key() == 'idle_0'
 
     def test_frame_key_changes_with_frame(self, mocker):
         """Test frame key updates when frame changes."""
-        canvas, _ = _make_canvas(mocker, animation_name='idle')
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(animation_name='idle'))
         canvas.current_frame = 1
         assert canvas._get_current_frame_key() == 'idle_1'
 
@@ -351,14 +401,14 @@ class TestNextFrame:
 
     def test_next_frame_increments(self, mocker):
         """Test next_frame moves to the next frame."""
-        canvas, _ = _make_canvas(mocker, frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         canvas.current_frame = 0
         canvas.next_frame()
         assert canvas.current_frame == 1
 
     def test_next_frame_wraps_around(self, mocker):
         """Test next_frame wraps to frame 0 at the end."""
-        canvas, _ = _make_canvas(mocker, frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         canvas.current_frame = 2
         canvas.next_frame()
         assert canvas.current_frame == 0
@@ -374,14 +424,14 @@ class TestPreviousFrame:
 
     def test_previous_frame_decrements(self, mocker):
         """Test previous_frame moves to the previous frame."""
-        canvas, _ = _make_canvas(mocker, frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         canvas.current_frame = 2
         canvas.previous_frame()
         assert canvas.current_frame == 1
 
     def test_previous_frame_wraps_around(self, mocker):
         """Test previous_frame wraps to last frame from frame 0."""
-        canvas, _ = _make_canvas(mocker, frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         canvas.current_frame = 0
         canvas.previous_frame()
         assert canvas.current_frame == 2
@@ -397,7 +447,7 @@ class TestNextAnimation:
 
     def test_next_animation_cycles(self, mocker):
         """Test next_animation moves to the next animation."""
-        canvas, animated_sprite = _make_canvas(mocker, animation_name='idle')
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(animation_name='idle'))
         # Add a second animation
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
@@ -411,7 +461,7 @@ class TestNextAnimation:
 
     def test_next_animation_wraps_around(self, mocker):
         """Test next_animation wraps from last to first animation."""
-        canvas, animated_sprite = _make_canvas(mocker, animation_name='idle')
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(animation_name='idle'))
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
         red_rgba_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
@@ -424,7 +474,10 @@ class TestNextAnimation:
 
     def test_next_animation_preserves_frame(self, mocker):
         """Test next_animation preserves frame index when within bounds."""
-        canvas, animated_sprite = _make_canvas(mocker, animation_name='idle', frame_count=3)
+        canvas, animated_sprite = _make_canvas(
+            mocker,
+            config=CanvasConfig(animation_name='idle', frame_count=3),
+        )
         # Add second animation with 3 frames
         frames = []
         for _ in range(3):
@@ -441,7 +494,10 @@ class TestNextAnimation:
 
     def test_next_animation_clamps_frame_to_max(self, mocker):
         """Test next_animation clamps frame index when target has fewer frames."""
-        canvas, animated_sprite = _make_canvas(mocker, animation_name='idle', frame_count=5)
+        canvas, animated_sprite = _make_canvas(
+            mocker,
+            config=CanvasConfig(animation_name='idle', frame_count=5),
+        )
         # Add a second animation with only 2 frames
         frames = []
         for _ in range(2):
@@ -467,7 +523,7 @@ class TestPreviousAnimation:
 
     def test_previous_animation_cycles(self, mocker):
         """Test previous_animation moves to the previous animation."""
-        canvas, animated_sprite = _make_canvas(mocker, animation_name='idle')
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(animation_name='idle'))
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
         red_rgba_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
@@ -480,7 +536,7 @@ class TestPreviousAnimation:
 
     def test_previous_animation_wraps_around(self, mocker):
         """Test previous_animation wraps from first to last animation."""
-        canvas, animated_sprite = _make_canvas(mocker, animation_name='idle')
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(animation_name='idle'))
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
         red_rgba_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
@@ -712,7 +768,7 @@ class TestGetCurrentFramePixels:
 
     def test_converts_rgb_to_rgba(self, mocker):
         """Test RGB pixels are converted to RGBA with full opacity."""
-        canvas, animated_sprite = _make_canvas(mocker, frame_count=1)
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=1))
         # Set frame pixels as RGB
         frame = animated_sprite._animations['idle'][0]
         red_rgb_pixels = cast('list[tuple[int, ...]]', [RED_RGB] * PIXEL_COUNT)
@@ -736,7 +792,7 @@ class TestGetCurrentFramePixels:
 
     def test_returns_correct_frame_data(self, mocker):
         """Test returns data from the correct frame index."""
-        canvas, animated_sprite = _make_canvas(mocker, frame_count=3)
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         # Set frame 1 with a distinct color
         frame = animated_sprite._animations['idle'][1]
         green_rgba_pixels = cast('list[tuple[int, ...]]', [GREEN_RGBA] * PIXEL_COUNT)
@@ -823,7 +879,7 @@ class TestShowFrame:
 
     def test_show_frame_updates_current_animation(self, mocker):
         """Test show_frame sets current_animation."""
-        canvas, _ = _make_canvas(mocker, animation_name='idle', frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(animation_name='idle', frame_count=3))
         canvas.show_frame('idle', 2)
         assert canvas.current_animation == 'idle'
         assert canvas.current_frame == 2
@@ -855,21 +911,21 @@ class TestHandleKeyboardEvent:
 
     def test_left_arrow_calls_previous_frame(self, mocker):
         """Test LEFT arrow key calls previous_frame."""
-        canvas, _ = _make_canvas(mocker, frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         canvas.current_frame = 1
         canvas.handle_keyboard_event(pygame.K_LEFT)
         assert canvas.current_frame == 0
 
     def test_right_arrow_calls_next_frame(self, mocker):
         """Test RIGHT arrow key calls next_frame."""
-        canvas, _ = _make_canvas(mocker, frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         canvas.current_frame = 0
         canvas.handle_keyboard_event(pygame.K_RIGHT)
         assert canvas.current_frame == 1
 
     def test_number_key_sets_frame(self, mocker):
         """Test number key sets frame directly."""
-        canvas, _ = _make_canvas(mocker, frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         canvas.handle_keyboard_event(pygame.K_2)
         assert canvas.current_frame == 2
 
@@ -899,7 +955,7 @@ class TestCopyPasteFrame:
 
     def test_copy_stores_pixel_data(self, mocker):
         """Test copy_current_frame stores pixel data in clipboard."""
-        canvas, animated_sprite = _make_canvas(mocker, frame_count=1)
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=1))
         frame = animated_sprite._animations['idle'][0]
         red_rgba_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
         frame.set_pixel_data(red_rgba_pixels)
@@ -910,7 +966,7 @@ class TestCopyPasteFrame:
 
     def test_paste_applies_clipboard_data(self, mocker):
         """Test paste_to_current_frame applies clipboard to current frame."""
-        canvas, animated_sprite = _make_canvas(mocker, frame_count=2)
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=2))
         # Set frame 0 to red
         frame_0 = animated_sprite._animations['idle'][0]
         frame_0_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
@@ -945,17 +1001,17 @@ class TestIsSingleFrameAnimation:
 
     def test_single_frame_returns_true(self, mocker):
         """Test returns True for single animation with single frame."""
-        canvas, _ = _make_canvas(mocker, frame_count=1)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=1))
         assert canvas._is_single_frame_animation() is True
 
     def test_multiple_frames_returns_false(self, mocker):
         """Test returns False for animation with multiple frames."""
-        canvas, _ = _make_canvas(mocker, frame_count=3)
+        canvas, _ = _make_canvas(mocker, config=CanvasConfig(frame_count=3))
         assert canvas._is_single_frame_animation() is False
 
     def test_multiple_animations_returns_false(self, mocker):
         """Test returns False when there are multiple animations."""
-        canvas, animated_sprite = _make_canvas(mocker, frame_count=1)
+        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=1))
         surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         frame = SpriteFrame(surface)
         red_rgba_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)

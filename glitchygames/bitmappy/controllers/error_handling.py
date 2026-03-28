@@ -377,11 +377,11 @@ class MultiControllerConfig:
 
             with Path(config_file).open('w', encoding='utf-8') as f:
                 json.dump(config_data, f, indent=2)
-
-            return True
         except Exception:
             log.exception('Failed to save config to %s', config_file)
             return False
+        else:
+            return True
 
 
 class MultiControllerLogger:

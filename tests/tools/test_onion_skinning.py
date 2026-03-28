@@ -162,7 +162,9 @@ class TestOnionSkinningManager:
 
         # Should return all frames except current when global is enabled
         onion_frames = manager.get_onion_skinned_frames(
-            'animation1', 1, 5,
+            'animation1',
+            1,
+            5,
         )  # 5 total frames, current is 1
         expected_frames = {0, 2, 3, 4}  # All frames except 1
         assert onion_frames == expected_frames

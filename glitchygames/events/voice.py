@@ -65,7 +65,7 @@ class VoiceEventManager(ResourceManager):
 
         """
         super().__init__(game=self)
-        self.log = logger or logging.getLogger(__name__)  # type: ignore[misc]  # instance override of ClassVar is intentional
+        self.log = logger or logging.getLogger(__name__)  # type: ignore[misc] # ty: ignore[invalid-attribute-access]  # instance override of ClassVar is intentional
         self.is_listening = False
         self.listen_thread = None
         self.commands: dict[str, Callable[[], None]] = {}
@@ -252,7 +252,9 @@ class VoiceEventManager(ResourceManager):
         for command_phrase, callback in self.commands.items():
             if command_phrase in text:
                 self.log.info(
-                    "Executing partial match voice command: '%s' from '%s'", command_phrase, text,
+                    "Executing partial match voice command: '%s' from '%s'",
+                    command_phrase,
+                    text,
                 )
                 try:
                     callback()

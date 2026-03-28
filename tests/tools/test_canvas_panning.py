@@ -8,7 +8,7 @@ import pytest
 
 from glitchygames.bitmappy.editor import AnimatedCanvasSprite, BitmapEditorScene
 from glitchygames.sprites.animated import SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 
 
 class TestCanvasPanning:
@@ -24,10 +24,12 @@ class TestCanvasPanning:
 
         # Use centralized mock factory
         self.animated_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='test_animation',
-            frame_size=(8, 8),
-            pixel_color=(255, 0, 0),
-            current_frame=0,
+            config=MockSpriteConfig(
+                animation_name='test_animation',
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),
+                current_frame=0,
+            ),
         )
 
         # Create canvas sprite
@@ -200,17 +202,18 @@ class TestCanvasPanning:
         assert len(viewport_pixels) == 64  # 8x8 viewport
 
         # Check the pattern: first 2 rows should be red-blue-red-blue pattern
+        # Viewport pixels are returned in RGBA format (alpha=255 for opaque RGB input)
         # Row 0: 4 red + 4 blue
         for i in range(4):
-            assert viewport_pixels[i] == (255, 0, 0)  # First 4 pixels should be red
+            assert viewport_pixels[i] == (255, 0, 0, 255)  # First 4 pixels should be red
         for i in range(4, 8):
-            assert viewport_pixels[i] == (0, 0, 255)  # Next 4 pixels should be blue
+            assert viewport_pixels[i] == (0, 0, 255, 255)  # Next 4 pixels should be blue
 
         # Row 1: 4 red + 4 blue
         for i in range(8, 12):
-            assert viewport_pixels[i] == (255, 0, 0)  # Next 4 pixels should be red
+            assert viewport_pixels[i] == (255, 0, 0, 255)  # Next 4 pixels should be red
         for i in range(12, 16):
-            assert viewport_pixels[i] == (0, 0, 255)  # Next 4 pixels should be blue
+            assert viewport_pixels[i] == (0, 0, 255, 255)  # Next 4 pixels should be blue
 
     def test_panning_with_different_canvas_sizes(self):
         """Test panning with different canvas sizes."""

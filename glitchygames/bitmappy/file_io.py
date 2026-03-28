@@ -174,17 +174,22 @@ class FileIOManager:
 
             if has_transparency:
                 self.log.info(
-                    'Found %s transparent pixels, mapped to magenta (255, 0, 255)', transparent_pixels,
+                    'Found %s transparent pixels, mapped to magenta (255, 0, 255)',
+                    transparent_pixels,
                 )
             self.log.info(
                 f'Sampled {sample_count} pixels, found {len(unique_colors)} unique colors',
             )
 
             unique_colors = quantize_colors_if_needed(
-                unique_colors, has_transparency=has_transparency, log=self.log,
+                unique_colors,
+                has_transparency=has_transparency,
+                log=self.log,
             )
             color_mapping = build_color_to_glyph_mapping(
-                unique_colors, has_transparency=has_transparency, log=self.log,
+                unique_colors,
+                has_transparency=has_transparency,
+                log=self.log,
             )
 
             pixel_string = generate_pixel_string(
@@ -198,7 +203,10 @@ class FileIOManager:
             )
 
             toml_content = generate_toml_content(
-                file_path, pixel_string, color_mapping, log=self.log,
+                file_path,
+                pixel_string,
+                color_mapping,
+                log=self.log,
             )
             output_path = self._save_and_validate_toml(file_path, toml_content)
 
@@ -236,7 +244,11 @@ class FileIOManager:
         # Check if image needs resizing to match canvas size
         if width != canvas_width or height != canvas_height:
             self.log.info(
-                'Resizing image from %sx%s to %sx%s to match canvas', width, height, canvas_width, canvas_height,
+                'Resizing image from %sx%s to %sx%s to match canvas',
+                width,
+                height,
+                canvas_width,
+                canvas_height,
             )
             image = pygame.transform.scale(image, (canvas_width, canvas_height))
             width, height = canvas_width, canvas_height
@@ -253,7 +265,9 @@ class FileIOManager:
         return image, width, height
 
     def _detect_png_transparency(
-        self, image: pygame.Surface, file_path: str,
+        self,
+        image: pygame.Surface,
+        file_path: str,
     ) -> tuple[bool, pygame.Surface | None]:
         """Detect whether the original PNG image has transparency.
 
@@ -363,16 +377,19 @@ class FileIOManager:
 
         if '[sprite]' not in content:
             self.log.error('TOML file missing [sprite] section!')
-            raise ValueError('Generated TOML file has no [sprite] section')
+            msg = 'Generated TOML file has no [sprite] section'
+            raise ValueError(msg)
 
         if '[colors]' not in content:
             self.log.error('TOML file missing [colors] section!')
-            raise ValueError('Generated TOML file has no [colors] section')
+            msg = 'Generated TOML file has no [colors] section'
+            raise ValueError(msg)
 
         color_count = content.count('[colors."')
         if color_count == 0:
             self.log.error('TOML file has no color definitions!')
-            raise ValueError('Generated TOML file has no color definitions')
+            msg = 'Generated TOML file has no color definitions'
+            raise ValueError(msg)
 
         self.log.info('TOML validation passed: %s colors defined', color_count)
 
@@ -395,9 +412,9 @@ class FileIOManager:
                 self.log.warning('Could not find canvas sprite to load converted file')
                 return
 
-            self._load_sprite_into_canvas(canvas_sprite, toml_path)  # type: ignore[arg-type]
-            self._transfer_loaded_sprite_pixels(canvas_sprite)  # type: ignore[arg-type]
-            self._finalize_sprite_load(canvas_sprite)  # type: ignore[arg-type]
+            self._load_sprite_into_canvas(canvas_sprite, toml_path)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+            self._transfer_loaded_sprite_pixels(canvas_sprite)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+            self._finalize_sprite_load(canvas_sprite)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
         except (
             OSError,
@@ -442,7 +459,7 @@ class FileIOManager:
         # Create a mock event for loading
         mock_event = MockEvent(text=toml_path)
         self.log.info('Calling on_load_file_event...')
-        canvas_sprite.on_load_file_event(mock_event)  # type: ignore[arg-type]
+        canvas_sprite.on_load_file_event(mock_event)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         self.log.info('on_load_file_event completed')
 
         # Update border thickness after loading (in case canvas was resized)
@@ -489,7 +506,9 @@ class FileIOManager:
         self._apply_frame_pixels_to_canvas(canvas_sprite, first_frame)
 
     def _apply_frame_pixels_to_canvas(
-        self, canvas_sprite: AnimatedCanvasSprite, first_frame: SpriteFrame,
+        self,
+        canvas_sprite: AnimatedCanvasSprite,
+        first_frame: SpriteFrame,
     ) -> None:
         """Apply pixel data from a frame to the canvas.
 

@@ -40,10 +40,12 @@ class TestControllerUndoRedoIntegration:
 
         scene.undo_redo_manager = UndoRedoManager()
         scene.canvas_operation_tracker = CanvasOperationTracker(
-            scene.undo_redo_manager, editor=scene,
+            scene.undo_redo_manager,
+            editor=scene,
         )
         scene.film_strip_operation_tracker = FilmStripOperationTracker(
-            scene.undo_redo_manager, editor=scene,
+            scene.undo_redo_manager,
+            editor=scene,
         )
 
         # Mock the undo/redo methods
@@ -56,7 +58,9 @@ class TestControllerUndoRedoIntegration:
                 if button == pygame.CONTROLLER_BUTTON_B:
                     scene.handle_undo()
                 elif button == pygame.CONTROLLER_BUTTON_X and getattr(
-                    scene, 'selected_frame_visible', True,
+                    scene,
+                    'selected_frame_visible',
+                    True,
                 ):
                     scene.handle_redo()
             except AttributeError, ValueError:
@@ -86,10 +90,14 @@ class TestControllerUndoRedoIntegration:
     def test_controller_undo_button_press(self, mock_scene):
         """Test that controller B button triggers undo operation."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=2, animation_name='strip_1', frame_data={},
+            frame_index=2,
+            animation_name='strip_1',
+            frame_data={},
         )
 
         assert mock_scene.undo_redo_manager.can_undo()
@@ -101,7 +109,9 @@ class TestControllerUndoRedoIntegration:
     def test_controller_redo_button_press(self, mock_scene):
         """Test that controller X button triggers redo operation."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
 
         # Move to redo stack without executing (commands can't run against mocks)
@@ -116,7 +126,9 @@ class TestControllerUndoRedoIntegration:
     def test_controller_redo_disabled_when_frame_hidden(self, mock_scene):
         """Test that controller X button is disabled when selected frame is hidden."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
 
         self._move_all_to_redo(mock_scene.undo_redo_manager)
@@ -130,16 +142,23 @@ class TestControllerUndoRedoIntegration:
     def test_controller_undo_with_film_strip_operations(self, mock_scene):
         """Test controller undo with various film strip operations."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=2, animation_name='strip_1', frame_data={},
+            frame_index=2,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_animation_added(
-            animation_name='strip_2', animation_data={},
+            animation_name='strip_2',
+            animation_data={},
         )
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_2', frame_data={},
+            frame_index=1,
+            animation_name='strip_2',
+            frame_data={},
         )
 
         assert mock_scene.undo_redo_manager.can_undo()
@@ -151,13 +170,18 @@ class TestControllerUndoRedoIntegration:
     def test_controller_redo_with_film_strip_operations(self, mock_scene):
         """Test controller redo with various film strip operations."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=2, animation_name='strip_1', frame_data={},
+            frame_index=2,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_animation_added(
-            animation_name='strip_2', animation_data={},
+            animation_name='strip_2',
+            animation_data={},
         )
 
         self._move_all_to_redo(mock_scene.undo_redo_manager)
@@ -190,11 +214,15 @@ class TestControllerUndoRedoIntegration:
     def test_controller_undo_with_mixed_operations(self, mock_scene):
         """Test controller undo with mixed canvas and film strip operations."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.canvas_operation_tracker.add_pixel_changes([(10, 10, (255, 0, 0), (0, 0, 255))])
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=2, animation_name='strip_1', frame_data={},
+            frame_index=2,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.canvas_operation_tracker.add_pixel_changes([(20, 20, (0, 255, 0), (255, 0, 0))])
 
@@ -207,11 +235,15 @@ class TestControllerUndoRedoIntegration:
     def test_controller_redo_with_mixed_operations(self, mock_scene):
         """Test controller redo with mixed canvas and film strip operations."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.canvas_operation_tracker.add_pixel_changes([(10, 10, (255, 0, 0), (0, 0, 255))])
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=2, animation_name='strip_1', frame_data={},
+            frame_index=2,
+            animation_name='strip_1',
+            frame_data={},
         )
 
         self._move_all_to_redo(mock_scene.undo_redo_manager)
@@ -225,13 +257,18 @@ class TestControllerUndoRedoIntegration:
     def test_controller_undo_redo_sequence(self, mock_scene):
         """Test a sequence of controller undo/redo operations."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=2, animation_name='strip_1', frame_data={},
+            frame_index=2,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_animation_added(
-            animation_name='strip_2', animation_data={},
+            animation_name='strip_2',
+            animation_data={},
         )
 
         # Test undo sequence
@@ -276,7 +313,9 @@ class TestControllerUndoRedoIntegration:
     def test_controller_undo_redo_with_frame_add_and_select(self, mock_scene):
         """Test controller undo/redo with frame create + select operations."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_frame_selection(animation='strip_1', frame=1)
 
@@ -298,7 +337,9 @@ class TestControllerUndoRedoIntegration:
         mock_scene.handle_undo.side_effect = ValueError('Test error')
 
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
 
         # Call the controller handler (should not raise exception)
@@ -312,10 +353,14 @@ class TestControllerUndoRedoIntegration:
     def test_controller_undo_redo_with_multiple_controllers(self, mock_scene):
         """Test controller undo/redo with multiple controllers."""
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=1, animation_name='strip_1', frame_data={},
+            frame_index=1,
+            animation_name='strip_1',
+            frame_data={},
         )
         mock_scene.film_strip_operation_tracker.add_frame_added(
-            frame_index=2, animation_name='strip_1', frame_data={},
+            frame_index=2,
+            animation_name='strip_1',
+            frame_data={},
         )
 
         # Test with multiple controllers
@@ -333,19 +378,26 @@ class TestControllerUndoRedoIntegration:
         """Test that all controller undo/redo integration points are working."""
         operations = [
             lambda: mock_scene.film_strip_operation_tracker.add_frame_added(
-                frame_index=1, animation_name='strip_1', frame_data={},
+                frame_index=1,
+                animation_name='strip_1',
+                frame_data={},
             ),
             lambda: mock_scene.film_strip_operation_tracker.add_frame_deleted(
-                frame_index=1, animation_name='strip_1', frame_data={},
+                frame_index=1,
+                animation_name='strip_1',
+                frame_data={},
             ),
             lambda: mock_scene.film_strip_operation_tracker.add_animation_added(
-                animation_name='strip_2', animation_data={},
+                animation_name='strip_2',
+                animation_data={},
             ),
             lambda: mock_scene.film_strip_operation_tracker.add_animation_deleted(
-                animation_name='strip_1', animation_data={},
+                animation_name='strip_1',
+                animation_data={},
             ),
             lambda: mock_scene.film_strip_operation_tracker.add_frame_selection(
-                animation='strip_1', frame=1,
+                animation='strip_1',
+                frame=1,
             ),
             lambda: mock_scene.canvas_operation_tracker.add_pixel_changes([
                 (10, 10, (255, 0, 0), (0, 0, 255)),

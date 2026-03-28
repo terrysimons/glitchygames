@@ -281,7 +281,11 @@ class GameEventManager(ResourceManager, GameEvents):
             default=False,
         )
         group.add_argument(
-            '-p', '--profile', help='enable profiling', action='store_true', default=False,
+            '-p',
+            '--profile',
+            help='enable profiling',
+            action='store_true',
+            default=False,
         )
 
         return parser

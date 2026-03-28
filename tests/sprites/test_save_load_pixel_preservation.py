@@ -667,14 +667,20 @@ class TestSaveLoadPixelPreservation:
         """Test that loading, saving, and reloading a candle sprite preserves all pixels."""
         # Create temporary file with candle sprite
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8',
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_input = f.name
             f.write(CANDLE_SPRITE_CONTENT)
 
         # Create temporary file for save output
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8',
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_output = f.name
 
@@ -716,14 +722,20 @@ class TestSaveLoadPixelPreservation:
         # Create temporary file with candle sprite that has
         # color 'd' with alpha=200 (per-pixel alpha)
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8',
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_input = f.name
             f.write(CANDLE_SPRITE_WITH_ALPHA_CONTENT)
 
         # Create temporary file for save output
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8',
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_output = f.name
 

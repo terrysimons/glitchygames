@@ -47,14 +47,17 @@ class BitmappyLegacySprite(Sprite):
             **kwargs: Keyword arguments to pass to the parent class.
 
         """
-        super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type]
+        super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         self.image: pygame.Surface | None = None
         self.rect: pygame.Rect | None = None
         self.name: str | None = None
         self.palette: list[Color] = palette
 
         (self.image, self.rect, self.name) = self.load(
-            filename=filename, palette=self.palette, width=32, height=32,
+            filename=filename,
+            palette=self.palette,
+            width=32,
+            height=32,
         )
 
         self.save(filename + '.cfg')
@@ -169,10 +172,9 @@ class BitmappyLegacySprite(Sprite):
             config.set('sprite', 'pixels', '')
             return config
 
-        # TODO: migrate to tobytes once test mocks provide real Surfaces
         raw_pixels: list[tuple[int, int, int]] = list(
             rgb_triplet_generator(
-                pygame.image.tostring(self.image, 'RGB'),  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
+                pygame.image.tobytes(self.image, 'RGB'),
             ),
         )
 
@@ -255,7 +257,8 @@ class GameScene(Scene):
 
         # Load the legacy sprite file.
         self.sprite: BitmappyLegacySprite = BitmappyLegacySprite(
-            filename=self.filename, palette=self.palette,
+            filename=self.filename,
+            palette=self.palette,
         )
 
         self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(self.sprite)
@@ -281,7 +284,7 @@ class Game(Scene):
         self.filename: str | None = options.get('filename')
         self.palette: Vga = Vga()
 
-        self.next_scene = GameScene(filename=self.filename or '', palette=self.palette)  # type: ignore[arg-type]
+        self.next_scene = GameScene(filename=self.filename or '', palette=self.palette)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     @classmethod
     def args(cls: type[Game], parser: argparse.ArgumentParser) -> None:
@@ -292,7 +295,10 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
         parser.add_argument('--filename', help='the file to load', required=True)

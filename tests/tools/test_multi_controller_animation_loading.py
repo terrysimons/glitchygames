@@ -60,7 +60,8 @@ class TestMultiControllerAnimationLoading:
 
             # Set up controller selection
             self.controller_selections[controller_id] = ControllerSelection(
-                controller_id, instance_id,
+                controller_id,
+                instance_id,
             )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f'existing_animation_{i}', i)
@@ -194,7 +195,8 @@ class TestMultiControllerAnimationLoading:
             self.manager.assigned_controllers[instance_id] = controller_id
 
             self.controller_selections[controller_id] = ControllerSelection(
-                controller_id, instance_id,
+                controller_id,
+                instance_id,
             )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f'animation_{i}', i)
@@ -252,7 +254,8 @@ class TestMultiControllerAnimationLoading:
         # Navigate to next frame
         current_animation, current_frame = self.controller_selections[controller_id].get_selection()
         self.controller_selections[controller_id].set_selection(
-            current_animation, current_frame + 1,
+            current_animation,
+            current_frame + 1,
         )
 
         # Verify navigation worked
@@ -294,7 +297,9 @@ class TestMultiControllerAnimationLoading:
 
         # Simulate loading animation with error
         mocker.patch.object(
-            self.scene, 'on_sprite_loaded', side_effect=RuntimeError('Loading error'),
+            self.scene,
+            'on_sprite_loaded',
+            side_effect=RuntimeError('Loading error'),
         )
         try:
             self._simulate_animation_loading('error_animation')
@@ -327,7 +332,8 @@ class TestMultiControllerAnimationLoading:
             self.manager.assigned_controllers[instance_id] = controller_id
 
             self.controller_selections[controller_id] = ControllerSelection(
-                controller_id, instance_id,
+                controller_id,
+                instance_id,
             )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f'animation_{i}', i)

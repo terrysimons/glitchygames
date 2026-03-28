@@ -27,7 +27,11 @@ class TestFilmStripEventHandling:
 
         # Create film strip sprite
         self.film_strip_sprite = FilmStripSprite(
-            film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100,
+            film_strip_widget=self.film_strip_widget,
+            x=100,
+            y=100,
+            width=200,
+            height=100,
         )
 
     def test_right_click_inside_bounds_returns_true(self):

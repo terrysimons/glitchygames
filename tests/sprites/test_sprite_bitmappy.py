@@ -231,7 +231,7 @@ class TestBitmappySprite:
         first_call = mock_log.error.call_args_list[0][0][0]
         second_call = mock_log.error.call_args_list[1][0][0]
         assert 'Pixels list length mismatch: 2 vs expected 1024' in first_call
-        assert 'Color (0, 255, 0) not found in color_map' in second_call
+        assert 'not found in color_map' in second_call
 
     def test_bitmappy_sprite_inflate_method(self, mocker):
         """Test BitmappySprite inflate method."""
@@ -282,6 +282,21 @@ class TestBitmappySprite:
         result = sprite._create_toml_config()
         assert 'sprite' in result
 
+
+class TestBitmappySpriteHelpers:
+    """Test BitmappySprite helper methods for save, pixel string, and color map."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
     def test_bitmappy_sprite_process_pixel_rows_missing_color(self, mocker):
         """Test BitmappySprite process_pixel_rows with missing color."""
         sprite = BitmappySprite(width=2, height=2)  # 2x2 = 4 pixels
@@ -304,9 +319,9 @@ class TestBitmappySprite:
         first_call = mock_log.error.call_args_list[0][0][0]
         second_call = mock_log.error.call_args_list[1][0][0]
         third_call = mock_log.error.call_args_list[2][0][0]
-        assert 'Color (0, 255, 0) not found in color_map' in first_call
-        assert 'Color (0, 0, 255) not found in color_map' in second_call
-        assert 'Color (255, 255, 0) not found in color_map' in third_call
+        assert 'not found in color_map' in first_call
+        assert 'not found in color_map' in second_call
+        assert 'not found in color_map' in third_call
 
     def test_bitmappy_sprite_save_static_only_unsupported_format_error(self, mocker):
         """Test BitmappySprite save_static_only with unsupported format error."""

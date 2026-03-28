@@ -156,7 +156,7 @@ class BrushStrokeCommand(_ApplyingUndoRedoGuard):
                 self.editor.canvas.canvas_interface.set_pixel_at(x, y, color)
                 return True
             LOG.warning('Canvas not available for pixel change')
-            return False
+            return False  # noqa: TRY300
         except Exception:
             LOG.exception('Error setting pixel at (%s, %s)', x, y)
             return False
@@ -165,9 +165,10 @@ class BrushStrokeCommand(_ApplyingUndoRedoGuard):
 class FloodFillCommand(_ApplyingUndoRedoGuard):
     """Command for a flood fill operation."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         editor: Any,
+        *,
         start_x: int,
         start_y: int,
         old_color: tuple[int, int, int],
@@ -241,7 +242,7 @@ class FloodFillCommand(_ApplyingUndoRedoGuard):
                 self.editor.canvas.canvas_interface.set_pixel_at(x, y, color)
                 return True
             LOG.warning('Canvas not available for pixel change')
-            return False
+            return False  # noqa: TRY300
         except Exception:
             LOG.exception('Error setting pixel at (%s, %s)', x, y)
             return False
@@ -314,7 +315,7 @@ class FrameSelectionCommand(_ApplyingUndoRedoGuard):
                     LOG.debug('Applied frame selection: %s[%s]', animation, frame)
                     return True
                 LOG.warning('Canvas not available for frame selection')
-                return False
+                return False  # noqa: TRY300
             except AttributeError, IndexError, KeyError, TypeError, ValueError:
                 LOG.exception('Error applying frame selection')
                 return False
@@ -330,9 +331,10 @@ class FrameSelectionCommand(_ApplyingUndoRedoGuard):
 class FramePasteCommand(_ApplyingUndoRedoGuard):
     """Command for pasting pixel data into a frame."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         editor: Any,
+        *,
         animation: str,
         frame: int,
         old_pixels: list[tuple[int, ...]],
@@ -426,11 +428,12 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
                     self.editor.canvas.dirty = 1
 
             LOG.debug(f'Applied frame paste to {self.animation}[{self.frame}]')
-            return True
 
         except AttributeError, IndexError, KeyError, TypeError, ValueError:
             LOG.exception('Error applying frame paste')
             return False
+        else:
+            return True
 
 
 # ---------------------------------------------------------------------------
@@ -509,14 +512,16 @@ class FrameAddCommand:
             if self.frame_data.get('pixels'):
                 pixel_array = pygame.PixelArray(surface)
                 for i, pixel in enumerate(self.frame_data['pixels']):
-                    if i < len(pixel_array.flat):  # type: ignore[reportAttributeAccessIssue]
-                        pixel_array.flat[i] = pixel  # type: ignore[reportAttributeAccessIssue]
+                    if i < len(pixel_array.flat):  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
+                        pixel_array.flat[i] = pixel  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
                 del pixel_array
 
             new_frame = SpriteFrame(surface=surface, duration=self.frame_data.get('duration', 1.0))
 
             self.editor.canvas.animated_sprite.add_frame(
-                self.animation_name, new_frame, self.frame_index,
+                self.animation_name,
+                new_frame,
+                self.frame_index,
             )
 
             # Adjust canvas frame index if viewing this animation
@@ -535,11 +540,11 @@ class FrameAddCommand:
 
             self.editor.film_strip_coordinator.refresh_all_film_strip_widgets(self.animation_name)
             self.editor.film_strip_coordinator.on_frame_inserted(
-                self.animation_name, self.frame_index,
+                self.animation_name,
+                self.frame_index,
             )
 
             LOG.debug(f"Added frame {self.frame_index} to '{self.animation_name}'")
-            return True
 
         except (
             AttributeError,
@@ -551,6 +556,8 @@ class FrameAddCommand:
         ):
             LOG.exception('Error adding frame')
             return False
+        else:
+            return True
 
     def _delete_frame(self) -> bool:
         try:
@@ -575,7 +582,9 @@ class FrameAddCommand:
                 return False
 
             _stop_animation_and_adjust_frame_before_deletion(
-                self.editor, self.animation_name, self.frame_index,
+                self.editor,
+                self.animation_name,
+                self.frame_index,
             )
 
             frames.pop(self.frame_index)
@@ -584,15 +593,17 @@ class FrameAddCommand:
 
             self.editor.film_strip_coordinator.refresh_all_film_strip_widgets(self.animation_name)
             self.editor.film_strip_coordinator.on_frame_removed(
-                self.animation_name, self.frame_index,
+                self.animation_name,
+                self.frame_index,
             )
 
             LOG.debug(f"Deleted frame {self.frame_index} from '{self.animation_name}'")
-            return True
 
         except AttributeError, IndexError, KeyError, TypeError, ValueError:
             LOG.exception('Error deleting frame')
             return False
+        else:
+            return True
 
 
 class FrameDeleteCommand:
@@ -633,7 +644,10 @@ class FrameDeleteCommand:
         """
         # FrameAddCommand.undo() performs deletion
         inverse = FrameAddCommand(
-            self.editor, self.frame_index, self.animation_name, self.frame_data,
+            self.editor,
+            self.frame_index,
+            self.animation_name,
+            self.frame_data,
         )
         return inverse.undo()
 
@@ -646,7 +660,10 @@ class FrameDeleteCommand:
         """
         # FrameAddCommand.execute() performs addition
         inverse = FrameAddCommand(
-            self.editor, self.frame_index, self.animation_name, self.frame_data,
+            self.editor,
+            self.frame_index,
+            self.animation_name,
+            self.frame_data,
         )
         return inverse.execute()
 
@@ -733,16 +750,44 @@ class FrameReorderCommand:
                 self.editor.film_strip_widget.mark_dirty()
 
             LOG.debug(f"Reordered frame {source} -> {destination} in '{self.animation_name}'")
-            return True
 
         except AttributeError, IndexError, KeyError, TypeError:
             LOG.exception('Error reordering frame')
             return False
+        else:
+            return True
 
 
 # ---------------------------------------------------------------------------
 # Animation commands
 # ---------------------------------------------------------------------------
+
+
+def _refresh_film_strip_widgets(editor: Any) -> None:
+    """Refresh all film strip widgets after animation changes.
+
+    Args:
+        editor: The editor context.
+
+    """
+    if hasattr(editor, 'film_strip_widget') and editor.film_strip_widget:
+        editor.film_strip_widget._initialize_preview_animations()
+        editor.film_strip_widget.update_layout()
+        editor.film_strip_widget._create_film_tabs()
+        editor.film_strip_widget.mark_dirty()
+
+    if hasattr(editor, 'film_strip_sprites') and editor.film_strip_sprites:
+        for film_strip_sprite in editor.film_strip_sprites.values():
+            if (
+                hasattr(film_strip_sprite, 'film_strip_widget')
+                and film_strip_sprite.film_strip_widget
+            ):
+                film_strip_sprite.film_strip_widget._initialize_preview_animations()
+                film_strip_sprite.film_strip_widget._calculate_layout()
+                film_strip_sprite.film_strip_widget.update_layout()
+                film_strip_sprite.film_strip_widget._create_film_tabs()
+                film_strip_sprite.film_strip_widget.mark_dirty()
+                film_strip_sprite.dirty = 1
 
 
 class AnimationAddCommand:
@@ -813,8 +858,8 @@ class AnimationAddCommand:
                 if frame_data.get('pixels'):
                     pixel_array = pygame.PixelArray(surface)
                     for i, pixel in enumerate(frame_data['pixels']):
-                        if i < len(pixel_array.flat):  # type: ignore[reportAttributeAccessIssue]
-                            pixel_array.flat[i] = pixel  # type: ignore[reportAttributeAccessIssue]
+                        if i < len(pixel_array.flat):  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
+                            pixel_array.flat[i] = pixel  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
                     del pixel_array
 
                 new_frame = SpriteFrame(surface=surface, duration=frame_data.get('duration', 1.0))
@@ -822,28 +867,9 @@ class AnimationAddCommand:
                 animations[self.animation_name] = animations.get(self.animation_name, [])
                 animations[self.animation_name].append(new_frame)
 
-            # Refresh film strip widgets
-            if hasattr(self.editor, 'film_strip_widget') and self.editor.film_strip_widget:
-                self.editor.film_strip_widget._initialize_preview_animations()
-                self.editor.film_strip_widget.update_layout()
-                self.editor.film_strip_widget._create_film_tabs()
-                self.editor.film_strip_widget.mark_dirty()
-
-            if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
-                for film_strip_sprite in self.editor.film_strip_sprites.values():
-                    if (
-                        hasattr(film_strip_sprite, 'film_strip_widget')
-                        and film_strip_sprite.film_strip_widget
-                    ):
-                        film_strip_sprite.film_strip_widget._initialize_preview_animations()
-                        film_strip_sprite.film_strip_widget._calculate_layout()
-                        film_strip_sprite.film_strip_widget.update_layout()
-                        film_strip_sprite.film_strip_widget._create_film_tabs()
-                        film_strip_sprite.film_strip_widget.mark_dirty()
-                        film_strip_sprite.dirty = 1
+            _refresh_film_strip_widgets(self.editor)
 
             LOG.debug(f"Added animation '{self.animation_name}'")
-            return True
 
         except (
             AttributeError,
@@ -855,6 +881,8 @@ class AnimationAddCommand:
         ):
             LOG.exception('Error adding animation')
             return False
+        else:
+            return True
 
     def _delete_animation(self) -> bool:
         try:
@@ -873,35 +901,18 @@ class AnimationAddCommand:
 
             del animations[self.animation_name]
 
-            # Refresh film strip widgets
-            if hasattr(self.editor, 'film_strip_widget') and self.editor.film_strip_widget:
-                self.editor.film_strip_widget._initialize_preview_animations()
-                self.editor.film_strip_widget.update_layout()
-                self.editor.film_strip_widget._create_film_tabs()
-                self.editor.film_strip_widget.mark_dirty()
-
-            if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
-                for film_strip_sprite in self.editor.film_strip_sprites.values():
-                    if (
-                        hasattr(film_strip_sprite, 'film_strip_widget')
-                        and film_strip_sprite.film_strip_widget
-                    ):
-                        film_strip_sprite.film_strip_widget._initialize_preview_animations()
-                        film_strip_sprite.film_strip_widget._calculate_layout()
-                        film_strip_sprite.film_strip_widget.update_layout()
-                        film_strip_sprite.film_strip_widget._create_film_tabs()
-                        film_strip_sprite.film_strip_widget.mark_dirty()
-                        film_strip_sprite.dirty = 1
+            _refresh_film_strip_widgets(self.editor)
 
             # Recreate film strips to reflect the deleted animation
             self.editor.film_strip_coordinator.on_sprite_loaded(self.editor.canvas.animated_sprite)
 
             LOG.debug(f"Deleted animation '{self.animation_name}'")
-            return True
 
         except AttributeError, KeyError, TypeError:
             LOG.exception('Error deleting animation')
             return False
+        else:
+            return True
 
 
 class AnimationDeleteCommand:
@@ -961,10 +972,11 @@ class AnimationDeleteCommand:
 class ControllerPositionCommand(_ApplyingUndoRedoGuard):
     """Command for a controller position change."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         editor: Any,
         controller_id: int,
+        *,
         old_position: tuple[int, int],
         new_position: tuple[int, int],
         old_mode: str | None = None,
@@ -1029,7 +1041,7 @@ class ControllerPositionCommand(_ApplyingUndoRedoGuard):
                     LOG.debug(f'Applied controller position: {self.controller_id} -> {position}')
                     return True
                 LOG.warning('Mode switcher not available for controller position')
-                return False
+                return False  # noqa: TRY300
             except AttributeError, KeyError, TypeError:
                 LOG.exception('Error applying controller position')
                 return False
@@ -1104,18 +1116,20 @@ class ControllerModeCommand(_ApplyingUndoRedoGuard):
 
                     current_time = time_module.time()
                     self.editor.mode_switcher.controller_modes[self.controller_id].switch_to_mode(
-                        controller_mode, current_time,
+                        controller_mode,
+                        current_time,
                     )
 
                     if hasattr(self.editor, 'controller_handler'):
                         self.editor.controller_handler.update_controller_visual_indicator_for_mode(
-                            self.controller_id, controller_mode,
+                            self.controller_id,
+                            controller_mode,
                         )
 
                     LOG.debug(f'Applied controller mode: {self.controller_id} -> {mode}')
                     return True
                 LOG.warning('Mode switcher not available for controller mode')
-                return False
+                return False  # noqa: TRY300
             except AttributeError, KeyError, TypeError, ValueError:
                 LOG.exception('Error applying controller mode')
                 return False
@@ -1186,7 +1200,9 @@ class FrameCopyCommand:
 
 
 def _stop_animation_and_adjust_frame_before_deletion(
-    editor: Any, animation_name: str, frame_index: int,
+    editor: Any,
+    animation_name: str,
+    frame_index: int,
 ) -> None:
     """Stop animation playback and adjust the frame index before frame deletion.
 

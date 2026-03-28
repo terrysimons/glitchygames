@@ -34,18 +34,20 @@ _default_colors: Default = Default()
 _RGBColorTuple = tuple[int, int, int]
 _RGBAColorTuple = tuple[int, int, int, int]
 
+_EXPECTED_PYGAME_COLOR_MSG = 'Expected pygame.Color, got {actual_type}'
+
 
 def _to_rgb(color: object) -> _RGBColorTuple:
     # Module-initialization helper: converts a pygame.Color to a plain RGB tuple.
     if not isinstance(color, Color):
-        raise TypeError(f'Expected pygame.Color, got {type(color).__name__}')
+        raise TypeError(_EXPECTED_PYGAME_COLOR_MSG.format(actual_type=type(color).__name__))
     return (color.r, color.g, color.b)
 
 
 def _to_rgba(color: object) -> _RGBAColorTuple:
     # Module-initialization helper: converts a pygame.Color to a plain RGBA tuple.
     if not isinstance(color, Color):
-        raise TypeError(f'Expected pygame.Color, got {type(color).__name__}')
+        raise TypeError(_EXPECTED_PYGAME_COLOR_MSG.format(actual_type=type(color).__name__))
     return (color.r, color.g, color.b, color.a)
 
 

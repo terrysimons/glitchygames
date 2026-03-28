@@ -158,7 +158,10 @@ class TestUndoRedoManager:
     def test_get_history_info(self):
         """Test getting history information."""
         self.manager.add_operation(
-            OperationType.CANVAS_PIXEL_CHANGE, 'Test operation', {'data': 'undo'}, {'data': 'redo'},
+            OperationType.CANVAS_PIXEL_CHANGE,
+            'Test operation',
+            {'data': 'undo'},
+            {'data': 'redo'},
         )
 
         info = self.manager.get_history_info()

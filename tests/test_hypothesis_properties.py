@@ -26,7 +26,10 @@ from glitchygames.performance.adaptive_clamping import AdaptiveClamping
 reasonable_floats = st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False)
 positive_floats = st.floats(min_value=1e-6, max_value=1e6, allow_nan=False, allow_infinity=False)
 nonzero_floats = st.floats(
-    min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False,
+    min_value=-1e6,
+    max_value=1e6,
+    allow_nan=False,
+    allow_infinity=False,
 ).filter(lambda x: abs(x) > 1e-9)
 rgb_values = st.integers(min_value=0, max_value=255)
 alpha_values = st.integers(min_value=0, max_value=255)
@@ -65,18 +68,12 @@ class TestSpeedAddition:
         assert math.isclose(result.y, y, rel_tol=1e-9, abs_tol=1e-12)
 
     @given(
-        x1=reasonable_floats,
-        y1=reasonable_floats,
-        x2=reasonable_floats,
-        y2=reasonable_floats,
-        x3=reasonable_floats,
-        y3=reasonable_floats,
+        speed_a=st.builds(Speed, x=reasonable_floats, y=reasonable_floats),
+        speed_b=st.builds(Speed, x=reasonable_floats, y=reasonable_floats),
+        speed_c=st.builds(Speed, x=reasonable_floats, y=reasonable_floats),
     )
-    def test_addition_is_associative(self, x1, y1, x2, y2, x3, y3):
+    def test_addition_is_associative(self, speed_a, speed_b, speed_c):
         """(a + b) + c == a + (b + c)."""
-        speed_a = Speed(x1, y1)
-        speed_b = Speed(x2, y2)
-        speed_c = Speed(x3, y3)
         left = (speed_a + speed_b) + speed_c
         right = speed_a + (speed_b + speed_c)
         assert math.isclose(left.x, right.x, rel_tol=1e-9, abs_tol=1e-12)

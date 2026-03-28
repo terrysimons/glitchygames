@@ -71,6 +71,7 @@ from .utils import resource_path
 
 if TYPE_CHECKING:
     import argparse
+    import types
 
     from .controllers.selection import ControllerSelection
     from .film_strip import FilmStripWidget
@@ -78,7 +79,7 @@ if TYPE_CHECKING:
     from .scroll_arrow import ScrollArrowSprite
 
 
-class BitmapEditorScene(Scene):
+class BitmapEditorScene(Scene):  # noqa: PLR0904
     """Bitmap Editor Scene.
 
     The scene expects a 'size' option in the format "WIDTHxHEIGHT" (e.g., "800x600")
@@ -300,7 +301,11 @@ class BitmapEditorScene(Scene):
         return animated_sprite
 
     def _create_canvas_sprite(
-        self, animated_sprite: AnimatedSprite, pixels_across: int, pixels_tall: int, pixel_size: int,
+        self,
+        animated_sprite: AnimatedSprite,
+        pixels_across: int,
+        pixels_tall: int,
+        pixel_size: int,
     ) -> None:
         """Create the main animated canvas sprite.
 
@@ -387,7 +392,8 @@ class BitmapEditorScene(Scene):
                 # Convert to list to safely access by index
                 film_strip_list = list(self.film_strips.values())
                 if len(film_strip_list) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING and hasattr(
-                    film_strip_list[1], 'rect',
+                    film_strip_list[1],
+                    'rect',
                 ):
                     second_strip_bottom = film_strip_list[1].rect.bottom
             except IndexError, KeyError, AttributeError:
@@ -460,7 +466,8 @@ class BitmapEditorScene(Scene):
                 # Convert to list to safely access by index
                 film_strip_list = list(self.film_strips.values())
                 if len(film_strip_list) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING and hasattr(
-                    film_strip_list[1], 'rect',
+                    film_strip_list[1],
+                    'rect',
                 ):
                     second_strip_bottom = film_strip_list[1].rect.bottom
             except IndexError, KeyError, AttributeError:
@@ -541,23 +548,28 @@ class BitmapEditorScene(Scene):
             if self.voice_manager.is_available():
                 # Register voice commands
                 self.voice_manager.register_command(
-                    'clear the ai sprite box', self._clear_ai_sprite_box,
+                    'clear the ai sprite box',
+                    self._clear_ai_sprite_box,
                 )
                 self.voice_manager.register_command(
-                    'clear ai sprite box', self._clear_ai_sprite_box,
+                    'clear ai sprite box',
+                    self._clear_ai_sprite_box,
                 )
                 self.voice_manager.register_command('clear ai box', self._clear_ai_sprite_box)
                 # Add commands for what speech recognition actually hears
                 self.voice_manager.register_command(
-                    'clear the ai sprite', self._clear_ai_sprite_box,
+                    'clear the ai sprite',
+                    self._clear_ai_sprite_box,
                 )
                 self.voice_manager.register_command('clear ai sprite', self._clear_ai_sprite_box)
                 # Add command for "window" variation
                 self.voice_manager.register_command(
-                    'clear the ai sprite window', self._clear_ai_sprite_box,
+                    'clear the ai sprite window',
+                    self._clear_ai_sprite_box,
                 )
                 self.voice_manager.register_command(
-                    'clear ai sprite window', self._clear_ai_sprite_box,
+                    'clear ai sprite window',
+                    self._clear_ai_sprite_box,
                 )
 
                 # Start listening for voice commands
@@ -613,7 +625,8 @@ class BitmapEditorScene(Scene):
 
         # Pixel change tracking dict for deduplication (used alongside _current_pixel_changes list)
         self.current_pixel_changes_dict: dict[
-            int, tuple[int, tuple[int, ...], tuple[int, ...]],
+            int,
+            tuple[int, tuple[int, ...], tuple[int, ...]],
         ] = {}
 
         # Initialize scroll arrows
@@ -677,48 +690,16 @@ class BitmapEditorScene(Scene):
         # Set up callback for when sprites are loaded
         if hasattr(self, 'canvas') and self.canvas:
             # Set up the callback on the canvas to call the main scene
-            self.canvas.on_sprite_loaded = self.film_strip_coordinator.on_sprite_loaded  # type: ignore[attr-defined]
+            self.canvas.on_sprite_loaded = self.film_strip_coordinator.on_sprite_loaded  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
             self.log.debug('Set up on_sprite_loaded callback for canvas')
             LOG.debug('DEBUG: Set up on_sprite_loaded callback for canvas')
 
         # Controller selection will be initialized when START button is pressed
 
-        # Query model capabilities for optimal token usage
-        # try:
-        #     capabilities = {
-        #         "max_tokens": AI_MAX_INPUT_TOKENS,
-        #         "context_size": AI_MAX_CONTEXT_SIZE
-        #     }
-        #     #capabilities = _get_model_capabilities(self.log)
-        #     if capabilities.get("max_tokens"):
-        #         self.log.info(f"Model max tokens detected: {capabilities['max_tokens']}")
-
-        #         # Update AI_MAX_INPUT_TOKENS with detected capabilities
-        #         global AI_MAX_INPUT_TOKENS
-        #         old_max_tokens = AI_MAX_INPUT_TOKENS
-        #         AI_MAX_INPUT_TOKENS = capabilities['max_tokens']
-        #         self.log.info(f"Updated AI_MAX_INPUT_TOKENS from {old_max_tokens} to
-        #         {AI_MAX_INPUT_TOKENS}")
-
-        #         # Also log context size if available
-        #         if capabilities.get("context_size"):
-        #             self.log.info(f"Model context size: {capabilities['context_size']}")
-
-        # except (ValueError, ConnectionError, TimeoutError) as e:
-        #     self.log.warning(f"Could not query model capabilities: {e}")
-
-        # Set up voice recognition
-        # VOICE RECOGNITION IS CURRENTLY DISABLED
-        # See _setup_voice_recognition() method documentation (line ~5382) for details
-        # about why it's disabled and how to enable it in the future.
-        #
-        # To enable: Uncomment the following line after testing microphone access
-        # and verifying speech recognition works reliably on your platform.
-        # self._setup_voice_recognition()
+        # Voice recognition is currently disabled.
+        # See _setup_voice_recognition() for details about enabling it.
 
         self.all_sprites.clear(self.screen, self.background)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-
-        # TODO: Plumb this into the scene manager
 
     def _init_undo_redo_system(self) -> None:
         """Initialize the undo/redo system with all operation trackers.
@@ -729,13 +710,16 @@ class BitmapEditorScene(Scene):
         self.undo_redo_manager = UndoRedoManager(max_history=50)
         self.canvas_operation_tracker = CanvasOperationTracker(self.undo_redo_manager, editor=self)
         self.film_strip_operation_tracker = FilmStripOperationTracker(
-            self.undo_redo_manager, editor=self,
+            self.undo_redo_manager,
+            editor=self,
         )
         self.cross_area_operation_tracker = CrossAreaOperationTracker(
-            self.undo_redo_manager, editor=self,
+            self.undo_redo_manager,
+            editor=self,
         )
         self.controller_position_operation_tracker = ControllerPositionOperationTracker(
-            self.undo_redo_manager, editor=self,
+            self.undo_redo_manager,
+            editor=self,
         )
 
         self.current_pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]] = []
@@ -876,7 +860,12 @@ class BitmapEditorScene(Scene):
             self._update_ai_sprite_position()
             self.canvas.update()
             self.canvas.dirty = 1
-            self.log.info('Canvas resized to %sx%s with pixel size %s', width, height, new_pixel_size)
+            self.log.info(
+                'Canvas resized to %sx%s with pixel size %s',
+                width,
+                height,
+                new_pixel_size,
+            )
 
         except ValueError:
             self.log.exception("Invalid dimensions format '%s'", dimensions)
@@ -884,16 +873,8 @@ class BitmapEditorScene(Scene):
 
         self.dirty = 1
 
-    def on_new_canvas_dialog_event(self: Self, event: events.HashableEvent) -> None:
-        """Handle the new canvas dialog event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-
-        Raises:
-            None
-
-        """
+    def on_new_canvas_dialog_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
+        """Handle the new canvas dialog event."""
         # Create a fresh dialog scene each time
         new_canvas_dialog_scene = NewCanvasDialogScene(options=self.options, previous_scene=self)
         # Set the dialog's background to the screenshot
@@ -901,16 +882,8 @@ class BitmapEditorScene(Scene):
         self.next_scene = new_canvas_dialog_scene
         self.dirty = 1
 
-    def on_load_dialog_event(self: Self, event: events.HashableEvent) -> None:
-        """Handle the load dialog event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-
-        Raises:
-            None
-
-        """
+    def on_load_dialog_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
+        """Handle the load dialog event."""
         # Create a fresh dialog scene each time
         load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
         # Set the dialog's background to the screenshot
@@ -918,16 +891,8 @@ class BitmapEditorScene(Scene):
         self.next_scene = load_dialog_scene
         self.dirty = 1
 
-    def on_save_dialog_event(self: Self, event: events.HashableEvent) -> None:
-        """Handle the save dialog event.
-
-        Args:
-            event (pygame.event.Event): The pygame event.
-
-        Raises:
-            None
-
-        """
+    def on_save_dialog_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
+        """Handle the save dialog event."""
         # Create a fresh dialog scene each time
         save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
         # Set the dialog's background to the screenshot
@@ -940,7 +905,9 @@ class BitmapEditorScene(Scene):
         self._slider_manager.on_color_well_event(event, trigger)
 
     def on_slider_event(
-        self: Self, event: events.HashableEvent, trigger: events.HashableEvent,
+        self: Self,
+        event: events.HashableEvent,
+        trigger: events.HashableEvent,
     ) -> None:
         """Handle the slider event by delegating to SliderManager."""
         self._slider_manager.on_slider_event(event, trigger)
@@ -971,59 +938,8 @@ class BitmapEditorScene(Scene):
 
         # If no sprite handled the event, proceed with scene-level handling
         # Check if the click is on the canvas to sample canvas pixel data
-        if (
-            hasattr(self, 'canvas')
-            and self.canvas
-            and self.canvas.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
-            and self.canvas.rect.collidepoint(event.pos)
-        ):
-            if is_shift_click:
-                # Shift-right-click: sample screen directly (RGB only)
-                self.log.info('Shift-right-click detected on canvas - sampling screen directly')
-                self._slider_manager.sample_color_from_screen(event.pos)
-                return
-            # Regular right-click: sample from canvas pixel data (RGBA)
-            canvas_x = (event.pos[0] - self.canvas.rect.x) // self.canvas.pixel_width
-            canvas_y = (event.pos[1] - self.canvas.rect.y) // self.canvas.pixel_height
-
-            # Check bounds
-            if (
-                0 <= canvas_x < self.canvas.pixels_across
-                and 0 <= canvas_y < self.canvas.pixels_tall
-            ):
-                pixel_num = canvas_y * self.canvas.pixels_across + canvas_x
-                if pixel_num < len(self.canvas.pixels):
-                    color: tuple[int, ...] = self.canvas.pixels[pixel_num]  # type: ignore[assignment]
-
-                    # Handle both RGB and RGBA pixel formats
-                    if len(color) == RGBA_COMPONENT_COUNT:  # type: ignore[reportUnknownArgumentType]
-                        red, green, blue, alpha = (
-                            int(color[0]),  # pyright: ignore[reportUnknownArgumentType]
-                            int(color[1]),  # pyright: ignore[reportUnknownArgumentType]
-                            int(color[2]),  # pyright: ignore[reportUnknownArgumentType]
-                            int(color[3]),  # pyright: ignore[reportUnknownArgumentType]
-                        )
-                    else:
-                        red, green, blue = int(color[0]), int(color[1]), int(color[2])  # type: ignore[reportUnknownArgumentType]
-                        alpha = 255  # Default to opaque for RGB pixels
-
-                    self.log.info(
-                        'Canvas pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s', red, green, blue, alpha,
-                    )
-
-                    # Update all sliders with the sampled RGBA values
-                    trigger = events.HashableEvent(0, name='R', value=red)
-                    self.on_slider_event(event=event, trigger=trigger)
-
-                    trigger = events.HashableEvent(0, name='G', value=green)
-                    self.on_slider_event(event=event, trigger=trigger)
-
-                    trigger = events.HashableEvent(0, name='B', value=blue)
-                    self.on_slider_event(event=event, trigger=trigger)
-
-                    trigger = events.HashableEvent(0, name='A', value=alpha)
-                    self.on_slider_event(event=event, trigger=trigger)
-                    return
+        if self._sample_canvas_pixel(event, is_shift_click=is_shift_click):
+            return
 
         # Fallback to screen sampling (RGB only)
         try:
@@ -1035,7 +951,11 @@ class BitmapEditorScene(Scene):
                 red, green, blue = color
             alpha = 255  # Screen has no alpha, default to opaque
             self.log.info(
-                'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)', red, green, blue, alpha,
+                'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)',
+                red,
+                green,
+                blue,
+                alpha,
             )
 
             # Update sliders with RGB values and default alpha
@@ -1053,6 +973,77 @@ class BitmapEditorScene(Scene):
         except IndexError:
             pass
 
+    def _sample_canvas_pixel(
+        self,
+        event: events.HashableEvent,
+        *,
+        is_shift_click: bool,
+    ) -> bool:
+        """Sample a pixel from the canvas and update sliders.
+
+        Args:
+            event: The mouse event with position.
+            is_shift_click: Whether shift was held during the click.
+
+        Returns:
+            True if a canvas pixel was sampled, False otherwise.
+
+        """
+        if not (
+            hasattr(self, 'canvas')
+            and self.canvas
+            and self.canvas.rect is not None  # pyright: ignore[reportUnnecessaryComparison]
+            and self.canvas.rect.collidepoint(event.pos)
+        ):
+            return False
+
+        if is_shift_click:
+            # Shift-right-click: sample screen directly (RGB only)
+            self.log.info('Shift-right-click detected on canvas - sampling screen directly')
+            self._slider_manager.sample_color_from_screen(event.pos)
+            return True
+
+        # Regular right-click: sample from canvas pixel data (RGBA)
+        canvas_x = (event.pos[0] - self.canvas.rect.x) // self.canvas.pixel_width
+        canvas_y = (event.pos[1] - self.canvas.rect.y) // self.canvas.pixel_height
+
+        if not (
+            0 <= canvas_x < self.canvas.pixels_across and 0 <= canvas_y < self.canvas.pixels_tall
+        ):
+            return False
+
+        pixel_num = canvas_y * self.canvas.pixels_across + canvas_x
+        if pixel_num >= len(self.canvas.pixels):
+            return False
+
+        color: tuple[int, ...] = self.canvas.pixels[pixel_num]  # type: ignore[assignment]
+
+        # Handle both RGB and RGBA pixel formats
+        if len(color) == RGBA_COMPONENT_COUNT:  # type: ignore[reportUnknownArgumentType]
+            red, green, blue, alpha = (
+                int(color[0]),  # pyright: ignore[reportUnknownArgumentType]
+                int(color[1]),  # pyright: ignore[reportUnknownArgumentType]
+                int(color[2]),  # pyright: ignore[reportUnknownArgumentType]
+                int(color[3]),  # pyright: ignore[reportUnknownArgumentType]
+            )
+        else:
+            red, green, blue = int(color[0]), int(color[1]), int(color[2])  # type: ignore[reportUnknownArgumentType]
+            alpha = 255  # Default to opaque for RGB pixels
+
+        self.log.info(
+            'Canvas pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s',
+            red,
+            green,
+            blue,
+            alpha,
+        )
+
+        # Update all sliders with the sampled RGBA values
+        for name, value in [('R', red), ('G', green), ('B', blue), ('A', alpha)]:
+            trigger = events.HashableEvent(0, name=name, value=value)
+            self.on_slider_event(event=event, trigger=trigger)
+        return True
+
     @override
     def on_left_mouse_button_down_event(self: Self, event: events.HashableEvent) -> None:
         """Handle the left mouse button down event.
@@ -1067,21 +1058,8 @@ class BitmapEditorScene(Scene):
         sprites = self.sprites_at_position(pos=event.pos)
 
         # Check for clicks on scroll arrows first (only if visible)
-        for sprite in sprites:
-            if hasattr(sprite, 'direction') and hasattr(sprite, 'visible') and sprite.visible:
-                LOG.debug(
-                    f'Scroll arrow clicked: direction={sprite.direction}, visible={sprite.visible}',
-                )
-                if sprite.direction == 'up':
-                    # Clicked on up arrow - navigate to previous animation and scroll if needed
-                    LOG.debug('Navigating to previous animation')
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.previous_animation()
-                        # Scroll to show the current animation if needed
-                        self.film_strip_coordinator.scroll_to_current_animation()
-                        # Update film strips to reflect the animation change
-                        self.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
-                    return
+        if self._handle_scroll_arrow_click(sprites):
+            return
 
         # Check if click is on any slider text box and deactivate others
         clicked_slider = self._slider_manager.detect_clicked_slider(event.pos)
@@ -1092,7 +1070,9 @@ class BitmapEditorScene(Scene):
             slider_attr = f'{slider_name}_slider'
             if hasattr(self, slider_attr):
                 self._slider_manager.commit_and_deactivate_slider(
-                    getattr(self, slider_attr), clicked_slider, slider_name,
+                    getattr(self, slider_attr),
+                    clicked_slider,
+                    slider_name,
                 )
 
         # If a slider text box was clicked, also trigger the slider's normal behavior
@@ -1114,6 +1094,30 @@ class BitmapEditorScene(Scene):
                 f'Started film strip drag at Y={event.pos[1]},'
                 f' offset={self.film_strip_scroll_offset}',
             )
+
+    def _handle_scroll_arrow_click(self, sprites: list[Any]) -> bool:
+        """Handle clicks on scroll arrow sprites.
+
+        Args:
+            sprites: List of sprites at the click position.
+
+        Returns:
+            True if a scroll arrow was clicked and handled.
+
+        """
+        for sprite in sprites:
+            if hasattr(sprite, 'direction') and hasattr(sprite, 'visible') and sprite.visible:
+                LOG.debug(
+                    f'Scroll arrow clicked: direction={sprite.direction}, visible={sprite.visible}',
+                )
+                if sprite.direction == 'up':
+                    LOG.debug('Navigating to previous animation')
+                    if hasattr(self, 'canvas') and self.canvas:
+                        self.canvas.previous_animation()
+                        self.film_strip_coordinator.scroll_to_current_animation()
+                        self.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
+                    return True
+        return False
 
     def on_tab_change_event(self, tab_format: str) -> None:
         """Handle tab control format change by delegating to SliderManager."""
@@ -1184,7 +1188,7 @@ class BitmapEditorScene(Scene):
             pass
 
     @override
-    def on_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:  # type: ignore[override]
+    def on_mouse_button_up_event(self: Self, event: events.HashableEvent) -> None:
         """Handle mouse button up events."""
         # Check if debug text box should handle the event
         if (
@@ -1244,7 +1248,7 @@ class BitmapEditorScene(Scene):
                 sprite.on_mouse_drag_event(event, trigger)
 
     @override
-    def on_mouse_motion_event(self: Self, event: events.HashableEvent) -> None:  # type: ignore[override]
+    def on_mouse_motion_event(self: Self, event: events.HashableEvent) -> None:
         """Handle mouse motion events.
 
         Args:
@@ -1405,7 +1409,8 @@ class BitmapEditorScene(Scene):
 
         """
         surface = pygame.Surface(
-            (self.canvas.pixels_across, self.canvas.pixels_tall), pygame.SRCALPHA,
+            (self.canvas.pixels_across, self.canvas.pixels_tall),
+            pygame.SRCALPHA,
         )
         for y in range(self.canvas.pixels_tall):
             for x in range(self.canvas.pixels_across):
@@ -1433,7 +1438,9 @@ class BitmapEditorScene(Scene):
         # Also update the frame.image surface for film strip thumbnails with alpha support
         frame.image = self._build_surface_from_canvas_pixels()
         self.log.debug(
-            'Committed panned pixels and image to frame %s[%s]', current_animation, current_frame,
+            'Committed panned pixels and image to frame %s[%s]',
+            current_animation,
+            current_frame,
         )
 
     def _commit_panned_film_strip_frame(self, current_animation: str, current_frame: int) -> None:
@@ -1470,7 +1477,9 @@ class BitmapEditorScene(Scene):
         # Also update the film strip frame's image surface with alpha support
         film_strip_frame.image = self._build_surface_from_canvas_pixels()
         self.log.debug(
-            'Updated film strip animated sprite frame %s[%s] with pixels and image', current_animation, current_frame,
+            'Updated film strip animated sprite frame %s[%s] with pixels and image',
+            current_animation,
+            current_frame,
         )
 
     def _commit_panned_buffer(self) -> None:
@@ -1545,7 +1554,7 @@ class BitmapEditorScene(Scene):
                 return None
         return False
 
-    def _handle_ctrl_key_shortcuts(self, event: events.HashableEvent, mod: int) -> bool:
+    def _handle_ctrl_key_shortcuts(self, event: events.HashableEvent, mod: int) -> bool:  # noqa: PLR0911
         """Handle Ctrl-based keyboard shortcuts (undo, redo, copy, paste, panning).
 
         Args:
@@ -1656,18 +1665,29 @@ class BitmapEditorScene(Scene):
         # Check if debug text box is active and handle text input
         if hasattr(self, 'debug_text') and self.debug_text.active:
             self.debug_text.on_key_down_event(event)
-            return None
+            return
 
         # Check if any slider text box is active and handle text input
         slider_result = self._slider_manager.handle_slider_text_input(event)
         if slider_result is not False:
-            return slider_result  # type: ignore[return-value]
+            return
 
         # Check if any film strip is in text editing mode and handle text input
         film_strip_result = self._handle_film_strip_text_input(event)
         if film_strip_result is not False:
-            return film_strip_result  # type: ignore[return-value]
+            return
 
+        # Handle onion skinning toggle, ctrl shortcuts, slider navigation,
+        # arrow keys, or route to canvas
+        self._handle_key_down_actions(event)
+
+    def _handle_key_down_actions(self, event: events.HashableEvent) -> None:
+        """Handle remaining key-down actions after text input checks.
+
+        Args:
+            event: The key down event.
+
+        """
         # Handle onion skinning keyboard shortcuts
         if event.key == pygame.K_o:
             self.log.debug('O key pressed - toggling global onion skinning')
@@ -1679,34 +1699,30 @@ class BitmapEditorScene(Scene):
             # Force canvas redraw to show/hide onion skinning
             if hasattr(self, 'canvas') and self.canvas:
                 self.canvas.force_redraw()
-            return None
+            return
 
         # Handle undo/redo and Ctrl-based keyboard shortcuts
-        # Get modifier keys from HashableEvent (which wraps pygame events)
         mod = getattr(event, 'mod', 0)
         if self._handle_ctrl_key_shortcuts(event, mod):
-            return None
+            return
 
         # Handle slider mode navigation with arrow keys
         if self._slider_manager.is_any_controller_in_slider_mode():
             if event.key == pygame.K_UP:
                 self.log.debug('UP arrow pressed - navigating to previous slider mode')
                 self.controller_handler.handle_slider_mode_navigation('up')
-                return None
-            if event.key == pygame.K_DOWN:
+            elif event.key == pygame.K_DOWN:
                 self.log.debug('DOWN arrow pressed - navigating to next slider mode')
                 self.controller_handler.handle_slider_mode_navigation('down')
-            return None
+            return
 
         # Handle animation navigation and film strip scrolling (UP/DOWN arrows)
         if self._handle_arrow_key_navigation(event):
-            return None
+            return
 
         # Route to canvas or parent (only if not in slider mode)
         if not self._slider_manager.is_any_controller_in_slider_mode():
             self._route_to_canvas_or_parent(event)
-
-        return None
 
     def handle_undo(self) -> None:
         """Handle undo operation."""
@@ -1727,14 +1743,18 @@ class BitmapEditorScene(Scene):
                 success = self.undo_redo_manager.undo_frame(current_animation, current_frame)
                 if success:
                     self.log.info(
-                        'Frame-specific undo successful for %s[%s]', current_animation, current_frame,
+                        'Frame-specific undo successful for %s[%s]',
+                        current_animation,
+                        current_frame,
                     )
                     # Force canvas redraw to show the undone changes
                     if hasattr(self, 'canvas') and self.canvas:
                         self.canvas.force_redraw()
                     return
                 self.log.warning(
-                    'Frame-specific undo failed for %s[%s]', current_animation, current_frame,
+                    'Frame-specific undo failed for %s[%s]',
+                    current_animation,
+                    current_frame,
                 )
             else:
                 self.log.warning('No frame-specific undo operations available')
@@ -1777,14 +1797,17 @@ class BitmapEditorScene(Scene):
         current_frame = getattr(self.canvas, 'current_frame', None)
 
         self.log.debug(
-            'Canvas state before sync: animation=%s, frame=%s', current_animation, current_frame,
+            'Canvas state before sync: animation=%s, frame=%s',
+            current_animation,
+            current_frame,
         )
         self.log.debug(f'Available animations: {list(animations.keys())}')
 
         # Check if current animation still exists
         if current_animation not in animations:
             self.log.warning(
-                "Current animation '%s' no longer exists, switching to first available", current_animation,
+                "Current animation '%s' no longer exists, switching to first available",
+                current_animation,
             )
             if animations:
                 # Switch to the first available animation
@@ -1810,7 +1833,9 @@ class BitmapEditorScene(Scene):
 
         # If we get here, the canvas state is valid
         self.log.debug(
-            "Canvas state is valid: animation='%s', frame=%s", current_animation, current_frame,
+            "Canvas state is valid: animation='%s', frame=%s",
+            current_animation,
+            current_frame,
         )
 
         # Force a complete canvas refresh to ensure everything is in sync
@@ -1819,7 +1844,8 @@ class BitmapEditorScene(Scene):
         # Update film strips to reflect the current state
         if hasattr(self, 'update_film_strips_for_frame'):
             self.film_strip_coordinator.update_film_strips_for_frame(
-                current_animation, current_frame,
+                current_animation,
+                current_frame,
             )
 
     def handle_redo(self) -> None:
@@ -1841,14 +1867,18 @@ class BitmapEditorScene(Scene):
                 success = self.undo_redo_manager.redo_frame(current_animation, current_frame)
                 if success:
                     self.log.info(
-                        'Frame-specific redo successful for %s[%s]', current_animation, current_frame,
+                        'Frame-specific redo successful for %s[%s]',
+                        current_animation,
+                        current_frame,
                     )
                     # Force canvas redraw to show the redone changes
                     if hasattr(self, 'canvas') and self.canvas:
                         self.canvas.force_redraw()
                     return
                 self.log.warning(
-                    'Frame-specific redo failed for %s[%s]', current_animation, current_frame,
+                    'Frame-specific redo failed for %s[%s]',
+                    current_animation,
+                    current_frame,
                 )
             else:
                 self.log.warning('No frame-specific redo operations available')
@@ -1944,7 +1974,7 @@ class BitmapEditorScene(Scene):
 
         self.log.debug("Copied frame %s from animation '%s' to clipboard", frame, animation)
 
-    def _handle_paste_frame(self) -> None:
+    def _handle_paste_frame(self) -> None:  # noqa: PLR0911
         """Handle pasting a frame from clipboard to the current frame."""
         if not hasattr(self, 'canvas') or not self.canvas:
             self.log.warning('No canvas available for frame pasting')
@@ -1988,7 +2018,11 @@ class BitmapEditorScene(Scene):
 
         if clipboard_width != target_width or clipboard_height != target_height:
             self.log.warning(
-                'Cannot paste frame: dimension mismatch (clipboard: %sx%s, target: %sx%s)', clipboard_width, clipboard_height, target_width, target_height,
+                'Cannot paste frame: dimension mismatch (clipboard: %sx%s, target: %sx%s)',
+                clipboard_width,
+                clipboard_height,
+                target_width,
+                target_height,
             )
             return
 
@@ -2046,16 +2080,20 @@ class BitmapEditorScene(Scene):
                 self.canvas_operation_tracker.add_frame_pixel_changes(
                     current_animation,
                     current_frame,
-                    pixel_changes_list,  # type: ignore[arg-type]
+                    pixel_changes_list,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
                 )
                 self.log.debug(
-                    'Submitted %s pixel changes for frame %s[%s] undo/redo tracking', pixel_count, current_animation, current_frame,
+                    'Submitted %s pixel changes for frame %s[%s] undo/redo tracking',
+                    pixel_count,
+                    current_animation,
+                    current_frame,
                 )
             else:
                 # Fall back to global tracking
-                self.canvas_operation_tracker.add_pixel_changes(pixel_changes_list)  # type: ignore[arg-type]
+                self.canvas_operation_tracker.add_pixel_changes(pixel_changes_list)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
                 self.log.debug(
-                    'Submitted %s pixel changes for global undo/redo tracking', pixel_count,
+                    'Submitted %s pixel changes for global undo/redo tracking',
+                    pixel_count,
                 )
 
             # Clear both collections after submission
@@ -2098,7 +2136,10 @@ class BitmapEditorScene(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
         parser.add_argument('-s', '--size', default='32x32')
 
@@ -2111,7 +2152,7 @@ class BitmapEditorScene(Scene):
         self.on_key_down_event(event)
 
     @override
-    def on_drop_file_event(self, event: events.HashableEvent) -> None:  # type: ignore[override]
+    def on_drop_file_event(self, event: events.HashableEvent) -> None:
         """Handle drop file event by delegating to FileIOManager."""
         self._file_io.on_drop_file_event(event)
 
@@ -2138,7 +2179,7 @@ class BitmapEditorScene(Scene):
                     self.confirmation_dialog = None  # Clear reference after handling
                     return  # Event handled, don't pass to other handlers
 
-        super().handle_event(event)  # type: ignore[arg-type]
+        super().handle_event(event)  # type: ignore[arg-type] # ty: ignore[unresolved-attribute]
 
         if event.type == pygame.WINDOWLEAVE:
             # Notify sprites that mouse left window
@@ -2214,11 +2255,16 @@ class BitmapEditorScene(Scene):
         self.film_strip_coordinator.update_scroll_arrows()
 
     def on_film_strip_frame_selected(
-        self, film_strip_widget: FilmStripWidget, animation: str, frame: int,
+        self,
+        film_strip_widget: FilmStripWidget,
+        animation: str,
+        frame: int,
     ) -> None:
         """Delegate to FilmStripCoordinator."""
         self.film_strip_coordinator.on_film_strip_frame_selected(
-            film_strip_widget, animation, frame,
+            film_strip_widget,
+            animation,
+            frame,
         )
 
     def update_film_strip_selection_state(self) -> None:
@@ -2279,22 +2325,22 @@ class BitmapEditorScene(Scene):
         self.controller_handler.on_joy_button_up_event(event)
 
     @override
-    def on_joy_hat_motion_event(self, event: events.HashableEvent) -> None:  # type: ignore[override]
+    def on_joy_hat_motion_event(self, event: events.HashableEvent) -> None:
         """Handle joystick hat motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_hat_motion_event(event)
 
     @override
-    def on_joy_axis_motion_event(self, event: events.HashableEvent) -> None:  # type: ignore[override]
+    def on_joy_axis_motion_event(self, event: events.HashableEvent) -> None:
         """Handle joystick axis motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_axis_motion_event(event)
 
     @override
-    def on_joy_ball_motion_event(self, event: events.HashableEvent) -> None:  # type: ignore[override]
+    def on_joy_ball_motion_event(self, event: events.HashableEvent) -> None:
         """Handle joystick ball motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_joy_ball_motion_event(event)
 
     @override
-    def on_controller_axis_motion_event(self, event: events.HashableEvent) -> None:  # type: ignore[override]
+    def on_controller_axis_motion_event(self, event: events.HashableEvent) -> None:
         """Handle controller axis motion events by delegating to ControllerEventHandler."""
         self.controller_handler.on_controller_axis_motion_event(event)
 
@@ -2309,14 +2355,14 @@ def main() -> None:
     LOG.setLevel(logging.INFO)
 
     # Set up signal handling to prevent multiprocessing issues on macOS
-    def signal_handler(signum: int) -> None:
+    def signal_handler(signum: int, _frame: types.FrameType | None) -> None:
         """Handle shutdown signals gracefully."""
         LOG.info(f'Received signal {signum}, shutting down gracefully...')
         sys.exit(0)
 
     # Register signal handlers
-    signal.signal(signal.SIGINT, signal_handler)  # type: ignore[arg-type]
-    signal.signal(signal.SIGTERM, signal_handler)  # type: ignore[arg-type]
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     # Set multiprocessing start method to avoid macOS issues
     with contextlib.suppress(RuntimeError):

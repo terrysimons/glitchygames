@@ -33,7 +33,7 @@ def _sprite_has_per_pixel_alpha(sprite: AnimatedSprite | object) -> bool:
     if not hasattr(sprite, '_animations'):
         return False
 
-    for frames in sprite._animations.values():  # type: ignore[union-attr]
+    for frames in sprite._animations.values():  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
         for frame in frames:  # type: ignore[reportUnknownVariableType]
             for pixel in frame.get_pixel_data():  # type: ignore[reportUnknownMemberType]
                 if len(pixel) == RGBA_COMPONENT_COUNT and pixel[3] != MAX_COLOR_CHANNEL_VALUE:  # type: ignore[reportUnknownArgumentType]
@@ -58,7 +58,8 @@ def _pixels_have_alpha(pixels: list[tuple[int, ...]]) -> bool:
 
 
 def _render_static_sprite_ascii(
-    sprite: AnimatedSprite | BitmappySprite, renderer: ASCIIRenderer,
+    sprite: AnimatedSprite | BitmappySprite,
+    renderer: ASCIIRenderer,
 ) -> None:
     """Render ASCII output for a single-frame (static) sprite.
 
@@ -68,7 +69,7 @@ def _render_static_sprite_ascii(
 
     """
     try:
-        first_anim = next(iter(sprite._animations.values()))  # type: ignore[union-attr]
+        first_anim = next(iter(sprite._animations.values()))  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
         first_frame = first_anim[0] if first_anim else None
         if first_frame:
             ascii_output = render_frame_to_ascii(first_frame, renderer)
@@ -79,7 +80,8 @@ def _render_static_sprite_ascii(
 
 
 def _render_animated_sprite_ascii(
-    sprite: AnimatedSprite | BitmappySprite, renderer: ASCIIRenderer,
+    sprite: AnimatedSprite | BitmappySprite,
+    renderer: ASCIIRenderer,
 ) -> None:
     """Render ASCII output for all animation frames side-by-side.
 
@@ -89,7 +91,7 @@ def _render_animated_sprite_ascii(
 
     """
     try:
-        for anim_name, frames in sprite._animations.items():  # type: ignore[union-attr]
+        for anim_name, frames in sprite._animations.items():  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
             if frames:
                 LOG.info('  Animation: "%s" (%d frames)', anim_name, len(frames))  # type: ignore[arg-type]
                 ascii_output = render_frames_side_by_side(frames, renderer)  # type: ignore[arg-type]
@@ -110,9 +112,9 @@ def _get_sprite_color_count(sprite: AnimatedSprite | BitmappySprite) -> int:
 
     """
     if hasattr(sprite, 'color_map'):
-        return len(sprite.color_map)  # type: ignore[union-attr]
+        return len(sprite.color_map)  # type: ignore[union-attr] # ty: ignore[invalid-argument-type]
     if hasattr(sprite, '_color_map'):
-        return len(sprite._color_map)  # type: ignore[reportPrivateUsage]
+        return len(sprite._color_map)  # type: ignore[reportPrivateUsage] # ty: ignore[invalid-argument-type]
     return 0
 
 
@@ -129,7 +131,7 @@ def _get_sprite_alpha_type(sprite: AnimatedSprite | BitmappySprite) -> str:
     if not hasattr(sprite, 'color_map'):
         return 'indexed'
 
-    for color_value in sprite.color_map.values():  # type: ignore[union-attr]
+    for color_value in sprite.color_map.values():  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
         if isinstance(color_value, (list, tuple)) and len(color_value) >= RGBA_COMPONENT_COUNT:  # type: ignore[arg-type]
             alpha = color_value[3]  # type: ignore[index]
             if isinstance(alpha, (int, float)) and 0 <= alpha <= MAX_PER_PIXEL_ALPHA:
@@ -138,7 +140,8 @@ def _get_sprite_alpha_type(sprite: AnimatedSprite | BitmappySprite) -> str:
 
 
 def _calculate_animation_duration(
-    sprite: AnimatedSprite | BitmappySprite, sprite_type: str,
+    sprite: AnimatedSprite | BitmappySprite,
+    sprite_type: str,
 ) -> tuple[float, bool]:
     """Calculate total animation duration and loop status.
 
@@ -155,7 +158,7 @@ def _calculate_animation_duration(
     if sprite_type != 'animated' or not hasattr(sprite, '_animations'):
         return total_duration, is_looped
 
-    for frames in sprite._animations.values():  # type: ignore[union-attr]
+    for frames in sprite._animations.values():  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
         if hasattr(sprite, 'is_looping') and sprite.is_looping:  # type: ignore[union-attr]
             is_looped = True
         for frame in frames:  # type: ignore[union-attr]

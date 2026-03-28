@@ -695,21 +695,30 @@ class TestTrackControllerDragPixel:
         """Test no-op when controller_drags attribute is missing."""
         del mock_editor.controller_handler.controller_drags
         mock_editor.controller_handler._track_controller_drag_pixel(
-            0, (1, 2), (255, 0, 0), (0, 0, 0),
+            0,
+            (1, 2),
+            (255, 0, 0),
+            (0, 0, 0),
         )
 
     def test_controller_not_in_drags(self, mock_editor):
         """Test no-op when controller_id is not tracked."""
         mock_editor.controller_handler.controller_drags = {}
         mock_editor.controller_handler._track_controller_drag_pixel(
-            0, (1, 2), (255, 0, 0), (0, 0, 0),
+            0,
+            (1, 2),
+            (255, 0, 0),
+            (0, 0, 0),
         )
 
     def test_drag_not_active(self, mock_editor):
         """Test no-op when drag is not active."""
         mock_editor.controller_handler.controller_drags = {0: {'active': False, 'pixels_drawn': []}}
         mock_editor.controller_handler._track_controller_drag_pixel(
-            0, (1, 2), (255, 0, 0), (0, 0, 0),
+            0,
+            (1, 2),
+            (255, 0, 0),
+            (0, 0, 0),
         )
         assert len(mock_editor.controller_handler.controller_drags[0]['pixels_drawn']) == 0
 
@@ -717,7 +726,10 @@ class TestTrackControllerDragPixel:
         """Test that pixel info is appended when drag is active."""
         mock_editor.controller_handler.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
         mock_editor.controller_handler._track_controller_drag_pixel(
-            0, (3, 4), (255, 0, 0), (0, 0, 0),
+            0,
+            (3, 4),
+            (255, 0, 0),
+            (0, 0, 0),
         )
         pixels = mock_editor.controller_handler.controller_drags[0]['pixels_drawn']
         assert isinstance(pixels, list)
@@ -731,13 +743,22 @@ class TestTrackControllerDragPixel:
         """Test that multiple pixels can be tracked."""
         mock_editor.controller_handler.controller_drags = {0: {'active': True, 'pixels_drawn': []}}
         mock_editor.controller_handler._track_controller_drag_pixel(
-            0, (0, 0), (255, 0, 0), (0, 0, 0),
+            0,
+            (0, 0),
+            (255, 0, 0),
+            (0, 0, 0),
         )
         mock_editor.controller_handler._track_controller_drag_pixel(
-            0, (1, 0), (0, 255, 0), (0, 0, 0),
+            0,
+            (1, 0),
+            (0, 255, 0),
+            (0, 0, 0),
         )
         mock_editor.controller_handler._track_controller_drag_pixel(
-            0, (2, 0), (0, 0, 255), (0, 0, 0),
+            0,
+            (2, 0),
+            (0, 0, 255),
+            (0, 0, 0),
         )
         assert len(mock_editor.controller_handler.controller_drags[0]['pixels_drawn']) == 3
 
@@ -927,7 +948,9 @@ class TestTrackControllerModeChange:
         mock_editor.mode_switcher.get_controller_mode.return_value = old_mode
         mock_editor.controller_handler._track_controller_mode_change(0, new_mode)
         mock_editor.controller_position_operation_tracker.add_controller_mode_change.assert_called_once_with(
-            0, 'film_strip', 'canvas',
+            0,
+            'film_strip',
+            'canvas',
         )
 
     def test_no_old_mode_does_not_track(self, mock_editor, mocker):

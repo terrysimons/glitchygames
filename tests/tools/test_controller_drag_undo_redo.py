@@ -37,10 +37,12 @@ class TestControllerDragUndoRedo:
         # Set up undo/redo manager
         scene.undo_redo_manager = UndoRedoManager()
         scene.canvas_operation_tracker = CanvasOperationTracker(
-            scene.undo_redo_manager, editor=scene,
+            scene.undo_redo_manager,
+            editor=scene,
         )
         scene.film_strip_operation_tracker = FilmStripOperationTracker(
-            scene.undo_redo_manager, editor=scene,
+            scene.undo_redo_manager,
+            editor=scene,
         )
 
         # Set up pixel change tracking
@@ -91,7 +93,8 @@ class TestControllerDragUndoRedo:
         for x, y in positions:
             # Mock the controller position
             mock_scene.mode_switcher.get_controller_position.return_value = mocker.Mock(
-                is_valid=True, position=(x, y),
+                is_valid=True,
+                position=(x, y),
             )
 
             # Simulate the actual canvas_paint_at_controller_position logic

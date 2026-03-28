@@ -29,7 +29,7 @@ for path in sorted(Path(src / 'glitchygames').rglob('*.py')):
     doc_path = doc_path.relative_to(src).with_suffix('')
     LOG.info('Doc path: %s', doc_path)
 
-    # TODO: This is a hack to fix the path for the docs.  It should be fixed in the future.
+    # Separate copy for mkdocs_gen_files.open (may diverge from nav doc_path)
     full_doc_path: Path = Path(doc_path)
     LOG.info('Full doc path: %s', full_doc_path)
 

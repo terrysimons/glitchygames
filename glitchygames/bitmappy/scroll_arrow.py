@@ -10,8 +10,9 @@ from glitchygames.sprites import BitmappySprite
 class ScrollArrowSprite(BitmappySprite):
     """Sprite for scroll arrows."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
+        *,
         x: int = 0,
         y: int = 0,
         width: int = 20,

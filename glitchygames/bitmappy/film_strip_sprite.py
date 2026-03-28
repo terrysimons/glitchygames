@@ -49,9 +49,10 @@ class FilmStripSprite(BitmappySprite):
     - If wrong timing: Verify delta time is being passed from scene update loop
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         film_strip_widget: FilmStripWidget,
+        *,
         x: int = 0,
         y: int = 0,
         width: int = 800,
@@ -178,7 +179,8 @@ class FilmStripSprite(BitmappySprite):
                 f' shift={is_shift_click}',
             )
             clicked_frame = self.film_strip_widget.handle_click(
-                (film_x, film_y), is_shift_click=is_shift_click,
+                (film_x, film_y),
+                is_shift_click=is_shift_click,
             )
             LOG.debug(f'FilmStripSprite: Clicked frame: {clicked_frame}')
 
@@ -193,7 +195,9 @@ class FilmStripSprite(BitmappySprite):
                 # Notify the parent scene about the selection change
                 if hasattr(self, 'parent_scene') and self.parent_scene:
                     self.parent_scene.on_film_strip_frame_selected(
-                        self.film_strip_widget, animation, frame_idx,
+                        self.film_strip_widget,
+                        animation,
+                        frame_idx,
                     )
             else:
                 LOG.debug('FilmStripSprite: No frame clicked, handle_click returned None')
@@ -201,11 +205,11 @@ class FilmStripSprite(BitmappySprite):
             LOG.debug('FilmStripSprite: Click is outside bounds or no widget')
 
     @override
-    def on_right_mouse_button_up_event(self, event: events.HashableEvent) -> bool | None:  # type: ignore[override]
+    def on_right_mouse_button_up_event(self, event: events.HashableEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
         """Handle right mouse clicks on the film strip for onion skinning and color sampling.
 
         Returns:
-            object: The result.
+            bool | None: True if the event was handled, False if not, None if not applicable.
 
         """
         LOG.info(f'FilmStripSprite: Right mouse UP at {event.pos}, rect: {self.rect}')
@@ -253,7 +257,8 @@ class FilmStripSprite(BitmappySprite):
                 f' right_click=True',
             )
             clicked_frame = self.film_strip_widget.handle_click(
-                (film_x, film_y), is_right_click=True,
+                (film_x, film_y),
+                is_right_click=True,
             )
             LOG.debug(f'FilmStripSprite: Right-clicked frame: {clicked_frame}')
             return True  # Event was handled
@@ -261,7 +266,9 @@ class FilmStripSprite(BitmappySprite):
         return False  # Event not handled
 
     def _get_frame_pixel_data(
-        self, animation: str, frame_idx: int,
+        self,
+        animation: str,
+        frame_idx: int,
     ) -> tuple[Any, list[tuple[int, ...]]] | None:
         """Get pixel data and frame object for a specific animation frame.
 
@@ -402,7 +409,11 @@ class FilmStripSprite(BitmappySprite):
         )
 
     def _sample_color_from_frame(
-        self, animation: str, frame_idx: int, film_x: int, film_y: int,
+        self,
+        animation: str,
+        frame_idx: int,
+        film_x: int,
+        film_y: int,
     ) -> None:
         """Sample color from a sprite frame pixel data.
 
@@ -426,7 +437,11 @@ class FilmStripSprite(BitmappySprite):
                 return
 
             pixel_coords = self._screen_to_pixel_coords(
-                film_x, film_y, frame_layout, actual_width, actual_height,
+                film_x,
+                film_y,
+                frame_layout,
+                actual_width,
+                actual_height,
             )
             if pixel_coords is None:
                 return
@@ -459,11 +474,11 @@ class FilmStripSprite(BitmappySprite):
             LOG.exception('FilmStripSprite: Error sampling color from frame')
 
     @override
-    def on_key_down_event(self, event: events.HashableEvent) -> bool | None:  # type: ignore[override]
+    def on_key_down_event(self, event: events.HashableEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
         """Handle keyboard events for copy/paste functionality.
 
         Returns:
-            object: The result.
+            bool | None: True if the event was handled, False if not, None if not applicable.
 
         """
         if not self.film_strip_widget:
@@ -647,6 +662,23 @@ class FilmStripSprite(BitmappySprite):
         # Mark this sprite as dirty to trigger redraw
         self.dirty = 1
 
+    def _get_canvas_dimensions(self) -> tuple[int, int]:
+        """Get the current canvas dimensions for image resizing.
+
+        Returns:
+            Tuple of (width, height) for the canvas.
+
+        """
+        if hasattr(self, 'parent_canvas') and self.parent_canvas:
+            return self.parent_canvas.pixels_across, self.parent_canvas.pixels_tall
+        if (
+            hasattr(self, 'parent_scene')
+            and self.parent_scene
+            and hasattr(self.parent_scene, 'canvas')
+        ):
+            return self.parent_scene.canvas.pixels_across, self.parent_scene.canvas.pixels_tall
+        return 32, 32  # Default fallback
+
     def _convert_image_to_sprite_frame(self, file_path: str) -> SpriteFrame | None:
         """Convert an image file to a SpriteFrame.
 
@@ -662,17 +694,7 @@ class FilmStripSprite(BitmappySprite):
             image = pygame.image.load(file_path)
 
             # Get current canvas size for resizing
-            canvas_width, canvas_height = 32, 32  # Default fallback
-            if hasattr(self, 'parent_canvas') and self.parent_canvas:
-                canvas_width = self.parent_canvas.pixels_across
-                canvas_height = self.parent_canvas.pixels_tall
-            elif (
-                hasattr(self, 'parent_scene')
-                and self.parent_scene
-                and hasattr(self.parent_scene, 'canvas')
-            ):
-                canvas_width = self.parent_scene.canvas.pixels_across
-                canvas_height = self.parent_scene.canvas.pixels_tall
+            canvas_width, canvas_height = self._get_canvas_dimensions()
 
             # Resize image to match canvas size
             if image.get_size() != (canvas_width, canvas_height):
@@ -692,7 +714,7 @@ class FilmStripSprite(BitmappySprite):
             pixels: list[tuple[int, ...]] = []
             if image.get_flags() & pygame.SRCALPHA:
                 # Image has alpha channel - use array4d to preserve alpha
-                pixel_array: Any = pygame.surfarray.array4d(image)  # type: ignore[attr-defined]
+                pixel_array: Any = pygame.surfarray.array4d(image)  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
                 for y in range(canvas_height):
                     for x in range(canvas_width):
                         r, g, b, a = pixel_array[x, y]  # type: ignore[index]
@@ -712,11 +734,12 @@ class FilmStripSprite(BitmappySprite):
             frame.set_pixel_data(pixels)
 
             LOG.debug('FilmStripSprite: Successfully converted image to sprite frame')
-            return frame
 
         except pygame.error, OSError, ValueError, AttributeError:
             LOG.exception(f'FilmStripSprite: Failed to convert image {file_path}')
             return None
+        else:
+            return frame
 
     def _should_update_canvas_frame(self, animation: str, frame_idx: int) -> bool:
         """Check if the canvas should be updated for a given animation frame.
@@ -785,13 +808,13 @@ class FilmStripSprite(BitmappySprite):
         LOG.debug(f'FilmStripSprite: Successfully replaced frame {animation}[{frame_idx}]')
         return True
 
-    def _insert_image_as_new_frame(self, file_path: str, film_x: int, film_y: int) -> bool:
+    def _insert_image_as_new_frame(self, file_path: str, _film_x: int, _film_y: int) -> bool:
         """Insert image as a new frame in the film strip.
 
         Args:
             file_path: Path to the image file.
-            film_x: X coordinate of drop position.
-            film_y: Y coordinate of drop position.
+            _film_x: X coordinate of drop position (unused, kept for API compatibility).
+            _film_y: Y coordinate of drop position (unused, kept for API compatibility).
 
         Returns:
             True if successful, False otherwise.
@@ -811,9 +834,8 @@ class FilmStripSprite(BitmappySprite):
             LOG.error('FilmStripSprite: No current animation selected')
             return False
 
-        # Determine insertion position based on drop location
-        # For now, insert at the end of the animation
-        # TODO: Could be enhanced to insert at specific position based on drop location
+        # Determine insertion position based on drop location.
+        # Currently inserts at the end; position-based insertion could be added later.
         assert self.film_strip_widget.animated_sprite is not None
         insert_index = len(self.film_strip_widget.animated_sprite._animations[current_animation])  # type: ignore[reportPrivateUsage]
 
@@ -829,7 +851,7 @@ class FilmStripSprite(BitmappySprite):
             and self.parent_scene
             and hasattr(self.parent_scene, 'on_frame_inserted')
         ):
-            self.parent_scene.on_frame_inserted(current_animation, insert_index)  # type: ignore[reportPrivateUsage]
+            self.parent_scene.on_frame_inserted(current_animation, insert_index)  # type: ignore[reportPrivateUsage] # ty: ignore[call-non-callable]
 
         # Select the newly created frame
         self.film_strip_widget.set_current_frame(current_animation, insert_index)

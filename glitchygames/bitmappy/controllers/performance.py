@@ -124,7 +124,10 @@ class CachedPositionManager:
         self.lock = threading.Lock()
 
     def get_position(
-        self, controller_id: int, animation: str, frame: int,
+        self,
+        controller_id: int,
+        animation: str,
+        frame: int,
     ) -> tuple[int, int] | None:
         """Get cached position.
 
@@ -147,7 +150,11 @@ class CachedPositionManager:
         return None
 
     def set_position(
-        self, controller_id: int, animation: str, frame: int, position: tuple[int, int],
+        self,
+        controller_id: int,
+        animation: str,
+        frame: int,
+        position: tuple[int, int],
     ) -> None:
         """Set cached position.
 

@@ -61,7 +61,11 @@ class TestSliderSpriteFunctionality:
 
         # Act
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Assert
@@ -87,7 +91,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Act
@@ -108,7 +116,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Act - set value below minimum
@@ -134,7 +146,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Create mock event
@@ -158,7 +174,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Start dragging
@@ -186,7 +206,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Start dragging
@@ -213,7 +237,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Create mock event for text box click
@@ -239,7 +267,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Activate text input
@@ -269,7 +301,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         original_value = slider.value
@@ -301,7 +337,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         original_value = slider.value
@@ -333,7 +373,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Activate text input
@@ -362,7 +406,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Activate text input
@@ -582,7 +630,11 @@ class TestSliderColorWellIntegration:
 
         # Create slider and color well
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Act - change slider value
@@ -604,7 +656,11 @@ class TestSliderColorWellIntegration:
 
         # Create RGB sliders
         red_slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='RedSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='RedSlider',
         )
         red_slider.value = 255
 
@@ -618,7 +674,11 @@ class TestSliderColorWellIntegration:
         green_slider.value = 128
 
         blue_slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS + 60, width=TEST_WIDTH, height=TEST_HEIGHT, name='BlueSlider',
+            x=TEST_X_POS,
+            y=TEST_Y_POS + 60,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='BlueSlider',
         )
         blue_slider.value = 64
 

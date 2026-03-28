@@ -44,7 +44,7 @@ class Game(Scene):
         if groups is None:
             groups = pygame.sprite.Group()
 
-        super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
+        super().__init__(options=options, groups=groups)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         # These are set up in the GameEngine class.
         self.log.info('Game Options: %s', options)
         self.fps: float = 6.0
@@ -64,7 +64,10 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
     @override

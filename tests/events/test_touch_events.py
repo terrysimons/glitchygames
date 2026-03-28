@@ -70,19 +70,10 @@ class TestTouchEvents:
         # Test that stub methods can be called with proper game object
         self._setup_mock_game_for_stub(stub, mocker)
 
-        # Test method calls
+        # Test method calls — should raise UnhandledEventError (no logging before raise)
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100)
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             stub.on_touch_down_event(event)
-        # Expected to call unhandled_event and raise UnhandledEventError
-
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: FingerDown' in call_args
 
     def test_touch_down_event(self, mock_pygame_patches):
         """Test touch down event handling."""
@@ -215,7 +206,12 @@ class TestTouchEvents:
             event = HashableEvent(pygame.FINGERDOWN, finger_id=finger_id, x=100, y=100)
             scene.on_touch_down_event(event)
             event = HashableEvent(
-                pygame.FINGERMOTION, finger_id=finger_id, x=100, y=100, dx=10, dy=10,
+                pygame.FINGERMOTION,
+                finger_id=finger_id,
+                x=100,
+                y=100,
+                dx=10,
+                dy=10,
             )
             scene.on_touch_motion_event(event)
             event = HashableEvent(pygame.FINGERUP, finger_id=finger_id, x=100, y=100)
@@ -242,7 +238,13 @@ class TestTouchEvents:
         event = HashableEvent(pygame.FINGERDOWN, finger_id=1, x=100, y=100, pressure=0.8)
         scene.on_touch_down_event(event)
         event = HashableEvent(
-            pygame.FINGERMOTION, finger_id=1, x=100, y=100, dx=10, dy=10, pressure=0.6,
+            pygame.FINGERMOTION,
+            finger_id=1,
+            x=100,
+            y=100,
+            dx=10,
+            dy=10,
+            pressure=0.6,
         )
         scene.on_touch_motion_event(event)
         event = HashableEvent(pygame.FINGERUP, finger_id=1, x=100, y=100, pressure=0.0)
@@ -454,18 +456,36 @@ class TestTouchManager:
 
         # Test touch finger down
         touch_down_event = HashableEvent(
-            pygame.FINGERDOWN, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0,
+            pygame.FINGERDOWN,
+            touch_id=1,
+            finger_id=1,
+            x=100,
+            y=100,
+            dx=0,
+            dy=0,
         )
         manager.on_touch_finger_down_event(touch_down_event)
 
         # Test touch finger up
         touch_up_event = HashableEvent(
-            pygame.FINGERUP, touch_id=1, finger_id=1, x=100, y=100, dx=0, dy=0,
+            pygame.FINGERUP,
+            touch_id=1,
+            finger_id=1,
+            x=100,
+            y=100,
+            dx=0,
+            dy=0,
         )
         manager.on_touch_finger_up_event(touch_up_event)
 
         # Test touch finger motion
         touch_motion_event = HashableEvent(
-            pygame.FINGERMOTION, touch_id=1, finger_id=1, x=110, y=110, dx=10, dy=10,
+            pygame.FINGERMOTION,
+            touch_id=1,
+            finger_id=1,
+            x=110,
+            y=110,
+            dx=10,
+            dy=10,
         )
         manager.on_touch_finger_motion_event(touch_motion_event)

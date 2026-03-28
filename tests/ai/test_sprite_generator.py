@@ -23,7 +23,8 @@ class TestSpriteGenerationMessages:
     def test_basic_message_structure(self):
         """Test basic message structure is correct."""
         messages = build_sprite_generation_messages(
-            user_request='Create a red square', training_examples=None,
+            user_request='Create a red square',
+            training_examples=None,
         )
 
         assert len(messages) == 4
@@ -46,7 +47,9 @@ class TestSpriteGenerationMessages:
         ]
 
         messages = build_sprite_generation_messages(
-            user_request='Create a sprite', training_examples=examples, max_examples=3,
+            user_request='Create a sprite',
+            training_examples=examples,
+            max_examples=3,
         )
 
         # Check example is included in context
@@ -55,7 +58,9 @@ class TestSpriteGenerationMessages:
     def test_size_hint_injection(self):
         """Test that size hints are added to request."""
         messages = build_sprite_generation_messages(
-            user_request='Create a 32x32 sprite', training_examples=None, include_size_hint=True,
+            user_request='Create a 32x32 sprite',
+            training_examples=None,
+            include_size_hint=True,
         )
 
         last_message = messages[3]['content']
@@ -79,7 +84,9 @@ class TestSpriteGenerationMessages:
         examples = [{'name': f'sprite_{i}'} for i in range(10)]
 
         messages = build_sprite_generation_messages(
-            user_request='Create a sprite', training_examples=examples, max_examples=2,
+            user_request='Create a sprite',
+            training_examples=examples,
+            max_examples=2,
         )
 
         # Should only include 2 examples
@@ -447,7 +454,8 @@ class TestRefinementMessages:
         """Test basic refinement message structure."""
         last_sprite = '[sprite]\nname = "test"\npixels = "X"'
         messages = build_refinement_messages(
-            user_request='Make it bigger', last_sprite_content=last_sprite,
+            user_request='Make it bigger',
+            last_sprite_content=last_sprite,
         )
 
         assert len(messages) == 4
@@ -485,7 +493,9 @@ class TestRefinementMessages:
         """Test that refinement requests include the user's size request."""
         last_sprite = '[sprite]\nname = "test"\npixels = "X"'
         messages = build_refinement_messages(
-            user_request='Make it 32x32', last_sprite_content=last_sprite, include_size_hint=True,
+            user_request='Make it 32x32',
+            last_sprite_content=last_sprite,
+            include_size_hint=True,
         )
 
         last_message = messages[-1]['content']
@@ -535,7 +545,8 @@ pixels = "C"
 red = 255
 """
         messages = build_refinement_messages(
-            user_request='Make it red', last_sprite_content=last_sprite,
+            user_request='Make it red',
+            last_sprite_content=last_sprite,
         )
 
         last_message = messages[-1]['content']
@@ -763,7 +774,8 @@ class TestBuildSpriteGenerationMessages:
 
     def test_no_animation_hint(self):
         messages = build_sprite_generation_messages(
-            'Create an animated mushroom', include_animation_hint=False,
+            'Create an animated mushroom',
+            include_animation_hint=False,
         )
         assert 'ANIMATED' not in messages[-1]['content']
 

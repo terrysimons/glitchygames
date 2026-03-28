@@ -62,15 +62,19 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit',
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
         parser.add_argument(
-            '-b', '--balls', type=int, help='the number of balls to start with', default=1,
+            '-b',
+            '--balls',
+            type=int,
+            help='the number of balls to start with',
+            default=1,
         )
-
-    # def setup(self):
-    #     self.target_fps = 30
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
@@ -82,12 +86,6 @@ class Game(Scene):
             dt: The delta time (float).
 
         """
-        # self.dt = dt
-        # self.dt_timer += self.dt
-
-        # for sprite in self.all_sprites:
-        #     sprite.dt_tick(dt)
-
         if self.start:
             self.dt_timer += dt
             self.rect_pos += self.velocity * dt

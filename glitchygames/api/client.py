@@ -170,10 +170,11 @@ def extract_apng_frames(
         return response.json()
 
 
-def generate_sprite(
+def generate_sprite(  # noqa: PLR0913
     server_url: str,
     prompt: str,
     output_formats: list[str],
+    *,
     output_path: str | None = None,
     width: int | None = None,
     height: int | None = None,
@@ -371,9 +372,10 @@ def find_available_directory(base_dir: Path) -> Path:
     return parent / f'{name}-{timestamp}'
 
 
-def _save_extracted_frames(
+def _save_extracted_frames(  # noqa: PLR0913
     frame_entries: list[tuple[str, str, str, str]],
     extracted_dir: Path,
+    *,
     frame_count: int,
     frame_delay_ms: int,
     extract_scale: int,
@@ -426,10 +428,11 @@ def _save_extracted_frames(
     return saved_paths
 
 
-def save_files_locally(
+def save_files_locally(  # noqa: PLR0913
     response: dict[str, Any],
     output_path: str,
     output_formats: list[str],
+    *,
     animation_duration: float | None = None,
     extract_scale: int = 8,
     model_used: str | None = None,
@@ -585,6 +588,45 @@ def _save_apng_extracted_frames(response: dict[str, Any], output_path: str, apng
     LOG.info(f'Saved {len(saved_files)} frames to {output_dir}')
 
 
+def _process_extraction_response(
+    response: dict[str, Any],
+    parsed_args: argparse.Namespace,
+    apng_path: str,
+) -> int:
+    """Process a successful APNG extraction response.
+
+    Args:
+        response: The extraction API response
+        parsed_args: Parsed command line arguments
+        apng_path: Path to the original APNG file
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+
+    """
+    if not response.get('success'):
+        LOG.error(f'Extraction failed: {response.get("error", "Unknown error")}')
+        return 1
+
+    _log_extraction_metadata(response)
+
+    if parsed_args.output_path:
+        _save_apng_extracted_frames(response, parsed_args.output_path, apng_path)
+
+    # Output JSON to stdout if verbose or no output path
+    if parsed_args.verbose or not parsed_args.output_path:
+        import json
+
+        # Remove base64 data from output for readability unless verbose
+        output_data = response.copy()
+        if not parsed_args.verbose:
+            for frame in output_data.get('frames', []):
+                frame['png_base64'] = f'<{len(frame.get("png_base64", ""))} chars>'
+        print(json.dumps(output_data, indent=2))  # noqa: T201
+
+    return 0
+
+
 def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
     """Handle the --extract-frames command.
 
@@ -603,29 +645,6 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
             server_url=parsed_args.server_url,
             apng_path=apng_path,
         )
-
-        if not response.get('success'):
-            LOG.error(f'Extraction failed: {response.get("error", "Unknown error")}')
-            return 1
-
-        _log_extraction_metadata(response)
-
-        if parsed_args.output_path:
-            _save_apng_extracted_frames(response, parsed_args.output_path, apng_path)
-
-        # Output JSON to stdout if verbose or no output path
-        if parsed_args.verbose or not parsed_args.output_path:
-            import json
-
-            # Remove base64 data from output for readability unless verbose
-            output_data = response.copy()
-            if not parsed_args.verbose:
-                for frame in output_data.get('frames', []):
-                    frame['png_base64'] = f'<{len(frame.get("png_base64", ""))} chars>'
-            print(json.dumps(output_data, indent=2))  # noqa: T201
-
-        return 0
-
     except FileNotFoundError:
         LOG.error('APNG file not found: %s', apng_path)  # noqa: TRY400
         return 1
@@ -643,6 +662,26 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
 
             traceback.print_exc()
         return 1
+    else:
+        return _process_extraction_response(response, parsed_args, apng_path)
+
+
+def _log_generation_results(response: dict[str, Any]) -> None:
+    """Log metadata about a successfully generated sprite.
+
+    Args:
+        response: The generation API response
+
+    """
+    LOG.info(f'Generated sprite: {response.get("sprite_name")}')
+    if response.get('is_animated'):
+        LOG.info(f'  Animated: {response.get("frame_count")} frames')
+    if response.get('width') and response.get('height'):
+        LOG.info(f'  Size: {response.get("width")}x{response.get("height")} pixels')
+
+    # Display colorized ASCII preview of the sprite
+    if response.get('toml_content'):
+        display_sprite_ascii(response['toml_content'])
 
 
 def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: list[str]) -> int:
@@ -677,16 +716,7 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         LOG.error(f'Generation failed: {response.get("error", "Unknown error")}')
         return 1
 
-    # Display results
-    LOG.info(f'Generated sprite: {response.get("sprite_name")}')
-    if response.get('is_animated'):
-        LOG.info(f'  Animated: {response.get("frame_count")} frames')
-    if response.get('width') and response.get('height'):
-        LOG.info(f'  Size: {response.get("width")}x{response.get("height")} pixels')
-
-    # Display colorized ASCII preview of the sprite
-    if response.get('toml_content'):
-        display_sprite_ascii(response['toml_content'])
+    _log_generation_results(response)
 
     # Save files locally if output_path specified
     if parsed_args.output_path:

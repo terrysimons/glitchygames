@@ -75,7 +75,8 @@ class TestBallCollisionEnergyTransfer:
         if distance >= collision_distance:
             if ball1_speed_magnitude > 0 and ball2_speed_magnitude > 0:
                 speed_ratio = max(ball1_speed_magnitude, ball2_speed_magnitude) / min(
-                    ball1_speed_magnitude, ball2_speed_magnitude,
+                    ball1_speed_magnitude,
+                    ball2_speed_magnitude,
                 )
                 if speed_ratio < 1.2:  # Lower threshold for more collisions
                     return True  # Skip if speeds are too similar and balls aren't overlapping

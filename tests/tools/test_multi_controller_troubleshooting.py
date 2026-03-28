@@ -40,7 +40,10 @@ class TestDuplicateMethodIssue:
 
         # Add controller to one instance
         manager1.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(128, 128, 128),
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(128, 128, 128),
         )
 
         # Should be visible in other instance
@@ -51,7 +54,10 @@ class TestDuplicateMethodIssue:
         """Test that color assignment persists across singleton instances."""
         # Add controller
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(128, 128, 128),
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(128, 128, 128),
         )
 
         # Assign color
@@ -197,7 +203,9 @@ class TestFilmStripDirtyMarking:
         # Simulate color assignment
         mocker.patch.object(mock_scene, 'film_strips', {'test_animation': mock_film_strip})
         mocker.patch.object(
-            mock_scene, 'film_strip_sprites', {'test_animation': mock_film_strip_sprite},
+            mock_scene,
+            'film_strip_sprites',
+            {'test_animation': mock_film_strip_sprite},
         )
         # Mark film strips as dirty
         for film_strip in mock_scene.film_strips.values():

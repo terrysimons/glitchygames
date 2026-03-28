@@ -499,6 +499,10 @@ class TestMouseEventStubsFocusUnfocus:
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_scroll_down_event(event)
 
+
+class TestMouseEventStubsScrollWheel:
+    """Test MouseEventStubs scroll/wheel methods raise UnhandledEventError."""
+
     def test_on_mouse_scroll_up_event_raises(self, mock_pygame_patches, mocker):
         """on_mouse_scroll_up_event should raise UnhandledEventError."""
         mocker.patch('glitchygames.events.core.LOG.error')

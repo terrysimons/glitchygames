@@ -173,7 +173,10 @@ class TestVisualCollisionEdgeCases:
         # Add many controllers at same position
         for i in range(8):
             self.manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(100, 100),
+                controller_id=i,
+                instance_id=i,
+                color=(255, 0, 0),
+                position=(100, 100),
             )
 
         # Verify all indicators were added
@@ -188,7 +191,10 @@ class TestVisualCollisionEdgeCases:
         # Add controllers at same position
         for i in range(3):
             self.manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(100, 100),
+                controller_id=i,
+                instance_id=i,
+                color=(255, 0, 0),
+                position=(100, 100),
             )
 
         # Update position of one controller
@@ -204,7 +210,10 @@ class TestVisualCollisionEdgeCases:
         """Test extensive visual indicator customization."""
         # Add controller with custom properties
         self.manager.add_controller_indicator(
-            controller_id=0, instance_id=0, color=(255, 0, 0), position=(100, 100),
+            controller_id=0,
+            instance_id=0,
+            color=(255, 0, 0),
+            position=(100, 100),
         )
 
         # Test all customization options
@@ -226,7 +235,10 @@ class TestVisualCollisionEdgeCases:
         start_time = time.time()
         for i in range(50):
             self.manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(i * 10, i * 10),
+                controller_id=i,
+                instance_id=i,
+                color=(255, 0, 0),
+                position=(i * 10, i * 10),
             )
         end_time = time.time()
 
@@ -498,7 +510,10 @@ class TestPerformanceScenarios:
         # Add many visual indicators
         for i in range(20):
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(i * 5, i * 5),
+                controller_id=i,
+                instance_id=i,
+                color=(255, 0, 0),
+                position=(i * 5, i * 5),
             )
 
         # System should handle this gracefully
@@ -509,7 +524,10 @@ class TestPerformanceScenarios:
         """Test rapid event processing performance."""
         # Set up controller
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.ACTIVE, color=(255, 0, 0),
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.ACTIVE,
+            color=(255, 0, 0),
         )
         self.manager.assigned_controllers[0] = 0
 
@@ -528,7 +546,10 @@ class TestPerformanceScenarios:
         start_time = time.time()
         for i in range(20):
             self.visual_manager.add_controller_indicator(
-                controller_id=i, instance_id=i, color=(255, 0, 0), position=(100, 100),
+                controller_id=i,
+                instance_id=i,
+                color=(255, 0, 0),
+                position=(100, 100),
             )
         end_time = time.time()
 

@@ -18,6 +18,7 @@ from glitchygames.bitmappy.editor import AnimatedCanvasSprite, BitmapEditorScene
 from glitchygames.sprites import AnimatedSprite
 from mocks.test_mock_factory import (  # type: ignore[unresolved-import]
     MockFactory,
+    MockSpriteConfig,
     create_10x10_sprite_mock,
 )
 
@@ -70,10 +71,12 @@ class TestOnLoadFileEvent:
         """
         # Use centralized mock factory to create animated sprite
         animated_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='idle',
-            frame_size=(8, 8),
-            pixel_color=(255, 0, 0),  # Red base color
-            current_frame=0,
+            config=MockSpriteConfig(
+                animation_name='idle',
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),  # Red base color
+                current_frame=0,
+            ),
         )
 
         # Set up frame manager
@@ -93,7 +96,10 @@ class TestOnLoadFileEvent:
 
         """
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8',
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             f.write(content)
             return f.name
@@ -477,7 +483,11 @@ pixels = \"\"\"
 
             # Create a mock loaded sprite using the centralized factory
             mock_loaded_sprite = MockFactory.create_animated_sprite_mock(
-                animation_name='test_sprite', frame_size=(8, 8), pixel_color=(255, 0, 0),
+                config=MockSpriteConfig(
+                    animation_name='test_sprite',
+                    frame_size=(8, 8),
+                    pixel_color=(255, 0, 0),
+                ),
             )
 
             # Mock the entire loading process by patching the method that loads the sprite

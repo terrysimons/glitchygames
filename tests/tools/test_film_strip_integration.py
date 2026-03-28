@@ -562,7 +562,9 @@ class TestFilmStripIntegration(FilmStripTestBase):
 
         # Test coordinate conversion
         mock_handle_click = mocker.patch.object(
-            film_strip_widget, 'handle_click', return_value=('idle', 1),
+            film_strip_widget,
+            'handle_click',
+            return_value=('idle', 1),
         )
         film_strip_sprite.on_left_mouse_button_down_event(mock_event)
 

@@ -48,13 +48,17 @@ def _process_example_filename(filename: str) -> tuple[str, bool]:
         is_example = True
         cleaned_filename = cleaned_filename[len('example:') :].strip()
         LOG.info(
-            "Detected 'example:' prefix. Cleaning filename: '%s' -> '%s'", filename, cleaned_filename,
+            "Detected 'example:' prefix. Cleaning filename: '%s' -> '%s'",
+            filename,
+            cleaned_filename,
         )
     elif cleaned_filename.startswith('examples:'):
         is_example = True
         cleaned_filename = cleaned_filename[len('examples:') :].strip()
         LOG.info(
-            "Detected 'examples:' prefix. Cleaning filename: '%s' -> '%s'", filename, cleaned_filename,
+            "Detected 'examples:' prefix. Cleaning filename: '%s' -> '%s'",
+            filename,
+            cleaned_filename,
         )
 
     return cleaned_filename, is_example
@@ -271,7 +275,7 @@ class InputConfirmationDialogScene(Scene):
         self.log.info(f'{self.name} Got text input from: {input_box_name}: {input_box_text}')
 
     @override
-    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[reportIncompatibleVariableOverride]
+    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle the mouse button up event.
 
         Args:
@@ -476,6 +480,7 @@ class DeleteAnimationDialogScene(Scene):
         previous_scene: Scene,
         animation_name: str,
         on_confirm_callback: Callable[[], None],
+        *,
         on_cancel_callback: Callable[[], None] | None = None,
         options: dict[str, Any] | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
@@ -535,7 +540,7 @@ class DeleteAnimationDialogScene(Scene):
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:
+    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -556,7 +561,7 @@ class DeleteAnimationDialogScene(Scene):
             # Clear the input box to let user try again
             self.dialog.input_box.text = ''
 
-    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:
+    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
         """Handle cancel button click."""
         LOG.info('DeleteAnimationDialog: User cancelled')
         # Call the cancel callback if provided
@@ -596,6 +601,7 @@ class DeleteFrameDialogScene(Scene):
         animation_name: str,
         frame_index: int,
         on_confirm_callback: Callable[[], None],
+        *,
         on_cancel_callback: Callable[[], None] | None = None,
         options: dict[str, Any] | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
@@ -658,7 +664,7 @@ class DeleteFrameDialogScene(Scene):
             height=20,
             groups=self.all_sprites,
         )
-        self.second_label.border_width = 0  # type: ignore[attr-defined]
+        self.second_label.border_width = 0
         self.second_label.background_color = self.dialog.dialog_text_sprite.background_color
 
     @override
@@ -674,7 +680,7 @@ class DeleteFrameDialogScene(Scene):
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:
+    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -695,7 +701,7 @@ class DeleteFrameDialogScene(Scene):
             # Clear the input box to let user try again
             self.dialog.input_box.text = ''
 
-    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:
+    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
         """Handle cancel button click."""
         LOG.info('DeleteFrameDialog: User cancelled')
         # Call the cancel callback if provided

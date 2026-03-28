@@ -199,7 +199,7 @@ class AIManager:
         if not examples:
             relevant_examples = select_relevant_training_examples(text)
             self.log.info(
-                f'Failed to load context examples, using {len(relevant_examples)} regular examples'
+                f'Failed to load context examples, using {len(relevant_examples)} regular examples',
             )
             return relevant_examples
 
@@ -255,15 +255,15 @@ class AIManager:
             frame_count = last_sprite_content.count('[[animation.frame]]')
             self.log.info(
                 f'Sprite loaded - serialized for AI context ({len(last_sprite_content)} chars,'
-                f' {anim_count} animations, {frame_count} frames)'
+                f' {anim_count} animations, {frame_count} frames)',
             )
             self.log.debug(f'Serialized sprite preview:\n{last_sprite_content[:500]}')
-
-            return (True, last_sprite_content, conversation_history)
         except OSError, ValueError, AttributeError, TypeError:
             self.log.exception('Failed to serialize sprite')
             self.log.warning('Will use standard generation mode instead')
             return (False, None, None)
+        else:
+            return (True, last_sprite_content, conversation_history)
 
     def _submit_ai_request(
         self,
@@ -349,7 +349,11 @@ class AIManager:
             )
 
         self._submit_ai_request(
-            text, messages, relevant_examples, conversation_history, last_sprite_content
+            text,
+            messages,
+            relevant_examples,
+            conversation_history,
+            last_sprite_content,
         )
 
     def _process_ai_response(self, request_id: str, response: AIResponse) -> None:
@@ -388,7 +392,7 @@ class AIManager:
 
                 self.log.info(
                     'Retrying request (attempt'
-                    f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})'
+                    f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})',
                 )
 
                 # Build retry prompt with specific corrections
@@ -426,7 +430,7 @@ class AIManager:
                 return
             # Max retries reached, load anyway and show error
             self.log.error(
-                f'Max retries ({AI_VALIDATION_MAX_RETRIES}) reached, loading sprite anyway'
+                f'Max retries ({AI_VALIDATION_MAX_RETRIES}) reached, loading sprite anyway',
             )
             if hasattr(self.editor, 'debug_text'):
                 self.editor.debug_text.text = (
@@ -448,7 +452,7 @@ class AIManager:
         frame_count = content.count('[[animation.frame]]')
         self.log.info(
             f'AI response received, content length: {len(content)}, {anim_count} animations,'
-            f' {frame_count} frames'
+            f' {frame_count} frames',
         )
 
         # Debug: Dump the sprite content
@@ -502,6 +506,38 @@ class AIManager:
 
         return cleaned_content
 
+    def _format_animation_sections(self, animation_list: list[dict[str, Any]]) -> list[str]:
+        """Format animation sections as TOML lines.
+
+        Args:
+            animation_list: List of animation dictionaries with frame data.
+
+        Returns:
+            List of formatted TOML lines for animation sections.
+
+        """
+        lines: list[str] = []
+        for animation in animation_list:
+            lines.extend([
+                '[[animation]]',
+                f'namespace = "{animation["namespace"]}"',
+                f'frame_interval = {animation["frame_interval"]}',
+                f'loop = {str(animation["loop"]).lower()}',
+                '',
+            ])
+
+            for frame in animation.get('frame', []):
+                lines.extend([
+                    '[[animation.frame]]',
+                    f'namespace = "{animation["namespace"]}"',
+                    f'frame_index = {frame["frame_index"]}',
+                    'pixels = """',
+                    frame['pixels'],
+                    '"""',
+                    '',
+                ])
+        return lines
+
     def _construct_toml_with_preserved_formatting(self, data: dict[str, Any]) -> str:
         """Construct TOML content while preserving original formatting for pixel data.
 
@@ -532,25 +568,7 @@ class AIManager:
 
         # Add animation sections
         if 'animation' in data:
-            for animation in data['animation']:
-                lines.extend([
-                    '[[animation]]',
-                    f'namespace = "{animation["namespace"]}"',
-                    f'frame_interval = {animation["frame_interval"]}',
-                    f'loop = {str(animation["loop"]).lower()}',
-                    '',
-                ])
-
-                for frame in animation.get('frame', []):
-                    lines.extend([
-                        '[[animation.frame]]',
-                        f'namespace = "{animation["namespace"]}"',
-                        f'frame_index = {frame["frame_index"]}',
-                        'pixels = """',
-                        frame['pixels'],
-                        '"""',
-                        '',
-                    ])
+            lines.extend(self._format_animation_sections(data['animation']))
 
         # Add colors section
         if 'colors' in data:
@@ -585,7 +603,10 @@ class AIManager:
         )
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix=file_extension, delete=False, encoding='utf-8'
+            mode='w',
+            suffix=file_extension,
+            delete=False,
+            encoding='utf-8',
         ) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
@@ -597,7 +618,7 @@ class AIManager:
         self.log.info('Loading animated sprite into existing animated canvas...')
 
         mock_event = MockEvent(text=tmp_path)
-        self.editor.canvas.on_load_file_event(mock_event)  # type: ignore[arg-type]
+        self.editor.canvas.on_load_file_event(mock_event)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
         # Animation will be started by on_load_file_event, no need to start here
         self.log.info('AI animated sprite loaded successfully')
@@ -608,7 +629,7 @@ class AIManager:
 
         # Load the static sprite into the current animated canvas
         mock_event = MockEvent(text=tmp_path)
-        self.editor.canvas.on_load_file_event(mock_event)  # type: ignore[arg-type]
+        self.editor.canvas.on_load_file_event(mock_event)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
         # Animation will be started by on_load_file_event, no need to start here
         # Just verify the state after loading
@@ -616,7 +637,7 @@ class AIManager:
             self.log.debug(
                 'AI sprite loaded - animated_sprite state: '
                 f"current_animation='{self.editor.canvas.animated_sprite.current_animation}', "
-                f'is_playing={self.editor.canvas.animated_sprite.is_playing}'
+                f'is_playing={self.editor.canvas.animated_sprite.is_playing}',
             )
             animations = (
                 list(self.editor.canvas.animated_sprite._animations.keys())  # type: ignore[reportPrivateUsage]
@@ -678,19 +699,24 @@ class AIManager:
             # Check if any pixel is not magenta (255, 0, 255)
             non_magenta_count = 0
             for i, pixel in enumerate(pixels):
-                color = (int(pixel[0]), int(pixel[1]), int(pixel[2])) if len(pixel) >= 3 else pixel  # noqa: PLR2004
+                color = (
+                    (int(pixel[0]), int(pixel[1]), int(pixel[2]))
+                    if len(pixel) >= RGB_COMPONENT_COUNT
+                    else pixel
+                )
                 if color != (255, 0, 255):
                     non_magenta_count += 1
                     if non_magenta_count <= DEBUG_LOG_FIRST_N_PIXELS:
                         self.log.debug(f'Found non-magenta pixel {i}: {color}')
 
             self.log.debug(
-                f'Found {non_magenta_count} non-magenta pixels out of {len(pixels)} total'
+                f'Found {non_magenta_count} non-magenta pixels out of {len(pixels)} total',
             )
-            return non_magenta_count > 0
         except AttributeError, TypeError, IndexError:
             self.log.exception('Error checking frame content')
             return False
+        else:
+            return non_magenta_count > 0
 
     def _save_current_frame_to_temp_toml(self) -> str | None:
         """Save the current frame to a temporary TOML file.
@@ -723,11 +749,11 @@ class AIManager:
             Path(temp_path).write_text(toml_content, encoding='utf-8')
 
             self.log.info(f'Saved current frame to temporary TOML: {temp_path}')
-            return temp_path
-
         except OSError, ValueError, AttributeError, TypeError:
             self.log.exception('Error saving frame to temp TOML')
             return None
+        else:
+            return temp_path
 
     def _save_current_strip_to_temp_toml(self) -> str | None:
         """Save the current animation strip to a temporary TOML file.
@@ -742,7 +768,8 @@ class AIManager:
 
             # Get current animation data
             if not hasattr(self.editor, 'canvas') or not hasattr(
-                self.editor.canvas, 'animated_sprite'
+                self.editor.canvas,
+                'animated_sprite',
             ):
                 return None
 
@@ -779,14 +806,17 @@ class AIManager:
             new_sprite.save(temp_path)
 
             self.log.info(f'Saved current strip to temporary TOML: {temp_path}')
-            return temp_path
-
         except OSError, ValueError, AttributeError, KeyError, TypeError:
             self.log.exception('Error saving strip to temp TOML')
             return None
+        else:
+            return temp_path
 
     def _generate_frame_toml_content(
-        self, pixels: list[tuple[int, ...]], *, force_single_char_glyphs: bool = False
+        self,
+        pixels: list[tuple[int, ...]],
+        *,
+        force_single_char_glyphs: bool = False,
     ) -> str:
         """Generate TOML content for the current frame.
 
@@ -807,7 +837,10 @@ class AIManager:
             if force_single_char_glyphs and len(unique_colors) > MAX_COLORS_FOR_AI_TRAINING:
                 self.log.info(f'Quantizing {len(unique_colors)} colors down to 64 for AI training')
                 unique_colors = quantize_colors_if_needed(
-                    unique_colors, has_transparency=False, max_colors=64, log=self.log
+                    unique_colors,
+                    has_transparency=False,
+                    max_colors=64,
+                    log=self.log,
                 )
 
             color_to_glyph = build_color_to_glyph_mapping(
@@ -847,17 +880,18 @@ class AIManager:
                 )
 
             # Build complete TOML
-            return f"""[sprite]
+            toml_result = f"""[sprite]
 name = "current_frame"
 pixels = \"\"\"
 {pixel_string}
 \"\"\"
 
 {color_definitions}"""
-
         except AttributeError, IndexError, KeyError, TypeError, ValueError:
             self.log.exception('Error generating frame TOML content')
             return ''
+        else:
+            return toml_result
 
     def _get_glyph_for_color(self, color: tuple[int, int, int] | int) -> str:
         """Get a glyph for a specific color.
@@ -927,11 +961,11 @@ pixels = \"\"\"
                 self.log.warning(f'Failed to clean up temp file {temp_toml_path}: {cleanup_error}')
 
             self.log.info(f'Loaded current frame as training example: {sprite_data["name"]}')
-            return sprite_data
-
         except OSError, ValueError, KeyError, TypeError:
             self.log.exception('Error loading temp TOML as example')
             return None
+        else:
+            return sprite_data
 
     def _is_ai_error_message(self, content: str) -> bool:
         """Check if AI response is an error message rather than valid sprite code.
@@ -1053,7 +1087,10 @@ pixels = \"\"\"
         self.log.info(f"Updated sprite description with generation prompt: '{original_prompt}'")
 
     def _update_conversation_history(
-        self, request_id: str, original_prompt: str, cleaned_content: str
+        self,
+        request_id: str,
+        original_prompt: str,
+        cleaned_content: str,
     ) -> None:
         """Update conversation history for multi-turn AI refinement.
 
@@ -1084,7 +1121,10 @@ pixels = \"\"\"
         self.log.info(f'Updated conversation history (now {len(new_history)} messages)')
 
     def _handle_ai_sprite_load_error(
-        self, sprite_error: Exception, request_id: str, content: str
+        self,
+        sprite_error: Exception,
+        request_id: str,
+        content: str,
     ) -> None:
         """Handle errors that occur during AI sprite loading.
 
@@ -1183,7 +1223,7 @@ pixels = \"\"\"
         if hasattr(self, 'ai_request_queue') and self.ai_request_queue:
             try:
                 self.log.info('Sending shutdown signal to AI worker...')
-                self.ai_request_queue.put(None, timeout=1.0)  # type: ignore[arg-type]  # Sentinel for shutdown
+                self.ai_request_queue.put(None, timeout=1.0)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]  # Sentinel for shutdown
                 self.log.info('Shutdown signal sent successfully')
             except OSError, ValueError:
                 self.log.exception('Error sending shutdown signal')

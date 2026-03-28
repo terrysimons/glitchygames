@@ -15,7 +15,8 @@ if TYPE_CHECKING:
 try:
     import speech_recognition as sr
 except Exception as exc:  # pragma: no cover - optional
-    raise RuntimeError('speech_recognition is required for PortAudioMicrophone') from exc
+    message = 'speech_recognition is required for PortAudioMicrophone'
+    raise RuntimeError(message) from exc
 
 
 class PortAudioMicrophone(sr.AudioSource):

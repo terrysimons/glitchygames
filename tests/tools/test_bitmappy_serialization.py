@@ -775,7 +775,8 @@ class TestBuildAsciiGrid:
     def test_simple_grid(self):
         """Test building a simple 2x2 ASCII grid."""
         pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
+            'list[tuple[int, ...]]',
+            [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
         )
         color_map = cast(
             'dict[tuple[int, ...], str]',

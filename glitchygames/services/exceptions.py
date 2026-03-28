@@ -9,7 +9,10 @@ class AIProviderError(SpriteServiceError):
     """Error communicating with AI provider."""
 
     def __init__(
-        self, message: str, provider: str | None = None, original_error: Exception | None = None,
+        self,
+        message: str,
+        provider: str | None = None,
+        original_error: Exception | None = None,
     ) -> None:
         """Initialize AIProviderError.
 
@@ -43,7 +46,10 @@ class RenderingError(SpriteServiceError):
     """Error rendering sprite to PNG."""
 
     def __init__(
-        self, message: str, sprite_name: str | None = None, original_error: Exception | None = None,
+        self,
+        message: str,
+        sprite_name: str | None = None,
+        original_error: Exception | None = None,
     ) -> None:
         """Initialize RenderingError.
 

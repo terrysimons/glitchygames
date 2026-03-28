@@ -161,10 +161,12 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
     """
     # Validate input
     if not pixel_data:
-        raise ValueError('Empty pixel data')
+        message = 'Empty pixel data'
+        raise ValueError(message)
 
     if len(pixel_data) % 3 != 0:
-        raise ValueError(f'Pixel data length ({len(pixel_data)}) is not divisible by 3')
+        message = f'Pixel data length ({len(pixel_data)}) is not divisible by 3'
+        raise ValueError(message)
 
     # Convert bytes to integers
     pixels = [int(b) for b in pixel_data]
@@ -177,11 +179,14 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
             b = pixels[i + 2]
             yield (r, g, b)
         except IndexError as e:
-            raise ValueError(f'Not enough data for RGB triplet at index {i}') from e
+            message = f'Not enough data for RGB triplet at index {i}'
+            raise ValueError(message) from e
 
 
 def image_from_pixels(
-    pixels: list[tuple[int, int, int]], width: int, height: int,
+    pixels: list[tuple[int, int, int]],
+    width: int,
+    height: int,
 ) -> pygame.Surface:
     """Produce a pygame.image object for the specified [(R, G, B), ...] pixel data.
 

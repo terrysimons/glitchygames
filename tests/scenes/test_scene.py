@@ -201,6 +201,10 @@ class TestScene:
         # Test mouse wheel event handling
         scene.on_mouse_wheel_event(mock_event)
 
+
+class TestSceneJoystickControllerEvents:
+    """Test Scene joystick and controller event methods."""
+
     def test_scene_on_joy_axis_motion_event(self, mock_pygame_patches, mocker):
         """Test Scene on_joy_axis_motion_event method."""
         scene = Scene()
@@ -328,6 +332,10 @@ class TestScene:
 
         # Test controller touchpad up event handling
         scene.on_controller_touchpad_up_event(mock_event)
+
+
+class TestSceneWindowEvents:
+    """Test Scene window and audio device event methods."""
 
     def test_scene_on_audio_device_added_event(self, mock_pygame_patches, mocker):
         """Test Scene on_audio_device_added_event method."""
@@ -472,6 +480,10 @@ class TestScene:
 
         # Test window hit test event handling
         scene.on_window_hit_test_event(mock_event)
+
+
+class TestSceneInputEvents:
+    """Test Scene touch, drop, text, MIDI, and font event methods."""
 
     def test_scene_on_touch_down_event(self, mock_pygame_patches, mocker):
         """Test Scene on_touch_down_event method."""
@@ -1378,7 +1390,10 @@ class TestHandleFramePacing:
         mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
 
         manager._handle_frame_pacing(
-            timer=None, period_ns=0, prev_deadline_ns=None, frame_start_ns=0,
+            timer=None,
+            period_ns=0,
+            prev_deadline_ns=None,
+            frame_start_ns=0,
         )
 
         mock_clock_tick.assert_called_once_with(60)
@@ -1391,7 +1406,10 @@ class TestHandleFramePacing:
         mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
 
         manager._handle_frame_pacing(
-            timer=None, period_ns=0, prev_deadline_ns=None, frame_start_ns=0,
+            timer=None,
+            period_ns=0,
+            prev_deadline_ns=None,
+            frame_start_ns=0,
         )
 
         mock_clock_tick.assert_called_once_with()
@@ -1472,7 +1490,8 @@ class TestTickClock:
 
         def mock_import(name, *args, **kwargs):
             if name == 'glitchygames.performance':
-                raise ImportError('No module named glitchygames.performance')
+                msg = 'No module named glitchygames.performance'
+                raise ImportError(msg)
             return original_import(name, *args, **kwargs)
 
         mocker.patch('builtins.__import__', side_effect=mock_import)
@@ -2060,7 +2079,9 @@ class TestSceneHandleFocusManagementWithFocusable:
     """Test Scene._handle_focus_management with focusable sprites."""
 
     def test_handle_focus_management_keeps_focused_when_focusable_clicked(
-        self, mock_pygame_patches, mocker,
+        self,
+        mock_pygame_patches,
+        mocker,
     ):
         """Test focus is maintained when clicking on a focusable sprite."""
         scene = Scene()

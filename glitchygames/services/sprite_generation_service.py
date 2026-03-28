@@ -82,8 +82,9 @@ class SpriteGenerationService:
 
             self._ai_module = ai
         except ImportError as e:
+            message = 'aisuite is not installed. Install with: pip install aisuite'
             raise AIProviderError(
-                'aisuite is not installed. Install with: pip install aisuite',
+                message,
                 provider=None,
                 original_error=e,
             ) from e
@@ -93,17 +94,125 @@ class SpriteGenerationService:
         try:
             self._client = ai.Client()
             LOG.info('AI client initialized successfully')
-            return self._client
         except Exception as e:
+            message = f'Failed to initialize AI client: {e}'
             raise AIProviderError(
-                f'Failed to initialize AI client: {e}',
+                message,
                 provider=self.config.ai_provider,
                 original_error=e,
             ) from e
+        else:
+            return self._client
+
+    def _build_enhanced_prompt(
+        self,
+        prompt: str,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        frame_count: int | None = None,
+        film_strip_count: int | None = None,
+        animation_duration: float | None = None,
+    ) -> str:
+        """Build an enhanced prompt with size and animation hints.
+
+        Args:
+            prompt: The base prompt text.
+            width: Optional sprite width in pixels.
+            height: Optional sprite height in pixels.
+            frame_count: Number of frames per animation.
+            film_strip_count: Number of film strips/animations to create.
+            animation_duration: Duration of animation in seconds.
+
+        Returns:
+            The enhanced prompt string with hints appended.
+
+        """
+        hints: list[str] = []
+
+        if width and height:
+            hints.append(f'{width}x{height} pixels')
+
+        # Add animation hints if specified
+        if frame_count or film_strip_count or animation_duration:
+            animation_parts: list[str] = []
+            if film_strip_count and film_strip_count > 1:
+                animation_parts.append(f'{film_strip_count} film strips')
+            if frame_count:
+                animation_parts.append(f'{frame_count} frames each')
+            if animation_duration:
+                animation_parts.append(f'animated across {animation_duration} seconds')
+
+            if animation_parts:
+                hints.append(', '.join(animation_parts))
+
+        if hints:
+            return f'{prompt} ({"; ".join(hints)})'
+
+        return prompt
+
+    def _validate_and_build_result(
+        self,
+        raw_content: str | None,
+    ) -> GenerationResult:
+        """Validate AI response content and build a GenerationResult.
+
+        Args:
+            raw_content: Raw AI response content (may be None).
+
+        Returns:
+            GenerationResult with validated sprite data or error details.
+
+        """
+        if raw_content is None:
+            return GenerationResult(
+                success=False,
+                error='AI returned empty response',
+            )
+
+        # Clean and validate the response
+        cleaned_content = clean_ai_response(raw_content)
+
+        if cleaned_content is None:
+            return GenerationResult(
+                success=False,
+                error='AI response was empty after cleaning',
+                raw_response=raw_content,
+            )
+
+        is_valid, error_message = validate_ai_response(cleaned_content)
+
+        if not is_valid:
+            LOG.warning('AI response validation failed: %s', error_message)
+            return GenerationResult(
+                success=False,
+                error=error_message,
+                raw_response=raw_content,
+            )
+
+        # Extract metadata from the TOML
+        sprite_name, is_animated, frame_count = self._extract_sprite_metadata(cleaned_content)
+
+        LOG.info(
+            'Successfully generated sprite: %s (animated=%s, frames=%s)',
+            sprite_name,
+            is_animated,
+            frame_count,
+        )
+
+        return GenerationResult(
+            success=True,
+            toml_content=cleaned_content,
+            sprite_name=sprite_name,
+            is_animated=is_animated,
+            frame_count=frame_count,
+            raw_response=raw_content,
+        )
 
     def generate_sprite(
         self,
         prompt: str,
+        *,
         width: int | None = None,
         height: int | None = None,
         frame_count: int | None = None,
@@ -137,27 +246,14 @@ class SpriteGenerationService:
         model_string = model or self.config.get_ai_model_string()
 
         # Build enhanced prompt with all hints
-        enhanced_prompt = prompt
-        hints: list[str] = []
-
-        if width and height:
-            hints.append(f'{width}x{height} pixels')
-
-        # Add animation hints if specified
-        if frame_count or film_strip_count or animation_duration:
-            animation_parts: list[str] = []
-            if film_strip_count and film_strip_count > 1:
-                animation_parts.append(f'{film_strip_count} film strips')
-            if frame_count:
-                animation_parts.append(f'{frame_count} frames each')
-            if animation_duration:
-                animation_parts.append(f'animated across {animation_duration} seconds')
-
-            if animation_parts:
-                hints.append(', '.join(animation_parts))
-
-        if hints:
-            enhanced_prompt = f'{prompt} ({"; ".join(hints)})'
+        enhanced_prompt = self._build_enhanced_prompt(
+            prompt,
+            width=width,
+            height=height,
+            frame_count=frame_count,
+            film_strip_count=film_strip_count,
+            animation_duration=animation_duration,
+        )
 
         # Build messages using the existing prompt builder
         messages = build_sprite_generation_messages(
@@ -181,53 +277,14 @@ class SpriteGenerationService:
 
         except Exception as e:
             LOG.exception('AI API call failed')
+            message = f'AI generation failed: {e}'
             raise AIProviderError(
-                f'AI generation failed: {e}',
+                message,
                 provider=self.config.ai_provider,
                 original_error=e,
             ) from e
 
-        if raw_content is None:
-            return GenerationResult(
-                success=False,
-                error='AI returned empty response',
-            )
-
-        # Clean and validate the response
-        cleaned_content = clean_ai_response(raw_content)
-
-        if cleaned_content is None:
-            return GenerationResult(
-                success=False,
-                error='AI response was empty after cleaning',
-                raw_response=raw_content,
-            )
-
-        is_valid, error_message = validate_ai_response(cleaned_content)
-
-        if not is_valid:
-            LOG.warning('AI response validation failed: %s', error_message)
-            return GenerationResult(
-                success=False,
-                error=error_message,
-                raw_response=raw_content,
-            )
-
-        # Extract metadata from the TOML
-        sprite_name, is_animated, frame_count = self._extract_sprite_metadata(cleaned_content)
-
-        LOG.info(
-            'Successfully generated sprite: %s (animated=%s, frames=%s)', sprite_name, is_animated, frame_count,
-        )
-
-        return GenerationResult(
-            success=True,
-            toml_content=cleaned_content,
-            sprite_name=sprite_name,
-            is_animated=is_animated,
-            frame_count=frame_count,
-            raw_response=raw_content,
-        )
+        return self._validate_and_build_result(raw_content)
 
     def refine_sprite(
         self,
@@ -272,53 +329,14 @@ class SpriteGenerationService:
 
         except Exception as e:
             LOG.exception('AI API call failed')
+            message = f'AI refinement failed: {e}'
             raise AIProviderError(
-                f'AI refinement failed: {e}',
+                message,
                 provider=self.config.ai_provider,
                 original_error=e,
             ) from e
 
-        if raw_content is None:
-            return GenerationResult(
-                success=False,
-                error='AI returned empty response',
-            )
-
-        # Clean and validate the response
-        cleaned_content = clean_ai_response(raw_content)
-
-        if cleaned_content is None:
-            return GenerationResult(
-                success=False,
-                error='AI response was empty after cleaning',
-                raw_response=raw_content,
-            )
-
-        is_valid, error_message = validate_ai_response(cleaned_content)
-
-        if not is_valid:
-            LOG.warning('AI response validation failed: %s', error_message)
-            return GenerationResult(
-                success=False,
-                error=error_message,
-                raw_response=raw_content,
-            )
-
-        # Extract metadata from the TOML
-        sprite_name, is_animated, frame_count = self._extract_sprite_metadata(cleaned_content)
-
-        LOG.info(
-            'Successfully refined sprite: %s (animated=%s, frames=%s)', sprite_name, is_animated, frame_count,
-        )
-
-        return GenerationResult(
-            success=True,
-            toml_content=cleaned_content,
-            sprite_name=sprite_name,
-            is_animated=is_animated,
-            frame_count=frame_count,
-            raw_response=raw_content,
-        )
+        return self._validate_and_build_result(raw_content)
 
     def _extract_sprite_metadata(self, toml_content: str) -> tuple[str, bool, int]:
         """Extract metadata from sprite TOML content.

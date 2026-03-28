@@ -10,7 +10,7 @@ import pytest
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.film_strip import FilmStripWidget, FilmTabWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from tests.mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 from tests.tools.test_film_strip_base import FRAME_SIZE, FilmStripTestBase
 
 # Additional test constants
@@ -129,7 +129,9 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
             object: The result.
 
         """
-        mock_sprite = MockFactory.create_animated_sprite_mock('idle', use_cache=True)
+        mock_sprite = MockFactory.create_animated_sprite_mock(
+            config=MockSpriteConfig(animation_name='idle'),
+        )
         mock_sprite._animation_order = ['idle']
 
         # Ensure frames have proper rect attributes for tab positioning

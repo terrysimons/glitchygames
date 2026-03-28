@@ -232,7 +232,10 @@ class TestBallCollisionPhysics:
         """Test diagonal ball hitting diagonal ball moving same direction."""
         ball1 = self._create_ball(100, 100, 50.0, 50.0)  # Moving diagonally right-down
         ball2 = self._create_ball(
-            110, 110, -25.0, -25.0,
+            110,
+            110,
+            -25.0,
+            -25.0,
         )  # Moving diagonally left-up (toward ball1)
 
         self._simulate_collision(ball1, ball2)
@@ -247,7 +250,10 @@ class TestBallCollisionPhysics:
         """Test diagonal ball hitting diagonal ball moving opposite direction."""
         ball1 = self._create_ball(100, 100, 50.0, 50.0)  # Moving diagonally down-right
         ball2 = self._create_ball(
-            110, 110, -25.0, -25.0,
+            110,
+            110,
+            -25.0,
+            -25.0,
         )  # Moving diagonally up-left (toward ball1)
 
         self._simulate_collision(ball1, ball2)
@@ -261,7 +267,7 @@ class TestBallCollisionPhysics:
     def test_energy_conservation(self):
         """Test that energy is conserved in all collision scenarios."""
         scenarios = [
-            # (ball1_speed, ball2_speed, description)
+            # Format: ball1_speed, ball2_speed, description
             ((100.0, 0.0), (0.0, 0.0), 'horizontal vs stationary'),
             ((0.0, 100.0), (0.0, 0.0), 'vertical vs stationary'),
             ((50.0, 50.0), (0.0, 0.0), 'diagonal vs stationary'),
@@ -294,7 +300,7 @@ class TestBallCollisionPhysics:
     def test_momentum_conservation(self):
         """Test that momentum is conserved in all collision scenarios."""
         scenarios = [
-            # (ball1_speed, ball2_speed, description)
+            # Format: ball1_speed, ball2_speed, description
             ((100.0, 0.0), (0.0, 0.0), 'horizontal vs stationary'),
             ((0.0, 100.0), (0.0, 0.0), 'vertical vs stationary'),
             ((50.0, 50.0), (0.0, 0.0), 'diagonal vs stationary'),
@@ -441,6 +447,60 @@ class TestBallCollisionPhysics:
         assert ball1.speed.x != ball1_initial_x, (
             f"Horizontal ball's X velocity should change: {ball1.speed.x} != {ball1_initial_x}"
         )
+
+
+class TestBallCollisionEnergyTransfer:
+    """Test energy transfer in ball collision scenarios."""
+
+    def _create_ball(self, x, y, speed_x, speed_y):
+        """Create a ball with specified position and speed.
+
+        Returns:
+            object: The result.
+
+        """
+        ball = BallSprite(
+            collision_sound=None,
+            bounce_top_bottom=True,
+            bounce_left_right=False,
+            speed_up_mode=SpeedUpMode.NONE,
+            speed_up_multiplier=1.0,
+            speed_up_interval=1.0,
+        )
+        assert ball.rect is not None
+        ball.rect.x = x
+        ball.rect.y = y
+        ball.speed = Speed(speed_x, speed_y)
+        ball.collision_cooldowns = {}  # type: ignore[unresolved-attribute]
+        return ball
+
+    def _simulate_collision(self, ball1, ball2):
+        """Simulate collision between two balls using the actual game physics.
+
+        Returns:
+            object: The result.
+
+        """
+        dx = ball2.rect.centerx - ball1.rect.centerx
+        dy = ball2.rect.centery - ball1.rect.centery
+        distance = math.sqrt(dx * dx + dy * dy)
+
+        collision_distance = 20.0
+        if distance > collision_distance or distance < 0.001:
+            return None
+
+        nx = dx / distance
+        ny = dy / distance
+
+        v1n = ball1.speed.x * nx + ball1.speed.y * ny
+        v2n = ball2.speed.x * nx + ball2.speed.y * ny
+
+        ball1.speed.x = ball1.speed.x - v1n * nx + v2n * nx
+        ball1.speed.y = ball1.speed.y - v1n * ny + v2n * ny
+        ball2.speed.x = ball2.speed.x - v2n * nx + v1n * nx
+        ball2.speed.y = ball2.speed.y - v2n * ny + v1n * ny
+
+        return True
 
     def test_vertical_to_diagonal_energy_transfer(self):
         """Test that vertical energy is properly transferred to diagonal motion."""

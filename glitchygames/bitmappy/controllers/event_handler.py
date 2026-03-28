@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from glitchygames.bitmappy.protocols import EditorContext
 
 
-class ControllerEventHandler:
+class ControllerEventHandler:  # noqa: PLR0904
     """Manages controller/joystick event handling for the Bitmappy editor.
 
     Handles all controller input, multi-controller support, visual indicators,
@@ -113,7 +113,8 @@ class ControllerEventHandler:
             if controller_id is not None:
                 # Create controller selection for this controller
                 self.editor.controller_selections[controller_id] = ControllerSelection(
-                    controller_id, instance_id
+                    controller_id,
+                    instance_id,
                 )
 
         # Get controller ID for this instance
@@ -124,7 +125,8 @@ class ControllerEventHandler:
         # Get or create controller selection
         if controller_id not in self.editor.controller_selections:
             self.editor.controller_selections[controller_id] = ControllerSelection(
-                controller_id, instance_id
+                controller_id,
+                instance_id,
             )
 
         controller_selection = self.editor.controller_selections[controller_id]
@@ -183,7 +185,7 @@ class ControllerEventHandler:
 
         self.log.debug(
             f'DEBUG: Controller {controller_id}: Drag operation drew'
-            f' {len(drag_info["pixels_drawn"])} pixels'
+            f' {len(drag_info["pixels_drawn"])} pixels',
         )
 
         if not drag_info['pixels_drawn']:
@@ -191,19 +193,21 @@ class ControllerEventHandler:
 
         self.log.debug(
             f'Controller {controller_id}: Drag operation completed with'
-            f' {len(drag_info["pixels_drawn"])} pixels drawn'
+            f' {len(drag_info["pixels_drawn"])} pixels drawn',
         )
 
         pixel_changes = self._collect_drag_pixel_changes(controller_id, drag_info)
         self._submit_drag_pixel_changes(controller_id, pixel_changes)
 
     def _collect_drag_pixel_changes(
-        self, controller_id: int, drag_info: dict[str, Any]
+        self,
+        _controller_id: int,
+        drag_info: dict[str, Any],
     ) -> list[tuple[int, tuple[int, ...], tuple[int, ...]]]:
         """Collect pixel changes from a drag operation, merging with pending changes.
 
         Args:
-            controller_id: The controller ID.
+            _controller_id: The controller ID (unused, kept for API consistency).
             drag_info: The drag operation info dict.
 
         Returns:
@@ -217,13 +221,13 @@ class ControllerEventHandler:
             color = pixel_info['color']
             old_color = pixel_info.get('old_color', (0, 0, 0))  # Use stored old color
             x, y = position[0], position[1]
-            pixel_changes.append((x, y, old_color, color))  # type: ignore[arg-type]
+            pixel_changes.append((x, y, old_color, color))  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
         # Debug: Show undo stack before merging
         if hasattr(self.editor, 'undo_redo_manager') and self.editor.undo_redo_manager:
             self.log.debug(
                 'DEBUG: Undo stack before merging has'
-                f' {len(self.editor.undo_redo_manager.undo_stack)} operations'
+                f' {len(self.editor.undo_redo_manager.undo_stack)} operations',
             )
             for i, op in enumerate(self.editor.undo_redo_manager.undo_stack):
                 self.log.debug(f'DEBUG:   Operation {i}: {op.operation_type} - {op.description}')
@@ -233,7 +237,7 @@ class ControllerEventHandler:
         if hasattr(self.editor, 'current_pixel_changes') and self.editor.current_pixel_changes:
             self.log.debug(
                 f'DEBUG: Absorbing {len(self.editor.current_pixel_changes)} pending pixel(s)'
-                f' from canvas interface'
+                f' from canvas interface',
             )
             self.log.debug(f'DEBUG: Pending pixels: {self.editor.current_pixel_changes}')
             # Add the pending pixels to the beginning of the controller drag pixels
@@ -249,11 +253,11 @@ class ControllerEventHandler:
                     removed_operation = self.editor.undo_redo_manager.undo_stack.pop()
                     self.log.debug(
                         'DEBUG: Removed single pixel operation from undo stack:'
-                        f' {removed_operation.operation_type}'
+                        f' {removed_operation.operation_type}',
                     )
                     self.log.debug(
                         'DEBUG: Undo stack after removal has'
-                        f' {len(self.editor.undo_redo_manager.undo_stack)} operations'
+                        f' {len(self.editor.undo_redo_manager.undo_stack)} operations',
                     )
                 else:
                     self.log.debug('DEBUG: No operations in undo stack to remove')
@@ -263,7 +267,9 @@ class ControllerEventHandler:
         return pixel_changes
 
     def _submit_drag_pixel_changes(
-        self, controller_id: int, pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]]
+        self,
+        controller_id: int,
+        pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]],
     ) -> None:
         """Submit collected drag pixel changes to the undo/redo system.
 
@@ -287,22 +293,25 @@ class ControllerEventHandler:
             self.editor.canvas_operation_tracker.add_frame_pixel_changes(
                 current_animation,
                 current_frame,
-                pixel_changes,  # type: ignore[arg-type]
+                pixel_changes,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
             )
             self.log.debug(
                 f'Controller {controller_id}: Submitted {len(pixel_changes)} pixel'
-                f' changes for frame {current_animation}[{current_frame}] undo/redo'
+                f' changes for frame {current_animation}[{current_frame}] undo/redo',
             )
         else:
             # Fall back to global tracking
-            self.editor.canvas_operation_tracker.add_pixel_changes(pixel_changes)  # type: ignore[arg-type]
+            self.editor.canvas_operation_tracker.add_pixel_changes(pixel_changes)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
             self.log.debug(
                 f'Controller {controller_id}: Submitted {len(pixel_changes)} pixel'
-                f' changes for global undo/redo'
+                f' changes for global undo/redo',
             )
 
     def canvas_paint_at_controller_position(
-        self, controller_id: int, *, force: bool = False
+        self,
+        controller_id: int,
+        *,
+        force: bool = False,
     ) -> None:
         """Paint at the controller's current canvas position.
 
@@ -324,12 +333,13 @@ class ControllerEventHandler:
         # Check if pixel is already the selected color (debouncing)
         if not force:
             current_pixel_color = self._get_canvas_pixel_color(
-                position.position[0], position.position[1]
+                position.position[0],
+                position.position[1],
             )
             if current_pixel_color == current_color:
                 self.log.debug(
                     f'DEBUG: Pixel at {position.position} is already {current_color}, skipping'
-                    f' paint'
+                    f' paint',
                 )
                 return
 
@@ -343,11 +353,14 @@ class ControllerEventHandler:
 
         # Track this pixel in the controller drag operation
         self._track_controller_drag_pixel(
-            controller_id, position.position, current_color, old_color
+            controller_id,
+            position.position,
+            current_color,
+            old_color,
         )
 
         self.log.debug(
-            f'DEBUG: Painted at canvas position {position.position} with color {current_color}'
+            f'DEBUG: Painted at canvas position {position.position} with color {current_color}',
         )
 
     def _get_canvas_pixel_color(self, x: int, y: int) -> tuple[int, ...] | None:
@@ -389,7 +402,7 @@ class ControllerEventHandler:
             return
 
         if hasattr(self.editor.canvas, 'canvas_interface'):
-            self.editor.canvas.canvas_interface.set_pixel_at(x, y, color)  # type: ignore[arg-type]
+            self.editor.canvas.canvas_interface.set_pixel_at(x, y, color)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         elif 0 <= x < self.editor.canvas.pixels_across and 0 <= y < self.editor.canvas.pixels_tall:
             pixel_num = y * self.editor.canvas.pixels_across + x
             self.editor.canvas.pixels[pixel_num] = color
@@ -414,7 +427,7 @@ class ControllerEventHandler:
         """
         if not (hasattr(self, 'controller_drags') and controller_id in self.controller_drags):
             self.log.debug(
-                f'DEBUG: No controller drags or controller {controller_id} not in controller_drags'
+                f'DEBUG: No controller drags or controller {controller_id} not in controller_drags',
             )
             return
 
@@ -432,7 +445,7 @@ class ControllerEventHandler:
         drag_info['pixels_drawn'].append(pixel_info)
         self.log.debug(
             f'DEBUG: Controller drag tracking pixel at {position}, total'
-            f' pixels: {len(drag_info["pixels_drawn"])}'
+            f' pixels: {len(drag_info["pixels_drawn"])}',
         )
 
     def _canvas_erase_at_controller_position(self, controller_id: int) -> None:
@@ -449,7 +462,9 @@ class ControllerEventHandler:
             # Use the canvas interface to set the pixel
             if hasattr(self.editor.canvas, 'canvas_interface'):
                 self.editor.canvas.canvas_interface.set_pixel_at(
-                    position.position[0], position.position[1], background_color
+                    position.position[0],
+                    position.position[1],
+                    background_color,
                 )
             else:
                 # Fallback: directly set pixel if interface not available
@@ -498,7 +513,11 @@ class ControllerEventHandler:
             mode_str = current_mode.value if current_mode else None
 
             self.editor.controller_position_operation_tracker.add_controller_position_change(
-                controller_id, old_position, new_position, mode_str, mode_str
+                controller_id,
+                old_position,
+                new_position,
+                mode_str,
+                mode_str,
             )
 
         # Update position
@@ -511,7 +530,7 @@ class ControllerEventHandler:
             if drag_info['active']:
                 self.log.debug(
                     f'DEBUG: Controller {controller_id}: In active drag, painting at new position'
-                    f' {new_position}'
+                    f' {new_position}',
                 )
                 self.canvas_paint_at_controller_position(controller_id)
 
@@ -537,7 +556,7 @@ class ControllerEventHandler:
         # Check for slider continuous adjustment
         return bool(
             hasattr(self, 'slider_continuous_adjustments')
-            and controller_id in self.slider_continuous_adjustments
+            and controller_id in self.slider_continuous_adjustments,
         )
 
     def update_controller_canvas_visual_indicator(self, controller_id: int) -> None:
@@ -569,7 +588,9 @@ class ControllerEventHandler:
             )
 
     def handle_slider_mode_navigation(
-        self, direction: str, controller_id: int | None = None
+        self,
+        direction: str,
+        controller_id: int | None = None,
     ) -> None:
         """Handle arrow key navigation between slider modes."""
         if not hasattr(self.editor, 'mode_switcher'):
@@ -621,22 +642,23 @@ class ControllerEventHandler:
         # Switch to new mode
         current_time = time.time()
         self.editor.mode_switcher.controller_modes[target_controller_id].switch_to_mode(
-            new_mode, current_time
+            new_mode,
+            current_time,
         )
 
         self.log.debug(
             f'DEBUG: Slider mode navigation - switched controller {target_controller_id} from'
-            f' {current_mode.value} to {new_mode.value}'
+            f' {current_mode.value} to {new_mode.value}',
         )
         self.log.debug(
             f'Slider mode navigation - switched controller {target_controller_id} from'
-            f' {current_mode.value} to {new_mode.value}'
+            f' {current_mode.value} to {new_mode.value}',
         )
 
     def _slider_adjust_value(self, controller_id: int, delta: int) -> None:
         """Adjust the current slider's value."""
         self.log.debug(
-            f'DEBUG: _slider_adjust_value called for controller {controller_id}, delta {delta}'
+            f'DEBUG: _slider_adjust_value called for controller {controller_id}, delta {delta}',
         )
 
         # Get the controller's current mode to determine which slider
@@ -644,7 +666,7 @@ class ControllerEventHandler:
             controller_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
             self.log.debug(
                 f'DEBUG: Controller {controller_id} mode:'
-                f' {controller_mode.value if controller_mode else "None"}'
+                f' {controller_mode.value if controller_mode else "None"}',
             )
 
             # Adjust the appropriate slider based on mode
@@ -681,7 +703,7 @@ class ControllerEventHandler:
             else:
                 self.log.debug(
                     'DEBUG: No matching slider mode for'
-                    f' {controller_mode.value if controller_mode else "None"}'
+                    f' {controller_mode.value if controller_mode else "None"}',
                 )
         else:
             self.log.debug('DEBUG: No mode_switcher found')
@@ -702,7 +724,7 @@ class ControllerEventHandler:
         }
         self.log.debug(
             f'DEBUG: Started continuous slider adjustment for controller {controller_id}, direction'
-            f' {direction} (immediate first tick)'
+            f' {direction} (immediate first tick)',
         )
 
     def stop_slider_continuous_adjustment(self, controller_id: int) -> None:
@@ -713,7 +735,7 @@ class ControllerEventHandler:
         ):
             del self.slider_continuous_adjustments[controller_id]
             self.log.debug(
-                f'DEBUG: Stopped continuous slider adjustment for controller {controller_id}'
+                f'DEBUG: Stopped continuous slider adjustment for controller {controller_id}',
             )
 
     def _update_slider_continuous_adjustments(self) -> None:
@@ -751,7 +773,7 @@ class ControllerEventHandler:
                 adjustment_data['acceleration_level'] = acceleration_level
                 self.log.debug(
                     f'DEBUG: Controller {controller_id} slider acceleration level'
-                    f' {acceleration_level}'
+                    f' {acceleration_level}',
                 )
 
             # Check if enough time has passed for next adjustment
@@ -767,7 +789,7 @@ class ControllerEventHandler:
                 controller_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
                 self.log.debug(
                     f'DEBUG: Continuous adjustment - controller {controller_id} mode:'
-                    f' {controller_mode.value if controller_mode else "None"}'
+                    f' {controller_mode.value if controller_mode else "None"}',
                 )
                 if controller_mode and controller_mode.value in {
                     'r_slider',
@@ -776,7 +798,7 @@ class ControllerEventHandler:
                 }:
                     self.log.debug(
                         'DEBUG: Calling _update_color_well_from_sliders during continuous '
-                        'adjustment'
+                        'adjustment',
                     )
                     self.editor.update_color_well_from_sliders()
                 else:
@@ -807,7 +829,7 @@ class ControllerEventHandler:
         }
         self.log.debug(
             f'DEBUG: Started continuous canvas movement for controller {controller_id}, direction'
-            f' ({dx}, {dy}) (immediate first movement)'
+            f' ({dx}, {dy}) (immediate first movement)',
         )
 
     def stop_canvas_continuous_movement(self, controller_id: int) -> None:
@@ -832,12 +854,16 @@ class ControllerEventHandler:
                     mode_str = current_mode.value if current_mode else None
 
                     self.editor.controller_position_operation_tracker.add_controller_position_change(
-                        controller_id, start_position, current_pos, mode_str, mode_str
+                        controller_id,
+                        start_position,
+                        current_pos,
+                        mode_str,
+                        mode_str,
                     )
 
             del self.canvas_continuous_movements[controller_id]
             self.log.debug(
-                f'DEBUG: Stopped continuous canvas movement for controller {controller_id}'
+                f'DEBUG: Stopped continuous canvas movement for controller {controller_id}',
             )
 
     def _update_canvas_continuous_movements(self) -> None:
@@ -871,7 +897,7 @@ class ControllerEventHandler:
                 movement_data['acceleration_level'] = acceleration_level
                 self.log.debug(
                     f'DEBUG: Controller {controller_id} canvas movement acceleration level'
-                    f' {acceleration_level}'
+                    f' {acceleration_level}',
                 )
 
             # Check if enough time has passed for next movement
@@ -900,7 +926,7 @@ class ControllerEventHandler:
         """Paint a horizontal line of pixels starting from the controller's current position."""
         self.log.debug(
             f'DEBUG: canvas_paint_horizontal_line called for controller {controller_id}, distance'
-            f' {distance}'
+            f' {distance}',
         )
 
         # Get controller position from mode switcher
@@ -914,7 +940,7 @@ class ControllerEventHandler:
 
         self.log.debug(
             f'DEBUG: Painting horizontal line from ({start_x}, {start_y}) with distance {distance},'
-            f' color {current_color}'
+            f' color {current_color}',
         )
 
         canvas_width, canvas_height = self._get_canvas_dimensions()
@@ -947,14 +973,14 @@ class ControllerEventHandler:
         self.editor.mode_switcher.save_controller_position(controller_id, (end_x, start_y))
         self.log.debug(
             f'DEBUG: Updated controller {controller_id} position to ({end_x}, {start_y}) (clamped'
-            f' to canvas bounds)'
+            f' to canvas bounds)',
         )
 
     def canvas_paint_vertical_line(self, controller_id: int, distance: int) -> None:
         """Paint a vertical line of pixels starting from the controller's current position."""
         self.log.debug(
             f'DEBUG: canvas_paint_vertical_line called for controller {controller_id}, distance'
-            f' {distance}'
+            f' {distance}',
         )
 
         # Get controller position from mode switcher
@@ -968,7 +994,7 @@ class ControllerEventHandler:
 
         self.log.debug(
             f'DEBUG: Painting vertical line from ({start_x}, {start_y}) with distance {distance},'
-            f' color {current_color}'
+            f' color {current_color}',
         )
 
         canvas_width, canvas_height = self._get_canvas_dimensions()
@@ -1001,7 +1027,7 @@ class ControllerEventHandler:
         self.editor.mode_switcher.save_controller_position(controller_id, (start_x, end_y))
         self.log.debug(
             f'DEBUG: Updated controller {controller_id} position to ({start_x}, {end_y}) (clamped'
-            f' to canvas bounds)'
+            f' to canvas bounds)',
         )
 
     def _get_canvas_dimensions(self) -> tuple[int, int]:
@@ -1019,7 +1045,11 @@ class ControllerEventHandler:
         return (0, 0)
 
     def _paint_and_track_pixel(
-        self, controller_id: int, pixel_x: int, pixel_y: int, current_color: tuple[int, ...]
+        self,
+        controller_id: int,
+        pixel_x: int,
+        pixel_y: int,
+        current_color: tuple[int, ...],
     ) -> None:
         """Paint a pixel and track it in the controller drag operation.
 
@@ -1039,12 +1069,15 @@ class ControllerEventHandler:
             and self.editor.canvas
             and hasattr(self.editor.canvas, 'canvas_interface')
         ):
-            self.editor.canvas.canvas_interface.set_pixel_at(pixel_x, pixel_y, current_color)  # type: ignore[arg-type]
+            self.editor.canvas.canvas_interface.set_pixel_at(pixel_x, pixel_y, current_color)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
             self.log.debug(
-                f'DEBUG: Painted pixel at ({pixel_x}, {pixel_y}) with color {current_color}'
+                f'DEBUG: Painted pixel at ({pixel_x}, {pixel_y}) with color {current_color}',
             )
             self._track_controller_drag_pixel(
-                controller_id, (pixel_x, pixel_y), current_color, old_color
+                controller_id,
+                (pixel_x, pixel_y),
+                current_color,
+                old_color,
             )
         else:
             self.log.debug('DEBUG: No canvas or canvas_interface available')
@@ -1067,7 +1100,7 @@ class ControllerEventHandler:
         """Jump horizontally without painting pixels."""
         self.log.debug(
             f'DEBUG: canvas_jump_horizontal called for controller {controller_id}, distance'
-            f' {distance}'
+            f' {distance}',
         )
 
         # Get controller position from mode switcher
@@ -1094,14 +1127,14 @@ class ControllerEventHandler:
         self.editor.mode_switcher.save_controller_position(controller_id, (end_x, start_y))
         self.log.debug(
             f'DEBUG: Controller {controller_id} jumped from ({start_x}, {start_y}) to ({end_x},'
-            f' {start_y})'
+            f' {start_y})',
         )
 
     def canvas_jump_vertical(self, controller_id: int, distance: int) -> None:
         """Jump vertically without painting pixels."""
         self.log.debug(
             f'DEBUG: canvas_jump_vertical called for controller {controller_id}, distance'
-            f' {distance}'
+            f' {distance}',
         )
 
         # Get controller position from mode switcher
@@ -1128,7 +1161,7 @@ class ControllerEventHandler:
         self.editor.mode_switcher.save_controller_position(controller_id, (start_x, end_y))
         self.log.debug(
             f'DEBUG: Controller {controller_id} jumped from ({start_x}, {start_y}) to ({start_x},'
-            f' {end_y})'
+            f' {end_y})',
         )
 
     def _slider_previous(self, controller_id: int) -> None:
@@ -1148,34 +1181,19 @@ class ControllerEventHandler:
             event (pygame.event.Event): The joystick button down event.
 
         """
-        # print(f"DEBUG: Joystick button down event received: button={event.button}")
-        # print(f"DEBUG: Joystick instance_id: {getattr(event, 'instance_id', 'N/A')}")
-        # print(f"DEBUG: Joystick joy: {getattr(event, 'joy', 'N/A')}")
-        # print(f"DEBUG: This could be the source of the reset behavior!")
-        # self.log.debug(f"Joystick button down: {event.button}")
-
         # Map joystick buttons to controller actions
         # Button 9 is likely LEFT SHOULDER button, not START
-        if event.button == JOYSTICK_LEFT_SHOULDER_BUTTON:  # LEFT SHOULDER button
-            # print("DEBUG: Joystick LEFT SHOULDER button pressed - UNHANDLED")
+        if event.button == JOYSTICK_LEFT_SHOULDER_BUTTON:
             # Left shoulder button: Currently unhandled to prevent reset behavior
-            # controller_id = getattr(event, 'instance_id', 0)
-            # self.multi_controller_activate(controller_id)
             pass
         elif event.button == 0:  # A button
-            # print("DEBUG: Joystick A button pressed - selecting current frame with
-            # multi-controller system")
             # Use new multi-controller system instead of old single-controller system
             controller_id = getattr(event, 'instance_id', 0)
             self.multi_controller_select_current_frame(controller_id)
         elif event.button == 1:  # B button
-            # print("DEBUG: Joystick B button pressed - cancel")
             self._controller_cancel()
         else:
-            # Unknown joystick button - this might be the shoulder button!
-            # print(f"DEBUG: Joystick UNKNOWN button {event.button} pressed - UNHANDLED")
-            # print(f"DEBUG: This could be the left shoulder button causing the reset!")
-            # self.log.debug(f"Joystick unknown button: {event.button}")
+            # Unknown joystick button - not handled
             pass
 
     def on_joy_button_up_event(self, event: events.HashableEvent) -> None:
@@ -1185,8 +1203,6 @@ class ControllerEventHandler:
             event (pygame.event.Event): The joystick button up event.
 
         """
-        # print(f"DEBUG: Joystick button up event received: button={event.button}")
-        # self.log.debug(f"Joystick button up: {event.button}")
 
     def on_joy_hat_motion_event(self, event: events.HashableEvent) -> None:
         """Handle joystick hat motion events - requires threshold to prevent jittery behavior.
@@ -1240,13 +1256,13 @@ class ControllerEventHandler:
         # Handle trigger axis motion for mode switching (axes 4 and 5)
         if event.axis in {4, 5}:  # TRIGGERLEFT and TRIGGERRIGHT
             self.log.debug(
-                f'DEBUG: Trigger axis motion detected: axis={event.axis}, value={event.value}'
+                f'DEBUG: Trigger axis motion detected: axis={event.axis}, value={event.value}',
             )
             self._handle_trigger_axis_motion(event)
             return
 
         self.log.debug(
-            f'DEBUG: Joystick axis motion (DISABLED): axis={event.axis}, value={event.value}'
+            f'DEBUG: Joystick axis motion (DISABLED): axis={event.axis}, value={event.value}',
         )
         # Disabled to prevent jittery behavior
 
@@ -1258,7 +1274,7 @@ class ControllerEventHandler:
 
         """
         self.log.debug(
-            f'DEBUG: Joystick ball motion (DISABLED): ball={event.ball}, rel={event.rel}'
+            f'DEBUG: Joystick ball motion (DISABLED): ball={event.ball}, rel={event.rel}',
         )
         # Disabled to prevent jittery behavior
 
@@ -1292,7 +1308,7 @@ class ControllerEventHandler:
         self.log.debug(f'DEBUG: RIGHT_Y axis constant: {pygame.CONTROLLER_AXIS_RIGHTY}')
         self.log.debug(
             'DEBUG: Controller selection active:'
-            f' {getattr(self, "controller_selection_active", False)}'
+            f' {getattr(self, "controller_selection_active", False)}',
         )
 
         # Left stick for fine frame navigation (only if controller selection is active)
@@ -1350,7 +1366,9 @@ class ControllerEventHandler:
         self._controller_axis_last_values[event.axis] = event.value
 
     def _check_axis_deadzone_and_cooldown(
-        self, event: events.HashableEvent, current_time: float
+        self,
+        event: events.HashableEvent,
+        current_time: float,
     ) -> bool:
         """Check deadzone, cooldown, and direction change for an axis event.
 
@@ -1412,7 +1430,10 @@ class ControllerEventHandler:
 
         # Handle mode switching
         new_mode = self.editor.mode_switcher.handle_trigger_input(
-            controller_id, l2_value, r2_value, current_time
+            controller_id,
+            l2_value,
+            r2_value,
+            current_time,
         )
 
         if new_mode:
@@ -1422,7 +1443,7 @@ class ControllerEventHandler:
         else:
             self.log.debug(
                 f'DEBUG: No mode switch for controller {controller_id} - L2: {l2_value:.2f}, R2:'
-                f' {r2_value:.2f}'
+                f' {r2_value:.2f}',
             )
 
     def _get_controller_id_from_event(self, event: events.HashableEvent) -> int | None:
@@ -1440,7 +1461,7 @@ class ControllerEventHandler:
             controller_id = self.editor.multi_controller_manager.get_controller_id(instance_id)
             self.log.debug(
                 f'DEBUG: Controller event - instance_id={instance_id},'
-                f' controller_id={controller_id}'
+                f' controller_id={controller_id}',
             )
             return controller_id
 
@@ -1448,12 +1469,14 @@ class ControllerEventHandler:
         device_index = event.joy
         self.log.debug(
             f'DEBUG: Joystick event - using device index {device_index} as controller ID'
-            f' {device_index}'
+            f' {device_index}',
         )
         return device_index
 
     def _read_trigger_values(
-        self, event: events.HashableEvent, controller_id: int
+        self,
+        event: events.HashableEvent,
+        controller_id: int,
     ) -> tuple[float, float]:
         """Read L2 and R2 trigger values from a controller or joystick event.
 
@@ -1470,7 +1493,9 @@ class ControllerEventHandler:
         return self._read_joystick_trigger_values(event, controller_id)
 
     def _read_controller_trigger_values(
-        self, event: events.HashableEvent, controller_id: int
+        self,
+        event: events.HashableEvent,
+        controller_id: int,
     ) -> tuple[float, float]:
         """Read trigger values from a controller event.
 
@@ -1486,11 +1511,11 @@ class ControllerEventHandler:
             return 0.0, 0.0
 
         controller_info = self.editor.multi_controller_manager.get_controller_info(
-            event.instance_id
+            event.instance_id,
         )
         self.log.debug(
             f'DEBUG: Controller info lookup - instance_id={event.instance_id},'
-            f' controller_info={controller_info}'
+            f' controller_info={controller_info}',
         )
         if not controller_info:
             self.log.debug(f'DEBUG: No controller info found for instance_id={event.instance_id}')
@@ -1505,17 +1530,20 @@ class ControllerEventHandler:
             r2_value = (r2_raw + 1.0) / 2.0
             self.log.debug(
                 f'DEBUG: Controller {controller_id} triggers - L2: {l2_value:.2f}, R2:'
-                f' {r2_value:.2f}'
+                f' {r2_value:.2f}',
             )
-            return l2_value, r2_value
         except (pygame.error, OSError, AttributeError) as e:
             self.log.debug(
-                f'DEBUG: Error getting controller object for instance_id={event.instance_id}: {e}'
+                f'DEBUG: Error getting controller object for instance_id={event.instance_id}: {e}',
             )
             return 0.0, 0.0
+        else:
+            return l2_value, r2_value
 
     def _read_joystick_trigger_values(
-        self, event: events.HashableEvent, controller_id: int
+        self,
+        event: events.HashableEvent,
+        controller_id: int,
     ) -> tuple[float, float]:
         """Read trigger values from a joystick event.
 
@@ -1528,7 +1556,9 @@ class ControllerEventHandler:
 
         """
         self.log.debug(
-            f'DEBUG: Processing joystick event for controller {controller_id}, joy={event.joy}'
+            'DEBUG: Processing joystick event for controller %s, joy=%s',
+            controller_id,
+            event.joy,
         )
         try:
             joystick = pygame.joystick.Joystick(event.joy)
@@ -1543,15 +1573,22 @@ class ControllerEventHandler:
             r2_value = max(0.0, min(1.0, (r2_raw + 32768.0) / 65535.0))
 
             self.log.debug(
-                f'DEBUG: Joystick {controller_id} raw values - L2: {l2_raw:.2f}, R2: {r2_raw:.2f}'
+                'DEBUG: Joystick %s raw values - L2: %.2f, R2: %.2f',
+                controller_id,
+                l2_raw,
+                r2_raw,
             )
             self.log.debug(
-                f'DEBUG: Joystick {controller_id} triggers - L2: {l2_value:.2f}, R2: {r2_value:.2f}'
+                'DEBUG: Joystick %s triggers - L2: %.2f, R2: %.2f',
+                controller_id,
+                l2_value,
+                r2_value,
             )
-            return l2_value, r2_value
         except (pygame.error, OSError, AttributeError) as e:
             self.log.debug(f'DEBUG: Error getting joystick trigger values: {e}')
             return 0.0, 0.0
+        else:
+            return l2_value, r2_value
 
     def _track_controller_mode_change(self, controller_id: int, new_mode: ControllerMode) -> None:
         """Track a controller mode change for undo/redo.
@@ -1569,11 +1606,15 @@ class ControllerEventHandler:
         old_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
         if old_mode:
             self.editor.controller_position_operation_tracker.add_controller_mode_change(
-                controller_id, old_mode.value, new_mode.value
+                controller_id,
+                old_mode.value,
+                new_mode.value,
             )
 
     def update_controller_visual_indicator_for_mode(
-        self, controller_id: int, new_mode: ControllerMode
+        self,
+        controller_id: int,
+        new_mode: ControllerMode,
     ) -> None:
         """Update visual indicator for controller's new mode.
 
@@ -1584,7 +1625,7 @@ class ControllerEventHandler:
         """
         self.log.debug(
             f'DEBUG: Updating visual indicator for controller {controller_id} to mode'
-            f' {new_mode.value} (selected controller)'
+            f' {new_mode.value} (selected controller)',
         )
 
         # Get controller info
@@ -1604,12 +1645,17 @@ class ControllerEventHandler:
         position = self._get_controller_mode_position(controller_id, new_mode)
 
         self._update_visual_collision_indicator(
-            controller_id, controller_info, position, location_type
+            controller_id,
+            controller_info,
+            position,
+            location_type,
         )
-        self._mark_dirty_for_mode_change(controller_id, location_type)  # type: ignore[arg-type]
+        self._mark_dirty_for_mode_change(controller_id, location_type)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     def _get_controller_mode_position(
-        self, controller_id: int, new_mode: ControllerMode
+        self,
+        controller_id: int,
+        new_mode: ControllerMode,
     ) -> tuple[int, int]:
         """Get the position for a controller in its new mode.
 
@@ -1625,7 +1671,7 @@ class ControllerEventHandler:
         if position_data and position_data.is_valid:
             self.log.debug(
                 f'DEBUG: Using saved position for controller {controller_id}:'
-                f' {position_data.position}'
+                f' {position_data.position}',
             )
             return position_data.position
 
@@ -1661,7 +1707,7 @@ class ControllerEventHandler:
 
         self.log.debug(
             f'DEBUG: Adding new indicator for controller {controller_id} at {position} with'
-            f' location type {location_type}'
+            f' location type {location_type}',
         )
         # Remove any existing indicator for this controller first
         self.editor.visual_collision_manager.remove_controller_indicator(controller_id)
@@ -1674,11 +1720,35 @@ class ControllerEventHandler:
             location_type,
         )
         self.log.debug(
-            f'DEBUG: Updated visual indicator for controller {controller_id} at {position}'
+            f'DEBUG: Updated visual indicator for controller {controller_id} at {position}',
         )
 
     def _mark_dirty_for_mode_change(self, controller_id: int, location_type: str) -> None:
         """Mark appropriate areas as dirty after a controller mode change.
+
+        Args:
+            controller_id: Controller ID.
+            location_type: The LocationType for the new mode.
+
+        """
+        self._mark_dirty_for_specific_mode(controller_id, location_type)
+
+        # Also mark film strips as dirty to ensure old triangles are removed
+        # This is needed because film strips use controller_selections, not
+        # VisualCollisionManager
+        if hasattr(self.editor, 'film_strips'):
+            for strip_widget in self.editor.film_strips.values():
+                strip_widget.mark_dirty()
+            self.log.debug('DEBUG: Marked film strips as dirty to remove old indicators')
+
+        # Also force canvas redraw to ensure old canvas indicators are removed
+        # This is needed because canvas visual indicators are drawn on the canvas surface
+        if hasattr(self.editor, 'canvas'):
+            self.editor.canvas.force_redraw()
+            self.log.debug('DEBUG: Forced canvas redraw to remove old indicators')
+
+    def _mark_dirty_for_specific_mode(self, controller_id: int, location_type: str) -> None:
+        """Mark mode-specific areas as dirty.
 
         Args:
             controller_id: Controller ID.
@@ -1700,27 +1770,13 @@ class ControllerEventHandler:
                 self.editor.blue_slider.text_sprite.dirty = 2
             self.editor.dirty = 1
             self.log.debug(
-                f'DEBUG: Marked sliders and scene as dirty for controller {controller_id}'
+                f'DEBUG: Marked sliders and scene as dirty for controller {controller_id}',
             )
         elif location_type == LocationType.FILM_STRIP:
             if hasattr(self.editor, 'film_strips'):
                 for strip_widget in self.editor.film_strips.values():
                     strip_widget.mark_dirty()
             self.log.debug(f'DEBUG: Marked film strips as dirty for controller {controller_id}')
-
-        # Also mark film strips as dirty to ensure old triangles are removed
-        # This is needed because film strips use controller_selections, not
-        # VisualCollisionManager
-        if hasattr(self.editor, 'film_strips'):
-            for strip_widget in self.editor.film_strips.values():
-                strip_widget.mark_dirty()
-            self.log.debug('DEBUG: Marked film strips as dirty to remove old indicators')
-
-        # Also force canvas redraw to ensure old canvas indicators are removed
-        # This is needed because canvas visual indicators are drawn on the canvas surface
-        if hasattr(self.editor, 'canvas'):
-            self.editor.canvas.force_redraw()
-            self.log.debug('DEBUG: Forced canvas redraw to remove old indicators')
 
     def _render_visual_indicators(self) -> None:
         """Render visual indicators for multi-controller system."""
@@ -1762,7 +1818,10 @@ class ControllerEventHandler:
         self._update_canvas_indicators()
 
     def _create_slider_indicator_sprite(
-        self, controller_id: int, color: tuple[int, ...], slider_rect: pygame.FRect | pygame.Rect
+        self,
+        controller_id: int,
+        color: tuple[int, ...],
+        slider_rect: pygame.FRect | pygame.Rect,
     ) -> BitmappySprite:
         """Create a proper Bitmappy sprite for slider indicator.
 
@@ -1792,7 +1851,11 @@ class ControllerEventHandler:
         # Draw the indicator on the sprite surface
         pygame.draw.circle(indicator.image, color, (indicator_size // 2, indicator_size // 2), 8)
         pygame.draw.circle(
-            indicator.image, (255, 255, 255), (indicator_size // 2, indicator_size // 2), 8, 2
+            indicator.image,
+            (255, 255, 255),
+            (indicator_size // 2, indicator_size // 2),
+            8,
+            2,
         )
 
         return indicator
@@ -1886,8 +1949,10 @@ class ControllerEventHandler:
 
         return slider_groups
 
-    def _create_slider_indicators_with_collision_avoidance(
-        self, slider_mode: str, controllers: list[dict[str, Any]]
+    def _create_slider_indicators_with_collision_avoidance(  # noqa: C901
+        self,
+        slider_mode: str,
+        controllers: list[dict[str, Any]],
     ) -> None:
         """Create slider indicators with collision avoidance for multiple controllers."""
         # Get the appropriate slider
@@ -1927,39 +1992,67 @@ class ControllerEventHandler:
         # Calculate starting position to center the group
         slider_rect = slider.rect
         assert slider_rect is not None
-        start_x = slider_rect.centerx - (total_width // 2)
-        center_y = slider_rect.centery
+        start_x = int(slider_rect.centerx) - (total_width // 2)
+        center_y = int(slider_rect.centery)
 
         # Create indicators with proper spacing
         current_x = start_x
         for controller in controllers:
-            # Create indicator at calculated position
-            indicator = BitmappySprite(
-                name=f'SliderIndicator_{controller["controller_id"]}',
-                x=int(current_x - indicator_size // 2),
-                y=int(center_y - indicator_size // 2),
-                width=indicator_size,
-                height=indicator_size,
-                groups=self.editor.all_sprites,
+            self._create_single_slider_indicator(
+                controller,
+                current_x,
+                center_y,
+                indicator_size,
             )
-
-            # Make the background transparent
-            indicator.image.set_colorkey((0, 0, 0))
-            indicator.image.fill((0, 0, 0))
-
-            # Draw the indicator
-            pygame.draw.circle(
-                indicator.image, controller['color'], (indicator_size // 2, indicator_size // 2), 8
-            )
-            pygame.draw.circle(
-                indicator.image, (255, 255, 255), (indicator_size // 2, indicator_size // 2), 8, 2
-            )
-
-            # Store the indicator
-            self.slider_indicators[controller['controller_id']] = indicator
-
-            # Move to next position
             current_x += indicator_spacing
+
+    def _create_single_slider_indicator(
+        self,
+        controller: dict[str, Any],
+        center_x: int,
+        center_y: int,
+        indicator_size: int,
+    ) -> None:
+        """Create a single slider indicator sprite for a controller.
+
+        Args:
+            controller: Controller info dict with 'controller_id' and 'color'.
+            center_x: X center position for the indicator.
+            center_y: Y center position for the indicator.
+            indicator_size: Size of the indicator in pixels.
+
+        """
+        indicator = BitmappySprite(
+            name=f'SliderIndicator_{controller["controller_id"]}',
+            x=int(center_x - indicator_size // 2),
+            y=int(center_y - indicator_size // 2),
+            width=indicator_size,
+            height=indicator_size,
+            groups=self.editor.all_sprites,
+        )
+
+        # Make the background transparent
+        indicator.image.set_colorkey((0, 0, 0))
+        indicator.image.fill((0, 0, 0))
+
+        # Draw the indicator
+        half_size = indicator_size // 2
+        pygame.draw.circle(
+            indicator.image,
+            controller['color'],
+            (half_size, half_size),
+            8,
+        )
+        pygame.draw.circle(
+            indicator.image,
+            (255, 255, 255),
+            (half_size, half_size),
+            8,
+            2,
+        )
+
+        # Store the indicator
+        self.slider_indicators[controller['controller_id']] = indicator
 
     def _update_film_strip_controller_selections(self) -> None:
         """Update film strip controller selections for all animations."""
@@ -1972,7 +2065,9 @@ class ControllerEventHandler:
             self._process_film_strip_controller_selection(controller_id, controller_selection)
 
     def _process_film_strip_controller_selection(
-        self, controller_id: int, controller_selection: ControllerSelection
+        self,
+        controller_id: int,
+        controller_selection: ControllerSelection,
     ) -> None:
         """Process a single controller selection for film strip mode.
 
@@ -2039,12 +2134,12 @@ class ControllerEventHandler:
         if canvas_controllers:
             self.canvas_controller_indicators = canvas_controllers
             if hasattr(self.editor.canvas, 'canvas_interface'):
-                self.editor.canvas.canvas_interface.controller_indicators = canvas_controllers  # type: ignore[attr-defined]
+                self.editor.canvas.canvas_interface.controller_indicators = canvas_controllers  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
             self.editor.canvas.force_redraw()
         else:
             self.canvas_controller_indicators = []
             if hasattr(self.editor.canvas, 'canvas_interface'):
-                self.editor.canvas.canvas_interface.controller_indicators = []  # type: ignore[attr-defined]
+                self.editor.canvas.canvas_interface.controller_indicators = []  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
 
     def _collect_canvas_controllers(self) -> list[dict[str, Any]]:
         """Collect all active controllers in canvas mode with their positions.
@@ -2094,7 +2189,8 @@ class ControllerEventHandler:
                 from glitchygames.bitmappy.controllers.selection import ControllerSelection
 
                 self.editor.controller_selections[controller_id] = ControllerSelection(
-                    controller_id, instance_id
+                    controller_id,
+                    instance_id,
                 )
 
                 # Activate the controller
@@ -2105,12 +2201,13 @@ class ControllerEventHandler:
                     from glitchygames.bitmappy.controllers.modes import ControllerMode
 
                     self.editor.mode_switcher.register_controller(
-                        controller_id, ControllerMode.FILM_STRIP
+                        controller_id,
+                        ControllerMode.FILM_STRIP,
                     )
 
                 self.log.debug(
                     f'BitmapEditorScene: Registered and activated new controller {controller_id}'
-                    f' (instance {instance_id})'
+                    f' (instance {instance_id})',
                 )
 
     def _remove_slider_indicator(self, controller_id: int) -> None:
@@ -2127,7 +2224,7 @@ class ControllerEventHandler:
         """Draw a single visual indicator on the screen."""
         if not indicator.is_visible:
             self.log.debug(
-                f'DEBUG: Indicator for controller {indicator.controller_id} is not visible'
+                f'DEBUG: Indicator for controller {indicator.controller_id} is not visible',
             )
             return
 
@@ -2137,7 +2234,7 @@ class ControllerEventHandler:
 
         self.log.debug(
             f'DEBUG: Drawing indicator for controller {indicator.controller_id} at ({final_x},'
-            f' {final_y}) with shape {indicator.shape.value}'
+            f' {final_y}) with shape {indicator.shape.value}',
         )
 
         # Draw based on shape
@@ -2165,7 +2262,8 @@ class ControllerEventHandler:
     def _select_current_frame(self) -> None:
         """Select the currently highlighted frame."""
         if not hasattr(self.editor, 'selected_animation') or not hasattr(
-            self.editor, 'selected_frame'
+            self.editor,
+            'selected_frame',
         ):
             return
 
@@ -2194,21 +2292,21 @@ class ControllerEventHandler:
         """Deprecate old single-controller system in favor of multi-controller system."""
         self.log.debug(
             '_controller_select_current_frame called but DISABLED - use multi-controller system '
-            'instead'
+            'instead',
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
     def _controller_previous_frame(self) -> None:
         """Deprecate old single-controller system in favor of multi-controller system."""
         self.log.debug(
-            '_controller_previous_frame called but DISABLED - use multi-controller system instead'
+            '_controller_previous_frame called but DISABLED - use multi-controller system instead',
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
     def _controller_next_frame(self) -> None:
         """Deprecate old single-controller system in favor of multi-controller system."""
         self.log.debug(
-            '_controller_next_frame called but DISABLED - use multi-controller system instead'
+            '_controller_next_frame called but DISABLED - use multi-controller system instead',
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
@@ -2216,14 +2314,14 @@ class ControllerEventHandler:
         """Deprecate old single-controller system in favor of multi-controller system."""
         self.log.debug(
             '_controller_previous_animation called but DISABLED - use multi-controller system '
-            'instead'
+            'instead',
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
     def _controller_next_animation(self) -> None:
         """Deprecate old single-controller system in favor of multi-controller system."""
         self.log.debug(
-            '_controller_next_animation called but DISABLED - use multi-controller system instead'
+            '_controller_next_animation called but DISABLED - use multi-controller system instead',
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
@@ -2255,14 +2353,14 @@ class ControllerEventHandler:
 
         self.log.debug(
             f"DEBUG: Scrolled to show animation '{animation_name}' at index {target_index}, scroll"
-            f' offset: {self.editor.film_strip_scroll_offset}'
+            f' offset: {self.editor.film_strip_scroll_offset}',
         )
 
     def _validate_controller_selection(self) -> None:
         """Deprecate old single-controller system in favor of multi-controller system."""
         self.log.debug(
             '_validate_controller_selection called but DISABLED - use multi-controller system '
-            'instead'
+            'instead',
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
@@ -2270,11 +2368,11 @@ class ControllerEventHandler:
         """Deprecate old single-controller system in favor of multi-controller system."""
         self.log.debug(
             '_initialize_controller_selection called but DISABLED - use multi-controller system '
-            'instead'
+            'instead',
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
-    def _controller_select_frame(self, animation: str, frame: int) -> None:
+    def _controller_select_frame(self, _animation: str, _frame: int) -> None:
         """Deprecate old single-controller system in favor of multi-controller system.
 
         This method is kept for compatibility but should not be used.
@@ -2282,7 +2380,7 @@ class ControllerEventHandler:
         """
         self.log.debug(
             'DEBUG: _controller_select_frame called but DISABLED - use multi-controller system '
-            'instead'
+            'instead',
         )
         # OLD SYSTEM DISABLED - Use multi-controller system instead
 
@@ -2306,12 +2404,12 @@ class ControllerEventHandler:
         manager = MultiControllerManager.get_instance()
         self.log.debug(f'DEBUG: About to assign color to controller {controller_id}')
         self.log.debug(
-            f'DEBUG: Available controllers in manager: {list(manager.controllers.keys())}'
+            f'DEBUG: Available controllers in manager: {list(manager.controllers.keys())}',
         )
         for instance_id, info in manager.controllers.items():
             self.log.debug(
                 f'DEBUG: Controller instance_id={instance_id}, controller_id={info.controller_id},'
-                f' color={info.color}'
+                f' color={info.color}',
             )
         manager.assign_color_to_controller(controller_id)
 
@@ -2324,7 +2422,7 @@ class ControllerEventHandler:
             first_animation = next(iter(self.editor.film_strips.keys()))
             controller_selection.set_selection(first_animation, 0)
             self.log.debug(
-                f"DEBUG: Controller {controller_id} initialized to '{first_animation}', frame 0"
+                f"DEBUG: Controller {controller_id} initialized to '{first_animation}', frame 0",
             )
 
         # Update visual collision manager
@@ -2356,7 +2454,7 @@ class ControllerEventHandler:
 
         if not animation or animation not in self.editor.film_strips:
             self.log.debug(
-                f'DEBUG: Controller {controller_id} has no valid animation for previous frame'
+                f'DEBUG: Controller {controller_id} has no valid animation for previous frame',
             )
             return
 
@@ -2371,14 +2469,14 @@ class ControllerEventHandler:
                 strip_widget.update_scroll_for_frame(new_frame)
                 self.log.debug(
                     f'DEBUG: Controller {controller_id} previous frame: Scrolled film strip to show'
-                    f' frame {new_frame}'
+                    f' frame {new_frame}',
                 )
 
             # Update visual indicator
             self._update_controller_visual_indicator(controller_id)
 
             self.log.debug(
-                f'DEBUG: Controller {controller_id} previous frame: {frame} -> {new_frame}'
+                f'DEBUG: Controller {controller_id} previous frame: {frame} -> {new_frame}',
             )
 
     def multi_controller_next_frame(self, controller_id: int) -> None:
@@ -2397,7 +2495,7 @@ class ControllerEventHandler:
 
         if not animation or animation not in self.editor.film_strips:
             self.log.debug(
-                f'DEBUG: Controller {controller_id} has no valid animation for next frame'
+                f'DEBUG: Controller {controller_id} has no valid animation for next frame',
             )
             return
 
@@ -2412,7 +2510,7 @@ class ControllerEventHandler:
                 strip_widget.update_scroll_for_frame(new_frame)
                 self.log.debug(
                     f'DEBUG: Controller {controller_id} next frame: Scrolled film strip to show'
-                    f' frame {new_frame}'
+                    f' frame {new_frame}',
                 )
 
             # Update visual indicator
@@ -2436,7 +2534,8 @@ class ControllerEventHandler:
 
         if not hasattr(self.editor, 'film_strips') or not self.editor.film_strips:
             self.log.debug(
-                f'DEBUG: No film strips available for controller {controller_id} previous animation'
+                'DEBUG: No film strips available for controller %s previous animation',
+                controller_id,
             )
             return
 
@@ -2444,7 +2543,7 @@ class ControllerEventHandler:
         animation_names = list(self.editor.film_strips.keys())
         if not animation_names:
             self.log.debug(
-                f'DEBUG: No animations available for controller {controller_id} previous animation'
+                f'DEBUG: No animations available for controller {controller_id} previous animation',
             )
             return
 
@@ -2468,7 +2567,7 @@ class ControllerEventHandler:
 
         self.log.debug(
             f"DEBUG: Controller {controller_id} previous animation: Moving to '{new_animation}',"
-            f' frame {target_frame}'
+            f' frame {target_frame}',
         )
         controller_selection.set_selection(new_animation, target_frame)
 
@@ -2494,7 +2593,7 @@ class ControllerEventHandler:
 
         if not hasattr(self.editor, 'film_strips') or not self.editor.film_strips:
             self.log.debug(
-                f'DEBUG: No film strips available for controller {controller_id} next animation'
+                f'DEBUG: No film strips available for controller {controller_id} next animation',
             )
             return
 
@@ -2502,7 +2601,7 @@ class ControllerEventHandler:
         animation_names = list(self.editor.film_strips.keys())
         if not animation_names:
             self.log.debug(
-                f'DEBUG: No animations available for controller {controller_id} next animation'
+                f'DEBUG: No animations available for controller {controller_id} next animation',
             )
             return
 
@@ -2526,7 +2625,7 @@ class ControllerEventHandler:
 
         self.log.debug(
             f"DEBUG: Controller {controller_id} next animation: Moving to '{new_animation}', frame"
-            f' {target_frame}'
+            f' {target_frame}',
         )
         controller_selection.set_selection(new_animation, target_frame)
 
@@ -2569,7 +2668,10 @@ class ControllerEventHandler:
         # Add or update visual indicator
         if controller_id not in self.editor.visual_collision_manager.indicators:
             self.editor.visual_collision_manager.add_controller_indicator(
-                controller_id, controller_info.instance_id, controller_info.color, position
+                controller_id,
+                controller_info.instance_id,
+                controller_info.color,
+                position,
             )
         else:
             self.editor.visual_collision_manager.update_controller_position(controller_id, position)
@@ -2591,7 +2693,7 @@ class ControllerEventHandler:
         if not animation or frame is None:  # type: ignore[reportUnnecessaryComparison]
             self.log.debug(
                 f'DEBUG: Controller {controller_id} has no valid selection for onion skinning'
-                f' toggle'
+                f' toggle',
             )
             return
 
@@ -2605,10 +2707,10 @@ class ControllerEventHandler:
         status = 'enabled' if is_enabled else 'disabled'
 
         self.log.debug(
-            f'DEBUG: Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]'
+            f'DEBUG: Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]',
         )
         self.log.debug(
-            f'Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]'
+            f'Controller {controller_id}: Onion skinning {status} for {animation}[{frame}]',
         )
 
         # Force redraw of the canvas to show the change
@@ -2641,7 +2743,7 @@ class ControllerEventHandler:
 
         """
         self.log.debug(
-            f'DEBUG: multi_controller_select_current_frame called for controller {controller_id}'
+            f'DEBUG: multi_controller_select_current_frame called for controller {controller_id}',
         )
 
         if controller_id not in self.editor.controller_selections:
@@ -2655,12 +2757,12 @@ class ControllerEventHandler:
 
         animation, frame = controller_selection.get_selection()
         self.log.debug(
-            f"DEBUG: Controller {controller_id} selecting frame {frame} in animation '{animation}'"
+            f"DEBUG: Controller {controller_id} selecting frame {frame} in animation '{animation}'",
         )
         self.log.debug(
             'DEBUG: Current global selection before update:'
             f" animation='{getattr(self, 'selected_animation', 'None')}',"
-            f' frame={getattr(self, "selected_frame", "None")}'
+            f' frame={getattr(self, "selected_frame", "None")}',
         )
 
         # Update the canvas to show this frame
@@ -2672,14 +2774,16 @@ class ControllerEventHandler:
                         # Update the canvas to show this frame using the same mechanism as keyboard
                         # selection
                         self.log.debug(
-                            f"DEBUG: Updating canvas to show animation '{animation}', frame {frame}"
+                            "DEBUG: Updating canvas to show animation '%s', frame %s",
+                            animation,
+                            frame,
                         )
                         self.editor.canvas.show_frame(animation, frame)
 
                         # Store global selection state (same as keyboard selection)
                         self.log.debug(
                             f"DEBUG: Setting global selection state to animation '{animation}',"
-                            f' frame {frame}'
+                            f' frame {frame}',
                         )
                         self.editor.selected_animation = animation
                         self.editor.selected_frame = frame
@@ -2690,28 +2794,28 @@ class ControllerEventHandler:
 
                         self.log.debug(
                             'DEBUG: Controller selection updated keyboard selection to animation'
-                            f" '{animation}', frame {frame}"
+                            f" '{animation}', frame {frame}",
                         )
                         selected_anim = self.editor.selected_animation
                         selected_frm = self.editor.selected_frame
                         self.log.debug(
                             f"DEBUG: Final global selection: animation='{selected_anim}',"
-                            f' frame={selected_frm}'
+                            f' frame={selected_frm}',
                         )
                     else:
                         self.log.debug(
                             f"DEBUG: Frame {frame} is out of bounds for animation '{animation}'"
                             f' (max:'
-                            f' {len(strip_widget.animated_sprite._animations[animation]) - 1})'  # type: ignore[reportPrivateUsage]
+                            f' {len(strip_widget.animated_sprite._animations[animation]) - 1})',  # type: ignore[reportPrivateUsage]
                         )
                 else:
                     self.log.debug(
                         f"DEBUG: Animation '{animation}' not found in"
-                        f' strip_widget.animated_sprite._animations'
+                        f' strip_widget.animated_sprite._animations',
                     )
             else:
                 self.log.debug(
-                    'DEBUG: strip_widget has no animated_sprite or animated_sprite is None'
+                    'DEBUG: strip_widget has no animated_sprite or animated_sprite is None',
                 )
         else:
             self.log.debug(f"DEBUG: Animation '{animation}' not found in film_strips")
@@ -2731,7 +2835,8 @@ class ControllerEventHandler:
         self.log.debug(f'DEBUG: Controller {controller_id} cancelled')
 
     def reinitialize_multi_controller_system(
-        self, preserved_controller_selections: dict[int, tuple[str, int]] | None = None
+        self,
+        preserved_controller_selections: dict[int, tuple[str, int]] | None = None,
     ) -> None:
         """Reinitialize the multi-controller system when film strips are reconstructed.
 
@@ -2754,7 +2859,7 @@ class ControllerEventHandler:
                     list(self.editor.film_strips.keys())
                     if hasattr(self, "film_strips") and self.editor.film_strips
                     else "None"
-                }'
+                }',
             )
 
         if not self.editor.controller_selections:
@@ -2774,11 +2879,12 @@ class ControllerEventHandler:
         selection_count = len(self.editor.controller_selections)
         self.log.debug(
             f'DEBUG: Multi-controller system reinitialized with'
-            f' {selection_count} controller selections'
+            f' {selection_count} controller selections',
         )
 
     def _get_active_controllers(
-        self, preserved_controller_selections: dict[int, tuple[str, int]] | None
+        self,
+        preserved_controller_selections: dict[int, tuple[str, int]] | None,
     ) -> dict[int, tuple[str, int]]:
         """Get the active controller state, either preserved or current.
 
@@ -2791,7 +2897,7 @@ class ControllerEventHandler:
         """
         if preserved_controller_selections is not None:
             self.log.debug(
-                f'DEBUG: Using preserved controller selections: {preserved_controller_selections}'
+                f'DEBUG: Using preserved controller selections: {preserved_controller_selections}',
             )
             return preserved_controller_selections
 
@@ -2806,12 +2912,13 @@ class ControllerEventHandler:
                 active_controllers[controller_id] = (animation, frame)
                 self.log.debug(
                     f'DEBUG: Storing active controller {controller_id} with animation'
-                    f" '{animation}', frame {frame}"
+                    f" '{animation}', frame {frame}",
                 )
         return active_controllers
 
     def _reinitialize_controller_selections(
-        self, active_controllers: dict[int, tuple[str, int]]
+        self,
+        active_controllers: dict[int, tuple[str, int]],
     ) -> None:
         """Reinitialize controller selections from the multi-controller manager.
 
@@ -2825,7 +2932,7 @@ class ControllerEventHandler:
         ) in self.editor.multi_controller_manager.controllers.items():
             self.log.debug(
                 f'DEBUG: Processing controller {instance_id}, status:'
-                f' {controller_info.status.value}'
+                f' {controller_info.status.value}',
             )
             if controller_info.status.value not in {'connected', 'assigned', 'active'}:
                 continue
@@ -2844,20 +2951,24 @@ class ControllerEventHandler:
         """
         if controller_id not in self.editor.controller_selections:
             self.editor.controller_selections[controller_id] = ControllerSelection(
-                controller_id, instance_id
+                controller_id,
+                instance_id,
             )
             self.log.debug(
-                f'DEBUG: Created new controller selection for controller {controller_id} (inactive)'
+                'DEBUG: Created new controller selection for controller %s (inactive)',
+                controller_id,
             )
         else:
             controller_selection = self.editor.controller_selections[controller_id]
             controller_selection.update_activity()
             self.log.debug(
-                f'DEBUG: Updated existing controller selection for controller {controller_id}'
+                f'DEBUG: Updated existing controller selection for controller {controller_id}',
             )
 
     def _restore_controller_active_state(
-        self, controller_id: int, active_controllers: dict[int, tuple[str, int]]
+        self,
+        controller_id: int,
+        active_controllers: dict[int, tuple[str, int]],
     ) -> None:
         """Restore a controller's active state after reinitialization.
 
@@ -2871,7 +2982,7 @@ class ControllerEventHandler:
         if controller_id not in active_controllers:
             self.log.debug(
                 f'DEBUG: Controller {controller_id} was not active before reconstruction,'
-                f' keeping it inactive'
+                f' keeping it inactive',
             )
             return
 
@@ -2886,12 +2997,12 @@ class ControllerEventHandler:
         controller_selection.activate()
         self.log.debug(
             f'DEBUG: Reset active controller {controller_id} to first animation'
-            f" '{first_animation}', frame 0 (ignoring previous selection)"
+            f" '{first_animation}', frame 0 (ignoring previous selection)",
         )
         self.log.debug(
-            f'DEBUG: Controller {controller_id} is now active: {controller_selection.is_active()}'
+            f'DEBUG: Controller {controller_id} is now active: {controller_selection.is_active()}',
         )
         self.log.debug(
-            f'DEBUG: Controller {controller_id} selection: {controller_selection.get_selection()}'
+            f'DEBUG: Controller {controller_id} selection: {controller_selection.get_selection()}',
         )
         self.log.debug(f'DEBUG: Available film strips: {list(self.editor.film_strips.keys())}')

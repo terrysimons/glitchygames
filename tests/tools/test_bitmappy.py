@@ -71,8 +71,9 @@ class TestBitmappyFunctionality:
         from glitchygames.bitmappy.models import GGUnhandledMenuItemError
 
         # Test exception can be raised
+        msg = 'Test error'
         with pytest.raises(GGUnhandledMenuItemError):
-            raise GGUnhandledMenuItemError('Test error')
+            raise GGUnhandledMenuItemError(msg)
 
     def test_bitmappy_ai_classes(self, mock_pygame_patches):
         """Test bitmappy AI classes."""
@@ -1088,7 +1089,9 @@ class TestAiWorker:
         request_queue = MagicMock()
         response_queue = MagicMock()
         test_request = AIRequest(
-            prompt='test', request_id='req1', messages=[{'role': 'user', 'content': 'test'}],
+            prompt='test',
+            request_id='req1',
+            messages=[{'role': 'user', 'content': 'test'}],
         )
         # First call returns request, second returns None
         request_queue.get.side_effect = [test_request, None]
@@ -1123,7 +1126,12 @@ class TestScrollArrowSprite:
     def test_up_arrow_creation(self, pygame_mocks, mock_groups):
         """Up arrow sprite initializes correctly."""
         arrow = ScrollArrowSprite(
-            x=10, y=20, width=20, height=20, groups=mock_groups, direction='up',
+            x=10,
+            y=20,
+            width=20,
+            height=20,
+            groups=mock_groups,
+            direction='up',
         )
         assert arrow.direction == 'up'
         assert arrow.name == 'Scroll up Arrow'
@@ -1132,7 +1140,12 @@ class TestScrollArrowSprite:
     def test_down_arrow_creation(self, pygame_mocks, mock_groups):
         """Down arrow sprite initializes correctly."""
         arrow = ScrollArrowSprite(
-            x=10, y=20, width=20, height=20, groups=mock_groups, direction='down',
+            x=10,
+            y=20,
+            width=20,
+            height=20,
+            groups=mock_groups,
+            direction='down',
         )
         assert arrow.direction == 'down'
         assert arrow.name == 'Scroll down Arrow'
@@ -1140,7 +1153,12 @@ class TestScrollArrowSprite:
     def test_plus_arrow_creation(self, pygame_mocks, mock_groups):
         """Plus arrow sprite initializes correctly."""
         arrow = ScrollArrowSprite(
-            x=0, y=0, width=20, height=20, groups=mock_groups, direction='plus',
+            x=0,
+            y=0,
+            width=20,
+            height=20,
+            groups=mock_groups,
+            direction='plus',
         )
         assert arrow.direction == 'plus'
 
@@ -1182,7 +1200,12 @@ class TestFilmStripSpriteGetFramePixelData:
         widget = MagicMock()
         widget.animated_sprite = animated_sprite
         return FilmStripSprite(
-            film_strip_widget=widget, x=0, y=0, width=200, height=50, groups=mock_groups,
+            film_strip_widget=widget,
+            x=0,
+            y=0,
+            width=200,
+            height=50,
+            groups=mock_groups,
         )
 
     def test_no_animated_sprite(self, pygame_mocks, mock_groups):
@@ -1264,7 +1287,12 @@ class TestFilmStripSpriteGetFrameDimensions:
         widget = MagicMock()
         widget.parent_canvas = None
         return FilmStripSprite(
-            film_strip_widget=widget, x=0, y=0, width=200, height=50, groups=mock_groups,
+            film_strip_widget=widget,
+            x=0,
+            y=0,
+            width=200,
+            height=50,
+            groups=mock_groups,
         )
 
     def test_frame_with_image(self, pygame_mocks, mock_groups):
@@ -1304,7 +1332,12 @@ class TestFilmStripSpriteFindFrameLayout:
 
         widget = MagicMock()
         return FilmStripSprite(
-            film_strip_widget=widget, x=0, y=0, width=200, height=50, groups=mock_groups,
+            film_strip_widget=widget,
+            x=0,
+            y=0,
+            width=200,
+            height=50,
+            groups=mock_groups,
         )
 
     def test_frame_found(self, pygame_mocks, mock_groups):
@@ -1336,7 +1369,12 @@ class TestFilmStripSpriteScreenToPixelCoords:
 
         widget = MagicMock()
         return FilmStripSprite(
-            film_strip_widget=widget, x=0, y=0, width=200, height=50, groups=mock_groups,
+            film_strip_widget=widget,
+            x=0,
+            y=0,
+            width=200,
+            height=50,
+            groups=mock_groups,
         )
 
     def test_coords_inside_frame(self, pygame_mocks, mock_groups):
@@ -1381,7 +1419,12 @@ class TestFilmStripSpriteUpdateColorSliders:
 
         widget = MagicMock()
         return FilmStripSprite(
-            film_strip_widget=widget, x=0, y=0, width=200, height=50, groups=mock_groups,
+            film_strip_widget=widget,
+            x=0,
+            y=0,
+            width=200,
+            height=50,
+            groups=mock_groups,
         )
 
     def test_no_parent_scene(self, pygame_mocks, mock_groups):
@@ -1415,7 +1458,12 @@ class TestFilmStripSpriteSampleColorFromFrame:
         widget.animated_sprite = None
         widget.frame_layouts = {}
         return FilmStripSprite(
-            film_strip_widget=widget, x=0, y=0, width=200, height=50, groups=mock_groups,
+            film_strip_widget=widget,
+            x=0,
+            y=0,
+            width=200,
+            height=50,
+            groups=mock_groups,
         )
 
     def test_no_pixel_data_returns_early(self, pygame_mocks, mock_groups):
@@ -1486,7 +1534,12 @@ class TestFilmStripSpriteHoverEffects:
 
         widget = MagicMock()
         return FilmStripSprite(
-            film_strip_widget=widget, x=0, y=0, width=200, height=50, groups=mock_groups,
+            film_strip_widget=widget,
+            x=0,
+            y=0,
+            width=200,
+            height=50,
+            groups=mock_groups,
         )
 
     def test_show_frame_hover_effect(self, pygame_mocks, mock_groups):
@@ -1538,7 +1591,12 @@ class TestFilmStripSpriteOnMouseMotionEvent:
         widget.get_preview_at_position.return_value = None
         widget.hovered_preview = None
         return FilmStripSprite(
-            film_strip_widget=widget, x=0, y=0, width=200, height=50, groups=mock_groups,
+            film_strip_widget=widget,
+            x=0,
+            y=0,
+            width=200,
+            height=50,
+            groups=mock_groups,
         )
 
     def test_motion_over_frame(self, pygame_mocks, mock_groups):
@@ -1812,6 +1870,46 @@ class TestAnimatedCanvasSpriteDragMethods:
         canvas._drag_pixels = {(0, 0): (0, 0, (0, 0, 0), (255, 0, 0))}
         canvas._submit_drag_pixel_changes_to_undo()
         # Should not raise
+
+
+# ---------------------------------------------------------------------------
+# TestAnimatedCanvasSpriteDragCleanup
+# ---------------------------------------------------------------------------
+
+
+class TestAnimatedCanvasSpriteDragCleanup:
+    """Tests for AnimatedCanvasSprite drag cleanup and empty-change handling."""
+
+    def _make_canvas_sprite(self, pygame_mocks, mock_groups):
+        """Create an AnimatedCanvasSprite with mocked dependencies."""
+        from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
+
+        animated_sprite = MagicMock()
+        animated_sprite.current_animation = 'idle'
+        animated_sprite.current_frame = 0
+        animated_sprite._animations = {
+            'idle': [MagicMock()],
+        }
+        animated_sprite.frames = {'idle': [MagicMock()]}
+        animated_sprite.is_playing = False
+        animated_sprite.is_static_sprite.return_value = False
+
+        frame = animated_sprite._animations['idle'][0]
+        frame.get_pixel_data.return_value = [(255, 0, 0, 255)] * (32 * 32)
+        frame.pixels = [(255, 0, 0, 255)] * (32 * 32)
+        frame._image = pygame.Surface((32, 32))
+
+        return AnimatedCanvasSprite(
+            animated_sprite=animated_sprite,
+            name='test_canvas',
+            x=0,
+            y=0,
+            pixels_across=32,
+            pixels_tall=32,
+            pixel_width=10,
+            pixel_height=10,
+            groups=mock_groups,
+        )
 
     def test_submit_drag_pixel_changes_applying_undo(self, pygame_mocks, mock_groups):
         """Does nothing during undo/redo application."""

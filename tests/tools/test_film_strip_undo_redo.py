@@ -23,6 +23,290 @@ from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 
+class _FilmStripCanvasInterface:
+    """Mock canvas interface for film strip undo/redo tests."""
+
+    def set_pixel_at(self, x, y, color):
+        """Mock pixel setter."""
+        return True
+
+
+class _FilmStripCoordinator:
+    """Stub coordinator so command objects don't raise AttributeError."""
+
+    def refresh_all_film_strip_widgets(self, animation_name):
+        """No-op."""
+
+    def on_frame_inserted(self, animation_name, frame_index):
+        """No-op."""
+
+    def on_frame_removed(self, animation_name, frame_index):
+        """No-op."""
+
+    def on_sprite_loaded(self, animated_sprite):
+        """No-op."""
+
+
+class _FilmStripFrameManager:
+    """Mock frame manager for film strip undo/redo tests."""
+
+    def __init__(self):
+        self.current_animation = 'strip_1'
+        self.current_frame = 0
+
+
+class _FilmStripAnimatedSprite:
+    """Mock animated sprite for film strip undo/redo tests."""
+
+    def __init__(self):
+        # Start with one frame in strip_1, matching _create_test_sprite
+        initial_frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+        self._animations = {'strip_1': [initial_frame]}
+        self._is_playing = False
+        self.frame_manager = _FilmStripFrameManager()
+
+    def add_frame(self, animation_name, frame, index=None):
+        """Mock frame addition."""
+        if animation_name not in self._animations:
+            self._animations[animation_name] = []
+        if index is not None:
+            self._animations[animation_name].insert(index, frame)
+        else:
+            self._animations[animation_name].append(frame)
+
+
+class _FilmStripCanvas:
+    """Mock canvas for film strip undo/redo tests."""
+
+    def __init__(self, scene):
+        self.current_animation = 'strip_1'
+        self.current_frame = 0
+        self.canvas_interface = _FilmStripCanvasInterface()
+        self.animated_sprite = _FilmStripAnimatedSprite()
+        self._scene = scene
+
+    def show_frame(self, animation, frame):
+        """Mock frame selection, also updates parent scene and frame manager."""
+        self.current_animation = animation
+        self.current_frame = frame
+        # Keep scene-level state in sync for tests that check it
+        self._scene.current_animation = animation
+        self._scene.current_frame = frame
+        # Keep frame_manager in sync so FrameAddCommand adjustments work
+        self.animated_sprite.frame_manager.current_animation = animation
+        self.animated_sprite.frame_manager.current_frame = frame
+
+
+class _FilmStripMockScene:
+    """Mock scene for film strip undo/redo tests."""
+
+    def __init__(self):
+        self._applying_undo_redo = False
+        self.canvas = _FilmStripCanvas(scene=self)
+        self.undo_redo_manager = UndoRedoManager(max_history=50)
+        self.canvas_operation_tracker = CanvasOperationTracker(
+            self.undo_redo_manager,
+            editor=self,
+        )
+        self.film_strip_operation_tracker = FilmStripOperationTracker(
+            self.undo_redo_manager,
+            editor=self,
+        )
+        self.cross_area_operation_tracker = CrossAreaOperationTracker(
+            self.undo_redo_manager,
+            editor=self,
+        )
+
+        # Stub film_strip_coordinator so FrameAddCommand/AnimationAddCommand
+        # don't raise AttributeError during undo/redo operations
+        self.film_strip_coordinator = _FilmStripCoordinator()
+
+        # Track current state
+        self.current_animation = 'strip_1'
+        self.current_frame = 0
+        self.animated_sprite = self._create_test_sprite()
+
+    def _create_test_sprite(self):
+        """Create a test animated sprite with initial data.
+
+        Returns:
+            object: The result.
+
+        """
+        sprite = AnimatedSprite()
+
+        # Create initial animation with one frame
+        frame1 = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+        pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * (32 * 32))  # Red frame
+        frame1.pixels = pixel_data
+
+        sprite._animations = {'strip_1': [frame1]}
+
+        return sprite
+
+    def _apply_pixel_change(self, x, y, color):
+        """Mock pixel change application.
+
+        Returns:
+            object: The result.
+
+        """
+        return True
+
+    def _add_frame(self, frame_index, animation_name, frame_data):
+        """Mock frame addition.
+
+        Returns:
+            object: The result.
+
+        """
+        return True
+
+    def _delete_frame(self, frame_index, animation_name):
+        """Mock frame deletion.
+
+        Returns:
+            object: The result.
+
+        """
+        return True
+
+    def _reorder_frame(self, old_index, new_index, animation_name):
+        """Mock frame reordering.
+
+        Returns:
+            object: The result.
+
+        """
+        return True
+
+    def _add_animation(self, animation_name, animation_data):
+        """Mock animation addition.
+
+        Returns:
+            object: The result.
+
+        """
+        return True
+
+    def _delete_animation(self, animation_name):
+        """Mock animation deletion.
+
+        Returns:
+            object: The result.
+
+        """
+        return True
+
+    def _apply_frame_selection(self, animation, frame):
+        """Mock frame selection.
+
+        Returns:
+            object: The result.
+
+        """
+        self.current_animation = animation
+        self.current_frame = frame
+        return True
+
+    def switch_to_frame(self, animation, frame):
+        """Switch to a specific frame and track the selection."""
+        self.film_strip_operation_tracker.add_frame_selection(animation, frame)
+
+    def create_frame(self, animation, frame_index):
+        """Create a new frame and track it.
+
+        Ensures the animated sprite's frame list has enough entries so
+        that ``frame_index`` is valid for both insertion and undo.
+        """
+        # Use empty pixels to avoid PixelArray.flat issues during redo
+        frame_data = {
+            'width': 32,
+            'height': 32,
+            'pixels': [],
+            'duration': 1.0,
+        }
+        # Ensure the animation list exists and is long enough
+        frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+        if animation not in self.canvas.animated_sprite._animations:
+            self.canvas.animated_sprite._animations[animation] = []
+        frames_list = self.canvas.animated_sprite._animations[animation]
+        # Pad with placeholder frames if needed so insert(frame_index) works
+        while len(frames_list) < frame_index:
+            placeholder = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+            frames_list.append(placeholder)
+        frames_list.insert(frame_index, frame)
+
+        self.film_strip_operation_tracker.add_frame_added(
+            frame_index,
+            animation,
+            frame_data,
+        )
+
+    def create_animation(self, animation_name):
+        """Create a new animation and track it."""
+        # Use empty pixels to avoid PixelArray.flat issues during redo
+        animation_data = {
+            'frames': [
+                {
+                    'width': 32,
+                    'height': 32,
+                    'pixels': [],
+                    'duration': 1.0,
+                },
+            ],
+            'frame_count': 1,
+        }
+        # Actually add the animation to the animated sprite so undo can find it
+        frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+        self.canvas.animated_sprite._animations[animation_name] = [frame]
+
+        self.film_strip_operation_tracker.add_animation_added(
+            animation_name,
+            animation_data,
+        )
+
+    def edit_pixel(self, x, y, old_color, new_color):
+        """Edit a pixel and track it."""
+        self.canvas_operation_tracker.add_single_pixel_change(x, y, old_color, new_color)
+
+    def undo(self):
+        """Perform undo operation.
+
+        Returns:
+            object: The result.
+
+        """
+        return self.undo_redo_manager.undo()
+
+    def redo(self):
+        """Perform redo operation.
+
+        Returns:
+            object: The result.
+
+        """
+        return self.undo_redo_manager.redo()
+
+    def get_undo_count(self):
+        """Get number of operations in undo stack.
+
+        Returns:
+            object: The undo count.
+
+        """
+        return len(self.undo_redo_manager.undo_stack)
+
+    def get_redo_count(self):
+        """Get number of operations in redo stack.
+
+        Returns:
+            object: The redo count.
+
+        """
+        return len(self.undo_redo_manager.redo_stack)
+
+
 class TestFilmStripUndoRedo:
     """Test film strip undo/redo functionality."""
 
@@ -34,270 +318,7 @@ class TestFilmStripUndoRedo:
             object: The result.
 
         """
-
-        class MockScene:
-            def __init__(self):
-                self._applying_undo_redo = False
-                self.canvas = MockCanvas(scene=self)
-                self.undo_redo_manager = UndoRedoManager(max_history=50)
-                self.canvas_operation_tracker = CanvasOperationTracker(
-                    self.undo_redo_manager, editor=self,
-                )
-                self.film_strip_operation_tracker = FilmStripOperationTracker(
-                    self.undo_redo_manager, editor=self,
-                )
-                self.cross_area_operation_tracker = CrossAreaOperationTracker(
-                    self.undo_redo_manager, editor=self,
-                )
-
-                # Stub film_strip_coordinator so FrameAddCommand/AnimationAddCommand
-                # don't raise AttributeError during undo/redo operations
-                self.film_strip_coordinator = MockFilmStripCoordinator()
-
-                # Track current state
-                self.current_animation = 'strip_1'
-                self.current_frame = 0
-                self.animated_sprite = self._create_test_sprite()
-
-            def _create_test_sprite(self):
-                """Create a test animated sprite with initial data.
-
-                Returns:
-                    object: The result.
-
-                """
-                sprite = AnimatedSprite()
-
-                # Create initial animation with one frame
-                frame1 = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-                pixel_data = cast('list[tuple[int, ...]]', [(255, 0, 0)] * (32 * 32))  # Red frame
-                frame1.pixels = pixel_data
-
-                sprite._animations = {'strip_1': [frame1]}
-
-                return sprite
-
-            def _apply_pixel_change(self, x, y, color):
-                """Mock pixel change application.
-
-                Returns:
-                    object: The result.
-
-                """
-                return True
-
-            def _add_frame(self, frame_index, animation_name, frame_data):
-                """Mock frame addition.
-
-                Returns:
-                    object: The result.
-
-                """
-                return True
-
-            def _delete_frame(self, frame_index, animation_name):
-                """Mock frame deletion.
-
-                Returns:
-                    object: The result.
-
-                """
-                return True
-
-            def _reorder_frame(self, old_index, new_index, animation_name):
-                """Mock frame reordering.
-
-                Returns:
-                    object: The result.
-
-                """
-                return True
-
-            def _add_animation(self, animation_name, animation_data):
-                """Mock animation addition.
-
-                Returns:
-                    object: The result.
-
-                """
-                return True
-
-            def _delete_animation(self, animation_name):
-                """Mock animation deletion.
-
-                Returns:
-                    object: The result.
-
-                """
-                return True
-
-            def _apply_frame_selection(self, animation, frame):
-                """Mock frame selection.
-
-                Returns:
-                    object: The result.
-
-                """
-                self.current_animation = animation
-                self.current_frame = frame
-                return True
-
-            def switch_to_frame(self, animation, frame):
-                """Switch to a specific frame and track the selection."""
-                self.film_strip_operation_tracker.add_frame_selection(animation, frame)
-
-            def create_frame(self, animation, frame_index):
-                """Create a new frame and track it.
-
-                Ensures the animated sprite's frame list has enough entries so
-                that ``frame_index`` is valid for both insertion and undo.
-                """
-                # Use empty pixels to avoid PixelArray.flat issues during redo
-                frame_data = {
-                    'width': 32,
-                    'height': 32,
-                    'pixels': [],
-                    'duration': 1.0,
-                }
-                # Ensure the animation list exists and is long enough
-                frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-                if animation not in self.canvas.animated_sprite._animations:
-                    self.canvas.animated_sprite._animations[animation] = []
-                frames_list = self.canvas.animated_sprite._animations[animation]
-                # Pad with placeholder frames if needed so insert(frame_index) works
-                while len(frames_list) < frame_index:
-                    placeholder = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-                    frames_list.append(placeholder)
-                frames_list.insert(frame_index, frame)
-
-                self.film_strip_operation_tracker.add_frame_added(
-                    frame_index, animation, frame_data,
-                )
-
-            def create_animation(self, animation_name):
-                """Create a new animation and track it."""
-                # Use empty pixels to avoid PixelArray.flat issues during redo
-                animation_data = {
-                    'frames': [
-                        {
-                            'width': 32,
-                            'height': 32,
-                            'pixels': [],
-                            'duration': 1.0,
-                        },
-                    ],
-                    'frame_count': 1,
-                }
-                # Actually add the animation to the animated sprite so undo can find it
-                frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-                self.canvas.animated_sprite._animations[animation_name] = [frame]
-
-                self.film_strip_operation_tracker.add_animation_added(
-                    animation_name, animation_data,
-                )
-
-            def edit_pixel(self, x, y, old_color, new_color):
-                """Edit a pixel and track it."""
-                self.canvas_operation_tracker.add_single_pixel_change(x, y, old_color, new_color)
-
-            def undo(self):
-                """Perform undo operation.
-
-                Returns:
-                    object: The result.
-
-                """
-                return self.undo_redo_manager.undo()
-
-            def redo(self):
-                """Perform redo operation.
-
-                Returns:
-                    object: The result.
-
-                """
-                return self.undo_redo_manager.redo()
-
-            def get_undo_count(self):
-                """Get number of operations in undo stack.
-
-                Returns:
-                    object: The undo count.
-
-                """
-                return len(self.undo_redo_manager.undo_stack)
-
-            def get_redo_count(self):
-                """Get number of operations in redo stack.
-
-                Returns:
-                    object: The redo count.
-
-                """
-                return len(self.undo_redo_manager.redo_stack)
-
-        class MockCanvasInterface:
-            def set_pixel_at(self, x, y, color):
-                """Mock pixel setter."""
-                return True
-
-        class MockFilmStripCoordinator:
-            """Stub coordinator so command objects don't raise AttributeError."""
-
-            def refresh_all_film_strip_widgets(self, animation_name):
-                """No-op."""
-
-            def on_frame_inserted(self, animation_name, frame_index):
-                """No-op."""
-
-            def on_frame_removed(self, animation_name, frame_index):
-                """No-op."""
-
-            def on_sprite_loaded(self, animated_sprite):
-                """No-op."""
-
-        class MockFrameManager:
-            def __init__(self):
-                self.current_animation = 'strip_1'
-                self.current_frame = 0
-
-        class MockAnimatedSprite:
-            def __init__(self):
-                # Start with one frame in strip_1, matching _create_test_sprite
-                initial_frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
-                self._animations = {'strip_1': [initial_frame]}
-                self._is_playing = False
-                self.frame_manager = MockFrameManager()
-
-            def add_frame(self, animation_name, frame, index=None):
-                """Mock frame addition."""
-                if animation_name not in self._animations:
-                    self._animations[animation_name] = []
-                if index is not None:
-                    self._animations[animation_name].insert(index, frame)
-                else:
-                    self._animations[animation_name].append(frame)
-
-        class MockCanvas:
-            def __init__(self, scene):
-                self.current_animation = 'strip_1'
-                self.current_frame = 0
-                self.canvas_interface = MockCanvasInterface()
-                self.animated_sprite = MockAnimatedSprite()
-                self._scene = scene
-
-            def show_frame(self, animation, frame):
-                """Mock frame selection, also updates parent scene and frame manager."""
-                self.current_animation = animation
-                self.current_frame = frame
-                # Keep scene-level state in sync for tests that check it
-                self._scene.current_animation = animation
-                self._scene.current_frame = frame
-                # Keep frame_manager in sync so FrameAddCommand adjustments work
-                self.animated_sprite.frame_manager.current_animation = animation
-                self.animated_sprite.frame_manager.current_frame = frame
-
-        return MockScene()
+        return _FilmStripMockScene()
 
     def test_basic_frame_editing_and_switching(self, mock_scene):
         """Test basic frame editing and switching operations."""

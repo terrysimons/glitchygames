@@ -242,7 +242,9 @@ class TestFilmStripFrameAddition:
 
         # Verify preview animation timing was reinitialized
         assert math.isclose(
-            film_strip.preview_animation_times['idle'], 0.0, abs_tol=1e-9,
+            film_strip.preview_animation_times['idle'],
+            0.0,
+            abs_tol=1e-9,
         )  # Multi-frame timing
         assert math.isclose(film_strip.preview_animation_speeds['idle'], 1.0)
         assert len(film_strip.preview_frame_durations['idle']) == TEST_SIZE_2

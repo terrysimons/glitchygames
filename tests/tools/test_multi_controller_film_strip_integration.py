@@ -461,7 +461,10 @@ class TestFilmStripLayoutCalculation:
         for frame_data in frames:
             frame_key = (frame_data['animation'], frame_data['frame'])
             frame_rect = pygame.Rect(
-                x, 0, self.film_strip.frame_width, self.film_strip.frame_height,
+                x,
+                0,
+                self.film_strip.frame_width,
+                self.film_strip.frame_height,
             )
             frame_layouts[frame_key] = frame_rect
             x += self.film_strip.frame_width + self.film_strip.frame_spacing

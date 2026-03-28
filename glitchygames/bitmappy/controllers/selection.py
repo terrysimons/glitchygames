@@ -49,7 +49,7 @@ class ControllerSelectionState:
             self.navigation_history = []
 
 
-class ControllerSelection:
+class ControllerSelection:  # noqa: PLR0904
     """Individual controller selection state management.
 
     Handles independent navigation, frame preservation, and selection state
@@ -198,7 +198,9 @@ class ControllerSelection:
             LOG.debug('Controller %s fill direction set to %s', self.controller_id, direction)
         else:
             LOG.debug(
-                "Invalid fill direction '%s' for controller %s", direction, self.controller_id,
+                "Invalid fill direction '%s' for controller %s",
+                direction,
+                self.controller_id,
             )
 
     def get_fill_direction(self) -> str:

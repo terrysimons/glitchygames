@@ -129,7 +129,11 @@ class TestSpriteGenerationEndpoint:
         assert data['png_base64'] is None
 
     def test_generate_sprite_png_only(
-        self, client, mock_generation_result, mock_render_result, mocker,
+        self,
+        client,
+        mock_generation_result,
+        mock_render_result,
+        mocker,
     ):
         """Test generating sprite with PNG output only."""
         mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
@@ -153,7 +157,11 @@ class TestSpriteGenerationEndpoint:
         assert data['png_base64'] is not None
 
     def test_generate_sprite_both_outputs(
-        self, client, mock_generation_result, mock_render_result, mocker,
+        self,
+        client,
+        mock_generation_result,
+        mock_render_result,
+        mocker,
     ):
         """Test generating sprite with both TOML and PNG output."""
         mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
@@ -291,7 +299,11 @@ class TestSpriteRefinementEndpoint:
         mock_render_service.render_from_toml.assert_not_called()
 
     def test_refine_sprite_png_only(
-        self, client, mock_generation_result, mock_render_result, mocker,
+        self,
+        client,
+        mock_generation_result,
+        mock_render_result,
+        mocker,
     ):
         """Test refining a sprite with PNG-only output format."""
         mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
@@ -347,7 +359,11 @@ class TestOutputDirFunctionality:
     """Test suite for output_dir file saving functionality."""
 
     def test_generate_sprite_with_output_dir(
-        self, client, mock_generation_result, mock_render_result, mocker,
+        self,
+        client,
+        mock_generation_result,
+        mock_render_result,
+        mocker,
     ):
         """Test generating sprite saves files when output_dir specified."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -416,7 +432,11 @@ class TestOutputDirFunctionality:
             assert new_subdir.is_dir()
 
     def test_refine_sprite_with_output_dir(
-        self, client, mock_generation_result, mock_render_result, mocker,
+        self,
+        client,
+        mock_generation_result,
+        mock_render_result,
+        mocker,
     ):
         """Test refining sprite saves files when output_dir specified."""
         with tempfile.TemporaryDirectory() as temp_dir:

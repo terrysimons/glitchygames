@@ -193,7 +193,8 @@ class TestJoystickDeviceAddedExceptionPaths:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise pygame.error('cannot open')
+                msg = 'cannot open'
+                raise pygame.error(msg)
             return _make_joystick_mock(mocker, get_instance_id=42)
 
         mocker.patch('pygame.joystick.Joystick', side_effect=side_effect_joystick)
@@ -355,7 +356,9 @@ class TestJoystickEventProxyDirectMethods:
 
         mock_game = mocker.Mock()
         proxy = JoystickEventManager.JoystickEventProxy(
-            game=mock_game, joystick_id=0, instance_id=0,
+            game=mock_game,
+            joystick_id=0,
+            instance_id=0,
         )
         return proxy, mock_game, mock_joystick
 
@@ -535,6 +538,10 @@ class TestJoystickEventProxyDirectMethods:
         result = repr(proxy)
         assert isinstance(result, str)
 
+
+class TestJoystickEventProxyFallbacks:
+    """Test JoystickEventProxy fallback behavior for instance_id, guid, and power_level."""
+
     def _create_mock_joystick_class(self, mocker, mock_joystick):
         """Create and patch a mock Joystick class that handles from_instance_id."""
         mock_joystick_class = mocker.Mock()
@@ -565,7 +572,9 @@ class TestJoystickEventProxyDirectMethods:
 
         mock_game = mocker.Mock()
         proxy = JoystickEventManager.JoystickEventProxy(
-            game=mock_game, joystick_id=5, instance_id=42,
+            game=mock_game,
+            joystick_id=5,
+            instance_id=42,
         )
 
         assert proxy._id == 42
@@ -911,7 +920,9 @@ class TestJoystickEventProxyFromInstanceIdFallback:
 
         mock_game = mocker.Mock()
         proxy = JoystickEventManager.JoystickEventProxy(
-            game=mock_game, joystick_id=0, instance_id=99,
+            game=mock_game,
+            joystick_id=0,
+            instance_id=99,
         )
 
         # Should still work even though from_instance_id failed

@@ -166,11 +166,13 @@ class TestOnionSkinningRendering:
 
         # Mock controller indicator methods
         mock_has_controllers = self._mocker.patch.object(
-            self.renderer, '_has_active_controllers_in_canvas_mode',
+            self.renderer,
+            '_has_active_controllers_in_canvas_mode',
         )
         mock_has_controllers.return_value = True
         mock_get_indicator = self._mocker.patch.object(
-            self.renderer, '_get_controller_indicator_for_pixel',
+            self.renderer,
+            '_get_controller_indicator_for_pixel',
         )
         mock_get_indicator.return_value = (255, 0, 0)  # Red indicator
 

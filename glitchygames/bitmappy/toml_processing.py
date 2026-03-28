@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     import numpy as np
     import pygame
 
+from glitchygames.color import RGB_COMPONENT_COUNT
+
 from .constants import (
     COLOR_QUANTIZATION_GROUP_DISTANCE_THRESHOLD,
     LOG,
@@ -166,7 +168,7 @@ def _parse_toml_with_regex(content: str, log: logging.Logger) -> dict[str, Any]:
     return data
 
 
-def _parse_toml_value(value: str) -> str | bool | int | float | list[Any]:
+def _parse_toml_value(value: str) -> str | bool | int | float | list[Any]:  # noqa: PLR0911
     """Parse a TOML value string into Python object.
 
     Args:
@@ -233,7 +235,9 @@ def _fix_comma_separated_color_field(
             if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_BLUE:
                 fixed_color['blue'] = values[2]
             log.warning(
-                "Fixed comma-separated color format for '%s': %s -> separate fields", color_key, field_value,
+                "Fixed comma-separated color format for '%s': %s -> separate fields",
+                color_key,
+                field_value,
             )
         elif field_name == 'green' and len(values) >= 1:
             fixed_color['green'] = values[0]
@@ -241,13 +245,18 @@ def _fix_comma_separated_color_field(
             fixed_color['blue'] = values[0]
     except (ValueError, IndexError) as e:
         log.warning(
-            "Failed to parse comma-separated color value '%s' for '%s': %s", field_value, color_key, e,
+            "Failed to parse comma-separated color value '%s' for '%s': %s",
+            field_value,
+            color_key,
+            e,
         )
         fixed_color[field_name] = field_value
 
 
 def _fix_color_entry(
-    color_data: dict[str, Any], color_key: str, log: logging.Logger,
+    color_data: dict[str, Any],
+    color_key: str,
+    log: logging.Logger,
 ) -> dict[str, Any]:
     """Fix a single color entry's format, handling comma-separated values.
 
@@ -352,11 +361,11 @@ def normalize_toml_data(config_data: dict[str, Any]) -> dict[str, Any]:
         if 'animation' in normalized_data:
             _normalize_animation_pixels(normalized_data['animation'])
 
-        return normalized_data
-
     except (AttributeError, KeyError, TypeError) as e:
         LOG.warning(f'Error normalizing TOML data: {e}')
         return config_data
+    else:
+        return normalized_data
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -425,7 +434,7 @@ def quantize_colors_if_needed(
                 color_groups[color] = [color]
             else:
                 # Add to closest existing group
-                color_groups[closest_group].append(color)  # type: ignore[index]
+                color_groups[closest_group].append(color)  # type: ignore[index] # ty: ignore[invalid-argument-type]
         else:
             color_groups[closest_group].append(color)
 
@@ -499,7 +508,7 @@ def build_color_to_glyph_mapping(
     return color_mapping
 
 
-def generate_pixel_string(
+def generate_pixel_string(  # noqa: PLR0913
     pixel_array: np.ndarray[Any, Any],
     width: int,
     height: int,
@@ -612,7 +621,8 @@ def generate_toml_content(
 
     if not unique_glyphs:
         log.error('No colors to define - this will cause display issues!')
-        raise ValueError('No colors found in the converted sprite')
+        msg = 'No colors found in the converted sprite'
+        raise ValueError(msg)
 
     log.info(f'Generated {len(unique_glyphs)} color definitions')
     return toml_content
@@ -632,12 +642,12 @@ def collect_unique_colors_from_pixels(
     """
     unique_colors: set[tuple[int, int, int]] = set()
     for pixel in pixels:
-        if len(pixel) >= 3:  # noqa: PLR2004
+        if len(pixel) >= RGB_COMPONENT_COUNT:
             unique_colors.add((int(pixel[0]), int(pixel[1]), int(pixel[2])))
     return unique_colors
 
 
-def build_pixel_string_from_pixels(
+def build_pixel_string_from_pixels(  # noqa: PLR0913
     pixels: list[tuple[int, ...]],
     width: int,
     height: int,

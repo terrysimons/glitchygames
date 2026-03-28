@@ -4,21 +4,60 @@
 import logging
 import math
 import time
+from typing import NamedTuple
 
 import pytest
 
 LOG = logging.getLogger(__name__)
 
 
-def _apply_wall_bounces(
-    new_x, new_y, speed_x, speed_y, ball_width, ball_height, screen_width, screen_height,
-):
+class BounceState(NamedTuple):
+    """Position and velocity state for a bouncing ball."""
+
+    x: float
+    y: float
+    speed_x: float
+    speed_y: float
+
+
+class BoundsRect(NamedTuple):
+    """Ball and screen dimensions for bounce boundary calculations."""
+
+    ball_width: int
+    ball_height: int
+    screen_width: int
+    screen_height: int
+
+
+class BounceResult(NamedTuple):
+    """Result of applying wall bounce logic."""
+
+    x: float
+    y: float
+    speed_x: float
+    speed_y: float
+    x_bounces: int
+    y_bounces: int
+
+
+class SimConfig(NamedTuple):
+    """Configuration parameters for running a bounce simulation."""
+
+    dt: float
+    iterations: int
+
+
+def _apply_wall_bounces(state: BounceState, bounds: BoundsRect) -> BounceResult:
     """Apply wall bounce logic and return updated position, speed, and bounce counts.
 
     Returns:
-        Tuple of (new_x, new_y, speed_x, speed_y, x_bounces, y_bounces).
+        BounceResult with updated position, speed, and bounce counts.
 
     """
+    new_x = state.x
+    new_y = state.y
+    speed_x = state.speed_x
+    speed_y = state.speed_y
     x_bounces = 0
     y_bounces = 0
 
@@ -29,8 +68,8 @@ def _apply_wall_bounces(
         y_bounces += 1
 
     # Bottom bounce
-    if new_y + ball_height >= screen_height:
-        new_y = screen_height - ball_height - 1
+    if new_y + bounds.ball_height >= bounds.screen_height:
+        new_y = bounds.screen_height - bounds.ball_height - 1
         speed_y = -abs(speed_y)
         y_bounces += 1
 
@@ -41,17 +80,22 @@ def _apply_wall_bounces(
         x_bounces += 1
 
     # Right bounce
-    if new_x + ball_width >= screen_width:
-        new_x = screen_width - ball_width - 1
+    if new_x + bounds.ball_width >= bounds.screen_width:
+        new_x = bounds.screen_width - bounds.ball_width - 1
         speed_x = -abs(speed_x)
         x_bounces += 1
 
-    return new_x, new_y, speed_x, speed_y, x_bounces, y_bounces
+    return BounceResult(
+        x=new_x,
+        y=new_y,
+        speed_x=speed_x,
+        speed_y=speed_y,
+        x_bounces=x_bounces,
+        y_bounces=y_bounces,
+    )
 
 
-def _run_bounce_simulation(
-    screen_width, screen_height, ball_width, ball_height, x, y, speed_x, speed_y, dt, iterations,
-):
+def _run_bounce_simulation(state: BounceState, bounds: BoundsRect, config: SimConfig):
     """Run the ball bounce simulation loop.
 
     Returns:
@@ -59,6 +103,11 @@ def _run_bounce_simulation(
         position bounds, and magnitude samples.
 
     """
+    x = state.x
+    y = state.y
+    speed_x = state.speed_x
+    speed_y = state.speed_y
+
     # Use a dict for accumulating statistics to reduce local variable count
     stats = {
         'bounce_count': 0,
@@ -73,23 +122,21 @@ def _run_bounce_simulation(
     magnitude_samples = []
     start_time = time.time()
 
-    for i in range(iterations):
-        new_x = x + round(speed_x * dt)
-        new_y = y + round(speed_y * dt)
+    for i in range(config.iterations):
+        new_x = x + round(speed_x * config.dt)
+        new_y = y + round(speed_y * config.dt)
 
-        new_x, new_y, speed_x, speed_y, x_bounces, y_bounces = _apply_wall_bounces(
-            new_x,
-            new_y,
-            speed_x,
-            speed_y,
-            ball_width,
-            ball_height,
-            screen_width,
-            screen_height,
+        bounce_result = _apply_wall_bounces(
+            state=BounceState(x=new_x, y=new_y, speed_x=speed_x, speed_y=speed_y),
+            bounds=bounds,
         )
-        stats['x_bounces'] += x_bounces
-        stats['y_bounces'] += y_bounces
-        stats['bounce_count'] += x_bounces + y_bounces
+        new_x = bounce_result.x
+        new_y = bounce_result.y
+        speed_x = bounce_result.speed_x
+        speed_y = bounce_result.speed_y
+        stats['x_bounces'] += bounce_result.x_bounces
+        stats['y_bounces'] += bounce_result.y_bounces
+        stats['bounce_count'] += bounce_result.x_bounces + bounce_result.y_bounces
 
         x, y = new_x, new_y
         stats['min_x'] = min(stats['min_x'], x)
@@ -210,16 +257,14 @@ def test_ball_math_fast():
     LOG.debug(f'\nRunning {iterations:,} iterations...')
 
     results = _run_bounce_simulation(
-        screen_width,
-        screen_height,
-        ball_width,
-        ball_height,
-        x=400.0,
-        y=300.0,
-        speed_x=250.0,
-        speed_y=125.0,
-        dt=1.0 / 60.0,
-        iterations=iterations,
+        state=BounceState(x=400.0, y=300.0, speed_x=250.0, speed_y=125.0),
+        bounds=BoundsRect(
+            ball_width=ball_width,
+            ball_height=ball_height,
+            screen_width=screen_width,
+            screen_height=screen_height,
+        ),
+        config=SimConfig(dt=1.0 / 60.0, iterations=iterations),
     )
 
     _log_simulation_results(results, iterations)
