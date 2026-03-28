@@ -169,7 +169,11 @@ def _setup_editor_state(editor, mocker):
     editor.selected_frame = 0
     editor.selected_frame_visible = True
     editor.selected_strip = None
-    editor._frame_clipboard = None
+
+    # Frame operations manager (extracted subsystem)
+    from glitchygames.bitmappy.frame_operations import FrameOperationManager
+
+    editor._frame_operations = FrameOperationManager(editor)
 
     editor.screen = mocker.Mock()
     editor.all_sprites = mocker.Mock()
@@ -1019,23 +1023,23 @@ class TestSynchronizeCanvasState:
 
 
 class TestCanvasPanning:
-    """Tests for _handle_canvas_panning."""
+    """Tests for FrameOperationManager.handle_canvas_panning."""
 
     def test_no_canvas(self, mock_editor):
         """Warns when canvas is not available."""
         mock_editor.canvas = None
-        mock_editor._handle_canvas_panning(1, 0)
+        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
 
     def test_delegates_to_pan_canvas(self, mock_editor):
         """Delegates to canvas pan_canvas method."""
-        mock_editor._handle_canvas_panning(1, -1)
+        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=-1)
         mock_editor.canvas.pan_canvas.assert_called_once_with(1, -1)
 
     def test_canvas_without_pan_method(self, mock_editor):
         """Warns when canvas does not support panning."""
         mock_editor.canvas.pan_canvas = None
         del mock_editor.canvas.pan_canvas
-        mock_editor._handle_canvas_panning(1, 0)
+        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
 
 
 # ===========================================================================
@@ -1044,18 +1048,18 @@ class TestCanvasPanning:
 
 
 class TestHandleCopyPasteFrame:
-    """Tests for _handle_copy_frame and _handle_paste_frame."""
+    """Tests for FrameOperationManager.handle_copy_frame and handle_paste_frame."""
 
     def test_copy_frame_no_canvas(self, mock_editor):
         """Does nothing when canvas is not available."""
         mock_editor.canvas = None
-        mock_editor._handle_copy_frame()
+        mock_editor._frame_operations.handle_copy_frame()
 
     def test_copy_frame_no_selection(self, mock_editor):
         """Does nothing when no animation/frame is selected."""
         mock_editor.selected_animation = None
         mock_editor.selected_frame = None
-        mock_editor._handle_copy_frame()
+        mock_editor._frame_operations.handle_copy_frame()
 
     def test_copy_frame_stores_clipboard(self, mock_editor, mocker):
         """Copies frame data to clipboard."""
@@ -1067,19 +1071,19 @@ class TestHandleCopyPasteFrame:
             'default': [mock_frame],
         }
         mock_editor.selected_frame = 0
-        mock_editor._handle_copy_frame()
-        assert mock_editor._frame_clipboard is not None
-        assert mock_editor._frame_clipboard['width'] == 32
-        assert mock_editor._frame_clipboard['height'] == 32
+        mock_editor._frame_operations.handle_copy_frame()
+        assert mock_editor._frame_operations._frame_clipboard is not None
+        assert mock_editor._frame_operations._frame_clipboard['width'] == 32
+        assert mock_editor._frame_operations._frame_clipboard['height'] == 32
 
     def test_paste_frame_no_clipboard(self, mock_editor):
         """Does nothing when clipboard is empty."""
-        mock_editor._frame_clipboard = None
-        mock_editor._handle_paste_frame()
+        mock_editor._frame_operations._frame_clipboard = None
+        mock_editor._frame_operations.handle_paste_frame()
 
     def test_paste_frame_dimension_mismatch(self, mock_editor, mocker):
         """Does nothing when clipboard dimensions do not match target."""
-        mock_editor._frame_clipboard = {
+        mock_editor._frame_operations._frame_clipboard = {
             'pixels': [(100, 50, 25)] * 256,
             'width': 16,
             'height': 16,
@@ -1092,7 +1096,7 @@ class TestHandleCopyPasteFrame:
         mock_editor.canvas.animated_sprite._animations = {
             'default': [mock_frame],
         }
-        mock_editor._handle_paste_frame()
+        mock_editor._frame_operations.handle_paste_frame()
         # Should not call set_pixel_data due to dimension mismatch
 
 

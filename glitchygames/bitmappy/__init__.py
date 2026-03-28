@@ -111,6 +111,7 @@ from .film_strip import (
     FilmTabWidget,
 )
 from .film_strip_sprite import FilmStripSprite
+from .frame_operations import FrameOperationManager
 from .history import (
     CanvasOperationTracker,
     ControllerPositionOperationTracker,
@@ -223,6 +224,7 @@ __all__ = [
     'FilmStripTab',
     'FilmStripWidget',
     'FilmTabWidget',
+    'FrameOperationManager',
     'GGUnhandledMenuItemError',
     'IndicatorShape',
     'LocationType',

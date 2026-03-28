@@ -50,13 +50,12 @@ from .constants import (
     MAGENTA_TRANSPARENT,
     MIN_FILM_STRIPS_FOR_PANEL_POSITIONING,
     MIN_PIXEL_DISPLAY_SIZE,
-    PIXEL_CHANGE_DEBOUNCE_SECONDS,
 )
 from .controllers.event_handler import ControllerEventHandler
 from .controllers.manager import MultiControllerManager
 from .file_io import FileIOManager
 from .film_strip_coordinator import FilmStripCoordinator
-from .history.commands import FramePasteCommand
+from .frame_operations import FrameOperationManager
 from .history.operations import (
     CanvasOperationTracker,
     ControllerPositionOperationTracker,
@@ -674,6 +673,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self._file_io = FileIOManager(self)
         self._ai_integration = AIManager(self)
         self._slider_manager = SliderManager(self)
+        self._frame_operations = FrameOperationManager(self)
         self.controller_handler = ControllerEventHandler(self)
         self.mode_switcher.set_handler(self.controller_handler)
         self.film_strip_coordinator = FilmStripCoordinator(self)
@@ -726,7 +726,6 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self._is_drag_operation: bool = False
         self._pixel_change_timer: float | None = None
         self._applying_undo_redo: bool = False
-        self._frame_clipboard: dict[str, Any] | None = None
 
         # These are set up in the GameEngine class.
         if not hasattr(self, '_initialized'):
@@ -1201,7 +1200,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
             return
 
         # Submit collected pixel changes for undo/redo tracking
-        self._submit_pixel_changes_if_ready()
+        self._frame_operations.submit_pixel_changes_if_ready()
 
         # Reset drag operation flag
         self._is_drag_operation = False
@@ -1326,7 +1325,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self.controller_handler.update_continuous_movements()
 
         # Check for single click timer
-        self._check_single_click_timer()
+        self._frame_operations.check_single_click_timer()
 
         # Update the animated canvas with delta time
         if (
@@ -1395,132 +1394,11 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
             and event.key in {pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN}
         ):
             self.log.debug('Ctrl+Shift+Arrow key released - committing panned buffer')
-            self._commit_panned_buffer()
+            self._frame_operations.commit_panned_buffer()
             return
 
         # Call parent class handler
         super().on_key_up_event(event)
-
-    def _build_surface_from_canvas_pixels(self) -> pygame.Surface:
-        """Build a pygame Surface from the current canvas pixel data.
-
-        Returns:
-            A new SRCALPHA surface with the canvas pixels rendered onto it.
-
-        """
-        surface = pygame.Surface(
-            (self.canvas.pixels_across, self.canvas.pixels_tall),
-            pygame.SRCALPHA,
-        )
-        for y in range(self.canvas.pixels_tall):
-            for x in range(self.canvas.pixels_across):
-                pixel_num = y * self.canvas.pixels_across + x
-                if pixel_num < len(self.canvas.pixels):
-                    color = self.canvas.pixels[pixel_num]
-                    surface.set_at((x, y), color)
-        return surface
-
-    def _commit_panned_frame_pixels(self, current_animation: str, current_frame: int) -> None:
-        """Commit panned pixel data to the animation frame and its surface.
-
-        Args:
-            current_animation: Name of the current animation.
-            current_frame: Index of the current frame.
-
-        """
-        frame = self.canvas.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-        if not hasattr(frame, 'pixels'):
-            return
-
-        # The current self.canvas.pixels already has the panned view
-        frame.pixels = list(self.canvas.pixels)
-
-        # Also update the frame.image surface for film strip thumbnails with alpha support
-        frame.image = self._build_surface_from_canvas_pixels()
-        self.log.debug(
-            'Committed panned pixels and image to frame %s[%s]',
-            current_animation,
-            current_frame,
-        )
-
-    def _commit_panned_film_strip_frame(self, current_animation: str, current_frame: int) -> None:
-        """Commit panned pixel data to the film strip's animation frame.
-
-        Args:
-            current_animation: Name of the current animation.
-            current_frame: Index of the current frame.
-
-        """
-        if not (
-            hasattr(self, 'film_strips')
-            and self.film_strips
-            and current_animation in self.film_strips
-        ):
-            return
-
-        film_strip = self.film_strips[current_animation]
-        if not (
-            hasattr(film_strip, 'animated_sprite')
-            and film_strip.animated_sprite
-            and current_animation in film_strip.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-            and current_frame < len(film_strip.animated_sprite._animations[current_animation])  # type: ignore[reportPrivateUsage]
-        ):
-            return
-
-        # Update the film strip's animated sprite frame data
-        film_strip_frame = film_strip.animated_sprite._animations[current_animation][current_frame]  # type: ignore[reportPrivateUsage]
-        if not hasattr(film_strip_frame, 'pixels'):
-            return
-
-        film_strip_frame.pixels = list(self.canvas.pixels)
-
-        # Also update the film strip frame's image surface with alpha support
-        film_strip_frame.image = self._build_surface_from_canvas_pixels()
-        self.log.debug(
-            'Updated film strip animated sprite frame %s[%s] with pixels and image',
-            current_animation,
-            current_frame,
-        )
-
-    def _commit_panned_buffer(self) -> None:
-        """Commit the panned buffer back to the real frame data."""
-        if not hasattr(self, 'canvas') or not self.canvas:
-            return
-
-        # Get current frame key
-        frame_key = self.canvas._get_current_frame_key()  # type: ignore[reportPrivateUsage]
-
-        # Check if this frame has active panning
-        if frame_key not in self.canvas._frame_panning:  # type: ignore[reportPrivateUsage]
-            self.log.debug('No panning state for current frame')
-            return
-
-        frame_state = self.canvas._frame_panning[frame_key]  # type: ignore[reportPrivateUsage]
-        if not frame_state['active']:
-            self.log.debug('No active panning to commit')
-            return
-
-        # Commit the current panned pixels back to the frame
-        if not (hasattr(self.canvas, 'animated_sprite') and self.canvas.animated_sprite):
-            self.log.debug('Panned buffer committed, panning state preserved for continued panning')
-            return
-
-        current_animation = self.canvas.current_animation
-        current_frame = self.canvas.current_frame
-
-        if not (
-            current_animation in self.canvas.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-            and current_frame < len(self.canvas.animated_sprite._animations[current_animation])  # type: ignore[reportPrivateUsage]
-        ):
-            self.log.debug('Panned buffer committed, panning state preserved for continued panning')
-            return
-
-        self._commit_panned_frame_pixels(current_animation, current_frame)
-        self._commit_panned_film_strip_frame(current_animation, current_frame)
-
-        # Update the film strip to reflect the pixel data changes
-        self.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
-        self.log.debug('Updated film strip for frame %s[%s]', current_animation, current_frame)
 
         # Keep the panning state active so user can continue panning
         # Don't clear _original_frame_pixels, pan_offset_x, pan_offset_y, or _panning_active
@@ -1584,12 +1462,12 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
 
         if event.key == pygame.K_c:
             self.log.debug('Ctrl+C pressed - copying frame')
-            self._handle_copy_frame()
+            self._frame_operations.handle_copy_frame()
             return True
 
         if event.key == pygame.K_v:
             self.log.debug('Ctrl+V pressed - pasting frame')
-            self._handle_paste_frame()
+            self._frame_operations.handle_paste_frame()
             return True
 
         # Handle panning with Ctrl+Shift+Arrow keys
@@ -1605,7 +1483,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
                 self.log.debug(
                     f'Ctrl+Shift+{direction} arrow pressed - panning {direction.lower()}',
                 )
-                self._handle_canvas_panning(delta_x, delta_y)
+                self._frame_operations.handle_canvas_panning(delta_x=delta_x, delta_y=delta_y)
                 return True
 
         return False
@@ -1900,230 +1778,6 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         else:
             self.log.debug('No operations available to redo')
 
-    def _handle_canvas_panning(self, delta_x: int, delta_y: int) -> None:
-        """Handle canvas panning with the given delta values.
-
-        Args:
-            delta_x: Horizontal panning delta (-1, 0, or 1)
-            delta_y: Vertical panning delta (-1, 0, or 1)
-
-        """
-        if not hasattr(self, 'canvas') or not self.canvas:
-            self.log.warning('No canvas available for panning')
-            return
-
-        # Delegate to canvas panning method
-        if hasattr(self.canvas, 'pan_canvas'):
-            self.canvas.pan_canvas(delta_x, delta_y)
-        else:
-            self.log.warning('Canvas does not support panning')
-
-    def _handle_copy_frame(self) -> None:
-        """Handle copying the current frame to clipboard."""
-        if not hasattr(self, 'canvas') or not self.canvas:
-            self.log.warning('No canvas available for frame copying')
-            return
-
-        if not hasattr(self, 'selected_animation') or not hasattr(self, 'selected_frame'):
-            self.log.warning('No frame selected for copying')
-            return
-
-        animation = self.selected_animation
-        frame = self.selected_frame
-
-        if animation is None or frame is None:
-            self.log.warning('No animation or frame selected for copying')
-            return
-
-        if not hasattr(self.canvas, 'animated_sprite') or not self.canvas.animated_sprite:
-            self.log.warning('No animated sprite available for frame copying')
-            return
-
-        # Get the frame data
-        if animation not in self.canvas.animated_sprite._animations:  # type: ignore[reportPrivateUsage]
-            self.log.warning("Animation '%s' not found for copying", animation)
-            return
-
-        frames = self.canvas.animated_sprite._animations[animation]  # type: ignore[reportPrivateUsage]
-        if frame >= len(frames):
-            self.log.warning("Frame %s not found in animation '%s'", frame, animation)
-            return
-
-        frame_obj = frames[frame]
-
-        # Create a deep copy of the frame data for the clipboard
-
-        # Get pixel data
-        pixels = frame_obj.get_pixel_data()
-
-        # Get frame dimensions
-        width, height = frame_obj.get_size()
-
-        # Get frame duration
-        duration = frame_obj.duration
-
-        # Store frame data in clipboard
-        self._frame_clipboard = {
-            'pixels': pixels.copy(),
-            'width': width,
-            'height': height,
-            'duration': duration,
-            'animation': animation,
-            'frame': frame,
-        }
-
-        self.log.debug("Copied frame %s from animation '%s' to clipboard", frame, animation)
-
-    def _handle_paste_frame(self) -> None:  # noqa: PLR0911
-        """Handle pasting a frame from clipboard to the current frame."""
-        if not hasattr(self, 'canvas') or not self.canvas:
-            self.log.warning('No canvas available for frame pasting')
-            return
-
-        if not hasattr(self, 'selected_animation') or not hasattr(self, 'selected_frame'):
-            self.log.warning('No frame selected for pasting')
-            return
-
-        if not self._frame_clipboard:
-            self.log.warning('No frame data in clipboard to paste')
-            return
-
-        animation = self.selected_animation
-        frame = self.selected_frame
-
-        if animation is None or frame is None:
-            self.log.warning('No animation or frame selected for pasting')
-            return
-
-        if not hasattr(self.canvas, 'animated_sprite') or not self.canvas.animated_sprite:
-            self.log.warning('No animated sprite available for frame pasting')
-            return
-
-        # Get the target frame
-        if animation not in self.canvas.animated_sprite._animations:  # type: ignore[reportPrivateUsage]
-            self.log.warning("Animation '%s' not found for pasting", animation)
-            return
-
-        frames = self.canvas.animated_sprite._animations[animation]  # type: ignore[reportPrivateUsage]
-        if frame >= len(frames):
-            self.log.warning("Frame %s not found in animation '%s'", frame, animation)
-            return
-
-        target_frame = frames[frame]
-
-        # Check if dimensions match
-        clipboard_width = self._frame_clipboard['width']
-        clipboard_height = self._frame_clipboard['height']
-        target_width, target_height = target_frame.get_size()
-
-        if clipboard_width != target_width or clipboard_height != target_height:
-            self.log.warning(
-                'Cannot paste frame: dimension mismatch (clipboard: %sx%s, target: %sx%s)',
-                clipboard_width,
-                clipboard_height,
-                target_width,
-                target_height,
-            )
-            return
-
-        # Store original frame data for undo
-        original_pixels = target_frame.get_pixel_data()
-        original_duration = target_frame.duration
-
-        # Create and execute a FramePasteCommand
-        paste_command = FramePasteCommand(
-            editor=self,
-            animation=animation,
-            frame=frame,
-            old_pixels=original_pixels,
-            old_duration=original_duration,
-            new_pixels=self._frame_clipboard['pixels'],
-            new_duration=self._frame_clipboard['duration'],
-        )
-        paste_command.execute()
-
-        # Push onto the undo stack
-        self.undo_redo_manager.push_command(paste_command)
-
-        # Update canvas display
-        if hasattr(self.canvas, 'force_redraw'):
-            self.canvas.force_redraw()
-
-        self.log.debug('Pasted frame from clipboard to %s[%s]', animation, frame)
-
-    def _submit_pixel_changes_if_ready(self) -> None:
-        """Submit collected pixel changes if they're ready (single click or drag ended)."""
-        # Convert dict to list format for submission (dict is used for efficient O(1) deduplication
-        # during drag)
-        pixel_changes_list = []
-        if hasattr(self, 'current_pixel_changes_dict') and self.current_pixel_changes_dict:
-            # Convert dict values to list format
-            pixel_changes_list = list(self.current_pixel_changes_dict.values())
-            # Clear the dict after conversion
-            self.current_pixel_changes_dict.clear()
-        elif hasattr(self, 'current_pixel_changes') and self.current_pixel_changes:
-            # Fallback to list if dict doesn't exist (backward compatibility)
-            pixel_changes_list = self.current_pixel_changes
-
-        if pixel_changes_list and hasattr(self, 'canvas_operation_tracker'):
-            pixel_count = len(pixel_changes_list)
-
-            # Get current frame information for frame-specific tracking
-            current_animation = None
-            current_frame = None
-            if hasattr(self, 'canvas') and self.canvas:
-                current_animation = getattr(self.canvas, 'current_animation', None)
-                current_frame = getattr(self.canvas, 'current_frame', None)
-
-            # Use frame-specific tracking if we have frame information
-            if current_animation is not None and current_frame is not None:
-                self.canvas_operation_tracker.add_frame_pixel_changes(
-                    current_animation,
-                    current_frame,
-                    pixel_changes_list,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-                )
-                self.log.debug(
-                    'Submitted %s pixel changes for frame %s[%s] undo/redo tracking',
-                    pixel_count,
-                    current_animation,
-                    current_frame,
-                )
-            else:
-                # Fall back to global tracking
-                self.canvas_operation_tracker.add_pixel_changes(pixel_changes_list)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-                self.log.debug(
-                    'Submitted %s pixel changes for global undo/redo tracking',
-                    pixel_count,
-                )
-
-            # Clear both collections after submission
-            if hasattr(self, 'current_pixel_changes'):
-                self.current_pixel_changes = []
-            if hasattr(self, 'current_pixel_changes_dict'):
-                self.current_pixel_changes_dict.clear()
-
-    def _check_single_click_timer(self) -> None:
-        """Check if we should submit a single click based on timer."""
-        # Check dict first (new optimized path), then fallback to list
-        pixel_count = 0
-        if hasattr(self, 'current_pixel_changes_dict') and self.current_pixel_changes_dict:
-            pixel_count = len(self.current_pixel_changes_dict)
-        elif hasattr(self, 'current_pixel_changes') and self.current_pixel_changes:
-            pixel_count = len(self.current_pixel_changes)
-
-        if (
-            pixel_count == 1  # Only for single pixels
-            and hasattr(self, '_pixel_change_timer')
-            and self._pixel_change_timer
-        ):
-            import time
-
-            current_time = time.time()
-            # If more than 0.1 seconds have passed since the first pixel change, submit it
-            if current_time - self._pixel_change_timer > PIXEL_CHANGE_DEBOUNCE_SECONDS:
-                self._submit_pixel_changes_if_ready()
-                self._pixel_change_timer = None
-
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
         """Add command line arguments.
@@ -2282,6 +1936,15 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
     def scroll_film_strips_down(self) -> None:
         """Delegate to FilmStripCoordinator."""
         self.film_strip_coordinator.scroll_film_strips_down()
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Frame operation delegation (methods extracted to frame_operations.py)
+    # animated_canvas.py calls _submit_pixel_changes_if_ready via parent_scene.
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _submit_pixel_changes_if_ready(self) -> None:
+        """Delegate to FrameOperationManager."""
+        self._frame_operations.submit_pixel_changes_if_ready()
 
     # ──────────────────────────────────────────────────────────────────────
     # Color state methods (used by both keyboard and controller handlers)

@@ -360,11 +360,11 @@ class TestPanningKeyboardHandling:
     def test_panning_handler_method(self):
         """Test the panning handler method."""
         # Test with valid delta values
-        self.real_scene._handle_canvas_panning(1, 0)
+        self.real_scene._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
         self.canvas.pan_canvas.assert_called_with(1, 0)
 
         # Test with negative delta values
-        self.real_scene._handle_canvas_panning(-1, -1)
+        self.real_scene._frame_operations.handle_canvas_panning(delta_x=-1, delta_y=-1)
         self.canvas.pan_canvas.assert_called_with(-1, -1)
 
     def test_panning_handler_without_canvas(self):
@@ -373,7 +373,7 @@ class TestPanningKeyboardHandling:
         self.real_scene.canvas = None
 
         # Should not raise an error
-        self.real_scene._handle_canvas_panning(1, 0)
+        self.real_scene._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
 
     def test_key_release_commits_panned_buffer(self):
         """Test that releasing Ctrl+Shift+Arrow commits the panned buffer."""

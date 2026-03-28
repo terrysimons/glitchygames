@@ -173,8 +173,10 @@ def mock_editor(mocker, pygame_mocks):  # noqa: PLR0915
     editor.selected_frame = 0
     editor.selected_frame_visible = True
 
-    # -- Frame clipboard --
-    editor._frame_clipboard = None
+    # -- Frame operations manager (extracted subsystem) --
+    from glitchygames.bitmappy.frame_operations import FrameOperationManager
+
+    editor._frame_operations = FrameOperationManager(editor)
 
     # -- Screen --
     editor.screen = mocker.Mock()
@@ -544,10 +546,12 @@ class TestOnMouseButtonUpEvent:
         mock_editor.debug_text = mocker.Mock()
         mock_editor.debug_text.rect = pygame.Rect(0, 0, 10, 10)
         mock_editor.all_sprites = []
-        mocker.patch.object(mock_editor, '_submit_pixel_changes_if_ready')
+        mocker.patch.object(
+            mock_editor._frame_operations, 'submit_pixel_changes_if_ready',
+        )
         event = _make_event(pos=(400, 300))
         mock_editor.on_mouse_button_up_event(event)
-        mock_editor._submit_pixel_changes_if_ready.assert_called_once()
+        mock_editor._frame_operations.submit_pixel_changes_if_ready.assert_called_once()
         assert mock_editor._is_drag_operation is False
 
     def test_releases_stuck_sliders(self, mock_editor, mocker):
@@ -558,7 +562,9 @@ class TestOnMouseButtonUpEvent:
         mock_editor.red_slider.dragging = True
         mock_editor.green_slider.dragging = True
         mock_editor.blue_slider.dragging = True
-        mocker.patch.object(mock_editor, '_submit_pixel_changes_if_ready')
+        mocker.patch.object(
+            mock_editor._frame_operations, 'submit_pixel_changes_if_ready',
+        )
         event = _make_event(pos=(400, 300))
         mock_editor.on_mouse_button_up_event(event)
         assert mock_editor.red_slider.dragging is False
@@ -708,12 +714,14 @@ class TestOnKeyUpEvent:
 
     def test_ctrl_shift_arrow_commits_panned_buffer(self, mock_editor, mocker):
         """Ctrl+Shift+Arrow key release commits panned buffer."""
-        mocker.patch.object(mock_editor, '_commit_panned_buffer')
+        mocker.patch.object(
+            mock_editor._frame_operations, 'commit_panned_buffer',
+        )
         event = mocker.Mock()
         event.key = pygame.K_LEFT
         event.mod = pygame.KMOD_CTRL | pygame.KMOD_SHIFT
         mock_editor.on_key_up_event(event)
-        mock_editor._commit_panned_buffer.assert_called_once()
+        mock_editor._frame_operations.commit_panned_buffer.assert_called_once()
 
     def test_non_ctrl_shift_arrow_passes_to_parent(self, mock_editor, mocker):
         """Non-Ctrl+Shift key releases pass to parent."""
@@ -762,30 +770,40 @@ class TestHandleCtrlKeyShortcuts:
 
     def test_ctrl_c_calls_copy_frame(self, mock_editor, mocker):
         """Ctrl+C triggers copy frame."""
-        mocker.patch.object(mock_editor, '_handle_copy_frame')
+        mocker.patch.object(
+            mock_editor._frame_operations, 'handle_copy_frame',
+        )
         event = mocker.Mock()
         event.key = pygame.K_c
         result = mock_editor._handle_ctrl_key_shortcuts(event, pygame.KMOD_CTRL)
         assert result is True
-        mock_editor._handle_copy_frame.assert_called_once()
+        mock_editor._frame_operations.handle_copy_frame.assert_called_once()
 
     def test_ctrl_v_calls_paste_frame(self, mock_editor, mocker):
         """Ctrl+V triggers paste frame."""
-        mocker.patch.object(mock_editor, '_handle_paste_frame')
+        mocker.patch.object(
+            mock_editor._frame_operations, 'handle_paste_frame',
+        )
         event = mocker.Mock()
         event.key = pygame.K_v
         result = mock_editor._handle_ctrl_key_shortcuts(event, pygame.KMOD_CTRL)
         assert result is True
-        mock_editor._handle_paste_frame.assert_called_once()
+        mock_editor._frame_operations.handle_paste_frame.assert_called_once()
 
     def test_ctrl_shift_arrow_handles_panning(self, mock_editor, mocker):
         """Ctrl+Shift+Arrow keys trigger canvas panning."""
-        mocker.patch.object(mock_editor, '_handle_canvas_panning')
+        mocker.patch.object(
+            mock_editor._frame_operations, 'handle_canvas_panning',
+        )
         event = mocker.Mock()
         event.key = pygame.K_LEFT
-        result = mock_editor._handle_ctrl_key_shortcuts(event, pygame.KMOD_CTRL | pygame.KMOD_SHIFT)
+        result = mock_editor._handle_ctrl_key_shortcuts(
+            event, pygame.KMOD_CTRL | pygame.KMOD_SHIFT,
+        )
         assert result is True
-        mock_editor._handle_canvas_panning.assert_called_once_with(-1, 0)
+        mock_editor._frame_operations.handle_canvas_panning.assert_called_once_with(
+            delta_x=-1, delta_y=0,
+        )
 
     def test_no_ctrl_returns_false(self, mock_editor, mocker):
         """Without Ctrl modifier, returns False."""
@@ -948,23 +966,23 @@ class TestHandleRedo:
 
 
 class TestHandleCanvasPanning:
-    """Tests for _handle_canvas_panning."""
+    """Tests for FrameOperationManager.handle_canvas_panning."""
 
     def test_delegates_to_canvas_pan(self, mock_editor, mocker):
         """Panning delegates to canvas.pan_canvas."""
         mock_editor.canvas.pan_canvas = mocker.Mock()
-        mock_editor._handle_canvas_panning(1, 0)
+        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
         mock_editor.canvas.pan_canvas.assert_called_once_with(1, 0)
 
     def test_no_canvas_warns(self, mock_editor):
         """No canvas doesn't crash."""
         mock_editor.canvas = None
-        mock_editor._handle_canvas_panning(1, 0)
+        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
 
     def test_canvas_without_pan_warns(self, mock_editor):
         """Canvas without pan_canvas method doesn't crash."""
         del mock_editor.canvas.pan_canvas
-        mock_editor._handle_canvas_panning(1, 0)
+        mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
 
 
 # ===========================================================================
@@ -973,32 +991,32 @@ class TestHandleCanvasPanning:
 
 
 class TestHandleCopyFrame:
-    """Tests for _handle_copy_frame."""
+    """Tests for FrameOperationManager.handle_copy_frame."""
 
     def test_no_canvas_warns(self, mock_editor):
         """No canvas doesn't crash."""
         mock_editor.canvas = None
-        mock_editor._handle_copy_frame()
+        mock_editor._frame_operations.handle_copy_frame()
 
     def test_no_selected_animation_warns(self, mock_editor):
         """No selected animation warns."""
         del mock_editor.selected_animation
-        mock_editor._handle_copy_frame()
+        mock_editor._frame_operations.handle_copy_frame()
 
     def test_none_animation_warns(self, mock_editor):
         """None animation warns."""
         mock_editor.selected_animation = None
-        mock_editor._handle_copy_frame()
+        mock_editor._frame_operations.handle_copy_frame()
 
     def test_animation_not_found_warns(self, mock_editor):
         """Animation not in sprite warns."""
         mock_editor.selected_animation = 'nonexistent'
-        mock_editor._handle_copy_frame()
+        mock_editor._frame_operations.handle_copy_frame()
 
     def test_frame_out_of_range_warns(self, mock_editor):
         """Frame index out of range warns."""
         mock_editor.selected_frame = 99
-        mock_editor._handle_copy_frame()
+        mock_editor._frame_operations.handle_copy_frame()
 
     def test_successful_copy(self, mock_editor, mocker):
         """Successful copy stores frame data in clipboard."""
@@ -1010,28 +1028,28 @@ class TestHandleCopyFrame:
             'default': [frame_obj, mocker.Mock()],
         }
         mock_editor.selected_frame = 0
-        mock_editor._handle_copy_frame()
-        assert mock_editor._frame_clipboard is not None
-        assert mock_editor._frame_clipboard['width'] == 4
-        assert mock_editor._frame_clipboard['height'] == 4
+        mock_editor._frame_operations.handle_copy_frame()
+        assert mock_editor._frame_operations._frame_clipboard is not None
+        assert mock_editor._frame_operations._frame_clipboard['width'] == 4
+        assert mock_editor._frame_operations._frame_clipboard['height'] == 4
 
 
 class TestHandlePasteFrame:
-    """Tests for _handle_paste_frame."""
+    """Tests for FrameOperationManager.handle_paste_frame."""
 
     def test_no_canvas_warns(self, mock_editor):
         """No canvas doesn't crash."""
         mock_editor.canvas = None
-        mock_editor._handle_paste_frame()
+        mock_editor._frame_operations.handle_paste_frame()
 
     def test_no_clipboard_warns(self, mock_editor):
         """Empty clipboard warns."""
-        mock_editor._frame_clipboard = None
-        mock_editor._handle_paste_frame()
+        mock_editor._frame_operations._frame_clipboard = None
+        mock_editor._frame_operations.handle_paste_frame()
 
     def test_dimension_mismatch_warns(self, mock_editor, mocker):
         """Mismatched dimensions prevent paste."""
-        mock_editor._frame_clipboard = {
+        mock_editor._frame_operations._frame_clipboard = {
             'pixels': [(255, 0, 0)] * 16,
             'width': 4,
             'height': 4,
@@ -1045,7 +1063,7 @@ class TestHandlePasteFrame:
         mock_editor.canvas.animated_sprite._animations = {
             'default': [frame_obj],
         }
-        mock_editor._handle_paste_frame()
+        mock_editor._frame_operations.handle_paste_frame()
         # Should not crash, paste not applied due to mismatch
 
 
@@ -2179,26 +2197,26 @@ class TestCleanup:
 
 
 class TestSubmitPixelChangesIfReady:
-    """Tests for _submit_pixel_changes_if_ready."""
+    """Tests for FrameOperationManager.submit_pixel_changes_if_ready."""
 
     def test_dict_path_submits(self, mock_editor):
         """Dict-based pixel changes are submitted."""
         mock_editor.current_pixel_changes_dict = {
             (1, 1): (1, 1, (0, 0, 0), (255, 0, 0)),
         }
-        mock_editor._submit_pixel_changes_if_ready()
+        mock_editor._frame_operations.submit_pixel_changes_if_ready()
         mock_editor.canvas_operation_tracker.add_frame_pixel_changes.assert_called_once()
 
     def test_list_fallback_submits(self, mock_editor):
         """List-based pixel changes are submitted as fallback."""
         mock_editor.current_pixel_changes = [(1, 1, (0, 0, 0), (255, 0, 0))]
-        mock_editor._submit_pixel_changes_if_ready()
+        mock_editor._frame_operations.submit_pixel_changes_if_ready()
         mock_editor.canvas_operation_tracker.add_frame_pixel_changes.assert_called_once()
 
     def test_empty_no_submission(self, mock_editor):
         """Empty pixel changes don't trigger submission."""
         mock_editor.current_pixel_changes = []
-        mock_editor._submit_pixel_changes_if_ready()
+        mock_editor._frame_operations.submit_pixel_changes_if_ready()
         mock_editor.canvas_operation_tracker.add_frame_pixel_changes.assert_not_called()
         mock_editor.canvas_operation_tracker.add_pixel_changes.assert_not_called()
 

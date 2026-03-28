@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from glitchygames.bitmappy.controllers.modes import ModeSwitcher
     from glitchygames.bitmappy.controllers.selection import ControllerSelection
     from glitchygames.bitmappy.film_strip import FilmStripWidget
+    from glitchygames.bitmappy.film_strip_coordinator import FilmStripCoordinator
     from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
     from glitchygames.bitmappy.history.operations import (
         CanvasOperationTracker,
@@ -50,6 +51,7 @@ class EditorContext(Protocol):
     # ── Subsystem managers ───────────────────────────────────────────────
 
     controller_handler: Any  # ControllerEventHandler (avoids circular import)
+    film_strip_coordinator: FilmStripCoordinator
 
     # ── State collections ────────────────────────────────────────────────
 
@@ -76,6 +78,10 @@ class EditorContext(Protocol):
     debug_text: Any  # MultiLineTextBox at runtime
     scroll_up_arrow: ScrollArrowSprite | None
     film_strip_widget: FilmStripWidget | None  # Legacy reference
+
+    # ── Pixel change tracking ────────────────────────────────────────────
+
+    _pixel_change_timer: float | None
 
     # ── Selection state ──────────────────────────────────────────────────
 
