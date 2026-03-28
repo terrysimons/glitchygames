@@ -77,7 +77,7 @@ def get_top_files() -> list[str]:
 
     """
     result = subprocess.run(  # noqa: S603 - trusted local dev tool
-        [WILY_CMD, 'rank', '-n', str(TOP_N), '-m', 'cyclomatic.complexity'],
+        [WILY_CMD, 'rank', '--limit', str(TOP_N), '--no-wrap', '--desc'],
         capture_output=True,
         text=True,
         cwd=PROJECT_ROOT,
@@ -88,14 +88,28 @@ def get_top_files() -> list[str]:
         return []
 
     files: list[str] = []
+    # Wily rank uses Unicode box-drawing tables with possible multiline wrapping.
+    # Collect all text fragments from the first column, then join wrapped lines.
+    current_path = ''
     for raw_line in result.stdout.strip().splitlines():
         line = raw_line.strip()
-        if not line or line.startswith(('-', 'File')):
+        # Skip header/separator/total lines
+        if not line or line.startswith(('╒', '╞', '╘', '├', '-')):
+            # Row boundary — flush any accumulated path
+            if current_path.endswith('.py') and not current_path.startswith('tests/'):
+                files.append(current_path)
+            current_path = ''
             continue
-        # First column is the file path
-        parts = line.split()
-        if parts and parts[0].endswith('.py'):
-            files.append(parts[0])
+        # Parse table rows: │ filepath │ value │
+        if '│' in line:
+            cells = [cell.strip() for cell in line.split('│') if cell.strip()]
+            if not cells or cells[0] in ('File', 'Total', 'Maintainability Index'):
+                continue
+            # Accumulate the first column (may be wrapped across lines)
+            current_path += cells[0]
+    # Flush last row
+    if current_path.endswith('.py') and not current_path.startswith('tests/'):
+        files.append(current_path)
 
     return files[:TOP_N]
 
@@ -153,12 +167,13 @@ def generate_markdown_page(files: list[str], generated_graphs: dict[str, list[st
             graph_path = GRAPHS_DIR / graph_file
 
             if graph_path.exists():
-                # Use a relative path from the markdown file to the graph
+                # Use site-root-relative path (mkdocs use_directory_urls
+                # serves this page at /quality/complexity/index.html)
                 lines.extend((
                     f'### {metric_label}',
                     '',
                     (
-                        f'<iframe src="graphs/{graph_file}" width="100%" height="400" '
+                        f'<iframe src="../graphs/{graph_file}" width="100%" height="400" '
                         f'frameborder="0"></iframe>'
                     ),
                     '',

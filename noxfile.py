@@ -418,4 +418,4 @@ def code_complexity(session: nox.Session) -> None:
 
     # Optional: show file rankings
     if '--rank' in session.posargs:
-        session.run('wily', 'rank', '-n', '20', '-m', 'cyclomatic.complexity')
+        session.run('wily', 'rank', '--limit', '20', 'glitchygames/', 'cyclomatic.complexity')
