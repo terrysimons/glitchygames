@@ -547,7 +547,8 @@ class TestOnMouseButtonUpEvent:
         mock_editor.debug_text.rect = pygame.Rect(0, 0, 10, 10)
         mock_editor.all_sprites = []
         mocker.patch.object(
-            mock_editor._frame_operations, 'submit_pixel_changes_if_ready',
+            mock_editor._frame_operations,
+            'submit_pixel_changes_if_ready',
         )
         event = _make_event(pos=(400, 300))
         mock_editor.on_mouse_button_up_event(event)
@@ -563,7 +564,8 @@ class TestOnMouseButtonUpEvent:
         mock_editor.green_slider.dragging = True
         mock_editor.blue_slider.dragging = True
         mocker.patch.object(
-            mock_editor._frame_operations, 'submit_pixel_changes_if_ready',
+            mock_editor._frame_operations,
+            'submit_pixel_changes_if_ready',
         )
         event = _make_event(pos=(400, 300))
         mock_editor.on_mouse_button_up_event(event)
@@ -715,7 +717,8 @@ class TestOnKeyUpEvent:
     def test_ctrl_shift_arrow_commits_panned_buffer(self, mock_editor, mocker):
         """Ctrl+Shift+Arrow key release commits panned buffer."""
         mocker.patch.object(
-            mock_editor._frame_operations, 'commit_panned_buffer',
+            mock_editor._frame_operations,
+            'commit_panned_buffer',
         )
         event = mocker.Mock()
         event.key = pygame.K_LEFT
@@ -771,7 +774,8 @@ class TestHandleCtrlKeyShortcuts:
     def test_ctrl_c_calls_copy_frame(self, mock_editor, mocker):
         """Ctrl+C triggers copy frame."""
         mocker.patch.object(
-            mock_editor._frame_operations, 'handle_copy_frame',
+            mock_editor._frame_operations,
+            'handle_copy_frame',
         )
         event = mocker.Mock()
         event.key = pygame.K_c
@@ -782,7 +786,8 @@ class TestHandleCtrlKeyShortcuts:
     def test_ctrl_v_calls_paste_frame(self, mock_editor, mocker):
         """Ctrl+V triggers paste frame."""
         mocker.patch.object(
-            mock_editor._frame_operations, 'handle_paste_frame',
+            mock_editor._frame_operations,
+            'handle_paste_frame',
         )
         event = mocker.Mock()
         event.key = pygame.K_v
@@ -793,16 +798,19 @@ class TestHandleCtrlKeyShortcuts:
     def test_ctrl_shift_arrow_handles_panning(self, mock_editor, mocker):
         """Ctrl+Shift+Arrow keys trigger canvas panning."""
         mocker.patch.object(
-            mock_editor._frame_operations, 'handle_canvas_panning',
+            mock_editor._frame_operations,
+            'handle_canvas_panning',
         )
         event = mocker.Mock()
         event.key = pygame.K_LEFT
         result = mock_editor._handle_ctrl_key_shortcuts(
-            event, pygame.KMOD_CTRL | pygame.KMOD_SHIFT,
+            event,
+            pygame.KMOD_CTRL | pygame.KMOD_SHIFT,
         )
         assert result is True
         mock_editor._frame_operations.handle_canvas_panning.assert_called_once_with(
-            delta_x=-1, delta_y=0,
+            delta_x=-1,
+            delta_y=0,
         )
 
     def test_no_ctrl_returns_false(self, mock_editor, mocker):

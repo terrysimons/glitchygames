@@ -153,8 +153,7 @@ class FrameOperationManager:
 
         # Commit the current panned pixels back to the frame
         if not (
-            hasattr(self.editor.canvas, 'animated_sprite')
-            and self.editor.canvas.animated_sprite
+            hasattr(self.editor.canvas, 'animated_sprite') and self.editor.canvas.animated_sprite
         ):
             self.log.debug('Panned buffer committed, panning state preserved for continued panning')
             return
@@ -164,8 +163,7 @@ class FrameOperationManager:
 
         animations = self.editor.canvas.animated_sprite._animations  # type: ignore[reportPrivateUsage]
         if not (
-            current_animation in animations
-            and current_frame < len(animations[current_animation])
+            current_animation in animations and current_frame < len(animations[current_animation])
         ):
             self.log.debug('Panned buffer committed, panning state preserved for continued panning')
             return
@@ -209,9 +207,8 @@ class FrameOperationManager:
             self.log.warning('No canvas available for frame copying')
             return
 
-        if (
-            not hasattr(self.editor, 'selected_animation')
-            or not hasattr(self.editor, 'selected_frame')
+        if not hasattr(self.editor, 'selected_animation') or not hasattr(
+            self.editor, 'selected_frame'
         ):
             self.log.warning('No frame selected for copying')
             return
@@ -271,9 +268,8 @@ class FrameOperationManager:
             self.log.warning('No canvas available for frame pasting')
             return
 
-        if (
-            not hasattr(self.editor, 'selected_animation')
-            or not hasattr(self.editor, 'selected_frame')
+        if not hasattr(self.editor, 'selected_animation') or not hasattr(
+            self.editor, 'selected_frame'
         ):
             self.log.warning('No frame selected for pasting')
             return
