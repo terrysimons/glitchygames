@@ -103,7 +103,7 @@ def get_top_files() -> list[str]:
         # Parse table rows: │ filepath │ value │
         if '│' in line:
             cells = [cell.strip() for cell in line.split('│') if cell.strip()]
-            if not cells or cells[0] in ('File', 'Total', 'Maintainability Index'):
+            if not cells or cells[0] in {'File', 'Total', 'Maintainability Index'}:
                 continue
             # Accumulate the first column (may be wrapped across lines)
             current_path += cells[0]
