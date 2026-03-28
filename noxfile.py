@@ -409,8 +409,8 @@ def code_complexity(session: nox.Session) -> None:
     # Build the wily cache from git history
     session.run('wily', 'build')
 
-    # Show complexity diff against previous revision
-    session.run('wily', 'diff', success_codes=[0, 1])
+    # Show complexity diff against previous revision for all source directories
+    session.run('wily', 'diff', 'glitchygames/', 'scripts/', '--changes-only', success_codes=[0, 1])
 
     # Optional: generate graphs for documentation
     if '--graphs' in session.posargs:
