@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, override
 
 import pygame
-import pygame._sdl2.controller
 
 from glitchygames import events
 from glitchygames.color import PURPLE
@@ -362,9 +361,9 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
         # Enable fast events for multithreaded applications on older
         # versions of pygame, or use the new event loop for newer
         # versions of pygame >= 2.2
-        if self.USE_FASTEVENTS:
+        if self.USE_FASTEVENTS and hasattr(pygame, 'fastevent'):
             self.log.info(f'Using pygame.fastevents for pygame version {pygame.version.ver}')
-            pygame.fastevent.init()  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+            pygame.fastevent.init()  # type: ignore[attr-defined]
         else:
             # This is the default mode when USE_FASTEVENTS is disabled.
             #
@@ -968,10 +967,12 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
         # You can create your own new events with the events.HashableEvent() object type.
         pump_events: Callable[..., Any] = pygame.event.get
 
-        if self.USE_FASTEVENTS:
-            pump_events = pygame.fastevent.get  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+        if self.USE_FASTEVENTS and hasattr(pygame, 'fastevent'):
+            pump_events = pygame.fastevent.get  # type: ignore[attr-defined]
 
-        raw_events: list[pygame.event.Event] = cast('list[pygame.event.Event]', pump_events())
+        raw_events: list[pygame.event.Event] = cast(  # ty: ignore[redundant-cast]
+            'list[pygame.event.Event]', pump_events()
+        )
         for pygame_event in raw_events:
             # Support scenes processing pygame raw events, bypassing
             # the glitchygames.engine event processing altogether
@@ -1470,8 +1471,10 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
             )
 
             # Check if this might be a controller event by looking at controller count
+            from pygame._sdl2 import controller as sdl2_controller  # noqa: PLC2701
+
             current_controller_count: int = int(
-                pygame._sdl2.controller.get_count(),
+                sdl2_controller.get_count(),
             )
             LOG.debug(
                 'Current controller count when event 1543 received: %s',
