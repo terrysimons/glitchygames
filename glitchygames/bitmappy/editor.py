@@ -1227,6 +1227,13 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         ):
             self.blue_slider.dragging = False
             self.blue_slider.on_left_mouse_button_up_event(event)
+        if (
+            hasattr(self, 'alpha_slider')
+            and hasattr(self.alpha_slider, 'dragging')
+            and self.alpha_slider.dragging
+        ):
+            self.alpha_slider.dragging = False
+            self.alpha_slider.on_left_mouse_button_up_event(event)
 
         # Pass to other sprites
         for sprite in self.all_sprites:
