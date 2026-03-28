@@ -680,7 +680,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
         strip_spacing = -19
         strip_index = len(self.editor.film_strips)
 
-        self._create_single_film_strip(
+        self._create_single_film_strip(  # pyright: ignore[reportUnknownMemberType]
             strip_index=strip_index,
             anim_name=anim_name,
             frames=frames,
@@ -689,7 +689,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
             film_strip_width=film_strip_width,
             strip_height=strip_height,
             strip_spacing=strip_spacing,
-            groups=self.editor.all_sprites,  # type: ignore[arg-type]
+            groups=self.editor.all_sprites,
         )
 
         self.update_film_strip_visibility()
