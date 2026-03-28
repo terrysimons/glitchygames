@@ -1303,9 +1303,6 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
 
         self.film_strip_coordinator.update_film_strip_animation_timing()
 
-        # Mark the main scene as dirty every frame to ensure sprite groups are updated
-        self.dirty = 1
-
         # Render visual indicators for multi-controller system
         self.controller_handler.render_visual_indicators()
 
@@ -1323,6 +1320,15 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
     @override
     def update(self) -> None:
         """Update scene state."""
+        # Advance film strip animations BEFORE Scene.update() so that
+        # mark_dirty() sets dirty=1 before the dirty-sprite loop runs.
+        if (
+            hasattr(self, 'canvas')
+            and hasattr(self.canvas, 'animated_sprite')
+            and self.canvas.animated_sprite
+        ):
+            self._update_animated_canvas()
+
         super().update()  # Call the base Scene.update() method
 
         # Update continuous slider adjustments
@@ -1333,14 +1339,6 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
 
         # Check for single click timer
         self._frame_operations.check_single_click_timer()
-
-        # Update the animated canvas with delta time
-        if (
-            hasattr(self, 'canvas')
-            and hasattr(self.canvas, 'animated_sprite')
-            and self.canvas.animated_sprite
-        ):
-            self._update_animated_canvas()
 
         # Check for AI responses
         self._ai_integration.check_responses()

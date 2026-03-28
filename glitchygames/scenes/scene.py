@@ -848,23 +848,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Update all sprites that are dirty
         [sprite.update() for sprite in self.all_sprites if sprite.dirty]
 
-        # CRITICAL: Film strip sprites need continuous updates for preview animations
-        # Unlike regular sprites that only update when dirty, film strip sprites must
-        # update every frame to advance their animation timing. This ensures that
-        # preview animations run smoothly and independently of user interaction.
-        #
-        # DEBUGGING NOTES:
-        # - If film strip animations stop running, check that this loop is executing
-        # - Verify that sprite.name == "Film Strip" matches FilmStripSprite.name
-        # - Ensure self.dt is being set correctly by the scene manager
-        # - Check that film_strip_widget.update_animations() is being called
-        for sprite in self.all_sprites:
-            if hasattr(sprite, 'name') and sprite.name == 'Film Strip':
-                # Pass delta time to the film strip sprite for proper animation timing
-                # This allows the film strip to advance its animation frames smoothly
-                sprite._last_dt = self.dt
-                sprite.update()
-
         # Make all of the new scene's sprites dirty to force a redraw
         if self.dirty:
             for sprite in self.all_sprites:

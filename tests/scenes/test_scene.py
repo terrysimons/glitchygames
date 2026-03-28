@@ -2470,10 +2470,10 @@ class TestSceneOnKeyDownWithFocusedSprites:
 
 
 class TestSceneUpdateWithFilmStrip:
-    """Test Scene.update with Film Strip sprite name."""
+    """Test Scene.update with Film Strip sprite — updated via the normal dirty-sprite path."""
 
-    def test_update_with_film_strip_sprite(self, mock_pygame_patches, mocker):
-        """Test update handles Film Strip sprite specially."""
+    def test_update_with_dirty_film_strip_sprite(self, mock_pygame_patches, mocker):
+        """Test dirty Film Strip sprites get updated via the normal dirty-sprite path."""
         scene = Scene()
         scene.dt = 0.016
 
@@ -2482,14 +2482,11 @@ class TestSceneUpdateWithFilmStrip:
         film_strip.dirty = 1
         film_strip.update_nested_sprites = mocker.Mock()
         film_strip.update = mocker.Mock()
-        film_strip._last_dt = 0
 
         scene.all_sprites.add(film_strip)
         scene.update()
 
-        # Film strip should have _last_dt set and update called
-        assert film_strip._last_dt == pytest.approx(0.016)
-        # update() is called both in dirty loop and film strip loop
+        # Film strip should be updated via the dirty sprite loop
         assert film_strip.update.call_count >= 1
 
 

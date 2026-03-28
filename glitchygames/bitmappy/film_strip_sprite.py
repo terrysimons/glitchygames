@@ -76,65 +76,19 @@ class FilmStripSprite(BitmappySprite):
     def update(self) -> None:
         """Update the film strip sprite.
 
-        CRITICAL: This method is called continuously by the scene update loop
-        to ensure preview animations run smoothly. The key insight is that film
-        strip sprites need to update every frame, not just when dirty, because
-        they contain independent animation timing that must advance continuously.
+        Animation timing is handled by FilmStripCoordinator.update_film_strip_animation_timing(),
+        which calls update_animations() on each widget and conditionally sets dirty=1
+        only when a frame actually advances. This method only needs to re-render the
+        sprite surface when the dirty flag has been set.
         """
         # Check if this sprite has been killed - if so, don't update
         if not hasattr(self, 'groups') or not self.groups() or len(self.groups()) == 0:
-            LOG.debug(
-                f'DEBUG: FilmStripSprite update skipped - not in groups: {hasattr(self, "groups")},'
-                f' groups: {self.groups() if hasattr(self, "groups") else "None"}',
-            )
-            # Clear the widget reference to prevent any lingering updates
             if hasattr(self, 'film_strip_widget'):
                 self.film_strip_widget = None
             return
 
-        # Debug: Track if this sprite is being updated
-        if not hasattr(self, '_update_count'):
-            self._update_count = 0
-        self._update_count += 1
-
-        # Debug: Print update count every 100 updates for initial strip
-        if self._update_count % 100 == 0:
-            pass  # Debug logging removed
-
-        # Update animations first to advance frame timing
-        # This is the core of the preview animation system - it advances the
-        # animation frames based on delta time, allowing smooth preview playback
-        if hasattr(self, 'film_strip_widget') and self.film_strip_widget:
-            # Get delta time from the scene or use a default
-            # DEBUGGING: If animations are choppy, check that _last_dt is being set
-            # by the scene update loop and contains reasonable values (0.016 = 60fps)
-            dt = getattr(self, '_last_dt', 0.016)  # Default to ~60 FPS
-            self.film_strip_widget.update_animations(dt)
-
-        # Check if animations are running and force redraw
-        # This determines whether we need continuous updates for preview animations
-        animations_running = (
-            hasattr(self, 'film_strip_widget')
-            and self.film_strip_widget is not None
-            and hasattr(self.film_strip_widget, 'animated_sprite')
-            and self.film_strip_widget.animated_sprite is not None
-            and len(self.film_strip_widget.animated_sprite._animations) > 0  # type: ignore[reportPrivateUsage]
-        )
-
-        # Always redraw if dirty or if animations are running
-        # This ensures the film strip redraws both for user interactions (dirty)
-        # and for continuous animation updates (animations_running)
-        should_redraw = self.dirty or animations_running
-
-        if should_redraw:
+        if self.dirty and self.film_strip_widget:
             self.force_redraw()
-            # CRITICAL: Always mark as dirty when animations are running for continuous updates
-            # This ensures the sprite group will redraw this sprite every frame when
-            # animations are present, creating the smooth preview effect
-            if animations_running:
-                self.dirty = 1  # Keep dirty for continuous animation updates
-            else:
-                self.dirty = 0  # Reset dirty when no animations (normal sprite behavior)
 
     def force_redraw(self) -> None:
         """Force a redraw of the film strip."""

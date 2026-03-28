@@ -77,10 +77,10 @@ class TestFilmStripSprite:
         mock_group = self._mocker.Mock()
         sprite.groups = self._mocker.Mock(return_value=[mock_group])
 
-        # Test update with dirty flag
+        # Test update with dirty flag — force_redraw is called,
+        # dirty stays at 1 until LayeredDirty.draw() resets it
         sprite.update()
-        # Should call force_redraw and reset dirty flag if no animations
-        assert sprite.dirty == 0
+        assert sprite.dirty == 1
 
     def test_film_strip_sprite_force_redraw(self):
         """Test film strip sprite force redraw."""

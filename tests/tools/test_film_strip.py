@@ -265,20 +265,6 @@ class TestFilmStripFunctionality:
         strip.mark_dirty()
         assert strip._force_redraw is True
 
-    def test_propagate_dirty_to_sprite_groups(self, mock_pygame_patches, mocker):
-        """Test _propagate_dirty_to_sprite_groups method."""
-        strip = film_strip.FilmStripWidget(0, 0, 100, 100)
-
-        # Create a mock sprite with groups
-        mock_sprite = mocker.Mock()
-        mock_other_sprite = mocker.Mock()
-        mock_group = [mock_sprite, mock_other_sprite]
-        mock_sprite.groups.return_value = [mock_group]
-
-        # Should not crash
-        strip._propagate_dirty_to_sprite_groups(mock_sprite)
-        assert mock_other_sprite.dirty == 1
-
     def test_update_scroll_for_frame_no_sprite(self, mock_pygame_patches):
         """Test update_scroll_for_frame when no animated sprite is set."""
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
@@ -675,9 +661,20 @@ class TestFilmStripUpdateAnimations:
         assert widget_with_sprite.preview_animation_times['walk'] < 1.0
 
     def test_update_marks_dirty(self, widget_with_sprite, mocker):
-        """Test update_animations marks widget as dirty."""
+        """Test update_animations marks widget as dirty when frame advances."""
         mocker.patch.object(widget_with_sprite, 'mark_dirty')
-        widget_with_sprite.update_animations(DT_60FPS)
+
+        # Mock animated_sprite.update to simulate a frame change
+        # without triggering real surfarray operations
+        def advance_frame(dt):
+            widget_with_sprite.animated_sprite.frame_manager._current_frame = 1
+
+        mocker.patch.object(
+            widget_with_sprite.animated_sprite,
+            'update',
+            side_effect=advance_frame,
+        )
+        widget_with_sprite.update_animations(0.6)
         widget_with_sprite.mark_dirty.assert_called()
 
     def test_update_initializes_debug_timers(self, widget_with_sprite, mocker):
@@ -1023,7 +1020,7 @@ class TestFilmStripMarkDirty:
         mock_sprite.groups.return_value = []
         widget.film_strip_sprite = mock_sprite
         widget.mark_dirty()
-        assert mock_sprite.dirty == 2
+        assert mock_sprite.dirty == 1
 
     def test_mark_dirty_without_film_strip_sprite(self):
         """Test mark_dirty works without film_strip_sprite."""
@@ -1319,49 +1316,6 @@ class TestFilmStripGetFrameImage:
         frame = mocker.Mock(spec=[])
         result = FilmStripWidget._get_frame_image(frame)
         assert result is None
-
-
-class TestFilmStripPropagateDirty:
-    """Test dirty propagation methods."""
-
-    def test_propagate_dirty_up_parent_chain_none(self):
-        """Test _propagate_dirty_up_parent_chain with None parent."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget._propagate_dirty_up_parent_chain(None)  # Should not raise
-
-    def test_propagate_dirty_up_parent_chain_with_parent(self, mocker):
-        """Test _propagate_dirty_up_parent_chain marks parents dirty."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        parent = mocker.Mock()
-        parent.dirty = 0
-        parent.parent = None
-        widget._propagate_dirty_up_parent_chain(parent)
-        assert parent.dirty == 1
-
-    def test_propagate_dirty_up_parent_chain_self_reference(self, mocker):
-        """Test _propagate_dirty_up_parent_chain stops on self-reference."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        parent = mocker.Mock()
-        parent.dirty = 0
-        parent.parent = parent  # Self-reference
-        widget._propagate_dirty_up_parent_chain(parent)
-        assert parent.dirty == 1
-
-    def test_propagate_dirty_to_sprite_groups_prevents_infinite_recursion(self, mocker):
-        """Test _propagate_dirty_to_sprite_groups prevents infinite recursion."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock()
-        # Passing visited set with the sprite already in it should stop
-        visited = {sprite}
-        widget._propagate_dirty_to_sprite_groups(sprite, visited)
-        # Should not have called groups() since sprite was already visited
-
-    def test_propagate_dirty_to_sprite_groups_no_groups(self, mocker):
-        """Test _propagate_dirty_to_sprite_groups with sprite that has no groups."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock(spec=[])
-        widget._propagate_dirty_to_sprite_groups(sprite)
-        # Should not raise
 
 
 class TestFilmStripHandleClick:
@@ -2394,41 +2348,6 @@ class TestUpdateScrollForFrame:
         widget.update_scroll_for_frame(999)  # Should not raise
 
 
-class TestPropagateDirtyToSpriteGroups:
-    """Test _propagate_dirty_to_sprite_groups method."""
-
-    def test_propagate_with_callable_groups(self, mocker):
-        """Test propagation when sprite.groups() is callable."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        mock_other_sprite = mocker.Mock()
-        mock_other_sprite.groups.return_value = []
-        mock_other_sprite.dirty = 0
-
-        mock_group = mocker.Mock()
-        mock_group.__iter__ = mocker.Mock(return_value=iter([mock_other_sprite]))
-
-        mock_sprite = mocker.Mock()
-        mock_sprite.groups.return_value = [mock_group]
-
-        widget._propagate_dirty_to_sprite_groups(mock_sprite)
-        assert mock_other_sprite.dirty == 1
-
-    def test_propagate_prevents_infinite_recursion(self, mocker):
-        """Test propagation stops on already-visited sprites."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        mock_sprite = mocker.Mock()
-        mock_sprite.groups.return_value = []
-        visited = {mock_sprite}
-        # Should return immediately, not recurse
-        widget._propagate_dirty_to_sprite_groups(mock_sprite, visited=visited)
-
-    def test_propagate_handles_no_groups_attribute(self, mocker):
-        """Test propagation handles sprites without groups attribute."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        mock_sprite = mocker.Mock(spec=[])  # No attributes
-        widget._propagate_dirty_to_sprite_groups(mock_sprite)  # Should not raise
-
-
 class TestHasValidCanvasSprite:
     """Test _has_valid_canvas_sprite method."""
 
@@ -3141,44 +3060,6 @@ class TestGetFrameImageForRendering:
         )
         result = widget._get_frame_image_for_rendering(frame, is_selected=False)
         assert result is None
-
-
-class TestFilmStripPropagateDirtyToGroups:
-    """Test _propagate_dirty_to_sprite_groups method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_propagate_to_sprite_with_groups(self, mocker):
-        """Test propagation through sprite groups."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock()
-        group = mocker.Mock()
-        group.sprites.return_value = []
-        sprite.groups.return_value = [group]
-        sprite.dirty = 0
-
-        widget._propagate_dirty_to_sprite_groups(sprite)
-        # Should set sprite dirty=2 or visit groups
-
-    def test_propagate_skips_visited_sprite(self, mocker):
-        """Test propagation skips already-visited sprites."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock()
-        sprite.groups.return_value = []
-        visited = {sprite}
-
-        # Should return immediately without error
-        widget._propagate_dirty_to_sprite_groups(sprite, visited=visited)
-
-    def test_propagate_sprite_without_groups(self, mocker):
-        """Test propagation with sprite that has no groups attribute."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock(spec=[])  # No groups attr
-
-        widget._propagate_dirty_to_sprite_groups(sprite)  # Should not raise
 
 
 class TestFilmStripHasValidCanvasSprite:
@@ -4235,46 +4116,6 @@ class TestFilmStripHandleClickEdgeCases:
 
         result = widget.handle_click((10, 65))
         assert result is None
-
-
-class TestFilmStripPropagateDirtyUpParentChain:
-    """Test _propagate_dirty_up_parent_chain (lines 619-624)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_propagate_up_sets_parent_dirty(self, mocker):
-        """Test _propagate_dirty_up_parent_chain marks parent as dirty (line 620)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        parent = mocker.Mock()
-        parent.dirty = 0
-        parent.parent = None  # Stop recursion
-
-        widget._propagate_dirty_up_parent_chain(parent)
-        assert parent.dirty == 1
-
-    def test_propagate_up_recurses_to_grandparent(self, mocker):
-        """Test _propagate_dirty_up_parent_chain recurses through chain (line 624)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        grandparent = mocker.Mock()
-        grandparent.dirty = 0
-        grandparent.parent = None
-
-        parent = mocker.Mock()
-        parent.dirty = 0
-        parent.parent = grandparent
-
-        widget._propagate_dirty_up_parent_chain(parent)
-        assert parent.dirty == 1
-        assert grandparent.dirty == 1
-
-    def test_propagate_up_none_parent_returns(self):
-        """Test _propagate_dirty_up_parent_chain returns on None."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget._propagate_dirty_up_parent_chain(None)
-        # Should return without error
 
 
 class TestFilmStripDrawPreviewTriangle:

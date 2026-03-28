@@ -128,7 +128,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
         # CRITICAL: Ensure all film strip sprites are marked as dirty for initial render
         # This fixes the issue where film strips don't update on first load
         for film_strip_sprite in self.editor.film_strip_sprites.values():
-            film_strip_sprite.dirty = 2  # Full surface blit
+            film_strip_sprite.dirty = 1
             film_strip_sprite.force_redraw()
 
         # Update visibility to show only 2 strips at a time
@@ -278,7 +278,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
 
         # CRITICAL: Mark film strip sprite as dirty and force initial redraw
         # This ensures the film strip updates properly on first load
-        film_strip_sprite.dirty = 2  # Full surface blit
+        film_strip_sprite.dirty = 1
         film_strip.mark_dirty()
         film_strip_sprite.force_redraw()
 
@@ -524,11 +524,8 @@ class FilmStripCoordinator:  # noqa: PLR0904
                     film_strip_sprite.rect.y = fixed_y
                     film_strip_sprite.visible = True
 
-                    # Mark as dirty to ensure redraw
-                    film_strip_sprite.dirty = 2
+                    # Mark as dirty to ensure redraw after repositioning
                     film_strip.mark_dirty()
-                    # Force complete redraw to clear any old sprockets
-                    film_strip._force_redraw = True  # type: ignore[reportPrivateUsage]
 
         # Update scroll arrows
         self.update_scroll_arrows()
@@ -1400,7 +1397,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
                     (strip_widget.rect.width, strip_widget.rect.height),
                     pygame.SRCALPHA,
                 )
-                film_strip_sprite.dirty = 2
+                film_strip_sprite.dirty = 1
         except (AttributeError, KeyError, TypeError, pygame.error) as e:
             self.log.warning('FilmStripWidget layout update failed after rename: %s', e)
         # Ensure redraw
@@ -1451,11 +1448,11 @@ class FilmStripCoordinator:  # noqa: PLR0904
                 hasattr(self.editor, 'film_strip_sprites')
                 and strip_name in self.editor.film_strip_sprites
             ):
-                self.editor.film_strip_sprites[strip_name].dirty = 2
+                self.editor.film_strip_sprites[strip_name].dirty = 1
 
             # Mark the animated sprite as dirty to ensure animation updates
             if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
-                strip_widget.animated_sprite.dirty = 2
+                strip_widget.animated_sprite.dirty = 1
 
     def on_animation_rename(self, old_name: str, new_name: str) -> None:
         """Handle animation name changes from film strip editing."""
@@ -1533,11 +1530,11 @@ class FilmStripCoordinator:  # noqa: PLR0904
                     hasattr(self.editor, 'film_strip_sprites')
                     and strip_name in self.editor.film_strip_sprites
                 ):
-                    self.editor.film_strip_sprites[strip_name].dirty = 2
+                    self.editor.film_strip_sprites[strip_name].dirty = 1
 
                 # Mark the animated sprite as dirty to ensure animation updates
                 if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
-                    strip_widget.animated_sprite.dirty = 2
+                    strip_widget.animated_sprite.dirty = 1
 
     def _adjust_selected_frame_after_removal(self, animation: str, _frame_index: int) -> None:
         """Adjust the selected frame index after a frame removal and update the canvas.
@@ -1623,11 +1620,11 @@ class FilmStripCoordinator:  # noqa: PLR0904
                     hasattr(self.editor, 'film_strip_sprites')
                     and strip_name in self.editor.film_strip_sprites
                 ):
-                    self.editor.film_strip_sprites[strip_name].dirty = 2
+                    self.editor.film_strip_sprites[strip_name].dirty = 1
 
                 # Mark the animated sprite as dirty to ensure animation updates
                 if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
-                    strip_widget.animated_sprite.dirty = 2
+                    strip_widget.animated_sprite.dirty = 1
 
     def _copy_current_frame(self) -> bool:
         """Copy the currently selected frame from the active film strip.
@@ -1760,11 +1757,11 @@ class FilmStripCoordinator:  # noqa: PLR0904
                 hasattr(self.editor, 'film_strip_sprites')
                 and strip_name in self.editor.film_strip_sprites
             ):
-                self.editor.film_strip_sprites[strip_name].dirty = 2
+                self.editor.film_strip_sprites[strip_name].dirty = 1
 
             # Mark the animated sprite as dirty to ensure animation updates
             if hasattr(strip_widget, 'animated_sprite') and strip_widget.animated_sprite:
-                strip_widget.animated_sprite.dirty = 2
+                strip_widget.animated_sprite.dirty = 1
 
     def switch_to_film_strip(self, animation_name: str, frame: int = 0) -> None:
         """Switch to a specific film strip and frame, deselecting the previous one."""
@@ -1781,7 +1778,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
             if hasattr(self.editor, 'film_strip_sprites'):
                 for strip_sprite in self.editor.film_strip_sprites.values():
                     if strip_sprite.film_strip_widget == self.selected_strip:
-                        strip_sprite.dirty = 2
+                        strip_sprite.dirty = 1
                         break
 
             # Mark the animated sprite as dirty to ensure animation updates
@@ -1789,7 +1786,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
                 hasattr(self.selected_strip, 'animated_sprite')
                 and self.selected_strip.animated_sprite
             ):
-                self.selected_strip.animated_sprite.dirty = 2
+                self.selected_strip.animated_sprite.dirty = 1
 
         # Select the new strip
         if hasattr(self.editor, 'film_strips') and animation_name in self.editor.film_strips:
@@ -1805,11 +1802,11 @@ class FilmStripCoordinator:  # noqa: PLR0904
                 hasattr(self.editor, 'film_strip_sprites')
                 and animation_name in self.editor.film_strip_sprites
             ):
-                self.editor.film_strip_sprites[animation_name].dirty = 2
+                self.editor.film_strip_sprites[animation_name].dirty = 1
 
             # Mark the animated sprite as dirty to ensure animation updates
             if hasattr(new_strip, 'animated_sprite') and new_strip.animated_sprite:
-                new_strip.animated_sprite.dirty = 2
+                new_strip.animated_sprite.dirty = 1
 
             # Update global selection state
             self.editor.selected_animation = animation_name
@@ -1997,7 +1994,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
             hasattr(self.editor, 'film_strip_sprites')
             and current_animation in self.editor.film_strip_sprites
         ):
-            self.editor.film_strip_sprites[current_animation].dirty = 2
+            self.editor.film_strip_sprites[current_animation].dirty = 1
 
     def scroll_film_strips_down(self) -> None:
         """Scroll film strips down (show later animations)."""
@@ -2110,25 +2107,6 @@ class FilmStripCoordinator:  # noqa: PLR0904
             for film_strip_sprite in self.editor.film_strip_sprites.values():
                 film_strip_sprite.dirty = 1
 
-        # Also mark film strip sprites as dirty for animation updates
-        self._mark_film_strip_sprites_dirty()
-
-    def _mark_film_strip_sprites_dirty(self) -> None:
-        """Mark all film strip sprites as dirty for animation updates.
-
-        This is a backup mechanism to ensure film strip sprites are marked as dirty
-        when animations are running. The primary dirty marking happens in the
-        FilmStripSprite.update() method, but this provides an additional safety net.
-
-        DEBUGGING NOTES:
-        - If film strips don't redraw: Check that this method is being called
-        - If animations are choppy: Verify dirty flag is being set consistently
-        - If performance is poor: Consider reducing frequency of this call
-        """
-        if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
-            for film_strip_sprite in self.editor.film_strip_sprites.values():
-                film_strip_sprite.dirty = 1
-
     def _update_film_strip_selection(self) -> None:
         """Update film strip selection to show the current animation and frame."""
         if not hasattr(self.editor, 'canvas') or not self.editor.canvas:
@@ -2171,23 +2149,18 @@ class FilmStripCoordinator:  # noqa: PLR0904
         self._create_film_strips(self.editor.all_sprites)  # type: ignore[arg-type]
 
     def update_film_strip_animation_timing(self) -> None:
-        """Update film strip animations and mark sprites dirty for redraw."""
-        # Update film strip animations
-        # This ensures each film strip has its own independent animation timing
-        if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-            for film_strip in self.editor.film_strips.values():
-                if hasattr(film_strip, 'update_animations'):
-                    film_strip.update_animations(self.editor.dt)
+        """Update film strip animations for visible strips only.
 
-        # Mark all film strip sprites as dirty for animation updates (every frame)
-        # This ensures the sprite group redraws film strips when animations advance
-        if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
-            for film_strip_sprite in self.editor.film_strip_sprites.values():
-                film_strip_sprite.dirty = 1
+        Each strip's update_animations() will call mark_dirty() internally
+        when the animation frame actually changes, so there is no need to
+        blanket-dirty all strips here.
+        """
+        if not (hasattr(self.editor, 'film_strips') and self.editor.film_strips):
+            return
 
-        # Also mark film strip sprites as dirty for continuous animation updates
-        # This is a backup mechanism to ensure film strips stay dirty when needed
-        self._mark_film_strip_sprites_dirty()
+        for film_strip in self.editor.film_strips.values():
+            if hasattr(film_strip, 'update_animations'):
+                film_strip.update_animations(self.editor.dt)
 
     def refresh_all_film_strip_widgets(self, animation_name: str | None = None) -> None:
         """Refresh all film strip widgets to reflect current animation data.

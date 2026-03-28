@@ -1330,7 +1330,6 @@ class TestUpdateFilmStrips:
         mock_sprite = mocker.Mock()
         mock_editor.film_strips = {'default': mock_strip}
         mock_editor.film_strip_sprites = {'default': mock_sprite}
-        mocker.patch.object(mock_editor.film_strip_coordinator, '_mark_film_strip_sprites_dirty')
         mock_editor.film_strip_coordinator.update_film_strips_for_animated_sprite_update()
         mock_strip.update_layout.assert_called_once()
 
@@ -1343,7 +1342,7 @@ class TestUpdateFilmStrips:
         mock_editor.film_strip_sprites = {'default': mock_sprite}
         mock_editor.film_strip_coordinator._mark_all_film_strips_dirty()
         mock_strip.mark_dirty.assert_called_once()
-        assert mock_sprite.dirty == 2
+        assert mock_sprite.dirty == 1
 
     def test_mark_all_no_film_strips(self, mock_editor):
         """Does nothing when no film strips exist."""
@@ -2219,8 +2218,6 @@ class TestUpdateFilmStripAnimationTiming:
         """Updates animations on all film strips."""
         mock_strip = mocker.Mock()
         mock_editor.film_strips = {'default': mock_strip}
-        mock_editor.film_strip_sprites = {'default': mocker.Mock()}
-        mocker.patch.object(mock_editor.film_strip_coordinator, '_mark_film_strip_sprites_dirty')
         mock_editor.film_strip_coordinator.update_film_strip_animation_timing()
         mock_strip.update_animations.assert_called_once()
 

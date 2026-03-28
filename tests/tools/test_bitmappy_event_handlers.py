@@ -2007,8 +2007,8 @@ class TestMarkAllFilmStripsDirty:
         mock_editor.film_strip_sprites = {'default': sprite}
         mock_editor.film_strip_coordinator._mark_all_film_strips_dirty()
         strip.mark_dirty.assert_called_once()
-        assert sprite.dirty == 2
-        assert strip.animated_sprite.dirty == 2
+        assert sprite.dirty == 1
+        assert strip.animated_sprite.dirty == 1
 
 
 # ===========================================================================

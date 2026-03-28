@@ -51,6 +51,10 @@ def _mock_parent_scene(animated_sprite, mocker):
     parent_scene._create_blank_frame = mocker.Mock(
         side_effect=lambda w, h, duration=0.5: _create_blank_frame_mock(w, h, duration),
     )
+    # _insert_frame_at_tab routes through the coordinator
+    parent_scene.film_strip_coordinator._create_blank_frame = mocker.Mock(
+        side_effect=lambda w, h, duration=0.5: _create_blank_frame_mock(w, h, duration),
+    )
     return parent_scene
 
 

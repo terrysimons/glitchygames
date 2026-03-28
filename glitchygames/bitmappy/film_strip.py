@@ -424,16 +424,15 @@ class FilmStripWidget:  # noqa: PLR0904
         # Update the animated sprite with delta time to advance frames
         # This is the main animation advancement - it updates the sprite's internal
         # frame timing and current_frame property based on elapsed time
+        previous_frame = self.animated_sprite.current_frame
         self.animated_sprite.update(dt)
 
-        # CRITICAL FIX: Sync the widget's current_frame with the sprite's current_frame
-        # This was the missing piece - the widget wasn't tracking the animation progress!
+        # Sync the widget's current_frame with the sprite's current_frame
         self.current_frame = self.animated_sprite.current_frame
 
-        # Always mark as dirty when animations are running to ensure continuous updates
-        # This ensures the film strip redraws even when animations are smoothly transitioning
-        # CRITICAL: Without this, the film strip won't redraw when frames advance
-        if len(self.animated_sprite.animations) > 0:
+        # Only mark dirty when the animation frame actually changed,
+        # not every frame unconditionally
+        if self.animated_sprite.current_frame != previous_frame:
             self.mark_dirty()
 
         # Update independent timing for each animation preview
@@ -606,67 +605,16 @@ class FilmStripWidget:  # noqa: PLR0904
         self.parent_canvas = canvas
 
     def mark_dirty(self) -> None:
-        """Mark the film strip widget as needing a re-render."""
-        # Force a complete re-render by clearing any cached data
-        # This ensures that frame thumbnails and preview are updated
+        """Mark the film strip widget as needing a re-render.
+
+        Sets dirty=1 on this film strip's sprite so that the next
+        Scene.update() call triggers force_redraw() and LayeredDirty
+        blits the updated surface to the screen.
+        """
         self._force_redraw = True
 
-        # Propagate dirty flags through sprite groups
         if hasattr(self, 'film_strip_sprite') and self.film_strip_sprite:
-            film_strip_sprite = self.film_strip_sprite
-            self._propagate_dirty_to_sprite_groups(film_strip_sprite)
-
-            # Mark the film strip sprite itself as dirty
-            film_strip_sprite.dirty = 2
-
-            # Note: Not propagating dirty up the parent chain to avoid circular dirty propagation
-
-    def _propagate_dirty_to_sprite_groups(
-        self,
-        sprite: pygame.sprite.DirtySprite,
-        visited: set[pygame.sprite.DirtySprite] | None = None,
-    ) -> None:
-        """Propagate dirty flags to all sprites in the sprite's groups."""
-        if visited is None:
-            visited = set()
-
-        # Prevent infinite recursion by tracking visited sprites
-        if sprite in visited:
-            return
-        visited.add(sprite)
-
-        if not hasattr(sprite, 'groups'):
-            return
-
-        try:
-            # Handle both function and list cases
-            groups = sprite.groups() if callable(sprite.groups) else sprite.groups
-            if not groups:
-                return
-            for group in groups:
-                for other_sprite in group:
-                    if other_sprite != sprite:  # Don't dirty ourselves
-                        other_sprite.dirty = 1  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-                        # Recursively propagate to other sprite's groups with visited set
-                        if isinstance(other_sprite, pygame.sprite.DirtySprite):
-                            self._propagate_dirty_to_sprite_groups(other_sprite, visited)
-        except TypeError, AttributeError:
-            # If groups is not iterable or doesn't exist, skip propagation
-            pass
-
-    def _propagate_dirty_up_parent_chain(self, parent: pygame.sprite.DirtySprite | None) -> None:
-        """Propagate dirty flags up the parent chain until parent=None or parent=parent."""
-        if parent is None:
-            return
-
-        # Mark parent as dirty
-        if hasattr(parent, 'dirty'):
-            parent.dirty = 1
-
-        # If parent has a parent and it's not the same object (avoid infinite loops)
-        next_parent: Any = getattr(parent, 'parent', None)
-        if next_parent is not None and next_parent != parent:
-            self._propagate_dirty_up_parent_chain(next_parent)
+            self.film_strip_sprite.dirty = 1
 
     def _calculate_scroll_offset(self, frame_index: int, frames: list[SpriteFrame]) -> int:
         """Calculate the scroll offset to center a frame.
@@ -2898,7 +2846,9 @@ class FilmStripWidget:  # noqa: PLR0904
         frame_height = self.parent_scene.canvas.pixels_tall
 
         # Use the shared helper to create a blank frame with proper SRCALPHA support
-        new_frame = self.parent_scene._create_blank_frame(frame_width, frame_height, duration=0.5)
+        new_frame = self.parent_scene.film_strip_coordinator._create_blank_frame(
+            frame_width, frame_height, duration=0.5
+        )
 
         # Determine insertion index
         if tab.insertion_type == 'before':
@@ -3104,7 +3054,7 @@ class FilmStripWidget:  # noqa: PLR0904
             f'{self.animated_sprite.frame_manager.current_frame}'
             f', frames count: {len(frames)}',
         )
-        self.animated_sprite.dirty = 2
+        self.animated_sprite.dirty = 1
 
     def _remove_frame(self, animation_name: str, frame_index: int) -> None:
         """Remove a frame from the animated sprite.

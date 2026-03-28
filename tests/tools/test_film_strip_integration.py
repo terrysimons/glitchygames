@@ -470,10 +470,11 @@ class TestFilmStripIntegration(FilmStripTestBase):
         # Test dirty flag handling
         assert film_strip_sprite.dirty >= 1  # Should be dirty initially
 
-        # Test mark_dirty functionality
+        # Test mark_dirty functionality — mark_dirty() renders immediately
+        # via force_redraw(), so _force_redraw is consumed (reset to False)
+        # and the sprite is marked dirty=1 for LayeredDirty to blit
         film_strip.mark_dirty()
-        assert hasattr(film_strip, '_force_redraw')
-        assert film_strip._force_redraw is True
+        assert film_strip_sprite.dirty == 1
 
     def test_film_strip_multiple_animations_integration(self):
         """Test film strip with multiple animations."""
