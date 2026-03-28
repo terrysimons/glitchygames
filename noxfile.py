@@ -397,7 +397,9 @@ def security_scan(session: nox.Session) -> None:
 
 @nox.session(python=['3.14'], reuse_venv=False, name='code-complexity', default=False)
 def code_complexity(session: nox.Session) -> None:
-    """Analyze code complexity with wily (build cache, diff, and optionally generate graphs).
+    """Analyze code complexity with wily and generate optional HTML graphs.
+
+    Tools: wily (complexity analysis), generate_complexity_graphs.py (HTML graph generation)
 
     Usage:
         nox -s code-complexity              # Build cache + show diff vs previous revision
