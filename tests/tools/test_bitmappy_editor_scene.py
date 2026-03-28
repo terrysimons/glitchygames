@@ -1315,13 +1315,13 @@ class TestUpdateFilmStrips:
         mock_strip.update_scroll_for_frame.assert_called_once_with(1)
 
     def test_update_for_pixel_update(self, mock_editor, mocker):
-        """Marks film strips dirty on pixel update."""
+        """Marks visible film strips dirty on pixel update."""
         mock_sprite = mocker.Mock()
+        mock_sprite.visible = True
         mock_strip = mocker.Mock()
         mock_editor.film_strip_sprites = {'default': mock_sprite}
         mock_editor.film_strips = {'default': mock_strip}
         mock_editor.film_strip_coordinator._update_film_strips_for_pixel_update()
-        assert mock_sprite.dirty == 1
         mock_strip.mark_dirty.assert_called_once()
 
     def test_update_for_animated_sprite_update(self, mock_editor, mocker):

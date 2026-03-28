@@ -165,7 +165,7 @@ class TestBitmapEditorFilmStripIntegration:
         pygame.quit()
 
     def test_add_new_animation_creates_strip(self, mocker):
-        """Test that adding new animation creates a new film strip."""
+        """Test that adding new animation creates a new film strip incrementally."""
         mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
         # Arrange
         options = {}
@@ -175,7 +175,7 @@ class TestBitmapEditorFilmStripIntegration:
         scene.canvas = MockFactory().create_canvas_mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {'strip_1': []}
-        scene.film_strip_coordinator.on_sprite_loaded = self._mocker.Mock()
+        scene.film_strip_coordinator._add_single_film_strip = self._mocker.Mock()
         scene.update_film_strip_visibility = self._mocker.Mock()
         scene.update_scroll_arrows = self._mocker.Mock()
         scene.max_visible_strips = 2
@@ -186,7 +186,7 @@ class TestBitmapEditorFilmStripIntegration:
         # Assert
         assert len(scene.canvas.animated_sprite._animations) == TEST_SIZE_2
         assert 'strip_2' in scene.canvas.animated_sprite._animations
-        scene.film_strip_coordinator.on_sprite_loaded.assert_called_once()
+        scene.film_strip_coordinator._add_single_film_strip.assert_called_once()
 
     def test_add_new_animation_with_insert_after_index(self, mocker):
         """Test adding new animation at specific index."""

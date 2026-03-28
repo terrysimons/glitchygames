@@ -1235,9 +1235,13 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
             self.alpha_slider.dragging = False
             self.alpha_slider.on_left_mouse_button_up_event(event)
 
-        # Pass to other sprites
+        # Pass to other visible sprites
         for sprite in self.all_sprites:
-            if hasattr(sprite, 'on_mouse_button_up_event') and sprite.rect.collidepoint(event.pos):
+            if (
+                sprite.visible
+                and hasattr(sprite, 'on_mouse_button_up_event')
+                and sprite.rect.collidepoint(event.pos)
+            ):
                 sprite.on_mouse_button_up_event(event)
 
     @override
@@ -1250,7 +1254,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
 
         """
         for sprite in self.all_sprites:
-            if hasattr(sprite, 'on_mouse_drag_event'):
+            if sprite.visible and hasattr(sprite, 'on_mouse_drag_event'):
                 sprite.on_mouse_drag_event(event, trigger)
 
     @override
@@ -1265,7 +1269,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self._slider_manager.update_slider_hover_effects(event.pos)
 
         for sprite in self.all_sprites:
-            if hasattr(sprite, 'on_mouse_motion_event'):
+            if sprite.visible and hasattr(sprite, 'on_mouse_motion_event'):
                 sprite.on_mouse_motion_event(event)
 
     # ──────────────────────────────────────────────────────────────────────

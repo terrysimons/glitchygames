@@ -515,13 +515,17 @@ class FilmStripSprite(BitmappySprite):
             event: The pygame mouse motion event.
 
         """
-        assert self.film_strip_widget is not None
-        # Check if we're currently dragging a file (this would need to be tracked by the scene)
-        # For now, we'll implement basic hover detection
+        if not self.film_strip_widget or not self.visible:
+            return
+
         if self.rect.collidepoint(event.pos):
             # Convert screen coordinates to film strip coordinates
             film_x = event.pos[0] - self.rect.x
             film_y = event.pos[1] - self.rect.y
+
+            # Snapshot previous hover state to detect changes
+            previous_hovered_frame = self.film_strip_widget.hovered_frame
+            previous_hovered_preview = self.film_strip_widget.hovered_preview
 
             # Handle all hover effects (frames, previews, removal buttons)
             self.film_strip_widget.handle_hover((film_x, film_y))
@@ -530,27 +534,30 @@ class FilmStripSprite(BitmappySprite):
             hovered_frame = self.film_strip_widget.get_frame_at_position((film_x, film_y))
 
             if hovered_frame:
-                # Hovering over a frame - show frame hover effect
-                self._show_frame_hover_effect(hovered_frame)
+                self.film_strip_widget.hovered_frame = hovered_frame
             else:
+                self.film_strip_widget.hovered_frame = None
                 # Check if hovering over preview area
                 hovered_preview = self.film_strip_widget.get_preview_at_position((film_x, film_y))
                 if hovered_preview:
-                    # Hovering over preview - show preview hover effect
-                    self._show_preview_hover_effect(hovered_preview)
+                    self.film_strip_widget.hovered_preview = hovered_preview
                 else:
-                    # Not hovering over preview - clear preview hover if it was set
-                    if self.film_strip_widget.hovered_preview is not None:
-                        self.film_strip_widget.hovered_preview = None
-                        self.film_strip_widget.mark_dirty()
-                        self.dirty = 1
-                    # Hovering over film strip area - show strip hover effect
-                    self._show_strip_hover_effect()
+                    self.film_strip_widget.hovered_preview = None
+                    self.film_strip_widget.is_hovering_strip = True
 
-            # Mark as dirty if any hover state changed
-            self.dirty = 1
-        else:
-            # Not hovering over film strip - clear hover effects
+            # Only mark dirty if hover state actually changed
+            hover_changed = (
+                self.film_strip_widget.hovered_frame != previous_hovered_frame
+                or self.film_strip_widget.hovered_preview != previous_hovered_preview
+            )
+            if hover_changed:
+                self.film_strip_widget.mark_dirty()
+        elif (
+            self.film_strip_widget.hovered_frame is not None
+            or self.film_strip_widget.hovered_preview is not None
+            or self.film_strip_widget.is_hovering_strip
+        ):
+            # Only clear and redirty if we were previously hovering
             self._clear_hover_effects()
 
     def _show_frame_hover_effect(self, frame_info: tuple[str, int]) -> None:
@@ -604,17 +611,15 @@ class FilmStripSprite(BitmappySprite):
         self.dirty = 1
 
     def _clear_hover_effects(self) -> None:
-        """Clear all hover effects."""
-        assert self.film_strip_widget is not None
-        # Clear hover state in the film strip widget
+        """Clear all hover effects, only marking dirty if state changed."""
+        if not self.film_strip_widget:
+            return
+
         self.film_strip_widget.hovered_frame = None
         self.film_strip_widget.hovered_preview = None
         self.film_strip_widget.is_hovering_strip = False
         self.film_strip_widget.hovered_removal_button = None
         self.film_strip_widget.mark_dirty()
-
-        # Mark this sprite as dirty to trigger redraw
-        self.dirty = 1
 
     def _get_canvas_dimensions(self) -> tuple[int, int]:
         """Get the current canvas dimensions for image resizing.

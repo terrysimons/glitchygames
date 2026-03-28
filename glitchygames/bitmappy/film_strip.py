@@ -2760,12 +2760,15 @@ class FilmStripWidget:  # noqa: PLR0904
             # Check if this is a FilmStripTab (horizontal bottom tab)
             if isinstance(tab, FilmStripTab):
                 self._handle_add_animation_tab_click()
+                tab.reset_click_state()
                 return True
             if isinstance(tab, FilmStripDeleteTab):
                 self._handle_delete_animation_tab_click()
+                tab.reset_click_state()
                 return True
             # Regular frame tab - create a new frame at the specified position
             self._insert_frame_at_tab(tab)
+            tab.reset_click_state()
             return True
         return False
 

@@ -125,13 +125,9 @@ class FilmStripCoordinator:  # noqa: PLR0904
         # Create scroll arrows
         self._create_scroll_arrows()
 
-        # CRITICAL: Ensure all film strip sprites are marked as dirty for initial render
-        # This fixes the issue where film strips don't update on first load
-        for film_strip_sprite in self.editor.film_strip_sprites.values():
-            film_strip_sprite.dirty = 1
-            film_strip_sprite.force_redraw()
-
-        # Update visibility to show only 2 strips at a time
+        # Update visibility — this shows only 2 strips and calls mark_dirty()
+        # on the visible ones, so they'll be rendered on the next update cycle.
+        # No need to force_redraw() all strips here.
         self.update_film_strip_visibility()
 
         # Select the first film strip and set its frame 0 as active
@@ -656,11 +652,45 @@ class FilmStripCoordinator:  # noqa: PLR0904
                 finally:
                     self._creating_animation = False
 
-            # Recreate film strips to include the new animation
-            self.on_sprite_loaded(self.editor.canvas.animated_sprite)
+            # Add just the new strip incrementally instead of rebuilding all strips
+            self._add_single_film_strip(new_animation_name, [animated_frame])
 
             # Select, scroll to, and activate the new animation
             self._activate_new_animation(new_animation_name)
+
+    def _add_single_film_strip(
+        self, anim_name: str, frames: list[SpriteFrame],
+    ) -> None:
+        """Add a single film strip incrementally without rebuilding all existing strips.
+
+        Args:
+            anim_name: Name of the new animation.
+            frames: List of frames for the new animation.
+
+        """
+        film_strip_x, film_strip_width = self._calculate_film_strip_dimensions()
+        film_strip_y_start = (
+            self.editor.canvas.rect.y
+            if hasattr(self.editor, 'canvas') and self.editor.canvas
+            else 0
+        )
+        strip_height = 180
+        strip_spacing = -19
+        strip_index = len(self.editor.film_strips)
+
+        self._create_single_film_strip(
+            strip_index=strip_index,
+            anim_name=anim_name,
+            frames=frames,
+            film_strip_x=film_strip_x,
+            film_strip_y_start=int(film_strip_y_start),
+            film_strip_width=film_strip_width,
+            strip_height=strip_height,
+            strip_spacing=strip_spacing,
+            groups=self.editor.all_sprites,  # type: ignore[arg-type]
+        )
+
+        self.update_film_strip_visibility()
 
     def _activate_new_animation(self, new_animation_name: str) -> None:
         """Select, scroll to, and activate a newly created animation.
@@ -2081,31 +2111,34 @@ class FilmStripCoordinator:  # noqa: PLR0904
             else:
                 self.log.debug('Animation %s not found in film strips', animation)
 
-            # Mark all film strip sprites as dirty
+            # Mark visible film strip sprites as dirty
             if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
                 for film_strip_sprite in self.editor.film_strip_sprites.values():
-                    film_strip_sprite.dirty = 1
+                    if film_strip_sprite.visible:
+                        film_strip_sprite.dirty = 1
 
     def _update_film_strips_for_pixel_update(self) -> None:
-        """Update film strips when pixel data changes."""
-        if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
-            for film_strip_sprite in self.editor.film_strip_sprites.values():
-                film_strip_sprite.dirty = 1
-        if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-            for film_strip in self.editor.film_strips.values():
-                film_strip.mark_dirty()
+        """Update visible film strips when pixel data changes."""
+        film_strip_sprites = getattr(self.editor, 'film_strip_sprites', {})
+
+        for strip_name, film_strip in getattr(self.editor, 'film_strips', {}).items():
+            strip_sprite = film_strip_sprites.get(strip_name)
+            if strip_sprite and not strip_sprite.visible:
+                continue
+            film_strip.mark_dirty()
 
         # Film strip animated sprites should use original animation frames, not canvas content
 
     def update_film_strips_for_animated_sprite_update(self) -> None:
-        """Update film strips when animated sprite frame data changes."""
-        if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
-            for film_strip in self.editor.film_strips.values():
-                film_strip.update_layout()
-                film_strip.mark_dirty()
-        if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
-            for film_strip_sprite in self.editor.film_strip_sprites.values():
-                film_strip_sprite.dirty = 1
+        """Update visible film strips when animated sprite frame data changes."""
+        film_strip_sprites = getattr(self.editor, 'film_strip_sprites', {})
+
+        for strip_name, film_strip in getattr(self.editor, 'film_strips', {}).items():
+            strip_sprite = film_strip_sprites.get(strip_name)
+            if strip_sprite and not strip_sprite.visible:
+                continue
+            film_strip.update_layout()
+            film_strip.mark_dirty()
 
     def _update_film_strip_selection(self) -> None:
         """Update film strip selection to show the current animation and frame."""
@@ -2158,7 +2191,14 @@ class FilmStripCoordinator:  # noqa: PLR0904
         if not (hasattr(self.editor, 'film_strips') and self.editor.film_strips):
             return
 
-        for film_strip in self.editor.film_strips.values():
+        film_strip_sprites = getattr(self.editor, 'film_strip_sprites', {})
+
+        for strip_name, film_strip in self.editor.film_strips.items():
+            # Only update animations for visible strips
+            strip_sprite = film_strip_sprites.get(strip_name)
+            if strip_sprite and not strip_sprite.visible:
+                continue
+
             if hasattr(film_strip, 'update_animations'):
                 film_strip.update_animations(self.editor.dt)
 
