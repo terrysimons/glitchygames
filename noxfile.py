@@ -397,6 +397,67 @@ def security_scan(session: nox.Session) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Build / Package
+# ---------------------------------------------------------------------------
+
+
+def _build_binary(session: nox.Session) -> None:
+    """Build a standalone Bitmappy binary with PyInstaller."""
+    session.run(
+        'pyinstaller',
+        'bitmappy.spec',
+        '--distpath',
+        'dist',
+        '--workpath',
+        'build/pyinstaller',
+        '--noconfirm',
+    )
+
+
+def _build_wheel(session: nox.Session) -> None:
+    """Build a wheel package with uv build."""
+    session.run('uv', 'build', '--wheel', '--out-dir', 'dist', external=True)
+
+
+@nox.session(python=['3.14'], reuse_venv=False, name='build-binary', default=False)
+def build_binary(session: nox.Session) -> None:
+    """Build a standalone Bitmappy binary with PyInstaller.
+
+    Outputs a single-file executable to dist/:
+      - Linux:   dist/bitmappy
+      - macOS:   dist/bitmappy
+      - Windows: dist/bitmappy.exe
+
+    Usage:
+        nox -s build-binary
+    """
+    session.install(_ALL_EXTRAS)
+    _build_binary(session)
+
+
+@nox.session(venv_backend='none', name='build-wheel', default=False)
+def build_wheel(session: nox.Session) -> None:
+    """Build a wheel package (.whl) for distribution.
+
+    Usage:
+        nox -s build-wheel
+    """
+    _build_wheel(session)
+
+
+@nox.session(python=['3.14'], reuse_venv=False, name='build', default=False)
+def build_all(session: nox.Session) -> None:
+    """Build Bitmappy binary and wheel package.
+
+    Usage:
+        nox -s build
+    """
+    session.install(_ALL_EXTRAS)
+    _build_binary(session)
+    _build_wheel(session)
+
+
+# ---------------------------------------------------------------------------
 # Code Complexity
 # ---------------------------------------------------------------------------
 

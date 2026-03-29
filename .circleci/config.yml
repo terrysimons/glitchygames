@@ -137,6 +137,17 @@ commands:
             export PATH="$HOME/.local/bin:$PATH"
             uv run nox -s performance-test
 
+  nox-build:
+    steps:
+      - run:
+          name: "Build binary and wheel"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv run nox -s build
+      - store_artifacts:
+          path: dist
+          destination: dist
+
   restore-uv-cache-windows:
     steps:
       - restore_cache:
@@ -204,6 +215,7 @@ jobs:
       - nox-test
       - nox-security-scan
       - nox-performance-test
+      - nox-build
 
   build-and-test-macos:
     macos:
@@ -212,6 +224,10 @@ jobs:
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      # Build a universal2 (arm64 + x86_64) fat binary on macOS.
+      # Requires a universal2 Python interpreter from python.org.
+      # If the CI Python is single-arch, PyInstaller falls back to native arch.
+      PYINSTALLER_TARGET_ARCH: "universal2"
 
     steps:
       - checkout
@@ -228,6 +244,7 @@ jobs:
       - nox-test
       - nox-security-scan
       - nox-performance-test
+      - nox-build
 
   build-and-test-windows:
     executor:
@@ -320,6 +337,16 @@ jobs:
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             uv run nox -s performance-test
+      - run:
+          name: "Build binary and wheel"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv run nox -s build
+      - store_artifacts:
+          path: dist
+          destination: dist
 
 
 # Invoke jobs via workflows

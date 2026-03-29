@@ -90,7 +90,7 @@ class EditorSetup:
         )
 
         # Add the raspberry icon with its specific height
-        icon_path = resource_path('glitcygames', 'assets', 'raspberry.toml')
+        icon_path = resource_path('glitchygames', 'assets', 'raspberry.toml')
         self.editor.menu_icon = MenuItem(
             name=None,
             x=4,  # Add 4px offset from left edge
