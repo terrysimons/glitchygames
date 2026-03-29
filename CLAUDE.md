@@ -89,6 +89,11 @@ nox -s performance-test    # Run performance benchmarks
 nox -s security-scan       # Run ALL security scans (bandit + safety)
 nox -s bandit-scan         # Run bandit only
 nox -s safety-scan         # Run safety only
+
+# --- Build / Package ---
+nox -s build               # Build binary (PyInstaller) + wheel
+nox -s build-binary        # Build standalone Bitmappy binary only
+nox -s build-wheel         # Build wheel (.whl) only
 ```
 
 ### Running Bitmappy (Pixel Art Editor)

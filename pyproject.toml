@@ -83,6 +83,7 @@ dev = [
   "basedpyright",
   "ty",
   "pillow",
+  "pyinstaller",
 ]
 api = []
 
@@ -327,6 +328,7 @@ DEP002 = [
   "pre-commit",
   "basedpyright",
   "ty",
+  "pyinstaller",
   "vulture",
   "pip-audit",
   "hypothesis",
