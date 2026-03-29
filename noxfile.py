@@ -53,7 +53,10 @@ def _lint_yaml(session: nox.Session) -> None:
 def _lint_circleci(session: nox.Session) -> None:
     """Validate CircleCI configuration."""
     if os.environ.get('CIRCLECI') == 'true':
-        session.log('Running inside CircleCI; skipping config validation (agent binary does not support it).')
+        session.log(
+            'Running inside CircleCI; skipping config validation'
+            ' (agent binary does not support it).'
+        )
         return
     if not shutil.which('circleci'):
         session.log('circleci CLI not found on PATH; skipping config validation.')

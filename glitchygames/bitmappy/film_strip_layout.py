@@ -136,16 +136,17 @@ class FilmStripLayout:  # noqa: PLR0904
             and hasattr(self.widget.parent_canvas, 'film_strip_sprite')
         ):
             parent_canvas_any: Any = self.widget.parent_canvas
-            parent_canvas_any.film_strip_sprite.rect.height = required_height  # ty: ignore[unresolved-attribute]
-            # Also update the surface size
-            parent_canvas_any.film_strip_sprite.image = pygame.Surface(  # ty: ignore[unresolved-attribute]
+            parent_canvas_any.film_strip_sprite.rect.height = (
+                required_height  # Also update the surface size
+            )
+            parent_canvas_any.film_strip_sprite.image = pygame.Surface(
                 (
-                    parent_canvas_any.film_strip_sprite.rect.width,  # ty: ignore[unresolved-attribute]
+                    parent_canvas_any.film_strip_sprite.rect.width,
                     required_height,
                 ),
                 pygame.SRCALPHA,
             )
-            parent_canvas_any.film_strip_sprite.dirty = 1  # ty: ignore[unresolved-attribute]
+            parent_canvas_any.film_strip_sprite.dirty = 1
 
     def update_layout(self) -> None:
         """Update the layout of frames and sprockets."""
@@ -161,7 +162,7 @@ class FilmStripLayout:  # noqa: PLR0904
             and hasattr(self.widget.parent_canvas, 'film_strip_sprite')
         ):
             parent_canvas_any: Any = self.widget.parent_canvas
-            parent_canvas_any.film_strip_sprite.dirty = 1  # ty: ignore[unresolved-attribute]
+            parent_canvas_any.film_strip_sprite.dirty = 1
 
     def calculate_scroll_offset(self, frame_index: int, frames: list[SpriteFrame]) -> int:
         """Calculate the scroll offset to center a frame.
@@ -275,7 +276,7 @@ class FilmStripLayout:  # noqa: PLR0904
             else:  # pygame.font returns surface
                 text_rect = text_surface.get_rect()
 
-            label_width = text_rect.width + 20  # Add padding  # ty: ignore[unresolved-attribute]
+            label_width = text_rect.width + 20  # ty: ignore[unresolved-attribute]  # Add padding
             label_x = center_x - (label_width // 2)  # Center the label
 
             self.widget.animation_layouts[anim_name] = pygame.Rect(
