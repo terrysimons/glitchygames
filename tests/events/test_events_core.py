@@ -883,7 +883,7 @@ class TestEventSystemUtilities:
         mock_event = mocker.Mock()
         mock_event.type = 2  # pygame.KEYDOWN
 
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_log = mocker.patch('glitchygames.events.base.LOG')
         unhandled_event(mock_game, mock_event)
 
         # Verify error logging was called
@@ -891,9 +891,9 @@ class TestEventSystemUtilities:
 
     def test_unhandled_event_debug_events_true(self, mock_pygame_patches, mocker):
         """Test unhandled_event with debug_events=True logs once per event type."""
-        from glitchygames.events import core as events_core
+        from glitchygames.events import base as events_base
 
-        events_core._unhandled_event_types.discard(pygame.KEYDOWN)
+        events_base._unhandled_event_types.discard(pygame.KEYDOWN)
 
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': True, 'no_unhandled_events': False}
@@ -902,13 +902,13 @@ class TestEventSystemUtilities:
         mock_event.type = pygame.KEYDOWN
 
         mocker.patch('pygame.event.event_name', return_value='KEYDOWN')
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_log = mocker.patch('glitchygames.events.base.LOG')
 
         unhandled_event(mock_game, mock_event)
 
         # Logs as warning (not error) with the event type name
         mock_log.warning.assert_called_once()
-        assert pygame.KEYDOWN in events_core._unhandled_event_types
+        assert pygame.KEYDOWN in events_base._unhandled_event_types
 
         # Calling again with the same event type should NOT log again
         mock_log.warning.reset_mock()
@@ -923,7 +923,7 @@ class TestEventSystemUtilities:
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_log = mocker.patch('glitchygames.events.base.LOG')
         unhandled_event(mock_game, mock_event)
 
         mock_log.error.assert_called_once_with(
@@ -938,7 +938,7 @@ class TestEventSystemUtilities:
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_log = mocker.patch('glitchygames.events.base.LOG')
         unhandled_event(mock_game, mock_event)
 
         # Should not log anything when both are False
@@ -953,7 +953,7 @@ class TestEventSystemUtilities:
         mock_event = mocker.Mock()
         mock_event.type = pygame.KEYDOWN
 
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_log = mocker.patch('glitchygames.events.base.LOG')
         unhandled_event(mock_game, mock_event)
         # Should log error about missing option
         mock_log.error.assert_called()
@@ -967,9 +967,9 @@ class TestEventSystemUtilities:
 
         Tests when debug_events=True and no_unhandled_events=False.
         """
-        from glitchygames.events import core as events_core
+        from glitchygames.events import base as events_base
 
-        events_core._unhandled_event_types.discard(pygame.KEYDOWN)
+        events_base._unhandled_event_types.discard(pygame.KEYDOWN)
 
         mock_game = mocker.Mock()
         mock_game.options = {'debug_events': True, 'no_unhandled_events': False}
@@ -978,7 +978,7 @@ class TestEventSystemUtilities:
         mock_event.type = pygame.KEYDOWN
 
         mocker.patch('pygame.event.event_name', return_value='KEYDOWN')
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
+        mock_log = mocker.patch('glitchygames.events.base.LOG')
         unhandled_event(mock_game, mock_event)
 
         # Should log as warning, not raise
@@ -1047,20 +1047,20 @@ class TestEventSystemEdgeCases:
         class DummyManager(ResourceManager):
             pass
 
-        mgr = DummyManager(game=None)
-        mgr.proxies = [Dummy()]
+        manager = DummyManager(game=None)
+        manager.proxies = [Dummy()]
         # Delegation
-        assert mgr.foo() == 'bar'
+        assert manager.foo() == 'bar'
 
         # Missing path raises
-        mgr.proxies = []
+        manager.proxies = []
         with pytest.raises(AttributeError):
-            _ = mgr.nonexistent()
+            _ = manager.nonexistent()
 
     def test_eventmanager_eventproxy_unhandled_attr(self, mock_pygame_patches, mocker):
         """EventProxy should return unhandled_event callable for unknown attrs."""
-        mgr = EventManager(game=None)
-        proxy = mgr.proxies[0]
+        manager = EventManager(game=None)
+        proxy = manager.proxies[0]
         handler = proxy.some_unknown_handler
         assert callable(handler)
         # Call handler; should not raise

@@ -14,12 +14,6 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-# Try to import voice recognition, but don't fail if it's not available
-try:
-    from glitchygames.events.voice import VoiceEventManager
-except ImportError:
-    VoiceEventManager = None  # ty: ignore[invalid-assignment]
-
 from glitchygames import events
 from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
@@ -27,16 +21,6 @@ from glitchygames.color import (
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
-from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from glitchygames.ui import (
-    ColorWellSprite,
-    MenuBar,
-    MenuItem,
-    MultiLineTextBox,
-    SliderSprite,
-    TabControlSprite,
-    TextSprite,
-)
 from glitchygames.ui.dialogs import (
     LoadDialogScene,
     NewCanvasDialogScene,
@@ -44,37 +28,47 @@ from glitchygames.ui.dialogs import (
 )
 
 from .ai_manager import AIManager
-from .animated_canvas import AnimatedCanvasSprite
+from .animated_canvas import AnimatedCanvasSprite  # noqa: TC001 - re-exported for test imports
 from .constants import (
     LOG,
-    MAGENTA_TRANSPARENT,
     MIN_FILM_STRIPS_FOR_PANEL_POSITIONING,
-    MIN_PIXEL_DISPLAY_SIZE,
 )
 from .controllers.event_handler import ControllerEventHandler
 from .controllers.manager import MultiControllerManager
+from .editor_setup import EditorSetup
 from .file_io import FileIOManager
 from .film_strip_coordinator import FilmStripCoordinator
 from .frame_operations import FrameOperationManager
-from .history.operations import (
-    CanvasOperationTracker,
-    ControllerPositionOperationTracker,
-    CrossAreaOperationTracker,
-    FilmStripOperationTracker,
-)
-from .history.undo_redo import UndoRedoManager
 from .indicators.collision import VisualCollisionManager
 from .slider_manager import SliderManager
 from .sprite_inspection import load_ai_training_data
-from .utils import resource_path
 
 if TYPE_CHECKING:
     import argparse
     import types
 
+    from glitchygames.events.voice import VoiceEventManager
+    from glitchygames.sprites.animated import AnimatedSprite
+    from glitchygames.ui import (
+        ColorWellSprite,
+        MenuBar,
+        MenuItem,
+        MultiLineTextBox,
+        SliderSprite,
+        TabControlSprite,
+        TextSprite,
+    )
+
     from .controllers.selection import ControllerSelection
     from .film_strip import FilmStripWidget
     from .film_strip_sprite import FilmStripSprite
+    from .history.operations import (
+        CanvasOperationTracker,
+        ControllerPositionOperationTracker,
+        CrossAreaOperationTracker,
+        FilmStripOperationTracker,
+    )
+    from .history.undo_redo import UndoRedoManager
     from .scroll_arrow import ScrollArrowSprite
 
 
@@ -96,346 +90,35 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
     tab_control: TabControlSprite
     slider_input_format: str
 
+    # Attributes set by EditorSetup delegate during __init__
+    menu_bar: MenuBar
+    menu_icon: MenuItem
+    animated_sprite: AnimatedSprite
+    canvas: AnimatedCanvasSprite
+    ai_label: TextSprite
+    debug_text: MultiLineTextBox
+    voice_manager: VoiceEventManager | None
+    undo_redo_manager: UndoRedoManager
+    canvas_operation_tracker: CanvasOperationTracker
+    film_strip_operation_tracker: FilmStripOperationTracker
+    cross_area_operation_tracker: CrossAreaOperationTracker
+    controller_position_operation_tracker: ControllerPositionOperationTracker
+    current_pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]]
+    _is_drag_operation: bool
+    _pixel_change_timer: float | None
+    _applying_undo_redo: bool
+    _initialized: bool
+
     # Set your game name/version here.
     NAME = 'Bitmappy'
     VERSION = '1.0'
-
-    def _setup_menu_bar(self) -> None:
-        """Set up the menu bar and menu items."""
-        menu_bar_height = 24  # Taller menu bar
-
-        # Different heights for icon vs text items
-        icon_height = 16  # Smaller height for icon
-        menu_item_height = menu_bar_height  # Full height for text items
-
-        # Different vertical offsets for icon vs text
-        icon_y = (menu_bar_height - icon_height) // 2 - 2  # Center the icon and move up 2px
-        menu_item_y = 0  # Text items use full height
-
-        # Create the menu bar using the UI library's MenuBar
-        self.menu_bar = MenuBar(
-            name='Menu Bar',
-            x=0,
-            y=0,
-            width=self.screen_width,
-            height=menu_bar_height,
-            groups=self.all_sprites,
-        )
-
-        # Add the raspberry icon with its specific height
-        icon_path = resource_path('glitcygames', 'assets', 'raspberry.toml')
-        self.menu_icon = MenuItem(
-            name=None,
-            x=4,  # Add 4px offset from left edge
-            y=icon_y,
-            width=16,
-            height=icon_height,  # Use icon-specific height
-            filename=str(icon_path),
-            groups=self.all_sprites,
-        )
-        self.menu_bar.add_menu(self.menu_icon)
-
-        # Add all menus with full height
-        menu_item_x = 0  # Start at left edge
-        icon_width = 16  # Width of the raspberry icon
-        menu_spacing = 2  # Reduced spacing between items
-        menu_item_width = 48
-        border_offset = self.menu_bar.border_width  # Usually 2px
-
-        # Start after icon, compensating for border
-        menu_item_x = (icon_width + menu_spacing) - border_offset
-
-        new_menu = MenuItem(
-            name='New',
-            x=menu_item_x,
-            y=menu_item_y - border_offset,  # Compensate for y border too
-            width=menu_item_width,
-            height=menu_item_height,
-            groups=self.all_sprites,
-        )
-        self.menu_bar.add_menu(new_menu)
-
-        # Move to next position
-        menu_item_x += menu_item_width + menu_spacing
-
-        save_menu = MenuItem(
-            name='Save',
-            x=menu_item_x,
-            y=menu_item_y - border_offset,
-            width=menu_item_width,
-            height=menu_item_height,
-            groups=self.all_sprites,
-        )
-        self.menu_bar.add_menu(save_menu)
-
-        # Move to next position
-        menu_item_x += menu_item_width + menu_spacing
-
-        load_menu = MenuItem(
-            name='Load',
-            x=menu_item_x,
-            y=menu_item_y - border_offset,
-            width=menu_item_width,
-            height=menu_item_height,
-            groups=self.all_sprites,
-        )
-        self.menu_bar.add_menu(load_menu)
-
-    def _setup_canvas(self, options: dict[str, Any]) -> None:
-        """Set up the canvas sprite."""
-        # Calculate canvas dimensions and pixel size
-        pixels_across, pixels_tall, pixel_size = self._calculate_canvas_dimensions(options)
-
-        # Create animated sprite with single frame
-        animated_sprite = self._create_animated_sprite(pixels_across, pixels_tall)
-
-        # Store the animated sprite as the shared instance
-        self.animated_sprite = animated_sprite
-
-        # Create the main canvas sprite
-        self._create_canvas_sprite(animated_sprite, pixels_across, pixels_tall, pixel_size)
-
-        # Finalize setup and start animation
-        self._finalize_canvas_setup(animated_sprite, options)
-
-    def _calculate_canvas_dimensions(self, options: dict[str, Any]) -> tuple[int, int, int]:
-        """Calculate canvas dimensions and pixel size.
-
-        Args:
-            options: Dictionary containing canvas configuration
-
-        Returns:
-            Tuple of (pixels_across, pixels_tall, pixel_size)
-
-        """
-        menu_bar_height = 24
-        bottom_margin = 80  # Space needed for sliders and color well
-        available_height = (
-            self.screen_height - bottom_margin - menu_bar_height
-        )  # Use menu_bar_height instead of 32
-
-        # Calculate pixel size to fit the canvas in the available space
-        width, height = options['size'].split('x')
-        pixels_across = int(width)
-        pixels_tall = int(height)
-
-        # ===== DEBUG: INITIAL CANVAS SIZING =====
-        LOG.debug('===== DEBUG: INITIAL CANVAS SIZING =====')
-        LOG.debug(
-            f'Screen: {self.screen_width}x{self.screen_height}, Sprite:'
-            f' {pixels_across}x{pixels_tall}',
-        )
-        LOG.debug(f'Available height: {available_height}')
-        LOG.debug(f'Height constraint: {available_height // pixels_tall}')
-        LOG.debug(f'Width constraint: {(self.screen_width * 1 // 2) // pixels_across}')
-        LOG.debug(f'350px width constraint: {350 // pixels_across}')
-        LOG.debug(f'320x320 constraint: {320 // max(pixels_across, pixels_tall)}')
-
-        # Calculate pixel size based on available space
-        pixel_size = min(
-            available_height // pixels_tall,  # Height-based size
-            # Width-based size (use 1/2 of screen width)
-            (self.screen_width * 1 // 2) // pixels_across,
-            # Maximum width constraint: 350px
-            350 // pixels_across,
-        )
-        LOG.debug(f'Calculated pixel_size: {pixel_size}')
-
-        # For very large sprites, ensure we get at least 2x2 pixel size
-        if pixel_size < MIN_PIXEL_DISPLAY_SIZE:
-            pixel_size = (
-                MIN_PIXEL_DISPLAY_SIZE  # Force minimum 2x2 pixel size for very large sprites
-            )
-            LOG.debug('*** FORCING minimum 2x2 pixel size for large sprite ***')
-
-        LOG.debug(f'Final pixel_size: {pixel_size}')
-        LOG.debug(f'Canvas will be: {pixels_across * pixel_size}x{pixels_tall * pixel_size}')
-        LOG.debug('===== END DEBUG =====\n')
-        # Ensure minimum pixel size of 1x1
-        pixel_size = max(pixel_size, 1)
-
-        return pixels_across, pixels_tall, pixel_size
-
-    @staticmethod
-    def _create_animated_sprite(pixels_across: int, pixels_tall: int) -> AnimatedSprite:
-        """Create animated sprite with single frame.
-
-        Args:
-            pixels_across: Number of pixels across the canvas
-            pixels_tall: Number of pixels tall the canvas
-
-        Returns:
-            Configured AnimatedSprite instance
-
-        """
-        # Create single test frame with SRCALPHA for per-pixel alpha support
-        surface1 = pygame.Surface((pixels_across, pixels_tall), pygame.SRCALPHA)
-        surface1.fill(MAGENTA_TRANSPARENT)  # Magenta frame (transparent)
-        frame1 = SpriteFrame(surface1)
-        frame1.pixels = [MAGENTA_TRANSPARENT] * (pixels_across * pixels_tall)  # ty: ignore[invalid-assignment]
-
-        # DEBUG: Log the first frame's pixel data
-        LOG.info(f'DEBUG: First frame initialized with {len(frame1.pixels)} pixels')
-        LOG.info(f'DEBUG: First few pixels: {frame1.pixels[:5]}')
-        LOG.info(f'DEBUG: All pixels same color: {len(set(frame1.pixels)) == 1}')
-
-        # Create animated sprite using proper initialization - single frame
-        animated_sprite = AnimatedSprite()
-        # Use the proper method to set up animations with single frame
-        animation_name = 'strip_1'  # Use a generic name for new sprites
-        animated_sprite._animations = {animation_name: [frame1]}  # type: ignore[reportPrivateUsage]
-        animated_sprite._frame_interval = 0.5  # type: ignore[reportPrivateUsage]
-        animated_sprite._is_looping = True  # type: ignore[reportPrivateUsage]  # Enable looping for the animation
-
-        # Set up the frame manager properly
-        animated_sprite.frame_manager.current_animation = animation_name
-        animated_sprite.frame_manager.current_frame = 0
-
-        # Initialize the sprite properly like a loaded sprite would be
-        animated_sprite._update_surface_and_mark_dirty()  # type: ignore[reportPrivateUsage]
-
-        # Start in a paused state initially
-        animated_sprite.pause()
-
-        return animated_sprite
-
-    def _create_canvas_sprite(
-        self,
-        animated_sprite: AnimatedSprite,
-        pixels_across: int,
-        pixels_tall: int,
-        pixel_size: int,
-    ) -> None:
-        """Create the main animated canvas sprite.
-
-        Args:
-            animated_sprite: The animated sprite to use
-            pixels_across: Number of pixels across the canvas
-            pixels_tall: Number of pixels tall the canvas
-            pixel_size: Size of each pixel in screen coordinates
-
-        """
-        menu_bar_height = 24
-
-        # Create the animated canvas with the calculated pixel dimensions
-        self.canvas = AnimatedCanvasSprite(
-            animated_sprite=animated_sprite,
-            name='Animated Bitmap Canvas',
-            x=0,
-            y=menu_bar_height,  # Position canvas right below menu bar
-            pixels_across=pixels_across,
-            pixels_tall=pixels_tall,
-            pixel_width=pixel_size,
-            pixel_height=pixel_size,
-            groups=self.all_sprites,
-        )
-
-        # Set parent scene reference for canvas
-        self.canvas.parent_scene = self
-
-        # Debug: Log canvas position and size
-        self.log.info(
-            'AnimatedCanvasSprite created at position '
-            f'({self.canvas.rect.x}, {self.canvas.rect.y}) with size {self.canvas.rect.size}',
-        )
-        self.log.info(f'AnimatedCanvasSprite groups: {self.canvas.groups}')
-        self.log.info(f'AnimatedCanvasSprite dirty: {self.canvas.dirty}')
-
-    @staticmethod
-    def _finalize_canvas_setup(animated_sprite: AnimatedSprite, options: dict[str, Any]) -> None:
-        """Finalize canvas setup and start animation.
-
-        Args:
-            animated_sprite: The animated sprite to finalize
-            options: Dictionary containing canvas configuration
-
-        """
-        # Start the animation after everything is set up
-        animated_sprite.play()
-
-        size_str = options.get('size')
-        assert size_str is not None
-        width, height = size_str.split('x')
-        AnimatedCanvasSprite.WIDTH = int(width)  # ty: ignore[unresolved-attribute]
-        AnimatedCanvasSprite.HEIGHT = int(height)  # ty: ignore[unresolved-attribute]
-
-    def _setup_debug_text_box(self) -> None:
-        """Set up the debug text box and AI label."""
-        # Calculate debug text box position and size - align to bottom right corner
-        debug_height = 186  # Fixed height for AI chat box
-
-        # Calculate film strip left x position (should be less than color well's right x - 1)
-        if hasattr(self, 'color_well') and self.color_well:
-            film_strip_left_x = (
-                self.color_well.rect.right + 1
-            )  # Film strip left x = color well right x + 1
-        else:
-            # Fallback if color well not available
-            film_strip_left_x = self.screen_width - 200
-
-        # AI sprite box should be clamped to right side of screen and grow left
-        # but not grow left more than the film strip left x
-        debug_x = film_strip_left_x  # Start from film strip left x
-        debug_width = self.screen_width - debug_x  # Extend to right edge of screen
-
-        # Position below the 2nd film strip if it exists, otherwise clamp to bottom of screen
-        if (
-            hasattr(self, 'film_strips')
-            and self.film_strips
-            and len(self.film_strips) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING
-        ):
-            # Find the bottom of the 2nd film strip
-            second_strip_bottom = 0
-            # Safely get the second film strip to handle race conditions during sprite loading
-            try:
-                # Convert to list to safely access by index
-                film_strip_list = list(self.film_strips.values())
-                if len(film_strip_list) >= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING and hasattr(
-                    film_strip_list[1],
-                    'rect',
-                ):
-                    second_strip_bottom = film_strip_list[1].rect.bottom
-            except IndexError, KeyError, AttributeError:
-                # Handle race condition where film strips are in transition
-                second_strip_bottom = 0
-            debug_y = second_strip_bottom + 30  # 30 pixels below the 2nd strip
-            # Ensure it doesn't go above the bottom of the screen
-            debug_y = min(debug_y, self.screen_height - debug_height)
-        else:
-            # Fallback: clamp to bottom of screen
-            debug_y = self.screen_height - debug_height
-
-        # Create the AI label
-        label_height = 20
-        self.ai_label = TextSprite(
-            x=int(debug_x),
-            y=debug_y - label_height,  # Position above the text box
-            width=int(debug_width),
-            height=label_height,
-            text='AI Sprite',
-            text_color=(255, 255, 255),  # White text
-            background_color=(0, 0, 0),  # Solid black background like color well
-            groups=self.all_sprites,
-        )
-
-        # Create the debug text box
-        self.debug_text = MultiLineTextBox(
-            name='Debug Output',
-            x=int(debug_x),
-            y=debug_y,
-            width=int(debug_width),
-            height=debug_height,
-            text='',  # Changed to empty string
-            parent=self,  # Pass self as parent
-            groups=self.all_sprites,
-        )
 
     def _update_ai_sprite_position(self) -> None:
         """Update AI sprite positioning when canvas changes."""
         if not hasattr(self, 'ai_label') or not hasattr(self, 'debug_text'):
             return  # AI sprites not initialized yet
 
-        # Calculate new position using same logic as _setup_debug_text_box
+        # Calculate new position using same logic as EditorSetup.setup_debug_text_box
         debug_height = 186  # Fixed height for AI chat box
 
         # Calculate film strip left x position (should be less than color well's right x - 1)
@@ -491,98 +174,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self.debug_text.rect.width = debug_width
         self.debug_text.rect.height = debug_height
 
-    def _setup_voice_recognition(self) -> None:
-        """Set up voice recognition for voice commands.
-
-        **STATUS: DISABLED BY DEFAULT**
-
-        This functionality is implemented but currently disabled in the setup() method
-        (see line 6413-6414). Voice recognition requires:
-        - A microphone to be connected and available
-        - The glitchygames.events.voice module to be importable
-        - Proper audio system configuration
-
-        **Why Disabled:**
-        - Voice recognition can be unreliable across different systems
-        - Requires user permission for microphone access
-        - May impact performance or cause issues on some platforms
-        - Currently considered experimental/incomplete
-
-        **Current Implementation:**
-        When enabled, this method registers the following voice commands:
-        - "clear the ai sprite box"
-        - "clear ai sprite box"
-        - "clear ai box"
-        - "clear the ai sprite"
-        - "clear ai sprite"
-        - "clear the ai sprite window"
-        - "clear ai sprite window"
-
-        All commands trigger the _clear_ai_sprite_box() callback.
-
-        **To Enable:**
-        1. Uncomment the call to self._setup_voice_recognition() in setup() (line ~6414)
-        2. Ensure VoiceEventManager is available (imports at lines 37-41)
-        3. Test microphone access and speech recognition accuracy
-        4. Verify no performance issues or crashes
-
-        **Future Plans:**
-        - Expand voice command vocabulary for more sprite editing operations
-        - Add voice feedback/confirmation for commands
-        - Integrate with scene manager for better coordination
-        - Add configuration options for voice recognition sensitivity
-
-        **Cleanup:**
-        Always call _cleanup_voice_recognition() during scene teardown to properly
-        release microphone resources and stop background threads.
-
-        """
-        try:
-            if VoiceEventManager is None:
-                self.log.info('Voice recognition not available')
-                self.voice_manager = None
-                return
-            self.voice_manager = VoiceEventManager(logger=self.log)
-
-            if self.voice_manager.is_available():
-                # Register voice commands
-                self.voice_manager.register_command(
-                    'clear the ai sprite box',
-                    self._clear_ai_sprite_box,
-                )
-                self.voice_manager.register_command(
-                    'clear ai sprite box',
-                    self._clear_ai_sprite_box,
-                )
-                self.voice_manager.register_command('clear ai box', self._clear_ai_sprite_box)
-                # Add commands for what speech recognition actually hears
-                self.voice_manager.register_command(
-                    'clear the ai sprite',
-                    self._clear_ai_sprite_box,
-                )
-                self.voice_manager.register_command('clear ai sprite', self._clear_ai_sprite_box)
-                # Add command for "window" variation
-                self.voice_manager.register_command(
-                    'clear the ai sprite window',
-                    self._clear_ai_sprite_box,
-                )
-                self.voice_manager.register_command(
-                    'clear ai sprite window',
-                    self._clear_ai_sprite_box,
-                )
-
-                # Start listening for voice commands
-                self.voice_manager.start_listening()
-                self.log.info('Voice recognition initialized and started')
-            else:
-                self.log.warning('Voice recognition not available - microphone not found')
-                self.voice_manager = None
-
-        except ImportError, OSError, AttributeError, RuntimeError:
-            self.log.exception('Failed to initialize voice recognition')
-            self.voice_manager = None
-
-    def _clear_ai_sprite_box(self) -> None:
+    def clear_ai_sprite_box(self) -> None:
         """Clear the AI sprite text box."""
         if hasattr(self, 'debug_text') and self.debug_text:
             self.debug_text.text = ''
@@ -660,8 +252,9 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         # Initialize mode switching system
         from glitchygames.bitmappy.controllers.modes import ModeSwitcher
 
-        # Initialize undo/redo system
-        self._init_undo_redo_system()
+        # Create setup delegate and initialize undo/redo system
+        self._setup = EditorSetup(editor=self)
+        self._setup.init_undo_redo_system()
 
         self.mode_switcher = ModeSwitcher()
         self.visual_collision_manager = VisualCollisionManager()
@@ -678,11 +271,11 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self.mode_switcher.set_handler(self.controller_handler)
         self.film_strip_coordinator = FilmStripCoordinator(self)
 
-        # Set up all components
-        self._setup_menu_bar()
-        self._setup_canvas(options)
+        # Set up all components via the setup delegate
+        self._setup.setup_menu_bar()
+        self._setup.setup_canvas(options)
         self._slider_manager.setup_sliders_and_color_well()
-        self._setup_debug_text_box()
+        self._setup.setup_debug_text_box()
 
         # Set up film strips after canvas is ready
         self.film_strip_coordinator.setup_film_strips()
@@ -697,44 +290,9 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         # Controller selection will be initialized when START button is pressed
 
         # Voice recognition is currently disabled.
-        # See _setup_voice_recognition() for details about enabling it.
+        # See EditorSetup.setup_voice_recognition() for details about enabling it.
 
         self.all_sprites.clear(self.screen, self.background)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-
-    def _init_undo_redo_system(self) -> None:
-        """Initialize the undo/redo system with all operation trackers.
-
-        Each tracker receives ``self`` (the editor) so that Command objects
-        can reach the canvas, film strips, and other subsystems directly.
-        """
-        self.undo_redo_manager = UndoRedoManager(max_history=50)
-        self.canvas_operation_tracker = CanvasOperationTracker(self.undo_redo_manager, editor=self)
-        self.film_strip_operation_tracker = FilmStripOperationTracker(
-            self.undo_redo_manager,
-            editor=self,
-        )
-        self.cross_area_operation_tracker = CrossAreaOperationTracker(
-            self.undo_redo_manager,
-            editor=self,
-        )
-        self.controller_position_operation_tracker = ControllerPositionOperationTracker(
-            self.undo_redo_manager,
-            editor=self,
-        )
-
-        self.current_pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]] = []
-        self._is_drag_operation: bool = False
-        self._pixel_change_timer: float | None = None
-        self._applying_undo_redo: bool = False
-
-        # These are set up in the GameEngine class.
-        if not hasattr(self, '_initialized'):
-            self.log.info(f'Game Options: {self.options}')
-
-            # Override font to use a cleaner system font
-            self.options['font_name'] = 'arial'
-            self.log.info(f'Font overridden to: {self.options["font_name"]}')
-            self._initialized = True
 
     @override
     def on_menu_item_event(self: Self, event: events.HashableEvent) -> None:
@@ -850,7 +408,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
             self._reset_canvas_for_new_file(width, height, new_pixel_size)
             self._create_fresh_animated_sprite(width, height, new_pixel_size)
             self.film_strip_coordinator.clear_film_strips_for_new_canvas()
-            self._clear_ai_sprite_box()
+            self.clear_ai_sprite_box()
 
             if hasattr(self, '_ai_integration'):
                 self._ai_integration.pending_ai_requests.clear()
@@ -1364,7 +922,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         - Clears the voice_manager reference
         - Logs success or error status
 
-        See _setup_voice_recognition() documentation for more information about
+        See EditorSetup.setup_voice_recognition() documentation for more information about
         the voice recognition feature status.
         """
         if hasattr(self, 'voice_manager') and self.voice_manager:
@@ -1550,7 +1108,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self.log.debug(f'Key down event received: key={event.key}')
 
         # Check if debug text box is active and handle text input
-        if hasattr(self, 'debug_text') and self.debug_text.active:
+        if hasattr(self, 'debug_text') and self.debug_text.is_active:
             self.debug_text.on_key_down_event(event)
             return
 

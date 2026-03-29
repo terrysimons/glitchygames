@@ -6,6 +6,7 @@ import threading
 import pytest
 
 from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.editor_setup import EditorSetup
 from glitchygames.events.voice import SPEECH_RECOGNITION_AVAILABLE, VoiceEventManager
 
 pytestmark = pytest.mark.usefixtures('mock_pygame_patches')
@@ -1367,8 +1368,9 @@ class TestBitmapEditorSceneVoiceIntegrationNegative:
         scene = BitmapEditorScene({})
         scene.log = mocker.Mock()
 
-        # Call the setup method
-        scene._setup_voice_recognition()
+        # Call the setup method via the delegate
+        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate.setup_voice_recognition()
 
         # Should handle missing speech recognition gracefully
         assert scene.voice_manager is None
@@ -1381,7 +1383,7 @@ class TestBitmapEditorSceneVoiceIntegrationNegative:
         scene.debug_text = mocker.Mock()
 
         # Call the clear command
-        scene._clear_ai_sprite_box()
+        scene.clear_ai_sprite_box()
 
         # Should work even without voice recognition
         scene.debug_text.text = ''
@@ -1413,14 +1415,15 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         mock_voice_manager.is_available.return_value = True
         mock_voice_manager.has_microphone.return_value = True
         mock_voice_cls = mocker.patch(
-            'glitchygames.bitmappy.editor.VoiceEventManager',
+            'glitchygames.bitmappy.editor_setup.VoiceEventManager',
             return_value=mock_voice_manager,
         )
 
         scene = BitmapEditorScene({})
         scene.log = mocker.Mock()
 
-        scene._setup_voice_recognition()
+        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate.setup_voice_recognition()
 
         mock_voice_cls.assert_called_once()
         assert scene.voice_manager is not None
@@ -1433,13 +1436,14 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         """
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
-        mocker.patch('glitchygames.bitmappy.editor.VoiceEventManager', new=None)
+        mocker.patch('glitchygames.bitmappy.editor_setup.VoiceEventManager', new=None)
         # Create scene instance
         scene = BitmapEditorScene({})
         scene.log = mocker.Mock()
 
-        # Call the setup method
-        scene._setup_voice_recognition()
+        # Call the setup method via the delegate
+        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate.setup_voice_recognition()
 
         # Should handle missing speech recognition gracefully
         assert scene.voice_manager is None, (
@@ -1449,7 +1453,7 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
     def test_voice_recognition_setup(self, mocker):
         """Test that voice recognition is set up correctly in BitmapEditorScene."""
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        mock_voice_class = mocker.patch('glitchygames.bitmappy.editor.VoiceEventManager')
+        mock_voice_class = mocker.patch('glitchygames.bitmappy.editor_setup.VoiceEventManager')
 
         # Mock the voice manager
         mock_voice_manager = mocker.Mock()
@@ -1460,8 +1464,9 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         scene = BitmapEditorScene({})
         scene.log = mocker.Mock()
 
-        # Call the setup method
-        scene._setup_voice_recognition()
+        # Call the setup method via the delegate
+        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate.setup_voice_recognition()
 
         # Verify voice manager was created and configured
         mock_voice_class.assert_called_once_with(logger=scene.log)
@@ -1472,7 +1477,7 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
     def test_voice_recognition_setup_no_microphone(self, mocker):
         """Test voice recognition setup when microphone is not available."""
         mocker.patch.object(BitmapEditorScene, '__init__', return_value=None)
-        mock_voice_class = mocker.patch('glitchygames.bitmappy.editor.VoiceEventManager')
+        mock_voice_class = mocker.patch('glitchygames.bitmappy.editor_setup.VoiceEventManager')
 
         # Mock the voice manager without microphone
         mock_voice_manager = mocker.Mock()
@@ -1483,8 +1488,9 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         scene = BitmapEditorScene({})
         scene.log = mocker.Mock()
 
-        # Call the setup method
-        scene._setup_voice_recognition()
+        # Call the setup method via the delegate
+        setup_delegate = EditorSetup(editor=scene)
+        setup_delegate.setup_voice_recognition()
 
         # Verify voice manager was created but not started
         mock_voice_class.assert_called_once_with(logger=scene.log)
@@ -1500,7 +1506,7 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         scene.debug_text = mocker.Mock()
 
         # Call the clear command
-        scene._clear_ai_sprite_box()
+        scene.clear_ai_sprite_box()
 
         # Verify text was cleared
         scene.debug_text.text = ''
@@ -1514,7 +1520,7 @@ class TestBitmapEditorSceneVoiceIntegrationPositive:
         # No debug_text attribute
 
         # Call the clear command
-        scene._clear_ai_sprite_box()
+        scene.clear_ai_sprite_box()
 
         # Verify warning was logged
         scene.log.warning.assert_called_with(

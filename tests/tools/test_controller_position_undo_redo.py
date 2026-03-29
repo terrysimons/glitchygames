@@ -48,8 +48,12 @@ class TestControllerPositionUndoRedo:
 
         # Mock controller handler — commands call controller_handler methods directly
         scene.controller_handler = mocker.Mock()
-        scene.controller_handler.update_controller_canvas_visual_indicator = mocker.Mock()
-        scene.controller_handler.update_controller_visual_indicator_for_mode = mocker.Mock()
+        scene.controller_handler.indicators.update_controller_canvas_visual_indicator = (
+            mocker.Mock()
+        )
+        scene.controller_handler.indicators.update_controller_visual_indicator_for_mode = (
+            mocker.Mock()
+        )
 
         # Legacy mocks (kept for backward compatibility)
         scene.update_controller_canvas_visual_indicator = mocker.Mock()

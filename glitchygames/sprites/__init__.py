@@ -5,17 +5,19 @@ Re-exports all public names from submodules for backwards compatibility.
 
 from __future__ import annotations
 
-from .animated import AnimatedSprite, AnimatedSpriteInterface, SpriteFrame
-from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
-from .core import (
+from .animated import AnimatedSprite
+from .animated_interface import AnimatedSpriteInterface
+from .bitmappy_sprite import (
     BitmappySprite,
     FocusableSingletonBitmappySprite,
-    RootSprite,
     Singleton,
     SingletonBitmappySprite,
-    Sprite,
-    SpriteFactory,
 )
+from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
+from .factory import SpriteFactory
+from .frame import SpriteFrame
+from .root_sprite import RootSprite
+from .sprite import Sprite
 
 __all__ = [
     'DEFAULT_FILE_FORMAT',

@@ -487,7 +487,7 @@ class SceneManager(SceneInterface, events.EventManager):
             focused_sprites = [
                 sprite
                 for sprite in self.active_scene.all_sprites
-                if hasattr(sprite, 'active') and sprite.active
+                if hasattr(sprite, 'is_active') and sprite.is_active
             ]
 
             if focused_sprites and event.type == pygame.KEYDOWN:
@@ -911,7 +911,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         return [
-            sprite for sprite in self.all_sprites if hasattr(sprite, 'active') and sprite.active
+            sprite
+            for sprite in self.all_sprites
+            if hasattr(sprite, 'is_active') and sprite.is_active
         ]
 
     def _has_focusable_sprites(self, collided_sprites: list[Any]) -> bool:
@@ -934,9 +936,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         for sprite in focused_sprites:
-            if hasattr(sprite, 'active'):
+            if hasattr(sprite, 'is_active'):
                 self.log.debug(f'Unfocusing {type(sprite).__name__}')
-                sprite.active = False
+                sprite.is_active = False
                 if hasattr(sprite, 'on_focus_lost'):
                     sprite.on_focus_lost()
 
@@ -1688,7 +1690,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         # Find the currently focused sprite
         focused_sprites = [
-            sprite for sprite in self.all_sprites if hasattr(sprite, 'active') and sprite.active
+            sprite
+            for sprite in self.all_sprites
+            if hasattr(sprite, 'is_active') and sprite.is_active
         ]
 
         if focused_sprites:

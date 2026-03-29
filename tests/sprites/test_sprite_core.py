@@ -37,7 +37,7 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
     Sprite,
 )
-from glitchygames.sprites.core import SpriteFactory
+from glitchygames.sprites.factory import SpriteFactory
 from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
@@ -1048,7 +1048,7 @@ class TestBitmappySpriteInflateFromFile:
         sprite = BitmappySprite(x=0, y=0, width=10, height=10)
         # Mock _detect_file_format to return unsupported format
         mocker.patch(
-            'glitchygames.sprites.core.SpriteFactory.detect_file_format',
+            'glitchygames.sprites.factory.SpriteFactory.detect_file_format',
             return_value='json',
         )
         with pytest.raises(ValueError, match='Unsupported format'):
@@ -1058,7 +1058,7 @@ class TestBitmappySpriteInflateFromFile:
         """Test _load_static_only raises on unsupported format."""
         sprite = BitmappySprite(x=0, y=0, width=10, height=10)
         mocker.patch(
-            'glitchygames.sprites.core.SpriteFactory.detect_file_format',
+            'glitchygames.sprites.factory.SpriteFactory.detect_file_format',
             return_value='json',
         )
         with pytest.raises(ValueError, match='Unsupported file format'):

@@ -109,15 +109,13 @@ class TestControllerDragContinuousMovement:
         # Create a real scene instance with a real controller handler
         real_scene = BitmapEditorScene.__new__(BitmapEditorScene)
         real_scene.mode_switcher = mock_scene.mode_switcher
-        real_handler = ControllerEventHandler.__new__(ControllerEventHandler)
-        real_handler.editor = real_scene
-        real_handler.log = mocker.Mock()
+        real_handler = ControllerEventHandler(editor=real_scene)
         real_handler.controller_drags = mock_scene.controller_handler.controller_drags
         real_handler.canvas_continuous_movements = (
             mock_scene.controller_handler.canvas_continuous_movements
         )
-        real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
-        real_handler.canvas_paint_at_controller_position = (
+        real_handler.canvas._canvas_move_cursor = mock_scene._canvas_move_cursor
+        real_handler.canvas.canvas_paint_at_controller_position = (
             mock_scene.canvas_paint_at_controller_position
         )
         real_scene.controller_handler = real_handler
@@ -126,7 +124,7 @@ class TestControllerDragContinuousMovement:
         real_scene.canvas_continuous_movements = real_handler.canvas_continuous_movements
 
         # Simulate continuous movement update using the real method
-        real_handler._update_canvas_continuous_movements()
+        real_handler.canvas.update_canvas_continuous_movements()
 
         # Verify that painting was called during continuous movement
         # Should be called once for each movement (1 time since we only have one movement ready)
@@ -150,7 +148,7 @@ class TestControllerDragContinuousMovement:
         }
 
         # Simulate continuous movement update (no continuous movements configured)
-        mock_scene._update_canvas_continuous_movements()
+        mock_scene.canvas.update_canvas_continuous_movements()
 
         # Verify that no painting was called
         assert mock_scene.canvas_paint_at_controller_position.call_count == 0
@@ -176,15 +174,13 @@ class TestControllerDragContinuousMovement:
 
         real_scene = BitmapEditorScene.__new__(BitmapEditorScene)
         real_scene.mode_switcher = mock_scene.mode_switcher
-        real_handler = ControllerEventHandler.__new__(ControllerEventHandler)
-        real_handler.editor = real_scene
-        real_handler.log = mocker.Mock()
+        real_handler = ControllerEventHandler(editor=real_scene)
         real_handler.controller_drags = mock_scene.controller_handler.controller_drags
         real_handler.canvas_continuous_movements = (
             mock_scene.controller_handler.canvas_continuous_movements
         )
-        real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
-        real_handler.canvas_paint_at_controller_position = (
+        real_handler.canvas._canvas_move_cursor = mock_scene._canvas_move_cursor
+        real_handler.canvas.canvas_paint_at_controller_position = (
             mock_scene.canvas_paint_at_controller_position
         )
         real_scene.controller_handler = real_handler
@@ -193,7 +189,7 @@ class TestControllerDragContinuousMovement:
         real_scene.canvas_continuous_movements = real_handler.canvas_continuous_movements
 
         # Simulate continuous movement update using the real method
-        real_handler._update_canvas_continuous_movements()
+        real_handler.canvas.update_canvas_continuous_movements()
 
         # Verify that cursor movement was called but no painting
         assert mock_scene._canvas_move_cursor.call_count == 1
@@ -227,15 +223,13 @@ class TestControllerDragContinuousMovement:
 
         real_scene = BitmapEditorScene.__new__(BitmapEditorScene)
         real_scene.mode_switcher = mock_scene.mode_switcher
-        real_handler = ControllerEventHandler.__new__(ControllerEventHandler)
-        real_handler.editor = real_scene
-        real_handler.log = mocker.Mock()
+        real_handler = ControllerEventHandler(editor=real_scene)
         real_handler.controller_drags = mock_scene.controller_handler.controller_drags
         real_handler.canvas_continuous_movements = (
             mock_scene.controller_handler.canvas_continuous_movements
         )
-        real_handler._canvas_move_cursor = mock_scene._canvas_move_cursor
-        real_handler.canvas_paint_at_controller_position = (
+        real_handler.canvas._canvas_move_cursor = mock_scene._canvas_move_cursor
+        real_handler.canvas.canvas_paint_at_controller_position = (
             mock_scene.canvas_paint_at_controller_position
         )
         real_scene.controller_handler = real_handler
@@ -244,7 +238,7 @@ class TestControllerDragContinuousMovement:
         real_scene.canvas_continuous_movements = real_handler.canvas_continuous_movements
 
         # Simulate continuous movement update using the real method
-        real_handler._update_canvas_continuous_movements()
+        real_handler.canvas.update_canvas_continuous_movements()
 
         # Verify that cursor movement was called but no painting
         assert mock_scene._canvas_move_cursor.call_count == 1

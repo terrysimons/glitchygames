@@ -709,12 +709,12 @@ class TestSceneFocusManagement:
         scene = Scene()
 
         sprite = mocker.Mock()
-        sprite.active = True
+        sprite.is_active = True
         sprite.on_focus_lost = mocker.Mock()
 
         scene._unfocus_sprites([sprite])
 
-        assert sprite.active is False
+        assert sprite.is_active is False
         sprite.on_focus_lost.assert_called_once()
 
     def test_unfocus_sprites_without_on_focus_lost(self, mock_pygame_patches, mocker):
@@ -722,10 +722,10 @@ class TestSceneFocusManagement:
         scene = Scene()
 
         sprite = mocker.Mock(spec=['active'])
-        sprite.active = True
+        sprite.is_active = True
 
         scene._unfocus_sprites([sprite])
-        assert sprite.active is False
+        assert sprite.is_active is False
 
     def test_handle_focus_management_unfocuses_when_no_focusable(self, mock_pygame_patches, mocker):
         """Test _handle_focus_management unfocuses when no focusable sprites."""
@@ -733,14 +733,14 @@ class TestSceneFocusManagement:
 
         # Add a mock focused sprite to all_sprites
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_focus_lost = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
         # Click on non-focusable sprites
         scene._handle_focus_management([])
 
-        assert focused_sprite.active is False
+        assert focused_sprite.is_active is False
 
 
 class TestSceneHandleQuitKeyPress:
@@ -789,7 +789,7 @@ class TestSceneKeyUpEvent:
 
         # Add a focused sprite
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         scene.all_sprites.add(focused_sprite)
 
         event = mocker.Mock()
@@ -819,7 +819,7 @@ class TestSceneKeyDownEvent:
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_key_down_event = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -1619,7 +1619,7 @@ class TestSceneManagerHandleEvent:
         manager.active_scene = scene
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         scene.all_sprites.add(focused_sprite)
 
         event = mocker.Mock()
@@ -1796,7 +1796,7 @@ class TestSceneManagerHandleEventDeeper:
         manager = SceneManager()
         scene = Scene()
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         scene.all_sprites.add(focused_sprite)
         manager.active_scene = scene
 
@@ -2087,7 +2087,7 @@ class TestSceneHandleFocusManagementWithFocusable:
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_focus_lost = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -2448,7 +2448,7 @@ class TestSceneOnKeyDownWithFocusedSprites:
         """Test non-quit key is dispatched to focused sprite."""
         scene = Scene()
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_key_down_event = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 

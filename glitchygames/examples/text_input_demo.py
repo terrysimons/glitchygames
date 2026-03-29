@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
-    from glitchygames.events.core import HashableEvent
+    from glitchygames.events.base import HashableEvent
 
 import pygame
 
@@ -110,7 +110,7 @@ class Game(Scene):
             event (HashableEvent): The event to handle.
 
         """
-        if self.input_box.active:
+        if self.input_box.is_active:
             self.input_box.on_key_up_event(event)
         elif event.key == pygame.K_TAB:
             self.input_box.activate()
@@ -125,7 +125,7 @@ class Game(Scene):
             event (HashableEvent): The event to handle.
 
         """
-        if self.input_box.active:
+        if self.input_box.is_active:
             self.input_box.on_key_down_event(event)
         else:
             super().on_key_up_event(event)

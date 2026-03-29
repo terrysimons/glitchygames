@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Save REAL LayeredDirty before mock_pygame_patches replaces it with a Mock.
 _RealLayeredDirty = pygame.sprite.LayeredDirty
 
-from glitchygames.events.core import HashableEvent  # noqa: E402
+from glitchygames.events.base import HashableEvent  # noqa: E402
 from glitchygames.ui import (  # noqa: E402
     ButtonSprite,
     CheckboxSprite,
@@ -38,7 +38,8 @@ from glitchygames.ui import (  # noqa: E402
     TextBoxSprite,
     TextSprite,
 )
-from glitchygames.ui.widgets import InputBox, TabControlSprite  # noqa: E402
+from glitchygames.ui.inputs import InputBox  # noqa: E402
+from glitchygames.ui.sliders import TabControlSprite  # noqa: E402
 from tests.mocks import MockFactory  # noqa: E402
 
 # Test constants from test_ui_buttons.py
@@ -105,137 +106,137 @@ class TestButtonSpriteFunctionality:
 
     def test_button_mouse_down_up_changes_background(self, mock_pygame_patches, mocker):
         """Test that button background changes on mouse down/up events."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='ClickMe')
-        assert btn.background_color == btn.inactive_color
+        button = ButtonSprite(x=10, y=20, width=100, height=40, name='ClickMe')
+        assert button.background_color == button.inactive_color
 
         # Act: simulate mouse down
         event = self._create_mock_event()
-        btn.on_left_mouse_button_down_event(event)
+        button.on_left_mouse_button_down_event(event)
 
         # Assert
-        assert btn.background_color == btn.active_color
+        assert button.background_color == button.active_color
 
         # Act: simulate mouse up
-        btn.on_left_mouse_button_up_event(event)
+        button.on_left_mouse_button_up_event(event)
 
         # Assert
-        assert btn.background_color == btn.inactive_color
+        assert button.background_color == button.inactive_color
 
     def test_button_hover_state_changes(self, mock_pygame_patches, mocker):
         """Test that button changes appearance on hover."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='HoverButton')
-        initial_color = btn.background_color
+        button = ButtonSprite(x=10, y=20, width=100, height=40, name='HoverButton')
+        initial_color = button.background_color
 
         # Act: simulate mouse enter
         event = self._create_mock_event()
-        btn.on_mouse_enter_event(event)
+        button.on_mouse_enter_event(event)
 
         # Assert: ButtonSprite doesn't change color on hover, only on click
-        assert btn.background_color == btn.inactive_color
+        assert button.background_color == button.inactive_color
 
         # Act: simulate mouse exit (ButtonSprite doesn't have on_mouse_leave_event)
-        btn.on_mouse_exit_event(event)
+        button.on_mouse_exit_event(event)
 
         # Assert: should return to initial color
-        assert btn.background_color == initial_color
+        assert button.background_color == initial_color
 
     def test_button_click_behavior(self, mock_pygame_patches, mocker):
         """Test that button changes color on click."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='ClickButton')
-        assert btn.background_color == btn.inactive_color
+        button = ButtonSprite(x=10, y=20, width=100, height=40, name='ClickButton')
+        assert button.background_color == button.inactive_color
 
         # Act: simulate click
         event = self._create_mock_event()
-        btn.on_left_mouse_button_down_event(event)
+        button.on_left_mouse_button_down_event(event)
 
         # Assert: should change to active color
-        assert btn.background_color == btn.active_color
+        assert button.background_color == button.active_color
 
-        btn.on_left_mouse_button_up_event(event)
+        button.on_left_mouse_button_up_event(event)
 
         # Assert: should return to inactive color
-        assert btn.background_color == btn.inactive_color
+        assert button.background_color == button.inactive_color
 
     def test_button_initialization(self, mock_pygame_patches, mocker):
         """Test ButtonSprite initialization."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
         # Act
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='TestButton')
+        button = ButtonSprite(x=10, y=20, width=100, height=40, name='TestButton')
 
         # Assert
-        assert btn.rect is not None
-        assert btn.rect.x == BUTTON_X
-        assert btn.rect.y == BUTTON_Y
-        assert btn.rect.width == BUTTON_WIDTH
-        assert btn.rect.height == BUTTON_HEIGHT
-        assert btn.name == 'TestButton'
-        assert btn.background_color is not None
-        assert btn.active_color is not None
-        assert btn.inactive_color is not None
-        assert btn.border_color is not None
+        assert button.rect is not None
+        assert button.rect.x == BUTTON_X
+        assert button.rect.y == BUTTON_Y
+        assert button.rect.width == BUTTON_WIDTH
+        assert button.rect.height == BUTTON_HEIGHT
+        assert button.name == 'TestButton'
+        assert button.background_color is not None
+        assert button.active_color is not None
+        assert button.inactive_color is not None
+        assert button.border_color is not None
 
     def test_button_text_rendering(self, mock_pygame_patches, mocker):
         """Test that button text is rendered correctly."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
         # Act
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='TextButton')
+        button = ButtonSprite(x=10, y=20, width=100, height=40, name='TextButton')
 
         # Assert - ButtonSprite creates a TextSprite internally, so we check that it exists
-        assert btn.text is not None
+        assert button.text is not None
         # TextSprite name is set to the button's name
-        assert btn.text.name == 'TextButton'
+        assert button.text.name == 'TextButton'
 
     def test_button_disabled_state(self, mock_pygame_patches, mocker):
         """Test button disabled state functionality."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = self._create_mock_font()
         mock_get_font.return_value = font
 
-        btn = ButtonSprite(x=10, y=20, width=100, height=40, name='DisabledButton')
+        button = ButtonSprite(x=10, y=20, width=100, height=40, name='DisabledButton')
 
         # Test that button can be created and has expected properties
-        assert btn is not None
-        assert btn.name == 'DisabledButton'
+        assert button is not None
+        assert button.name == 'DisabledButton'
 
         # Test that button responds to mouse events
         event = self._create_mock_event()
-        initial_color = btn.background_color
+        initial_color = button.background_color
 
         # Act: simulate mouse down
-        btn.on_left_mouse_button_down_event(event)
+        button.on_left_mouse_button_down_event(event)
 
         # Assert: background color should change
-        assert btn.background_color != initial_color
+        assert button.background_color != initial_color
 
         # Act: simulate mouse up
-        btn.on_left_mouse_button_up_event(event)
+        button.on_left_mouse_button_up_event(event)
 
         # Assert: background color should return to inactive
-        assert btn.background_color == btn.inactive_color
+        assert button.background_color == button.inactive_color
 
 
 # ============================================================================
@@ -256,7 +257,7 @@ class TestSliderSpriteFunctionality:
     def test_slider_initialization(self, mocker):
         """Test SliderSprite initialization."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -285,7 +286,7 @@ class TestSliderSpriteFunctionality:
     def test_slider_value_change(self, mocker):
         """Test SliderSprite value change functionality."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -309,7 +310,7 @@ class TestSliderSpriteFunctionality:
     def test_slider_mouse_drag(self, mocker):
         """Test SliderSprite mouse drag functionality."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -340,7 +341,7 @@ class TestSliderSpriteFunctionality:
     def test_slider_callback(self, mocker):
         """Test SliderSprite value change callback."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -375,7 +376,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_initialization(self, mocker):
         """Test CheckboxSprite initialization."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -405,7 +406,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_toggle(self, mocker):
         """Test CheckboxSprite toggle functionality."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -441,7 +442,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_click_toggle(self, mocker):
         """Test CheckboxSprite click to toggle functionality."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -472,7 +473,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_callback(self, mocker):
         """Test CheckboxSprite state change callback."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -496,7 +497,7 @@ class TestCheckboxSpriteFunctionality:
     def test_checkbox_set_checked(self, mocker):
         """Test CheckboxSprite set checked state."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -558,7 +559,7 @@ class TestColorWellSpriteFunctionality:
     def test_colorwell_color_change(self, mocker):
         """Test ColorWellSprite color change functionality."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -619,7 +620,7 @@ class TestColorWellSpriteFunctionality:
     def test_colorwell_color_validation(self, mocker):
         """Test ColorWellSprite color validation."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -664,7 +665,7 @@ class TestTextSpriteFunctionality:
 
     def test_text_sprite_initialization(self, mocker):
         """Test TextSprite initialization."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -691,7 +692,7 @@ class TestTextSpriteFunctionality:
 
     def test_text_sprite_text_update(self, mocker):
         """Test TextSprite text update functionality."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -728,7 +729,7 @@ class TestTextBoxSpriteFunctionality:
 
     def test_textbox_initialization(self, mocker):
         """Test TextBoxSprite initialization."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -755,7 +756,7 @@ class TestTextBoxSpriteFunctionality:
 
     def test_textbox_text_input(self, mocker):
         """Test TextBoxSprite text input handling."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -779,7 +780,7 @@ class TestTextBoxSpriteFunctionality:
 
     def test_textbox_backspace(self, mocker):
         """Test TextBoxSprite backspace functionality."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -804,7 +805,7 @@ class TestTextBoxSpriteFunctionality:
 
     def test_textbox_focus_handling(self, mocker):
         """Test TextBoxSprite focus handling."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -847,7 +848,7 @@ class TestMultiLineTextBoxFunctionality:
 
     def test_multiline_textbox_initialization(self, mocker):
         """Test MultiLineTextBox initialization."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         font.get_linesize = mocker.Mock(return_value=24)  # Provide proper line height
@@ -876,7 +877,7 @@ class TestMultiLineTextBoxFunctionality:
 
     def test_multiline_textbox_line_breaks(self, mocker):
         """Test MultiLineTextBox line break handling."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         font.get_linesize = mocker.Mock(return_value=24)  # Provide proper line height
@@ -906,7 +907,7 @@ class TestMultiLineTextBoxFunctionality:
 
     def test_multiline_textbox_scrolling(self, mocker):
         """Test MultiLineTextBox scrolling functionality."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         font.get_linesize = mocker.Mock(return_value=24)  # Provide proper line height
@@ -1161,7 +1162,7 @@ class TestMenuItemEventHandlers:
 
     def test_menuitem_drag_events(self, mocker):
         """Test MenuItem drag/drop event handlers."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1184,7 +1185,7 @@ class TestMenuItemEventHandlers:
 
     def test_menuitem_without_name(self, mocker):
         """Test MenuItem without a name does not create text sprite."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1196,7 +1197,7 @@ class TestMenuItemEventHandlers:
 
     def test_menuitem_update_active(self, mocker):
         """Test MenuItem update when active with menu_image."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1204,14 +1205,14 @@ class TestMenuItemEventHandlers:
         mock_get_font.return_value = font
 
         item = MenuItem(x=0, y=0, width=100, height=20, name='TestItem', groups=_RealLayeredDirty())
-        item.active = True
+        item.is_active = True
         item.menu_image = pygame.Surface((100, 100))
         item.menu_rect = item.menu_image.get_rect()
         item.update()
 
     def test_menuitem_update_inactive(self, mocker):
         """Test MenuItem update when not active."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1219,12 +1220,12 @@ class TestMenuItemEventHandlers:
         mock_get_font.return_value = font
 
         item = MenuItem(x=0, y=0, width=100, height=20, name='TestItem', groups=_RealLayeredDirty())
-        item.active = False
+        item.is_active = False
         item.update()
 
     def test_menuitem_add_method(self, mocker):
         """Test MenuItem add method with text attribute."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1238,7 +1239,7 @@ class TestMenuItemEventHandlers:
 
     def test_menuitem_add_method_without_text(self, mocker):
         """Test MenuItem add method without text attribute."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1252,7 +1253,7 @@ class TestMenuItemEventHandlers:
 
     def test_menuitem_add_menu_item_method_with_menu(self, mocker):
         """Test MenuItem add_menu_item with explicit menu parameter takes else branch."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1269,7 +1270,7 @@ class TestMenuItemEventHandlers:
 
     def test_menuitem_mouse_exit_sets_dirty(self, mocker):
         """Test MenuItem on_mouse_exit_event sets dirty flag."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1285,7 +1286,7 @@ class TestMenuItemEventHandlers:
 
     def test_menuitem_left_button_up_resets_state(self, mocker):
         """Test MenuItem on_left_mouse_button_up_event resets active state."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1296,12 +1297,12 @@ class TestMenuItemEventHandlers:
         event = mocker.Mock()
         event.pos = (50, 10)
         item.on_left_mouse_button_up_event(event)
-        assert item.active == 0
+        assert item.is_active == 0
         assert item.dirty == 2
 
     def test_menuitem_left_button_down_activates(self, mocker):
         """Test MenuItem on_left_mouse_button_down_event activates menu."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1312,7 +1313,7 @@ class TestMenuItemEventHandlers:
         event = mocker.Mock()
         event.pos = (50, 10)
         item.on_left_mouse_button_down_event(event)
-        assert item.active == 1
+        assert item.is_active == 1
         assert item.dirty == 2
 
 
@@ -1341,7 +1342,7 @@ class TestMenuItemAddMenu:
             A MenuItem with self.x set.
         """
         x, y, width, height = rect
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = pygame.Rect(0, 0, 80, 20)
@@ -1417,7 +1418,7 @@ class TestTextSpritePropertyAccessors:
 
     def test_text_sprite_x_setter(self, mocker):
         """Test TextSprite x property setter updates rect and dirty flag."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1439,7 +1440,7 @@ class TestTextSpritePropertyAccessors:
 
     def test_text_sprite_y_setter(self, mocker):
         """Test TextSprite y property setter updates rect and dirty flag."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1461,7 +1462,7 @@ class TestTextSpritePropertyAccessors:
 
     def test_text_sprite_text_setter_same_value_no_update(self, mocker):
         """Test TextSprite text setter does not update when value is the same."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1483,7 +1484,7 @@ class TestTextSpritePropertyAccessors:
 
     def test_text_sprite_update_active_cursor_blink(self, mocker):
         """Test TextSprite update with active state toggles cursor."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1497,7 +1498,7 @@ class TestTextSpritePropertyAccessors:
             height=TEST_HEIGHT,
             text='Hello',
         )
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_timer = 29  # Just before blink threshold
 
         text_sprite.update()
@@ -1507,7 +1508,7 @@ class TestTextSpritePropertyAccessors:
 
     def test_text_sprite_update_inactive(self, mocker):
         """Test TextSprite update when not active sets dirty to 1."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1521,13 +1522,13 @@ class TestTextSpritePropertyAccessors:
             height=TEST_HEIGHT,
             text='Hello',
         )
-        text_sprite.active = False
+        text_sprite.is_active = False
         text_sprite.update()
         assert text_sprite.dirty == 1
 
     def test_text_sprite_transparent_background(self, mocker):
         """Test TextSprite with transparent background (alpha=0)."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1546,7 +1547,7 @@ class TestTextSpritePropertyAccessors:
 
     def test_text_sprite_on_mouse_motion_event(self, mocker):
         """Test TextSprite on_mouse_motion_event does nothing (hover disabled)."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1566,7 +1567,7 @@ class TestTextSpritePropertyAccessors:
 
     def test_text_sprite_text_box_self_reference(self, mocker):
         """Test TextSprite text_box is self-referential for compatibility."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1593,7 +1594,7 @@ class TestButtonSpriteExtended:
 
     def test_button_x_property_setter(self, mocker):
         """Test ButtonSprite x property setter."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1606,7 +1607,7 @@ class TestButtonSpriteExtended:
 
     def test_button_y_property_setter(self, mocker):
         """Test ButtonSprite y property setter."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1619,7 +1620,7 @@ class TestButtonSpriteExtended:
 
     def test_button_update_nested_sprites(self, mocker):
         """Test ButtonSprite update_nested_sprites propagates dirty flag."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1633,7 +1634,7 @@ class TestButtonSpriteExtended:
 
         The base Sprite class initializes callbacks as {} (empty dict).
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1651,7 +1652,7 @@ class TestCheckboxSpriteCoverage:
 
     def test_checkbox_initialization(self, mocker):
         """Test CheckboxSprite initialization."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1661,7 +1662,7 @@ class TestCheckboxSpriteCoverage:
 
     def test_checkbox_toggle_on_click(self, mocker):
         """Test CheckboxSprite toggles checked state on left mouse button up."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1678,7 +1679,7 @@ class TestCheckboxSpriteCoverage:
 
     def test_checkbox_update_unchecked(self, mocker):
         """Test CheckboxSprite update when unchecked clears and draws border."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1688,7 +1689,7 @@ class TestCheckboxSpriteCoverage:
 
     def test_checkbox_update_checked(self, mocker):
         """Test CheckboxSprite update when checked draws X lines."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1698,7 +1699,7 @@ class TestCheckboxSpriteCoverage:
 
     def test_checkbox_left_mouse_down_does_nothing(self, mocker):
         """Test CheckboxSprite on_left_mouse_button_down_event is a no-op."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1721,17 +1722,17 @@ class TestInputBoxCoverage:
         """Test InputBox initialization."""
         inputbox = InputBox(x=10, y=20, width=200, height=30, text='initial')
         assert inputbox.text == 'initial'
-        assert inputbox.active is False
+        assert inputbox.is_active is False
 
     def test_inputbox_activate_deactivate(self, mocker):
         """Test InputBox activate and deactivate methods."""
         inputbox = InputBox(x=10, y=20, width=200, height=30)
         inputbox.activate()
-        assert inputbox.active is True
+        assert inputbox.is_active is True
         assert inputbox.dirty == 2
 
         inputbox.deactivate()
-        assert inputbox.active is False
+        assert inputbox.is_active is False
         assert inputbox.dirty == 0
 
     def test_inputbox_render(self, mocker):
@@ -1745,7 +1746,7 @@ class TestInputBoxCoverage:
         inputbox = InputBox(x=10, y=20, width=200, height=30)
         event = mocker.Mock()
         inputbox.on_mouse_up_event(event)
-        assert inputbox.active is True
+        assert inputbox.is_active is True
 
     def test_inputbox_key_up_tab_deactivates(self, mocker):
         """Test InputBox on_key_up_event with Tab key deactivates."""
@@ -1754,7 +1755,7 @@ class TestInputBoxCoverage:
         event = mocker.Mock()
         event.key = pygame.K_TAB
         inputbox.on_key_up_event(event)
-        assert inputbox.active is False
+        assert inputbox.is_active is False
 
     def test_inputbox_key_up_escape_deactivates(self, mocker):
         """Test InputBox on_key_up_event with Escape key deactivates."""
@@ -1763,7 +1764,7 @@ class TestInputBoxCoverage:
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
         inputbox.on_key_up_event(event)
-        assert inputbox.active is False
+        assert inputbox.is_active is False
 
     def test_inputbox_key_down_backspace(self, mocker):
         """Test InputBox on_key_down_event with backspace removes character."""
@@ -1848,7 +1849,7 @@ class TestTextBoxSpriteCoverage:
 
     def test_textbox_update_nested_sprites(self, mocker):
         """Test TextBoxSprite update_nested_sprites propagates dirty flag."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1862,7 +1863,7 @@ class TestTextBoxSpriteCoverage:
 
     def test_textbox_update_with_border(self, mocker):
         """Test TextBoxSprite update draws border when border_width > 0."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -1933,7 +1934,7 @@ class TestInputDialogCoverage:
 
     def test_input_dialog_initialization(self, mocker):
         """Test InputDialog creates all expected child components."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1951,11 +1952,11 @@ class TestInputDialogCoverage:
         assert dialog.input_box is not None
         assert dialog.confirm_button is not None
         assert dialog.cancel_button is not None
-        assert dialog.input_box.active is True
+        assert dialog.input_box.is_active is True
 
     def test_input_dialog_custom_text(self, mocker):
         """Test InputDialog with custom dialog text."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1984,7 +1985,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_update_color_well_red(self, mocker):
         """Test SliderSprite update_color_well for red slider."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2010,7 +2011,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_update_method(self, mocker):
         """Test SliderSprite update calls update_slider_appearance when dirty."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2023,7 +2024,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_color_based_on_name(self, mocker):
         """Test SliderSprite assigns color based on name."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2044,7 +2045,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_restore_original_value(self, mocker):
         """Test SliderSprite _restore_original_value restores text."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2054,15 +2055,15 @@ class TestSliderSpriteCoverage:
         slider = SliderSprite(x=10, y=20, width=200, height=10, name='TestSlider')
         slider.value = 100
         slider.original_value = 100
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         slider.text_sprite.text = '200'
         slider._restore_original_value()
         assert slider.text_sprite.text == '100'
-        assert slider.text_sprite.active is False
+        assert slider.text_sprite.is_active is False
 
     def test_slider_handle_text_enter_empty(self, mocker):
         """Test SliderSprite _handle_text_enter with empty text restores."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2073,14 +2074,14 @@ class TestSliderSpriteCoverage:
         slider.value = 50
         slider.original_value = 50
         slider.text_sprite.text = '  '
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         slider._handle_text_enter(event)
         assert slider.text_sprite.text == '50'
 
     def test_slider_handle_text_enter_hex_value(self, mocker):
         """Test SliderSprite _handle_text_enter with hex input."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2089,14 +2090,14 @@ class TestSliderSpriteCoverage:
 
         slider = SliderSprite(x=10, y=20, width=200, height=10, name='TestSlider')
         slider.text_sprite.text = 'ff'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         slider._handle_text_enter(event)
         assert slider.value == 255
 
     def test_slider_handle_text_character_max_length(self, mocker):
         """Test SliderSprite _handle_text_character_input respects max length."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2105,7 +2106,7 @@ class TestSliderSpriteCoverage:
 
         slider = SliderSprite(x=10, y=20, width=200, height=10, name='TestSlider')
         slider.text_sprite.text = '12'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_3
         event.unicode = '3'
@@ -2120,7 +2121,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_handle_text_enter_out_of_range_restores(self, mocker):
         """Test SliderSprite _handle_text_enter with out-of-range value restores."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2131,14 +2132,14 @@ class TestSliderSpriteCoverage:
         slider.value = 50
         slider.original_value = 50
         slider.text_sprite.text = '999'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         slider._handle_text_enter(event)
         assert slider.text_sprite.text == '50'
 
     def test_slider_handle_text_enter_invalid_value_restores(self, mocker):
         """Test SliderSprite _handle_text_enter with invalid input restores."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2149,14 +2150,14 @@ class TestSliderSpriteCoverage:
         slider.value = 50
         slider.original_value = 50
         slider.text_sprite.text = 'xyz'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         slider._handle_text_enter(event)
         assert slider.text_sprite.text == '50'
 
     def test_slider_handle_text_character_backspace(self, mocker):
         """Test SliderSprite _handle_text_character_input handles backspace."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2173,7 +2174,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_draw_visual_indicators_no_parent(self, mocker):
         """Test SliderSprite _draw_slider_visual_indicators with no parent."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2187,7 +2188,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_draw_visual_indicators_no_collision_manager(self, mocker):
         """Test SliderSprite _draw_slider_visual_indicators without collision manager."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2201,7 +2202,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_draw_visual_indicators_with_circle_indicator(self, mocker):
         """Test SliderSprite _draw_slider_visual_indicators draws circle indicator."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2238,7 +2239,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_draw_visual_indicators_with_square_indicator(self, mocker):
         """Test SliderSprite _draw_slider_visual_indicators draws square indicator."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2278,7 +2279,7 @@ class TestSliderSpriteCoverage:
         mock_pygame_patches with a side_effect that fails with MockSurface. We verify
         the code reaches the triangle drawing path by checking the indicator shape.
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2312,7 +2313,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_draw_visual_indicators_no_indicators(self, mocker):
         """Test SliderSprite _draw_slider_visual_indicators with empty indicators."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2330,7 +2331,7 @@ class TestSliderSpriteCoverage:
 
     def test_slider_handle_text_enter_with_hex_format(self, mocker):
         """Test SliderSprite _handle_text_enter uses hex format when parent expects it."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -2345,7 +2346,7 @@ class TestSliderSpriteCoverage:
 
         slider = SliderSprite(x=10, y=20, width=200, height=10, name='R', parent=parent)
         slider.text_sprite.text = '128'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         slider._handle_text_enter(event)
         assert slider.value == 128
@@ -2367,7 +2368,7 @@ class TestMultiLineTextBoxClipboard:
         Returns:
             A MultiLineTextBox instance.
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         font.get_linesize.return_value = 20
         font.get_rect.return_value = pygame.Rect(0, 0, 50, 20)
@@ -2378,7 +2379,7 @@ class TestMultiLineTextBoxClipboard:
 
     def test_handle_copy_full_text(self, text_box, mocker):
         """Test _handle_copy copies full text when no selection."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         text_box.selection_start = None
         text_box.selection_end = None
         text_box._handle_copy()
@@ -2386,7 +2387,7 @@ class TestMultiLineTextBoxClipboard:
 
     def test_handle_copy_selected_text(self, text_box, mocker):
         """Test _handle_copy copies selected text."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         text_box.selection_start = 0
         text_box.selection_end = 5
         text_box._handle_copy()
@@ -2394,14 +2395,14 @@ class TestMultiLineTextBoxClipboard:
 
     def test_handle_copy_import_error(self, text_box, mocker):
         """Test _handle_copy handles ImportError gracefully."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         mock_pyperclip.copy.side_effect = ImportError
         text_box._handle_copy()
         # Should not raise
 
     def test_handle_paste_inserts_text(self, text_box, mocker):
         """Test _handle_paste inserts clipboard text at cursor."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         mock_pyperclip.paste.return_value = 'pasted'
         text_box.cursor_pos = 5
         text_box._handle_paste()
@@ -2409,7 +2410,7 @@ class TestMultiLineTextBoxClipboard:
 
     def test_handle_paste_no_clipboard(self, text_box, mocker):
         """Test _handle_paste handles empty clipboard."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         mock_pyperclip.paste.return_value = ''
         original_text = text_box._original_text
         text_box._handle_paste()
@@ -2417,14 +2418,14 @@ class TestMultiLineTextBoxClipboard:
 
     def test_handle_paste_import_error(self, text_box, mocker):
         """Test _handle_paste handles ImportError gracefully."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         mock_pyperclip.paste.side_effect = ImportError
         text_box._handle_paste()
         # Should not raise
 
     def test_handle_cut_full_text(self, text_box, mocker):
         """Test _handle_cut cuts all text when no selection."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         text_box.selection_start = None
         text_box.selection_end = None
         text_box._handle_cut()
@@ -2433,7 +2434,7 @@ class TestMultiLineTextBoxClipboard:
 
     def test_handle_cut_selected_text(self, text_box, mocker):
         """Test _handle_cut cuts selected text."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         text_box.selection_start = 0
         text_box.selection_end = 5
         text_box._handle_cut()
@@ -2443,14 +2444,14 @@ class TestMultiLineTextBoxClipboard:
 
     def test_handle_cut_import_error(self, text_box, mocker):
         """Test _handle_cut handles ImportError gracefully."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         mock_pyperclip.copy.side_effect = ImportError
         text_box._handle_cut()
         # Should not raise
 
     def test_clipboard_operation_copy_key(self, text_box, mocker):
         """Test _handle_clipboard_operation dispatches Ctrl+C to copy."""
-        mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         event = mocker.Mock()
         event.key = pygame.K_c
         result = text_box._handle_clipboard_operation(event, is_ctrl=True)
@@ -2458,7 +2459,7 @@ class TestMultiLineTextBoxClipboard:
 
     def test_clipboard_operation_paste_key(self, text_box, mocker):
         """Test _handle_clipboard_operation dispatches Ctrl+V to paste."""
-        mock_pyperclip = mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mock_pyperclip = mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         mock_pyperclip.paste.return_value = ''
         event = mocker.Mock()
         event.key = pygame.K_v
@@ -2467,7 +2468,7 @@ class TestMultiLineTextBoxClipboard:
 
     def test_clipboard_operation_cut_key(self, text_box, mocker):
         """Test _handle_clipboard_operation dispatches Ctrl+X to cut."""
-        mocker.patch('glitchygames.ui.widgets.pyperclip')
+        mocker.patch('glitchygames.ui.text_widgets.pyperclip')
         event = mocker.Mock()
         event.key = pygame.K_x
         result = text_box._handle_clipboard_operation(event, is_ctrl=True)
@@ -2512,7 +2513,7 @@ class TestMultiLineTextBoxDeactivation:
         Returns:
             A MultiLineTextBox instance.
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         font.get_linesize.return_value = 20
         font.get_rect.return_value = pygame.Rect(0, 0, 50, 20)
@@ -2523,39 +2524,39 @@ class TestMultiLineTextBoxDeactivation:
 
     def test_deactivate_method_sets_active_false(self, text_box, mocker):
         """Test deactivate method sets active to False and stops text input."""
-        text_box.active = True
+        text_box.is_active = True
         text_box.deactivate()
-        assert text_box.active is False
+        assert text_box.is_active is False
 
     def test_mouse_down_inside_activates(self, text_box, mocker):
         """Test clicking inside the text box activates it."""
-        text_box.active = False
+        text_box.is_active = False
         # Position inside the text box (rect starts at 100, 100 with 300x200)
         event = mocker.Mock()
         event.pos = (150, 150)
         mocker.patch('pygame.time.get_ticks', return_value=1000)
         text_box.on_left_mouse_button_down_event(event)
-        assert text_box.active is True
+        assert text_box.is_active is True
 
     def test_key_down_escape_deactivates(self, text_box, mocker):
         """Test pressing Escape deactivates the text box."""
-        text_box.active = True
+        text_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
         text_box.on_key_down_event(event)
-        assert text_box.active is False
+        assert text_box.is_active is False
 
     def test_activate_method(self, text_box):
         """Test activate method enables text input."""
-        text_box.active = False
+        text_box.is_active = False
         text_box.activate()
-        assert text_box.active is True
+        assert text_box.is_active is True
 
     def test_deactivate_method(self, text_box):
         """Test deactivate method disables text input."""
-        text_box.active = True
+        text_box.is_active = True
         text_box.deactivate()
-        assert text_box.active is False
+        assert text_box.is_active is False
 
 
 class TestMultiLineTextBoxScrollbar:
@@ -2573,7 +2574,7 @@ class TestMultiLineTextBoxScrollbar:
         Returns:
             A MultiLineTextBox instance.
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         font.get_linesize.return_value = 20
         font.get_rect.return_value = pygame.Rect(0, 0, 50, 20)
@@ -2617,7 +2618,7 @@ class TestMultiLineTextBoxMouseMotion:
         Returns:
             A MultiLineTextBox instance.
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         font.get_linesize.return_value = 20
         font.get_rect.return_value = pygame.Rect(0, 0, 50, 20)
@@ -2668,7 +2669,7 @@ class TestMultiLineTextBoxKeyHandling:
         Returns:
             A MultiLineTextBox instance.
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         font.get_linesize.return_value = 20
         font.get_rect.return_value = pygame.Rect(0, 0, 50, 20)
@@ -2676,7 +2677,7 @@ class TestMultiLineTextBoxKeyHandling:
         mock_get_font.return_value = font
 
         tb = MultiLineTextBox(x=100, y=100, width=300, height=200, text='Hello World')
-        tb.active = True
+        tb.is_active = True
         return tb
 
     def _set_key_mods(self, mods_value):
@@ -2690,7 +2691,7 @@ class TestMultiLineTextBoxKeyHandling:
 
     def test_key_down_inactive_returns(self, text_box, mocker):
         """Test key_down_event returns when not active."""
-        text_box.active = False
+        text_box.is_active = False
         event = mocker.Mock(spec=[])
         event.key = pygame.K_a
         event.unicode = 'a'
@@ -2796,7 +2797,7 @@ class TestMultiLineTextBoxMouseUpActivation:
         Returns:
             A MultiLineTextBox instance.
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         font.get_linesize.return_value = 20
         font.get_rect.return_value = pygame.Rect(0, 0, 50, 20)
@@ -2810,13 +2811,13 @@ class TestMultiLineTextBoxMouseUpActivation:
         event = mocker.Mock()
         event.pos = (150, 150)
         text_box.on_mouse_up_event(event)
-        assert text_box.active is True
+        assert text_box.is_active is True
 
     def test_mouse_up_outside_deactivates(self, text_box, mocker):
         """Test deactivate method sets active to False."""
-        text_box.active = True
+        text_box.is_active = True
         text_box.deactivate()
-        assert text_box.active is False
+        assert text_box.is_active is False
 
 
 class TestMultiLineTextBoxUpdate:
@@ -2834,7 +2835,7 @@ class TestMultiLineTextBoxUpdate:
         Returns:
             A MultiLineTextBox instance.
         """
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         font.get_linesize.return_value = 20
         font.get_rect.return_value = pygame.Rect(0, 0, 50, 20)
@@ -2847,14 +2848,14 @@ class TestMultiLineTextBoxUpdate:
         """Test update with hover state but not active uses hover color."""
         mocker.patch('pygame.time.get_ticks', return_value=1000)
         text_box.is_hovered = True
-        text_box.active = False
+        text_box.is_active = False
         text_box.update()
         # Should complete without raising
 
     def test_update_active(self, text_box, mocker):
         """Test update when active renders cursor."""
         mocker.patch('pygame.time.get_ticks', return_value=1000)
-        text_box.active = True
+        text_box.is_active = True
         text_box.cursor_visible = True
         text_box.update()
         # Should complete without raising
@@ -2868,20 +2869,20 @@ class TestMultiLineTextBoxUpdate:
 
     def test_get_border_color_active(self, text_box):
         """Test _get_border_color returns blue when active."""
-        text_box.active = True
+        text_box.is_active = True
         color = text_box._get_border_color()
         assert color == (64, 64, 255)
 
     def test_get_border_color_hovered(self, text_box):
         """Test _get_border_color returns light blue when hovered."""
-        text_box.active = False
+        text_box.is_active = False
         text_box.is_hovered = True
         color = text_box._get_border_color()
         assert color == (100, 150, 255)
 
     def test_get_border_color_normal(self, text_box):
         """Test _get_border_color returns white when neither active nor hovered."""
-        text_box.active = False
+        text_box.is_active = False
         text_box.is_hovered = False
         color = text_box._get_border_color()
         from glitchygames.color import WHITE
@@ -2913,7 +2914,7 @@ class TestTextSpriteUpdate:
             text='test',
             groups=groups,
         )
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_timer = 0
         text_sprite.update()
         assert text_sprite._cursor_timer >= 1
@@ -2929,7 +2930,7 @@ class TestTextSpriteUpdate:
             text='test',
             groups=groups,
         )
-        text_sprite.active = True
+        text_sprite.is_active = True
         # Force the timer just below the threshold so next update toggles
         text_sprite._cursor_timer = 29
         text_sprite._cursor_visible = True
@@ -2948,7 +2949,7 @@ class TestTextSpriteUpdate:
             text='test',
             groups=groups,
         )
-        text_sprite.active = False
+        text_sprite.is_active = False
         text_sprite.dirty = 2
         text_sprite.update()
         # After inactive update, dirty is set to 1 but then text is re-rendered
@@ -3076,7 +3077,7 @@ class TestTextSpriteTransparentBackground:
             text='test',
             groups=groups,
         )
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite.update_text('active text')
         # Should not raise; dark background drawn
 
@@ -3274,7 +3275,7 @@ class TestInputBoxKeyHandling:
             parent=parent,
             groups=groups,
         )
-        input_box.active = True
+        input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_RETURN
         event.unicode = ''
@@ -3296,7 +3297,7 @@ class TestInputBoxKeyHandling:
             parent=parent,
             groups=groups,
         )
-        input_box.active = True
+        input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_BACKSPACE
         event.unicode = ''
@@ -3320,7 +3321,7 @@ class TestInputBoxKeyHandling:
             parent=parent,
             groups=groups,
         )
-        input_box.active = True
+        input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_a
         event.unicode = 'a'
@@ -3344,7 +3345,7 @@ class TestInputBoxKeyHandling:
             parent=parent,
             groups=groups,
         )
-        input_box.active = True
+        input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_SEMICOLON
         event.mod = pygame.KMOD_SHIFT
@@ -3367,7 +3368,7 @@ class TestInputBoxKeyHandling:
             parent=parent,
             groups=groups,
         )
-        input_box.active = False
+        input_box.is_active = False
         event = mocker.Mock()
         event.key = pygame.K_a
         event.unicode = 'a'
@@ -3388,11 +3389,11 @@ class TestInputBoxKeyHandling:
             parent=parent,
             groups=groups,
         )
-        input_box.active = True
+        input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_TAB
         input_box.on_key_up_event(event)
-        assert input_box.active is False
+        assert input_box.is_active is False
 
     def test_on_key_up_escape_deactivates(self, mocker):
         """Test Escape key deactivates input box."""
@@ -3408,11 +3409,11 @@ class TestInputBoxKeyHandling:
             parent=parent,
             groups=groups,
         )
-        input_box.active = True
+        input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
         input_box.on_key_up_event(event)
-        assert input_box.active is False
+        assert input_box.is_active is False
 
     def test_activate_and_deactivate(self, mocker):
         """Test activate and deactivate methods."""
@@ -3429,10 +3430,10 @@ class TestInputBoxKeyHandling:
             groups=groups,
         )
         input_box.activate()
-        assert input_box.active is True
+        assert input_box.is_active is True
         assert input_box.dirty == 2
         input_box.deactivate()
-        assert input_box.active is False
+        assert input_box.is_active is False
         assert input_box.dirty == 0
 
     def test_on_input_box_submit_event_with_parent(self, mocker):
@@ -3525,7 +3526,7 @@ class TestInputBoxKeyHandling:
         )
         event = mocker.Mock()
         input_box.on_mouse_up_event(event)
-        assert input_box.active is True
+        assert input_box.is_active is True
 
 
 class TestTextBoxSpriteUpdateAndEvents:
@@ -3844,10 +3845,10 @@ class TestSliderSpriteDeeper:
             groups=groups,
         )
         slider.original_value = 42
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         slider._restore_original_value()
         assert slider.text_sprite.text == '42'
-        assert slider.text_sprite.active is False
+        assert slider.text_sprite.is_active is False
 
     def test_slider_handle_text_enter_empty_restores(self, mocker):
         """Test _handle_text_enter with empty text restores original."""
@@ -3882,11 +3883,11 @@ class TestSliderSpriteDeeper:
             groups=groups,
         )
         slider.text_sprite.text = '128'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         slider._handle_text_enter(event)
         assert slider._value == 128
-        assert slider.text_sprite.active is False
+        assert slider.text_sprite.is_active is False
 
     def test_slider_handle_text_enter_valid_hex(self, mocker):
         """Test _handle_text_enter with valid hex value."""
@@ -3903,7 +3904,7 @@ class TestSliderSpriteDeeper:
             groups=groups,
         )
         slider.text_sprite.text = 'ff'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         slider._handle_text_enter(event)
         assert slider._value == 255
@@ -3941,7 +3942,7 @@ class TestSliderSpriteDeeper:
             groups=groups,
         )
         slider.text_sprite.text = '12'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_BACKSPACE
         slider._handle_text_character_input(event)
@@ -3961,7 +3962,7 @@ class TestSliderSpriteDeeper:
             groups=groups,
         )
         slider.text_sprite.text = '1'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_5
         event.unicode = '5'
@@ -3982,7 +3983,7 @@ class TestSliderSpriteDeeper:
             groups=groups,
         )
         slider.text_sprite.text = '255'
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_9
         event.unicode = '9'
@@ -4309,10 +4310,10 @@ class TestInputBoxCursorBlink:
             parent=parent,
             groups=groups,
         )
-        input_box.active = True
+        input_box.is_active = True
         # Mock time.time to return a value that triggers cursor draw
         # time.time() % 1 > 0.5 when e.g. time returns 1.7
-        mocker.patch('glitchygames.ui.widgets.time.time', return_value=1.7)
+        mocker.patch('glitchygames.ui.inputs.time.time', return_value=1.7)
         input_box.update()
         # Should have drawn cursor rect; verify it doesn't raise
 
@@ -4400,7 +4401,7 @@ class TestSliderTextInputInactive:
             parent=parent,
             groups=_RealLayeredDirty(),
         )
-        slider.text_sprite.active = False
+        slider.text_sprite.is_active = False
         event = mocker.Mock()
         event.key = pygame.K_RETURN
         event.unicode = ''
@@ -4724,7 +4725,7 @@ class TestMultiLineTextBoxCursorNavigation:
             MultiLineTextBox: A configured text box for testing.
         """
         # Ensure the font's get_rect returns a real Rect with numeric width
-        mock_font_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_font_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_font = mock_font_get_font.return_value
         mock_font.get_linesize.return_value = 16
         mock_font.get_rect.return_value = pygame.Rect(0, 0, 50, 16)
@@ -4820,7 +4821,7 @@ class TestMultiLineTextBoxScrolling:
         The mock font needs get_rect for _get_text_width, and render needs
         to return (surface, rect) tuple since get_rect exists (freetype style).
         """
-        mock_font_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_font_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_font = mock_font_get_font.return_value
         mock_font.get_linesize.return_value = 16
         mock_font.get_rect.return_value = pygame.Rect(0, 0, 50, 16)
@@ -4860,7 +4861,7 @@ class TestMultiLineTextBoxScrolling:
     def test_auto_scroll_when_cursor_below_visible(self, mocker):
         """Test auto-scroll adjusts when cursor is below visible area (line 3171)."""
         textbox = self._make_textbox_with_many_lines(mocker)
-        textbox.active = True
+        textbox.is_active = True
         textbox.scroll_offset = 0
         # Move cursor to last line
         textbox.cursor_pos = len(textbox._original_text)
@@ -4871,7 +4872,7 @@ class TestMultiLineTextBoxScrolling:
     def test_auto_scroll_when_cursor_above_visible(self, mocker):
         """Test auto-scroll adjusts when cursor is above visible area (line 3172)."""
         textbox = self._make_textbox_with_many_lines(mocker)
-        textbox.active = True
+        textbox.is_active = True
         textbox.scroll_offset = 20  # Scrolled down
         textbox.cursor_pos = 0  # Cursor at beginning
         textbox._render_visible_lines((255, 255, 255), 16)
@@ -4880,7 +4881,7 @@ class TestMultiLineTextBoxScrolling:
     def test_cursor_not_in_visible_range_not_drawn(self, mocker):
         """Test cursor is not drawn when outside visible range (line 3212)."""
         textbox = self._make_textbox_with_many_lines(mocker)
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_visible = True
         textbox.scroll_offset = 20  # Scrolled far down
         textbox.cursor_pos = 0  # Cursor at top
@@ -4899,7 +4900,7 @@ class TestMultiLineTextBoxMouseEvents:
 
     def _setup_mock_font(self, mocker):
         """Set up mock font with numeric get_rect widths."""
-        mock_font_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_font_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_font = mock_font_get_font.return_value
         mock_font.get_linesize.return_value = 16
         mock_font.get_rect.return_value = pygame.Rect(0, 0, 50, 16)
@@ -4948,14 +4949,14 @@ class TestMultiLineTextBoxMouseEvents:
     def test_mouse_down_outside_deactivates(self, mocker):
         """Test clicking outside textbox deactivates it (lines 3338-3342)."""
         textbox = self._make_textbox(mocker)
-        textbox.active = True
+        textbox.is_active = True
         # Ensure textbox has a real rect for collidepoint
         textbox.rect = pygame.Rect(TEST_X, TEST_Y, TEST_WIDTH, 100)
         far_away = (textbox.rect.right + 500, textbox.rect.bottom + 500)
         event = mocker.Mock()
         event.pos = far_away
         textbox.on_left_mouse_button_down_event(event)
-        assert textbox.active is False
+        assert textbox.is_active is False
 
     def test_mouse_down_line_height_no_size_fallback(self, mocker):
         """Test mouse down uses 24 default for line height (line 3307 else branch).
@@ -4976,7 +4977,7 @@ class TestMultiLineTextBoxMouseEvents:
         event = mocker.Mock()
         event.pos = (TEST_X + 5, TEST_Y + 5)
         textbox.on_left_mouse_button_down_event(event)
-        assert textbox.active is True
+        assert textbox.is_active is True
 
 
 class TestMultiLineTextBoxDeleteSelection:
@@ -4989,7 +4990,7 @@ class TestMultiLineTextBoxDeleteSelection:
 
     def _setup_mock_font(self, mocker):
         """Set up mock font with numeric get_rect widths."""
-        mock_font_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_font_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_font = mock_font_get_font.return_value
         mock_font.get_linesize.return_value = 16
         mock_font.get_rect.return_value = pygame.Rect(0, 0, 50, 16)
@@ -5017,7 +5018,7 @@ class TestMultiLineTextBoxDeleteSelection:
             groups=groups,
         )
         textbox.text = 'Hello World'
-        textbox.active = True
+        textbox.is_active = True
         textbox.selection_start = 5
         textbox.selection_end = 11
         event = mocker.Mock()
@@ -5037,7 +5038,7 @@ class TestMultiLineTextBoxHoverExit:
 
     def _setup_mock_font(self, mocker):
         """Set up mock font with numeric get_rect widths."""
-        mock_font_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_font_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_font = mock_font_get_font.return_value
         mock_font.get_linesize.return_value = 16
         mock_font.get_rect.return_value = pygame.Rect(0, 0, 50, 16)
@@ -5075,7 +5076,7 @@ class TestMultiLineTextBoxMouseWheel:
 
     def _setup_mock_font(self, mocker):
         """Set up mock font with numeric get_rect widths."""
-        mock_font_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_font_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_font = mock_font_get_font.return_value
         mock_font.get_linesize.return_value = 16
         mock_font.get_rect.return_value = pygame.Rect(0, 0, 50, 16)
@@ -5134,14 +5135,14 @@ class TestConfirmDialogNonTupleRender:
 
     def test_update_with_non_tuple_font_render(self, mocker):
         """Test ConfirmDialog update when font.render returns Surface (not tuple)."""
-        from glitchygames.ui.widgets import ConfirmDialog
+        from glitchygames.ui.inputs import ConfirmDialog
 
         groups = _RealLayeredDirty()
         # Mock FontManager.get_font to return a font that returns Surface (not tuple)
         mock_font = mocker.Mock()
         surface = pygame.Surface((50, 20))
         mock_font.render.return_value = surface  # Returns Surface, not tuple
-        mocker.patch('glitchygames.ui.widgets.FontManager.get_font', return_value=mock_font)
+        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
 
         dialog = ConfirmDialog(
             text='Delete?',

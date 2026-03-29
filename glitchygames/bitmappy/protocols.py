@@ -165,6 +165,4 @@ class EditorContext(Protocol):
         """Handle new file creation."""
         ...
 
-    def _init_undo_redo_system(self) -> None:
-        """Initialize the undo/redo system."""
-        ...
+    # Note: undo/redo system initialization is handled by EditorSetup delegate

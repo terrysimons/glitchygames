@@ -5,6 +5,7 @@ import os
 import pytest
 
 from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.editor_setup import EditorSetup
 from tests.mocks import MockFactory
 
 # Skip in CI - BitmapEditorScene.__init__ requires full display and font system
@@ -27,7 +28,7 @@ class TestSceneFilmStrips:
 
         # Mock _setup_menu_bar to avoid real pygame sprite group operations
         # which are not safe under parallel test execution
-        mocker.patch.object(bitmappy.BitmapEditorScene, '_setup_menu_bar')
+        mocker.patch.object(EditorSetup, 'setup_menu_bar')
 
         # Create scene with mock sprite (using centralized mocks)
         scene = bitmappy.BitmapEditorScene(
@@ -59,7 +60,7 @@ class TestSceneFilmStrips:
 
         # Mock _setup_menu_bar to avoid real pygame sprite group operations
         # which are not safe under parallel test execution
-        mocker.patch.object(bitmappy.BitmapEditorScene, '_setup_menu_bar')
+        mocker.patch.object(EditorSetup, 'setup_menu_bar')
 
         # Create scene (using centralized mocks)
         scene = bitmappy.BitmapEditorScene(

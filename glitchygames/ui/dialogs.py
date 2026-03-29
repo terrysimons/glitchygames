@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from glitchygames.events.core import HashableEvent
+    from glitchygames.events.base import HashableEvent
 
 import pygame
 
@@ -294,7 +294,7 @@ class InputConfirmationDialogScene(Scene):
 
 
         """
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)
         elif event.key == pygame.K_TAB:
             self.dialog.input_box.activate()
@@ -310,7 +310,7 @@ class InputConfirmationDialogScene(Scene):
 
 
         """
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
         else:
             super().on_key_up_event(event)
@@ -573,7 +573,7 @@ class DeleteAnimationDialogScene(Scene):
     @override
     def on_key_down_event(self, event: HashableEvent) -> None:
         """Handle the key down event."""
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
         else:
             super().on_key_down_event(event)
@@ -581,7 +581,7 @@ class DeleteAnimationDialogScene(Scene):
     @override
     def on_key_up_event(self, event: HashableEvent) -> None:
         """Handle the key up event."""
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)
         elif event.key == pygame.K_TAB:
             self.dialog.input_box.activate()
@@ -713,7 +713,7 @@ class DeleteFrameDialogScene(Scene):
     @override
     def on_key_down_event(self, event: HashableEvent) -> None:
         """Handle the key down event."""
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
         else:
             super().on_key_down_event(event)
@@ -721,7 +721,7 @@ class DeleteFrameDialogScene(Scene):
     @override
     def on_key_up_event(self, event: HashableEvent) -> None:
         """Handle the key up event."""
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)
         elif event.key == pygame.K_TAB:
             self.dialog.input_box.activate()

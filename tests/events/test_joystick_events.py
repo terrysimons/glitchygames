@@ -1090,7 +1090,7 @@ class TestJoystickEvents:
         # Test that stub methods can be called
         event = HashableEvent(pygame.JOYAXISMOTION, axis=0, value=0.5)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             scene.on_joy_axis_motion_event(event)
         # Expected to call unhandled_event and raise UnhandledEventError

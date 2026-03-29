@@ -17,6 +17,7 @@ import pygame
 import pytest
 
 from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy import editor_setup as bitmappy_setup
 from glitchygames.bitmappy.ai_manager import AIManager
 from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
 from glitchygames.bitmappy.editor import BitmapEditorScene
@@ -77,7 +78,7 @@ def _setup_sliders(editor, mocker):
         slider = mocker.Mock()
         slider.value = value
         slider.text_sprite = mocker.Mock()
-        slider.text_sprite.active = False
+        slider.text_sprite.is_active = False
         slider.text_sprite.text = text
         slider.text_sprite.rect = pygame.Rect(*text_rect)
         setattr(editor, slider_name, slider)
@@ -336,25 +337,25 @@ class TestOnSliderEvent:
 
 
 class TestClearAiSpriteBox:
-    """Tests for _clear_ai_sprite_box."""
+    """Tests for clear_ai_sprite_box."""
 
     def test_clears_debug_text(self, mock_editor):
         """Clears the debug text box content."""
         mock_editor.debug_text.text = 'some content'
-        mock_editor._clear_ai_sprite_box()
+        mock_editor.clear_ai_sprite_box()
         assert not mock_editor.debug_text.text
 
     def test_no_debug_text_attribute(self, mock_editor):
         """Handles missing debug_text gracefully."""
         del mock_editor.debug_text
         # Should not raise
-        mock_editor._clear_ai_sprite_box()
+        mock_editor.clear_ai_sprite_box()
 
     def test_debug_text_is_none(self, mock_editor):
         """Handles None debug_text gracefully."""
         mock_editor.debug_text = None
         # Should not raise
-        mock_editor._clear_ai_sprite_box()
+        mock_editor.clear_ai_sprite_box()
 
 
 # ===========================================================================
@@ -1573,18 +1574,20 @@ class TestUpdateAiSpritePosition:
 
 
 class TestVoiceRecognition:
-    """Tests for _setup_voice_recognition."""
+    """Tests for EditorSetup.setup_voice_recognition."""
 
     def test_voice_manager_not_available(self, mock_editor, mocker):
         """Handles VoiceEventManager not being available."""
-        mocker.patch.object(bitmappy, 'VoiceEventManager', None)
-        mock_editor._setup_voice_recognition()
+        mocker.patch.object(bitmappy_setup, 'VoiceEventManager', None)
+        setup_delegate = bitmappy_setup.EditorSetup(editor=mock_editor)
+        setup_delegate.setup_voice_recognition()
         assert mock_editor.voice_manager is None
 
     def test_voice_exception_handling(self, mock_editor, mocker):
         """Handles exceptions during voice setup."""
-        mocker.patch.object(bitmappy, 'VoiceEventManager', side_effect=ImportError)
-        mock_editor._setup_voice_recognition()
+        mocker.patch.object(bitmappy_setup, 'VoiceEventManager', side_effect=ImportError)
+        setup_delegate = bitmappy_setup.EditorSetup(editor=mock_editor)
+        setup_delegate.setup_voice_recognition()
         assert mock_editor.voice_manager is None
 
 
@@ -1601,7 +1604,7 @@ class TestOnNewFileEvent:
         mocker.patch.object(mock_editor, '_reset_canvas_for_new_file')
         mocker.patch.object(mock_editor, '_create_fresh_animated_sprite')
         mocker.patch.object(mock_editor.film_strip_coordinator, 'clear_film_strips_for_new_canvas')
-        mocker.patch.object(mock_editor, '_clear_ai_sprite_box')
+        mocker.patch.object(mock_editor, 'clear_ai_sprite_box')
         mocker.patch.object(mock_editor, '_update_ai_sprite_position')
         mock_editor.on_new_file_event('16x16')
         mock_editor._reset_canvas_for_new_file.assert_called_once()
@@ -1618,7 +1621,7 @@ class TestOnNewFileEvent:
         mocker.patch.object(mock_editor, '_reset_canvas_for_new_file')
         mocker.patch.object(mock_editor, '_create_fresh_animated_sprite')
         mocker.patch.object(mock_editor.film_strip_coordinator, 'clear_film_strips_for_new_canvas')
-        mocker.patch.object(mock_editor, '_clear_ai_sprite_box')
+        mocker.patch.object(mock_editor, 'clear_ai_sprite_box')
         mocker.patch.object(mock_editor, '_update_ai_sprite_position')
         mock_editor.on_new_file_event('32x32')
         assert len(mock_editor._ai_integration.pending_ai_requests) == 0
@@ -2103,10 +2106,10 @@ class TestContinuousMovement:
         mock_editor.mode_switcher.get_controller_position.return_value = mocker.Mock(
             position=(5, 10),
         )
-        mocker.patch.object(mock_editor.controller_handler, '_canvas_move_cursor')
-        mock_editor.controller_handler.start_canvas_continuous_movement(0, 1, 0)
+        mocker.patch.object(mock_editor.controller_handler.canvas, '_canvas_move_cursor')
+        mock_editor.controller_handler.canvas.start_canvas_continuous_movement(0, 1, 0)
         assert 0 in mock_editor.controller_handler.canvas_continuous_movements
-        mock_editor.controller_handler._canvas_move_cursor.assert_called_once_with(0, 1, 0)
+        mock_editor.controller_handler.canvas._canvas_move_cursor.assert_called_once_with(0, 1, 0)
 
     def test_stop_canvas_continuous_movement(self, mock_editor, mocker):
         """Stops continuous canvas movement."""
@@ -2127,18 +2130,18 @@ class TestContinuousMovement:
             position=(6, 10),
         )
         mock_editor.mode_switcher.get_controller_mode.return_value = mocker.Mock(value='canvas')
-        mock_editor.controller_handler.stop_canvas_continuous_movement(0)
+        mock_editor.controller_handler.canvas.stop_canvas_continuous_movement(0)
         assert 0 not in mock_editor.controller_handler.canvas_continuous_movements
 
     def test_stop_nonexistent_movement(self, mock_editor):
         """Does nothing when stopping nonexistent movement."""
         mock_editor.controller_handler.canvas_continuous_movements = {}
-        mock_editor.controller_handler.stop_canvas_continuous_movement(0)
+        mock_editor.controller_handler.canvas.stop_canvas_continuous_movement(0)
 
     def test_update_canvas_no_movements(self, mock_editor):
         """Does nothing when no continuous movements exist."""
         mock_editor.controller_handler.canvas_continuous_movements = {}
-        mock_editor.controller_handler._update_canvas_continuous_movements()
+        mock_editor.controller_handler.canvas.update_canvas_continuous_movements()
 
 
 # ===========================================================================
@@ -2314,13 +2317,13 @@ class TestCalculateFilmStripDimensions:
 
 
 class TestFinalizeCanvasSetup:
-    """Tests for _finalize_canvas_setup (static method)."""
+    """Tests for EditorSetup._finalize_canvas_setup (static method)."""
 
     def test_starts_animation(self, mocker):
         """Starts animation and sets WIDTH/HEIGHT."""
         animated_sprite = mocker.Mock()
         options = {'size': '16x16'}
-        BitmapEditorScene._finalize_canvas_setup(animated_sprite, options)
+        bitmappy_setup.EditorSetup._finalize_canvas_setup(animated_sprite, options)
         animated_sprite.play.assert_called_once()
 
 

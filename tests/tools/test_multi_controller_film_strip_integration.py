@@ -421,7 +421,7 @@ class TestFilmStripDirtyMarking:
         self.film_strip.mark_dirty()
 
         # Should be flagged for redraw
-        assert self.film_strip._force_redraw is True
+        assert self.film_strip.force_redraw is True
 
     def test_film_strip_sprite_dirty_marking(self, mocker):
         """Test that film strip sprites are marked dirty."""

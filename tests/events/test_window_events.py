@@ -331,7 +331,7 @@ class TestWindowEvents:
         # Test method calls
         event = HashableEvent(pygame.WINDOWCLOSE)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_window_close_event(event)
 

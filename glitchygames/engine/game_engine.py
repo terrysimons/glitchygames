@@ -936,7 +936,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
             focused_sprites = [
                 sprite
                 for sprite in scene.all_sprites
-                if hasattr(sprite, 'active') and sprite.active
+                if hasattr(sprite, 'is_active') and sprite.is_active
             ]
 
             # If we have focused sprites, ALL key events go to the scene

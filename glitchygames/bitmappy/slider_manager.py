@@ -787,7 +787,7 @@ class SliderManager:
         """
         if not (
             hasattr(slider, 'text_sprite')
-            and slider.text_sprite.active
+            and slider.text_sprite.is_active
             and (clicked_slider != slider_name or clicked_slider is None)
         ):
             return
@@ -831,7 +831,7 @@ class SliderManager:
                 # Invalid input, restore original
                 slider.text_sprite.text = str(slider.original_value)
 
-        slider.text_sprite.active = False
+        slider.text_sprite.is_active = False
         slider.text_sprite.update_text(slider.text_sprite.text)
 
     def handle_slider_text_input(self, event: events.HashableEvent) -> bool | None:
@@ -848,7 +848,11 @@ class SliderManager:
         sliders = ['red_slider', 'green_slider', 'blue_slider', 'alpha_slider']
         for slider_name in sliders:
             slider = getattr(self.editor, slider_name, None)
-            if slider is not None and hasattr(slider, 'text_sprite') and slider.text_sprite.active:
+            if (
+                slider is not None
+                and hasattr(slider, 'text_sprite')
+                and slider.text_sprite.is_active
+            ):
                 slider.text_sprite.on_key_down_event(event)
                 # If escape was pressed, consume the event to prevent game quit
                 if event.key == pygame.K_ESCAPE:

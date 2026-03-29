@@ -17,14 +17,14 @@ class TestHandleFocusManagement:
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_focus_lost = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
         # Click on no focusable sprites (empty list)
         scene._handle_focus_management([])
 
-        assert focused_sprite.active is False
+        assert focused_sprite.is_active is False
         focused_sprite.on_focus_lost.assert_called_once()
 
     def test_does_not_unfocus_when_focusable_sprite_clicked(self, mock_pygame_patches, mocker):
@@ -32,7 +32,7 @@ class TestHandleFocusManagement:
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_focus_lost = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -42,7 +42,7 @@ class TestHandleFocusManagement:
         # Click on a focusable sprite
         scene._handle_focus_management([focusable_sprite])
 
-        assert focused_sprite.active is True
+        assert focused_sprite.is_active is True
         focused_sprite.on_focus_lost.assert_not_called()
 
     def test_handles_no_focused_sprites_gracefully(self, mock_pygame_patches, mocker):
@@ -57,11 +57,11 @@ class TestHandleFocusManagement:
         scene = Scene()
 
         first_focused = mocker.Mock()
-        first_focused.active = True
+        first_focused.is_active = True
         first_focused.on_focus_lost = mocker.Mock()
 
         second_focused = mocker.Mock()
-        second_focused.active = True
+        second_focused.is_active = True
         second_focused.on_focus_lost = mocker.Mock()
 
         scene.all_sprites.add(first_focused)
@@ -69,8 +69,8 @@ class TestHandleFocusManagement:
 
         scene._handle_focus_management([])
 
-        assert first_focused.active is False
-        assert second_focused.active is False
+        assert first_focused.is_active is False
+        assert second_focused.is_active is False
         first_focused.on_focus_lost.assert_called_once()
         second_focused.on_focus_lost.assert_called_once()
 
@@ -79,7 +79,7 @@ class TestHandleFocusManagement:
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_focus_lost = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -88,7 +88,7 @@ class TestHandleFocusManagement:
 
         scene._handle_focus_management([non_focusable_sprite])
 
-        assert focused_sprite.active is False
+        assert focused_sprite.is_active is False
 
 
 class TestHandleQuitKeyPress:
@@ -115,7 +115,7 @@ class TestOnKeyDownEvent:
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_key_down_event = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -157,7 +157,7 @@ class TestOnKeyDownEvent:
         mocker.patch.object(scene, '_handle_scene_key_events')
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_key_down_event = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -178,7 +178,7 @@ class TestHandleFocusedSpriteEvents:
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_key_down_event = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -204,7 +204,7 @@ class TestHandleFocusedSpriteEvents:
         scene = Scene()
 
         inactive_sprite = mocker.Mock()
-        inactive_sprite.active = False
+        inactive_sprite.is_active = False
         scene.all_sprites.add(inactive_sprite)
 
         event = mocker.Mock()
@@ -218,11 +218,11 @@ class TestHandleFocusedSpriteEvents:
         scene = Scene()
 
         first_focused = mocker.Mock()
-        first_focused.active = True
+        first_focused.is_active = True
         first_focused.on_key_down_event = mocker.Mock()
 
         second_focused = mocker.Mock()
-        second_focused.active = True
+        second_focused.is_active = True
         second_focused.on_key_down_event = mocker.Mock()
 
         scene.all_sprites.add(first_focused)
@@ -242,7 +242,7 @@ class TestHandleFocusedSpriteEvents:
         scene = Scene()
 
         sprite_without_handler = mocker.Mock(spec=['active'])
-        sprite_without_handler.active = True
+        sprite_without_handler.is_active = True
         scene.all_sprites.add(sprite_without_handler)
 
         event = mocker.Mock()

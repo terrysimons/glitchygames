@@ -211,8 +211,20 @@ fixable = ["ALL"]
 "scripts/**/*.py" = [
   "TC003", # Scripts use stdlib imports at runtime, not just for type checking
 ]
-"glitchygames/ui/widgets.py" = [
-  "PLR0913", # UI widget constructors inherently need geometry (x, y, w, h) + identity + container params
+"glitchygames/ui/menus.py" = [
+  "PLR0913", # Menu constructors need geometry + identity + container params
+]
+"glitchygames/ui/text_widgets.py" = [
+  "PLR0913", # Text widget constructors need geometry + font + style params
+]
+"glitchygames/ui/buttons.py" = [
+  "PLR0913", # Button constructors need geometry + identity + callback params
+]
+"glitchygames/ui/inputs.py" = [
+  "PLR0913", # Input/dialog constructors need geometry + callbacks + options params
+]
+"glitchygames/ui/sliders.py" = [
+  "PLR0913", # Slider/color constructors need geometry + range + parent params
 ]
 "glitchygames/ui/dialogs.py" = [
   "PLR0913", # Dialog constructors need scene, callbacks, options, and group params

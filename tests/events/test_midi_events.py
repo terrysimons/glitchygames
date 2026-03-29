@@ -153,7 +153,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test control change events (status 176 = 0xB0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for controller in range(1, 128):  # All MIDI controllers
             event = HashableEvent(
                 pygame.MIDIIN,
@@ -172,7 +172,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test program change events (status 192 = 0xC0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for program in range(128):  # All MIDI programs
             event = HashableEvent(pygame.MIDIIN, device_id=1, status=192, data1=program, data2=0)
             with pytest.raises(UnhandledEventError):
@@ -185,7 +185,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test pitch bend events (status 224 = 0xE0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for bend in range(0, 16384, 1024):  # Various pitch bend values
             event = HashableEvent(
                 pygame.MIDIIN,
@@ -204,7 +204,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test aftertouch events (status 208 = 0xD0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for pressure in range(128):  # All pressure values
             event = HashableEvent(pygame.MIDIIN, device_id=1, status=208, data1=pressure, data2=0)
             with pytest.raises(UnhandledEventError):
@@ -217,7 +217,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test polyphonic aftertouch events (status 160 = 0xA0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for note in range(60, 72):  # C4 to C5
             for pressure in range(0, 128, 16):  # Various pressure values
                 event = HashableEvent(
@@ -250,7 +250,7 @@ class TestMidiEvents:
             (255, 0, 0),  # System Reset
         ]
 
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for status, data1, data2 in system_events:
             event = HashableEvent(
                 pygame.MIDIIN,
@@ -269,7 +269,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test multiple MIDI devices
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for device_id in range(5):
             # Test MIDI input
             event = HashableEvent(
@@ -303,7 +303,7 @@ class TestMidiEvents:
         # Test different velocity values
         velocities = [0, 32, 64, 96, 127]  # Various velocity levels
 
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for velocity in velocities:
             # Test note on with different velocities
             event = HashableEvent(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=velocity)

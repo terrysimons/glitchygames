@@ -1282,6 +1282,7 @@ class MockFactory:  # noqa: PLR0904
         # BitmappySprite-specific attributes
         self.filename = kwargs.get('filename', '')
         self.focusable = kwargs.get('focusable', False)
+        self.is_active = False
 
         # Initialize pixel data attributes
         self.pixels = []

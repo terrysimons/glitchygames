@@ -356,7 +356,7 @@ class TestGameEngineHandleEvent:
 
         # Set up a scene with a focused sprite
         mock_sprite = mocker.Mock()
-        mock_sprite.active = True
+        mock_sprite.is_active = True
         engine.scene_manager.active_scene = mocker.Mock()
         engine.scene_manager.active_scene.all_sprites = [mock_sprite]
 
@@ -1103,7 +1103,7 @@ class TestHandleEventAdditionalPaths:
         """Test handle_event with sprites that are not focused."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         mock_sprite = mocker.Mock()
-        mock_sprite.active = False  # Not focused
+        mock_sprite.is_active = False  # Not focused
         engine.scene_manager.active_scene = mocker.Mock()
         engine.scene_manager.active_scene.all_sprites = [mock_sprite]
         engine.scene_manager.handle_event = mocker.Mock()

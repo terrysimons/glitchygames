@@ -91,7 +91,7 @@ class TestMouseEventsInterface:
         # Test method calls
         event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_motion_event(event)
         # Expected to call unhandled_event
@@ -165,7 +165,7 @@ class TestMouseEventsInterface:
         # Test mouse wheel
         event = HashableEvent(pygame.MOUSEWHEEL, x=0, y=1)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_wheel_event(event)
         # Exception was raised as expected
@@ -178,7 +178,7 @@ class TestMouseEventsInterface:
         # Test mouse drag
         event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_drag_event(event, trigger='test_trigger')
         # Exception was raised as expected
@@ -191,7 +191,7 @@ class TestMouseEventsInterface:
         # Test mouse drop
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=1, pos=(100, 100))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_mouse_drop_event(event, trigger='test_trigger')
         # Exception was raised as expected
@@ -204,7 +204,7 @@ class TestMouseEventsInterface:
         # Test left mouse drag
         event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_left_mouse_drag_event(event, trigger='test_trigger')
         # Exception was raised as expected
@@ -217,7 +217,7 @@ class TestMouseEventsInterface:
         # Test left mouse drop
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=1, pos=(100, 100))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_left_mouse_drop_event(event, trigger='test_trigger')
         # Exception was raised as expected
@@ -230,7 +230,7 @@ class TestMouseEventsInterface:
         # Test middle mouse drag
         event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_middle_mouse_drag_event(event, trigger='test_trigger')
         # Exception was raised as expected
@@ -243,7 +243,7 @@ class TestMouseEventsInterface:
         # Test middle mouse drop
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=2, pos=(100, 100))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_middle_mouse_drop_event(event, trigger='test_trigger')
         # Exception was raised as expected
@@ -256,7 +256,7 @@ class TestMouseEventsInterface:
         # Test right mouse drag
         event = HashableEvent(pygame.MOUSEMOTION, pos=(100, 100), rel=(10, 10))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_right_mouse_drag_event(event, trigger='test_trigger')
         # Exception was raised as expected
@@ -269,7 +269,7 @@ class TestMouseEventsInterface:
         # Test right mouse drop
         event = HashableEvent(pygame.MOUSEBUTTONUP, button=3, pos=(100, 100))
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_right_mouse_drop_event(event, trigger='test_trigger')
         # Exception was raised as expected

@@ -379,7 +379,7 @@ class TestControllerEvents:
         event = HashableEvent(pygame.CONTROLLERAXISMOTION, axis=0, value=0.5)
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_controller_axis_motion_event(event)
 
@@ -740,7 +740,7 @@ class TestControllerEventFlow:
 
         # This should cause UnhandledEventError due to unhandled_event
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             scene.on_controller_axis_motion_event(event)
 

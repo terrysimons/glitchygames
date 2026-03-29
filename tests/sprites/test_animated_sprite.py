@@ -21,19 +21,19 @@ from glitchygames.sprites import (
     BitmappySprite,
     SpriteFactory,
 )
-from glitchygames.sprites.animated import (
-    AnimatedSprite,
-    SpriteFrame,
-    _convert_pixels_to_rgb_if_possible,
-    _convert_pixels_to_rgba_if_needed,
-    _create_alpha_surface,
-    _create_indexed_surface,
-    _extract_pixel_colors,
-    _lookup_in_map,
-    _lookup_pixel_char,
-    _lookup_rgba_pixel_char,
-    _needs_alpha_channel,
-    _normalize_pixel_for_color_map,
+from glitchygames.sprites.animated import AnimatedSprite
+from glitchygames.sprites.frame import SpriteFrame
+from glitchygames.sprites.pixel_utils import (
+    convert_pixels_to_rgb_if_possible,
+    convert_pixels_to_rgba_if_needed,
+    create_alpha_surface,
+    create_indexed_surface,
+    extract_pixel_colors,
+    lookup_in_map,
+    lookup_pixel_char,
+    lookup_rgba_pixel_char,
+    needs_alpha_channel,
+    normalize_pixel_for_color_map,
 )
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -502,162 +502,162 @@ class TestSpriteStackValidation:
 
 
 class TestNeedsAlphaChannel:
-    """Test the _needs_alpha_channel helper function."""
+    """Test the needs_alpha_channel helper function."""
 
     def test_opaque_rgb_pixels(self):
         """Test RGB pixels without magenta don't need alpha."""
         pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        assert _needs_alpha_channel(pixels) is False
+        assert needs_alpha_channel(pixels) is False
 
     def test_magenta_rgb_pixels_need_alpha(self):
         """Test magenta RGB pixels need alpha channel."""
         pixels = [(255, 0, 0), (255, 0, 255)]
-        assert _needs_alpha_channel(pixels) is True
+        assert needs_alpha_channel(pixels) is True
 
     def test_opaque_rgba_pixels(self):
         """Test fully opaque RGBA pixels don't need alpha."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 255)]
-        assert _needs_alpha_channel(pixels) is False
+        assert needs_alpha_channel(pixels) is False
 
     def test_transparent_rgba_pixels_need_alpha(self):
         """Test RGBA pixels with transparency need alpha."""
         pixels = [(255, 0, 0, 128)]
-        assert _needs_alpha_channel(pixels) is True
+        assert needs_alpha_channel(pixels) is True
 
     def test_empty_pixels(self):
         """Test empty pixel list doesn't need alpha."""
-        assert _needs_alpha_channel([]) is False
+        assert needs_alpha_channel([]) is False
 
 
 class TestConvertPixelsToRgb:
-    """Test _convert_pixels_to_rgb_if_possible."""
+    """Test convert_pixels_to_rgb_if_possible."""
 
     def test_opaque_rgba_converts_to_rgb(self):
         """Test that fully opaque RGBA pixels get converted to RGB."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 255)]
-        result = _convert_pixels_to_rgb_if_possible(pixels)
+        result = convert_pixels_to_rgb_if_possible(pixels)
         assert result == [(255, 0, 0), (0, 255, 0)]
 
     def test_transparent_rgba_stays_rgba(self):
         """Test that transparent RGBA pixels stay as-is."""
         pixels = [(255, 0, 0, 128)]
-        result = _convert_pixels_to_rgb_if_possible(pixels)
+        result = convert_pixels_to_rgb_if_possible(pixels)
         assert result == [(255, 0, 0, 128)]
 
     def test_rgb_pixels_pass_through(self):
         """Test that RGB pixels pass through unchanged."""
         pixels = [(255, 0, 0), (0, 255, 0)]
-        result = _convert_pixels_to_rgb_if_possible(pixels)
+        result = convert_pixels_to_rgb_if_possible(pixels)
         assert result == [(255, 0, 0), (0, 255, 0)]
 
 
 class TestConvertPixelsToRgba:
-    """Test _convert_pixels_to_rgba_if_needed."""
+    """Test convert_pixels_to_rgba_if_needed."""
 
     def test_rgb_converts_to_rgba(self):
         """Test that RGB pixels get converted to RGBA with full opacity."""
         pixels = [(255, 0, 0), (0, 255, 0)]
-        result = _convert_pixels_to_rgba_if_needed(pixels)
+        result = convert_pixels_to_rgba_if_needed(pixels)
         assert result == [(255, 0, 0, 255), (0, 255, 0, 255)]
 
     def test_rgba_passes_through(self):
         """Test that RGBA pixels pass through unchanged."""
         pixels = [(255, 0, 0, 128)]
-        result = _convert_pixels_to_rgba_if_needed(pixels)
+        result = convert_pixels_to_rgba_if_needed(pixels)
         assert result == [(255, 0, 0, 128)]
 
     def test_magenta_converts_with_full_alpha(self):
         """Test that magenta RGB converts to RGBA with full opacity."""
         pixels = [(255, 0, 255)]
-        result = _convert_pixels_to_rgba_if_needed(pixels)
+        result = convert_pixels_to_rgba_if_needed(pixels)
         assert result == [(255, 0, 255, 255)]
 
 
 class TestNormalizePixelForColorMap:
-    """Test _normalize_pixel_for_color_map."""
+    """Test normalize_pixel_for_color_map."""
 
     def test_rgba_magenta_normalizes(self):
         """Test RGBA magenta always normalizes to (255,0,255,255)."""
-        result = _normalize_pixel_for_color_map((255, 0, 255, 128), needs_alpha=True)
+        result = normalize_pixel_for_color_map((255, 0, 255, 128), needs_alpha=True)
         assert result == (255, 0, 255, 255)
 
     def test_rgba_opaque_without_alpha_becomes_rgb(self):
         """Test opaque RGBA without alpha flag becomes RGB."""
-        result = _normalize_pixel_for_color_map((255, 0, 0, 255), needs_alpha=False)
+        result = normalize_pixel_for_color_map((255, 0, 0, 255), needs_alpha=False)
         assert result == (255, 0, 0)
 
     def test_rgba_transparent_without_alpha_becomes_magenta(self):
         """Test transparent RGBA without alpha flag becomes magenta."""
-        result = _normalize_pixel_for_color_map((255, 0, 0, 128), needs_alpha=False)
+        result = normalize_pixel_for_color_map((255, 0, 0, 128), needs_alpha=False)
         assert result == (255, 0, 255, 255)
 
     def test_rgba_with_alpha_keeps_full_tuple(self):
         """Test RGBA with alpha flag keeps full tuple."""
-        result = _normalize_pixel_for_color_map((255, 0, 0, 128), needs_alpha=True)
+        result = normalize_pixel_for_color_map((255, 0, 0, 128), needs_alpha=True)
         assert result == (255, 0, 0, 128)
 
     def test_rgb_magenta_normalizes_to_rgba(self):
         """Test RGB magenta normalizes to RGBA."""
-        result = _normalize_pixel_for_color_map((255, 0, 255), needs_alpha=False)
+        result = normalize_pixel_for_color_map((255, 0, 255), needs_alpha=False)
         assert result == (255, 0, 255, 255)
 
     def test_rgb_non_magenta_passes_through(self):
         """Test non-magenta RGB passes through."""
-        result = _normalize_pixel_for_color_map((255, 0, 0), needs_alpha=False)
+        result = normalize_pixel_for_color_map((255, 0, 0), needs_alpha=False)
         assert result == (255, 0, 0)
 
 
 class TestLookupInMap:
-    """Test _lookup_in_map."""
+    """Test lookup_in_map."""
 
     def test_found_key(self):
         """Test successful lookup returns character."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
-        assert _lookup_in_map((255, 0, 0), color_map) == '#'
+        assert lookup_in_map((255, 0, 0), color_map) == '#'
 
     def test_missing_key_raises(self):
         """Test missing key raises KeyError."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
         with pytest.raises(KeyError, match='not found in color map'):
-            _lookup_in_map((0, 0, 0), color_map)
+            lookup_in_map((0, 0, 0), color_map)
 
 
 class TestLookupPixelChar:
-    """Test _lookup_pixel_char."""
+    """Test lookup_pixel_char."""
 
     def test_rgb_pixel_non_magenta(self):
         """Test RGB pixel lookup in non-alpha map."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
-        result = _lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=False)
+        result = lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=False)
         assert result == '#'
 
     def test_rgb_magenta_pixel(self):
         """Test RGB magenta pixel lookup normalizes to RGBA."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 255, 255): '.'}
-        result = _lookup_pixel_char((255, 0, 255), color_map, map_uses_alpha=False)
+        result = lookup_pixel_char((255, 0, 255), color_map, map_uses_alpha=False)
         assert result == '.'
 
     def test_rgb_pixel_in_alpha_map_rgba_match(self):
         """Test RGB pixel lookup in alpha map with RGBA match."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0, 255): '#'}
-        result = _lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=True)
+        result = lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=True)
         assert result == '#'
 
     def test_rgb_pixel_in_alpha_map_rgb_match(self):
         """Test RGB pixel lookup in alpha map with RGB match."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
-        result = _lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=True)
+        result = lookup_pixel_char((255, 0, 0), color_map, map_uses_alpha=True)
         assert result == '#'
 
 
 class TestExtractPixelColors:
-    """Test _extract_pixel_colors."""
+    """Test extract_pixel_colors."""
 
     def test_extract_colors(self):
         """Test extracting colors from pixel lines."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0), '.': (255, 255, 255)}
         pixel_lines = ['#.', '.#']
-        result = _extract_pixel_colors(pixel_lines, width=2, height=2, color_map=color_map)
+        result = extract_pixel_colors(pixel_lines, width=2, height=2, color_map=color_map)
         assert len(result) == 4
         assert result[0] == (0, 0, 0)
         assert result[1] == (255, 255, 255)
@@ -666,7 +666,7 @@ class TestExtractPixelColors:
         """Test unknown characters default to magenta."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0)}
         pixel_lines = ['#?']
-        result = _extract_pixel_colors(pixel_lines, width=2, height=1, color_map=color_map)
+        result = extract_pixel_colors(pixel_lines, width=2, height=1, color_map=color_map)
         assert result[1] == (255, 0, 255)
 
 
@@ -1822,63 +1822,63 @@ pixels = \"\"\"
 
 
 class TestLookupRgbaPixelChar:
-    """Test _lookup_rgba_pixel_char edge cases."""
+    """Test lookup_rgba_pixel_char edge cases."""
 
     def test_rgba_opaque_rgb_key_match(self):
         """Test opaque RGBA pixel matched via RGB key in alpha map."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
-        result = _lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
+        result = lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
         assert result == '#'
 
     def test_rgba_opaque_rgba_key_match(self):
         """Test opaque RGBA pixel matched via RGBA key in alpha map."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0, 255): '#'}
-        result = _lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
+        result = lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
         assert result == '#'
 
     def test_rgba_opaque_not_found_raises(self):
         """Test opaque RGBA pixel not in map raises KeyError."""
         color_map: dict[tuple[int, ...], str] = {(0, 255, 0): '.'}
         with pytest.raises(KeyError, match='not found in color map'):
-            _lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
+            lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=True)
 
     def test_rgba_transparent_in_alpha_map(self):
         """Test transparent RGBA pixel lookup in alpha map."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0, 128): '#'}
-        result = _lookup_rgba_pixel_char((255, 0, 0, 128), color_map, map_uses_alpha=True)
+        result = lookup_rgba_pixel_char((255, 0, 0, 128), color_map, map_uses_alpha=True)
         assert result == '#'
 
     def test_rgba_non_alpha_map_opaque(self):
         """Test opaque RGBA pixel in non-alpha map collapses to RGB."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 0): '#'}
-        result = _lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=False)
+        result = lookup_rgba_pixel_char((255, 0, 0, 255), color_map, map_uses_alpha=False)
         assert result == '#'
 
     def test_rgba_non_alpha_map_transparent_becomes_magenta(self):
         """Test transparent RGBA pixel in non-alpha map maps to magenta."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 255, 255): '.'}
-        result = _lookup_rgba_pixel_char((255, 0, 0, 128), color_map, map_uses_alpha=False)
+        result = lookup_rgba_pixel_char((255, 0, 0, 128), color_map, map_uses_alpha=False)
         assert result == '.'
 
     def test_rgba_magenta_pixel_normalizes(self):
         """Test magenta RGBA pixel normalizes to (255, 0, 255, 255)."""
         color_map: dict[tuple[int, ...], str] = {(255, 0, 255, 255): '.'}
-        result = _lookup_rgba_pixel_char((255, 0, 255, 128), color_map, map_uses_alpha=True)
+        result = lookup_rgba_pixel_char((255, 0, 255, 128), color_map, map_uses_alpha=True)
         assert result == '.'
 
 
 class TestLookupPixelCharRgbRaiseInAlphaMap:
-    """Test _lookup_pixel_char when RGB pixel not found in alpha map."""
+    """Test lookup_pixel_char when RGB pixel not found in alpha map."""
 
     def test_rgb_not_found_in_alpha_map_raises(self):
         """Test that RGB pixel raises when neither RGBA nor RGB found in alpha map."""
         color_map: dict[tuple[int, ...], str] = {(0, 0, 0): '#'}
         with pytest.raises(KeyError, match='not found in color map'):
-            _lookup_pixel_char((128, 128, 128), color_map, map_uses_alpha=True)
+            lookup_pixel_char((128, 128, 128), color_map, map_uses_alpha=True)
 
 
 class TestCreateAlphaSurface:
-    """Test _create_alpha_surface function."""
+    """Test create_alpha_surface function."""
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
@@ -1889,7 +1889,7 @@ class TestCreateAlphaSurface:
         """Test creating an alpha surface with RGBA colors."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 255), '.': (255, 255, 255, 128)}
         pixel_lines = ['#.', '.#']
-        surface = _create_alpha_surface(2, 2, pixel_lines, color_map)
+        surface = create_alpha_surface(2, 2, pixel_lines, color_map)
         assert surface is not None
         assert surface.get_size() == (2, 2)
 
@@ -1897,19 +1897,19 @@ class TestCreateAlphaSurface:
         """Test that RGB colors in the map get alpha=255 added."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0)}
         pixel_lines = ['#']
-        surface = _create_alpha_surface(1, 1, pixel_lines, color_map)
+        surface = create_alpha_surface(1, 1, pixel_lines, color_map)
         assert surface is not None
 
     def test_magenta_rgba_stays_opaque(self):
         """Test that magenta RGBA (255,0,255,255) is preserved."""
         color_map: dict[str, tuple[int, ...]] = {'.': (255, 0, 255, 255)}
         pixel_lines = ['.']
-        surface = _create_alpha_surface(1, 1, pixel_lines, color_map)
+        surface = create_alpha_surface(1, 1, pixel_lines, color_map)
         assert surface is not None
 
 
 class TestCreateIndexedSurface:
-    """Test _create_indexed_surface function."""
+    """Test create_indexed_surface function."""
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
@@ -1920,7 +1920,7 @@ class TestCreateIndexedSurface:
         """Test creating an indexed surface with RGB colors."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0), '.': (255, 255, 255)}
         pixel_lines = ['#.', '.#']
-        surface = _create_indexed_surface(2, 2, pixel_lines, color_map)
+        surface = create_indexed_surface(2, 2, pixel_lines, color_map)
         assert surface is not None
         assert surface.get_size() == (2, 2)
 
@@ -1928,14 +1928,14 @@ class TestCreateIndexedSurface:
         """Test that opaque RGBA colors are converted to RGB on indexed surface."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 255)}
         pixel_lines = ['#']
-        surface = _create_indexed_surface(1, 1, pixel_lines, color_map)
+        surface = create_indexed_surface(1, 1, pixel_lines, color_map)
         assert surface is not None
 
     def test_rgba_transparent_becomes_magenta(self):
         """Test that transparent RGBA colors become magenta on indexed surface."""
         color_map: dict[str, tuple[int, ...]] = {'#': (0, 0, 0, 128)}
         pixel_lines = ['#']
-        surface = _create_indexed_surface(1, 1, pixel_lines, color_map)
+        surface = create_indexed_surface(1, 1, pixel_lines, color_map)
         assert surface is not None
 
 

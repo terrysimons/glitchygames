@@ -261,7 +261,7 @@ class TestFrameCopyPaste:
 
         # Ensure no early returns by mocking attributes that might cause them
         scene.debug_text = self._mocker.Mock()
-        scene.debug_text.active = False
+        scene.debug_text.is_active = False
 
         # Bind the intermediate methods from BitmapEditorScene so that
         # on_key_down_event can route through to _handle_ctrl_key_shortcuts.
@@ -313,7 +313,7 @@ class TestFrameCopyPaste:
 
         # Ensure no early returns by mocking attributes that might cause them
         scene.debug_text = self._mocker.Mock()
-        scene.debug_text.active = False
+        scene.debug_text.is_active = False
 
         # Bind the intermediate methods from BitmapEditorScene so that
         # on_key_down_event can route through to _handle_ctrl_key_shortcuts.

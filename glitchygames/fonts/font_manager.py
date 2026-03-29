@@ -22,7 +22,7 @@ from typing import (
 if TYPE_CHECKING:
     import argparse
 
-    from glitchygames.events.core import HashableEvent
+    from glitchygames.events.base import HashableEvent
 
 import pygame
 import pygame.freetype

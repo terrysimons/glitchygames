@@ -166,7 +166,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     def test_add_new_animation_creates_strip(self, mocker):
         """Test that adding new animation creates a new film strip incrementally."""
-        mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         # Arrange
         options = {}
         scene = BitmapEditorScene(options)
@@ -190,7 +190,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     def test_add_new_animation_with_insert_after_index(self, mocker):
         """Test adding new animation at specific index."""
-        mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         # Arrange
         options = {}
         scene = BitmapEditorScene(options)
@@ -215,7 +215,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     def test_delete_animation_removes_strip(self, mocker):
         """Test that deleting animation removes the film strip."""
-        mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         # Arrange
         options = {}
         scene = BitmapEditorScene(options)
@@ -237,7 +237,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     def test_delete_animation_prevents_last_strip_deletion(self, mocker):
         """Test that deleting the last remaining strip is prevented."""
-        mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         # Arrange
         options = {}
         scene = BitmapEditorScene(options)
@@ -257,7 +257,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     def test_delete_animation_scroll_offset_calculation(self, mocker):
         """Test that deleting animation sets correct scroll offset."""
-        mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         # Arrange
         options = {}
         scene = BitmapEditorScene(options)
@@ -277,7 +277,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     def test_delete_animation_scroll_offset_last_strip(self, mocker):
         """Test that deleting last strip shows previous 2 strips."""
-        mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         # Arrange
         options = {}
         scene = BitmapEditorScene(options)
@@ -297,7 +297,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     def test_delete_animation_scroll_offset_many_strips(self, mocker):
         """Test that deleting strip with many strips shows appropriate offset."""
-        mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         # Arrange
         options = {}
         scene = BitmapEditorScene(options)
@@ -332,7 +332,7 @@ class TestBitmapEditorFilmStripIntegration:
 
     def test_delete_animation_switches_to_first_remaining(self, mocker):
         """Test that deleting animation switches to first remaining animation."""
-        mocker.patch('glitchygames.bitmappy.editor.BitmapEditorScene._setup_canvas')
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         # Arrange
         options = {}
         scene = BitmapEditorScene(options)
