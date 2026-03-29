@@ -11,7 +11,7 @@ version: 2.1
 parameters:
   PYTHON_LATEST_VERSION:
     type: string
-    default: "3.13.12"
+    default: "3.14.3"
   XCODE_LATEST_VERSION:
     type: string
     default: "26.3.0"
