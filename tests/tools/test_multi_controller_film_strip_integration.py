@@ -9,8 +9,8 @@ import operator
 import pygame
 import pytest
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.film_strip import FilmStripWidget
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.bitmappy.film_strip import FilmStripWidget
 
 
 class TestFilmStripColorBasedSorting:
@@ -227,7 +227,7 @@ class TestFilmStripIndicatorDrawing:
             {
                 'color': (255, 0, 0),  # Red
                 'priority': 0,
-            }
+            },
         ]
 
         # Calculate positioning
@@ -421,7 +421,7 @@ class TestFilmStripDirtyMarking:
         self.film_strip.mark_dirty()
 
         # Should be flagged for redraw
-        assert self.film_strip._force_redraw is True
+        assert self.film_strip.force_redraw is True
 
     def test_film_strip_sprite_dirty_marking(self, mocker):
         """Test that film strip sprites are marked dirty."""
@@ -461,7 +461,10 @@ class TestFilmStripLayoutCalculation:
         for frame_data in frames:
             frame_key = (frame_data['animation'], frame_data['frame'])
             frame_rect = pygame.Rect(
-                x, 0, self.film_strip.frame_width, self.film_strip.frame_height
+                x,
+                0,
+                self.film_strip.frame_width,
+                self.film_strip.frame_height,
             )
             frame_layouts[frame_key] = frame_rect
             x += self.film_strip.frame_width + self.film_strip.frame_spacing

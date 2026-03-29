@@ -162,7 +162,7 @@ def extract_apng_frames(
         'apng_base64': apng_base64,
     }
 
-    LOG.debug(f'Sending extract request to {url}')
+    LOG.debug('Sending extract request to %s', url)
 
     with httpx.Client(timeout=60.0) as client:
         response = client.post(url, json=payload)
@@ -170,10 +170,11 @@ def extract_apng_frames(
         return response.json()
 
 
-def generate_sprite(
+def generate_sprite(  # noqa: PLR0913
     server_url: str,
     prompt: str,
     output_formats: list[str],
+    *,
     output_path: str | None = None,
     width: int | None = None,
     height: int | None = None,
@@ -227,7 +228,7 @@ def generate_sprite(
     if model:
         payload['model'] = model
 
-    LOG.debug(f'Sending request to {url}')
+    LOG.debug('Sending request to %s', url)
     LOG.debug(f'Payload: {json.dumps(payload, indent=2)}')
 
     with httpx.Client(timeout=300.0) as client:
@@ -274,7 +275,7 @@ def display_sprite_ascii(toml_content: str) -> None:
         print()  # noqa: T201  # Empty line after output
 
     except (ValueError, KeyError, TypeError, AttributeError) as e:
-        LOG.warning(f'Could not render ASCII preview: {e}')
+        LOG.warning('Could not render ASCII preview: %s', e)
 
 
 def create_apng_from_frames(
@@ -371,9 +372,10 @@ def find_available_directory(base_dir: Path) -> Path:
     return parent / f'{name}-{timestamp}'
 
 
-def _save_extracted_frames(
+def _save_extracted_frames(  # noqa: PLR0913
     frame_entries: list[tuple[str, str, str, str]],
     extracted_dir: Path,
+    *,
     frame_count: int,
     frame_delay_ms: int,
     extract_scale: int,
@@ -426,10 +428,11 @@ def _save_extracted_frames(
     return saved_paths
 
 
-def save_files_locally(
+def save_files_locally(  # noqa: PLR0913
     response: dict[str, Any],
     output_path: str,
     output_formats: list[str],
+    *,
     animation_duration: float | None = None,
     extract_scale: int = 8,
     model_used: str | None = None,
@@ -466,14 +469,14 @@ def save_files_locally(
     # Create a directory for this sprite
     sprite_dir = find_available_directory(base_output_dir / safe_name)
     sprite_dir.mkdir(parents=True, exist_ok=True)
-    LOG.info(f'Created sprite directory: {sprite_dir}')
+    LOG.info('Created sprite directory: %s', sprite_dir)
 
     # Save TOML if requested and available
     if 'toml' in output_formats and response.get('toml_content'):
         toml_path = sprite_dir / f'{safe_name}.toml'
         toml_path.write_text(response['toml_content'], encoding='utf-8')
         saved_files.append(str(toml_path))
-        LOG.info(f'Saved TOML: {toml_path}')
+        LOG.info('Saved TOML: %s', toml_path)
 
     # Save APNG and extracted frames if animation frames are available
     if response.get('all_frames_png_base64'):
@@ -492,7 +495,7 @@ def save_files_locally(
         apng_path = sprite_dir / f'{safe_name}.apng'
         apng_path.write_bytes(create_apng_from_frames(frames, frame_delay_ms=frame_delay_ms))
         saved_files.append(str(apng_path))
-        LOG.info(f'Saved APNG: {apng_path} ({frame_count} frames, {frame_delay_ms}ms/frame)')
+        LOG.info('Saved APNG: %s (%s frames, %sms/frame)', apng_path, frame_count, frame_delay_ms)
 
         # Extract and save individual frames with metadata
         extracted_dir = sprite_dir / 'extracted'
@@ -527,10 +530,10 @@ def save_files_locally(
                 frame_delay_ms=frame_delay_ms,
                 extract_scale=extract_scale,
                 model_used=model_used,
-            )
+            ),
         )
 
-        LOG.info(f'Saved {frame_count} frames to: {extracted_dir} (scale: {extract_scale}x)')
+        LOG.info('Saved %s frames to: %s (scale: %sx)', frame_count, extracted_dir, extract_scale)
 
     # Save single PNG if requested, available, and no animation frames
     elif 'png' in output_formats and response.get('png_base64'):
@@ -538,7 +541,7 @@ def save_files_locally(
         png_bytes = base64.b64decode(response['png_base64'])
         png_path.write_bytes(png_bytes)
         saved_files.append(str(png_path))
-        LOG.info(f'Saved PNG: {png_path}')
+        LOG.info('Saved PNG: %s', png_path)
 
     return saved_files
 
@@ -580,9 +583,48 @@ def _save_apng_extracted_frames(response: dict[str, Any], output_path: str, apng
         frame_bytes = base64.b64decode(frame_info['png_base64'])
         frame_path.write_bytes(frame_bytes)
         saved_files.append(str(frame_path))
-        LOG.debug(f'Saved frame: {frame_path}')
+        LOG.debug('Saved frame: %s', frame_path)
 
     LOG.info(f'Saved {len(saved_files)} frames to {output_dir}')
+
+
+def _process_extraction_response(
+    response: dict[str, Any],
+    parsed_args: argparse.Namespace,
+    apng_path: str,
+) -> int:
+    """Process a successful APNG extraction response.
+
+    Args:
+        response: The extraction API response
+        parsed_args: Parsed command line arguments
+        apng_path: Path to the original APNG file
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+
+    """
+    if not response.get('success'):
+        LOG.error(f'Extraction failed: {response.get("error", "Unknown error")}')
+        return 1
+
+    _log_extraction_metadata(response)
+
+    if parsed_args.output_path:
+        _save_apng_extracted_frames(response, parsed_args.output_path, apng_path)
+
+    # Output JSON to stdout if verbose or no output path
+    if parsed_args.verbose or not parsed_args.output_path:
+        import json
+
+        # Remove base64 data from output for readability unless verbose
+        output_data = response.copy()
+        if not parsed_args.verbose:
+            for frame in output_data.get('frames', []):
+                frame['png_base64'] = f'<{len(frame.get("png_base64", ""))} chars>'
+        print(json.dumps(output_data, indent=2))  # noqa: T201
+
+    return 0
 
 
 def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
@@ -598,36 +640,13 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
     apng_path = parsed_args.extract_frames
 
     try:
-        LOG.info(f'Extracting frames from: {apng_path}')
+        LOG.info('Extracting frames from: %s', apng_path)
         response = extract_apng_frames(
             server_url=parsed_args.server_url,
             apng_path=apng_path,
         )
-
-        if not response.get('success'):
-            LOG.error(f'Extraction failed: {response.get("error", "Unknown error")}')
-            return 1
-
-        _log_extraction_metadata(response)
-
-        if parsed_args.output_path:
-            _save_apng_extracted_frames(response, parsed_args.output_path, apng_path)
-
-        # Output JSON to stdout if verbose or no output path
-        if parsed_args.verbose or not parsed_args.output_path:
-            import json
-
-            # Remove base64 data from output for readability unless verbose
-            output_data = response.copy()
-            if not parsed_args.verbose:
-                for frame in output_data.get('frames', []):
-                    frame['png_base64'] = f'<{len(frame.get("png_base64", ""))} chars>'
-            print(json.dumps(output_data, indent=2))  # noqa: T201
-
-        return 0
-
     except FileNotFoundError:
-        LOG.error(f'APNG file not found: {apng_path}')  # noqa: TRY400
+        LOG.error('APNG file not found: %s', apng_path)  # noqa: TRY400
         return 1
     except httpx.ConnectError:
         LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # noqa: TRY400
@@ -637,12 +656,32 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
         LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # noqa: TRY400
         return 1
     except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error(f'Error: {e}')  # noqa: TRY400
+        LOG.error('Error: %s', e)  # noqa: TRY400
         if parsed_args.verbose:
             import traceback
 
             traceback.print_exc()
         return 1
+    else:
+        return _process_extraction_response(response, parsed_args, apng_path)
+
+
+def _log_generation_results(response: dict[str, Any]) -> None:
+    """Log metadata about a successfully generated sprite.
+
+    Args:
+        response: The generation API response
+
+    """
+    LOG.info(f'Generated sprite: {response.get("sprite_name")}')
+    if response.get('is_animated'):
+        LOG.info(f'  Animated: {response.get("frame_count")} frames')
+    if response.get('width') and response.get('height'):
+        LOG.info(f'  Size: {response.get("width")}x{response.get("height")} pixels')
+
+    # Display colorized ASCII preview of the sprite
+    if response.get('toml_content'):
+        display_sprite_ascii(response['toml_content'])
 
 
 def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: list[str]) -> int:
@@ -677,16 +716,7 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         LOG.error(f'Generation failed: {response.get("error", "Unknown error")}')
         return 1
 
-    # Display results
-    LOG.info(f'Generated sprite: {response.get("sprite_name")}')
-    if response.get('is_animated'):
-        LOG.info(f'  Animated: {response.get("frame_count")} frames')
-    if response.get('width') and response.get('height'):
-        LOG.info(f'  Size: {response.get("width")}x{response.get("height")} pixels')
-
-    # Display colorized ASCII preview of the sprite
-    if response.get('toml_content'):
-        display_sprite_ascii(response['toml_content'])
+    _log_generation_results(response)
 
     # Save files locally if output_path specified
     if parsed_args.output_path:
@@ -701,7 +731,7 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         if saved_files:
             LOG.info('Saved files:')
             for filepath in saved_files:
-                LOG.info(f'  {filepath}')
+                LOG.info('  %s', filepath)
 
     # Output TOML to stdout if no output path specified
     if not parsed_args.output_path and 'toml' in output_formats and response.get('toml_content'):
@@ -754,7 +784,7 @@ def main(args: list[str] | None = None) -> int:
         LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # noqa: TRY400
         return 1
     except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error(f'Error: {e}')  # noqa: TRY400
+        LOG.error('Error: %s', e)  # noqa: TRY400
         if parsed_args.verbose:
             import traceback
 

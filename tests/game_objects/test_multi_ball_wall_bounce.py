@@ -83,7 +83,10 @@ def _run_wall_bounce_simulation(balls, max_frames, dt, screen_width=800, screen_
         if frame_count % 300 == 0:
             alive_count = sum(1 for ball in balls if ball.alive())
             LOG.debug(
-                f'  Frame {frame_count}: {alive_count} balls alive, {total_bounces} total bounces'
+                '  Frame %s: %s balls alive, %s total bounces',
+                frame_count,
+                alive_count,
+                total_bounces,
             )
 
     return {
@@ -145,7 +148,7 @@ def _analyze_wall_bounce_results(balls, results):
     LOG.debug('\n=== FINAL RESULTS ===')
     LOG.debug(f'Total time: {total_time:.2f} seconds')
     LOG.debug(f'Frames processed: {results["frame_count"]:,}')
-    LOG.debug(f'Balls still alive: {final_alive}')
+    LOG.debug('Balls still alive: %s', final_alive)
     LOG.debug(f'Total wall bounces: {results["total_bounces"]}')
     LOG.debug(f'X wall bounces: {results["x_bounces"]}')
     LOG.debug(f'Y wall bounces: {results["y_bounces"]}')
@@ -176,14 +179,14 @@ def test_multi_ball_wall_bounce():
     num_balls = 5
     balls = _create_wall_bouncing_balls(num_balls)
 
-    LOG.debug(f'Created {num_balls} balls with wall bouncing enabled')
+    LOG.debug('Created %s balls with wall bouncing enabled', num_balls)
     LOG.debug('Initial ball states:')
     for ball_index, ball in enumerate(balls):
         magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         LOG.debug(
             f'  Ball {ball_index + 1}: pos=({ball.rect.x},{ball.rect.y})'
             f' speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
-            f' mag={magnitude:.1f}'
+            f' mag={magnitude:.1f}',
         )
 
     dt = 1.0 / 60.0  # 60 FPS
@@ -199,11 +202,11 @@ def test_multi_ball_wall_bounce():
     if final_alive == num_balls:
         LOG.info('  All balls survived with wall bouncing enabled')
     else:
-        LOG.debug(f'  Only {final_alive}/{num_balls} balls survived')
+        LOG.debug('  Only %s/%s balls survived', final_alive, num_balls)
 
     total_bounces = int(results['total_bounces'])
     if total_bounces > 0:
-        LOG.info(f'  Wall bouncing is working ({total_bounces} total bounces)')
+        LOG.info('  Wall bouncing is working (%s total bounces)', total_bounces)
     else:
         LOG.debug('  No wall bounces detected - bouncing may be disabled')
 

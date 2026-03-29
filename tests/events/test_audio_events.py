@@ -84,7 +84,7 @@ class TestAudioEvents:
         # Test method calls
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_audio_device_added_event(event)
         # Expected to call unhandled_event
@@ -97,8 +97,8 @@ class TestAudioEvents:
             event_handlers={
                 'on_audio_device_added_event': lambda event: (
                     scene.audio_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -117,8 +117,8 @@ class TestAudioEvents:
             event_handlers={
                 'on_audio_device_removed_event': lambda event: (
                     scene.audio_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -141,7 +141,7 @@ class TestAudioEvents:
                 'on_audio_device_removed_event': lambda event: (
                     scene.audio_events_received.append(('removed', event)) or True
                 ),
-            }
+            },
         )
 
         # Test multiple device IDs
@@ -170,7 +170,7 @@ class TestAudioEvents:
                 'on_audio_device_removed_event': lambda event: (
                     scene.audio_events_received.append(('removed', event)) or True
                 ),
-            }
+            },
         )
 
         # Test device added with iscapture=True (input device)
@@ -208,7 +208,7 @@ class TestAudioEvents:
             options={
                 'debug_events': False,
                 'no_unhandled_events': True,  # This will cause UnhandledEventError to be raised
-            }
+            },
         )
         # Set the options on the stub so unhandled_event can access them
         stub.options = scene_mock.options
@@ -226,8 +226,8 @@ class TestAudioEventFlow:
                 'on_audio_device_added_event': lambda event: (
                     scene.audio_events_received.append(event),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Create a HashableEvent with proper attributes
@@ -255,7 +255,7 @@ class TestAudioEventFlow:
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
 
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_audio_device_added_event(event)
 
@@ -304,7 +304,7 @@ class TestAudioEventFlow:
             options={
                 'debug_events': False,
                 'no_unhandled_events': True,  # This will cause UnhandledEventError to be raised
-            }
+            },
         )
         # Set the options on the stub so unhandled_event can access them
         stub.options = scene_mock.options

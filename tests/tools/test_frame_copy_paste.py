@@ -15,10 +15,10 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.history.undo_redo import OperationType
 from glitchygames.sprites.animated import SpriteFrame
-from glitchygames.tools.bitmappy import BitmapEditorScene
-from glitchygames.tools.undo_redo_manager import OperationType
-from tests.mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 
 
 class TestFrameCopyPaste:
@@ -64,23 +64,16 @@ class TestFrameCopyPaste:
         # Use the existing centralized mocks
         scene = MockFactory.create_optimized_scene_mock()
 
-        # Add the copy/paste methods we're testing
-
-        scene._handle_copy_frame = BitmapEditorScene._handle_copy_frame.__get__(
-            scene, BitmapEditorScene
-        )
-        scene._handle_paste_frame = BitmapEditorScene._handle_paste_frame.__get__(
-            scene, BitmapEditorScene
-        )
-        scene._apply_frame_paste_for_undo_redo = (
-            BitmapEditorScene._apply_frame_paste_for_undo_redo.__get__(scene, BitmapEditorScene)
-        )
+        # Add the key down handler for testing keyboard shortcuts
         scene.on_key_down_event = BitmapEditorScene.on_key_down_event.__get__(
-            scene, BitmapEditorScene
+            scene,
+            BitmapEditorScene,
         )
 
-        # Initialize clipboard
-        scene._frame_clipboard = None
+        # Initialize frame operations manager (extracted subsystem)
+        from glitchygames.bitmappy.frame_operations import FrameOperationManager
+
+        scene._frame_operations = FrameOperationManager(scene)
 
         return scene
 
@@ -91,7 +84,11 @@ class TestFrameCopyPaste:
 
         # Create mock animated sprite with frame data
         mock_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='test_anim', frame_size=(8, 8), pixel_color=(255, 0, 0)
+            config=MockSpriteConfig(
+                animation_name='test_anim',
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),
+            ),
         )
 
         # Set up scene state
@@ -110,16 +107,16 @@ class TestFrameCopyPaste:
         scene.canvas.animated_sprite._animations = {'test_anim': [mock_frame]}
 
         # Test copy operation
-        scene._handle_copy_frame()
+        scene._frame_operations.handle_copy_frame()
 
         # Verify clipboard was set
-        assert scene._frame_clipboard is not None
-        assert scene._frame_clipboard['pixels'] == [(255, 0, 0)] * 64
-        assert scene._frame_clipboard['width'] == 8
-        assert scene._frame_clipboard['height'] == 8
-        assert math.isclose(scene._frame_clipboard['duration'], 0.5)
-        assert scene._frame_clipboard['animation'] == 'test_anim'
-        assert scene._frame_clipboard['frame'] == 0
+        assert scene._frame_operations._frame_clipboard is not None
+        assert scene._frame_operations._frame_clipboard['pixels'] == [(255, 0, 0)] * 64
+        assert scene._frame_operations._frame_clipboard['width'] == 8
+        assert scene._frame_operations._frame_clipboard['height'] == 8
+        assert math.isclose(scene._frame_operations._frame_clipboard['duration'], 0.5)
+        assert scene._frame_operations._frame_clipboard['animation'] == 'test_anim'
+        assert scene._frame_operations._frame_clipboard['frame'] == 0
 
     def test_copy_frame_no_canvas(self):
         """Test copy frame when no canvas is available."""
@@ -127,10 +124,10 @@ class TestFrameCopyPaste:
         scene.canvas = None
 
         # Should not raise exception, just log warning
-        scene._handle_copy_frame()
+        scene._frame_operations.handle_copy_frame()
 
         # Clipboard should remain None
-        assert scene._frame_clipboard is None
+        assert scene._frame_operations._frame_clipboard is None
 
     def test_copy_frame_no_selection(self):
         """Test copy frame when no frame is selected."""
@@ -141,10 +138,10 @@ class TestFrameCopyPaste:
         # No selected_animation or selected_frame set
 
         # Should not raise exception, just log warning
-        scene._handle_copy_frame()
+        scene._frame_operations.handle_copy_frame()
 
         # Clipboard should remain None
-        assert scene._frame_clipboard is None
+        assert scene._frame_operations._frame_clipboard is None
 
     def test_paste_frame_basic_functionality(self):
         """Test basic frame pasting functionality."""
@@ -153,7 +150,11 @@ class TestFrameCopyPaste:
 
         # Create mock animated sprite
         mock_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='test_anim', frame_size=(8, 8), pixel_color=(0, 255, 0)
+            config=MockSpriteConfig(
+                animation_name='test_anim',
+                frame_size=(8, 8),
+                pixel_color=(0, 255, 0),
+            ),
         )
 
         # Set up scene state
@@ -173,7 +174,7 @@ class TestFrameCopyPaste:
         scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
 
         # Set up clipboard with frame data
-        scene._frame_clipboard = {
+        scene._frame_operations._frame_clipboard = {
             'pixels': [(255, 0, 0)] * 64,
             'width': 8,
             'height': 8,
@@ -184,18 +185,17 @@ class TestFrameCopyPaste:
 
         # Mock undo/redo manager
         scene.undo_redo_manager = self._mocker.Mock()
-        scene.undo_redo_manager.create_operation = self._mocker.Mock()
-        scene.undo_redo_manager.add_operation = self._mocker.Mock()
+        scene.undo_redo_manager.push_command = self._mocker.Mock()
 
         # Test paste operation
-        scene._handle_paste_frame()
+        scene._frame_operations.handle_paste_frame()
 
         # Verify frame data was applied
         target_frame.set_pixel_data.assert_called_once_with([(255, 0, 0)] * 64)
         assert math.isclose(target_frame.duration, 1.0)
 
-        # Verify undo/redo operation was added
-        scene.undo_redo_manager.add_operation.assert_called_once()
+        # Verify undo/redo command was pushed
+        scene.undo_redo_manager.push_command.assert_called_once()
 
     def test_paste_frame_dimension_mismatch(self):
         """Test paste frame with dimension mismatch."""
@@ -214,7 +214,7 @@ class TestFrameCopyPaste:
         scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
 
         # Set up clipboard with different dimensions
-        scene._frame_clipboard = {
+        scene._frame_operations._frame_clipboard = {
             'pixels': [(255, 0, 0)] * 64,  # 8x8
             'width': 8,
             'height': 8,
@@ -224,7 +224,7 @@ class TestFrameCopyPaste:
         }
 
         # Test paste operation - should fail due to dimension mismatch
-        scene._handle_paste_frame()
+        scene._frame_operations.handle_paste_frame()
 
         # Frame should not be modified
         target_frame.set_pixel_data.assert_not_called()
@@ -236,10 +236,10 @@ class TestFrameCopyPaste:
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.selected_animation = 'test_anim'
         scene.selected_frame = 0
-        scene._frame_clipboard = None
+        scene._frame_operations._frame_clipboard = None
 
         # Should not raise exception, just log warning
-        scene._handle_paste_frame()
+        scene._frame_operations.handle_paste_frame()
 
     def test_keyboard_shortcuts_copy(self):
         """Test Ctrl+C keyboard shortcut for copying."""
@@ -261,37 +261,31 @@ class TestFrameCopyPaste:
 
         # Ensure no early returns by mocking attributes that might cause them
         scene.debug_text = self._mocker.Mock()
-        scene.debug_text.active = False
+        scene.debug_text.is_active = False
 
         # Bind the intermediate methods from BitmapEditorScene so that
         # on_key_down_event can route through to _handle_ctrl_key_shortcuts.
         # Without these, the mock object's auto-generated methods return truthy
         # Mock objects instead of False, causing early returns.
-        scene._handle_slider_text_input = BitmapEditorScene._handle_slider_text_input.__get__(
-            scene, BitmapEditorScene
+        scene._slider_manager = self._mocker.Mock()
+        scene._slider_manager.handle_slider_text_input = self._mocker.Mock(return_value=False)
+        scene._slider_manager.is_any_controller_in_slider_mode = self._mocker.Mock(
+            return_value=False,
         )
         scene._handle_film_strip_text_input = (
             BitmapEditorScene._handle_film_strip_text_input.__get__(scene, BitmapEditorScene)
         )
+        scene._handle_key_down_actions = BitmapEditorScene._handle_key_down_actions.__get__(
+            scene,
+            BitmapEditorScene,
+        )
         scene._handle_ctrl_key_shortcuts = BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(
-            scene, BitmapEditorScene
+            scene,
+            BitmapEditorScene,
         )
 
-        scene.red_slider = self._mocker.Mock()
-        scene.red_slider.text_sprite = self._mocker.Mock()
-        scene.red_slider.text_sprite.active = False
-        scene.green_slider = self._mocker.Mock()
-        scene.green_slider.text_sprite = self._mocker.Mock()
-        scene.green_slider.text_sprite.active = False
-        scene.blue_slider = self._mocker.Mock()
-        scene.blue_slider.text_sprite = self._mocker.Mock()
-        scene.blue_slider.text_sprite.active = False
-        scene.alpha_slider = self._mocker.Mock()
-        scene.alpha_slider.text_sprite = self._mocker.Mock()
-        scene.alpha_slider.text_sprite.active = False
-
-        # Mock the copy method that the real on_key_down_event calls
-        scene._handle_copy_frame = self._mocker.Mock()
+        # Mock the copy method on the frame operations manager
+        scene._frame_operations.handle_copy_frame = self._mocker.Mock()
 
         # Create Ctrl+C event
         event = self._mocker.Mock()
@@ -305,7 +299,7 @@ class TestFrameCopyPaste:
         scene.on_key_down_event(event)
 
         # Verify copy was called
-        scene._handle_copy_frame.assert_called_once()
+        scene._frame_operations.handle_copy_frame.assert_called_once()
 
     def test_keyboard_shortcuts_paste(self):
         """Test Ctrl+V keyboard shortcut for pasting."""
@@ -319,37 +313,31 @@ class TestFrameCopyPaste:
 
         # Ensure no early returns by mocking attributes that might cause them
         scene.debug_text = self._mocker.Mock()
-        scene.debug_text.active = False
+        scene.debug_text.is_active = False
 
         # Bind the intermediate methods from BitmapEditorScene so that
         # on_key_down_event can route through to _handle_ctrl_key_shortcuts.
         # Without these, the mock object's auto-generated methods return truthy
         # Mock objects instead of False, causing early returns.
-        scene._handle_slider_text_input = BitmapEditorScene._handle_slider_text_input.__get__(
-            scene, BitmapEditorScene
+        scene._slider_manager = self._mocker.Mock()
+        scene._slider_manager.handle_slider_text_input = self._mocker.Mock(return_value=False)
+        scene._slider_manager.is_any_controller_in_slider_mode = self._mocker.Mock(
+            return_value=False,
         )
         scene._handle_film_strip_text_input = (
             BitmapEditorScene._handle_film_strip_text_input.__get__(scene, BitmapEditorScene)
         )
+        scene._handle_key_down_actions = BitmapEditorScene._handle_key_down_actions.__get__(
+            scene,
+            BitmapEditorScene,
+        )
         scene._handle_ctrl_key_shortcuts = BitmapEditorScene._handle_ctrl_key_shortcuts.__get__(
-            scene, BitmapEditorScene
+            scene,
+            BitmapEditorScene,
         )
 
-        scene.red_slider = self._mocker.Mock()
-        scene.red_slider.text_sprite = self._mocker.Mock()
-        scene.red_slider.text_sprite.active = False
-        scene.green_slider = self._mocker.Mock()
-        scene.green_slider.text_sprite = self._mocker.Mock()
-        scene.green_slider.text_sprite.active = False
-        scene.blue_slider = self._mocker.Mock()
-        scene.blue_slider.text_sprite = self._mocker.Mock()
-        scene.blue_slider.text_sprite.active = False
-        scene.alpha_slider = self._mocker.Mock()
-        scene.alpha_slider.text_sprite = self._mocker.Mock()
-        scene.alpha_slider.text_sprite.active = False
-
-        # Mock the paste method that the real on_key_down_event calls
-        scene._handle_paste_frame = self._mocker.Mock()
+        # Mock the paste method on the frame operations manager
+        scene._frame_operations.handle_paste_frame = self._mocker.Mock()
 
         # Create Ctrl+V event
         event = self._mocker.Mock()
@@ -363,7 +351,7 @@ class TestFrameCopyPaste:
         scene.on_key_down_event(event)
 
         # Verify paste was called
-        scene._handle_paste_frame.assert_called_once()
+        scene._frame_operations.handle_paste_frame.assert_called_once()
 
     def test_undo_redo_integration(self):
         """Test that copy/paste operations are properly integrated with undo/redo."""
@@ -385,7 +373,7 @@ class TestFrameCopyPaste:
         scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
 
         # Set up clipboard
-        scene._frame_clipboard = {
+        scene._frame_operations._frame_clipboard = {
             'pixels': [(255, 0, 0)] * 64,
             'width': 8,
             'height': 8,
@@ -395,18 +383,20 @@ class TestFrameCopyPaste:
         }
 
         # Mock undo/redo manager
-        scene.undo_redo_manager.add_operation = self._mocker.Mock()
+        scene.undo_redo_manager.push_command = self._mocker.Mock()
 
         # Test paste operation
-        scene._handle_paste_frame()
+        scene._frame_operations.handle_paste_frame()
 
-        # Verify operation was added with correct type
-        scene.undo_redo_manager.add_operation.assert_called_once()
-        call_args = scene.undo_redo_manager.add_operation.call_args
-        assert call_args[1]['operation_type'] == OperationType.FRAME_PASTE
+        # Verify command was pushed with correct type
+        scene.undo_redo_manager.push_command.assert_called_once()
+        pushed_command = scene.undo_redo_manager.push_command.call_args[0][0]
+        assert pushed_command.operation_type == OperationType.FRAME_PASTE
 
-    def test_apply_frame_paste_for_undo_redo(self):
-        """Test the frame paste application method for undo/redo."""
+    def test_frame_paste_command_execute(self):
+        """Test that FramePasteCommand.execute() applies frame data correctly."""
+        from glitchygames.bitmappy.history.commands import FramePasteCommand
+
         scene = self.create_mock_scene()
 
         # Set up scene state
@@ -421,16 +411,27 @@ class TestFrameCopyPaste:
 
         scene.canvas.animated_sprite._animations = {'test_anim': [target_frame]}
 
-        # Test applying frame paste
-        result = scene._apply_frame_paste_for_undo_redo('test_anim', 0, [(255, 0, 0)] * 64, 1.0)
+        # Create and execute a FramePasteCommand
+        command = FramePasteCommand(
+            editor=scene,
+            animation='test_anim',
+            frame=0,
+            old_pixels=[(0, 255, 0)] * 64,
+            old_duration=0.5,
+            new_pixels=[(255, 0, 0)] * 64,
+            new_duration=1.0,
+        )
+        result = command.execute()
 
         # Verify success
         assert result is True
         target_frame.set_pixel_data.assert_called_once_with([(255, 0, 0)] * 64)
         assert math.isclose(target_frame.duration, 1.0)
 
-    def test_apply_frame_paste_invalid_animation(self):
-        """Test frame paste application with invalid animation."""
+    def test_frame_paste_command_invalid_animation(self):
+        """Test FramePasteCommand with invalid animation."""
+        from glitchygames.bitmappy.history.commands import FramePasteCommand
+
         scene = self.create_mock_scene()
 
         # Set up scene state
@@ -438,27 +439,45 @@ class TestFrameCopyPaste:
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {}
 
-        # Test applying frame paste to non-existent animation
-        result = scene._apply_frame_paste_for_undo_redo(
-            'nonexistent_anim', 0, [(255, 0, 0)] * 64, 1.0
+        # Test executing a paste command to non-existent animation
+        command = FramePasteCommand(
+            editor=scene,
+            animation='nonexistent_anim',
+            frame=0,
+            old_pixels=[(0, 255, 0)] * 64,
+            old_duration=0.5,
+            new_pixels=[(255, 0, 0)] * 64,
+            new_duration=1.0,
         )
+        result = command.execute()
 
         # Verify failure
         assert result is False
 
-    def test_apply_frame_paste_invalid_frame(self):
-        """Test frame paste application with invalid frame index."""
+    def test_frame_paste_command_invalid_frame(self):
+        """Test FramePasteCommand with invalid frame index."""
+        from glitchygames.bitmappy.history.commands import FramePasteCommand
+
         scene = self.create_mock_scene()
 
         # Set up scene state
         scene.canvas = self._mocker.Mock()
         scene.canvas.animated_sprite = self._mocker.Mock()
         scene.canvas.animated_sprite._animations = {
-            'test_anim': []  # Empty frames list
+            'test_anim': [],  # Empty frames list
         }
 
-        # Test applying frame paste to non-existent frame
-        result = scene._apply_frame_paste_for_undo_redo('test_anim', 0, [(255, 0, 0)] * 64, 1.0)
+        # Test executing a paste command to non-existent frame
+        command = FramePasteCommand(
+            editor=scene,
+            animation='test_anim',
+            frame=0,
+            old_pixels=[(0, 255, 0)] * 64,
+            old_duration=0.5,
+            new_pixels=[(255, 0, 0)] * 64,
+            new_duration=1.0,
+        )
+        result = command.execute()
 
         # Verify failure
         assert result is False
@@ -468,7 +487,7 @@ class TestFrameCopyPaste:
         scene = self.create_mock_scene()
 
         # Set up initial clipboard
-        scene._frame_clipboard = {
+        scene._frame_operations._frame_clipboard = {
             'pixels': [(255, 0, 0)] * 64,
             'width': 8,
             'height': 8,
@@ -478,11 +497,11 @@ class TestFrameCopyPaste:
         }
 
         # Verify clipboard persists
-        assert scene._frame_clipboard is not None
-        assert scene._frame_clipboard['pixels'] == [(255, 0, 0)] * 64
+        assert scene._frame_operations._frame_clipboard is not None
+        assert scene._frame_operations._frame_clipboard['pixels'] == [(255, 0, 0)] * 64
 
         # Test that clipboard can be overwritten
-        scene._frame_clipboard = {
+        scene._frame_operations._frame_clipboard = {
             'pixels': [(0, 255, 0)] * 64,
             'width': 8,
             'height': 8,
@@ -491,5 +510,5 @@ class TestFrameCopyPaste:
             'frame': 2,
         }
 
-        assert scene._frame_clipboard['pixels'] == [(0, 255, 0)] * 64
-        assert math.isclose(scene._frame_clipboard['duration'], 0.5)
+        assert scene._frame_operations._frame_clipboard['pixels'] == [(0, 255, 0)] * 64
+        assert math.isclose(scene._frame_operations._frame_clipboard['duration'], 0.5)

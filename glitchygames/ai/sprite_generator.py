@@ -180,7 +180,7 @@ def format_training_example(example: dict[str, Any], *, include_raw: bool = True
         return description + '# (Format unavailable)'
 
     except (KeyError, ValueError, TypeError, AttributeError) as e:
-        LOG.warning(f'Error formatting training example: {e}')
+        LOG.warning('Error formatting training example: %s', e)
         return f'# Example: {example.get("name", "unknown")} (formatting error)'
 
 
@@ -428,7 +428,34 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
 
     content_lower = content.lower().strip()
 
-    # Check for error/apology messages
+    # Run all validation checks in sequence, returning the first failure
+    error = _check_error_message(content_lower)
+    if not error:
+        error = _check_markdown_blocks(content, content_lower)
+    if not error:
+        _, error = _check_truncated_pixel_data(content)
+    if not error:
+        error = _check_required_sections(content_lower)
+    if not error:
+        _, error = _check_mixed_format(content)
+    if not error and re.search(r'(red|green|blue)\s*=\s*\d+\s*,', content):
+        error = 'Color values contain commas (should be separate fields)'
+
+    if error:
+        return False, error
+    return True, ''
+
+
+def _check_error_message(content_lower: str) -> str:
+    """Check if content looks like an error message instead of TOML.
+
+    Args:
+        content_lower: Lowercased AI response content
+
+    Returns:
+        Error message string, or empty string if valid
+
+    """
     error_indicators = [
         'i apologize',
         "i'm sorry",
@@ -439,41 +466,47 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
         'failed to',
     ]
 
-    # Check if content looks like an error message (not TOML)
     has_error_phrase = any(phrase in content_lower for phrase in error_indicators)
     has_toml_structure = any(
         marker in content_lower for marker in ['[sprite]', '[colors', '[[animation]]']
     )
 
     if has_error_phrase and not has_toml_structure:
-        return False, 'AI returned error message instead of sprite'
+        return 'AI returned error message instead of sprite'
+    return ''
 
-    # Check for markdown code blocks (should be cleaned)
+
+def _check_markdown_blocks(content: str, content_lower: str) -> str:
+    """Check for markdown code blocks that should have been cleaned.
+
+    Args:
+        content: AI response content
+        content_lower: Lowercased AI response content
+
+    Returns:
+        Error message string, or empty string if valid
+
+    """
     if content.startswith('```') or '```toml' in content_lower:
-        return False, 'Response contains markdown code blocks (should be cleaned first)'
+        return 'Response contains markdown code blocks (should be cleaned first)'
+    return ''
 
-    # Check for truncated responses FIRST (before checking missing sections)
-    is_valid, error_message = _check_truncated_pixel_data(content)
-    if not is_valid:
-        return False, error_message
 
-    # Check for basic TOML structure
+def _check_required_sections(content_lower: str) -> str:
+    """Check for required TOML sections.
+
+    Args:
+        content_lower: Lowercased AI response content
+
+    Returns:
+        Error message string, or empty string if valid
+
+    """
     if '[sprite]' not in content_lower:
-        return False, 'Missing [sprite] section'
-
+        return 'Missing [sprite] section'
     if '[colors' not in content_lower:
-        return False, 'Missing [colors] section'
-
-    # Check for common format mistakes
-    is_valid, error_message = _check_mixed_format(content)
-    if not is_valid:
-        return False, error_message
-
-    # Check for comma-separated color values (common mistake)
-    if re.search(r'(red|green|blue)\s*=\s*\d+\s*,', content):
-        return False, 'Color values contain commas (should be separate fields)'
-
-    return True, ''
+        return 'Missing [colors] section'
+    return ''
 
 
 def clean_ai_response(content: str | None) -> str | None:

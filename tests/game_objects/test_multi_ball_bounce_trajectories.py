@@ -83,7 +83,10 @@ def _run_simulation(balls, max_frames, dt, screen_width=800, screen_height=600):
         if frame_count % 300 == 0:
             alive_count = sum(1 for ball in balls if ball.alive())
             LOG.debug(
-                f'  Frame {frame_count}: {alive_count} balls alive, {total_bounces} total bounces'
+                '  Frame %s: %s balls alive, %s total bounces',
+                frame_count,
+                alive_count,
+                total_bounces,
             )
 
     return {
@@ -148,11 +151,11 @@ def _analyze_ball_interactions(balls):
             if distance < 50:
                 interactions += 1
                 LOG.debug(
-                    f'  Balls {ball_i + 1} and {ball_j + 1} are close: distance={distance:.1f}'
+                    f'  Balls {ball_i + 1} and {ball_j + 1} are close: distance={distance:.1f}',
                 )
 
     if interactions > 0:
-        LOG.debug(f'  Found {interactions} ball interactions')
+        LOG.debug('  Found %s ball interactions', interactions)
     else:
         LOG.debug('  No ball interactions detected')
 
@@ -170,7 +173,7 @@ def _analyze_results(balls, results):
     LOG.debug('\n=== FINAL RESULTS ===')
     LOG.debug(f'Total time: {total_time:.2f} seconds')
     LOG.debug(f'Frames processed: {results["frame_count"]:,}')
-    LOG.debug(f'Balls still alive: {final_alive}')
+    LOG.debug('Balls still alive: %s', final_alive)
     LOG.debug(f'Total bounces: {results["total_bounces"]}')
     LOG.debug(f'X bounces: {results["x_bounces"]}')
     LOG.debug(f'Y bounces: {results["y_bounces"]}')
@@ -203,14 +206,14 @@ def test_multi_ball_bounce_trajectories():
     num_balls = 5
     balls = _create_bouncing_balls(num_balls)
 
-    LOG.debug(f'Created {num_balls} balls with bouncing enabled')
+    LOG.debug('Created %s balls with bouncing enabled', num_balls)
     LOG.debug('Initial ball states:')
     for ball_index, ball in enumerate(balls):
         magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         LOG.debug(
             f'  Ball {ball_index + 1}: pos=({ball.rect.x},{ball.rect.y})'
             f' speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
-            f' mag={magnitude:.1f}'
+            f' mag={magnitude:.1f}',
         )
 
     dt = 1.0 / 60.0  # 60 FPS
@@ -226,11 +229,11 @@ def test_multi_ball_bounce_trajectories():
     if final_alive == num_balls:
         LOG.info('  All balls survived with bouncing enabled')
     else:
-        LOG.info(f'  Only {final_alive}/{num_balls} balls survived')
+        LOG.info('  Only %s/%s balls survived', final_alive, num_balls)
 
     total_bounces = int(results['total_bounces'])
     if total_bounces > 0:
-        LOG.info(f'  Bouncing is working ({total_bounces} total bounces)')
+        LOG.info('  Bouncing is working (%s total bounces)', total_bounces)
     else:
         LOG.debug('  No bounces detected - bouncing may be disabled')
 

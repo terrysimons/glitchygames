@@ -35,3 +35,10 @@ repos:
       entry: nox -s security-scan
       pass_filenames: false
       stages: [pre-push]
+
+    - id: code-complexity
+      name: code-complexity (wily diff)
+      language: system
+      entry: nox -s code-complexity
+      pass_filenames: false
+      stages: [pre-push]

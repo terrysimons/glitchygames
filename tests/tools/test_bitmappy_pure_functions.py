@@ -6,30 +6,38 @@ from typing import cast
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.ai_worker import (
+    _extract_example_size,
+    select_relevant_training_examples,
+)
+from glitchygames.bitmappy.alpha import (
+    _convert_animation_colors_to_rgba,
+    _convert_colors_to_rgba,
+    _detect_alpha_channel,
+    _detect_alpha_channel_in_animation,
+    convert_sprite_to_alpha_format,
+)
+from glitchygames.bitmappy.pixel_ops import (
     _build_ascii_grid,
     _build_color_to_glyph_map,
     _build_renderer_color_dict,
-    _convert_animation_colors_to_rgba,
-    _convert_colors_to_rgba,
-    _convert_sprite_to_alpha_format,
-    _detect_alpha_channel,
-    _detect_alpha_channel_in_animation,
-    _extract_example_size,
+    render_frame_to_ascii,
+)
+from glitchygames.bitmappy.sprite_inspection import (
+    _log_colorized_sprite_output,
+    _render_animated_sprite_ascii,
+    _render_static_sprite_ascii,
+)
+from glitchygames.bitmappy.toml_processing import (
     _fix_color_entry,
     _fix_color_format_in_toml_data,
     _fix_comma_separated_color_field,
-    _log_colorized_sprite_output,
     _normalize_animation_pixels,
     _normalize_escaped_newlines,
-    _normalize_toml_data,
     _parse_toml_permissively,
     _parse_toml_value,
     _parse_toml_with_regex,
-    _render_animated_sprite_ascii,
-    _render_frame_to_ascii,
-    _render_static_sprite_ascii,
-    _select_relevant_training_examples,
+    normalize_toml_data,
     parse_toml_robustly,
 )
 
@@ -196,7 +204,7 @@ class TestDetectAlphaChannelInAnimation:
 
 
 class TestConvertSpritToAlphaFormat:
-    """Test _convert_sprite_to_alpha_format function."""
+    """Test convert_sprite_to_alpha_format function."""
 
     def test_no_conversion_when_has_alpha_is_false(self):
         """Test that data is returned unchanged when has_alpha is False."""
@@ -204,7 +212,7 @@ class TestConvertSpritToAlphaFormat:
             'has_alpha': False,
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['colors'] == sprite_data['colors']
 
     def test_no_conversion_when_has_alpha_missing(self):
@@ -212,7 +220,7 @@ class TestConvertSpritToAlphaFormat:
         sprite_data = {
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['colors'] == sprite_data['colors']
 
     def test_converts_colors_when_has_alpha_true(self):
@@ -221,7 +229,7 @@ class TestConvertSpritToAlphaFormat:
             'has_alpha': True,
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['colors']['#']['alpha'] == 255
 
     def test_converts_animations_when_has_alpha_true(self):
@@ -234,7 +242,7 @@ class TestConvertSpritToAlphaFormat:
                 },
             },
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['animations']['walk']['colors']['#']['alpha'] == 255
 
     def test_original_data_is_not_mutated(self):
@@ -243,7 +251,7 @@ class TestConvertSpritToAlphaFormat:
             'has_alpha': True,
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
-        _convert_sprite_to_alpha_format(sprite_data)
+        convert_sprite_to_alpha_format(sprite_data)
         colors = sprite_data['colors']
         assert isinstance(colors, dict)
         assert 'alpha' not in colors['#']
@@ -392,7 +400,8 @@ class TestBuildAsciiGrid:
     def test_simple_2x2_grid(self):
         """Test building a 2x2 ASCII grid."""
         pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+            'list[tuple[int, ...]]',
+            [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
         )
         color_map = cast(
             'dict[tuple[int, ...], str]',
@@ -486,7 +495,7 @@ class TestBuildRendererColorDict:
 
 
 class TestRenderFrameToAscii:
-    """Test _render_frame_to_ascii function."""
+    """Test render_frame_to_ascii function."""
 
     def test_renders_simple_frame(self, mocker):
         """Test rendering a simple frame to ASCII."""
@@ -497,7 +506,7 @@ class TestRenderFrameToAscii:
         renderer = mocker.Mock()
         renderer.colorize_pixels.return_value = 'colorized output'
 
-        result = _render_frame_to_ascii(frame, renderer)
+        result = render_frame_to_ascii(frame, renderer)
         assert result == 'colorized output'
 
     def test_returns_empty_string_for_empty_pixels(self, mocker):
@@ -506,7 +515,7 @@ class TestRenderFrameToAscii:
         frame.get_pixel_data.return_value = []
 
         renderer = mocker.Mock()
-        result = _render_frame_to_ascii(frame, renderer)
+        result = render_frame_to_ascii(frame, renderer)
         assert not result
 
     def test_falls_back_to_ascii_on_colorize_error(self, mocker):
@@ -518,7 +527,7 @@ class TestRenderFrameToAscii:
         renderer = mocker.Mock()
         renderer.colorize_pixels.side_effect = AttributeError('no _colorize_pixels')
 
-        result = _render_frame_to_ascii(frame, renderer)
+        result = render_frame_to_ascii(frame, renderer)
         # Should get the plain ASCII grid as fallback
         assert result
 
@@ -528,7 +537,7 @@ class TestRenderFrameToAscii:
         frame.get_pixel_data.side_effect = AttributeError('broken frame')
 
         renderer = mocker.Mock()
-        result = _render_frame_to_ascii(frame, renderer)
+        result = render_frame_to_ascii(frame, renderer)
         assert not result
 
     def test_returns_empty_on_none_pixels(self, mocker):
@@ -537,7 +546,7 @@ class TestRenderFrameToAscii:
         frame.get_pixel_data.return_value = None
 
         renderer = mocker.Mock()
-        result = _render_frame_to_ascii(frame, renderer)
+        result = render_frame_to_ascii(frame, renderer)
         assert not result
 
 
@@ -928,7 +937,7 @@ class TestNormalizeAnimationPixels:
 
 
 class TestNormalizeTomlData:
-    """Test _normalize_toml_data function."""
+    """Test normalize_toml_data function."""
 
     def test_normalizes_sprite_pixels(self):
         r"""Test that sprite pixel strings are normalized."""
@@ -937,7 +946,7 @@ class TestNormalizeTomlData:
                 'pixels': '##\\n##',
             },
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['pixels'] == '##\n##'
 
     def test_normalizes_animation_pixels(self):
@@ -951,13 +960,13 @@ class TestNormalizeTomlData:
                 },
             ],
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['animation'][0]['frame'][0]['pixels'] == '..\n..'
 
     def test_data_without_sprite_or_animation(self):
         """Test that data without sprite or animation keys is returned unchanged."""
         config_data = {'metadata': 'value'}
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result == {'metadata': 'value'}
 
     def test_non_string_sprite_pixels_unchanged(self):
@@ -967,7 +976,7 @@ class TestNormalizeTomlData:
                 'pixels': 42,
             },
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['pixels'] == 42
 
     def test_returns_original_on_error(self):
@@ -975,7 +984,7 @@ class TestNormalizeTomlData:
         # Passing something that would cause an error in .copy()
         # Actually dict.copy() is shallow, so we test with a normal case
         config_data = {'sprite': {'name': 'test'}}
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['name'] == 'test'
 
 
@@ -1039,7 +1048,7 @@ class TestRenderAnimatedSpriteAscii:
 
         # Mock the _render_frames_side_by_side function
         mocker.patch(
-            'glitchygames.tools.bitmappy._render_frames_side_by_side',
+            'glitchygames.bitmappy.sprite_inspection.render_frames_side_by_side',
             return_value='ascii output',
         )
 
@@ -1053,7 +1062,7 @@ class TestRenderAnimatedSpriteAscii:
         renderer = mocker.Mock()
 
         mocker.patch(
-            'glitchygames.tools.bitmappy._render_frames_side_by_side',
+            'glitchygames.bitmappy.sprite_inspection.render_frames_side_by_side',
             return_value='output',
         )
 
@@ -1073,12 +1082,21 @@ class TestLogColorizedSpriteOutput:
 
     def test_animated_static_sprite(self, mocker):
         """Test logging output for an AnimatedSprite that is static (single-frame)."""
-        mocker.patch('glitchygames.tools.bitmappy._sprite_has_per_pixel_alpha', return_value=False)
-        mocker.patch('glitchygames.tools.bitmappy._render_static_sprite_ascii')
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_color_count', return_value=2)
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_alpha_type', return_value='indexed')
         mocker.patch(
-            'glitchygames.tools.bitmappy._calculate_animation_duration',
+            'glitchygames.bitmappy.sprite_inspection._sprite_has_per_pixel_alpha',
+            return_value=False,
+        )
+        mocker.patch('glitchygames.bitmappy.sprite_inspection._render_static_sprite_ascii')
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count',
+            return_value=2,
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type',
+            return_value='indexed',
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._calculate_animation_duration',
             return_value=(0.0, False),
         )
 
@@ -1102,12 +1120,21 @@ class TestLogColorizedSpriteOutput:
 
     def test_animated_multi_frame_sprite(self, mocker):
         """Test logging output for a multi-frame AnimatedSprite."""
-        mocker.patch('glitchygames.tools.bitmappy._sprite_has_per_pixel_alpha', return_value=True)
-        mocker.patch('glitchygames.tools.bitmappy._render_animated_sprite_ascii')
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_color_count', return_value=5)
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_alpha_type', return_value='per-pixel')
         mocker.patch(
-            'glitchygames.tools.bitmappy._calculate_animation_duration',
+            'glitchygames.bitmappy.sprite_inspection._sprite_has_per_pixel_alpha',
+            return_value=True,
+        )
+        mocker.patch('glitchygames.bitmappy.sprite_inspection._render_animated_sprite_ascii')
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count',
+            return_value=5,
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type',
+            return_value='per-pixel',
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._calculate_animation_duration',
             return_value=(2.0, True),
         )
 
@@ -1130,10 +1157,16 @@ class TestLogColorizedSpriteOutput:
 
     def test_non_animated_sprite(self, mocker):
         """Test logging output for a non-AnimatedSprite."""
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_color_count', return_value=3)
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_alpha_type', return_value='indexed')
         mocker.patch(
-            'glitchygames.tools.bitmappy._calculate_animation_duration',
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count',
+            return_value=3,
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type',
+            return_value='indexed',
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._calculate_animation_duration',
             return_value=(0.0, False),
         )
 
@@ -1152,10 +1185,16 @@ class TestLogColorizedSpriteOutput:
 
     def test_non_animated_sprite_without_pixels(self, mocker):
         """Test logging for non-AnimatedSprite without pixels attribute."""
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_color_count', return_value=0)
-        mocker.patch('glitchygames.tools.bitmappy._get_sprite_alpha_type', return_value='indexed')
         mocker.patch(
-            'glitchygames.tools.bitmappy._calculate_animation_duration',
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_color_count',
+            return_value=0,
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._get_sprite_alpha_type',
+            return_value='indexed',
+        )
+        mocker.patch(
+            'glitchygames.bitmappy.sprite_inspection._calculate_animation_duration',
             return_value=(0.0, False),
         )
 
@@ -1243,15 +1282,15 @@ class TestExtractExampleSize:
 
 
 class TestSelectRelevantTrainingExamples:
-    """Test _select_relevant_training_examples function."""
+    """Test select_relevant_training_examples function."""
 
     def test_returns_empty_for_non_list_data(self, mocker):
         """Test that non-list training data returns empty list."""
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.ai_worker.ai_training_state',
             {'data': 'not a list'},
         )
-        result = _select_relevant_training_examples('create a sprite')
+        result = select_relevant_training_examples('create a sprite')
         assert result == []
 
     def test_returns_all_when_fewer_than_max(self, mocker):
@@ -1261,10 +1300,10 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'mushroom', 'sprite_type': 'animated', 'has_alpha': True},
         ]
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.ai_worker.ai_training_state',
             {'data': examples},
         )
-        result = _select_relevant_training_examples('create a sprite', max_examples=10)
+        result = select_relevant_training_examples('create a sprite', max_examples=10)
         assert len(result) == 2
 
     def test_selects_top_scored_when_more_than_max(self, mocker):
@@ -1276,14 +1315,14 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'cat', 'sprite_type': 'static', 'has_alpha': False},
         ]
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.ai_worker.ai_training_state',
             {'data': examples},
         )
         mocker.patch(
-            'glitchygames.tools.bitmappy.get_sprite_size_hint',
+            'glitchygames.bitmappy.ai_worker.get_sprite_size_hint',
             return_value=None,
         )
-        result = _select_relevant_training_examples('create a slime', max_examples=2)
+        result = select_relevant_training_examples('create a slime', max_examples=2)
         assert len(result) == 2
 
     def test_alpha_keywords_set_wants_alpha(self, mocker):
@@ -1294,21 +1333,21 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'glass', 'sprite_type': 'static', 'has_alpha': True},
         ]
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.ai_worker.ai_training_state',
             {'data': examples},
         )
         mocker.patch(
-            'glitchygames.tools.bitmappy.get_sprite_size_hint',
+            'glitchygames.bitmappy.ai_worker.get_sprite_size_hint',
             return_value=None,
         )
-        result = _select_relevant_training_examples('create a transparent ghost', max_examples=2)
+        result = select_relevant_training_examples('create a transparent ghost', max_examples=2)
         assert len(result) == 2
 
     def test_returns_empty_for_none_data(self, mocker):
         """Test that None training data returns empty list."""
         mocker.patch.dict(
-            'glitchygames.tools.bitmappy.ai_training_state',
+            'glitchygames.bitmappy.ai_worker.ai_training_state',
             {'data': None},
         )
-        result = _select_relevant_training_examples('create a sprite')
+        result = select_relevant_training_examples('create a sprite')
         assert result == []

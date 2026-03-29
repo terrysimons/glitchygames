@@ -65,7 +65,7 @@ class VoiceEventManager(ResourceManager):
 
         """
         super().__init__(game=self)
-        self.log = logger or logging.getLogger(__name__)  # type: ignore[misc]  # instance override of ClassVar is intentional
+        self.log = logger or logging.getLogger(__name__)  # type: ignore[misc] # ty: ignore[invalid-attribute-access]  # instance override of ClassVar is intentional
         self.is_listening = False
         self.listen_thread = None
         self.commands: dict[str, Callable[[], None]] = {}
@@ -116,14 +116,14 @@ class VoiceEventManager(ResourceManager):
                             exit_cm(None, None, None)
                     except OSError, RuntimeError:
                         LOG.debug('Voice backend cleanup raised error during probe', exc_info=True)
-            self.log.info(f'Voice backend selected: {backend_name}')
+            self.log.info('Voice backend selected: %s', backend_name)
             return mic_cls()
         except OSError, RuntimeError:
-            self.log.exception(f'Voice backend probe failed for {backend_name}')
+            self.log.exception('Voice backend probe failed for %s', backend_name)
             return None
         except Exception:
             # Catch-all to prevent unexpected backend errors from crashing initialization
-            self.log.exception(f'Unexpected error while probing voice backend {backend_name}')
+            self.log.exception('Unexpected error while probing voice backend %s', backend_name)
             return None
 
     def _setup_microphone(self) -> None:
@@ -152,7 +152,7 @@ class VoiceEventManager(ResourceManager):
 
         """
         self.commands[phrase.lower()] = callback
-        self.log.info(f"Registered voice command: '{phrase}'")
+        self.log.info("Registered voice command: '%s'", phrase)
 
     def start_listening(self) -> None:
         """Start listening for voice commands in a separate thread."""
@@ -215,7 +215,7 @@ class VoiceEventManager(ResourceManager):
                     # Recognize speech
                     try:
                         text = self.recognizer.recognize_google(audio).lower()
-                        self.log.info(f"Recognized speech: '{text}'")
+                        self.log.info("Recognized speech: '%s'", text)
                         self._process_command(text)
                     except sr.UnknownValueError:  # type: ignore[union-attr]
                         # Speech was unintelligible, continue listening
@@ -241,26 +241,28 @@ class VoiceEventManager(ResourceManager):
         """
         # Check for exact matches first
         if text in self.commands:
-            self.log.info(f"Executing voice command: '{text}'")
+            self.log.info("Executing voice command: '%s'", text)
             try:
                 self.commands[text]()
             except Exception:  # Arbitrary user callbacks can raise anything
-                self.log.exception(f"Error executing voice command '{text}'")
+                self.log.exception("Error executing voice command '%s'", text)
             return
 
         # Check for partial matches (commands that contain the text)
         for command_phrase, callback in self.commands.items():
             if command_phrase in text:
                 self.log.info(
-                    f"Executing partial match voice command: '{command_phrase}' from '{text}'"
+                    "Executing partial match voice command: '%s' from '%s'",
+                    command_phrase,
+                    text,
                 )
                 try:
                     callback()
                 except Exception:  # Arbitrary user callbacks can raise anything
-                    self.log.exception(f"Error executing voice command '{command_phrase}'")
+                    self.log.exception("Error executing voice command '%s'", command_phrase)
                 return
 
-        self.log.debug(f"No voice command found for: '{text}'")
+        self.log.debug("No voice command found for: '%s'", text)
 
     def is_available(self) -> bool:
         """Check if voice recognition is available.

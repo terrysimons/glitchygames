@@ -772,64 +772,37 @@ class TestGameEvents:
         """Test GameEventStubs implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
-        # Test that stub methods can be called
+        # Test that stub methods raise UnhandledEventError (no logging before raise)
         event = HashableEvent(pygame.QUIT)
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             scene.on_quit_event(event)
-        # Expected to call unhandled_event and raise UnhandledEventError
-
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: Quit' in call_args
 
     def test_clipboard_update_event_stub(self, mock_pygame_patches, mocker):
         """Test clipboard update event stub implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
-        # Test that stub method can be called
+        # Test that stub method raises UnhandledEventError (no logging before raise)
         event = HashableEvent(pygame.CLIPBOARDUPDATE)
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             scene.on_clipboard_update_event(event)
-        # Expected to call unhandled_event and raise UnhandledEventError
-
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: ClipboardUpdate' in call_args
 
     def test_locale_changed_event_stub(self, mock_pygame_patches, mocker):
         """Test locale changed event stub implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
-        # Test that stub method can be called
+        # Test that stub method raises UnhandledEventError (no logging before raise)
         event = HashableEvent(pygame.LOCALECHANGED)
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             scene.on_locale_changed_event(event)
-        # Expected to call unhandled_event and raise UnhandledEventError
-
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: LocaleChanged' in call_args
 
     def test_quit_event(self, mock_pygame_patches):
         """Test quit event handling."""
@@ -839,8 +812,8 @@ class TestGameEvents:
                 'on_quit_event': lambda event: (
                     scene.game_events_received.append(('quit', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test quit event
@@ -861,8 +834,8 @@ class TestGameEvents:
                 'on_active_event': lambda event: (
                     scene.game_events_received.append(('active', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test active event
@@ -885,8 +858,8 @@ class TestGameEvents:
                 'on_fps_event': lambda event: (
                     scene.game_events_received.append(('fps', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test FPS event
@@ -907,8 +880,8 @@ class TestGameEvents:
                 'on_game_event': lambda event: (
                     scene.game_events_received.append(('game', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test game event
@@ -929,8 +902,8 @@ class TestGameEvents:
                 'on_menu_item_event': lambda event: (
                     scene.game_events_received.append(('menu_item', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test menu item event
@@ -951,8 +924,8 @@ class TestGameEvents:
                 'on_sys_wm_event': lambda event: (
                     scene.game_events_received.append(('sys_wm', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test sys WM event
@@ -973,8 +946,8 @@ class TestGameEvents:
                 'on_user_event': lambda event: (
                     scene.game_events_received.append(('user', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test user event
@@ -996,8 +969,8 @@ class TestGameEvents:
                 'on_video_expose_event': lambda event: (
                     scene.game_events_received.append(('video_expose', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test video expose event
@@ -1018,8 +991,8 @@ class TestGameEvents:
                 'on_video_resize_event': lambda event: (
                     scene.game_events_received.append(('video_resize', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test video resize event
@@ -1042,8 +1015,8 @@ class TestGameEvents:
                 'on_active_event': lambda event: (
                     scene.game_events_received.append(('active', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different gain states
@@ -1079,8 +1052,8 @@ class TestGameEvents:
                 'on_user_event': lambda event: (
                     scene.game_events_received.append(('user', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different user event codes
@@ -1106,8 +1079,8 @@ class TestGameEvents:
                 'on_video_resize_event': lambda event: (
                     scene.game_events_received.append(('video_resize', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different window dimensions
@@ -1144,8 +1117,8 @@ class TestGameEvents:
                 'on_game_event': lambda event: (
                     scene.game_events_received.append(('game', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test custom game events
@@ -1178,8 +1151,8 @@ class TestGameEvents:
                 'on_menu_item_event': lambda event: (
                     scene.game_events_received.append(('menu', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different menu items
@@ -1215,8 +1188,8 @@ class TestGameEvents:
                 'on_render_device_reset_event': lambda event: (
                     scene.game_events_received.append(('render_device_reset', event)),
                     None,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test render device reset event
@@ -1237,8 +1210,8 @@ class TestGameEvents:
                 'on_render_targets_reset_event': lambda event: (
                     scene.game_events_received.append(('render_targets_reset', event)),
                     None,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test render targets reset event
@@ -1251,6 +1224,10 @@ class TestGameEvents:
         assert scene.game_events_received[0][0] == 'render_targets_reset'
         assert scene.game_events_received[0][1].type == pygame.RENDER_TARGETS_RESET
 
+
+class TestGameEventsExtended:
+    """Test GameEvents extended event types (clipboard, locale)."""
+
     def test_clipboard_update_event(self, mock_pygame_patches):
         """Test clipboard update event."""
         # Use centralized mock for scene with event handlers
@@ -1259,8 +1236,8 @@ class TestGameEvents:
                 'on_clipboard_update_event': lambda event: (
                     scene.game_events_received.append(('clipboard_update', event)),
                     None,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test clipboard update event
@@ -1281,8 +1258,8 @@ class TestGameEvents:
                 'on_locale_changed_event': lambda event: (
                     scene.game_events_received.append(('locale_changed', event)),
                     None,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test locale changed event

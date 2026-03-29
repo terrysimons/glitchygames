@@ -46,22 +46,14 @@ class TestMidiEvents:
         """Test MidiEventStubs implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
         # Test that stub methods can be called
         event = HashableEvent(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=127)
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        # Should raise UnhandledEventError (no logging before raise)
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             scene.on_midi_in_event(event)
-        # Expected to call unhandled_event and raise UnhandledEventError
-
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: MidiIn' in call_args
 
     def test_midi_in_event(self):
         """Test MIDI input event handling."""
@@ -70,8 +62,8 @@ class TestMidiEvents:
                 'on_midi_in_event': lambda event: (
                     scene.midi_events_received.append(('midi_in', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test MIDI input
@@ -93,8 +85,8 @@ class TestMidiEvents:
                 'on_midi_out_event': lambda event: (
                     scene.midi_events_received.append(('midi_out', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test MIDI output
@@ -116,8 +108,8 @@ class TestMidiEvents:
                 'on_midi_in_event': lambda event: (
                     scene.midi_events_received.append(('note_on', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test note on events (status 144 = 0x90)
@@ -139,8 +131,8 @@ class TestMidiEvents:
                 'on_midi_in_event': lambda event: (
                     scene.midi_events_received.append(('note_off', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test note off events (status 128 = 0x80)
@@ -161,10 +153,14 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test control change events (status 176 = 0xB0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for controller in range(1, 128):  # All MIDI controllers
             event = HashableEvent(
-                pygame.MIDIIN, device_id=1, status=176, data1=controller, data2=64
+                pygame.MIDIIN,
+                device_id=1,
+                status=176,
+                data1=controller,
+                data2=64,
             )
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
@@ -176,7 +172,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test program change events (status 192 = 0xC0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for program in range(128):  # All MIDI programs
             event = HashableEvent(pygame.MIDIIN, device_id=1, status=192, data1=program, data2=0)
             with pytest.raises(UnhandledEventError):
@@ -189,7 +185,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test pitch bend events (status 224 = 0xE0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for bend in range(0, 16384, 1024):  # Various pitch bend values
             event = HashableEvent(
                 pygame.MIDIIN,
@@ -208,7 +204,7 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test aftertouch events (status 208 = 0xD0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for pressure in range(128):  # All pressure values
             event = HashableEvent(pygame.MIDIIN, device_id=1, status=208, data1=pressure, data2=0)
             with pytest.raises(UnhandledEventError):
@@ -221,11 +217,15 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test polyphonic aftertouch events (status 160 = 0xA0)
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for note in range(60, 72):  # C4 to C5
             for pressure in range(0, 128, 16):  # Various pressure values
                 event = HashableEvent(
-                    pygame.MIDIIN, device_id=1, status=160, data1=note, data2=pressure
+                    pygame.MIDIIN,
+                    device_id=1,
+                    status=160,
+                    data1=note,
+                    data2=pressure,
                 )
                 with pytest.raises(UnhandledEventError):
                     stub.on_midi_in_event(event)
@@ -250,10 +250,14 @@ class TestMidiEvents:
             (255, 0, 0),  # System Reset
         ]
 
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for status, data1, data2 in system_events:
             event = HashableEvent(
-                pygame.MIDIIN, device_id=1, status=status, data1=data1, data2=data2
+                pygame.MIDIIN,
+                device_id=1,
+                status=status,
+                data1=data1,
+                data2=data2,
             )
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
@@ -265,11 +269,15 @@ class TestMidiEvents:
         self._setup_mock_scene_for_stub(stub)
 
         # Test multiple MIDI devices
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for device_id in range(5):
             # Test MIDI input
             event = HashableEvent(
-                pygame.MIDIIN, device_id=device_id, status=144, data1=60, data2=127
+                pygame.MIDIIN,
+                device_id=device_id,
+                status=144,
+                data1=60,
+                data2=127,
             )
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_in_event(event)
@@ -277,7 +285,11 @@ class TestMidiEvents:
 
             # Test MIDI output
             event = HashableEvent(
-                pygame.MIDIOUT, device_id=device_id, status=144, data1=60, data2=127
+                pygame.MIDIOUT,
+                device_id=device_id,
+                status=144,
+                data1=60,
+                data2=127,
             )
             with pytest.raises(UnhandledEventError):
                 stub.on_midi_out_event(event)
@@ -291,7 +303,7 @@ class TestMidiEvents:
         # Test different velocity values
         velocities = [0, 32, 64, 96, 127]  # Various velocity levels
 
-        mocker.patch('glitchygames.events.core.LOG.error')  # Suppress log messages
+        mocker.patch('glitchygames.events.base.LOG.error')  # Suppress log messages
         for velocity in velocities:
             # Test note on with different velocities
             event = HashableEvent(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=velocity)

@@ -9,9 +9,9 @@ import logging
 import pygame
 import pytest
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.multi_controller_manager import MultiControllerManager
-from glitchygames.tools.visual_collision_manager import VisualCollisionManager
+from glitchygames.bitmappy.controllers.manager import MultiControllerManager
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
 
 LOG = logging.getLogger(__name__)
 
@@ -38,15 +38,45 @@ class TestBitmappyMultiControllerIntegration:
         self.manager = MultiControllerManager()
         self.visual_manager = VisualCollisionManager()
 
+    def _process_controller_button_event(self, event):
+        """Process a single controller button-down event.
+
+        Simulates bitmappy's controller event handling for A button,
+        D-pad left, and D-pad right.
+        """
+        controller_id = event.instance_id
+        if controller_id not in self.scene.controller_selections:
+            return
+
+        selection = self.scene.controller_selections[controller_id]
+
+        if event.button == pygame.CONTROLLER_BUTTON_A:
+            # A button - select current frame
+            selection.activate()
+            selection.set_selection('test_animation', 0)
+        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
+            # D-pad left - previous frame
+            current_animation, current_frame = selection.get_selection()
+            if current_frame > 0:
+                selection.set_selection(current_animation, current_frame - 1)
+        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
+            # D-pad right - next frame
+            current_animation, current_frame = selection.get_selection()
+            selection.set_selection(current_animation, current_frame + 1)
+
     def test_controller_event_handling_integration(self):
         """Test controller event handling integration with bitmappy."""
         # Mock controller events
         mock_events = [
             self._mocker.Mock(
-                type=pygame.CONTROLLERBUTTONDOWN, button=pygame.CONTROLLER_BUTTON_A, instance_id=0
+                type=pygame.CONTROLLERBUTTONDOWN,
+                button=pygame.CONTROLLER_BUTTON_A,
+                instance_id=0,
             ),
             self._mocker.Mock(
-                type=pygame.CONTROLLERBUTTONDOWN, button=pygame.CONTROLLER_BUTTON_A, instance_id=1
+                type=pygame.CONTROLLERBUTTONDOWN,
+                button=pygame.CONTROLLER_BUTTON_A,
+                instance_id=1,
             ),
             self._mocker.Mock(
                 type=pygame.CONTROLLERBUTTONDOWN,
@@ -69,37 +99,8 @@ class TestBitmappyMultiControllerIntegration:
 
         # Test event processing
         for event in mock_events:
-            # Simulate bitmappy's controller event handling
             if event.type == pygame.CONTROLLERBUTTONDOWN:
-                if event.button == pygame.CONTROLLER_BUTTON_A:
-                    # A button - select current frame
-                    controller_id = event.instance_id
-                    if controller_id in self.scene.controller_selections:
-                        self.scene.controller_selections[controller_id].activate()
-                        self.scene.controller_selections[controller_id].set_selection(
-                            'test_animation', 0
-                        )
-                elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-                    # D-pad left - previous frame
-                    controller_id = event.instance_id
-                    if controller_id in self.scene.controller_selections:
-                        current_animation, current_frame = self.scene.controller_selections[
-                            controller_id
-                        ].get_selection()
-                        if current_frame > 0:
-                            self.scene.controller_selections[controller_id].set_selection(
-                                current_animation, current_frame - 1
-                            )
-                elif event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-                    # D-pad right - next frame
-                    controller_id = event.instance_id
-                    if controller_id in self.scene.controller_selections:
-                        current_animation, current_frame = self.scene.controller_selections[
-                            controller_id
-                        ].get_selection()
-                        self.scene.controller_selections[controller_id].set_selection(
-                            current_animation, current_frame + 1
-                        )
+                self._process_controller_button_event(event)
 
         # Verify controller states
         assert self.scene.controller_selections[0].is_active()
@@ -214,7 +215,8 @@ class TestBitmappyMultiControllerIntegration:
 
         # Create controller selection
         self.scene.controller_selections[controller_id] = ControllerSelection(
-            controller_id, instance_id
+            controller_id,
+            instance_id,
         )
         self.scene.controller_selections[controller_id].activate()
         self.scene.controller_selections[controller_id].set_selection('test_animation', 0)

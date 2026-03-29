@@ -4,7 +4,8 @@ import os
 
 import pytest
 
-from glitchygames.tools import bitmappy
+from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.editor_setup import EditorSetup
 from tests.mocks import MockFactory
 
 # Skip in CI - BitmapEditorScene.__init__ requires full display and font system
@@ -27,15 +28,15 @@ class TestSceneFilmStrips:
 
         # Mock _setup_menu_bar to avoid real pygame sprite group operations
         # which are not safe under parallel test execution
-        mocker.patch.object(bitmappy.BitmapEditorScene, '_setup_menu_bar')
+        mocker.patch.object(EditorSetup, 'setup_menu_bar')
 
         # Create scene with mock sprite (using centralized mocks)
         scene = bitmappy.BitmapEditorScene(
-            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16}
+            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16},
         )
 
         # Load the sprite
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Test that film strips are created using the new dictionary-based system
         assert hasattr(scene, 'film_strips')
@@ -59,15 +60,15 @@ class TestSceneFilmStrips:
 
         # Mock _setup_menu_bar to avoid real pygame sprite group operations
         # which are not safe under parallel test execution
-        mocker.patch.object(bitmappy.BitmapEditorScene, '_setup_menu_bar')
+        mocker.patch.object(EditorSetup, 'setup_menu_bar')
 
         # Create scene (using centralized mocks)
         scene = bitmappy.BitmapEditorScene(
-            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16}
+            options={'pixels_across': 32, 'pixels_tall': 32, 'pixel_size': 16},
         )
 
         # Load the sprite
-        scene._on_sprite_loaded(mock_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(mock_sprite)
 
         # Test that multiple film strips are created
         # Check for at least the animations we added (mock may create others)

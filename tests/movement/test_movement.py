@@ -120,6 +120,10 @@ class TestSpeed:
         with pytest.raises(TypeError):
             speed - 'invalid'  # type: ignore[operator]
 
+
+class TestSpeedArithmetic:
+    """Test Speed class division, modulo, and delta-time operations."""
+
     def test_truediv(self):
         speed = Speed(x=10.0, y=6.0)
         result = speed / 2.0

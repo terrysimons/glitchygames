@@ -173,7 +173,7 @@ class GameEventManager(ResourceManager, GameEvents):
         """
         super().__init__(game=game)
         self.proxies: list[GameEventManager.GameEventProxy] = [
-            GameEventManager.GameEventProxy(game=game)
+            GameEventManager.GameEventProxy(game=game),
         ]
 
     @override
@@ -281,7 +281,11 @@ class GameEventManager(ResourceManager, GameEvents):
             default=False,
         )
         group.add_argument(
-            '-p', '--profile', help='enable profiling', action='store_true', default=False
+            '-p',
+            '--profile',
+            help='enable profiling',
+            action='store_true',
+            default=False,
         )
 
         return parser

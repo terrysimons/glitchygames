@@ -12,7 +12,8 @@ LOG = logging.getLogger(__name__)
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.tools import bitmappy, film_strip  # noqa: E402
+from glitchygames.bitmappy import film_strip  # noqa: E402
+from glitchygames.bitmappy import film_strip_sprite as film_strip_sprite_module  # noqa: E402
 from tests.mocks.test_mock_factory import MockFactory  # noqa: E402
 
 
@@ -29,17 +30,21 @@ class TestShiftRightClickSampling:
         self.film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Create film strip sprite
-        self.film_strip_sprite = bitmappy.FilmStripSprite(
-            film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100
+        self.film_strip_sprite = film_strip_sprite_module.FilmStripSprite(
+            film_strip_widget=self.film_strip_widget,
+            x=100,
+            y=100,
+            width=200,
+            height=100,
         )
 
-        # Create a mock parent scene with the _sample_color_from_screen method
+        # Create a mock parent scene with _slider_manager.sample_color_from_screen
         self.parent_scene = mocker.Mock()
         self.parent_scene.screen = mocker.Mock()
         self.parent_scene.screen.get_at.return_value = (128, 64, 192, 255)  # RGBA color
         self.parent_scene.on_slider_event = mocker.Mock()
 
-        # Add the _sample_color_from_screen method as a wrapping Mock so
+        # Set up _slider_manager.sample_color_from_screen as a wrapping Mock so
         # assert_called_once_with works while still executing the logic
         def _sample_color_impl(screen_pos):
             try:
@@ -62,7 +67,10 @@ class TestShiftRightClickSampling:
             except pygame.error, ValueError, TypeError:
                 LOG.debug('Failed to sample color from screen at %s', screen_pos)
 
-        self.parent_scene._sample_color_from_screen = mocker.Mock(side_effect=_sample_color_impl)
+        self.parent_scene._slider_manager = mocker.Mock()
+        self.parent_scene._slider_manager.sample_color_from_screen = mocker.Mock(
+            side_effect=_sample_color_impl,
+        )
 
         # Set parent scene reference
         self.film_strip_sprite.parent_scene = self.parent_scene
@@ -125,8 +133,11 @@ class TestShiftRightClickSampling:
         # Should return True when event is handled
         assert result, 'Shift-right-click should be handled'
 
-        # Should call the parent scene's screen sampling method
-        self.parent_scene._sample_color_from_screen.assert_called_once_with((150, 150))
+        # Should call the parent scene's slider manager screen sampling method
+        self.parent_scene._slider_manager.sample_color_from_screen.assert_called_once_with((
+            150,
+            150,
+        ))
 
     def test_shift_right_click_samples_screen_rgb_only(self):
         """Test that shift-right-click samples screen and converts to RGB only."""
@@ -134,7 +145,7 @@ class TestShiftRightClickSampling:
         self.parent_scene.screen.get_at.return_value = (128, 64, 192, 128)  # RGBA with alpha
 
         # Call the screen sampling method directly
-        self.parent_scene._sample_color_from_screen((100, 100))
+        self.parent_scene._slider_manager.sample_color_from_screen((100, 100))
 
         # Should sample from screen
         self.parent_scene.screen.get_at.assert_called_once_with((100, 100))
@@ -302,7 +313,7 @@ class TestShiftRightClickSampling:
         self.parent_scene.screen.get_at.return_value = (128, 64, 192)  # RGB only
 
         # Call the screen sampling method
-        self.parent_scene._sample_color_from_screen((100, 100))
+        self.parent_scene._slider_manager.sample_color_from_screen((100, 100))
 
         # Should sample from screen
         self.parent_scene.screen.get_at.assert_called_once_with((100, 100))
@@ -316,7 +327,7 @@ class TestShiftRightClickSampling:
         self.parent_scene.screen.get_at.return_value = (128, 64, 192, 128)  # RGBA
 
         # Call the screen sampling method
-        self.parent_scene._sample_color_from_screen((100, 100))
+        self.parent_scene._slider_manager.sample_color_from_screen((100, 100))
 
         # Should sample from screen
         self.parent_scene.screen.get_at.assert_called_once_with((100, 100))
@@ -330,7 +341,7 @@ class TestShiftRightClickSampling:
         self.parent_scene.screen.get_at.return_value = (128, 64, 192, 128)  # RGBA with alpha
 
         # Call the screen sampling method
-        self.parent_scene._sample_color_from_screen((100, 100))
+        self.parent_scene._slider_manager.sample_color_from_screen((100, 100))
 
         # Should update sliders with RGB from screen but alpha = 255
         expected_calls = [

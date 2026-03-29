@@ -16,9 +16,10 @@ from typing import TYPE_CHECKING, Self, cast, override
 if TYPE_CHECKING:
     import argparse
 
-    from glitchygames.events.core import HashableEvent
+    from glitchygames.events.base import HashableEvent
 
 import pygame
+import pygame.freetype
 
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
@@ -146,9 +147,10 @@ class TextSprite(Sprite):
                 self.rect = pygame.Rect(pos, (640, 480))
                 self.line_height = line_height
 
-                pygame.freetype.set_default_resolution(font_controller.font_dpi)  # type: ignore[attr-defined]
-                self.font = pygame.freetype.SysFont(  # type: ignore[attr-defined]
-                    name=font_controller.font, size=font_controller.font_size
+                pygame.freetype.set_default_resolution(font_controller.font_dpi)  # type: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  # FontManager proxy resolves at runtime
+                self.font = pygame.freetype.SysFont(
+                    name=font_controller.font,  # type: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  # FontManager proxy resolves at runtime
+                    size=font_controller.font_size,  # type: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]  # FontManager proxy resolves at runtime
                 )
 
             def print_text(self: Self, surface: pygame.surface.Surface, string: str) -> None:
@@ -159,7 +161,7 @@ class TextSprite(Sprite):
                     string (str): The string to print.
 
                 """
-                (self.image, self.rect) = self.font.render(string, WHITE)  # type: ignore[union-attr]
+                (self.image, self.rect) = self.font.render(string, WHITE)
                 # self.image
                 surface.blit(self.image, self.rect.center)
                 self.rect.center = surface.get_rect().center
@@ -229,7 +231,7 @@ class Game(Scene):
         # Set random seed for reproducible randomness
         seed = int(time.perf_counter() * 1000000) % 2**32
         random.seed(seed)
-        log.info(f'Random seed set to: {seed}')
+        log.info('Random seed set to: %s', seed)
 
         v_center = self.screen_height // 2
         self.player1 = VerticalPaddle(
@@ -285,9 +287,9 @@ class Game(Scene):
             # 250 pixels/sec horizontal, 125 pixels/sec vertical
             ball.speed = Speed(250.0, 125.0)
             # Add collision cooldown tracking
-            ball.collision_cooldowns = {}  # type: ignore[attr-defined]
+            ball.collision_cooldowns = {}
             # Set up paddle collision callback for ball spawn (with speed limit check)
-            ball.on_paddle_collision = self._spawn_new_ball_with_speed_check  # type: ignore[attr-defined]
+            ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
             self.balls.append(ball)
 
         for ball in self.balls:
@@ -310,11 +312,18 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
         parser.add_argument(
-            '-b', '--balls', type=int, help='the number of balls to start with', default=1
+            '-b',
+            '--balls',
+            type=int,
+            help='the number of balls to start with',
+            default=1,
         )
 
         parser.add_argument(
@@ -338,6 +347,47 @@ class Game(Scene):
             self.target_fps = 60
         pygame.key.set_repeat(1)
 
+    def _debug_log_ball_trajectory(self: Self, ball_index: int, ball: BallSprite) -> None:
+        """Track and log ball trajectory for debugging curving patterns.
+
+        Args:
+            ball_index: The index of the ball in the balls list (0-based).
+            ball: The ball sprite to track.
+
+        """
+        # Track trajectory over time to detect curving
+        if not hasattr(ball, '_debug_positions'):
+            ball._debug_positions = []  # type: ignore[attr-defined]
+
+        ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
+
+        # Keep only last positions for trajectory analysis
+        if len(ball._debug_positions) > DEBUG_TRAJECTORY_HISTORY_SIZE:  # type: ignore[attr-defined]
+            ball._debug_positions.pop(0)  # type: ignore[attr-defined]
+
+        # Check for upward curving pattern
+        if len(ball._debug_positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:  # type: ignore[attr-defined]
+            positions = cast(
+                'list[tuple[int, int, float, float]]',
+                ball._debug_positions,  # type: ignore[attr-defined]
+            )
+            # Calculate if ball is curving upward
+            y_positions: list[int] = [pos[1] for pos in positions]
+            if len(set(y_positions)) > 1:  # Only if Y is changing
+                y_trend: int = y_positions[-1] - y_positions[0]
+                if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
+                    log.debug(
+                        f'BALL {ball_index + 1} UPWARD CURVE DETECTED: '
+                        f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
+                        f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})',
+                    )
+
+        log.debug(
+            f'BALL {ball_index + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+            f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
+            f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
+        )
+
     @override
     def dt_tick(self: Self, dt: float) -> None:
         """Update the game.
@@ -352,38 +402,7 @@ class Game(Scene):
         # Debug log ball positions and speeds before update
         for i, ball in enumerate(self.balls):
             if ball.alive():
-                # Track trajectory over time to detect curving
-                if not hasattr(ball, '_debug_positions'):
-                    ball._debug_positions = []  # type: ignore[attr-defined]
-
-                ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
-
-                # Keep only last positions for trajectory analysis
-                if len(ball._debug_positions) > DEBUG_TRAJECTORY_HISTORY_SIZE:  # type: ignore[attr-defined]
-                    ball._debug_positions.pop(0)  # type: ignore[attr-defined]
-
-                # Check for upward curving pattern
-                if len(ball._debug_positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:  # type: ignore[attr-defined]
-                    positions = cast(
-                        'list[tuple[int, int, float, float]]',
-                        ball._debug_positions,  # type: ignore[attr-defined]
-                    )
-                    # Calculate if ball is curving upward
-                    y_positions: list[int] = [pos[1] for pos in positions]
-                    if len(set(y_positions)) > 1:  # Only if Y is changing
-                        y_trend: int = y_positions[-1] - y_positions[0]
-                        if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
-                            log.debug(
-                                f'BALL {i + 1} UPWARD CURVE DETECTED: '
-                                f'y_trend={y_trend:.1f} positions={y_positions[-3:]} '
-                                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
-                            )
-
-                log.debug(
-                    f'BALL {i + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
-                    f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
-                )
+                self._debug_log_ball_trajectory(ball_index=i, ball=ball)
 
         for sprite in self.all_sprites:
             sprite.dt_tick(dt)
@@ -394,7 +413,7 @@ class Game(Scene):
                 log.debug(
                     f'BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
                     f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
-                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}'
+                    f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
                 )
 
     @override
@@ -420,7 +439,7 @@ class Game(Scene):
                 f'paddle2_rect=({self.player2.rect.x},'
                 f'{self.player2.rect.y},'
                 f'{self.player2.rect.width},'
-                f'{self.player2.rect.height})'
+                f'{self.player2.rect.height})',
             )
 
             # Paddle collision handling is now done in BallSprite._check_paddle_collisions()
@@ -451,11 +470,11 @@ class Game(Scene):
         self.next_scene = GameOverScene(options=self.options)
         self.previous_scene = self
 
-    def _spawn_new_ball(self: Self, ball: BallSprite | None = None) -> None:
+    def _spawn_new_ball(self: Self, _ball: BallSprite | None = None) -> None:
         """Spawn a new ball at random location with random direction.
 
         Args:
-            ball: The ball that triggered the spawn (optional, for callback compatibility)
+            _ball: The ball that triggered the spawn (unused, for callback compatibility)
 
         """
         # Create new ball at default speed
@@ -541,9 +560,9 @@ class Game(Scene):
         else:
             new_ball.color = WHITE
         # Add collision cooldown tracking
-        new_ball.collision_cooldowns = {}  # type: ignore[attr-defined]
+        new_ball.collision_cooldowns = {}
         # Set up paddle collision callback for ball spawn (with speed limit check)
-        new_ball.on_paddle_collision = self._spawn_new_ball_with_speed_check  # type: ignore[attr-defined]
+        new_ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
 
         # Add to balls list and sprite group
         self.balls.append(new_ball)
@@ -568,7 +587,7 @@ class Game(Scene):
                 log.debug(
                     'Ball spawn cooldown active '
                     f'({current_time - self.last_ball_spawn_time:.1f}s'
-                    f' < {cooldown}s), not spawning'
+                    f' < {cooldown}s), not spawning',
                 )
                 return
 
@@ -652,7 +671,12 @@ class Game(Scene):
                 self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
                 self._cap_ball_speeds(ball1, ball2)
                 self._separate_overlapping_balls(
-                    ball1, ball2, normal_x, normal_y, collision_distance, distance
+                    ball1,
+                    ball2,
+                    normal_x=normal_x,
+                    normal_y=normal_y,
+                    collision_distance=collision_distance,
+                    distance=distance,
                 )
 
                 # Set cooldown for this pair to prevent duplicate processing
@@ -670,7 +694,8 @@ class Game(Scene):
 
     @staticmethod
     def _calculate_ball_distance(
-        ball1: BallSprite, ball2: BallSprite
+        ball1: BallSprite,
+        ball2: BallSprite,
     ) -> tuple[float, float, float, int]:
         """Calculate distance and collision threshold between two balls.
 
@@ -701,7 +726,7 @@ class Game(Scene):
 
         log.debug(
             f'BALL-TO-BALL: ball1 speed before={ball1_speed_before:.2f}, '
-            f'ball2 speed before={ball2_speed_before:.2f}'
+            f'ball2 speed before={ball2_speed_before:.2f}',
         )
 
         # Decompose velocities into normal and tangential components
@@ -732,7 +757,7 @@ class Game(Scene):
             f'BALL-TO-BALL: ball1 speed after={ball1_speed_after:.2f}, '
             f'ball2 speed after={ball2_speed_after:.2f}, '
             f'energy before={ball1_speed_before**2 + ball2_speed_before**2:.2f}, '
-            f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}'
+            f'energy after={ball1_speed_after**2 + ball2_speed_after**2:.2f}',
         )
 
     @staticmethod
@@ -750,6 +775,7 @@ class Game(Scene):
     def _separate_overlapping_balls(
         ball1: BallSprite,
         ball2: BallSprite,
+        *,
         normal_x: float,
         normal_y: float,
         collision_distance: int,
@@ -792,7 +818,7 @@ class Game(Scene):
             player = self.player1 if event.instance_id == 0 else self.player2
             player.stop()
 
-        self.log.info(f'GOT on_controller_button_down_event: {event}')
+        self.log.info('GOT on_controller_button_down_event: %s', event)
 
     @override
     def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -808,10 +834,10 @@ class Game(Scene):
         if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
             player.down()
 
-        self.log.info(f'GOT on_controller_button_up_event: {event}')
+        self.log.info('GOT on_controller_button_up_event: %s', event)
 
     @override
-    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
+    def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
         """Handle controller axis motion events.
 
         Args:
@@ -826,7 +852,7 @@ class Game(Scene):
                 player.stop()
             if event.value > 0:
                 player.down()
-            self.log.info(f'GOT on_controller_axis_motion_event: {event}')
+            self.log.info('GOT on_controller_axis_motion_event: %s', event)
 
     @override
     def on_key_down_event(self: Self, event: HashableEvent) -> None:
@@ -842,22 +868,22 @@ class Game(Scene):
             self._space_pressed = True
         elif event.key == pygame.K_w:
             log.debug(
-                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}'  # type: ignore[reportPrivateUsage]
+                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}',  # type: ignore[reportPrivateUsage]
             )
             self.player1.up()
         elif event.key == pygame.K_s:
             log.debug(
-                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}'  # type: ignore[reportPrivateUsage]
+                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}',  # type: ignore[reportPrivateUsage]
             )
             self.player1.down()
         elif event.key == pygame.K_UP:
             log.debug(
-                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}'  # type: ignore[reportPrivateUsage]
+                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}',  # type: ignore[reportPrivateUsage]
             )
             self.player2.up()
         elif event.key == pygame.K_DOWN:
             log.debug(
-                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}'  # type: ignore[reportPrivateUsage]
+                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}',  # type: ignore[reportPrivateUsage]
             )
             self.player2.down()
 

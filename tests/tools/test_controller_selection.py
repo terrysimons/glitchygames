@@ -3,7 +3,7 @@
 Targets uncovered lines in selection state management.
 """
 
-from glitchygames.tools.controller_selection import ControllerSelection
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
 
 
 class TestControllerSelectionFillDirection:

@@ -4,11 +4,7 @@ import logging
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
-    AI_MODEL,
-    AI_TIMEOUT,
-    AIRequest,
-    AIResponse,
+from glitchygames.bitmappy.ai_worker import (
     _check_ollama_model_status,
     _configure_client_timeouts,
     _configure_ollama_provider,
@@ -19,13 +15,14 @@ from glitchygames.tools.bitmappy import (
     _initialize_ai_client,
     _log_capabilities_dump,
     _process_ai_request,
-    _select_relevant_training_examples,
     _set_ollama_env_timeout,
     _setup_ai_worker_logging,
-    ai_training_state,
-    load_ai_training_data,
-    resource_path,
+    select_relevant_training_examples,
 )
+from glitchygames.bitmappy.constants import AI_MODEL, AI_TIMEOUT, ai_training_state
+from glitchygames.bitmappy.models import AIRequest, AIResponse
+from glitchygames.bitmappy.sprite_inspection import load_ai_training_data
+from glitchygames.bitmappy.utils import resource_path
 
 
 class TestResourcePath:
@@ -203,7 +200,7 @@ class TestInitializeAIClient:
     def test_returns_none_when_aisuite_unavailable(self, mocker):
         """Test returns None when aisuite is not available."""
         log = logging.getLogger('test')
-        mocker.patch('glitchygames.tools.bitmappy.ai', None)
+        mocker.patch('glitchygames.bitmappy.ai_worker.ai', None)
         result = _initialize_ai_client(log)
         assert result is None
 
@@ -264,7 +261,7 @@ class TestLogCapabilitiesDump:
 
 
 class TestSelectRelevantTrainingExamples:
-    """Test _select_relevant_training_examples function."""
+    """Test select_relevant_training_examples function."""
 
     def test_returns_all_when_under_limit(self):
         """Test returns all examples when under the max limit."""
@@ -274,7 +271,7 @@ class TestSelectRelevantTrainingExamples:
                 {'name': 'slime', 'sprite_type': 'static', 'has_alpha': False},
                 {'name': 'mushroom', 'sprite_type': 'animated', 'has_alpha': True},
             ]
-            result = _select_relevant_training_examples('create a slime', max_examples=100)
+            result = select_relevant_training_examples('create a slime', max_examples=100)
             assert len(result) == 2
         finally:
             ai_training_state['data'] = original_data
@@ -287,7 +284,7 @@ class TestSelectRelevantTrainingExamples:
                 {'name': f'sprite_{i}', 'sprite_type': 'static', 'has_alpha': False}
                 for i in range(10)
             ]
-            result = _select_relevant_training_examples('create a sprite', max_examples=3)
+            result = select_relevant_training_examples('create a sprite', max_examples=3)
             assert len(result) == 3
         finally:
             ai_training_state['data'] = original_data
@@ -297,7 +294,7 @@ class TestSelectRelevantTrainingExamples:
         original_data = ai_training_state['data']
         try:
             ai_training_state['data'] = []
-            result = _select_relevant_training_examples('create something')
+            result = select_relevant_training_examples('create something')
             assert result == []
         finally:
             ai_training_state['data'] = original_data

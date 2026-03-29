@@ -5,27 +5,31 @@ from typing import cast
 
 import pytest
 
-from glitchygames.tools.bitmappy import (
+from glitchygames.bitmappy.ai_worker import _extract_example_size
+from glitchygames.bitmappy.alpha import (
+    _convert_animation_colors_to_rgba,
+    _convert_colors_to_rgba,
+    _detect_alpha_channel,
+    _detect_alpha_channel_in_animation,
+    convert_sprite_to_alpha_format,
+)
+from glitchygames.bitmappy.pixel_ops import (
     _build_ascii_grid,
     _build_color_to_glyph_map,
     _build_renderer_color_dict,
-    _convert_animation_colors_to_rgba,
-    _convert_colors_to_rgba,
-    _convert_sprite_to_alpha_format,
-    _detect_alpha_channel,
-    _detect_alpha_channel_in_animation,
-    _extract_example_size,
+)
+from glitchygames.bitmappy.toml_processing import (
     _fix_color_entry,
     _fix_color_format_in_toml_data,
     _fix_comma_separated_color_field,
     _normalize_animation_pixels,
     _normalize_escaped_newlines,
-    _normalize_toml_data,
     _parse_toml_value,
     _parse_toml_with_regex,
-    detect_file_format,
+    normalize_toml_data,
     parse_toml_robustly,
 )
+from glitchygames.bitmappy.utils import detect_file_format
 
 
 class TestDetectFileFormat:
@@ -266,7 +270,7 @@ class TestConvertAnimationColorsToRGBA:
 
 
 class TestConvertSpriteToAlphaFormat:
-    """Test _convert_sprite_to_alpha_format function."""
+    """Test convert_sprite_to_alpha_format function."""
 
     def test_no_alpha_passes_through(self):
         """Test sprite data without alpha is passed through."""
@@ -275,7 +279,7 @@ class TestConvertSpriteToAlphaFormat:
             'has_alpha': False,
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['colors'] == sprite_data['colors']
 
     def test_with_alpha_converts_colors(self):
@@ -285,7 +289,7 @@ class TestConvertSpriteToAlphaFormat:
             'has_alpha': True,
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['colors']['#']['alpha'] == 255
 
     def test_with_alpha_converts_animations(self):
@@ -297,7 +301,7 @@ class TestConvertSpriteToAlphaFormat:
                 'walk': {'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}}},
             },
         }
-        result = _convert_sprite_to_alpha_format(sprite_data)
+        result = convert_sprite_to_alpha_format(sprite_data)
         assert result['animations']['walk']['colors']['#']['alpha'] == 255
 
     def test_original_data_not_mutated(self):
@@ -308,7 +312,7 @@ class TestConvertSpriteToAlphaFormat:
             'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}},
         }
         original_colors = sprite_data['colors'].copy()
-        _convert_sprite_to_alpha_format(sprite_data)
+        convert_sprite_to_alpha_format(sprite_data)
         # The outer dict is copied, but the inner 'colors' may be modified
         # because the conversion replaces the 'colors' key entirely
         assert sprite_data['colors'] == original_colors
@@ -513,14 +517,14 @@ class TestNormalizeAnimationPixels:
 
 
 class TestNormalizeTomlData:
-    """Test _normalize_toml_data function."""
+    """Test normalize_toml_data function."""
 
     def test_normalize_sprite_pixels(self):
         """Test normalizing sprite pixel strings."""
         config_data = {
             'sprite': {'pixels': 'row1\\nrow2'},
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['pixels'] == 'row1\nrow2'
 
     def test_normalize_animation_pixels(self):
@@ -530,13 +534,13 @@ class TestNormalizeTomlData:
                 {'frame': [{'pixels': 'a\\nb'}]},
             ],
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['animation'][0]['frame'][0]['pixels'] == 'a\nb'
 
     def test_no_sprite_section(self):
         """Test with data that has no sprite section."""
         config_data = {'colors': {'#': {'red': 0, 'green': 0, 'blue': 0}}}
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert 'sprite' not in result
 
     def test_non_string_pixels_unchanged(self):
@@ -544,13 +548,13 @@ class TestNormalizeTomlData:
         config_data = {
             'sprite': {'pixels': 42, 'name': 'test'},
         }
-        result = _normalize_toml_data(config_data)
+        result = normalize_toml_data(config_data)
         assert result['sprite']['pixels'] == 42
 
     def test_error_returns_original_data(self):
         """Test that errors return original data unchanged."""
         config_data = None
-        result = _normalize_toml_data(config_data)  # type: ignore[invalid-argument-type]
+        result = normalize_toml_data(config_data)  # type: ignore[invalid-argument-type]
         assert result is None
 
 
@@ -771,7 +775,8 @@ class TestBuildAsciiGrid:
     def test_simple_grid(self):
         """Test building a simple 2x2 ASCII grid."""
         pixels = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+            'list[tuple[int, ...]]',
+            [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)],
         )
         color_map = cast(
             'dict[tuple[int, ...], str]',

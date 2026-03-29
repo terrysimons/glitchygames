@@ -28,7 +28,7 @@ STATIC_TOML = str(
     / 'examples'
     / 'resources'
     / 'sprites'
-    / 'static.toml'
+    / 'static.toml',
 )
 
 
@@ -383,6 +383,19 @@ class TestAnimatedSprite:
         assert sprite is not None
         assert sprite.name == 'idle'
         assert sprite.current_animation is not None
+
+
+class TestAnimatedSpriteConstants:
+    """Test AnimatedSprite constants and basic properties."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up test fixtures."""
+        # Ensure pygame is properly initialized for mocks
+        if not pygame.get_init():
+            pygame.init()
+
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_animated_sprite_constants(self):
         """Test sprite constants."""

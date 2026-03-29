@@ -62,7 +62,7 @@ def _create_mock_menu_item_sprite(mocker, name='FileMenu', *, has_menu_items=Tru
     mock_sprite.image = mocker.Mock()
     mock_sprite.add = mocker.Mock()
     mock_sprite.callbacks = {}
-    mock_sprite.active = False
+    mock_sprite.is_active = False
 
     if has_menu_items:
         sub_item = mocker.Mock()
@@ -458,7 +458,7 @@ class TestMenuItemLeftMouseButtonUpEvent:
         menu_item.on_left_mouse_button_up_event(event)
 
         assert menu_item.image == original_up_image
-        assert menu_item.active == 0
+        assert menu_item.is_active == 0
         assert menu_item.dirty == 2
 
     def test_button_up_invokes_callback(self, mocker):
@@ -471,7 +471,12 @@ class TestMenuItemLeftMouseButtonUpEvent:
         # Use a real MenuItem so isinstance() check passes
         collided_groups = _RealLayeredDirty()
         collided_item = MenuItem(
-            x=0, y=0, width=100, height=30, name='NewFile', groups=collided_groups
+            x=0,
+            y=0,
+            width=100,
+            height=30,
+            name='NewFile',
+            groups=collided_groups,
         )
         collided_item.callbacks = {'on_menu_item_event': callback}
         collided_item.menu_items = {}
@@ -494,7 +499,12 @@ class TestMenuItemLeftMouseButtonUpEvent:
         # Use a real MenuItem so isinstance() check passes
         collided_groups = _RealLayeredDirty()
         collided_item = MenuItem(
-            x=0, y=0, width=100, height=30, name='NewFile', groups=collided_groups
+            x=0,
+            y=0,
+            width=100,
+            height=30,
+            name='NewFile',
+            groups=collided_groups,
         )
         collided_item.callbacks = {}
         collided_item.menu_items = {}
@@ -530,7 +540,7 @@ class TestMenuItemLeftMouseButtonDownEvent:
 
         menu_item.on_left_mouse_button_down_event(event)
 
-        assert menu_item.active == 1
+        assert menu_item.is_active == 1
         assert menu_item.dirty == 2
 
     def test_button_down_propagates_to_collided_sub_items(self, mocker):

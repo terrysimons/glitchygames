@@ -1,1 +1,1 @@
-"""Tools for the GlitchyGames engine including Bitmappy editor and utilities."""
+"""General-purpose tools for the GlitchyGames engine."""

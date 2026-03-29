@@ -40,7 +40,7 @@ class AnimationGame(Scene):
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
+        super().__init__(options=options, groups=groups)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
         # Set up the scene
         self.background_color = (20, 20, 40)
@@ -105,7 +105,7 @@ class AnimationGame(Scene):
             assert self.screen is not None
             self.animated_sprite.rect.center = self.screen.get_rect().center
             self.log.info(
-                f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)'
+                f'Loaded: {self.animated_sprite.name} ({self.animated_sprite.frame_count} frames)',
             )
             self.log.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
         except FileNotFoundError, ValueError, RuntimeError:
@@ -121,7 +121,10 @@ class AnimationGame(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
         return parser
 

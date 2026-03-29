@@ -46,7 +46,8 @@ class ColorPalette:
                 file_path = Path(path) / f'{filename}.{self._DEFAULT_EXTENSION}'
                 if Path.exists(file_path):
                     self._colors = cast(
-                        'list[ColorLike]', PaletteUtility.load_palette_from_file(file_path)
+                        'list[ColorLike]',
+                        PaletteUtility.load_palette_from_file(file_path),
                     )
                     break
 
@@ -238,5 +239,5 @@ class Vga(ColorPalette):
     def __init__(self: Self) -> None:
         """Create a VGA color palette object."""
         super().__init__(colors=[], filename=VGA)
-        # TODO @<sabadam32@gmail.com>: Set Color Names (See rich.color for list of names to poach)
+        # Color names not yet set. Tracked by GG-21:
         # https://glitchy-games.atlassian.net/browse/GG-21

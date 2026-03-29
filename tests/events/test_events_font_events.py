@@ -34,13 +34,13 @@ class TestFontEvents:
         """Test FontEventStubs implementation."""
         # Use centralized mock for scene without event handlers (stub behavior)
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={}  # No event handlers - will fall back to stubs
+            event_handlers={},  # No event handlers - will fall back to stubs
         )
 
         # Test that stub methods can be called
         event = HashableEvent(pygame.USEREVENT + 1)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
 
         with pytest.raises(UnhandledEventError):
             scene.on_font_changed_event(event)
@@ -54,8 +54,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test font changed event
@@ -76,8 +76,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test font changed event with font information
@@ -100,8 +100,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different font types
@@ -137,8 +137,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test different font sizes
@@ -167,8 +167,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test font changed event with style information
@@ -202,8 +202,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test font changed event with color information
@@ -238,8 +238,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test Unicode font names
@@ -274,8 +274,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test system fonts
@@ -311,8 +311,8 @@ class TestFontEvents:
                 'on_font_changed_event': lambda event: (
                     scene.font_events_received.append(('font_changed', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test font file paths
@@ -382,7 +382,8 @@ class TestFontManagerCoverage:
 
         # Test that FontManager handles missing freetype gracefully
         mocker.patch(
-            'pygame.freetype', side_effect=AttributeError("No module named 'pygame.freetype'")
+            'pygame.freetype',
+            side_effect=AttributeError("No module named 'pygame.freetype'"),
         )
         manager = FontManager(game=mock_game)
 

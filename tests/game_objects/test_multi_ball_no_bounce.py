@@ -60,7 +60,7 @@ def _run_no_bounce_simulation(balls, max_frames, dt):
 
         if frame_count % 600 == 0:
             alive_count = sum(1 for ball in balls if ball.alive())
-            LOG.debug(f'  Frame {frame_count}: {alive_count} balls alive, {balls_died} died')
+            LOG.debug('  Frame %s: %s balls alive, %s died', frame_count, alive_count, balls_died)
 
     return {
         'frame_count': frame_count,
@@ -81,12 +81,12 @@ def test_multi_ball_no_bounce():
     num_balls = 10
     balls = _create_no_bounce_balls(num_balls)
 
-    LOG.debug(f'Created {num_balls} balls with bouncing disabled')
+    LOG.debug('Created %s balls with bouncing disabled', num_balls)
     LOG.debug('Initial ball states:')
     for ball_index, ball in enumerate(balls):
         LOG.debug(
             f'  Ball {ball_index + 1}: pos=({ball.rect.x},{ball.rect.y})'
-            f' speed=({ball.speed.x:.1f},{ball.speed.y:.1f})'
+            f' speed=({ball.speed.x:.1f},{ball.speed.y:.1f})',
         )
 
     dt = 1.0 / 60.0  # 60 FPS
@@ -103,20 +103,20 @@ def test_multi_ball_no_bounce():
     LOG.debug('\n=== FINAL RESULTS ===')
     LOG.debug(f'Total time: {total_time:.2f} seconds')
     LOG.debug(f'Frames processed: {results["frame_count"]:,}')
-    LOG.debug(f'Balls that died: {balls_died}')
-    LOG.debug(f'Balls still alive: {final_alive}')
+    LOG.debug('Balls that died: %s', balls_died)
+    LOG.debug('Balls still alive: %s', final_alive)
 
     # Check for any balls that shouldn't be alive
     for ball_index, ball in enumerate(balls):
         if ball.alive():
             LOG.debug(
-                f'  Ball {ball_index + 1} still alive at position ({ball.rect.x}, {ball.rect.y})'
+                f'  Ball {ball_index + 1} still alive at position ({ball.rect.x}, {ball.rect.y})',
             )
             LOG.debug(f'    Speed: ({ball.speed.x:.3f}, {ball.speed.y:.3f})')
             LOG.debug(
                 f'    Bounce settings:'
                 f' top/bottom={ball.bounce_top_bottom},'
-                f' left/right={ball.bounce_left_right}'
+                f' left/right={ball.bounce_left_right}',
             )
 
     # Analyze results
@@ -124,7 +124,7 @@ def test_multi_ball_no_bounce():
     if balls_died == num_balls:
         LOG.info('  All balls died as expected (no bouncing)')
     elif balls_died > 0:
-        LOG.debug(f'  Only {balls_died}/{num_balls} balls died')
+        LOG.debug('  Only %s/%s balls died', balls_died, num_balls)
     else:
         LOG.debug('  No balls died - bouncing may be enabled incorrectly')
 

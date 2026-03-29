@@ -159,10 +159,12 @@ class TestFPSTracking:
         scene_data = self.instance._scene_data['TestScene']
         assert len(scene_data['fps_history']) == 100000
         assert math.isclose(
-            scene_data['fps_history'][0], 60.0
+            scene_data['fps_history'][0],
+            60.0,
         )  # First entry should be the 1,001st one added (after 100k limit)
         assert math.isclose(
-            scene_data['fps_history'][-1], 60.0
+            scene_data['fps_history'][-1],
+            60.0,
         )  # Last entry should be the last one added
 
     def test_track_fps_from_event_frame_times_limit(self):
@@ -176,10 +178,12 @@ class TestFPSTracking:
         scene_data = self.instance._scene_data['TestScene']
         assert len(scene_data['frame_times']) == 1000
         assert math.isclose(
-            scene_data['frame_times'][0], 0.016
+            scene_data['frame_times'][0],
+            0.016,
         )  # First entry should be the second one added
         assert math.isclose(
-            scene_data['frame_times'][-1], 0.016
+            scene_data['frame_times'][-1],
+            0.016,
         )  # Last entry should be the last one added
 
     def test_track_fps_from_event_no_scene(self):
@@ -261,14 +265,16 @@ class TestSpareTimeCalculation:
         result1 = self.instance.get_spare_time_stats('Scene1')
         assert result1['avg_frame_time_ms'] == pytest.approx(10.0, rel=1e-2)
         assert result1['spare_capacity_percent'] == pytest.approx(
-            40.0, rel=1e-2
+            40.0,
+            rel=1e-2,
         )  # (16.67-10)/16.67
 
         # Test Scene2
         result2 = self.instance.get_spare_time_stats('Scene2')
         assert result2['avg_frame_time_ms'] == pytest.approx(20.0, rel=1e-2)
         assert result2['spare_capacity_percent'] == pytest.approx(
-            -20.0, rel=1e-2
+            -20.0,
+            rel=1e-2,
         )  # (16.67-20)/16.67
 
     def test_get_spare_time_stats_scene_not_found(self):

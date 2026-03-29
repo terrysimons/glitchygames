@@ -4,13 +4,13 @@ import time
 
 import pytest
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.multi_controller_manager import (
+from glitchygames.bitmappy.controllers.manager import (
     ControllerInfo,
     ControllerStatus,
     MultiControllerManager,
 )
-from glitchygames.tools.visual_collision_manager import (
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.bitmappy.indicators.collision import (
     IndicatorShape,
     VisualCollisionManager,
 )
@@ -67,7 +67,10 @@ class TestMultiControllerManager:
         """Test controller assignment."""
         # Add a connected controller
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(255, 0, 0)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(255, 0, 0),
         )
 
         # Assign controller
@@ -81,7 +84,10 @@ class TestMultiControllerManager:
         """Test controller activation."""
         # Add an assigned controller
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.ASSIGNED, color=(255, 0, 0)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.ASSIGNED,
+            color=(255, 0, 0),
         )
         self.manager.assigned_controllers[0] = 0
 
@@ -95,7 +101,10 @@ class TestMultiControllerManager:
         """Test controller info retrieval."""
         # Add a controller
         controller_info = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(255, 0, 0)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(255, 0, 0),
         )
         self.manager.controllers[0] = controller_info
 
@@ -110,7 +119,10 @@ class TestMultiControllerManager:
         """Test controller color retrieval."""
         # Add a controller with color
         controller_info = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(255, 0, 0)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(255, 0, 0),
         )
         self.manager.controllers[0] = controller_info
 
@@ -125,7 +137,10 @@ class TestMultiControllerManager:
         """Test controller activity tracking."""
         # Add a controller
         controller_info = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.ACTIVE, color=(255, 0, 0)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.ACTIVE,
+            color=(255, 0, 0),
         )
         self.manager.controllers[0] = controller_info
 
@@ -139,10 +154,16 @@ class TestMultiControllerManager:
         """Test active controller retrieval."""
         # Add controllers with different statuses
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.ACTIVE, color=(255, 0, 0)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.ACTIVE,
+            color=(255, 0, 0),
         )
         self.manager.controllers[1] = ControllerInfo(
-            controller_id=1, instance_id=1, status=ControllerStatus.CONNECTED, color=(0, 255, 0)
+            controller_id=1,
+            instance_id=1,
+            status=ControllerStatus.CONNECTED,
+            color=(0, 255, 0),
         )
 
         # Test active controllers
@@ -310,7 +331,10 @@ class TestVisualCollisionManager:
     def test_add_controller_indicator(self):
         """Test adding controller indicators."""
         indicator = self.manager.add_controller_indicator(
-            controller_id=0, instance_id=0, color=(255, 0, 0), position=(100, 100)
+            controller_id=0,
+            instance_id=0,
+            color=(255, 0, 0),
+            position=(100, 100),
         )
 
         assert indicator.controller_id == 0
@@ -453,7 +477,10 @@ class TestMultiControllerIntegration:
         """Test complete controller lifecycle from connection to deactivation."""
         # Simulate controller connection
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(255, 0, 0)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(255, 0, 0),
         )
 
         # Assign controller
@@ -550,7 +577,7 @@ class TestMultiControllerManagerCleanup:
         manager = MultiControllerManager()
 
         # Manually add a controller with old activity
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         controller = ControllerInfo(
             controller_id=0,
@@ -572,7 +599,7 @@ class TestMultiControllerManagerCleanup:
         """Test that recently active controllers are not cleaned up."""
         manager = MultiControllerManager()
 
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         controller = ControllerInfo(
             controller_id=0,
@@ -609,7 +636,7 @@ class TestMultiControllerManagerAssignment:
         """Test assigning an already-assigned controller returns its ID."""
         manager = MultiControllerManager()
 
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         controller = ControllerInfo(
             controller_id=0,
@@ -630,7 +657,7 @@ class TestMultiControllerManagerAssignment:
         """Test assigning a controller not in CONNECTED status returns None."""
         manager = MultiControllerManager()
 
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         controller = ControllerInfo(
             controller_id=0,
@@ -661,7 +688,7 @@ class TestMultiControllerManagerActivation:
         """Test activating an assigned controller returns True."""
         manager = MultiControllerManager()
 
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         controller = ControllerInfo(
             controller_id=0,
@@ -698,7 +725,7 @@ class TestMultiControllerManagerQueries:
         """Test updating controller activity timestamp."""
         manager = MultiControllerManager()
 
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         controller = ControllerInfo(
             controller_id=0,
@@ -717,7 +744,7 @@ class TestMultiControllerManagerQueries:
         """Test getting list of active controllers."""
         manager = MultiControllerManager()
 
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         manager.controllers[100] = ControllerInfo(
             controller_id=0,
@@ -738,7 +765,7 @@ class TestMultiControllerManagerQueries:
         """Test controller status summary."""
         manager = MultiControllerManager()
 
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         manager.controllers[100] = ControllerInfo(
             controller_id=0,
@@ -756,7 +783,7 @@ class TestMultiControllerManagerQueries:
         """Test assigning a color to a controller."""
         manager = MultiControllerManager()
 
-        from glitchygames.tools.multi_controller_manager import ControllerInfo
+        from glitchygames.bitmappy.controllers.manager import ControllerInfo
 
         manager.controllers[100] = ControllerInfo(
             controller_id=0,

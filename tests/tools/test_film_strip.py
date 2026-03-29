@@ -6,17 +6,17 @@ from typing import cast
 import pygame
 import pytest
 
-from glitchygames.sprites.animated import (
-    AnimatedSprite,
-    SpriteFrame,
-)
-from glitchygames.tools import film_strip
-from glitchygames.tools.film_strip import (
+from glitchygames.bitmappy import film_strip
+from glitchygames.bitmappy.film_strip import (
     ANIMATION_NAME_MAX_LENGTH,
     FilmStripDeleteTab,
     FilmStripTab,
     FilmStripWidget,
     FilmTabWidget,
+)
+from glitchygames.sprites.animated import (
+    AnimatedSprite,
+    SpriteFrame,
 )
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -87,7 +87,10 @@ class TestFilmStripFunctionality:
     def test_film_strip_widget_properties(self, mock_pygame_patches):
         """Test film strip widget properties."""
         strip = film_strip.FilmStripWidget(
-            FUNC_WIDGET_X, FUNC_WIDGET_Y, FUNC_WIDGET_WIDTH, FUNC_WIDGET_HEIGHT
+            FUNC_WIDGET_X,
+            FUNC_WIDGET_Y,
+            FUNC_WIDGET_WIDTH,
+            FUNC_WIDGET_HEIGHT,
         )
 
         # Test rect properties
@@ -260,21 +263,7 @@ class TestFilmStripFunctionality:
         strip = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         strip.mark_dirty()
-        assert strip._force_redraw is True
-
-    def test_propagate_dirty_to_sprite_groups(self, mock_pygame_patches, mocker):
-        """Test _propagate_dirty_to_sprite_groups method."""
-        strip = film_strip.FilmStripWidget(0, 0, 100, 100)
-
-        # Create a mock sprite with groups
-        mock_sprite = mocker.Mock()
-        mock_other_sprite = mocker.Mock()
-        mock_group = [mock_sprite, mock_other_sprite]
-        mock_sprite.groups.return_value = [mock_group]
-
-        # Should not crash
-        strip._propagate_dirty_to_sprite_groups(mock_sprite)
-        assert mock_other_sprite.dirty == 1
+        assert strip.force_redraw is True
 
     def test_update_scroll_for_frame_no_sprite(self, mock_pygame_patches):
         """Test update_scroll_for_frame when no animated sprite is set."""
@@ -301,6 +290,10 @@ class TestFilmStripFunctionality:
 
         # Should not crash when frame index is too high
         strip.update_scroll_for_frame(999)
+
+
+class TestFilmStripLayout:
+    """Test film strip layout, height updates, and background color cycling."""
 
     def test_update_height_with_animations(self, mock_pygame_patches, mocker):
         """Test _update_height method with multiple animations."""
@@ -353,7 +346,7 @@ class TestFilmStripFunctionality:
         # Simulate a click that should cycle the color
         # This would normally happen through handle_click, but we'll test the cycling logic directly
         strip.background_color_index = (strip.background_color_index + 1) % len(
-            strip.BACKGROUND_COLORS
+            strip.BACKGROUND_COLORS,
         )
         strip.background_color = strip.BACKGROUND_COLORS[strip.background_color_index]
 
@@ -366,7 +359,7 @@ class TestFilmStripFunctionality:
         for _ in range(len(strip.BACKGROUND_COLORS)):
             colors_seen.add(strip.background_color)
             strip.background_color_index = (strip.background_color_index + 1) % len(
-                strip.BACKGROUND_COLORS
+                strip.BACKGROUND_COLORS,
             )
             strip.background_color = strip.BACKGROUND_COLORS[strip.background_color_index]
 
@@ -442,7 +435,7 @@ class TestFilmStripWidgetInit:
     def test_init_copy_paste_buffer(self):
         """Test initialization has empty copy/paste buffer."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        assert widget._copied_frame is None
+        assert widget.copied_frame is None
 
     def test_init_film_tabs_empty(self):
         """Test initialization starts with empty film tabs."""
@@ -536,7 +529,9 @@ class TestFilmStripSetAnimatedSprite:
         assert 'old' not in widget.preview_animation_speeds
 
     def test_set_animated_sprite_initializes_scroll_offset(
-        self, widget, animated_sprite_with_order
+        self,
+        widget,
+        animated_sprite_with_order,
     ):
         """Test set_animated_sprite initializes scroll_offset to 0."""
         widget.set_animated_sprite(animated_sprite_with_order)
@@ -545,7 +540,7 @@ class TestFilmStripSetAnimatedSprite:
     def test_set_animated_sprite_marks_dirty(self, widget, animated_sprite_with_order):
         """Test set_animated_sprite marks widget as dirty."""
         widget.set_animated_sprite(animated_sprite_with_order)
-        assert hasattr(widget, '_force_redraw')
+        assert hasattr(widget, 'force_redraw')
 
 
 class TestFilmStripInitializePreviewAnimations:
@@ -666,31 +661,42 @@ class TestFilmStripUpdateAnimations:
         assert widget_with_sprite.preview_animation_times['walk'] < 1.0
 
     def test_update_marks_dirty(self, widget_with_sprite, mocker):
-        """Test update_animations marks widget as dirty."""
+        """Test update_animations marks widget as dirty when frame advances."""
         mocker.patch.object(widget_with_sprite, 'mark_dirty')
-        widget_with_sprite.update_animations(DT_60FPS)
+
+        # Mock animated_sprite.update to simulate a frame change
+        # without triggering real surfarray operations
+        def advance_frame(dt):
+            widget_with_sprite.animated_sprite.frame_manager._current_frame = 1
+
+        mocker.patch.object(
+            widget_with_sprite.animated_sprite,
+            'update',
+            side_effect=advance_frame,
+        )
+        widget_with_sprite.update_animations(0.6)
         widget_with_sprite.mark_dirty.assert_called()
 
     def test_update_initializes_debug_timers(self, widget_with_sprite, mocker):
         """Test update_animations initializes debug timers if not present."""
         mocker.patch.object(widget_with_sprite.animated_sprite, 'update')
         # Remove debug timers if present
-        if hasattr(widget_with_sprite, '_debug_start_time'):
-            del widget_with_sprite._debug_start_time
-        if hasattr(widget_with_sprite, '_debug_last_dump_time'):
-            del widget_with_sprite._debug_last_dump_time
+        if hasattr(widget_with_sprite, 'debug_start_time'):
+            del widget_with_sprite.debug_start_time
+        if hasattr(widget_with_sprite, 'debug_last_dump_time'):
+            del widget_with_sprite.debug_last_dump_time
         widget_with_sprite.update_animations(DT_60FPS)
-        assert hasattr(widget_with_sprite, '_debug_start_time')
-        assert hasattr(widget_with_sprite, '_debug_last_dump_time')
+        assert hasattr(widget_with_sprite, 'debug_start_time')
+        assert hasattr(widget_with_sprite, 'debug_last_dump_time')
 
     def test_update_triggers_debug_dump_at_interval(self, widget_with_sprite, mocker):
         """Test update_animations triggers debug dump at 5-second intervals."""
         mocker.patch.object(widget_with_sprite.animated_sprite, 'update')
-        widget_with_sprite._debug_start_time = 0.0
-        widget_with_sprite._debug_last_dump_time = 0.0
+        widget_with_sprite.debug_start_time = 0.0
+        widget_with_sprite.debug_last_dump_time = 0.0
         # Advance enough time to trigger a dump (5 seconds)
         widget_with_sprite.update_animations(6.0)
-        assert widget_with_sprite._debug_last_dump_time == widget_with_sprite._debug_start_time
+        assert widget_with_sprite.debug_last_dump_time == widget_with_sprite.debug_start_time
 
     def test_update_skips_animation_not_in_times(self, widget_with_sprite, mocker):
         """Test update_animations skips animations not in preview_animation_times."""
@@ -817,7 +823,7 @@ class TestFilmStripCopyPaste:
     def test_copy_success(self, widget_with_frames):
         """Test successful copy stores frame."""
         assert widget_with_frames.copy_current_frame() is True
-        assert widget_with_frames._copied_frame is not None
+        assert widget_with_frames.copied_frame is not None
 
     def test_paste_no_copied_frame(self, widget_with_frames):
         """Test paste fails with no copied frame."""
@@ -826,7 +832,7 @@ class TestFilmStripCopyPaste:
     def test_paste_no_sprite(self):
         """Test paste fails with no animated sprite."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget._copied_frame = 'something'
+        widget.copied_frame = 'something'
         assert widget.paste_to_current_frame() is False
 
     def test_paste_invalid_animation(self, widget_with_frames):
@@ -871,7 +877,7 @@ class TestFilmStripCopyPaste:
         widget_with_frames.copy_current_frame()
         # Modifying the original should not affect the copy
         original_frame = widget_with_frames.animated_sprite._animations['idle'][0]
-        assert widget_with_frames._copied_frame is not original_frame
+        assert widget_with_frames.copied_frame is not original_frame
 
 
 class TestFilmStripFrameSelection:
@@ -919,11 +925,13 @@ class TestFilmStripFrameSelection:
     def test_set_current_frame_notifies_parent_scene(self, widget_with_sprite, mocker):
         """Test set_current_frame notifies parent scene."""
         parent_scene = mocker.Mock()
-        parent_scene._on_film_strip_frame_selected = mocker.Mock()
+        parent_scene.on_film_strip_frame_selected = mocker.Mock()
         widget_with_sprite.parent_scene = parent_scene
         widget_with_sprite.set_current_frame('idle', 1)
-        parent_scene._on_film_strip_frame_selected.assert_called_once_with(
-            widget_with_sprite, 'idle', 1
+        parent_scene.on_film_strip_frame_selected.assert_called_once_with(
+            widget_with_sprite,
+            'idle',
+            1,
         )
 
     def test_set_current_frame_negative_index_ignored(self, widget_with_sprite):
@@ -1003,7 +1011,7 @@ class TestFilmStripMarkDirty:
         """Test mark_dirty sets _force_redraw flag."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.mark_dirty()
-        assert widget._force_redraw is True
+        assert widget.force_redraw is True
 
     def test_mark_dirty_with_film_strip_sprite(self, mocker):
         """Test mark_dirty propagates to film_strip_sprite."""
@@ -1012,13 +1020,13 @@ class TestFilmStripMarkDirty:
         mock_sprite.groups.return_value = []
         widget.film_strip_sprite = mock_sprite
         widget.mark_dirty()
-        assert mock_sprite.dirty == 2
+        assert mock_sprite.dirty == 1
 
     def test_mark_dirty_without_film_strip_sprite(self):
         """Test mark_dirty works without film_strip_sprite."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.mark_dirty()
-        assert widget._force_redraw is True
+        assert widget.force_redraw is True
 
 
 class TestFilmStripUpdateHeight:
@@ -1281,7 +1289,8 @@ class TestFilmStripGetFrameImage:
         frame = SpriteFrame(surface)
         frame._image_stale = True  # type: ignore[unresolved-attribute]
         pixel_data = cast(
-            'list[tuple[int, ...]]', [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE)
+            'list[tuple[int, ...]]',
+            [(255, 0, 0, 255)] * (SURFACE_SIZE * SURFACE_SIZE),
         )
         frame.pixels = pixel_data
         result = FilmStripWidget._get_frame_image(frame)
@@ -1307,49 +1316,6 @@ class TestFilmStripGetFrameImage:
         frame = mocker.Mock(spec=[])
         result = FilmStripWidget._get_frame_image(frame)
         assert result is None
-
-
-class TestFilmStripPropagateDirty:
-    """Test dirty propagation methods."""
-
-    def test_propagate_dirty_up_parent_chain_none(self):
-        """Test _propagate_dirty_up_parent_chain with None parent."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget._propagate_dirty_up_parent_chain(None)  # Should not raise
-
-    def test_propagate_dirty_up_parent_chain_with_parent(self, mocker):
-        """Test _propagate_dirty_up_parent_chain marks parents dirty."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        parent = mocker.Mock()
-        parent.dirty = 0
-        parent.parent = None
-        widget._propagate_dirty_up_parent_chain(parent)
-        assert parent.dirty == 1
-
-    def test_propagate_dirty_up_parent_chain_self_reference(self, mocker):
-        """Test _propagate_dirty_up_parent_chain stops on self-reference."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        parent = mocker.Mock()
-        parent.dirty = 0
-        parent.parent = parent  # Self-reference
-        widget._propagate_dirty_up_parent_chain(parent)
-        assert parent.dirty == 1
-
-    def test_propagate_dirty_to_sprite_groups_prevents_infinite_recursion(self, mocker):
-        """Test _propagate_dirty_to_sprite_groups prevents infinite recursion."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock()
-        # Passing visited set with the sprite already in it should stop
-        visited = {sprite}
-        widget._propagate_dirty_to_sprite_groups(sprite, visited)
-        # Should not have called groups() since sprite was already visited
-
-    def test_propagate_dirty_to_sprite_groups_no_groups(self, mocker):
-        """Test _propagate_dirty_to_sprite_groups with sprite that has no groups."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock(spec=[])
-        widget._propagate_dirty_to_sprite_groups(sprite)
-        # Should not raise
 
 
 class TestFilmStripHandleClick:
@@ -1391,15 +1357,15 @@ class TestFilmStripHandleClick:
     def test_handle_click_right_click_toggles_onion_skinning(self, widget_with_sprite, mocker):
         """Test handle_click with right click toggles onion skinning."""
         widget_with_sprite.frame_layouts['idle', 0] = pygame.Rect(50, 30, 64, 64)
-        mocker.patch.object(widget_with_sprite, '_toggle_onion_skinning')
+        mocker.patch.object(widget_with_sprite.event_handler, 'toggle_onion_skinning')
         result = widget_with_sprite.handle_click((60, 40), is_right_click=True)
         assert result is None
-        widget_with_sprite._toggle_onion_skinning.assert_called_once()
+        widget_with_sprite.event_handler.toggle_onion_skinning.assert_called_once()
 
     def test_handle_click_shift_click_toggles_onion_skinning(self, widget_with_sprite, mocker):
         """Test handle_click with shift click toggles onion skinning."""
         widget_with_sprite.frame_layouts['idle', 0] = pygame.Rect(50, 30, 64, 64)
-        mocker.patch.object(widget_with_sprite, '_toggle_onion_skinning')
+        mocker.patch.object(widget_with_sprite.event_handler, 'toggle_onion_skinning')
         result = widget_with_sprite.handle_click((60, 40), is_shift_click=True)
         assert result is None
 
@@ -1669,7 +1635,7 @@ class TestFilmStripRemoveFrame:
         """Test _remove_frame prevents removing the last frame."""
         # Remove until only one frame left
         widget_with_multi_frame_sprite.animated_sprite._animations['idle'] = [
-            widget_with_multi_frame_sprite.animated_sprite._animations['idle'][0]
+            widget_with_multi_frame_sprite.animated_sprite._animations['idle'][0],
         ]
         widget_with_multi_frame_sprite._remove_frame('idle', 0)
         # Should still have 1 frame
@@ -2094,7 +2060,7 @@ class TestFilmStripDumpAnimationDebugState:
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
         sprite.add_animation('idle', [SpriteFrame(surface, duration=FRAME_DURATION)])
         widget.set_animated_sprite(sprite)
-        widget._debug_start_time = 5.0
+        widget.debug_start_time = 5.0
         widget._dump_animation_debug_state(DT_60FPS)
 
     def test_dump_animated_sprite_debug(self):
@@ -2271,20 +2237,20 @@ class TestHandleClick:
         widget, _sprite = _make_widget_with_sprite(num_frames=2)
         frame_rect = pygame.Rect(50, 50, 64, 64)
         widget.frame_layouts['idle', 0] = frame_rect
-        mocker.patch.object(widget, '_toggle_onion_skinning')
+        mocker.patch.object(widget.event_handler, 'toggle_onion_skinning')
         result = widget.handle_click((60, 60), is_right_click=True)
         assert result is None  # Right-click doesn't select frame
-        widget._toggle_onion_skinning.assert_called_once()
+        widget.event_handler.toggle_onion_skinning.assert_called_once()
 
     def test_shift_click_on_frame_toggles_onion_skinning(self, mocker):
         """Test shift-clicking on a frame toggles onion skinning."""
         widget, _sprite = _make_widget_with_sprite(num_frames=2)
         frame_rect = pygame.Rect(50, 50, 64, 64)
         widget.frame_layouts['idle', 0] = frame_rect
-        mocker.patch.object(widget, '_toggle_onion_skinning')
+        mocker.patch.object(widget.event_handler, 'toggle_onion_skinning')
         result = widget.handle_click((60, 60), is_shift_click=True)
         assert result is None
-        widget._toggle_onion_skinning.assert_called_once()
+        widget.event_handler.toggle_onion_skinning.assert_called_once()
 
 
 class TestHandleHover:
@@ -2382,41 +2348,6 @@ class TestUpdateScrollForFrame:
         widget.update_scroll_for_frame(999)  # Should not raise
 
 
-class TestPropagateDirtyToSpriteGroups:
-    """Test _propagate_dirty_to_sprite_groups method."""
-
-    def test_propagate_with_callable_groups(self, mocker):
-        """Test propagation when sprite.groups() is callable."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        mock_other_sprite = mocker.Mock()
-        mock_other_sprite.groups.return_value = []
-        mock_other_sprite.dirty = 0
-
-        mock_group = mocker.Mock()
-        mock_group.__iter__ = mocker.Mock(return_value=iter([mock_other_sprite]))
-
-        mock_sprite = mocker.Mock()
-        mock_sprite.groups.return_value = [mock_group]
-
-        widget._propagate_dirty_to_sprite_groups(mock_sprite)
-        assert mock_other_sprite.dirty == 1
-
-    def test_propagate_prevents_infinite_recursion(self, mocker):
-        """Test propagation stops on already-visited sprites."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        mock_sprite = mocker.Mock()
-        mock_sprite.groups.return_value = []
-        visited = {mock_sprite}
-        # Should return immediately, not recurse
-        widget._propagate_dirty_to_sprite_groups(mock_sprite, visited=visited)
-
-    def test_propagate_handles_no_groups_attribute(self, mocker):
-        """Test propagation handles sprites without groups attribute."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        mock_sprite = mocker.Mock(spec=[])  # No attributes
-        widget._propagate_dirty_to_sprite_groups(mock_sprite)  # Should not raise
-
-
 class TestHasValidCanvasSprite:
     """Test _has_valid_canvas_sprite method."""
 
@@ -2501,16 +2432,16 @@ class TestToggleOnionSkinning:
         mock_manager = mocker.Mock()
         mock_manager.toggle_frame_onion_skinning.return_value = True
         mocker.patch(
-            'glitchygames.tools.film_strip.get_onion_skinning_manager',
+            'glitchygames.bitmappy.film_strip.get_onion_skinning_manager',
             return_value=mock_manager,
             create=True,
         )
         mocker.patch(
-            'glitchygames.tools.onion_skinning.get_onion_skinning_manager',
+            'glitchygames.bitmappy.onion_skinning.get_onion_skinning_manager',
             return_value=mock_manager,
         )
         widget._toggle_onion_skinning('idle', 0)
-        assert widget._force_redraw is True
+        assert widget.force_redraw is True
 
     def test_toggle_with_parent_canvas_forces_canvas_redraw(self, mocker):
         """Test toggling onion skinning forces canvas redraw via parent scene."""
@@ -2518,7 +2449,7 @@ class TestToggleOnionSkinning:
         mock_manager = mocker.Mock()
         mock_manager.toggle_frame_onion_skinning.return_value = True
         mocker.patch(
-            'glitchygames.tools.onion_skinning.get_onion_skinning_manager',
+            'glitchygames.bitmappy.onion_skinning.get_onion_skinning_manager',
             return_value=mock_manager,
         )
         mock_parent = mocker.Mock()
@@ -2722,11 +2653,11 @@ class TestUpdateLayout:
     def test_update_layout_recalculates(self, mocker):
         """Test update_layout triggers layout recalculation."""
         widget, _sprite = _make_widget_with_sprite(num_frames=2)
-        mocker.patch.object(widget, '_calculate_layout')
-        mocker.patch.object(widget, '_create_film_tabs')
+        mocker.patch.object(widget.layout, 'calculate_layout')
+        mocker.patch.object(widget.layout, 'create_film_tabs')
         widget.update_layout()
-        widget._calculate_layout.assert_called_once()
-        widget._create_film_tabs.assert_called_once()
+        widget.layout.calculate_layout.assert_called_once()
+        widget.layout.create_film_tabs.assert_called_once()
 
 
 class TestConvertMagentaToTransparent:
@@ -2849,11 +2780,11 @@ class TestDumpAnimationDebugState:
     def test_dump_animation_debug_state(self):
         """Test _dump_animation_debug_state runs without error."""
         widget, _sprite = _make_widget_with_sprite(num_frames=2)
-        widget._debug_start_time = 5.0
-        widget._debug_last_dump_time = 0.0
+        widget.debug_start_time = 5.0
+        widget.debug_last_dump_time = 0.0
         widget._dump_animation_debug_state(DT_60FPS)
         # Verify the dump time was updated
-        assert widget._debug_last_dump_time > 0.0
+        assert widget.debug_last_dump_time > 0.0
 
     def test_dump_animated_sprite_debug(self):
         """Test _dump_animated_sprite_debug runs without error on loaded sprite."""
@@ -2863,8 +2794,8 @@ class TestDumpAnimationDebugState:
     def test_dump_without_sprite(self):
         """Test _dump_animation_debug_state runs without animated sprite."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget._debug_start_time = 5.0
-        widget._debug_last_dump_time = 0.0
+        widget.debug_start_time = 5.0
+        widget.debug_last_dump_time = 0.0
         # scroll_offset is set during set_animated_sprite, so set it manually
         widget.scroll_offset = 0
         widget._dump_animation_debug_state(DT_60FPS)
@@ -3118,55 +3049,19 @@ class TestGetFrameImageForRendering:
         assert result is surface
 
     def test_falls_back_to_get_frame_image(self, mocker):
-        """Test falls back to _get_frame_image when image is None."""
+        """Test falls back to get_frame_image when image is None."""
+        from glitchygames.bitmappy.film_strip_animation import FilmStripAnimation
+
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         frame = mocker.Mock()
         frame.image = None
         mocker.patch.object(
-            FilmStripWidget,
-            '_get_frame_image',
+            FilmStripAnimation,
+            'get_frame_image',
             return_value=None,
         )
         result = widget._get_frame_image_for_rendering(frame, is_selected=False)
         assert result is None
-
-
-class TestFilmStripPropagateDirtyToGroups:
-    """Test _propagate_dirty_to_sprite_groups method."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_propagate_to_sprite_with_groups(self, mocker):
-        """Test propagation through sprite groups."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock()
-        group = mocker.Mock()
-        group.sprites.return_value = []
-        sprite.groups.return_value = [group]
-        sprite.dirty = 0
-
-        widget._propagate_dirty_to_sprite_groups(sprite)
-        # Should set sprite dirty=2 or visit groups
-
-    def test_propagate_skips_visited_sprite(self, mocker):
-        """Test propagation skips already-visited sprites."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock()
-        sprite.groups.return_value = []
-        visited = {sprite}
-
-        # Should return immediately without error
-        widget._propagate_dirty_to_sprite_groups(sprite, visited=visited)
-
-    def test_propagate_sprite_without_groups(self, mocker):
-        """Test propagation with sprite that has no groups attribute."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = mocker.Mock(spec=[])  # No groups attr
-
-        widget._propagate_dirty_to_sprite_groups(sprite)  # Should not raise
 
 
 class TestFilmStripHasValidCanvasSprite:
@@ -3384,7 +3279,7 @@ class TestFilmStripDumpDebugState:
         surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
         sprite.add_animation('idle', [SpriteFrame(surface, duration=FRAME_DURATION)])
         widget.set_animated_sprite(sprite)
-        widget._debug_start_time = 10.0
+        widget.debug_start_time = 10.0
 
         widget._dump_animation_debug_state(0.016)
 
@@ -3406,7 +3301,7 @@ class TestFilmStripDumpDebugState:
         after partial initialization.
         """
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget._debug_start_time = 5.0
+        widget.debug_start_time = 5.0
         # scroll_offset is set in set_animated_sprite, not __init__,
         # so we need to initialize it for the debug dump to work
         widget.scroll_offset = 0
@@ -3550,11 +3445,11 @@ class TestFilmStripToggleOnionSkinning:
         mock_onion_module.get_onion_skinning_manager.return_value = mock_manager
         mocker.patch.dict(
             'sys.modules',
-            {'glitchygames.tools.onion_skinning': mock_onion_module},
+            {'glitchygames.bitmappy.onion_skinning': mock_onion_module},
         )
 
         widget._toggle_onion_skinning('idle', 0)
-        assert widget._force_redraw is True
+        assert widget.force_redraw is True
         widget.parent_scene.canvas.force_redraw.assert_called_once()
 
     def test_toggle_onion_skinning_exception_handled(self, mocker):
@@ -3566,7 +3461,7 @@ class TestFilmStripToggleOnionSkinning:
         mock_onion_module.get_onion_skinning_manager.side_effect = RuntimeError('test error')
         mocker.patch.dict(
             'sys.modules',
-            {'glitchygames.tools.onion_skinning': mock_onion_module},
+            {'glitchygames.bitmappy.onion_skinning': mock_onion_module},
         )
         # Should not raise - exception is caught and logged
         widget._toggle_onion_skinning('idle', 0)
@@ -3881,10 +3776,10 @@ class TestFilmStripHandleAddDeleteAnimationTab:
     def test_handle_add_animation_no_canvas(self, mocker):
         """Test _handle_add_animation_tab_click without canvas (lines 2719-2720)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.parent_scene = mocker.Mock(spec=['_add_new_animation'])
-        # canvas is not present (spec restricts attributes)
+        widget.parent_scene = mocker.Mock()
+        widget.parent_scene.canvas = None  # No canvas available
         widget._handle_add_animation_tab_click()
-        widget.parent_scene._add_new_animation.assert_called_once()
+        widget.parent_scene.film_strip_coordinator._add_new_animation.assert_called_once()
 
     def test_handle_add_animation_with_canvas(self, mocker):
         """Test _handle_add_animation_tab_click with canvas inserts after current (line 2725)."""
@@ -3899,7 +3794,9 @@ class TestFilmStripHandleAddDeleteAnimationTab:
         widget.parent_scene.canvas.animated_sprite = sprite
 
         widget._handle_add_animation_tab_click()
-        widget.parent_scene._add_new_animation.assert_called_once_with(insert_after_index=0)
+        widget.parent_scene.film_strip_coordinator._add_new_animation.assert_called_once_with(
+            insert_after_index=0,
+        )
 
     def test_handle_add_animation_fallback_on_value_error(self, mocker):
         """Test _handle_add_animation_tab_click falls back when animation not found (line 2727)."""
@@ -3916,7 +3813,7 @@ class TestFilmStripHandleAddDeleteAnimationTab:
         widget.parent_scene.canvas.animated_sprite = sprite
 
         widget._handle_add_animation_tab_click()
-        widget.parent_scene._add_new_animation.assert_called_once_with()
+        widget.parent_scene.film_strip_coordinator._add_new_animation.assert_called_once_with()
 
     def test_handle_delete_animation_no_parent(self):
         """Test _handle_delete_animation_tab_click without parent scene (line 2732)."""
@@ -3927,7 +3824,8 @@ class TestFilmStripHandleAddDeleteAnimationTab:
     def test_handle_delete_animation_no_canvas(self, mocker):
         """Test _handle_delete_animation_tab_click without canvas (line 2735)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.parent_scene = mocker.Mock(spec=['_delete_animation'])
+        widget.parent_scene = mocker.Mock()
+        widget.parent_scene.canvas = None  # No canvas available
         widget._handle_delete_animation_tab_click()
         # Should return without error (no canvas to check)
 
@@ -3945,7 +3843,7 @@ class TestFilmStripHandleAddDeleteAnimationTab:
         widget.parent_scene.canvas.animated_sprite = sprite
 
         widget._handle_delete_animation_tab_click()
-        widget.parent_scene._delete_animation.assert_called_once_with('idle')
+        widget.parent_scene.film_strip_coordinator._delete_animation.assert_called_once_with('idle')
 
 
 class TestFilmStripHandleRemovalButton:
@@ -4215,51 +4113,11 @@ class TestFilmStripHandleClickEdgeCases:
         tab.set_insertion_type('before', 0)
         widget.film_tabs = [tab]
 
-        # Mock _insert_frame_at_tab to prevent actual frame insertion
-        mocker.patch.object(widget, '_insert_frame_at_tab')
+        # Mock insert_frame_at_tab on event handler to prevent actual frame insertion
+        mocker.patch.object(widget.event_handler, 'insert_frame_at_tab')
 
         result = widget.handle_click((10, 65))
         assert result is None
-
-
-class TestFilmStripPropagateDirtyUpParentChain:
-    """Test _propagate_dirty_up_parent_chain (lines 619-624)."""
-
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
-        """Set up pygame mocks for testing."""
-        MockFactory.setup_pygame_mocks_with_mocker(mocker)
-
-    def test_propagate_up_sets_parent_dirty(self, mocker):
-        """Test _propagate_dirty_up_parent_chain marks parent as dirty (line 620)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        parent = mocker.Mock()
-        parent.dirty = 0
-        parent.parent = None  # Stop recursion
-
-        widget._propagate_dirty_up_parent_chain(parent)
-        assert parent.dirty == 1
-
-    def test_propagate_up_recurses_to_grandparent(self, mocker):
-        """Test _propagate_dirty_up_parent_chain recurses through chain (line 624)."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        grandparent = mocker.Mock()
-        grandparent.dirty = 0
-        grandparent.parent = None
-
-        parent = mocker.Mock()
-        parent.dirty = 0
-        parent.parent = grandparent
-
-        widget._propagate_dirty_up_parent_chain(parent)
-        assert parent.dirty == 1
-        assert grandparent.dirty == 1
-
-    def test_propagate_up_none_parent_returns(self):
-        """Test _propagate_dirty_up_parent_chain returns on None."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget._propagate_dirty_up_parent_chain(None)
-        # Should return without error
 
 
 class TestFilmStripDrawPreviewTriangle:
@@ -4474,7 +4332,7 @@ class TestFilmStripGetControllerSelectionColor:
         mock_multi_ctrl_module.MultiControllerManager.get_instance.return_value = mock_manager
         mocker.patch.dict(
             'sys.modules',
-            {'glitchygames.tools.multi_controller_manager': mock_multi_ctrl_module},
+            {'glitchygames.bitmappy.controllers.manager': mock_multi_ctrl_module},
         )
 
         result = widget._get_controller_selection_color('idle', 0)

@@ -51,7 +51,7 @@ class TestSliderSpriteFunctionality:
 
     def test_slider_initialization(self, mocker):
         """Test SliderSprite initialization."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -61,7 +61,11 @@ class TestSliderSpriteFunctionality:
 
         # Act
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Assert
@@ -78,7 +82,7 @@ class TestSliderSpriteFunctionality:
 
     def test_slider_value_setting(self, mocker):
         """Test SliderSprite value setting."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -87,7 +91,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Act
@@ -99,7 +107,7 @@ class TestSliderSpriteFunctionality:
 
     def test_slider_value_clamping(self, mocker):
         """Test SliderSprite value clamping to min/max bounds."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -108,7 +116,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Act - set value below minimum
@@ -125,7 +137,7 @@ class TestSliderSpriteFunctionality:
 
     def test_slider_mouse_click_handling(self, mocker):
         """Test SliderSprite mouse click handling."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -134,7 +146,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Create mock event
@@ -149,7 +165,7 @@ class TestSliderSpriteFunctionality:
 
     def test_slider_mouse_drag_handling(self, mocker):
         """Test SliderSprite mouse drag handling."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -158,7 +174,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Start dragging
@@ -177,7 +197,7 @@ class TestSliderSpriteFunctionality:
 
     def test_slider_mouse_release_handling(self, mocker):
         """Test SliderSprite mouse release handling."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -186,7 +206,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Start dragging
@@ -204,7 +228,7 @@ class TestSliderSpriteFunctionality:
 
     def test_slider_text_input_activation(self, mocker):
         """Test SliderSprite text input activation."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -213,7 +237,11 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Create mock event for text box click
@@ -225,12 +253,12 @@ class TestSliderSpriteFunctionality:
 
         # Assert
         assert result is True  # Should handle the event
-        assert slider.text_sprite.active is True
+        assert slider.text_sprite.is_active is True
         assert not slider.text_sprite.text  # Should be cleared for editing
 
     def test_slider_text_input_validation(self, mocker):
         """Test SliderSprite text input validation."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -239,11 +267,15 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Activate text input
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         slider.text_sprite.text = '150'
 
         # Create mock event for Enter key
@@ -256,11 +288,11 @@ class TestSliderSpriteFunctionality:
 
         # Assert
         assert slider.value == TEST_VALUE_150
-        assert slider.text_sprite.active is False
+        assert slider.text_sprite.is_active is False
 
     def test_slider_text_input_invalid_value(self, mocker):
         """Test SliderSprite text input with invalid value."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -269,13 +301,17 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         original_value = slider.value
 
         # Activate text input
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         slider.text_sprite.text = '300'  # Invalid - above max
 
         # Create mock event for Enter key
@@ -288,11 +324,11 @@ class TestSliderSpriteFunctionality:
 
         # Assert - should revert to original value
         assert slider.value == original_value
-        assert slider.text_sprite.active is False
+        assert slider.text_sprite.is_active is False
 
     def test_slider_text_input_escape_key(self, mocker):
         """Test SliderSprite text input escape key handling."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -301,13 +337,17 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         original_value = slider.value
 
         # Activate text input
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         slider.text_sprite.text = '200'
 
         # Create mock event for Escape key
@@ -320,11 +360,11 @@ class TestSliderSpriteFunctionality:
 
         # Assert - should revert to original value
         assert slider.value == original_value
-        assert slider.text_sprite.active is False
+        assert slider.text_sprite.is_active is False
 
     def test_slider_text_input_character_typing(self, mocker):
         """Test SliderSprite text input character typing."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -333,11 +373,15 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Activate text input
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         slider.text_sprite.text = ''
 
         # Create mock event for digit key
@@ -353,7 +397,7 @@ class TestSliderSpriteFunctionality:
 
     def test_slider_text_input_backspace(self, mocker):
         """Test SliderSprite text input backspace handling."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -362,11 +406,15 @@ class TestSliderSpriteFunctionality:
         mock_get_font.return_value = font
 
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Activate text input
-        slider.text_sprite.active = True
+        slider.text_sprite.is_active = True
         slider.text_sprite.text = '12'
 
         # Create mock event for backspace key
@@ -572,7 +620,7 @@ class TestSliderColorWellIntegration:
 
     def test_slider_color_well_synchronization(self, mocker):
         """Test synchronization between slider and color well."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -582,7 +630,11 @@ class TestSliderColorWellIntegration:
 
         # Create slider and color well
         slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='TestSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='TestSlider',
         )
 
         # Act - change slider value
@@ -594,7 +646,7 @@ class TestSliderColorWellIntegration:
 
     def test_multiple_sliders_color_well_integration(self, mocker):
         """Test integration of multiple sliders with color well."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -604,7 +656,11 @@ class TestSliderColorWellIntegration:
 
         # Create RGB sliders
         red_slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name='RedSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='RedSlider',
         )
         red_slider.value = 255
 
@@ -618,7 +674,11 @@ class TestSliderColorWellIntegration:
         green_slider.value = 128
 
         blue_slider = SliderSprite(
-            x=TEST_X_POS, y=TEST_Y_POS + 60, width=TEST_WIDTH, height=TEST_HEIGHT, name='BlueSlider'
+            x=TEST_X_POS,
+            y=TEST_Y_POS + 60,
+            width=TEST_WIDTH,
+            height=TEST_HEIGHT,
+            name='BlueSlider',
         )
         blue_slider.value = 64
 

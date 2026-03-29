@@ -69,17 +69,17 @@ class TestScene:
         # Test getting background color
         assert scene.background_color is not None
 
-        # Test setting background color
+        # Test setting background color (RGB gets normalized to RGBA with alpha=0)
         scene.background_color = RED
-        assert scene.background_color == RED
+        assert scene.background_color == (*RED, 0)
 
     def test_scene_background_color_setter(self, mock_pygame_patches, mocker):
         """Test Scene background_color setter."""
         scene = Scene()
 
-        # Test setting background color
+        # Test setting background color (RGB gets normalized to RGBA with alpha=0)
         scene.background_color = BLUE
-        assert scene.background_color == BLUE
+        assert scene.background_color == (*BLUE, 0)
 
     def test_scene_setup_method(self, mock_pygame_patches, mocker):
         """Test Scene setup method."""
@@ -200,6 +200,10 @@ class TestScene:
 
         # Test mouse wheel event handling
         scene.on_mouse_wheel_event(mock_event)
+
+
+class TestSceneJoystickControllerEvents:
+    """Test Scene joystick and controller event methods."""
 
     def test_scene_on_joy_axis_motion_event(self, mock_pygame_patches, mocker):
         """Test Scene on_joy_axis_motion_event method."""
@@ -328,6 +332,10 @@ class TestScene:
 
         # Test controller touchpad up event handling
         scene.on_controller_touchpad_up_event(mock_event)
+
+
+class TestSceneWindowEvents:
+    """Test Scene window and audio device event methods."""
 
     def test_scene_on_audio_device_added_event(self, mock_pygame_patches, mocker):
         """Test Scene on_audio_device_added_event method."""
@@ -472,6 +480,10 @@ class TestScene:
 
         # Test window hit test event handling
         scene.on_window_hit_test_event(mock_event)
+
+
+class TestSceneInputEvents:
+    """Test Scene touch, drop, text, MIDI, and font event methods."""
 
     def test_scene_on_touch_down_event(self, mock_pygame_patches, mocker):
         """Test Scene on_touch_down_event method."""
@@ -697,12 +709,12 @@ class TestSceneFocusManagement:
         scene = Scene()
 
         sprite = mocker.Mock()
-        sprite.active = True
+        sprite.is_active = True
         sprite.on_focus_lost = mocker.Mock()
 
         scene._unfocus_sprites([sprite])
 
-        assert sprite.active is False
+        assert sprite.is_active is False
         sprite.on_focus_lost.assert_called_once()
 
     def test_unfocus_sprites_without_on_focus_lost(self, mock_pygame_patches, mocker):
@@ -710,10 +722,10 @@ class TestSceneFocusManagement:
         scene = Scene()
 
         sprite = mocker.Mock(spec=['active'])
-        sprite.active = True
+        sprite.is_active = True
 
         scene._unfocus_sprites([sprite])
-        assert sprite.active is False
+        assert sprite.is_active is False
 
     def test_handle_focus_management_unfocuses_when_no_focusable(self, mock_pygame_patches, mocker):
         """Test _handle_focus_management unfocuses when no focusable sprites."""
@@ -721,14 +733,14 @@ class TestSceneFocusManagement:
 
         # Add a mock focused sprite to all_sprites
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_focus_lost = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
         # Click on non-focusable sprites
         scene._handle_focus_management([])
 
-        assert focused_sprite.active is False
+        assert focused_sprite.is_active is False
 
 
 class TestSceneHandleQuitKeyPress:
@@ -777,7 +789,7 @@ class TestSceneKeyUpEvent:
 
         # Add a focused sprite
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         scene.all_sprites.add(focused_sprite)
 
         event = mocker.Mock()
@@ -807,7 +819,7 @@ class TestSceneKeyDownEvent:
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_key_down_event = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -1378,7 +1390,10 @@ class TestHandleFramePacing:
         mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
 
         manager._handle_frame_pacing(
-            timer=None, period_ns=0, prev_deadline_ns=None, frame_start_ns=0
+            timer=None,
+            period_ns=0,
+            prev_deadline_ns=None,
+            frame_start_ns=0,
         )
 
         mock_clock_tick.assert_called_once_with(60)
@@ -1391,7 +1406,10 @@ class TestHandleFramePacing:
         mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
 
         manager._handle_frame_pacing(
-            timer=None, period_ns=0, prev_deadline_ns=None, frame_start_ns=0
+            timer=None,
+            period_ns=0,
+            prev_deadline_ns=None,
+            frame_start_ns=0,
         )
 
         mock_clock_tick.assert_called_once_with()
@@ -1472,7 +1490,8 @@ class TestTickClock:
 
         def mock_import(name, *args, **kwargs):
             if name == 'glitchygames.performance':
-                raise ImportError('No module named glitchygames.performance')
+                msg = 'No module named glitchygames.performance'
+                raise ImportError(msg)
             return original_import(name, *args, **kwargs)
 
         mocker.patch('builtins.__import__', side_effect=mock_import)
@@ -1600,7 +1619,7 @@ class TestSceneManagerHandleEvent:
         manager.active_scene = scene
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         scene.all_sprites.add(focused_sprite)
 
         event = mocker.Mock()
@@ -1777,7 +1796,7 @@ class TestSceneManagerHandleEventDeeper:
         manager = SceneManager()
         scene = Scene()
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         scene.all_sprites.add(focused_sprite)
         manager.active_scene = scene
 
@@ -1969,8 +1988,9 @@ class TestSceneBackgroundColor:
     def test_background_color_setter(self, mock_pygame_patches):
         """Test background_color setter updates the color."""
         scene = Scene()
+        # RGB gets normalized to RGBA with alpha=0
         scene.background_color = (255, 0, 0)
-        assert scene.background_color == (255, 0, 0)
+        assert scene.background_color == (255, 0, 0, 0)
 
 
 class TestSceneUpdate:
@@ -2059,13 +2079,15 @@ class TestSceneHandleFocusManagementWithFocusable:
     """Test Scene._handle_focus_management with focusable sprites."""
 
     def test_handle_focus_management_keeps_focused_when_focusable_clicked(
-        self, mock_pygame_patches, mocker
+        self,
+        mock_pygame_patches,
+        mocker,
     ):
         """Test focus is maintained when clicking on a focusable sprite."""
         scene = Scene()
 
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_focus_lost = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -2426,7 +2448,7 @@ class TestSceneOnKeyDownWithFocusedSprites:
         """Test non-quit key is dispatched to focused sprite."""
         scene = Scene()
         focused_sprite = mocker.Mock()
-        focused_sprite.active = True
+        focused_sprite.is_active = True
         focused_sprite.on_key_down_event = mocker.Mock()
         scene.all_sprites.add(focused_sprite)
 
@@ -2448,10 +2470,10 @@ class TestSceneOnKeyDownWithFocusedSprites:
 
 
 class TestSceneUpdateWithFilmStrip:
-    """Test Scene.update with Film Strip sprite name."""
+    """Test Scene.update with Film Strip sprite — updated via the normal dirty-sprite path."""
 
-    def test_update_with_film_strip_sprite(self, mock_pygame_patches, mocker):
-        """Test update handles Film Strip sprite specially."""
+    def test_update_with_dirty_film_strip_sprite(self, mock_pygame_patches, mocker):
+        """Test dirty Film Strip sprites get updated via the normal dirty-sprite path."""
         scene = Scene()
         scene.dt = 0.016
 
@@ -2460,14 +2482,11 @@ class TestSceneUpdateWithFilmStrip:
         film_strip.dirty = 1
         film_strip.update_nested_sprites = mocker.Mock()
         film_strip.update = mocker.Mock()
-        film_strip._last_dt = 0
 
         scene.all_sprites.add(film_strip)
         scene.update()
 
-        # Film strip should have _last_dt set and update called
-        assert film_strip._last_dt == pytest.approx(0.016)
-        # update() is called both in dirty loop and film strip loop
+        # Film strip should be updated via the dirty sprite loop
         assert film_strip.update.call_count >= 1
 
 

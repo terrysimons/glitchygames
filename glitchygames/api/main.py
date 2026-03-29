@@ -119,7 +119,7 @@ def run() -> None:
     port = int(os.environ.get('GLITCHYGAMES_PORT', '8000'))
     reload = os.environ.get('GLITCHYGAMES_RELOAD', 'false').lower() == 'true'
 
-    LOG.info(f'Starting server on {host}:{port}')
+    LOG.info('Starting server on %s:%s', host, port)
     uvicorn.run(
         'glitchygames.api.main:app',
         host=host,

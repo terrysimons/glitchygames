@@ -13,13 +13,11 @@ import pygame
 
 from glitchygames.events import MOUSE_EVENTS, HashableEvent, MouseEvents, ResourceManager
 
-# from glitchygames.sprites import collided_sprites
-
 LOG = logging.getLogger('game.mouse')
 LOG.addHandler(logging.NullHandler())
 
-# TODO @<terry.simons@gmail.com>: Add pygame 2 MOUSEWHEEL event handling.
-# TODO: No better pygame names?
+# Pygame uses integer constants for mouse buttons with no named aliases.
+# MOUSEWHEEL events are handled via on_mouse_wheel_event().
 MOUSE_BUTTON_LEFT = 1
 MOUSE_BUTTON_WHEEL = 2
 MOUSE_BUTTON_RIGHT = 3
@@ -30,7 +28,7 @@ MOUSE_WHEEL_SCROLL_DOWN = 5
 class MouseEventManager(ResourceManager):
     """Mouse manager event handler."""
 
-    class MouseEventProxy(MouseEvents, ResourceManager):
+    class MouseEventProxy(MouseEvents, ResourceManager):  # noqa: PLR0904 - one handler per mouse event type
         """Mouse manager event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -73,13 +71,6 @@ class MouseEventManager(ResourceManager):
                 )
             except RuntimeError:
                 _has_down = False
-            # if self._motion_seq % 10 == 0:
-            #     self.log.info(
-            #         f"MOUSE PROXY: MOTION#{self._motion_seq}"
-            #         f" pos={getattr(event, 'pos', None)}"
-            #         f" rel={getattr(event, 'rel', None)}"
-            #         f" has_down={has_down}"
-            #     )
             self.game.on_mouse_motion_event(event)
 
             sprite = collided_sprites(self.game, event=event, index=-1)
@@ -87,27 +78,6 @@ class MouseEventManager(ResourceManager):
             if sprite:
                 self.log.debug(f'{type(self)}: Mouse Motion: {event}')
                 sprite[0].on_mouse_motion_event(event)
-
-                # # See if we're focused on the same sprite.
-                # if self.current_focus != collided_sprite:
-                #     # Newly focused object can "see" what the previously focused object was.
-                #     #
-                #     # Will be "None" if nothing is focused.
-                #     #
-                #     # We can use this to enable drag and drop.
-                #     #
-                #     # This will take care of the unfocus event, too.
-                #     self.on_mouse_focus_event(event, collided_sprite)
-                #     collided_sprite.on_mouse_enter_event(event)
-                # else:
-                #     # Otherwise, pass motion event to the focused sprite
-                #     # so it can handle sub-components if it wants to.
-                # self.current_focus.on_mouse_motion_event(event)
-            # elif self.current_focus:
-            #     # If we're focused on a sprite but the collide sprites list is empty, then
-            #     # we're moving from a focus to empty space, and we should send an unfocus event.
-            #     self.current_focus.on_mouse_exit_event(event)
-            #     self.on_mouse_unfocus_event(event, self.current_focus)
 
             # Caller can check the buttons.
             # Note: This probably doesn't work right because
@@ -128,18 +98,7 @@ class MouseEventManager(ResourceManager):
 
             """
             self._drag_seq += 1
-            # self.log.info(
-            #     f"MOUSE PROXY: DRAG#{self._drag_seq}"
-            #     f" pos={getattr(event, 'pos', None)}"
-            #     f" trigger_button={getattr(trigger, 'button', None)}"
-            # )
             self.game.on_mouse_drag_event(event, trigger)
-
-            # if self.focus_locked:
-            #     if self.current_focus:
-            #         self.current_focus.on_mouse_drag_event(event, trigger)
-            #     elif self.previous_focus:
-            #         self.previous_focus.on_mouse_drag_event(event, trigger)
 
             if trigger.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_drag_event(event, trigger)
@@ -167,12 +126,6 @@ class MouseEventManager(ResourceManager):
             self.mouse_dropping = True
             self.game.on_mouse_drop_event(event, trigger)
 
-            # if self.focus_locked:
-            #     if self.current_focus:
-            #         self.current_focus.on_mouse_drop_event(event, trigger)
-            #     elif self.previous_focus:
-            #         self.previous_focus.on_mouse_drop_event(event, trigger)
-
             if trigger.button == MOUSE_BUTTON_LEFT:
                 self.on_left_mouse_drop_event(event, trigger)
             if trigger.button == MOUSE_BUTTON_WHEEL:
@@ -190,7 +143,9 @@ class MouseEventManager(ResourceManager):
 
         @override
         def on_left_mouse_drag_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self,
+            event: HashableEvent,
+            trigger: HashableEvent,
         ) -> None:
             """Handle the left mouse drag event.
 
@@ -201,15 +156,11 @@ class MouseEventManager(ResourceManager):
             """
             self.game.on_left_mouse_drag_event(event, trigger)
 
-            # if self.focus_locked:
-            #     if self.current_focus:
-            #         self.current_focus.on_left_mouse_drag_event(event, trigger)
-            #     elif self.previous_focus:
-            #         self.previous_focus.on_left_mouse_drag_event(event, trigger)
-
         @override
         def on_left_mouse_drop_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self,
+            event: HashableEvent,
+            trigger: HashableEvent,
         ) -> None:
             """Handle the left mouse drop event.
 
@@ -220,15 +171,11 @@ class MouseEventManager(ResourceManager):
             """
             self.game.on_left_mouse_drag_up_event(event, trigger)
 
-            # if self.focus_locked:
-            #     if self.current_focus:
-            #         self.current_focus.on_left_mouse_drop_event(event, trigger)
-            #     elif self.previous_focus:
-            #         self.previous_focus.on_left_mouse_drop_event(event, trigger)
-
         @override
         def on_middle_mouse_drag_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self,
+            event: HashableEvent,
+            trigger: HashableEvent,
         ) -> None:
             """Handle the middle mouse drag event.
 
@@ -239,15 +186,11 @@ class MouseEventManager(ResourceManager):
             """
             self.game.on_middle_mouse_drag_down_event(event, trigger)
 
-            # if self.focus_locked:
-            #     if self.current_focus:
-            #         self.current_focus.on_middle_mouse_drag_event(event, trigger)
-            #     elif self.previous_focus:
-            #         self.previous_focus.on_middle_mouse_drag_event(event, trigger)
-
         @override
         def on_middle_mouse_drop_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self,
+            event: HashableEvent,
+            trigger: HashableEvent,
         ) -> None:
             """Handle the middle mouse drop event.
 
@@ -258,15 +201,11 @@ class MouseEventManager(ResourceManager):
             """
             self.game.on_middle_mouse_drag_up_event(event, trigger)
 
-            # if self.focus_locked:
-            #     if self.current_focus:
-            #         self.current_focus.on_middle_mouse_drop_event(event, trigger)
-            #     elif self.previous_focus:
-            #         self.previous_focus.on_middle_mouse_drop_event(event, trigger)
-
         @override
         def on_right_mouse_drag_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self,
+            event: HashableEvent,
+            trigger: HashableEvent,
         ) -> None:
             """Handle the right mouse drag event.
 
@@ -277,15 +216,11 @@ class MouseEventManager(ResourceManager):
             """
             self.game.on_right_mouse_drag_down_event(event, trigger)
 
-            # if self.focus_locked:
-            #     if self.current_focus:
-            #         self.current_focus.on_right_mouse_drag_event(event, trigger)
-            #     elif self.previous_focus:
-            #         self.previous_focus.on_right_mouse_drag_event(event, trigger)
-
         @override
         def on_right_mouse_drop_event(
-            self: Self, event: HashableEvent, trigger: HashableEvent
+            self: Self,
+            event: HashableEvent,
+            trigger: HashableEvent,
         ) -> None:
             """Handle the right mouse drop event.
 
@@ -295,12 +230,6 @@ class MouseEventManager(ResourceManager):
 
             """
             self.game.on_right_mouse_drag_up_event(event, trigger)
-
-            # if self.focus_locked:
-            #     if self.current_focus:
-            #         self.current_focus.on_right_mouse_drop_event(event, trigger)
-            #     elif self.previous_focus:
-            #         self.previous_focus.on_right_mouse_drop_event(event, trigger)
 
         @override
         def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
@@ -312,7 +241,6 @@ class MouseEventManager(ResourceManager):
 
             """
             # Send a leave focus event for the old focus.
-            # if not self.focus_locked:
             self.on_mouse_unfocus_event(event, self.current_focus)
 
             # We've entered a new object.
@@ -322,8 +250,6 @@ class MouseEventManager(ResourceManager):
             entering_focus.on_mouse_focus_event(event, self.current_focus)  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
 
             self.log.info(f'Entered Focus: {self.current_focus}')
-            # else:
-            #     self.log.info(f'Focus Locked: {self.previous_focus}')
 
         @override
         def on_mouse_unfocus_event(self: Self, event: HashableEvent, leaving_focus: object) -> None:
@@ -351,12 +277,6 @@ class MouseEventManager(ResourceManager):
 
             """
             self.mouse_state[event.button] = event
-            # Diagnostics
-            # self.log.info(
-            #     f"MOUSE PROXY: UP"
-            #     f" button={getattr(event, 'button', None)}"
-            #     f" pos={getattr(event, 'pos', None)}"
-            # )
 
             # First dispatch to specific button handlers to allow widgets to react
             if event.button == MOUSE_BUTTON_LEFT:
@@ -380,9 +300,6 @@ class MouseEventManager(ResourceManager):
                 # The mouse up location is also the trigger.
                 self.mouse_dragging = False
                 self.game.on_mouse_drop_event(event=event, trigger=event)
-
-            # Whatever was locked gets unlocked.
-            # self.focus_locked = False
 
         @override
         def on_left_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -427,23 +344,6 @@ class MouseEventManager(ResourceManager):
             # Reset diagnostics counters at the start of a hold
             self._motion_seq = 0
             self._drag_seq = 0
-            # Diagnostics
-            try:
-                _state_keys = list(self.mouse_state.keys())
-            except RuntimeError:
-                _state_keys = []
-            # self.log.info(
-            #     f"MOUSE PROXY: DOWN"
-            #     f" button={getattr(event, 'button', None)}"
-            #     f" pos={getattr(event, 'pos', None)}"
-            #     f" state_keys={_state_keys}"
-            # )
-
-            # Whatever was clicked on gets lock.
-            # if self.current_focus:
-            #     # TODO: Fix - Disabling for debugging.
-            #     self.focus_locked = False
-
             # Scene-first: let scene clear focus/overlays before per-sprite handlers
             self.game.on_mouse_button_down_event(event)
 
@@ -466,16 +366,6 @@ class MouseEventManager(ResourceManager):
                 event (pygame.event.Event): The event to handle.
 
             """
-            try:
-                _state_keys = list(self.mouse_state.keys())
-            except RuntimeError:
-                _state_keys = []
-            # self.log.info(
-            #     f"MOUSE PROXY: on_left_mouse_button_down_event"
-            #     f" button={getattr(event, 'button', None)}"
-            #     f" pos={getattr(event, 'pos', None)}"
-            #     f" state_keys={_state_keys}"
-            # )
             self.game.on_left_mouse_button_down_event(event)
 
         @override
@@ -555,11 +445,10 @@ class MouseEventManager(ResourceManager):
         return parser
 
 
-# TODO: Make this a singleton.
-# We're making this a singleton class becasue
-# pygame doesn't understand multiple cursors
-# and so there is only ever 1 x/y coordinate sprite
-# for the mouse at any given time.
+# MousePointer is intentionally not a singleton: each call site creates
+# a short-lived instance for collision detection at a specific position.
+# Pygame only tracks one system cursor, so there is only ever one real
+# mouse position at any given time.
 class MousePointer:
     """Mouse pointer sprite."""
 

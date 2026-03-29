@@ -21,10 +21,10 @@ def _try_import_miniaudio() -> type[object] | None:
     """
     try:
         from glitchygames.events.voice_miniaudio import MiniaudioMicrophone
-
-        return MiniaudioMicrophone
     except ImportError:
         return None
+    else:
+        return MiniaudioMicrophone
 
 
 def _try_import_portaudio() -> type[object] | None:
@@ -36,10 +36,10 @@ def _try_import_portaudio() -> type[object] | None:
     """
     try:
         from .voice_portaudio import PortAudioMicrophone
-
-        return PortAudioMicrophone
     except ImportError, RuntimeError:
         return None
+    else:
+        return PortAudioMicrophone
 
 
 def _probe_backend(backend_cls: type[object], name: str) -> type[object] | None:
@@ -55,10 +55,11 @@ def _probe_backend(backend_cls: type[object], name: str) -> type[object] | None:
     """
     try:
         _ = backend_cls()
-        return backend_cls
     except OSError, RuntimeError:
         LOG.debug('%s probe failed, trying next backend', name)
         return None
+    else:
+        return backend_cls
 
 
 def get_microphone_backend() -> type[object] | None:

@@ -11,7 +11,7 @@ from glitchygames.color import WHITE
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
-    from glitchygames.events.core import HashableEvent
+    from glitchygames.events.base import HashableEvent
 from glitchygames.sprites import Sprite
 
 

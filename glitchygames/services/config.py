@@ -25,20 +25,20 @@ class ServiceConfig:
     """
 
     ai_provider: str = field(
-        default_factory=lambda: os.environ.get('SPRITE_AI_PROVIDER', 'anthropic')
+        default_factory=lambda: os.environ.get('SPRITE_AI_PROVIDER', 'anthropic'),
     )
     ai_model: str = field(
-        default_factory=lambda: os.environ.get('SPRITE_AI_MODEL', 'claude-sonnet-4-5')
+        default_factory=lambda: os.environ.get('SPRITE_AI_MODEL', 'claude-sonnet-4-5'),
     )
     ai_timeout: int = field(default_factory=lambda: int(os.environ.get('SPRITE_AI_TIMEOUT', '120')))
     default_sprite_width: int = field(
-        default_factory=lambda: int(os.environ.get('SPRITE_DEFAULT_WIDTH', '16'))
+        default_factory=lambda: int(os.environ.get('SPRITE_DEFAULT_WIDTH', '16')),
     )
     default_sprite_height: int = field(
-        default_factory=lambda: int(os.environ.get('SPRITE_DEFAULT_HEIGHT', '16'))
+        default_factory=lambda: int(os.environ.get('SPRITE_DEFAULT_HEIGHT', '16')),
     )
     max_sprite_size: int = field(
-        default_factory=lambda: int(os.environ.get('SPRITE_MAX_SIZE', '64'))
+        default_factory=lambda: int(os.environ.get('SPRITE_MAX_SIZE', '64')),
     )
     png_scale: int = field(default_factory=lambda: int(os.environ.get('SPRITE_PNG_SCALE', '1')))
 

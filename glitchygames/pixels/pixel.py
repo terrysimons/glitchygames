@@ -60,7 +60,7 @@ def rgb_555_triplet_generator(
 
             rgb_data = pad_data + rgb_data
 
-            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
+            LOG.info('Padded %s bits (now %s)', pad_bits, rgb_data)
 
             # red is 5 bits
             red = int(rgb_data[0:5] + '000', 2)
@@ -82,10 +82,10 @@ def rgb_555_triplet_generator(
             if blue:
                 blue += 7
 
-            LOG.info(f'Packed RGB: {rgb_data}')
-            LOG.info(f'Red: {red}')
-            LOG.info(f'Green: {green}')
-            LOG.info(f'Blue: {blue}')
+            LOG.info('Packed RGB: %s', rgb_data)
+            LOG.info('Red: %s', red)
+            LOG.info('Green: %s', green)
+            LOG.info('Blue: %s', blue)
 
             yield (red, green, blue)
     except StopIteration:
@@ -116,7 +116,7 @@ def rgb_565_triplet_generator(
 
             rgb_data = pad_data + rgb_data
 
-            LOG.info(f'Padded {pad_bits} bits (now {rgb_data})')
+            LOG.info('Padded %s bits (now %s)', pad_bits, rgb_data)
 
             # red is 5 bits
             red = int(rgb_data[0:5] + '000', 2)
@@ -136,10 +136,10 @@ def rgb_565_triplet_generator(
             if blue:
                 blue += 7
 
-            LOG.info(f'Packed RGB: {rgb_data}')
-            LOG.info(f'Red: {red}')
-            LOG.info(f'Green: {green}')
-            LOG.info(f'Blue: {blue}')
+            LOG.info('Packed RGB: %s', rgb_data)
+            LOG.info('Red: %s', red)
+            LOG.info('Green: %s', green)
+            LOG.info('Blue: %s', blue)
 
             yield (red, green, blue)
     except StopIteration:
@@ -161,10 +161,12 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
     """
     # Validate input
     if not pixel_data:
-        raise ValueError('Empty pixel data')
+        message = 'Empty pixel data'
+        raise ValueError(message)
 
     if len(pixel_data) % 3 != 0:
-        raise ValueError(f'Pixel data length ({len(pixel_data)}) is not divisible by 3')
+        message = f'Pixel data length ({len(pixel_data)}) is not divisible by 3'
+        raise ValueError(message)
 
     # Convert bytes to integers
     pixels = [int(b) for b in pixel_data]
@@ -177,11 +179,14 @@ def rgb_triplet_generator(pixel_data: bytes) -> Iterator[tuple[int, int, int]]:
             b = pixels[i + 2]
             yield (r, g, b)
         except IndexError as e:
-            raise ValueError(f'Not enough data for RGB triplet at index {i}') from e
+            message = f'Not enough data for RGB triplet at index {i}'
+            raise ValueError(message) from e
 
 
 def image_from_pixels(
-    pixels: list[tuple[int, int, int]], width: int, height: int
+    pixels: list[tuple[int, int, int]],
+    width: int,
+    height: int,
 ) -> pygame.Surface:
     """Produce a pygame.image object for the specified [(R, G, B), ...] pixel data.
 

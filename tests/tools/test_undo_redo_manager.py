@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for the core UndoRedoManager functionality."""
 
-from glitchygames.tools.undo_redo_manager import OperationType, UndoRedoManager
+from glitchygames.bitmappy.history.undo_redo import OperationType, UndoRedoManager
 
 
 class TestUndoRedoManager:
@@ -158,7 +158,10 @@ class TestUndoRedoManager:
     def test_get_history_info(self):
         """Test getting history information."""
         self.manager.add_operation(
-            OperationType.CANVAS_PIXEL_CHANGE, 'Test operation', {'data': 'undo'}, {'data': 'redo'}
+            OperationType.CANVAS_PIXEL_CHANGE,
+            'Test operation',
+            {'data': 'undo'},
+            {'data': 'redo'},
         )
 
         info = self.manager.get_history_info()

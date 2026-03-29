@@ -27,7 +27,7 @@ def test_game_over_condition():
 
     # Check initial state
     initial_ball_count = len(game.balls)
-    LOG.debug(f'Initial ball count: {initial_ball_count}')
+    LOG.debug('Initial ball count: %s', initial_ball_count)
 
     # Simulate all balls being killed
     for ball in game.balls:
@@ -42,7 +42,7 @@ def test_game_over_condition():
 
     # Check if Game Over was triggered (balls list should be empty after cleanup)
     final_ball_count = len(game.balls)
-    LOG.debug(f'Final ball count after update: {final_ball_count}')
+    LOG.debug('Final ball count after update: %s', final_ball_count)
 
     # Verify that all balls were removed
     assert final_ball_count == 0, f'Expected 0 balls, got {final_ball_count}'

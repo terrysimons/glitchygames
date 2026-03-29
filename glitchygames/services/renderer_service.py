@@ -111,7 +111,11 @@ class RendererService:
         LOG.info('Pygame initialized in headless mode')
 
     def render_from_toml(
-        self, toml_content: str, scale: int = 1, *, render_all_frames: bool = False
+        self,
+        toml_content: str,
+        scale: int = 1,
+        *,
+        render_all_frames: bool = False,
     ) -> RenderResult:
         """Render a sprite from TOML content to PNG.
 
@@ -127,7 +131,10 @@ class RendererService:
         # Write TOML to a temporary file
         try:
             with tempfile.NamedTemporaryFile(
-                mode='w', suffix='.toml', delete=False, encoding='utf-8'
+                mode='w',
+                suffix='.toml',
+                delete=False,
+                encoding='utf-8',
             ) as temp_file:
                 temp_file.write(toml_content)
                 temp_path = temp_file.name
@@ -185,7 +192,7 @@ class RendererService:
             else:
                 LOG.info(
                     f'Skipping frame rendering: render_all_frames={render_all_frames}, '
-                    f'frame_count={frame_count}'
+                    f'frame_count={frame_count}',
                 )
 
             return RenderResult(
@@ -248,7 +255,11 @@ class RendererService:
         return png_bytes, png_base64
 
     def _get_frame_surface(
-        self, sprite: AnimatedSprite, sprite_frame: SpriteFrame, *, has_frame_manager: bool
+        self,
+        sprite: AnimatedSprite,
+        sprite_frame: SpriteFrame,
+        *,
+        has_frame_manager: bool,
     ) -> pygame.Surface | None:
         """Get the surface for a single sprite frame.
 
@@ -313,7 +324,9 @@ class RendererService:
                     sprite.frame_manager.current_frame = frame_index
 
                 frame_surface = self._get_frame_surface(
-                    sprite, sprite_frame, has_frame_manager=has_frame_manager
+                    sprite,
+                    sprite_frame,
+                    has_frame_manager=has_frame_manager,
                 )
 
                 if frame_surface is not None:
@@ -324,18 +337,20 @@ class RendererService:
                             animation_index=animation_index,
                             frame_index=frame_index,
                             png_base64=png_base64,
-                        )
+                        ),
                     )
                 else:
                     LOG.warning(
                         f'Could not get surface for frame {frame_index} '
-                        f"of animation '{animation_name}'"
+                        f"of animation '{animation_name}'",
                     )
 
         return frames_base64, rendered_frames
 
     def _render_all_frames(
-        self, sprite: AnimatedSprite, scale: int = 1
+        self,
+        sprite: AnimatedSprite,
+        scale: int = 1,
     ) -> tuple[list[str], list[RenderedFrame]]:
         """Render all frames of an animated sprite to PNG.
 
@@ -373,7 +388,10 @@ class RendererService:
 
         try:
             frames_base64, rendered_frames = self._render_animation_frames(
-                sprite, all_animations, scale, has_frame_manager=has_frame_manager
+                sprite,
+                all_animations,
+                scale,
+                has_frame_manager=has_frame_manager,
             )
         finally:
             # Restore original state
@@ -386,7 +404,11 @@ class RendererService:
         return frames_base64, rendered_frames
 
     def render_from_file(
-        self, file_path: str, scale: int = 1, *, render_all_frames: bool = False
+        self,
+        file_path: str,
+        scale: int = 1,
+        *,
+        render_all_frames: bool = False,
     ) -> RenderResult:
         """Render a sprite from a file to PNG.
 

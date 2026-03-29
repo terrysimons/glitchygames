@@ -213,7 +213,8 @@ class TestSceneManager:
         # Test registering game event
         scene_manager.register_game_event('test_event', mock_callback)  # type: ignore[invalid-argument-type]
         mock_engine.register_game_event.assert_called_once_with(
-            event_type='test_event', callback=mock_callback
+            event_type='test_event',
+            callback=mock_callback,
         )
 
     def test_scene_manager_getattr(self):
@@ -256,6 +257,23 @@ class TestSceneManager:
         result = scene_manager._update_timing(previous_time, current_time)
         assert isinstance(result, tuple)
         assert len(result) == TWO_PIXELS
+
+
+class TestSceneManagerInternals:
+    """Test SceneManager internal methods."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        # Reset singleton state for clean test
+        SceneManager._reset()
+
+        # Create a simple scene manager for testing (centralized mocks handle pygame)
+        self.scene_manager = SceneManager()
+
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        # Reset singleton state for clean test
+        SceneManager._reset()
 
     def test_scene_manager_should_post_fps_event(self):
         """Test SceneManager _should_post_fps_event method."""

@@ -31,7 +31,7 @@ class TestTextSpriteCursorFunctionality:
     def test_text_sprite_cursor_initialization(self, mocker):
         """Test TextSprite cursor initialization."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
         rendered_surface.get_rect.return_value = mocker.Mock()
@@ -50,7 +50,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_blinking_when_active(self, mocker):
         """Test TextSprite cursor blinking when active."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -59,7 +59,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_timer = 0
         text_sprite._cursor_visible = False
 
@@ -71,7 +71,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_not_blinking_when_inactive(self, mocker):
         """Test TextSprite cursor not blinking when inactive."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -80,7 +80,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = False
+        text_sprite.is_active = False
 
         # Act
         text_sprite.update()
@@ -90,7 +90,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_timer_increment(self, mocker):
         """Test TextSprite cursor timer increment."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -99,7 +99,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_timer = 0
 
         # Act
@@ -110,7 +110,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_visibility_toggle(self, mocker):
         """Test TextSprite cursor visibility toggle."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -119,7 +119,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_timer = 0
         text_sprite._cursor_visible = False
 
@@ -132,7 +132,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_draw_when_visible(self, mocker):
         """Test TextSprite cursor drawing when visible."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -145,7 +145,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_visible = True
 
         # Mock the image surface
@@ -159,7 +159,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_draw_when_invisible(self, mocker):
         """Test TextSprite cursor not drawing when invisible."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -172,7 +172,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_visible = False
 
         # Mock the image surface
@@ -186,7 +186,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_handles_mock_objects(self, mocker):
         """Test TextSprite cursor handles mock objects gracefully."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -199,7 +199,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_visible = True
 
         # Mock the image surface
@@ -213,7 +213,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_reset_on_deactivation(self, mocker):
         """Test TextSprite cursor resets on deactivation."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -222,12 +222,12 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_timer = 100
         text_sprite._cursor_visible = True
 
         # Act - deactivate
-        text_sprite.active = False
+        text_sprite.is_active = False
         text_sprite.update()
 
         # Assert - should set dirty flag to 1 (not 2 for cursor)
@@ -235,7 +235,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_continuous_updates_when_active(self, mocker):
         """Test TextSprite cursor provides continuous updates when active."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -244,7 +244,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
 
         # Act - multiple updates
         text_sprite.update()
@@ -256,7 +256,7 @@ class TestTextSpriteCursorFunctionality:
 
     def test_text_sprite_cursor_timer_wraparound(self, mocker):
         """Test TextSprite cursor timer wraparound behavior."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Arrange
         font = mocker.Mock()
         rendered_surface = mocker.Mock()
@@ -265,7 +265,7 @@ class TestTextSpriteCursorFunctionality:
         mock_get_font.return_value = font
 
         text_sprite = TextSprite(x=10, y=20, width=100, height=30, text='Test', name='TestText')
-        text_sprite.active = True
+        text_sprite.is_active = True
         text_sprite._cursor_timer = 1000  # Max timer value
 
         # Act

@@ -11,7 +11,7 @@ button down event followed by a mouse motion event
 followed by a mouse button up event.
 """
 
-from glitchygames.events.core import (
+from glitchygames.events.base import (
     ALL_EVENTS,
     APP_EVENTS,
     AUDIO_EVENTS,
@@ -29,23 +29,16 @@ from glitchygames.events.core import (
     TEXT_EVENTS,
     TOUCH_EVENTS,
     WINDOW_EVENTS,
-    AllEvents,
-    AllEventStubs,
-    AppEvents,
-    AppEventStubs,
-    AudioEvents,
-    AudioEventStubs,
+    EventInterface,
+    HashableEvent,
+    ResourceManager,
+    UnhandledEventError,
+    supported_events,
+    unhandled_event,
+)
+from glitchygames.events.input_event_interfaces import (
     ControllerEvents,
     ControllerEventStubs,
-    DropEvents,
-    DropEventStubs,
-    EventInterface,
-    EventManager,
-    FontEvents,
-    FontEventStubs,
-    GameEvents,
-    GameEventStubs,
-    HashableEvent,
     JoystickEvents,
     JoystickEventStubs,
     KeyboardEvents,
@@ -54,17 +47,29 @@ from glitchygames.events.core import (
     MidiEventStubs,
     MouseEvents,
     MouseEventStubs,
-    ResourceManager,
     TextEvents,
     TextEventStubs,
     TouchEvents,
     TouchEventStubs,
-    UnhandledEventError,
+)
+from glitchygames.events.manager import (
+    AllEvents,
+    AllEventStubs,
+    EventManager,
+)
+from glitchygames.events.system_event_interfaces import (
+    AppEvents,
+    AppEventStubs,
+    AudioEvents,
+    AudioEventStubs,
+    DropEvents,
+    DropEventStubs,
+    FontEvents,
+    FontEventStubs,
+    GameEvents,
+    GameEventStubs,
     WindowEvents,
     WindowEventStubs,
-    dump_cache_info,
-    supported_events,
-    unhandled_event,
 )
 
 __all__ = [
@@ -118,7 +123,6 @@ __all__ = [
     'UnhandledEventError',
     'WindowEventStubs',
     'WindowEvents',
-    'dump_cache_info',
     'supported_events',
     'unhandled_event',
 ]

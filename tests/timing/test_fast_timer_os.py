@@ -43,7 +43,8 @@ def test_fast_timer_spin_tighten_accuracy():
 
 
 @pytest.mark.skipif(
-    not sys.platform.startswith('win'), reason='Windows-only timing resolution test'
+    not sys.platform.startswith('win'),
+    reason='Windows-only timing resolution test',
 )
 def test_fast_timer_windows_1ms_option_tighter():
     """Test that Windows 1ms timer resolution yields tighter sleep accuracy."""

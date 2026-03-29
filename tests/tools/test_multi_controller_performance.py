@@ -4,8 +4,7 @@ import time
 
 import pytest
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.multi_controller_performance import (
+from glitchygames.bitmappy.controllers.performance import (
     CachedPositionManager,
     MemoryManager,
     MultiControllerPerformanceOptimizer,
@@ -13,7 +12,8 @@ from glitchygames.tools.multi_controller_performance import (
     PerformanceMetrics,
     PerformanceMonitor,
 )
-from glitchygames.tools.visual_collision_manager import VisualCollisionManager
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
 
 
 class TestPerformanceMetrics:
@@ -406,7 +406,7 @@ class TestOptimizedVisualCollisionManagerAddIndicator:
         )
 
         stats = optimized_visual_manager.performance_monitor.get_operation_stats(
-            'add_controller_indicator'
+            'add_controller_indicator',
         )
         assert stats is not None
         assert stats.operation_count == 1
@@ -430,7 +430,7 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
 
         # Performance should be recorded
         stats = optimized_visual_manager.performance_monitor.get_operation_stats(
-            'update_controller_position'
+            'update_controller_position',
         )
         assert stats is not None
         assert stats.operation_count == 1
@@ -531,7 +531,7 @@ class TestOptimizedVisualCollisionManagerOptimize:
         optimized_visual_manager.optimize_positioning()
 
         stats = optimized_visual_manager.performance_monitor.get_operation_stats(
-            'optimize_positioning'
+            'optimize_positioning',
         )
         assert stats is not None
         assert stats.operation_count == 1
@@ -544,7 +544,7 @@ class TestOptimizedVisualCollisionManagerOptimize:
         optimized_visual_manager.optimize_positioning()
 
         stats = optimized_visual_manager.performance_monitor.get_operation_stats(
-            'optimize_positioning'
+            'optimize_positioning',
         )
         assert stats.operation_count == 1
 
@@ -620,7 +620,8 @@ class TestMultiControllerPerformanceOptimizerInit:
         assert isinstance(performance_optimizer.performance_monitor, PerformanceMonitor)
         assert isinstance(performance_optimizer.memory_manager, MemoryManager)
         assert isinstance(
-            performance_optimizer.optimized_visual_manager, OptimizedVisualCollisionManager
+            performance_optimizer.optimized_visual_manager,
+            OptimizedVisualCollisionManager,
         )
         assert performance_optimizer.auto_cleanup_interval == 300
 
@@ -654,7 +655,9 @@ class TestMultiControllerPerformanceOptimizerOptimize:
         assert stats.operation_count == 1
 
     def test_optimize_system_cleans_inactive_controllers(
-        self, performance_optimizer, controller_selections
+        self,
+        performance_optimizer,
+        controller_selections,
     ):
         """Test that inactive controllers are cleaned up."""
         # All controllers start as inactive (is_active defaults to False)
@@ -664,7 +667,9 @@ class TestMultiControllerPerformanceOptimizerOptimize:
         assert len(performance_optimizer.controller_selections) == 0
 
     def test_optimize_system_keeps_active_controllers(
-        self, performance_optimizer, controller_selections
+        self,
+        performance_optimizer,
+        controller_selections,
     ):
         """Test that active controllers are not cleaned up."""
         # Mark controller 0 as active
@@ -682,7 +687,10 @@ class TestMultiControllerPerformanceOptimizerCleanupInactive:
     """Tests for _cleanup_inactive_controllers."""
 
     def test_cleanup_removes_indicators_from_visual_manager(
-        self, performance_optimizer, visual_collision_manager, controller_selections
+        self,
+        performance_optimizer,
+        visual_collision_manager,
+        controller_selections,
     ):
         """Test that cleanup removes indicators from the visual collision manager."""
         # Add indicators for controllers
@@ -727,7 +735,9 @@ class TestMultiControllerPerformanceOptimizerStats:
         assert stats['active_controllers'] == 1
 
     def test_get_system_performance_stats_all_active(
-        self, performance_optimizer, controller_selections
+        self,
+        performance_optimizer,
+        controller_selections,
     ):
         """Test system stats when all controllers are active."""
         for selection in controller_selections.values():

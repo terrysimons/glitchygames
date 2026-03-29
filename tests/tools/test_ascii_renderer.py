@@ -51,7 +51,7 @@ class TestExtractColorsFromTOML:
             'colors': {
                 '#': {'red': 255, 'green': 0, 'blue': 0},
                 '@': {'red': 0, 'green': 255, 'blue': 0},
-            }
+            },
         }
         colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['#'] == (255, 0, 0, 255)
@@ -63,7 +63,7 @@ class TestExtractColorsFromTOML:
         toml_data = {
             'colors': {
                 '.': {'red': 255, 'green': 0, 'blue': 255},
-            }
+            },
         }
         colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['.'] == (255, 0, 255, 0)
@@ -74,7 +74,7 @@ class TestExtractColorsFromTOML:
         toml_data = {
             'colors': {
                 '#': {'red': 100, 'green': 100, 'blue': 100, 'alpha': 127},
-            }
+            },
         }
         colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['#'] == (100, 100, 100, 127)
@@ -85,7 +85,7 @@ class TestExtractColorsFromTOML:
         toml_data = {
             'colors': {
                 '#': {'red': 50, 'green': 50, 'blue': 50, 'a': 64},
-            }
+            },
         }
         colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['#'] == (50, 50, 50, 64)
@@ -105,7 +105,7 @@ class TestExtractColorsFromTOML:
                 '#': {'red': 255, 'green': 0, 'blue': 0},
                 '@': {'red': 100},  # Missing green and blue
                 '%': 'not_a_dict',  # Not a dict at all
-            }
+            },
         }
         colors = renderer.extract_colors_from_toml(toml_data)
         assert '#' in colors
@@ -118,7 +118,7 @@ class TestExtractColorsFromTOML:
         toml_data = {
             'colors': {
                 '#': {'red': 0, 'green': 0, 'blue': 0},
-            }
+            },
         }
         colors = renderer.extract_colors_from_toml(toml_data)
         assert colors['#'][3] == 255
@@ -147,8 +147,8 @@ class TestExtractPixelsFromTOML:
                         {'pixels': 'AB\nCD'},
                         {'pixels': 'EF\nGH'},
                     ],
-                }
-            ]
+                },
+            ],
         }
         pixels = renderer.extract_pixels_from_toml(toml_data)
         assert pixels == 'AB\nCD'
@@ -398,7 +398,7 @@ class TestRenderSprite:
                 {
                     'namespace': 'walk',
                     'frame': [{'pixels': 'AB\nCD'}],
-                }
+                },
             ],
             'colors': {
                 'A': {'red': 255, 'green': 0, 'blue': 0},

@@ -7,10 +7,10 @@ before or after existing frames in film strips.
 import pygame
 import pytest
 
+from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.film_strip import FilmStripWidget, FilmTabWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from glitchygames.tools.bitmappy import BitmapEditorScene
-from glitchygames.tools.film_strip import FilmStripWidget, FilmTabWidget
-from tests.mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 from tests.tools.test_film_strip_base import FRAME_SIZE, FilmStripTestBase
 
 # Additional test constants
@@ -129,7 +129,9 @@ class TestFilmStripTabIntegration(FilmStripTestBase):
             object: The result.
 
         """
-        mock_sprite = MockFactory.create_animated_sprite_mock('idle', use_cache=True)
+        mock_sprite = MockFactory.create_animated_sprite_mock(
+            config=MockSpriteConfig(animation_name='idle'),
+        )
         mock_sprite._animation_order = ['idle']
 
         # Ensure frames have proper rect attributes for tab positioning
@@ -637,7 +639,7 @@ class TestFilmTabSceneIntegration(FilmStripTestBase):
         # Create scene with mock options
         mock_options = {'size': '800x600'}
         scene = BitmapEditorScene(mock_options)
-        scene._on_sprite_loaded(animated_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Get the first film strip
         if hasattr(scene, 'film_strips') and scene.film_strips:
@@ -654,7 +656,7 @@ class TestFilmTabSceneIntegration(FilmStripTestBase):
                 film_strip._insert_frame_at_tab(first_tab)
 
                 # Check that the scene was notified
-                assert hasattr(scene, '_on_frame_inserted')
+                assert hasattr(scene, 'on_frame_inserted')
 
     @pytest.mark.skip(reason='Frame insertion functionality not implemented')
     def test_frame_insertion_updates_canvas(self):
@@ -674,7 +676,7 @@ class TestFilmTabSceneIntegration(FilmStripTestBase):
         # Create scene with mock options
         mock_options = {'size': '800x600'}
         scene = BitmapEditorScene(mock_options)
-        scene._on_sprite_loaded(animated_sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(animated_sprite)
 
         # Set the current animation
         scene.selected_animation = 'test_anim'

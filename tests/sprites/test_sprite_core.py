@@ -37,7 +37,7 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
     Sprite,
 )
-from glitchygames.sprites.core import SpriteFactory
+from glitchygames.sprites.factory import SpriteFactory
 from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
@@ -448,6 +448,38 @@ class TestSpriteEventHandlerStubs:
         """Test on_right_mouse_drag_up_event does not raise."""
         sprite.on_right_mouse_drag_up_event(mock_event, trigger=None)
 
+
+class TestSpriteEventHandlerStubsExtended:
+    """Test additional Sprite event handler stubs (buttons, keys, drag/drop, wheel)."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @pytest.fixture
+    def sprite(self):
+        """Create a sprite instance for testing.
+
+        Returns:
+            A Sprite instance.
+        """
+        return Sprite(x=0, y=0, width=10, height=10, name='test_sprite')
+
+    @pytest.fixture
+    def mock_event(self, mocker):
+        """Create a mock pygame event.
+
+        Returns:
+            A mock event with pos, button, rel, and buttons attributes.
+        """
+        event = mocker.Mock()
+        event.pos = (5, 5)
+        event.button = 1
+        event.rel = (1, 1)
+        event.buttons = (0, 0, 0)
+        return event
+
     def test_on_mouse_drag_up_event(self, sprite, mock_event):
         """Test on_mouse_drag_up_event does not raise."""
         sprite.on_mouse_drag_up_event(mock_event)
@@ -499,6 +531,38 @@ class TestSpriteEventHandlerStubs:
     def test_on_key_chord_up_event(self, sprite, mock_event):
         """Test on_key_chord_up_event does not raise."""
         sprite.on_key_chord_up_event(mock_event, keys=[pygame.K_a])
+
+
+class TestSpriteEventHandlerStubsDragDrop:
+    """Test Sprite event handler stubs for system events, drag/drop, and wheel."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @pytest.fixture
+    def sprite(self):
+        """Create a sprite instance for testing.
+
+        Returns:
+            A Sprite instance.
+        """
+        return Sprite(x=0, y=0, width=10, height=10, name='test_sprite')
+
+    @pytest.fixture
+    def mock_event(self, mocker):
+        """Create a mock pygame event.
+
+        Returns:
+            A mock event with pos, button, rel, and buttons attributes.
+        """
+        event = mocker.Mock()
+        event.pos = (5, 5)
+        event.button = 1
+        event.rel = (1, 1)
+        event.buttons = (0, 0, 0)
+        return event
 
     def test_on_active_event(self, sprite, mock_event):
         """Test on_active_event does not raise."""
@@ -984,7 +1048,7 @@ class TestBitmappySpriteInflateFromFile:
         sprite = BitmappySprite(x=0, y=0, width=10, height=10)
         # Mock _detect_file_format to return unsupported format
         mocker.patch(
-            'glitchygames.sprites.core.SpriteFactory.detect_file_format',
+            'glitchygames.sprites.factory.SpriteFactory.detect_file_format',
             return_value='json',
         )
         with pytest.raises(ValueError, match='Unsupported format'):
@@ -994,7 +1058,7 @@ class TestBitmappySpriteInflateFromFile:
         """Test _load_static_only raises on unsupported format."""
         sprite = BitmappySprite(x=0, y=0, width=10, height=10)
         mocker.patch(
-            'glitchygames.sprites.core.SpriteFactory.detect_file_format',
+            'glitchygames.sprites.factory.SpriteFactory.detect_file_format',
             return_value='json',
         )
         with pytest.raises(ValueError, match='Unsupported file format'):
@@ -2029,7 +2093,9 @@ pixels = \"\"\"
 
         # Mock _render_animated_str to verify it gets called
         mock_render = mocker.patch.object(
-            BitmappySprite, '_render_animated_str', return_value='animated output'
+            BitmappySprite,
+            '_render_animated_str',
+            return_value='animated output',
         )
         result = str(sprite)
         mock_render.assert_called_once()

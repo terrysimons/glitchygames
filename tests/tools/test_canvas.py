@@ -5,14 +5,14 @@ from typing import cast
 import pygame
 import pytest
 
+from glitchygames.bitmappy import canvas_interfaces
+from glitchygames.bitmappy.canvas_interfaces import (
+    AnimatedCanvasInterface,
+    StaticCanvasInterface,
+)
 from glitchygames.sprites.animated import (
     AnimatedSprite,
     SpriteFrame,
-)
-from glitchygames.tools import canvas_interfaces
-from glitchygames.tools.canvas_interfaces import (
-    AnimatedCanvasInterface,
-    StaticCanvasInterface,
 )
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -425,14 +425,14 @@ class TestAnimatedCanvasInterfaceCollectPixelChange:
     def test_collect_first_pixel_change(self, mocker):
         """Test collecting the first pixel change creates tracking structures."""
         canvas_sprite = mocker.Mock()
-        canvas_sprite.parent_scene = mocker.Mock(spec=['_current_pixel_changes_dict'])
-        canvas_sprite.parent_scene._current_pixel_changes_dict = {}
+        canvas_sprite.parent_scene = mocker.Mock(spec=['current_pixel_changes_dict'])
+        canvas_sprite.parent_scene.current_pixel_changes_dict = {}
         del canvas_sprite.animated_sprite
 
         interface = AnimatedCanvasInterface(canvas_sprite)
         interface._collect_pixel_change(1, 2, RED, GREEN)
 
-        assert (1, 2) in canvas_sprite.parent_scene._current_pixel_changes_dict
+        assert (1, 2) in canvas_sprite.parent_scene.current_pixel_changes_dict
 
     def test_collect_duplicate_pixel_keeps_original_old_color(self, mocker):
         """Test collecting duplicate pixel change preserves original old color."""
@@ -446,7 +446,7 @@ class TestAnimatedCanvasInterfaceCollectPixelChange:
         # Second change at same pixel: old=GREEN, new=BLUE
         interface._collect_pixel_change(0, 0, GREEN, BLUE)
 
-        change = canvas_sprite.parent_scene._current_pixel_changes_dict[0, 0]
+        change = canvas_sprite.parent_scene.current_pixel_changes_dict[0, 0]
         # Should keep original old_color (RED), update to latest new_color (BLUE)
         assert change[2] == RED
         assert change[3] == BLUE

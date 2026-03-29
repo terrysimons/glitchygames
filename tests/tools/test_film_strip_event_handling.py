@@ -8,7 +8,8 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.tools import bitmappy, film_strip
+from glitchygames.bitmappy import film_strip
+from glitchygames.bitmappy.film_strip_sprite import FilmStripSprite
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -25,8 +26,12 @@ class TestFilmStripEventHandling:
         self.film_strip_widget = film_strip.FilmStripWidget(0, 0, 100, 100)
 
         # Create film strip sprite
-        self.film_strip_sprite = bitmappy.FilmStripSprite(
-            film_strip_widget=self.film_strip_widget, x=100, y=100, width=200, height=100
+        self.film_strip_sprite = FilmStripSprite(
+            film_strip_widget=self.film_strip_widget,
+            x=100,
+            y=100,
+            width=200,
+            height=100,
         )
 
     def test_right_click_inside_bounds_returns_true(self):
@@ -59,7 +64,7 @@ class TestFilmStripEventHandling:
         """Test that right-click on a frame for color sampling returns True."""
         # Mock the film strip widget to return a frame when clicked
         self.film_strip_widget.get_frame_at_position = self._mocker.Mock(
-            return_value=('animation', 0)
+            return_value=('animation', 0),
         )
 
         # Create a mock right-click event inside the film strip
@@ -144,7 +149,7 @@ class TestFilmStripEventHandling:
         """Test that frame selection for color sampling takes priority over onion skinning."""
         # Mock the film strip widget to return a frame (color sampling)
         self.film_strip_widget.get_frame_at_position = self._mocker.Mock(
-            return_value=('animation', 0)
+            return_value=('animation', 0),
         )
         self.film_strip_widget.handle_click = self._mocker.Mock(return_value=None)
 

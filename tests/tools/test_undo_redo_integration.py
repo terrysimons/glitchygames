@@ -3,12 +3,12 @@
 
 import pytest
 
-from glitchygames.tools.operation_history import (
+from glitchygames.bitmappy.history.operations import (
     CanvasOperationTracker,
     FilmStripOperationTracker,
     PixelChange,
 )
-from glitchygames.tools.undo_redo_manager import UndoRedoManager
+from glitchygames.bitmappy.history.undo_redo import UndoRedoManager
 
 
 class TestUndoRedoCallbacks:
@@ -37,7 +37,7 @@ class TestUndoRedoCallbacks:
     def test_canvas_operation_callbacks(self):
         """Test that canvas operations call the correct callbacks."""
         # Test brush stroke undo
-        from glitchygames.tools.undo_redo_manager import OperationType
+        from glitchygames.bitmappy.history.undo_redo import OperationType
 
         self.manager.add_operation(
             OperationType.CANVAS_BRUSH_STROKE,
@@ -51,7 +51,7 @@ class TestUndoRedoCallbacks:
 
     def test_film_strip_operation_callbacks(self):
         """Test that film strip operations call the correct callbacks."""
-        from glitchygames.tools.undo_redo_manager import OperationType
+        from glitchygames.bitmappy.history.undo_redo import OperationType
 
         # Test frame add undo
         self.manager.add_operation(
@@ -101,31 +101,38 @@ class TestUndoRedoCallbacks:
 class TestIntegrationScenarios:
     """Test complex integration scenarios."""
 
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_fixtures(self, mocker):
         """Set up test fixtures."""
         self.manager = UndoRedoManager()
-        self.canvas_tracker = CanvasOperationTracker(self.manager)
-        self.film_tracker = FilmStripOperationTracker(self.manager)
+        # Create a mock editor so command objects can access editor._applying_undo_redo
+        # and editor.canvas.canvas_interface.set_pixel_at()
+        self.mock_editor = mocker.Mock()
+        self.mock_editor._applying_undo_redo = False
+        # Use a real dict for _animations so FrameAddCommand._delete_frame can check membership
+        self.mock_editor.canvas.animated_sprite._animations = {}
+        self.mock_editor.canvas.animated_sprite._is_playing = False
+        self.canvas_tracker = CanvasOperationTracker(self.manager, editor=self.mock_editor)
+        self.film_tracker = FilmStripOperationTracker(self.manager, editor=self.mock_editor)
 
     def test_mixed_operations_undo_sequence(self, mocker):
         """Test undoing a sequence of mixed canvas and film strip operations."""
-        # Set up callbacks
-        mock_pixel_callback = mocker.Mock(return_value=True)
-        mock_add_frame_callback = mocker.Mock(return_value=True)
-        mock_delete_frame_callback = mocker.Mock(return_value=True)
-
-        self.manager.set_pixel_change_callback(mock_pixel_callback)
-        self.manager.set_film_strip_callbacks(
-            add_frame_callback=mock_add_frame_callback,
-            delete_frame_callback=mock_delete_frame_callback,
-            reorder_frame_callback=mocker.Mock(return_value=True),
-            add_animation_callback=mocker.Mock(return_value=True),
-            delete_animation_callback=mocker.Mock(return_value=True),
-        )
-
         # Add canvas operation
         pixels = [(10, 20, (255, 0, 0), (0, 255, 0))]
         self.canvas_tracker.add_pixel_changes(pixels)
+
+        # Pre-populate the animation so FrameAddCommand._delete_frame can find it
+        import pygame
+
+        from glitchygames.sprites.animated import SpriteFrame
+
+        placeholder = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+        added_frame = SpriteFrame(surface=pygame.Surface((32, 32)), duration=1.0)
+        self.mock_editor.canvas.animated_sprite._animations = {
+            'walk_animation': [placeholder, added_frame],
+        }
+        self.mock_editor.canvas.animated_sprite.frame_manager = mocker.Mock()
+        self.mock_editor.canvas.animated_sprite.frame_manager.current_animation = ''
 
         # Add frame operation
         frame_data = {'width': 32, 'height': 32, 'pixels': [], 'duration': 1.0}
@@ -184,5 +191,6 @@ class TestIntegrationScenarios:
 
         frame_key = ('walk_animation', 1)
         frame_operation = self.manager.frame_undo_stacks[frame_key][0]
-        assert 'walk_animation[1]' in frame_operation.description
-        assert 'pixel change' in frame_operation.description  # Singular for single pixel
+        # BrushStrokeCommand describes the pixel operation without animation prefix
+        assert 'Pixel change' in frame_operation.description
+        assert '(15, 25)' in frame_operation.description

@@ -47,14 +47,17 @@ class BitmappyLegacySprite(Sprite):
             **kwargs: Keyword arguments to pass to the parent class.
 
         """
-        super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type]
+        super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         self.image: pygame.Surface | None = None
         self.rect: pygame.Rect | None = None
         self.name: str | None = None
         self.palette: list[Color] = palette
 
         (self.image, self.rect, self.name) = self.load(
-            filename=filename, palette=self.palette, width=32, height=32
+            filename=filename,
+            palette=self.palette,
+            width=32,
+            height=32,
         )
 
         self.save(filename + '.cfg')
@@ -88,7 +91,7 @@ class BitmappyLegacySprite(Sprite):
         indexed_rgb_data = struct.iter_unpack('<B', data)
 
         pixels: list[tuple[int, int, int]] = list(
-            indexed_rgb_triplet_generator(pixel_data=indexed_rgb_data)
+            indexed_rgb_triplet_generator(pixel_data=indexed_rgb_data),
         )
 
         # NOTE: This code replaces the below for loop but hasn't been tested.
@@ -169,11 +172,10 @@ class BitmappyLegacySprite(Sprite):
             config.set('sprite', 'pixels', '')
             return config
 
-        # TODO: migrate to tobytes once test mocks provide real Surfaces
         raw_pixels: list[tuple[int, int, int]] = list(
             rgb_triplet_generator(
-                pygame.image.tostring(self.image, 'RGB')  # pyright: ignore[reportDeprecated]  # ty: ignore[deprecated]
-            )
+                pygame.image.tobytes(self.image, 'RGB'),
+            ),
         )
 
         # This gives us the unique rgb triplets in the image.
@@ -191,7 +193,7 @@ class BitmappyLegacySprite(Sprite):
 
             color_map[color] = color_key
 
-            self.log.debug(f'Key: {color} -> {color_key}')
+            self.log.debug('Key: %s -> %s', color, color_key)
 
             red: int = color[0]
             config.set(color_key, 'red', str(red))
@@ -209,7 +211,7 @@ class BitmappyLegacySprite(Sprite):
             x += 1
 
             if self.rect is not None and x % self.rect.width == 0:
-                self.log.debug(f'Row: {row}')
+                self.log.debug('Row: %s', row)
                 pixels.append(''.join(row))
                 row = []
                 x = 0
@@ -218,7 +220,7 @@ class BitmappyLegacySprite(Sprite):
 
         config.set('sprite', 'pixels', '\n'.join(pixels))
 
-        self.log.debug(f'Deflated Sprite: {config}')
+        self.log.debug('Deflated Sprite: %s', config)
 
         return config
 
@@ -255,7 +257,8 @@ class GameScene(Scene):
 
         # Load the legacy sprite file.
         self.sprite: BitmappyLegacySprite = BitmappyLegacySprite(
-            filename=self.filename, palette=self.palette
+            filename=self.filename,
+            palette=self.palette,
         )
 
         self.all_sprites: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty(self.sprite)
@@ -281,7 +284,7 @@ class Game(Scene):
         self.filename: str | None = options.get('filename')
         self.palette: Vga = Vga()
 
-        self.next_scene = GameScene(filename=self.filename or '', palette=self.palette)  # type: ignore[arg-type]
+        self.next_scene = GameScene(filename=self.filename or '', palette=self.palette)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     @classmethod
     def args(cls: type[Game], parser: argparse.ArgumentParser) -> None:
@@ -292,7 +295,10 @@ class Game(Scene):
 
         """
         parser.add_argument(
-            '-v', '--version', action='store_true', help='print the game version and exit'
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
         )
 
         parser.add_argument('--filename', help='the file to load', required=True)

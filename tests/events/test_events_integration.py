@@ -25,7 +25,7 @@ class TestEventIntegration:
         # Use global mocks from mock_pygame_patches fixture
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={'on_audio_device_added_event': lambda event: True}
+            event_handlers={'on_audio_device_added_event': lambda event: True},
         )
 
         # Mock sys.argv to prevent argument parsing issues
@@ -55,7 +55,7 @@ class TestEventIntegration:
         # Use global mocks from mock_pygame_patches fixture
         # no_unhandled_events is enabled globally in conftest.py
         scene = MockFactory.create_event_test_scene_mock(
-            event_handlers={'on_controller_axis_motion_event': lambda event: True}
+            event_handlers={'on_controller_axis_motion_event': lambda event: True},
         )
 
         # Mock sys.argv to prevent argument parsing issues
@@ -118,16 +118,9 @@ class TestEventIntegration:
         event = HashableEvent(pygame.AUDIODEVICEADDED, which=1)
 
         mocker.patch('pygame.event.get', return_value=[event])
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_log = mocker.patch('glitchygames.events.core.LOG')
-        with pytest.raises(UnhandledEventError):
+        # Should raise UnhandledEventError (no logging before raise)
+        with pytest.raises(UnhandledEventError, match='Unhandled event'):
             engine.process_events()
-
-        # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
-        # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
-        assert 'Unhandled Event: args: AudioDeviceAdded' in call_args
 
     def test_event_routing_through_managers(self, mock_pygame_patches, mock_managers, mocker):
         """Test that events are properly routed through managers."""
@@ -140,7 +133,7 @@ class TestEventIntegration:
             event_handlers={
                 'on_audio_device_added_event': lambda event: (
                     scene.audio_events_received.append(event) or True
-                )
+                ),
             },
         )
 

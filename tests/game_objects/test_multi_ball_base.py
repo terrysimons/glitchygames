@@ -29,7 +29,12 @@ class MultiBallTestBase:
     """Base class for multi-ball collision tests."""
 
     def __init__(
-        self, test_name, num_balls=5, *, enable_ball_collisions=False, enable_ball_bouncing=False
+        self,
+        test_name,
+        num_balls=5,
+        *,
+        enable_ball_collisions=False,
+        enable_ball_bouncing=False,
     ):
         """Initialize multi-ball test base with configuration parameters."""
         self.test_name = test_name
@@ -84,7 +89,7 @@ class MultiBallTestBase:
             magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
             LOG.debug(
                 f'  Ball {i + 1}: pos=({ball.rect.x},{ball.rect.y}) '
-                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}'
+                f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) mag={magnitude:.1f}',
             )
 
     def _tick_cooldowns(self):
@@ -129,7 +134,11 @@ class MultiBallTestBase:
                 if distance <= collision_distance:
                     if self.enable_ball_bouncing:
                         resolved = self._handle_elastic_collision(
-                            self.balls[i], self.balls[j], distance, dx, dy
+                            self.balls[i],
+                            self.balls[j],
+                            distance,
+                            dx,
+                            dy,
                         )
                         if resolved:
                             ball_collisions += 1
@@ -306,7 +315,7 @@ class MultiBallTestBase:
                 LOG.debug(
                     f'  Frame {frame_count}: {alive_count} balls alive, '
                     f'{total_wall_bounces} wall bounces, '
-                    f'{total_ball_collisions} ball collisions'
+                    f'{total_ball_collisions} ball collisions',
                 )
 
         total_time = time.time() - start_time
@@ -352,7 +361,7 @@ class MultiBallTestBase:
 
                 LOG.debug(
                     f'Ball {i + 1}: magnitude range [{min_mag:.3f}, {max_mag:.3f}], '
-                    f'drift={drift:.6f}'
+                    f'drift={drift:.6f}',
                 )
 
         # Overall analysis
@@ -368,9 +377,9 @@ class MultiBallTestBase:
         if self.enable_ball_collisions and ball_collisions > 0:
             if self.enable_ball_bouncing:
                 LOG.info(
-                    f'  Ball-to-ball collision bouncing working ({ball_collisions} collisions)'
+                    f'  Ball-to-ball collision bouncing working ({ball_collisions} collisions)',
                 )
             else:
                 LOG.info(
-                    f'  Ball-to-ball collision clipping working ({ball_collisions} collisions)'
+                    f'  Ball-to-ball collision clipping working ({ball_collisions} collisions)',
                 )

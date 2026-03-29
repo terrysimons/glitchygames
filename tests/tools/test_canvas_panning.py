@@ -6,9 +6,9 @@ import math
 import pygame
 import pytest
 
+from glitchygames.bitmappy.editor import AnimatedCanvasSprite, BitmapEditorScene
 from glitchygames.sprites.animated import SpriteFrame
-from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
-from tests.mocks.test_mock_factory import MockFactory
+from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 
 
 class TestCanvasPanning:
@@ -24,10 +24,12 @@ class TestCanvasPanning:
 
         # Use centralized mock factory
         self.animated_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='test_animation',
-            frame_size=(8, 8),
-            pixel_color=(255, 0, 0),
-            current_frame=0,
+            config=MockSpriteConfig(
+                animation_name='test_animation',
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),
+                current_frame=0,
+            ),
         )
 
         # Create canvas sprite
@@ -200,17 +202,18 @@ class TestCanvasPanning:
         assert len(viewport_pixels) == 64  # 8x8 viewport
 
         # Check the pattern: first 2 rows should be red-blue-red-blue pattern
+        # Viewport pixels are returned in RGBA format (alpha=255 for opaque RGB input)
         # Row 0: 4 red + 4 blue
         for i in range(4):
-            assert viewport_pixels[i] == (255, 0, 0)  # First 4 pixels should be red
+            assert viewport_pixels[i] == (255, 0, 0, 255)  # First 4 pixels should be red
         for i in range(4, 8):
-            assert viewport_pixels[i] == (0, 0, 255)  # Next 4 pixels should be blue
+            assert viewport_pixels[i] == (0, 0, 255, 255)  # Next 4 pixels should be blue
 
         # Row 1: 4 red + 4 blue
         for i in range(8, 12):
-            assert viewport_pixels[i] == (255, 0, 0)  # Next 4 pixels should be red
+            assert viewport_pixels[i] == (255, 0, 0, 255)  # Next 4 pixels should be red
         for i in range(12, 16):
-            assert viewport_pixels[i] == (0, 0, 255)  # Next 4 pixels should be blue
+            assert viewport_pixels[i] == (0, 0, 255, 255)  # Next 4 pixels should be blue
 
     def test_panning_with_different_canvas_sizes(self):
         """Test panning with different canvas sizes."""
@@ -357,11 +360,11 @@ class TestPanningKeyboardHandling:
     def test_panning_handler_method(self):
         """Test the panning handler method."""
         # Test with valid delta values
-        self.real_scene._handle_canvas_panning(1, 0)
+        self.real_scene._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
         self.canvas.pan_canvas.assert_called_with(1, 0)
 
         # Test with negative delta values
-        self.real_scene._handle_canvas_panning(-1, -1)
+        self.real_scene._frame_operations.handle_canvas_panning(delta_x=-1, delta_y=-1)
         self.canvas.pan_canvas.assert_called_with(-1, -1)
 
     def test_panning_handler_without_canvas(self):
@@ -370,7 +373,7 @@ class TestPanningKeyboardHandling:
         self.real_scene.canvas = None
 
         # Should not raise an error
-        self.real_scene._handle_canvas_panning(1, 0)
+        self.real_scene._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
 
     def test_key_release_commits_panned_buffer(self):
         """Test that releasing Ctrl+Shift+Arrow commits the panned buffer."""
@@ -427,7 +430,8 @@ class TestPanningKeyboardHandling:
 
         # Mock the _update_film_strips_for_animated_sprite_update method
         mock_update_film = mocker.patch.object(
-            self.real_scene, '_update_film_strips_for_animated_sprite_update'
+            self.real_scene.film_strip_coordinator,
+            'update_film_strips_for_animated_sprite_update',
         )
         # Now release the key
         event_up = self._mocker.Mock()

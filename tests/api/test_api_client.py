@@ -625,7 +625,7 @@ class TestSaveApngExtractedFrames:
             'frames': [
                 {'index': 0, 'png_base64': fake_png_data},
                 {'index': 1, 'png_base64': fake_png_data},
-            ]
+            ],
         }
 
         output_dir = tmp_path / 'extracted'
@@ -1128,7 +1128,8 @@ class TestHandleGenerateSprite:
     def test_generation_with_model_override(self, mocker):
         """Test that model override is passed and logged."""
         parsed_args = self._make_parsed_args(
-            mocker, animation_language_model='anthropic:claude-sonnet-4-5'
+            mocker,
+            animation_language_model='anthropic:claude-sonnet-4-5',
         )
 
         mock_generate = mocker.patch(

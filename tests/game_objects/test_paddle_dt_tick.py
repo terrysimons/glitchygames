@@ -64,7 +64,7 @@ def test_paddle_movement():
         LOG.debug(
             f'{direction:8s} | {initial_y:10d}'
             f' | {final_y:9d} | {distance:6.1f}'
-            f' | {actual_speed:6.1f}'
+            f' | {actual_speed:6.1f}',
         )
 
 

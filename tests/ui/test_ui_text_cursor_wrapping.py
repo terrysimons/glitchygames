@@ -28,7 +28,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_with_wrapped_text(self, mocker):
         """Test that cursor positioning works correctly with automatically wrapped text."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         # Create a real font for accurate text measurements
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
@@ -48,7 +48,7 @@ class TestMultiLineTextBoxCursorWrapping:
             'wrapped to multiple lines when it exceeds the width of the text box'
         )
         textbox.text = long_text
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = len(long_text)  # Position cursor at end
 
         # Update to trigger rendering and cursor positioning
@@ -60,7 +60,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_issue_with_wrapped_text(self, mocker):
         """Test that demonstrates the cursor positioning issue with wrapped text."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -79,7 +79,7 @@ class TestMultiLineTextBoxCursorWrapping:
             'multiple lines because it is much longer than the text box width'
         )
         textbox.text = long_text
-        textbox.active = True
+        textbox.is_active = True
 
         # Position cursor in the middle of the text (this is where the issue occurs)
         cursor_pos = 50  # Position in the middle of the long text
@@ -101,7 +101,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_with_mixed_wrapped_and_explicit_newlines(self, mocker):
         """Test cursor positioning with both wrapped text and explicit newlines."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -116,7 +116,7 @@ class TestMultiLineTextBoxCursorWrapping:
         # Text with both explicit newlines and long lines that will wrap
         mixed_text = 'Line 1\nThis is a very long line that will be wrapped automatically\nLine 3'
         textbox.text = mixed_text
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = len(mixed_text)
 
         textbox.update()
@@ -126,7 +126,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_at_beginning_of_wrapped_line(self, mocker):
         """Test cursor positioning at the beginning of a wrapped line."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -135,7 +135,7 @@ class TestMultiLineTextBoxCursorWrapping:
         # Long text that will wrap
         long_text = 'This is a very long line of text that should be automatically wrapped'
         textbox.text = long_text
-        textbox.active = True
+        textbox.is_active = True
 
         # Find where the text wraps (this is tricky to determine exactly)
         # For now, just test that cursor positioning doesn't crash
@@ -147,7 +147,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_positioning_with_very_long_single_word(self, mocker):
         """Test cursor positioning when a single word is longer than the text box width."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -162,7 +162,7 @@ class TestMultiLineTextBoxCursorWrapping:
         # Single very long word that will be forced onto its own line
         long_word = 'supercalifragilisticexpialidocious'
         textbox.text = long_word
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = len(long_word)
 
         textbox.update()
@@ -172,7 +172,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_cursor_blinking_with_wrapped_text(self, mocker):
         """Test that cursor blinking works correctly with wrapped text."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -180,7 +180,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
         long_text = 'This is a very long line that will be wrapped to multiple lines'
         textbox.text = long_text
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = len(long_text)
 
         # Test multiple updates to check cursor blinking
@@ -192,7 +192,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_mouse_click_positioning_with_wrapped_text(self, mocker):
         """Test that mouse clicks position the cursor correctly in wrapped text."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -200,7 +200,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
         long_text = 'This is a very long line that will be wrapped to multiple lines'
         textbox.text = long_text
-        textbox.active = True
+        textbox.is_active = True
 
         # Simulate a mouse click event
         mock_event = mocker.Mock()
@@ -215,7 +215,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_arrow_key_navigation_with_wrapped_text(self, mocker):
         """Test that arrow key navigation works correctly with wrapped text."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -232,7 +232,7 @@ class TestMultiLineTextBoxCursorWrapping:
             'multiple lines because it is much longer than the text box width'
         )
         textbox.text = long_text
-        textbox.active = True
+        textbox.is_active = True
 
         # Position cursor in the middle of the text
         textbox.cursor_pos = 50
@@ -264,7 +264,7 @@ class TestMultiLineTextBoxCursorWrapping:
 
     def test_mouse_click_positioning_issue_with_wrapped_text(self, mocker):
         """Test that demonstrates the mouse click positioning issue with wrapped text."""
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = pygame.font.Font(None, 24)
         mock_get_font.return_value = font
 
@@ -281,7 +281,7 @@ class TestMultiLineTextBoxCursorWrapping:
             'multiple lines because it is much longer than the text box width'
         )
         textbox.text = long_text
-        textbox.active = True
+        textbox.is_active = True
 
         # Simulate clicking on the second line of wrapped text
         mock_event = mocker.Mock()

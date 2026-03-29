@@ -9,9 +9,9 @@ import pytest
 
 from glitchygames.sprites.animated import (
     AnimatedSprite,
-    _convert_pixels_to_rgb_if_possible,
-    _convert_pixels_to_rgba_if_needed,
-    _needs_alpha_channel,
+    convert_pixels_to_rgb_if_possible,
+    convert_pixels_to_rgba_if_needed,
+    needs_alpha_channel,
 )
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -19,86 +19,86 @@ from tests.mocks.test_mock_factory import MockFactory
 class TestAlphaDetectionHelpers:
     """Test the helper functions for alpha detection and conversion."""
 
-    def test_needs_alpha_channel_rgb_opaque_only(self):
+    def testneeds_alpha_channel_rgb_opaque_only(self):
         """Test that RGB pixels with no transparency don't need alpha."""
         pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128)]
-        assert not _needs_alpha_channel(pixels)
+        assert not needs_alpha_channel(pixels)
 
-    def test_needs_alpha_channel_rgb_with_transparent(self):
+    def testneeds_alpha_channel_rgb_with_transparent(self):
         """Test that RGB pixels with magenta transparency need alpha."""
         pixels = [(255, 0, 0), (255, 0, 255), (0, 0, 255)]  # Magenta = transparent
-        assert _needs_alpha_channel(pixels)
+        assert needs_alpha_channel(pixels)
 
-    def test_needs_alpha_channel_rgba_opaque_only(self):
+    def testneeds_alpha_channel_rgba_opaque_only(self):
         """Test that RGBA pixels with all opaque alphas don't need alpha."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)]
-        assert not _needs_alpha_channel(pixels)
+        assert not needs_alpha_channel(pixels)
 
-    def test_needs_alpha_channel_rgba_with_transparency(self):
+    def testneeds_alpha_channel_rgba_with_transparency(self):
         """Test that RGBA pixels with transparency need alpha."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 255)]  # Semi-transparent
-        assert _needs_alpha_channel(pixels)
+        assert needs_alpha_channel(pixels)
 
-    def test_needs_alpha_channel_rgba_fully_transparent(self):
+    def testneeds_alpha_channel_rgba_fully_transparent(self):
         """Test that RGBA pixels with fully transparent alpha need alpha."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 0), (0, 0, 255, 255)]  # Fully transparent
-        assert _needs_alpha_channel(pixels)
+        assert needs_alpha_channel(pixels)
 
-    def test_needs_alpha_channel_mixed_formats(self):
+    def testneeds_alpha_channel_mixed_formats(self):
         """Test mixed RGB/RGBA pixel formats."""
         pixels = [(255, 0, 0), (0, 255, 0, 128), (0, 0, 255)]  # Mixed with transparency
-        assert _needs_alpha_channel(pixels)
+        assert needs_alpha_channel(pixels)
 
-    def test_convert_pixels_to_rgb_if_possible_no_alpha_needed(self):
+    def testconvert_pixels_to_rgb_if_possible_no_alpha_needed(self):
         """Test converting RGBA to RGB when no alpha is needed."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)]
-        result = _convert_pixels_to_rgb_if_possible(pixels)
+        result = convert_pixels_to_rgb_if_possible(pixels)
         expected = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         assert result == expected
 
-    def test_convert_pixels_to_rgb_if_possible_with_transparency(self):
+    def testconvert_pixels_to_rgb_if_possible_with_transparency(self):
         """Test that RGBA with transparency stays RGBA."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 128), (0, 0, 255, 255)]
-        result = _convert_pixels_to_rgb_if_possible(pixels)
+        result = convert_pixels_to_rgb_if_possible(pixels)
         assert result == pixels  # Should remain unchanged
 
-    def test_convert_pixels_to_rgb_if_possible_transparent_pixels(self):
+    def testconvert_pixels_to_rgb_if_possible_transparent_pixels(self):
         """Test converting transparent RGBA pixels to magenta."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 0), (0, 0, 255, 255)]
-        result = _convert_pixels_to_rgb_if_possible(pixels)
+        result = convert_pixels_to_rgb_if_possible(pixels)
         # Since there's transparency (alpha=0), it should stay RGBA
         expected = pixels  # Should remain unchanged due to transparency
         assert result == expected
 
-    def test_convert_pixels_to_rgb_if_possible_rgb_input(self):
+    def testconvert_pixels_to_rgb_if_possible_rgb_input(self):
         """Test that RGB input remains RGB."""
         pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        result = _convert_pixels_to_rgb_if_possible(pixels)
+        result = convert_pixels_to_rgb_if_possible(pixels)
         assert result == pixels
 
-    def test_convert_pixels_to_rgb_if_possible_alpha_255_converts_to_rgb(self):
+    def testconvert_pixels_to_rgb_if_possible_alpha_255_converts_to_rgb(self):
         """Test that RGBA pixels with alpha=255 convert to RGB."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)]
-        result = _convert_pixels_to_rgb_if_possible(pixels)
+        result = convert_pixels_to_rgb_if_possible(pixels)
         expected = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         assert result == expected
 
-    def test_needs_alpha_channel_alpha_255_does_not_need_alpha(self):
+    def testneeds_alpha_channel_alpha_255_does_not_need_alpha(self):
         """Test that RGBA pixels with alpha=255 don't need alpha channel."""
         pixels = [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)]
-        assert not _needs_alpha_channel(pixels)
+        assert not needs_alpha_channel(pixels)
 
-    def test_convert_pixels_to_rgba_if_needed_rgb_to_rgba(self):
+    def testconvert_pixels_to_rgba_if_needed_rgb_to_rgba(self):
         """Test converting RGB pixels to RGBA."""
         pixels = [(255, 0, 0), (255, 0, 255), (0, 0, 255)]
-        result = _convert_pixels_to_rgba_if_needed(pixels)
+        result = convert_pixels_to_rgba_if_needed(pixels)
         expected = [(255, 0, 0, 255), (255, 0, 255, 255), (0, 0, 255, 255)]
         assert result == expected
 
-    def test_convert_pixels_to_rgba_if_needed_rgba_input(self):
+    def testconvert_pixels_to_rgba_if_needed_rgba_input(self):
         """Test that RGBA input remains RGBA."""
         pixels = [(255, 0, 0, 255), (255, 0, 255, 0), (0, 0, 255, 128)]
-        result = _convert_pixels_to_rgba_if_needed(pixels)
+        result = convert_pixels_to_rgba_if_needed(pixels)
         assert result == pixels
 
 
@@ -177,7 +177,7 @@ class TestAnimatedSpriteRGBRGBA:
                 'R': {'red': 255, 'green': 0, 'blue': 0},
                 'G': {'red': 0, 'green': 255, 'blue': 0},
                 'B': {'red': 0, 'green': 0, 'blue': 255},
-            }
+            },
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
@@ -197,7 +197,7 @@ class TestAnimatedSpriteRGBRGBA:
                 'R': {'red': 255, 'green': 0, 'blue': 0, 'alpha': 255},
                 'G': {'red': 0, 'green': 255, 'blue': 0, 'alpha': 128},
                 'B': {'red': 0, 'green': 0, 'blue': 255, 'alpha': 255},
-            }
+            },
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
@@ -216,7 +216,7 @@ class TestAnimatedSpriteRGBRGBA:
             'colors': {
                 'R': {'red': 255, 'green': 0, 'blue': 0},  # No alpha specified
                 'G': {'red': 0, 'green': 255, 'blue': 0},  # No alpha specified
-            }
+            },
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
@@ -233,7 +233,7 @@ class TestAnimatedSpriteRGBRGBA:
             'colors': {
                 'R': {'red': 255, 'green': 0, 'blue': 0, 'alpha': 255},  # Explicit alpha=255
                 'G': {'red': 0, 'green': 255, 'blue': 0, 'alpha': 255},  # Explicit alpha=255
-            }
+            },
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
@@ -252,7 +252,7 @@ class TestAnimatedSpriteRGBRGBA:
                 'R': {'red': 255, 'green': 0, 'blue': 0},  # RGB only
                 'G': {'red': 0, 'green': 255, 'blue': 0, 'alpha': 128},  # RGBA
                 'B': {'red': 0, 'green': 0, 'blue': 255},  # RGB only
-            }
+            },
         }
 
         color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
@@ -293,7 +293,10 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_path = f.name
 
@@ -327,7 +330,10 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_path = f.name
 
@@ -362,7 +368,10 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_path = f.name
 
@@ -399,7 +408,10 @@ class TestSpriteSaveLoadRGBRGBA:
         sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_path = f.name
 
@@ -434,7 +446,10 @@ G = { red = 0, green = 255, blue = 0 }
 """
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             f.write(toml_content)
             temp_path = f.name
@@ -484,7 +499,10 @@ B = { red = 0, green = 0, blue = 255, alpha = 255 }
 """
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             f.write(toml_content)
             temp_path = f.name
@@ -536,7 +554,10 @@ B = { red = 0, green = 0, blue = 255 }
 """
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             f.write(toml_content)
             temp_path = f.name
@@ -597,7 +618,10 @@ class TestRGBRGBAIntegration:
         sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_path = f.name
 
@@ -652,7 +676,10 @@ class TestRGBRGBAIntegration:
         sprite.name = 'test_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             temp_path = f.name
 
@@ -721,12 +748,18 @@ class TestRGBRGBAIntegration:
         rgba_sprite.name = 'rgba_sprite'
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as rgb_file:
             rgb_path = rgb_file.name
 
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as rgba_file:
             rgba_path = rgba_file.name
 

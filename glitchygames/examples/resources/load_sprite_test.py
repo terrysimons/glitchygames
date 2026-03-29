@@ -71,7 +71,7 @@ blue = 0
 
 # Load the content using configparser
 config = configparser.ConfigParser()
-config.optionxform = str  # type: ignore[assignment]  # Preserve case sensitivity for keys
+config.optionxform = str  # type: ignore[assignment] # ty: ignore[invalid-assignment]  # Preserve case sensitivity for keys
 config.read_file(StringIO(ini_content))
 
 # Extract multi-line `pixels` data
@@ -105,8 +105,8 @@ p = figure(
     width=320,
     height=320,
     title='Sprite Visualization',
-    x_range=(0, len(pixels[0])),  # type: ignore[arg-type]
-    y_range=(0, len(pixels)),  # type: ignore[arg-type]
+    x_range=(0, len(pixels[0])),  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+    y_range=(0, len(pixels)),  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
     tools='',
     toolbar_location=None,
 )

@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Save REAL LayeredDirty before mock_pygame_patches replaces it with a Mock.
 _RealLayeredDirty = pygame.sprite.LayeredDirty
 
-from glitchygames.events.core import HashableEvent  # noqa: E402
+from glitchygames.events.base import HashableEvent  # noqa: E402
 from glitchygames.ui import ConfirmDialog, InputDialog  # noqa: E402
 from glitchygames.ui.dialogs import (  # noqa: E402
     InputConfirmationDialogScene,
@@ -526,7 +526,7 @@ class TestDialogSceneSetupCleanupDismiss:
         event = mocker.Mock()
         # The input_box is a real InputBox, so we check its state after calling
         scene.on_mouse_button_up_event(event)
-        assert scene.dialog.input_box.active is True
+        assert scene.dialog.input_box.is_active is True
 
     def test_input_confirmation_dialog_key_up_tab_activates(self, mocker):
         """Test InputConfirmationDialogScene on_key_up_event with Tab activates input."""
@@ -535,11 +535,11 @@ class TestDialogSceneSetupCleanupDismiss:
         mock_previous.all_sprites = []
 
         scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
-        scene.dialog.input_box.active = False
+        scene.dialog.input_box.is_active = False
         event = mocker.Mock()
         event.key = pygame.K_TAB
         scene.on_key_up_event(event)
-        assert scene.dialog.input_box.active is True
+        assert scene.dialog.input_box.is_active is True
 
     def test_input_confirmation_dialog_key_up_active_input(self, mocker):
         """Test InputConfirmationDialogScene on_key_up_event when input is active."""
@@ -548,7 +548,7 @@ class TestDialogSceneSetupCleanupDismiss:
         mock_previous.all_sprites = []
 
         scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
-        scene.dialog.input_box.active = True
+        scene.dialog.input_box.is_active = True
         # Mock the dialog's on_key_up_event since it's the one being delegated to
         scene.dialog.on_key_up_event = mocker.Mock()
         event = mocker.Mock()
@@ -563,7 +563,7 @@ class TestDialogSceneSetupCleanupDismiss:
         mock_previous.all_sprites = []
 
         scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
-        scene.dialog.input_box.active = True
+        scene.dialog.input_box.is_active = True
         # Mock the dialog's on_key_down_event since it's the one being delegated to
         scene.dialog.on_key_down_event = mocker.Mock()
         event = mocker.Mock()
@@ -578,7 +578,7 @@ class TestDialogSceneSetupCleanupDismiss:
         mock_previous.all_sprites = []
 
         scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
-        scene.dialog.input_box.active = False
+        scene.dialog.input_box.is_active = False
         # The inactive branch calls super().on_key_up_event which may try to
         # iterate all_sprites, so provide proper mock
         scene.all_sprites = _RealLayeredDirty()
@@ -710,7 +710,7 @@ class TestDeleteAnimationDialogScene:
 
         # Mock the dialog's on_key_down_event
         dialog.dialog.on_key_down_event = mocker.Mock()
-        dialog.dialog.input_box.active = True
+        dialog.dialog.input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_a
         dialog.on_key_down_event(event)
@@ -731,7 +731,7 @@ class TestDeleteAnimationDialogScene:
         )
 
         dialog.dialog.on_key_up_event = mocker.Mock()
-        dialog.dialog.input_box.active = True
+        dialog.dialog.input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_a
         dialog.on_key_up_event(event)
@@ -751,11 +751,11 @@ class TestDeleteAnimationDialogScene:
             groups=mock_groups,
         )
 
-        dialog.dialog.input_box.active = False
+        dialog.dialog.input_box.is_active = False
         tab_event = mocker.Mock()
         tab_event.key = pygame.K_TAB
         dialog.on_key_up_event(tab_event)
-        assert dialog.dialog.input_box.active is True
+        assert dialog.dialog.input_box.is_active is True
 
 
 class TestDeleteFrameDialogScene:
@@ -770,7 +770,7 @@ class TestDeleteFrameDialogScene:
         """Test DeleteFrameDialogScene initialization."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -791,7 +791,7 @@ class TestDeleteFrameDialogScene:
         """Test confirm with 'YES' calls callback."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -816,7 +816,7 @@ class TestDeleteFrameDialogScene:
         """Test confirm with wrong text clears input."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -841,7 +841,7 @@ class TestDeleteFrameDialogScene:
         """Test cancel event on delete frame dialog."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -866,7 +866,7 @@ class TestDeleteFrameDialogScene:
         """Test DeleteFrameDialogScene key down when input is active."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -882,7 +882,7 @@ class TestDeleteFrameDialogScene:
         )
 
         dialog.dialog.on_key_down_event = mocker.Mock()
-        dialog.dialog.input_box.active = True
+        dialog.dialog.input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_y
         dialog.on_key_down_event(event)
@@ -892,7 +892,7 @@ class TestDeleteFrameDialogScene:
         """Test DeleteFrameDialogScene key up when input is active."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -908,7 +908,7 @@ class TestDeleteFrameDialogScene:
         )
 
         dialog.dialog.on_key_up_event = mocker.Mock()
-        dialog.dialog.input_box.active = True
+        dialog.dialog.input_box.is_active = True
         event = mocker.Mock()
         event.key = pygame.K_y
         dialog.on_key_up_event(event)
@@ -918,7 +918,7 @@ class TestDeleteFrameDialogScene:
         """Test DeleteFrameDialogScene key up with Tab when inactive."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -933,11 +933,11 @@ class TestDeleteFrameDialogScene:
             groups=mock_groups,
         )
 
-        dialog.dialog.input_box.active = False
+        dialog.dialog.input_box.is_active = False
         tab_event = mocker.Mock()
         tab_event.key = pygame.K_TAB
         dialog.on_key_up_event(tab_event)
-        assert dialog.dialog.input_box.active is True
+        assert dialog.dialog.input_box.is_active is True
 
 
 # ============================================================================
@@ -1109,7 +1109,7 @@ class TestDeleteAnimationDialogSetup:
         assert 'on_left_mouse_button_up_event' in dialog.dialog.cancel_button.callbacks
         assert dialog.dialog.confirm_button.callbacks is not None
         assert 'on_left_mouse_button_up_event' in dialog.dialog.confirm_button.callbacks
-        assert dialog.dialog.input_box.active is True
+        assert dialog.dialog.input_box.is_active is True
 
     def test_key_down_inactive_calls_super(self, mocker):
         """Test key down when input inactive delegates to super."""
@@ -1124,7 +1124,7 @@ class TestDeleteAnimationDialogSetup:
             on_confirm_callback=mocker.Mock(),
             groups=mock_groups,
         )
-        dialog.dialog.input_box.active = False
+        dialog.dialog.input_box.is_active = False
         dialog.all_sprites = _RealLayeredDirty()
         event = mocker.Mock()
         event.key = pygame.K_a
@@ -1144,7 +1144,7 @@ class TestDeleteAnimationDialogSetup:
             on_confirm_callback=mocker.Mock(),
             groups=mock_groups,
         )
-        dialog.dialog.input_box.active = False
+        dialog.dialog.input_box.is_active = False
         dialog.all_sprites = _RealLayeredDirty()
         event = mocker.Mock()
         event.key = pygame.K_a
@@ -1164,7 +1164,7 @@ class TestDeleteFrameDialogSetup:
         """Test setup configures button callbacks and activates input box."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1184,13 +1184,13 @@ class TestDeleteFrameDialogSetup:
         assert 'on_left_mouse_button_up_event' in dialog.dialog.cancel_button.callbacks
         assert dialog.dialog.confirm_button.callbacks is not None
         assert 'on_left_mouse_button_up_event' in dialog.dialog.confirm_button.callbacks
-        assert dialog.dialog.input_box.active is True
+        assert dialog.dialog.input_box.is_active is True
 
     def test_cancel_without_callback(self, mocker):
         """Test cancel event without callback does not raise."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1213,7 +1213,7 @@ class TestDeleteFrameDialogSetup:
         """Test key down when input inactive delegates to super."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1227,7 +1227,7 @@ class TestDeleteFrameDialogSetup:
             on_confirm_callback=mocker.Mock(),
             groups=mock_groups,
         )
-        dialog.dialog.input_box.active = False
+        dialog.dialog.input_box.is_active = False
         dialog.all_sprites = _RealLayeredDirty()
         event = mocker.Mock()
         event.key = pygame.K_a
@@ -1237,7 +1237,7 @@ class TestDeleteFrameDialogSetup:
         """Test key up with non-Tab key when inactive delegates to super."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1251,7 +1251,7 @@ class TestDeleteFrameDialogSetup:
             on_confirm_callback=mocker.Mock(),
             groups=mock_groups,
         )
-        dialog.dialog.input_box.active = False
+        dialog.dialog.input_box.is_active = False
         dialog.all_sprites = _RealLayeredDirty()
         event = mocker.Mock()
         event.key = pygame.K_a
@@ -1350,7 +1350,7 @@ class TestDialogKeyUpElseBranch:
             previous_scene=mock_previous,
             groups=_RealLayeredDirty(),
         )
-        dialog.dialog.input_box.active = False
+        dialog.dialog.input_box.is_active = False
         dialog.all_sprites = _RealLayeredDirty()
         event = mocker.Mock()
         event.key = pygame.K_a  # Not TAB
@@ -1410,7 +1410,7 @@ class TestDialogSubclassGroupsNone:
         """Test DeleteFrameDialogScene creates LayeredDirty when groups=None (line 600)."""
         from glitchygames.ui.dialogs import DeleteFrameDialogScene
 
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         font = MockFactory.create_pygame_font_mock()
         mock_get_font.return_value = font
 
@@ -1468,7 +1468,9 @@ class TestConfirmDialogInitialization:
         cancel_callback = mocker.Mock()
 
         dialog = _create_confirm_dialog(
-            mocker, confirm_callback=confirm_callback, cancel_callback=cancel_callback
+            mocker,
+            confirm_callback=confirm_callback,
+            cancel_callback=cancel_callback,
         )
 
         assert dialog.confirm_callback is confirm_callback
@@ -1535,7 +1537,10 @@ class TestConfirmDialogRender:
         dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
         dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
         dialog.image.get_rect.return_value = pygame.Rect(
-            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT
+            0,
+            0,
+            TEST_CONFIRM_DIALOG_WIDTH,
+            TEST_CONFIRM_DIALOG_HEIGHT,
         )
 
         mocker.patch('pygame.draw.rect')
@@ -1546,7 +1551,7 @@ class TestConfirmDialogRender:
         mock_rect = pygame.Rect(0, 0, 50, 14)
         mock_surface.get_rect.return_value = mock_rect
         mock_font.render.return_value = (mock_surface, mock_rect)
-        mocker.patch('glitchygames.ui.widgets.FontManager.get_font', return_value=mock_font)
+        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
 
         dialog.render()
 
@@ -1560,7 +1565,10 @@ class TestConfirmDialogRender:
         dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
         dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
         dialog.image.get_rect.return_value = pygame.Rect(
-            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT
+            0,
+            0,
+            TEST_CONFIRM_DIALOG_WIDTH,
+            TEST_CONFIRM_DIALOG_HEIGHT,
         )
 
         mock_draw_rect = mocker.patch('pygame.draw.rect')
@@ -1570,7 +1578,7 @@ class TestConfirmDialogRender:
         mock_rect = pygame.Rect(0, 0, 50, 14)
         mock_surface.get_rect.return_value = mock_rect
         mock_font.render.return_value = (mock_surface, mock_rect)
-        mocker.patch('glitchygames.ui.widgets.FontManager.get_font', return_value=mock_font)
+        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
 
         dialog.render()
 
@@ -1586,7 +1594,10 @@ class TestConfirmDialogRender:
         dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
         dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
         dialog.image.get_rect.return_value = pygame.Rect(
-            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT
+            0,
+            0,
+            TEST_CONFIRM_DIALOG_WIDTH,
+            TEST_CONFIRM_DIALOG_HEIGHT,
         )
 
         mocker.patch('pygame.draw.rect')
@@ -1596,7 +1607,7 @@ class TestConfirmDialogRender:
         mock_rect = pygame.Rect(0, 0, 50, 14)
         mock_surface.get_rect.return_value = mock_rect
         mock_font.render.return_value = (mock_surface, mock_rect)
-        mocker.patch('glitchygames.ui.widgets.FontManager.get_font', return_value=mock_font)
+        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
 
         dialog.render()
 
@@ -1611,7 +1622,10 @@ class TestConfirmDialogRender:
         dialog.image.get_width.return_value = TEST_CONFIRM_DIALOG_WIDTH
         dialog.image.get_height.return_value = TEST_CONFIRM_DIALOG_HEIGHT
         dialog.image.get_rect.return_value = pygame.Rect(
-            0, 0, TEST_CONFIRM_DIALOG_WIDTH, TEST_CONFIRM_DIALOG_HEIGHT
+            0,
+            0,
+            TEST_CONFIRM_DIALOG_WIDTH,
+            TEST_CONFIRM_DIALOG_HEIGHT,
         )
 
         mock_draw_rect = mocker.patch('pygame.draw.rect')
@@ -1621,7 +1635,7 @@ class TestConfirmDialogRender:
         mock_rect = pygame.Rect(0, 0, 50, 14)
         mock_surface.get_rect.return_value = mock_rect
         mock_font.render.return_value = (mock_surface, mock_rect)
-        mocker.patch('glitchygames.ui.widgets.FontManager.get_font', return_value=mock_font)
+        mocker.patch('glitchygames.fonts.FontManager.get_font', return_value=mock_font)
 
         dialog.render()
 
@@ -1993,7 +2007,7 @@ class TestInputDialogMouseButtonUpEvent:
 
         dialog.on_mouse_button_up_event(event)
 
-        assert dialog.input_box.active is True
+        assert dialog.input_box.is_active is True
 
     def test_click_outside_input_box_deactivates(self, mocker):
         """Test clicking outside input box bounds deactivates it."""
@@ -2006,7 +2020,7 @@ class TestInputDialogMouseButtonUpEvent:
 
         dialog.on_mouse_button_up_event(event)
 
-        assert dialog.input_box.active is False
+        assert dialog.input_box.is_active is False
 
 
 class TestInputDialogKeyUpEvent:
@@ -2020,7 +2034,7 @@ class TestInputDialogKeyUpEvent:
     def test_key_up_routes_to_active_input_box(self, mocker):
         """Test key up routes to input box when active."""
         dialog = _create_input_dialog(mocker)
-        dialog.input_box.active = True
+        dialog.input_box.is_active = True
 
         mock_input_box_key_up = mocker.patch.object(dialog.input_box, 'on_key_up_event')
 
@@ -2034,19 +2048,19 @@ class TestInputDialogKeyUpEvent:
     def test_key_up_tab_activates_input_box(self, mocker):
         """Test Tab key activates the input box when it is inactive."""
         dialog = _create_input_dialog(mocker)
-        dialog.input_box.active = False
+        dialog.input_box.is_active = False
 
         event = mocker.Mock()
         event.key = pygame.K_TAB
 
         dialog.on_key_up_event(event)
 
-        assert dialog.input_box.active is True
+        assert dialog.input_box.is_active is True
 
     def test_key_up_non_tab_when_inactive_calls_super(self, mocker):
         """Test non-Tab key when input box is inactive calls super handler."""
         dialog = _create_input_dialog(mocker)
-        dialog.input_box.active = False
+        dialog.input_box.is_active = False
 
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
@@ -2066,14 +2080,14 @@ class TestInputDialogKeyDownEvent:
     def test_key_down_tab_activates_input_box(self, mocker):
         """Test Tab key activates the input box."""
         dialog = _create_input_dialog(mocker)
-        dialog.input_box.active = False
+        dialog.input_box.is_active = False
 
         event = mocker.Mock()
         event.key = pygame.K_TAB
 
         dialog.on_key_down_event(event)
 
-        assert dialog.input_box.active is True
+        assert dialog.input_box.is_active is True
 
     def test_key_down_routes_to_input_box(self, mocker):
         """Test non-Tab key routes to input box on_key_down_event."""

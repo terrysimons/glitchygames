@@ -4,7 +4,7 @@ This module provides reusable mock factories for creating consistent test object
 across all test files, reducing code duplication and ensuring proper mock configuration.
 """
 
-from typing import ClassVar
+from typing import ClassVar, NamedTuple
 from unittest.mock import Mock, patch
 
 import pygame
@@ -16,6 +16,20 @@ from glitchygames.sprites import AnimatedSprite
 MIN_ARGS_FOR_DIMENSIONS = 2
 DEFAULT_SIZE = 32
 MIN_ARGS_FOR_FGCOLOR = 2
+
+
+class MockSpriteConfig(NamedTuple):
+    """Configuration for creating an animated sprite mock."""
+
+    animation_name: str = 'idle'
+    frame_size: tuple = (8, 8)
+    pixel_color: tuple = (255, 0, 0)
+    current_frame: int = 0
+    is_playing: bool = False
+    is_looping: bool = True
+
+
+DEFAULT_MOCK_SPRITE_CONFIG = MockSpriteConfig()
 
 
 class MockSurface(pygame.Surface):
@@ -39,13 +53,13 @@ class MockSurface(pygame.Surface):
                 and isinstance(args[0], tuple)
                 and len(args[0]) >= min_args_for_separate
             ):
-                # Case: pygame.Surface((width, height))
+                # Tuple form: pygame.Surface((width, height))
                 width, height = args[0]
                 # Allow 0x0 surfaces for testing empty surface scenarios
                 if isinstance(width, int) and isinstance(height, int) and (width < 0 or height < 0):
                     args = ((default_surface_size, default_surface_size), *args[1:])
             elif len(args) >= min_args_for_separate:
-                # Case: pygame.Surface(width, height)
+                # Separate args form: pygame.Surface(width, height)
                 width, height = args[0], args[1]
                 # Allow 0x0 surfaces for testing empty surface scenarios
                 if isinstance(width, int) and isinstance(height, int) and (width < 0 or height < 0):
@@ -197,7 +211,7 @@ class MockSurface(pygame.Surface):
         return self._mock_path
 
 
-class MockFactory:
+class MockFactory:  # noqa: PLR0904
     """Factory class for creating properly configured mock objects."""
 
     # Cache for expensive mock objects to improve test performance
@@ -235,7 +249,7 @@ class MockFactory:
         return new_sprite
 
     @staticmethod
-    def clear_cache():
+    def _clear_cache():
         """Clear all cached mock objects for test isolation."""
         MockFactory._cached_sprites.clear()
         MockFactory._cached_scenes.clear()
@@ -291,19 +305,13 @@ class MockFactory:
         return mock_frame
 
     @staticmethod
-    def _configure_sprite_playback_methods(
-        mock_sprite: Mock, frame_size: tuple, pixel_color: tuple, pixel_count: int
-    ) -> None:
-        """Configure playback and pixel data methods on a sprite mock.
+    def _configure_sprite_basic_playback(mock_sprite: Mock) -> None:
+        """Configure basic playback controls on a sprite mock.
 
-        Sets up play, pause, stop, set_animation, set_frame, get_pixel_data,
-        and get_frame_pixel_data closures.
+        Sets up play, pause, stop, and set_animation closures.
 
         Args:
             mock_sprite: The mock sprite to configure
-            frame_size: Size of frames as (width, height)
-            pixel_color: Default RGB color tuple for pixels
-            pixel_count: Total number of pixels per frame
 
         """
 
@@ -328,13 +336,41 @@ class MockFactory:
 
         mock_sprite.set_animation = mock_set_animation
 
+    @staticmethod
+    def _configure_sprite_frame_access(
+        mock_sprite: Mock,
+        frame_size: tuple,
+        pixel_color: tuple,
+        pixel_count: int,
+    ) -> None:
+        """Configure frame access and pixel data methods on a sprite mock.
+
+        Sets up set_frame, get_pixel_data, and get_frame_pixel_data closures
+        using a shared frame-lookup helper.
+
+        Args:
+            mock_sprite: The mock sprite to configure
+            frame_size: Size of frames as (width, height)
+            pixel_color: Default RGB color tuple for pixels
+            pixel_count: Total number of pixels per frame
+
+        """
+
+        def _get_animation_frames(animation_name=None, frame_idx=None):
+            """Get frames for an animation, optionally at a specific index."""
+            anim = animation_name or mock_sprite.current_animation
+            if anim in mock_sprite._animations:
+                frames = mock_sprite._animations[anim]
+                if frame_idx is not None and frame_idx < len(frames):
+                    return frames[frame_idx]
+                return frames
+            return None
+
         def mock_set_frame(frame_idx):
             mock_sprite.current_frame = frame_idx
             # Update the sprite's image and rect to match the current frame
-            if mock_sprite.current_animation in mock_sprite._animations and frame_idx < len(
-                mock_sprite._animations[mock_sprite.current_animation]
-            ):
-                current_frame = mock_sprite._animations[mock_sprite.current_animation][frame_idx]
+            current_frame = _get_animation_frames(frame_idx=frame_idx)
+            if current_frame is not None:
                 mock_sprite.image = current_frame.image
                 # Create a new rect with proper attributes
                 new_rect = pygame.Rect(0, 0, frame_size[0], frame_size[1])
@@ -348,12 +384,8 @@ class MockFactory:
 
         def mock_get_pixel_data():
             # Return pixel data for the current frame
-            current_anim = mock_sprite.current_animation
-            current_frame = mock_sprite.current_frame
-            if current_anim in mock_sprite._animations and current_frame < len(
-                mock_sprite._animations[current_anim]
-            ):
-                frame = mock_sprite._animations[current_anim][current_frame]
+            frame = _get_animation_frames(frame_idx=mock_sprite.current_frame)
+            if frame is not None:
                 return frame.get_pixel_data()
             return [pixel_color] * pixel_count
 
@@ -361,21 +393,43 @@ class MockFactory:
 
         # Also add a method to get pixel data for a specific frame
         def mock_get_frame_pixel_data(frame_idx):
-            if mock_sprite.current_animation in mock_sprite._animations and frame_idx < len(
-                mock_sprite._animations[mock_sprite.current_animation]
-            ):
-                frame = mock_sprite._animations[mock_sprite.current_animation][frame_idx]
+            frame = _get_animation_frames(frame_idx=frame_idx)
+            if frame is not None:
                 return frame.get_pixel_data()
             return [pixel_color] * pixel_count
 
         mock_sprite.get_frame_pixel_data = mock_get_frame_pixel_data
 
     @staticmethod
-    def _configure_sprite_animation_management(mock_sprite: Mock) -> None:
-        """Configure animation management, observer, and metadata methods on a sprite mock.
+    def _configure_sprite_playback_methods(
+        mock_sprite: Mock,
+        frame_size: tuple,
+        pixel_color: tuple,
+        pixel_count: int,
+    ) -> None:
+        """Configure playback and pixel data methods on a sprite mock.
 
-        Sets up add/remove animation, looping, cache, observer, get_frame,
-        get_animation_metadata, and simple mock methods.
+        Sets up play, pause, stop, set_animation, set_frame, get_pixel_data,
+        and get_frame_pixel_data closures.
+
+        Args:
+            mock_sprite: The mock sprite to configure
+            frame_size: Size of frames as (width, height)
+            pixel_color: Default RGB color tuple for pixels
+            pixel_count: Total number of pixels per frame
+
+        """
+        MockFactory._configure_sprite_basic_playback(mock_sprite)
+        MockFactory._configure_sprite_frame_access(
+            mock_sprite,
+            frame_size,
+            pixel_color,
+            pixel_count,
+        )
+
+    @staticmethod
+    def _configure_sprite_animation_crud(mock_sprite: Mock) -> None:
+        """Configure animation add/remove, looping, and cache methods on a sprite mock.
 
         Args:
             mock_sprite: The mock sprite to configure
@@ -403,6 +457,27 @@ class MockFactory:
 
         mock_sprite.clear_surface_cache = mock_clear_surface_cache
 
+    @staticmethod
+    def _configure_sprite_observer_and_metadata(mock_sprite: Mock) -> None:
+        """Configure observer, get_frame, metadata, and simple mock methods on a sprite mock.
+
+        Args:
+            mock_sprite: The mock sprite to configure
+
+        """
+
+        def _validate_animation_exists(animation_name):
+            """Validate that an animation exists and return its frames.
+
+            Raises:
+                ValueError: If the animation does not exist.
+
+            """
+            if animation_name not in mock_sprite._animations:
+                msg = f"Animation '{animation_name}' not found"
+                raise ValueError(msg)
+            return mock_sprite._animations[animation_name]
+
         def mock_add_frame_observer(observer):
             mock_sprite._frame_manager._observers.append(observer)
 
@@ -416,21 +491,17 @@ class MockFactory:
 
         # Add get_frame method with error handling
         def mock_get_frame(animation_name, frame_idx):
-            if animation_name not in mock_sprite._animations:
-                raise ValueError(f"Animation '{animation_name}' not found")
-            if frame_idx < 0 or frame_idx >= len(mock_sprite._animations[animation_name]):
-                raise IndexError(
-                    f"Frame index {frame_idx} out of range for animation '{animation_name}'"
-                )
-            return mock_sprite._animations[animation_name][frame_idx]
+            frames = _validate_animation_exists(animation_name)
+            if frame_idx < 0 or frame_idx >= len(frames):
+                msg = f"Frame index {frame_idx} out of range for animation '{animation_name}'"
+                raise IndexError(msg)
+            return frames[frame_idx]
 
         mock_sprite.get_frame = mock_get_frame
 
         # Add get_animation_metadata method
         def mock_get_animation_metadata(animation_name):
-            if animation_name not in mock_sprite._animations:
-                raise ValueError(f"Animation '{animation_name}' not found")
-            frames = mock_sprite._animations[animation_name]
+            frames = _validate_animation_exists(animation_name)
             return {
                 'name': animation_name,
                 'frame_count': len(frames),
@@ -445,8 +516,25 @@ class MockFactory:
         mock_sprite.load = Mock()
 
     @staticmethod
+    def _configure_sprite_animation_management(mock_sprite: Mock) -> None:
+        """Configure animation management, observer, and metadata methods on a sprite mock.
+
+        Sets up add/remove animation, looping, cache, observer, get_frame,
+        get_animation_metadata, and simple mock methods.
+
+        Args:
+            mock_sprite: The mock sprite to configure
+
+        """
+        MockFactory._configure_sprite_animation_crud(mock_sprite)
+        MockFactory._configure_sprite_observer_and_metadata(mock_sprite)
+
+    @staticmethod
     def _configure_sprite_methods(
-        mock_sprite: Mock, frame_size: tuple, pixel_color: tuple, pixel_count: int
+        mock_sprite: Mock,
+        frame_size: tuple,
+        pixel_color: tuple,
+        pixel_count: int,
     ) -> None:
         """Configure all methods on a sprite mock.
 
@@ -461,13 +549,19 @@ class MockFactory:
 
         """
         MockFactory._configure_sprite_playback_methods(
-            mock_sprite, frame_size, pixel_color, pixel_count
+            mock_sprite,
+            frame_size,
+            pixel_color,
+            pixel_count,
         )
         MockFactory._configure_sprite_animation_management(mock_sprite)
 
     @staticmethod
     def _setup_default_event_handler(
-        scene_mock: Mock, handler_name: str, event_list: list, tag: str | None = None
+        scene_mock: Mock,
+        handler_name: str,
+        event_list: list,
+        tag: str | None = None,
     ) -> None:
         """Create and attach a default event handler to a scene mock.
 
@@ -531,32 +625,23 @@ class MockFactory:
         return mock_rect
 
     @staticmethod
-    def create_animated_sprite_mock(
-        animation_name: str = 'idle',
-        frame_size: tuple = (8, 8),
-        pixel_color: tuple = (255, 0, 0),
-        current_frame: int = 0,
-        *,
-        is_playing: bool = False,
-        is_looping: bool = True,
-        use_cache: bool = True,  # noqa: ARG004  # noqa: ARG004
-    ) -> Mock:
+    def create_animated_sprite_mock(config: MockSpriteConfig = DEFAULT_MOCK_SPRITE_CONFIG) -> Mock:
         """Create a properly configured AnimatedSprite mock.
 
         Args:
-            animation_name: Name of the animation (default: "idle")
-            frame_size: Size of the frame as (width, height) (default: (8, 8))
-            pixel_color: RGB color tuple for pixels (default: (255, 0, 0))
-            current_frame: Current frame index (default: 0)
-            is_playing: Whether animation is playing (default: False)
-            is_looping: Whether animation is looping (default: True)
-            use_cache: Whether to use cached version for performance (default: True)
+            config: Configuration for the sprite mock including animation name,
+                frame size, pixel color, current frame, and playback state.
 
         Returns:
             Properly configured AnimatedSprite mock
 
         """
-        # Skip caching to avoid deep copy issues with Mock objects
+        animation_name = config.animation_name
+        frame_size = config.frame_size
+        pixel_color = config.pixel_color
+        current_frame = config.current_frame
+        is_playing = config.is_playing
+        is_looping = config.is_looping
 
         # Create the mock sprite
         mock_sprite = Mock(spec=AnimatedSprite)
@@ -665,11 +750,6 @@ class MockFactory:
             Optimized scene mock
 
         """
-        # Skip caching to avoid deep copy issues with Mock objects
-        # cache_key = (pixels_across, pixels_tall, pixel_size)
-        # if use_cache and cache_key in MockFactory._cached_scenes:
-        #     return MockFactory._copy_mock_sprite(MockFactory._cached_scenes[cache_key])
-
         # Create scene mock with minimal setup
         scene_mock = Mock()
         scene_mock.pixels_across = pixels_across
@@ -686,10 +766,6 @@ class MockFactory:
         canvas_mock.rect.right = canvas_mock.rect.x + canvas_mock.rect.width
 
         scene_mock.canvas = canvas_mock
-
-        # Skip caching to avoid deep copy issues with Mock objects
-        # if use_cache:
-        #     MockFactory._cached_scenes[cache_key] = scene_mock
 
         return scene_mock
 
@@ -823,7 +899,10 @@ class MockFactory:
                 if event_handlers is None or handler_name not in event_handlers:
                     event_list = getattr(scene_mock, event_list_attr)
                     MockFactory._setup_default_event_handler(
-                        scene_mock, handler_name, event_list, tag
+                        scene_mock,
+                        handler_name,
+                        event_list,
+                        tag,
                     )
 
         return scene_mock
@@ -961,7 +1040,7 @@ class MockFactory:
         return mock_surface
 
     @staticmethod
-    def create_real_pygame_surface(width: int = 8, height: int = 8):
+    def _create_real_pygame_surface(width: int = 8, height: int = 8):
         """Create a real pygame.Surface for tests that need actual pygame functionality.
 
         Returns:
@@ -1203,6 +1282,7 @@ class MockFactory:
         # BitmappySprite-specific attributes
         self.filename = kwargs.get('filename', '')
         self.focusable = kwargs.get('focusable', False)
+        self.is_active = False
 
         # Initialize pixel data attributes
         self.pixels = []
@@ -1315,7 +1395,7 @@ class MockFactory:
         return display_mock
 
     @staticmethod
-    def setup_minimal_pygame_mocks():
+    def _setup_minimal_pygame_mocks():
         """Set up minimal pygame mocks that only mock the display surface.
 
         This is used for global mocks to prevent 'display Surface quit' errors
@@ -1325,9 +1405,6 @@ class MockFactory:
             tuple: (display_patcher, display_get_surface_patcher)
 
         """
-        # Ensure headless-friendly video driver for environments without a display
-        # os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-
         # Create display mock
         display_mock = MockFactory.create_pygame_display_mock()
         display_surface = display_mock.get_surface.return_value
@@ -1335,31 +1412,44 @@ class MockFactory:
         # Only patch display-related functions
         display_patcher = patch('pygame.display', display_mock)
         display_get_surface_patcher = patch(
-            'pygame.display.get_surface', return_value=display_surface
+            'pygame.display.get_surface',
+            return_value=display_surface,
         )
 
         return (display_patcher, display_get_surface_patcher)
 
     @staticmethod
-    def _create_mock_layered_dirty(*args, **kwargs):  # noqa: ARG004
-        """Mock pygame.sprite.LayeredDirty constructor that returns a working mock.
+    def _attach_layered_dirty_draw(mock_group: Mock) -> None:
+        """Attach the draw method to a mock layered dirty group.
 
-        Returns:
-            object: A mock sprite group with draw, add, and remove methods.
+        Args:
+            mock_group: The mock group to attach the draw method to
 
         """
-        mock_group = Mock()
-        mock_group._spritelist = []
-        mock_group._old_rect = {}
-        mock_group._clip = None
+
+        def _sprite_has_image_and_rect(sprite):
+            """Check if a sprite has both image and rect attributes."""
+            return hasattr(sprite, 'image') and hasattr(sprite, 'rect')
 
         def mock_draw(surface):
             """Mock draw method that handles sprites properly."""
             for sprite in mock_group._spritelist:
-                if hasattr(sprite, 'image') and hasattr(sprite, 'rect'):
-                    if sprite not in mock_group._old_rect:
-                        mock_group._old_rect[sprite] = sprite.rect.copy()
-                    surface.blit(sprite.image, sprite.rect)
+                if not _sprite_has_image_and_rect(sprite):
+                    continue
+                if sprite not in mock_group._old_rect:
+                    mock_group._old_rect[sprite] = sprite.rect.copy()
+                surface.blit(sprite.image, sprite.rect)
+
+        mock_group.draw = mock_draw
+
+    @staticmethod
+    def _attach_layered_dirty_add_remove(mock_group: Mock) -> None:
+        """Attach add and remove methods to a mock layered dirty group.
+
+        Args:
+            mock_group: The mock group to attach methods to
+
+        """
 
         def mock_add(*sprites):
             """Mock add method."""
@@ -1377,9 +1467,25 @@ class MockFactory:
                 if sprite in mock_group._old_rect:
                     del mock_group._old_rect[sprite]
 
-        mock_group.draw = mock_draw
         mock_group.add = mock_add
         mock_group.remove = mock_remove
+
+    @staticmethod
+    def _create_mock_layered_dirty(*args, **kwargs):  # noqa: ARG004
+        """Mock pygame.sprite.LayeredDirty constructor that returns a working mock.
+
+        Returns:
+            object: A mock sprite group with draw, add, and remove methods.
+
+        """
+        mock_group = Mock()
+        mock_group._spritelist = []
+        mock_group._old_rect = {}
+        mock_group._clip = None
+
+        MockFactory._attach_layered_dirty_draw(mock_group)
+        MockFactory._attach_layered_dirty_add_remove(mock_group)
+
         mock_group.__iter__ = lambda self: iter(mock_group._spritelist)
         mock_group.__len__ = lambda self: len(mock_group._spritelist)
         mock_group.__contains__ = lambda self, sprite: sprite in mock_group._spritelist
@@ -1395,12 +1501,14 @@ class MockFactory:
 
         """
         return MockFactory.create_animated_sprite_mock(
-            animation_name='idle',
-            frame_size=(8, 8),
-            pixel_color=(255, 0, 0),
-            current_frame=0,
-            is_playing=True,
-            is_looping=True,
+            config=MockSpriteConfig(
+                animation_name='idle',
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),
+                current_frame=0,
+                is_playing=True,
+                is_looping=True,
+            ),
         )
 
     @staticmethod
@@ -1633,9 +1741,13 @@ class MockFactory:
                 'pygame.transform.scale',
                 {'side_effect': mock_objects['mock_transform_scale']},
             ),
-            # Image module mock
+            # Image module mock (tostring is deprecated, tobytes is the replacement)
             'image_tostring': (
                 'pygame.image.tostring',
+                {'side_effect': mock_objects['mock_image_tostring']},
+            ),
+            'image_tobytes': (
+                'pygame.image.tobytes',
                 {'side_effect': mock_objects['mock_image_tostring']},
             ),
             # FontManager mock
@@ -1818,7 +1930,9 @@ def create_8x8_sprite_mock(animation_name: str = 'idle') -> Mock:
         Mock: The newly created 8x8 sprite mock.
 
     """
-    return MockFactory.create_animated_sprite_mock(animation_name=animation_name, frame_size=(8, 8))
+    return MockFactory.create_animated_sprite_mock(
+        config=MockSpriteConfig(animation_name=animation_name, frame_size=(8, 8)),
+    )
 
 
 def create_10x10_sprite_mock(animation_name: str = 'idle') -> Mock:
@@ -1829,12 +1943,14 @@ def create_10x10_sprite_mock(animation_name: str = 'idle') -> Mock:
 
     """
     return MockFactory.create_animated_sprite_mock(
-        animation_name=animation_name, frame_size=(10, 10)
+        config=MockSpriteConfig(animation_name=animation_name, frame_size=(10, 10)),
     )
 
 
 def create_custom_sprite_mock(
-    animation_name: str, frame_size: tuple, pixel_color: tuple = (255, 0, 0)
+    animation_name: str,
+    frame_size: tuple,
+    pixel_color: tuple = (255, 0, 0),
 ) -> Mock:
     """Create a custom sprite mock with specified parameters.
 
@@ -1843,7 +1959,11 @@ def create_custom_sprite_mock(
 
     """
     return MockFactory.create_animated_sprite_mock(
-        animation_name=animation_name, frame_size=frame_size, pixel_color=pixel_color
+        config=MockSpriteConfig(
+            animation_name=animation_name,
+            frame_size=frame_size,
+            pixel_color=pixel_color,
+        ),
     )
 
 

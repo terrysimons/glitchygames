@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from glitchygames.events.core import HashableEvent
+    from glitchygames.events.base import HashableEvent
 
 import pygame
 
@@ -48,13 +48,17 @@ def _process_example_filename(filename: str) -> tuple[str, bool]:
         is_example = True
         cleaned_filename = cleaned_filename[len('example:') :].strip()
         LOG.info(
-            f"Detected 'example:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'"
+            "Detected 'example:' prefix. Cleaning filename: '%s' -> '%s'",
+            filename,
+            cleaned_filename,
         )
     elif cleaned_filename.startswith('examples:'):
         is_example = True
         cleaned_filename = cleaned_filename[len('examples:') :].strip()
         LOG.info(
-            f"Detected 'examples:' prefix. Cleaning filename: '{filename}' -> '{cleaned_filename}'"
+            "Detected 'examples:' prefix. Cleaning filename: '%s' -> '%s'",
+            filename,
+            cleaned_filename,
         )
 
     return cleaned_filename, is_example
@@ -96,11 +100,11 @@ def _get_save_path(filename: str) -> Path:
     if is_example:
         examples_dir = _get_examples_dir()
         save_path = examples_dir / cleaned_filename
-        LOG.info(f'Example save path: {save_path}')
+        LOG.info('Example save path: %s', save_path)
         return save_path
     # Normal save - return just the filename (current behavior)
     save_path = Path(cleaned_filename)
-    LOG.info(f'Normal save path: {save_path}')
+    LOG.info('Normal save path: %s', save_path)
     return save_path
 
 
@@ -119,11 +123,11 @@ def _get_load_path(filename: str) -> Path:
     if is_example:
         examples_dir = _get_examples_dir()
         load_path = examples_dir / cleaned_filename
-        LOG.info(f'Example load path: {load_path}')
+        LOG.info('Example load path: %s', load_path)
         return load_path
     # Normal load - return just the filename (current behavior)
     load_path = Path(cleaned_filename)
-    LOG.info(f'Normal load path: {load_path}')
+    LOG.info('Normal load path: %s', load_path)
     return load_path
 
 
@@ -192,10 +196,10 @@ class InputConfirmationDialogScene(Scene):
 
         """
         self.dialog.cancel_button.callbacks = {
-            'on_left_mouse_button_up_event': self.on_cancel_event
+            'on_left_mouse_button_up_event': self.on_cancel_event,
         }
         self.dialog.confirm_button.callbacks = {
-            'on_left_mouse_button_up_event': self.on_confirm_event
+            'on_left_mouse_button_up_event': self.on_confirm_event,
         }
 
         self.dialog.add(self.all_sprites)
@@ -239,12 +243,12 @@ class InputConfirmationDialogScene(Scene):
 
 
         """
-        self.log.info(f'Cancel: event: {event}, trigger: {trigger}')
+        self.log.info('Cancel: event: %s, trigger: %s', event, trigger)
         self.dismiss()
 
     def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
         """Handle confirm events."""
-        self.log.info(f'Confirm: event: {event}, trigger: {trigger}')
+        self.log.info('Confirm: event: %s, trigger: %s', event, trigger)
         # Get the text from input box before dismissing
         filename = self.dialog.input_box.text
         # Dismiss first to restore previous scene
@@ -271,7 +275,7 @@ class InputConfirmationDialogScene(Scene):
         self.log.info(f'{self.name} Got text input from: {input_box_name}: {input_box_text}')
 
     @override
-    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:  # type: ignore[reportIncompatibleVariableOverride]
+    def on_mouse_button_up_event(self: Self, event: HashableEvent) -> None:
         """Handle the mouse button up event.
 
         Args:
@@ -290,7 +294,7 @@ class InputConfirmationDialogScene(Scene):
 
 
         """
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)
         elif event.key == pygame.K_TAB:
             self.dialog.input_box.activate()
@@ -306,7 +310,7 @@ class InputConfirmationDialogScene(Scene):
 
 
         """
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
         else:
             super().on_key_up_event(event)
@@ -351,11 +355,11 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
 
 
         """
-        self.log.info(f'New Canvas: event: {event}, trigger: {trigger}')
+        self.log.info('New Canvas: event: %s, trigger: %s', event, trigger)
         # Extract the text from the input box
         dimensions = self.dialog.input_box.text
-        self.log.info(f'New Canvas dimensions: {dimensions}')
-        self.log.info(f'Calling scene.on_new_file_event with dimensions: {dimensions}')
+        self.log.info('New Canvas dimensions: %s', dimensions)
+        self.log.info('Calling scene.on_new_file_event with dimensions: %s', dimensions)
         self.previous_scene.on_new_file_event(dimensions)
         self.log.info('Scene.on_new_file_event completed')
         self.dismiss()
@@ -402,12 +406,12 @@ class LoadDialogScene(InputConfirmationDialogScene):
 
 
         """
-        self.log.info(f'Load File: event: {event}, trigger: {trigger}')
+        self.log.info('Load File: event: %s, trigger: %s', event, trigger)
         # Get the filename from the input box text
         filename = self.dialog.input_box.text
         # Process example: prefix if present
         load_path = _get_load_path(filename)
-        LOG.info(f'Processed load path: {load_path}')
+        LOG.info('Processed load path: %s', load_path)
         # Pass the path as string to maintain compatibility
         self.previous_scene.canvas.on_load_file_event(str(load_path))
         self.dismiss()
@@ -454,12 +458,12 @@ class SaveDialogScene(InputConfirmationDialogScene):
 
 
         """
-        self.log.info(f'Save File: event: {event}, trigger: {trigger}')
+        self.log.info('Save File: event: %s, trigger: %s', event, trigger)
         # Get the filename from the input box
         filename = self.dialog.input_box.text
         # Process example: prefix if present
         save_path = _get_save_path(filename)
-        LOG.info(f'Processed save path: {save_path}')
+        LOG.info('Processed save path: %s', save_path)
         # Pass the path as string to maintain compatibility
         self.previous_scene.canvas.on_save_file_event(str(save_path))
         self.dismiss()
@@ -476,6 +480,7 @@ class DeleteAnimationDialogScene(Scene):
         previous_scene: Scene,
         animation_name: str,
         on_confirm_callback: Callable[[], None],
+        *,
         on_cancel_callback: Callable[[], None] | None = None,
         options: dict[str, Any] | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
@@ -526,16 +531,16 @@ class DeleteAnimationDialogScene(Scene):
     def setup(self) -> None:
         """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
-            'on_left_mouse_button_up_event': self.on_cancel_event
+            'on_left_mouse_button_up_event': self.on_cancel_event,
         }
         self.dialog.confirm_button.callbacks = {
-            'on_left_mouse_button_up_event': self.on_confirm_event
+            'on_left_mouse_button_up_event': self.on_confirm_event,
         }
         self.dialog.add(self.all_sprites)
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:
+    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -550,13 +555,13 @@ class DeleteAnimationDialogScene(Scene):
         else:
             LOG.warning(
                 f"DeleteAnimationDialog: Typed name '{typed_text}'"
-                f" does not match '{self.animation_name}'"
+                f" does not match '{self.animation_name}'",
             )
             # Could show an error message here, but for now just do nothing
             # Clear the input box to let user try again
             self.dialog.input_box.text = ''
 
-    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:
+    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
         """Handle cancel button click."""
         LOG.info('DeleteAnimationDialog: User cancelled')
         # Call the cancel callback if provided
@@ -568,7 +573,7 @@ class DeleteAnimationDialogScene(Scene):
     @override
     def on_key_down_event(self, event: HashableEvent) -> None:
         """Handle the key down event."""
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
         else:
             super().on_key_down_event(event)
@@ -576,7 +581,7 @@ class DeleteAnimationDialogScene(Scene):
     @override
     def on_key_up_event(self, event: HashableEvent) -> None:
         """Handle the key up event."""
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)
         elif event.key == pygame.K_TAB:
             self.dialog.input_box.activate()
@@ -596,6 +601,7 @@ class DeleteFrameDialogScene(Scene):
         animation_name: str,
         frame_index: int,
         on_confirm_callback: Callable[[], None],
+        *,
         on_cancel_callback: Callable[[], None] | None = None,
         options: dict[str, Any] | None = None,
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
@@ -658,23 +664,23 @@ class DeleteFrameDialogScene(Scene):
             height=20,
             groups=self.all_sprites,
         )
-        self.second_label.border_width = 0  # type: ignore[attr-defined]
+        self.second_label.border_width = 0
         self.second_label.background_color = self.dialog.dialog_text_sprite.background_color
 
     @override
     def setup(self) -> None:
         """Set up the scene."""
         self.dialog.cancel_button.callbacks = {
-            'on_left_mouse_button_up_event': self.on_cancel_event
+            'on_left_mouse_button_up_event': self.on_cancel_event,
         }
         self.dialog.confirm_button.callbacks = {
-            'on_left_mouse_button_up_event': self.on_confirm_event
+            'on_left_mouse_button_up_event': self.on_confirm_event,
         }
         self.dialog.add(self.all_sprites)
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:
+    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -684,18 +690,18 @@ class DeleteFrameDialogScene(Scene):
             LOG.info(
                 'DeleteFrameDialog: User confirmed deletion of'
                 f' frame {self.frame_index}'
-                f" from '{self.animation_name}'"
+                f" from '{self.animation_name}'",
             )
             # Call the callback if provided
             self.on_confirm_callback()
             # Return to previous scene
             self.scene_manager.switch_to_scene(self.previous_scene)
         else:
-            LOG.warning(f"DeleteFrameDialog: Typed text '{typed_text}' does not match 'YES'")
+            LOG.warning("DeleteFrameDialog: Typed text '%s' does not match 'YES'", typed_text)
             # Clear the input box to let user try again
             self.dialog.input_box.text = ''
 
-    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:
+    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
         """Handle cancel button click."""
         LOG.info('DeleteFrameDialog: User cancelled')
         # Call the cancel callback if provided
@@ -707,7 +713,7 @@ class DeleteFrameDialogScene(Scene):
     @override
     def on_key_down_event(self, event: HashableEvent) -> None:
         """Handle the key down event."""
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
         else:
             super().on_key_down_event(event)
@@ -715,7 +721,7 @@ class DeleteFrameDialogScene(Scene):
     @override
     def on_key_up_event(self, event: HashableEvent) -> None:
         """Handle the key up event."""
-        if self.dialog.input_box.active:
+        if self.dialog.input_box.is_active:
             self.dialog.on_key_up_event(event)
         elif event.key == pygame.K_TAB:
             self.dialog.input_box.activate()

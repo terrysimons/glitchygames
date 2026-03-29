@@ -144,7 +144,8 @@ class Speed:
 
         """
         if other == 0:
-            raise ZeroDivisionError('Cannot divide Speed by zero')
+            message = 'Cannot divide Speed by zero'
+            raise ZeroDivisionError(message)
         return Speed(self.x / other, self.y / other, self.increment)
 
     def __mod__(self: Self, other: float) -> Speed:
@@ -161,7 +162,8 @@ class Speed:
 
         """
         if other == 0:
-            raise ZeroDivisionError('Cannot modulo Speed by zero')
+            message = 'Cannot modulo Speed by zero'
+            raise ZeroDivisionError(message)
         return Speed(self.x % other, self.y % other, self.increment)
 
     def apply_dt(self: Self, dt: float) -> Speed:

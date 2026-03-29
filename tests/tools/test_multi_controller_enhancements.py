@@ -2,7 +2,7 @@
 
 import pytest
 
-from glitchygames.tools.bitmappy_multi_controller_enhancements import (
+from glitchygames.bitmappy.controllers.enhancements import (
     MAX_CONTROLLER_ACTION_HISTORY,
     BitmappyMultiControllerEnhancements,
 )
@@ -101,7 +101,9 @@ class TestBitmappyMultiControllerEnhancements:
         mock_controller_selection.set_selection.assert_called()
 
     def test_enhanced_navigation_frame_backward_clamps_to_zero(
-        self, enhancements, mock_controller_selection
+        self,
+        enhancements,
+        mock_controller_selection,
     ):
         """Test that navigating backward past frame 0 clamps to 0."""
         mock_controller_selection.get_selection.return_value = ('walk', 0)
@@ -185,7 +187,10 @@ class TestBitmappyMultiControllerEnhancements:
         mock_controller_selection.get_selection.return_value = ('walk', 0)
 
         result = enhancements.execute_group_action(
-            'team_a', 'navigate', direction='frame', amount=1
+            'team_a',
+            'navigate',
+            direction='frame',
+            amount=1,
         )
         assert result is True
 
@@ -245,6 +250,10 @@ class TestBitmappyMultiControllerEnhancements:
         assert results['cache_cleared'] == 2
         assert len(enhancements.position_cache) == 0
         mock_scene.visual_collision_manager.optimize_positioning.assert_called_once()
+
+
+class TestBitmappyMultiControllerPerformance:
+    """Tests for BitmappyMultiControllerEnhancements performance metrics and position caching."""
 
     def test_update_performance_metrics(self, enhancements):
         """Test performance metrics tracking."""

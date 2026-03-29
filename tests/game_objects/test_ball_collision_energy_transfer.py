@@ -75,7 +75,8 @@ class TestBallCollisionEnergyTransfer:
         if distance >= collision_distance:
             if ball1_speed_magnitude > 0 and ball2_speed_magnitude > 0:
                 speed_ratio = max(ball1_speed_magnitude, ball2_speed_magnitude) / min(
-                    ball1_speed_magnitude, ball2_speed_magnitude
+                    ball1_speed_magnitude,
+                    ball2_speed_magnitude,
                 )
                 if speed_ratio < 1.2:  # Lower threshold for more collisions
                     return True  # Skip if speeds are too similar and balls aren't overlapping
@@ -170,11 +171,11 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug('Before collision:')
         LOG.debug(
             f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})'
+            f' speed=({ball1.speed.x},{ball1.speed.y})',
         )
         LOG.debug(
             f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})'
+            f' speed=({ball2.speed.x},{ball2.speed.y})',
         )
 
         # Calculate initial energy
@@ -185,23 +186,23 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug(
             f'  Initial energies: Ball1={initial_energy1:.1f},'
             f' Ball2={initial_energy2:.1f},'
-            f' Total={total_initial_energy:.1f}'
+            f' Total={total_initial_energy:.1f}',
         )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
 
-        LOG.debug(f'Collision occurred: {collision_occurred}')
+        LOG.debug('Collision occurred: %s', collision_occurred)
 
         if collision_occurred:
             LOG.debug('After collision:')
             LOG.debug(
                 f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})'
+                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})',
             )
             LOG.debug(
                 f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})'
+                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})',
             )
 
             # Calculate final energy
@@ -212,7 +213,7 @@ class TestBallCollisionEnergyTransfer:
             LOG.debug(
                 f'  Final energies: Ball1={final_energy1:.1f},'
                 f' Ball2={final_energy2:.1f},'
-                f' Total={total_final_energy:.1f}'
+                f' Total={total_final_energy:.1f}',
             )
 
             # Check that energy was transferred
@@ -253,11 +254,11 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug('Before collision:')
         LOG.debug(
             f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})'
+            f' speed=({ball1.speed.x},{ball1.speed.y})',
         )
         LOG.debug(
             f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})'
+            f' speed=({ball2.speed.x},{ball2.speed.y})',
         )
 
         # Calculate initial energy
@@ -268,23 +269,23 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug(
             f'  Initial energies: Ball1={initial_energy1:.1f},'
             f' Ball2={initial_energy2:.1f},'
-            f' Total={total_initial_energy:.1f}'
+            f' Total={total_initial_energy:.1f}',
         )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
 
-        LOG.debug(f'Collision occurred: {collision_occurred}')
+        LOG.debug('Collision occurred: %s', collision_occurred)
 
         if collision_occurred:
             LOG.debug('After collision:')
             LOG.debug(
                 f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})'
+                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})',
             )
             LOG.debug(
                 f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})'
+                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})',
             )
 
             # Calculate final energy
@@ -295,7 +296,7 @@ class TestBallCollisionEnergyTransfer:
             LOG.debug(
                 f'  Final energies: Ball1={final_energy1:.1f},'
                 f' Ball2={final_energy2:.1f},'
-                f' Total={total_final_energy:.1f}'
+                f' Total={total_final_energy:.1f}',
             )
 
             # Check that energy was transferred
@@ -330,11 +331,11 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug('Before collision:')
         LOG.debug(
             f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})'
+            f' speed=({ball1.speed.x},{ball1.speed.y})',
         )
         LOG.debug(
             f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})'
+            f' speed=({ball2.speed.x},{ball2.speed.y})',
         )
 
         # Calculate initial energy
@@ -345,23 +346,23 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug(
             f'  Initial energies: Ball1={initial_energy1:.1f},'
             f' Ball2={initial_energy2:.1f},'
-            f' Total={total_initial_energy:.1f}'
+            f' Total={total_initial_energy:.1f}',
         )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
 
-        LOG.debug(f'Collision occurred: {collision_occurred}')
+        LOG.debug('Collision occurred: %s', collision_occurred)
 
         if collision_occurred:
             LOG.debug('After collision:')
             LOG.debug(
                 f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})'
+                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})',
             )
             LOG.debug(
                 f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})'
+                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})',
             )
 
             # Calculate final energy
@@ -372,7 +373,7 @@ class TestBallCollisionEnergyTransfer:
             LOG.debug(
                 f'  Final energies: Ball1={final_energy1:.1f},'
                 f' Ball2={final_energy2:.1f},'
-                f' Total={total_final_energy:.1f}'
+                f' Total={total_final_energy:.1f}',
             )
 
             # Check that energy was transferred
@@ -415,11 +416,11 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug('Before collision:')
         LOG.debug(
             f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})'
+            f' speed=({ball1.speed.x},{ball1.speed.y})',
         )
         LOG.debug(
             f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})'
+            f' speed=({ball2.speed.x},{ball2.speed.y})',
         )
 
         # Calculate initial energy
@@ -430,23 +431,23 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug(
             f'  Initial energies: Ball1={initial_energy1:.1f},'
             f' Ball2={initial_energy2:.1f},'
-            f' Total={total_initial_energy:.1f}'
+            f' Total={total_initial_energy:.1f}',
         )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
 
-        LOG.debug(f'Collision occurred: {collision_occurred}')
+        LOG.debug('Collision occurred: %s', collision_occurred)
 
         if collision_occurred:
             LOG.debug('After collision:')
             LOG.debug(
                 f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})'
+                f' speed=({ball1.speed.x:.1f},{ball1.speed.y:.1f})',
             )
             LOG.debug(
                 f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})'
+                f' speed=({ball2.speed.x:.1f},{ball2.speed.y:.1f})',
             )
 
             # Calculate final energy
@@ -457,7 +458,7 @@ class TestBallCollisionEnergyTransfer:
             LOG.debug(
                 f'  Final energies: Ball1={final_energy1:.1f},'
                 f' Ball2={final_energy2:.1f},'
-                f' Total={total_final_energy:.1f}'
+                f' Total={total_final_energy:.1f}',
             )
 
             # Check that energy was transferred
@@ -487,17 +488,17 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug('Balls far apart:')
         LOG.debug(
             f'  Ball 1: pos=({ball1.rect.centerx},{ball1.rect.centery})'
-            f' speed=({ball1.speed.x},{ball1.speed.y})'
+            f' speed=({ball1.speed.x},{ball1.speed.y})',
         )
         LOG.debug(
             f'  Ball 2: pos=({ball2.rect.centerx},{ball2.rect.centery})'
-            f' speed=({ball2.speed.x},{ball2.speed.y})'
+            f' speed=({ball2.speed.x},{ball2.speed.y})',
         )
 
         # Simulate collision
         collision_occurred = self._simulate_collision(ball1, ball2)
 
-        LOG.debug(f'Collision occurred: {collision_occurred}')
+        LOG.debug('Collision occurred: %s', collision_occurred)
 
         # Should not collide
         assert not collision_occurred, 'Balls far apart should not collide'
@@ -513,12 +514,12 @@ class TestBallCollisionEnergyTransfer:
         LOG.debug(
             f'Ball1 rect: x={ball1.rect.x}, y={ball1.rect.y},'
             f' centerx={ball1.rect.centerx},'
-            f' centery={ball1.rect.centery}'
+            f' centery={ball1.rect.centery}',
         )
         LOG.debug(
             f'Ball2 rect: x={ball2.rect.x}, y={ball2.rect.y},'
             f' centerx={ball2.rect.centerx},'
-            f' centery={ball2.rect.centery}'
+            f' centery={ball2.rect.centery}',
         )
 
         # Calculate distance
@@ -528,7 +529,7 @@ class TestBallCollisionEnergyTransfer:
         collision_distance = ball1.rect.width // 2 + ball2.rect.width // 2
 
         LOG.debug(f'Distance between centers: {distance:.1f}')
-        LOG.debug(f'Collision distance (sum of radii): {collision_distance}')
+        LOG.debug('Collision distance (sum of radii): %s', collision_distance)
         LOG.debug(f'Should collide: {distance <= collision_distance}')
 
         # Should collide since distance (20) <= collision_distance (20)

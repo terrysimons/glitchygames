@@ -17,7 +17,40 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def main() -> int:  # noqa: PLR0915
+def _handle_event(event: pygame.event.Event, animated_sprite: AnimatedSprite) -> bool:
+    """Handle a single pygame event.
+
+    Args:
+        event: The pygame event to handle.
+        animated_sprite: The animated sprite to control.
+
+    Returns:
+        bool: True if the application should continue running, False to quit.
+
+    """
+    if event.type == pygame.QUIT:
+        return False
+
+    if event.type == pygame.KEYDOWN:
+        if event.key == pygame.K_ESCAPE or event.unicode.lower() == 'q':
+            return False
+        if event.key == pygame.K_SPACE:
+            if animated_sprite.is_playing:
+                animated_sprite.pause()
+            else:
+                animated_sprite.play()
+        elif event.key == pygame.K_r:
+            animated_sprite.stop()
+            animated_sprite.play()
+        elif event.key == pygame.K_1:
+            animated_sprite.set_frame(0)
+        elif event.key == pygame.K_2:
+            animated_sprite.set_frame(1)
+
+    return True
+
+
+def main() -> int:
     """Run the animation demo.
 
     Returns:
@@ -54,7 +87,7 @@ def main() -> int:  # noqa: PLR0915
         animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
 
         logger.info(f'Loaded: {animated_sprite.name} ({animated_sprite.frame_count} frames)')
-        logger.info(f'Scaled from {original_size} to {scaled_size} (5x upscale)')
+        logger.info('Scaled from %s to %s (5x upscale)', original_size, scaled_size)
         logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
     except FileNotFoundError, ValueError, RuntimeError:
         logger.exception('Failed to load animation')
@@ -65,23 +98,8 @@ def main() -> int:  # noqa: PLR0915
     while running:
         # Handle events
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
+            if not _handle_event(event, animated_sprite):
                 running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE or event.unicode.lower() == 'q':
-                    running = False
-                elif event.key == pygame.K_SPACE:
-                    if animated_sprite.is_playing:
-                        animated_sprite.pause()
-                    else:
-                        animated_sprite.play()
-                elif event.key == pygame.K_r:
-                    animated_sprite.stop()
-                    animated_sprite.play()
-                elif event.key == pygame.K_1:
-                    animated_sprite.set_frame(0)
-                elif event.key == pygame.K_2:
-                    animated_sprite.set_frame(1)
 
         # Update and render
         animated_sprite.update(clock.tick(60) / 1000.0)

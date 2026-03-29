@@ -9,8 +9,8 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.tools import bitmappy
-from tests.mocks.test_mock_factory import MockFactory
+from glitchygames.bitmappy import editor as bitmappy
+from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 
 # Test constants to avoid magic values
 MIN_FILM_STRIP_WIDTH = 300
@@ -53,10 +53,11 @@ class FilmStripTestBase:
         """Pre-create commonly used objects to improve test performance."""
         # Create cached animated sprite
         cls.cached_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='idle',
-            frame_size=(FRAME_SIZE, FRAME_SIZE),
-            pixel_color=MAGENTA_PIXELS,
-            use_cache=True,
+            config=MockSpriteConfig(
+                animation_name='idle',
+                frame_size=(FRAME_SIZE, FRAME_SIZE),
+                pixel_color=MAGENTA_PIXELS,
+            ),
         )
 
         # Replace mock frame images with real pygame Surfaces so that
@@ -105,7 +106,7 @@ class FilmStripTestBase:
 
         return bitmappy.BitmapEditorScene(options=options)
 
-    def create_optimized_sprite(self, animation_name='idle', **kwargs):
+    def create_optimized_sprite(self, animation_name='idle'):
         """Create an optimized sprite using cached objects.
 
         Returns:
@@ -113,11 +114,11 @@ class FilmStripTestBase:
 
         """
         sprite = MockFactory.create_animated_sprite_mock(
-            animation_name=animation_name,
-            frame_size=(FRAME_SIZE, FRAME_SIZE),
-            pixel_color=MAGENTA_PIXELS,
-            use_cache=True,
-            **kwargs,
+            config=MockSpriteConfig(
+                animation_name=animation_name,
+                frame_size=(FRAME_SIZE, FRAME_SIZE),
+                pixel_color=MAGENTA_PIXELS,
+            ),
         )
         self._replace_mock_images_with_real_surfaces(sprite)
         return sprite
@@ -133,5 +134,5 @@ class FilmStripTestBase:
             sprite = self.cached_sprite
 
         scene = self.create_optimized_scene(options)
-        scene._on_sprite_loaded(sprite)
+        scene.film_strip_coordinator.on_sprite_loaded(sprite)
         return scene, sprite

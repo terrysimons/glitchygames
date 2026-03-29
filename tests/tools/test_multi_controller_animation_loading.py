@@ -9,13 +9,13 @@ import time
 
 import pytest
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.multi_controller_manager import (
+from glitchygames.bitmappy.controllers.manager import (
     ControllerInfo,
     ControllerStatus,
     MultiControllerManager,
 )
-from glitchygames.tools.visual_collision_manager import VisualCollisionManager
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
+from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
 
 LOG = logging.getLogger(__name__)
 
@@ -60,7 +60,8 @@ class TestMultiControllerAnimationLoading:
 
             # Set up controller selection
             self.controller_selections[controller_id] = ControllerSelection(
-                controller_id, instance_id
+                controller_id,
+                instance_id,
             )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f'existing_animation_{i}', i)
@@ -113,7 +114,7 @@ class TestMultiControllerAnimationLoading:
         # Record initial state
         initial_animation, initial_frame = self.controller_selections[controller_id].get_selection()
         initial_history_length = len(
-            self.controller_selections[controller_id].get_navigation_history()
+            self.controller_selections[controller_id].get_navigation_history(),
         )
 
         # Simulate loading new animation
@@ -126,7 +127,7 @@ class TestMultiControllerAnimationLoading:
 
         # Verify navigation history is preserved
         current_history_length = len(
-            self.controller_selections[controller_id].get_navigation_history()
+            self.controller_selections[controller_id].get_navigation_history(),
         )
         assert current_history_length == initial_history_length
 
@@ -194,7 +195,8 @@ class TestMultiControllerAnimationLoading:
             self.manager.assigned_controllers[instance_id] = controller_id
 
             self.controller_selections[controller_id] = ControllerSelection(
-                controller_id, instance_id
+                controller_id,
+                instance_id,
             )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f'animation_{i}', i)
@@ -252,7 +254,8 @@ class TestMultiControllerAnimationLoading:
         # Navigate to next frame
         current_animation, current_frame = self.controller_selections[controller_id].get_selection()
         self.controller_selections[controller_id].set_selection(
-            current_animation, current_frame + 1
+            current_animation,
+            current_frame + 1,
         )
 
         # Verify navigation worked
@@ -294,7 +297,9 @@ class TestMultiControllerAnimationLoading:
 
         # Simulate loading animation with error
         mocker.patch.object(
-            self.scene, '_on_sprite_loaded', side_effect=RuntimeError('Loading error')
+            self.scene,
+            'on_sprite_loaded',
+            side_effect=RuntimeError('Loading error'),
         )
         try:
             self._simulate_animation_loading('error_animation')
@@ -327,7 +332,8 @@ class TestMultiControllerAnimationLoading:
             self.manager.assigned_controllers[instance_id] = controller_id
 
             self.controller_selections[controller_id] = ControllerSelection(
-                controller_id, instance_id
+                controller_id,
+                instance_id,
             )
             self.controller_selections[controller_id].activate()
             self.controller_selections[controller_id].set_selection(f'animation_{i}', i)

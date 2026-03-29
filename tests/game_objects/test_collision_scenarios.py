@@ -336,10 +336,12 @@ class TestIntegrationCollisions:
         ball3 = BallSprite()
 
         ball1.speed = Speed(
-            SPEED_2_0_COLLISION, SPEED_NEG_1_0
+            SPEED_2_0_COLLISION,
+            SPEED_NEG_1_0,
         )  # Add vertical movement for wall collision
         ball2.speed = Speed(
-            SPEED_2_0_COLLISION, SPEED_3_0
+            SPEED_2_0_COLLISION,
+            SPEED_3_0,
         )  # Add horizontal movement for paddle collision
         ball3.speed = Speed(SPEED_NEG_1_0, SPEED_1_0)
 

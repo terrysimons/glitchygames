@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for frame-specific undo/redo functionality."""
 
-from glitchygames.tools.undo_redo_manager import OperationType, UndoRedoManager
+from glitchygames.bitmappy.history.undo_redo import OperationType, UndoRedoManager
 
 
 class TestFrameSpecificUndoRedo:
@@ -53,6 +53,9 @@ class TestFrameSpecificUndoRedo:
 
     def test_can_redo_frame(self):
         """Test checking if frame-specific redo is available."""
+        # Set a pixel change callback so the legacy adapter can dispatch
+        self.manager.set_pixel_change_callback(lambda x, y, color: True)
+
         # Add and undo frame operation
         self.manager.add_frame_operation(
             animation='walk_animation',

@@ -109,7 +109,7 @@ class ColorMapper:
             self._capability = self.detector.detect_capability()
         return self._capability
 
-    def _rgb_to_8_color(self, r: int, g: int, b: int) -> str:
+    def _rgb_to_8_color(self, r: int, g: int, b: int) -> str:  # noqa: PLR0911
         """Convert RGB to 8-color terminal code.
 
         Returns:

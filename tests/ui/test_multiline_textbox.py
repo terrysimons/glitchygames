@@ -80,26 +80,26 @@ class TestMultiLineTextBoxKeyDownEscape:
     def test_escape_deactivates_textbox(self, mocker):
         """Test Escape key deactivates the textbox."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_ESCAPE)
         _key_mock().get_mods.return_value = 0
 
         textbox.on_key_down_event(event)
 
-        assert textbox.active is False
+        assert textbox.is_active is False
         assert textbox.dirty == 2
 
     def test_escape_does_nothing_when_inactive(self, mocker):
         """Test Escape does nothing when textbox is already inactive."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = False
+        textbox.is_active = False
 
         event = _make_key_event(mocker, pygame.K_ESCAPE)
 
         textbox.on_key_down_event(event)
 
-        assert textbox.active is False
+        assert textbox.is_active is False
 
 
 class TestMultiLineTextBoxKeyDownCtrlD:
@@ -113,7 +113,7 @@ class TestMultiLineTextBoxKeyDownCtrlD:
     def test_ctrl_d_clears_text(self, mocker):
         """Test Ctrl+D clears text contents."""
         textbox = _create_multiline_textbox(mocker, text='some text content')
-        textbox.active = True
+        textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_d)
         _key_mock().get_mods.return_value = pygame.KMOD_CTRL
@@ -150,7 +150,7 @@ class TestMultiLineTextBoxKeyDownCtrlEnter:
             parent=parent,
             groups=groups,
         )
-        textbox.active = True
+        textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_RETURN)
         _key_mock().get_mods.return_value = pygame.KMOD_CTRL
@@ -161,7 +161,7 @@ class TestMultiLineTextBoxKeyDownCtrlEnter:
     def test_ctrl_enter_without_parent_does_nothing(self, mocker):
         """Test Ctrl+Enter with no parent does not raise."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.parent = None
 
         event = _make_key_event(mocker, pygame.K_RETURN)
@@ -185,18 +185,18 @@ class TestMultiLineTextBoxActivateDeactivate:
 
         textbox.activate()
 
-        assert textbox.active is True
+        assert textbox.is_active is True
         _key_mock().start_text_input.assert_called()
         _key_mock().set_repeat.assert_called_with(200)
 
     def test_deactivate_clears_active_and_stops_text_input(self, mocker):
         """Test deactivate() sets active=False and stops text input."""
         textbox = _create_multiline_textbox(mocker)
-        textbox.active = True
+        textbox.is_active = True
 
         textbox.deactivate()
 
-        assert textbox.active is False
+        assert textbox.is_active is False
         _key_mock().stop_text_input.assert_called()
         _key_mock().set_repeat.assert_called_with()
 
@@ -301,7 +301,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_typing_character_inserts_at_cursor(self, mocker):
         """Test typing a character inserts it at the cursor position."""
         textbox = _create_multiline_textbox(mocker, text='helo')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 3
 
         event = _make_key_event(mocker, pygame.K_l, unicode_char='l')
@@ -314,7 +314,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_backspace_removes_character_before_cursor(self, mocker):
         """Test backspace removes the character before the cursor."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 5
 
         event = _make_key_event(mocker, pygame.K_BACKSPACE)
@@ -327,7 +327,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_backspace_at_position_zero_does_nothing(self, mocker):
         """Test backspace at position 0 does not change cursor."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 0
 
         event = _make_key_event(mocker, pygame.K_BACKSPACE)
@@ -340,7 +340,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_delete_removes_character_at_cursor(self, mocker):
         """Test delete removes the character at the cursor position."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 0
 
         event = _make_key_event(mocker, pygame.K_DELETE)
@@ -353,7 +353,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_left_arrow_moves_cursor_left(self, mocker):
         """Test left arrow moves cursor one position left."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 3
 
         event = _make_key_event(mocker, pygame.K_LEFT)
@@ -366,7 +366,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_right_arrow_moves_cursor_right(self, mocker):
         """Test right arrow moves cursor one position right."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 2
 
         event = _make_key_event(mocker, pygame.K_RIGHT)
@@ -379,7 +379,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_left_arrow_clamps_at_zero(self, mocker):
         """Test left arrow does not go below 0."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 0
 
         event = _make_key_event(mocker, pygame.K_LEFT)
@@ -392,7 +392,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_right_arrow_clamps_at_text_length(self, mocker):
         """Test right arrow does not exceed text length."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 5
 
         event = _make_key_event(mocker, pygame.K_RIGHT)
@@ -405,7 +405,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_enter_inserts_newline(self, mocker):
         """Test Enter key inserts a newline at cursor position."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 5
 
         event = _make_key_event(mocker, pygame.K_RETURN)
@@ -418,7 +418,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_up_arrow_moves_cursor_up(self, mocker):
         """Test up arrow key moves cursor up one line."""
         textbox = _create_multiline_textbox(mocker, text='line1\nline2')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 8  # Somewhere in line2
 
         event = _make_key_event(mocker, pygame.K_UP)
@@ -432,7 +432,7 @@ class TestMultiLineTextBoxRegularKeys:
     def test_down_arrow_moves_cursor_down(self, mocker):
         """Test down arrow key moves cursor down one line."""
         textbox = _create_multiline_textbox(mocker, text='line1\nline2')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 2  # In line1
 
         event = _make_key_event(mocker, pygame.K_DOWN)
@@ -455,7 +455,7 @@ class TestMultiLineTextBoxClipboardOperations:
     def test_ctrl_a_selects_all(self, mocker):
         """Test Ctrl+A selects all text."""
         textbox = _create_multiline_textbox(mocker, text='hello world')
-        textbox.active = True
+        textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_a)
         _key_mock().get_mods.return_value = pygame.KMOD_CTRL
@@ -470,14 +470,14 @@ class TestMultiLineTextBoxClipboardOperations:
     def test_ctrl_c_copies_text(self, mocker):
         """Test Ctrl+C copies text (does not raise even if pyperclip unavailable)."""
         textbox = _create_multiline_textbox(mocker, text='hello world')
-        textbox.active = True
+        textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_c)
         _key_mock().get_mods.return_value = pygame.KMOD_CTRL
         mocker.patch('pygame.time.get_ticks', return_value=1000)
 
         # Mock pyperclip in widgets module
-        mocker.patch('glitchygames.ui.widgets.pyperclip', None)
+        mocker.patch('glitchygames.ui.text_widgets.pyperclip', None)
 
         # Should not raise even without pyperclip
         textbox.on_key_down_event(event)
@@ -485,7 +485,7 @@ class TestMultiLineTextBoxClipboardOperations:
     def test_shift_arrow_selects_text(self, mocker):
         """Test Shift+Arrow selects text."""
         textbox = _create_multiline_textbox(mocker, text='hello')
-        textbox.active = True
+        textbox.is_active = True
         textbox.cursor_pos = 2
 
         event = _make_key_event(mocker, pygame.K_RIGHT)
@@ -519,12 +519,12 @@ class TestMultiLineTextBoxMouseUpEvent:
 
         textbox.on_mouse_up_event(event)
 
-        assert textbox.active is True
+        assert textbox.is_active is True
 
     def test_mouse_up_outside_deactivates(self, mocker):
         """Test mouse up outside textbox deactivates it."""
         textbox = _create_multiline_textbox(mocker)
-        textbox.active = True
+        textbox.is_active = True
 
         event = mocker.Mock()
         event.pos = (-9999, -9999)
@@ -534,4 +534,4 @@ class TestMultiLineTextBoxMouseUpEvent:
 
         textbox.on_mouse_up_event(event)
 
-        assert textbox.active is False
+        assert textbox.is_active is False

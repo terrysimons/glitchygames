@@ -250,7 +250,10 @@ class TestKeyboardEventProxyChords:
 
         # Press first key
         event_ctrl = HashableEvent(
-            pygame.KEYDOWN, key=pygame.K_LCTRL, mod=pygame.KMOD_CTRL, unicode=''
+            pygame.KEYDOWN,
+            key=pygame.K_LCTRL,
+            mod=pygame.KMOD_CTRL,
+            unicode='',
         )
         proxy.on_key_down_event(event_ctrl)
 
@@ -271,7 +274,10 @@ class TestKeyboardEventProxyChords:
 
         # Press CTRL
         event_ctrl = HashableEvent(
-            pygame.KEYDOWN, key=pygame.K_LCTRL, mod=pygame.KMOD_CTRL, unicode=''
+            pygame.KEYDOWN,
+            key=pygame.K_LCTRL,
+            mod=pygame.KMOD_CTRL,
+            unicode='',
         )
         proxy.on_key_down_event(event_ctrl)
 
@@ -324,13 +330,19 @@ class TestKeyboardEventProxyChords:
 
         # Press CTRL
         event_ctrl_down = HashableEvent(
-            pygame.KEYDOWN, key=pygame.K_LCTRL, mod=pygame.KMOD_CTRL, unicode=''
+            pygame.KEYDOWN,
+            key=pygame.K_LCTRL,
+            mod=pygame.KMOD_CTRL,
+            unicode='',
         )
         proxy.on_key_down_event(event_ctrl_down)
 
         # Press 'c'
         event_c_down = HashableEvent(
-            pygame.KEYDOWN, key=pygame.K_c, mod=pygame.KMOD_CTRL, unicode='c'
+            pygame.KEYDOWN,
+            key=pygame.K_c,
+            mod=pygame.KMOD_CTRL,
+            unicode='c',
         )
         proxy.on_key_down_event(event_c_down)
 
@@ -402,7 +414,7 @@ class TestKeyboardEvents:
         # Test method calls
         event = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
         # Mock the logger to suppress "Unhandled Event" messages during testing
-        mocker.patch('glitchygames.events.core.LOG.error')
+        mocker.patch('glitchygames.events.base.LOG.error')
         with pytest.raises(UnhandledEventError):
             stub.on_key_down_event(event)
         # Expected to call unhandled_event
@@ -415,8 +427,8 @@ class TestKeyboardEvents:
             event_handlers={
                 'on_key_down_event': lambda event: (
                     scene.keyboard_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -435,8 +447,8 @@ class TestKeyboardEvents:
             event_handlers={
                 'on_key_up_event': lambda event: (
                     scene.keyboard_events_received.append(event) or True
-                )
-            }
+                ),
+            },
         )
 
         # Test that the scene can handle the event
@@ -456,8 +468,8 @@ class TestKeyboardEvents:
                 'on_key_chord_down_event': lambda event, keys: (
                     scene.keyboard_events_received.append(('chord_down', event, keys)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test key chord down
@@ -480,8 +492,8 @@ class TestKeyboardEvents:
                 'on_key_chord_up_event': lambda event, keys: (
                     scene.keyboard_events_received.append(('chord_up', event, keys)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test key chord up
@@ -507,7 +519,7 @@ class TestKeyboardEvents:
                 'on_key_up_event': lambda event: (
                     scene.keyboard_events_received.append(('up', event)) or True
                 ),
-            }
+            },
         )
 
         # Test various keys
@@ -551,7 +563,7 @@ class TestKeyboardEvents:
                     scene.keyboard_events_received.append(('up', event)),
                     True,
                 )[1],
-            }
+            },
         )
 
         # Test modifier keys
@@ -593,7 +605,7 @@ class TestKeyboardEvents:
                     scene.keyboard_events_received.append(('chord_up', event, keys)),
                     True,
                 )[1],
-            }
+            },
         )
 
         # Test common key chord combinations
@@ -629,8 +641,8 @@ class TestKeyboardEvents:
                 'on_key_down_event': lambda event: (
                     scene.keyboard_events_received.append(('down', event)),
                     True,
-                )[1]
-            }
+                )[1],
+            },
         )
 
         # Test key with shift modifier
@@ -663,7 +675,7 @@ class TestKeyboardEvents:
             options={
                 'debug_events': False,
                 'no_unhandled_events': True,  # This will cause UnhandledEventError to be raised
-            }
+            },
         )
         # Set the options on the stub so unhandled_event can access them
         stub.options = scene_mock.options

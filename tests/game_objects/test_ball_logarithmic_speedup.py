@@ -137,7 +137,8 @@ class TestBallLogarithmicSpeedUp:
     def test_logarithmic_x_speed_up_with_paddle_bounce(self):
         """Test logarithmic X speed-up with paddle bouncing."""
         ball = BallSprite(
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X, speed_up_multiplier=1.4
+            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
+            speed_up_multiplier=1.4,
         )
 
         ball.speed = Speed(200.0, 150.0)
@@ -154,7 +155,8 @@ class TestBallLogarithmicSpeedUp:
     def test_logarithmic_y_speed_up_with_paddle_bounce(self):
         """Test logarithmic Y speed-up with paddle bouncing."""
         ball = BallSprite(
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y, speed_up_multiplier=1.35
+            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
+            speed_up_multiplier=1.35,
         )
 
         ball.speed = Speed(200.0, 150.0)

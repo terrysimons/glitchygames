@@ -10,7 +10,7 @@ import pygame
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
-    from glitchygames.events.core import HashableEvent
+    from glitchygames.events.base import HashableEvent
 from glitchygames.sprites import Sprite
 
 log = logging.getLogger('game')
@@ -119,7 +119,7 @@ class GameOverScene(Scene):
         # Get the game class from the previous scene
         if self.scene_manager.previous_scene:
             game_class = type(self.scene_manager.previous_scene)
-            self.log.info(f'Restarting game with class: {game_class}')
+            self.log.info('Restarting game with class: %s', game_class)
 
             # Create a new instance of the game with the same options
             new_game = game_class(options=self.options)

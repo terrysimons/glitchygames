@@ -79,7 +79,9 @@ class KeyboardEventManager(ResourceManager):
 
         @override
         def on_key_chord_down_event(
-            self: Self, event: HashableEvent, keys: list[int] | None = None
+            self: Self,
+            event: HashableEvent,
+            keys: list[int] | None = None,
         ) -> None:
             """Handle key chord down events.
 
@@ -99,7 +101,9 @@ class KeyboardEventManager(ResourceManager):
 
         @override
         def on_key_chord_up_event(
-            self: Self, event: HashableEvent, keys: list[int] | None = None
+            self: Self,
+            event: HashableEvent,
+            keys: list[int] | None = None,
         ) -> None:
             """Handle key chord up events.
 

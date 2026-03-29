@@ -65,32 +65,9 @@ def unicode_generator_with_priority() -> Generator[str]:
         str: The next Unicode character in priority order.
 
     """
-    # Regional indicator letters (🇦-🇿)
-    # ordered_letters = [
-    #     "\U0001F1E6", "\U0001F1E7", "\U0001F1E8", "\U0001F1E9", "\U0001F1EA",
-    #     "\U0001F1EB", "\U0001F1EC", "\U0001F1ED", "\U0001F1EE", "\U0001F1EF",
-    #     "\U0001F1F0", "\U0001F1F1", "\U0001F1F2", "\U0001F1F3", "\U0001F1F4",
-    #     "\U0001F1F5", "\U0001F1F6", "\U0001F1F7", "\U0001F1F8", "\U0001F1F9",
-    #     "\U0001F1FA", "\U0001F1FB", "\U0001F1FC", "\U0001F1FD", "\U0001F1FE",
-    #     "\U0001F1FF"
-    # ]
-
-    # Numeric dingbats:
-    # numeric_dingbats = [
-    #     "❶","❷","❸","❹","❺","❻","❼","❽","❾","❿",
-    #     "➀","➁","➂","➃","➄","➅","➆","➇","➈","➉",
-    #     "➊","➋","➌","➍","➎","➏","➐","➑","➒","➓"
-    # ]
-
     handled_chars: set[str] = set()
 
-    # # 1. Print regional indicator letters first
-    # for ch in ordered_letters:
-    #     if is_defined_non_whitespace_printable(ch):
-    #         yield ch
-    #         handled_chars.add(ch)
-
-    # 2. Print all other emojis
+    # Print all emojis
     for codepoint in range(0x110000):
         ch = chr(codepoint)
         if ch in handled_chars:
@@ -98,46 +75,6 @@ def unicode_generator_with_priority() -> Generator[str]:
         if is_emoji(ch) and is_defined_non_whitespace_printable(ch):
             yield ch
             handled_chars.add(ch)
-
-    # 3. Print ASCII printable chars before 'A' (0x20-0x40)
-    # 'A' = 0x41
-    # for codepoint in range(0x20, 0x41):
-    #     ch = chr(codepoint)
-    #     if ch not in handled_chars and is_defined_non_whitespace_printable(ch):
-    #         yield ch
-    #         handled_chars.add(ch)
-
-    # # 4. Print numeric dingbats now
-    # for ch in numeric_dingbats:
-    #     if ch not in handled_chars and is_defined_non_whitespace_printable(ch):
-    #         yield ch
-    #         handled_chars.add(ch)
-
-    # # 5. Print ASCII uppercase 'A'-Z' (0x41-0x5A)
-    # for codepoint in range(0x41, 0x5B):
-    #     ch = chr(codepoint)
-    #     if ch not in handled_chars and is_defined_non_whitespace_printable(ch):
-    #         yield ch
-    #         handled_chars.add(ch)
-
-    # # 6. Print remaining ASCII printable chars after 'Z' (0x5B-0x7E)
-    # for codepoint in range(0x5B, 0x7F):
-    #     ch = chr(codepoint)
-    #     if ch not in handled_chars and is_defined_non_whitespace_printable(ch):
-    #         yield ch
-    #         handled_chars.add(ch)
-
-    # # 7. Print all other defined, printable, non-whitespace Unicode chars
-    # for codepoint in range(0x110000):
-    #     ch = chr(codepoint)
-    #     if ch in handled_chars:
-    #         continue
-    #     # If it's emoji or in ASCII range, skip those again
-    #     cp = ord(ch)
-    #     if is_emoji(ch) or (0x20 <= cp < 0x7F):
-    #         continue
-    #     if is_defined_non_whitespace_printable(ch):
-    #         yield ch
 
 
 # Example usage:

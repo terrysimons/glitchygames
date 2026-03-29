@@ -35,7 +35,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_initialization(self, mocker):
         """Test InputBox initialization."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -70,7 +70,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_text_input(self, mocker):
         """Test InputBox text input handling."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -100,7 +100,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_enter_key_submission(self, mocker):
         """Test InputBox enter key submission."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -131,7 +131,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_escape_key_cancellation(self, mocker):
         """Test InputBox escape key cancellation."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -161,7 +161,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_focus_handling(self, mocker):
         """Test InputBox focus handling."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -191,7 +191,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_validation(self, mocker):
         """Test InputBox input validation."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -221,7 +221,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_placeholder_text(self, mocker):
         """Test InputBox placeholder text functionality."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -251,7 +251,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_max_length(self, mocker):
         """Test InputBox maximum length constraint."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')
@@ -281,7 +281,7 @@ class TestInputBoxFunctionality:
     def test_inputbox_clear_functionality(self, mocker):
         """Test InputBox clear functionality."""
         # Arrange
-        mock_get_font = mocker.patch('glitchygames.ui.widgets.FontManager.get_font')
+        mock_get_font = mocker.patch('glitchygames.fonts.FontManager.get_font')
         mock_draw_rect = mocker.patch('pygame.draw.rect')
         mock_group = mocker.patch('pygame.sprite.LayeredDirty')
         mock_surface_cls = mocker.patch('pygame.Surface')

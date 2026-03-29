@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Self, override
 
 if TYPE_CHECKING:
     import logging
+    from collections.abc import Callable
 
 import pygame
 
@@ -164,13 +165,13 @@ class BallSprite(Sprite):
 
     def __init__(
         self: Self,
+        *,
         x: int = 0,
         y: int = 0,
         width: int = 20,
         height: int = 20,
         groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
         collision_sound: str | None = None,
-        *,
         bounce_top_bottom: bool = True,
         bounce_left_right: bool = False,
         speed_up_mode: int = SpeedUpMode.NONE,
@@ -215,6 +216,13 @@ class BallSprite(Sprite):
         self.speed_up_multiplier = speed_up_multiplier
         self.speed_up_interval = speed_up_interval
         self._last_speed_up_time = time.time()  # Initialize to current time
+
+        # Collision tracking (set by callers like PaddleSlap)
+        self.collision_cooldowns: dict[str, float] = {}
+        self.on_paddle_collision: Callable[[BallSprite], None] | None = None
+
+        # Debug trajectory tracking (used for trajectory analysis)
+        self._debug_positions: list[tuple[float, float, float, float]] = []
 
         self.reset()
 
@@ -283,8 +291,6 @@ class BallSprite(Sprite):
         self.speed.x = speed_x
         self.speed.y = speed_y
 
-        # self.rally.reset()
-
     # This function will bounce the ball off a horizontal surface (not a vertical one)
     def bounce(self: Self, diff: int) -> None:
         """Bounce the ball.
@@ -300,7 +306,9 @@ class BallSprite(Sprite):
         self.speed *= 1.1
 
     def speed_up(
-        self: Self, multiplier: float | None = None, speed_up_type: str = 'linear'
+        self: Self,
+        multiplier: float | None = None,
+        speed_up_type: str = 'linear',
     ) -> None:
         """Increase the ball's speed with linear, logarithmic, or exponential scaling.
 
@@ -416,27 +424,22 @@ class BallSprite(Sprite):
             The speed-up type string, or None if no flag matched.
 
         """
-        # Check for both X and Y exponential speed-up first (highest priority)
-        if self.speed_up_mode & exponential_x_flag and self.speed_up_mode & exponential_y_flag:
-            return 'exponential_both'
-        # Check for both X and Y logarithmic speed-up
-        if self.speed_up_mode & logarithmic_x_flag and self.speed_up_mode & logarithmic_y_flag:
-            return 'logarithmic_both'
-        # Check for exponential X speed-up
-        if self.speed_up_mode & exponential_x_flag:
-            return 'exponential_x'
-        # Check for exponential Y speed-up
-        if self.speed_up_mode & exponential_y_flag:
-            return 'exponential_y'
-        # Check for logarithmic X speed-up
-        if self.speed_up_mode & logarithmic_x_flag:
-            return 'logarithmic_x'
-        # Check for logarithmic Y speed-up
-        if self.speed_up_mode & logarithmic_y_flag:
-            return 'logarithmic_y'
-        # Check for linear speed-up
-        if self.speed_up_mode & linear_flag:
-            return 'linear'
+        # Priority-ordered checks: combined flags first, then individual, then linear
+        # Each entry is (required_flags_tuple, speed_up_type_name)
+        priority_checks: list[tuple[tuple[int, ...], str]] = [
+            ((exponential_x_flag, exponential_y_flag), 'exponential_both'),
+            ((logarithmic_x_flag, logarithmic_y_flag), 'logarithmic_both'),
+            ((exponential_x_flag,), 'exponential_x'),
+            ((exponential_y_flag,), 'exponential_y'),
+            ((logarithmic_x_flag,), 'logarithmic_x'),
+            ((logarithmic_y_flag,), 'logarithmic_y'),
+            ((linear_flag,), 'linear'),
+        ]
+
+        for required_flags, speed_up_type in priority_checks:
+            if all(self.speed_up_mode & flag for flag in required_flags):
+                return speed_up_type
+
         return None
 
     def _check_bounce_speed_up(self: Self, bounce_type: str) -> None:
@@ -511,7 +514,7 @@ class BallSprite(Sprite):
             log.debug(
                 f'BALL SPEED CHANGE: old=({old_speed_x:.3f},{old_speed_y:.3f}) '
                 f'new=({self.speed.x:.3f},{self.speed.y:.3f}) '
-                f'magnitude_change={new_magnitude - old_magnitude:.3f}'
+                f'magnitude_change={new_magnitude - old_magnitude:.3f}',
             )
 
         # Calculate movement
@@ -528,7 +531,7 @@ class BallSprite(Sprite):
             log.debug(
                 f'BALL MOVE: speed=({self.speed.x:.3f},{self.speed.y:.3f}) dt={dt:.6f} '
                 f'move=({move_x:.3f},{move_y:.3f}) pos=({self.rect.x},{self.rect.y}) '
-                f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}'
+                f'speed_magnitude={math.sqrt(self.speed.x**2 + self.speed.y**2):.3f}',
             )
 
         # Use proper rounding to avoid precision loss from integer truncation
@@ -546,7 +549,7 @@ class BallSprite(Sprite):
                 f'BALL MOVE: final_pos=({self.rect.x},{self.rect.y}) '
                 f'delta=({delta_x},{delta_y}) '
                 f'expected_move=({round(move_x)},{round(move_y)}) '
-                f'actual_move=({delta_x},{delta_y})'
+                f'actual_move=({delta_x},{delta_y})',
             )
 
             # Check if movement matches expectation
@@ -554,7 +557,7 @@ class BallSprite(Sprite):
                 log.debug(
                     'BALL MOVE WARNING: Movement mismatch! '
                     f'Expected=({round(move_x)},{round(move_y)}) '
-                    f'Actual=({delta_x},{delta_y})'
+                    f'Actual=({delta_x},{delta_y})',
                 )
 
         # Ensure the ball is marked as dirty for redrawing
@@ -572,9 +575,7 @@ class BallSprite(Sprite):
             # Mark ball for deletion instead of resetting
             self.kill()
 
-        # Don't reset for vertical boundaries - let bounce handle them
-        # if self.rect.y > self.screen_height or self.rect.y < 0:
-        #     self.reset()
+        # Vertical boundaries are handled by bounce(), not reset.
 
     @override
     def update(self: Self) -> None:
@@ -601,7 +602,8 @@ class BallSprite(Sprite):
             f'BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) '
             f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
             f'screen=({self.screen_width},{self.screen_height}) '
-            f'bounce_top_bottom={self.bounce_top_bottom} bounce_left_right={self.bounce_left_right}'
+            f'bounce_top_bottom={self.bounce_top_bottom} '
+            f'bounce_left_right={self.bounce_left_right}',
         )
 
         # Enhanced boundary checking with proper physics
@@ -694,7 +696,7 @@ class BallSprite(Sprite):
             self._add_collision_visual_feedback('bottom', log)
 
         log.debug(
-            f'BALL BOUNCE: BOTTOM EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})'
+            f'BALL BOUNCE: BOTTOM EDGE - speed before=({self.speed.x:.3f},{self.speed.y:.3f})',
         )
         log.debug(f'BALL BOUNCE: BOTTOM EDGE - speed after=({self.speed.x:.3f},{self.speed.y:.3f})')
         self._check_bounce_speed_up('wall')
@@ -773,9 +775,11 @@ class BallSprite(Sprite):
 
         if in_top_left or in_top_right or in_bottom_left or in_bottom_right:
             log.debug(
-                'BALL CORNER COLLISION:'
-                f' {in_top_left=} {in_top_right=}'
-                f' {in_bottom_left=} {in_bottom_right=}'
+                'BALL CORNER COLLISION: %s %s %s %s',
+                in_top_left,
+                in_top_right,
+                in_bottom_left,
+                in_bottom_right,
             )
 
             # Enhanced corner physics - both X and Y components are reflected
@@ -809,7 +813,9 @@ class BallSprite(Sprite):
                 self.rect.y = self.screen_height - self.height - 1
 
     def _add_collision_visual_feedback(
-        self: Self, collision_type: str, log: logging.Logger
+        self: Self,
+        collision_type: str,
+        log: logging.Logger,
     ) -> None:
         """Add visual feedback for collision points and bounce directions.
 
@@ -827,7 +833,7 @@ class BallSprite(Sprite):
 
         # For now, we'll add debug logging and prepare for future visual effects
         log.debug(
-            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at ({self.rect.x}, {self.rect.y})'
+            f'BALL COLLISION VISUAL FEEDBACK: {collision_type} at ({self.rect.x}, {self.rect.y})',
         )
 
         # Future implementation could include:
@@ -861,7 +867,7 @@ class BallSprite(Sprite):
             assert paddle.rect is not None
             if self.rect.colliderect(paddle.rect):
                 # Ball is overlapping with paddle - adjust position to prevent clipping
-                self._adjust_position_for_paddle_collision(paddle)  # type: ignore[arg-type]
+                self._adjust_position_for_paddle_collision(paddle)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     def _adjust_position_for_paddle_collision(self: Self, paddle: Sprite) -> None:
         """Adjust ball position to prevent clipping through paddle and make it bounce.

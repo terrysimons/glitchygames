@@ -15,9 +15,9 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.film_strip import FilmStripWidget
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from glitchygames.tools.bitmappy import BitmapEditorScene
-from glitchygames.tools.film_strip import FilmStripWidget
 from tests.mocks import MockFactory
 
 # Test constants to avoid magic values
@@ -70,7 +70,7 @@ class TestFilmStripSelection:
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
                 mocker.Mock(spec=SpriteFrame, duration=0.5),
-            ]
+            ],
         }
         sprite._animations = animations_data
         sprite.animations = animations_data
@@ -142,10 +142,10 @@ class TestFilmStripSelection:
             if animation == 'walk':
                 film_strip_widget.selected_frame = frame_index
 
-        film_strip_widget.parent_scene._on_frame_inserted = mock_on_frame_inserted
+        film_strip_widget.parent_scene.on_frame_inserted = mock_on_frame_inserted
 
         # Simulate frame insertion
-        film_strip_widget.parent_scene._on_frame_inserted('walk', 0)
+        film_strip_widget.parent_scene.on_frame_inserted('walk', 0)
 
         # The scene should update its selected_frame to the new frame index
         assert film_strip_widget.parent_scene.selected_frame == 0
@@ -191,14 +191,14 @@ class TestFilmStripSelection:
                     strip_widget.is_selected = False
                     # Don't reset selected_frame - preserve individual selections
 
-        film_strip_widget.parent_scene._update_film_strip_selection_state = (
+        film_strip_widget.parent_scene.update_film_strip_selection_state = (
             mock_update_selection_state
         )
 
         # Switch to the second strip
         film_strip_widget.parent_scene.selected_animation = 'run'
         film_strip_widget.parent_scene.selected_frame = 1
-        film_strip_widget.parent_scene._update_film_strip_selection_state()
+        film_strip_widget.parent_scene.update_film_strip_selection_state()
 
         # First strip should be deselected but preserve its selected_frame
         assert not film_strip_widget.is_selected
@@ -212,7 +212,7 @@ class TestFilmStripSelection:
         # Now switch back to first strip
         film_strip_widget.parent_scene.selected_animation = 'walk'
         film_strip_widget.parent_scene.selected_frame = 2  # Use the preserved selection
-        film_strip_widget.parent_scene._update_film_strip_selection_state()
+        film_strip_widget.parent_scene.update_film_strip_selection_state()
 
         # First strip should be selected again with its preserved selection
         assert film_strip_widget.is_selected
@@ -224,9 +224,9 @@ class TestFilmStripSelection:
         film_strip_widget.selected_frame = 2
         film_strip_widget.parent_scene.selected_frame = 2
 
-        # Click on the animation label area (use a position within animation_layouts["walk"])
-        # animation_layouts["walk"] is pygame.Rect(10, 0, 200, 20)
-        # frame_layouts start at y=10, so use y=5 to be in animation layout but not in frame areas
+        # Click on the animation label area (use a position within the "walk" animation layout).
+        # The "walk" animation layout is pygame.Rect(10, 0, 200, 20) and frame_layouts
+        # start at y=10, so use y=5 to be in animation layout but not in frame areas.
         label_pos = (15, 5)  # Position within animation_layouts["walk"] but outside frame areas
         result = film_strip_widget.handle_click(label_pos)
 
@@ -251,7 +251,10 @@ class TestFilmStripSelection:
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2
 
     def test_multiple_strips_independent_selections(
-        self, mock_pygame_patches, sample_animated_sprite, mocker
+        self,
+        mock_pygame_patches,
+        sample_animated_sprite,
+        mocker,
     ):
         """Test that multiple strips maintain independent selections."""
         # Create two strips
@@ -291,10 +294,10 @@ class TestFilmStripSelection:
                     strip_widget.is_selected = False
                     # Don't reset selected_frame - preserve individual selections
 
-        scene._update_film_strip_selection_state = mock_update_selection_state
+        scene.update_film_strip_selection_state = mock_update_selection_state
 
         # Update selection state
-        scene._update_film_strip_selection_state()
+        scene.update_film_strip_selection_state()
 
         # Strip 1 should be selected with frame 2
         assert strip1.is_selected
@@ -307,7 +310,7 @@ class TestFilmStripSelection:
         # Switch to strip 2
         scene.selected_animation = 'run'
         scene.selected_frame = 1
-        scene._update_film_strip_selection_state()
+        scene.update_film_strip_selection_state()
 
         # Strip 2 should be selected with frame 1
         assert strip2.is_selected
@@ -381,7 +384,10 @@ class TestFilmStripSelection:
         assert film_strip_widget.selected_frame == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_draws_below_frame(
-        self, film_strip_widget, mock_pygame_patches, mocker
+        self,
+        film_strip_widget,
+        mock_pygame_patches,
+        mocker,
     ):
         """Test that the triangle indicator is drawn below the active animation frame."""
         # Set up: frame 2 is the active animation frame
@@ -405,7 +411,10 @@ class TestFilmStripSelection:
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_uses_correct_colors(
-        self, film_strip_widget, mock_pygame_patches, mocker
+        self,
+        film_strip_widget,
+        mock_pygame_patches,
+        mocker,
     ):
         """Test that the triangle indicator uses the correct colors."""
         # Set up: frame 0 is the active animation frame
@@ -426,7 +435,10 @@ class TestFilmStripSelection:
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_size_and_position(
-        self, film_strip_widget, mock_pygame_patches, mocker
+        self,
+        film_strip_widget,
+        mock_pygame_patches,
+        mocker,
     ):
         """Test that the triangle indicator has the correct size and position."""
         # Set up: frame 1 is the active animation frame
@@ -447,7 +459,9 @@ class TestFilmStripSelection:
         assert mock_draw.polygon.call_count == TEST_FRAME_COUNT_2
 
     def test_triangle_indicator_skips_when_no_animation(
-        self, film_strip_widget, mock_pygame_patches
+        self,
+        film_strip_widget,
+        mock_pygame_patches,
     ):
         """Test that triangle indicator is not drawn when there's no current animation.
 
@@ -492,7 +506,10 @@ class TestFilmStripSelection:
         assert not mock_draw.polygon.called
 
     def test_triangle_indicator_draws_when_frame_not_found(
-        self, film_strip_widget, mock_pygame_patches, mocker
+        self,
+        film_strip_widget,
+        mock_pygame_patches,
+        mocker,
     ):
         """Test that triangle indicator is drawn at default position.
 

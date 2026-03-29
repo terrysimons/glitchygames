@@ -14,10 +14,11 @@ import pytest
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
+from glitchygames.bitmappy.editor import AnimatedCanvasSprite, BitmapEditorScene
 from glitchygames.sprites import AnimatedSprite
-from glitchygames.tools.bitmappy import AnimatedCanvasSprite, BitmapEditorScene
 from mocks.test_mock_factory import (  # type: ignore[unresolved-import]
     MockFactory,
+    MockSpriteConfig,
     create_10x10_sprite_mock,
 )
 
@@ -70,10 +71,12 @@ class TestOnLoadFileEvent:
         """
         # Use centralized mock factory to create animated sprite
         animated_sprite = MockFactory.create_animated_sprite_mock(
-            animation_name='idle',
-            frame_size=(8, 8),
-            pixel_color=(255, 0, 0),  # Red base color
-            current_frame=0,
+            config=MockSpriteConfig(
+                animation_name='idle',
+                frame_size=(8, 8),
+                pixel_color=(255, 0, 0),  # Red base color
+                current_frame=0,
+            ),
         )
 
         # Set up frame manager
@@ -93,7 +96,10 @@ class TestOnLoadFileEvent:
 
         """
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.toml', delete=False, encoding='utf-8'
+            mode='w',
+            suffix='.toml',
+            delete=False,
+            encoding='utf-8',
         ) as f:
             f.write(content)
             return f.name
@@ -192,7 +198,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the detect_file_format function
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
@@ -301,7 +307,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Create a mock loaded sprite with different dimensions using the factory
@@ -365,7 +371,7 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process to avoid real file system issues
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method
@@ -472,12 +478,16 @@ pixels = \"\"\"
             event = self._create_mock_event(sprite_file)
 
             # Mock the entire loading process
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Create a mock loaded sprite using the centralized factory
             mock_loaded_sprite = MockFactory.create_animated_sprite_mock(
-                animation_name='test_sprite', frame_size=(8, 8), pixel_color=(255, 0, 0)
+                config=MockSpriteConfig(
+                    animation_name='test_sprite',
+                    frame_size=(8, 8),
+                    pixel_color=(255, 0, 0),
+                ),
             )
 
             # Mock the entire loading process by patching the method that loads the sprite
@@ -535,7 +545,7 @@ pixels = \"\"\"
 
         try:
             # Mock the detect_file_format function
-            mock_detect = mocker.patch('glitchygames.tools.bitmappy.detect_file_format')
+            mock_detect = mocker.patch('glitchygames.bitmappy.animated_canvas.detect_file_format')
             mock_detect.return_value = 'toml'
 
             # Mock AnimatedSprite.load method

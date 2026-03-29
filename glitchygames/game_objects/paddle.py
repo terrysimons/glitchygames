@@ -28,6 +28,7 @@ class BasePaddle(Sprite):
         speed: int,
         name: str,
         color: tuple[int, int, int],
+        *,
         x: int,
         y: int,
         width: int,
@@ -152,6 +153,7 @@ class HorizontalPaddle(BasePaddle):
         position: tuple[int, int],
         color: tuple[int, int, int],
         speed: int,
+        *,
         groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
         collision_sound: str | None = None,
     ) -> None:
@@ -174,12 +176,12 @@ class HorizontalPaddle(BasePaddle):
             speed,
             name,
             color,
-            position[0],
-            position[1],
-            size[0],
-            size[1],
-            groups,
-            collision_sound,
+            x=position[0],
+            y=position[1],
+            width=size[0],
+            height=size[1],
+            groups=groups,
+            collision_sound=collision_sound,
         )
 
     @override
@@ -270,6 +272,7 @@ class VerticalPaddle(BasePaddle):
         position: tuple[int, int],
         color: tuple[int, int, int],
         speed: int,
+        *,
         groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
         collision_sound: str | None = None,
     ) -> None:
@@ -293,12 +296,12 @@ class VerticalPaddle(BasePaddle):
             speed,
             name,
             color,
-            position[0],
-            position[1],
-            size[0],
-            size[1],
-            groups,
-            collision_sound,
+            x=position[0],
+            y=position[1],
+            width=size[0],
+            height=size[1],
+            groups=groups,
+            collision_sound=collision_sound,
         )
 
     @override

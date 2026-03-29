@@ -22,7 +22,7 @@ class TestTransparencyFix:
 
     def test_animated_canvas_skips_transparency_key_pixels(self):
         """Test that AnimatedCanvasRenderer skips transparency key pixels."""
-        from glitchygames.tools.canvas_interfaces import AnimatedCanvasRenderer
+        from glitchygames.bitmappy.canvas_interfaces import AnimatedCanvasRenderer
         from glitchygames.sprites import BitmappySprite
 
         # Create a test sprite with transparency key pixels

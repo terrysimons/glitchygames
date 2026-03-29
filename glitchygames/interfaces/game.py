@@ -43,11 +43,11 @@ class SpriteInterface:
 class SceneInterface:
     """Scene interface."""
 
-    def switch_to_scene(self: Self, next_scene: SceneInterface) -> None:
+    def switch_to_scene(self: Self, next_scene: SceneInterface | None) -> None:
         """Switch to the next scene.
 
         Args:
-            next_scene (SceneInterface): The next scene.
+            next_scene (SceneInterface | None): The next scene, or None to clear.
 
         Returns:
             None

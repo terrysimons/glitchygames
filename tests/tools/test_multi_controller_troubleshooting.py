@@ -9,12 +9,12 @@ import logging
 import pygame
 import pytest
 
-from glitchygames.tools.controller_selection import ControllerSelection
-from glitchygames.tools.multi_controller_manager import (
+from glitchygames.bitmappy.controllers.manager import (
     ControllerInfo,
     ControllerStatus,
     MultiControllerManager,
 )
+from glitchygames.bitmappy.controllers.selection import ControllerSelection
 
 LOG = logging.getLogger(__name__)
 
@@ -40,7 +40,10 @@ class TestDuplicateMethodIssue:
 
         # Add controller to one instance
         manager1.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(128, 128, 128)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(128, 128, 128),
         )
 
         # Should be visible in other instance
@@ -51,7 +54,10 @@ class TestDuplicateMethodIssue:
         """Test that color assignment persists across singleton instances."""
         # Add controller
         self.manager.controllers[0] = ControllerInfo(
-            controller_id=0, instance_id=0, status=ControllerStatus.CONNECTED, color=(128, 128, 128)
+            controller_id=0,
+            instance_id=0,
+            status=ControllerStatus.CONNECTED,
+            color=(128, 128, 128),
         )
 
         # Assign color
@@ -79,7 +85,7 @@ class TestButtonMappingIssues:
         # This should not trigger controller activation
         # (Button 9 is now unhandled to prevent reset behavior)
         mock_activate = mocker.patch(
-            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_activate'
+            'glitchygames.bitmappy.controllers.event_handler.ControllerEventHandler.multi_controller_activate',
         )
         # Simulate the event handling logic
         if mock_event.button == 9:
@@ -106,10 +112,10 @@ class TestButtonMappingIssues:
 
         # Mock the navigation methods
         mock_prev = mocker.patch(
-            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_previous_frame'
+            'glitchygames.bitmappy.controllers.event_handler.ControllerEventHandler.multi_controller_previous_frame',
         )
         mock_next = mocker.patch(
-            'glitchygames.tools.bitmappy.BitmapEditorScene._multi_controller_next_frame'
+            'glitchygames.bitmappy.controllers.event_handler.ControllerEventHandler.multi_controller_next_frame',
         )
 
         # Simulate left shoulder button press
@@ -197,7 +203,9 @@ class TestFilmStripDirtyMarking:
         # Simulate color assignment
         mocker.patch.object(mock_scene, 'film_strips', {'test_animation': mock_film_strip})
         mocker.patch.object(
-            mock_scene, 'film_strip_sprites', {'test_animation': mock_film_strip_sprite}
+            mock_scene,
+            'film_strip_sprites',
+            {'test_animation': mock_film_strip_sprite},
         )
         # Mark film strips as dirty
         for film_strip in mock_scene.film_strips.values():
