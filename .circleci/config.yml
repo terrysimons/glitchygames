@@ -179,6 +179,9 @@ jobs:
 
     resource_class: small
 
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+
     steps:
       - checkout
 
@@ -207,6 +210,9 @@ jobs:
       xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
     resource_class: m4pro.medium
 
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+
     steps:
       - checkout
 
@@ -227,6 +233,9 @@ jobs:
     executor:
       name: win/default
       size: medium
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
 
     steps:
       - checkout
