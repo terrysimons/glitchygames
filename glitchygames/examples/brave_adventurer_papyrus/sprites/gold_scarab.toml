@@ -1,0 +1,61 @@
+[sprite]
+name = "gold_scarab"
+description = "Collectible gold scarab with shimmer animation"
+
+[colors]
+"█" = { red = 255, green = 0, blue = 255 }
+"O" = { red = 220, green = 190, blue = 50 }
+"o" = { red = 255, green = 220, blue = 100 }
+"G" = { red = 180, green = 150, blue = 30 }
+"g" = { red = 200, green = 170, blue = 40 }
+
+# Shimmer animation - highlight shifts across the body
+[[animation]]
+namespace = "shimmer"
+frame_interval = 0.2
+loop = true
+
+[[animation.frame]]
+namespace = "shimmer"
+pixels = """
+████OO████
+██OOOOOO██
+█OoOOOOOO█
+█OoOGOOOO█
+█OOOGOGOO█
+█OOOOGOOO█
+██OOOOOO██
+████OO████
+██████████
+██████████
+"""
+
+[[animation.frame]]
+namespace = "shimmer"
+pixels = """
+████OO████
+██OOOOOO██
+█OOOoOOOO█
+█OOOGoOOO█
+█OOOGOGOO█
+█OOOOGOOO█
+██OOOOOO██
+████OO████
+██████████
+██████████
+"""
+
+[[animation.frame]]
+namespace = "shimmer"
+pixels = """
+████OO████
+██OOOOOO██
+█OOOOOOO█
+█OOOGOoOO█
+█OOOGOGoO█
+█OOOOGOoO█
+██OOOOOO██
+████OO████
+██████████
+██████████
+"""

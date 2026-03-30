@@ -180,7 +180,7 @@ Dialogs: `LoadDialogScene`, `SaveDialogScene`, `NewCanvasDialogScene`
 
 **Focus Model**: Focusable sprites intercept keyboard input via `active` attribute
 
-### Bitmappy Pixel Art Editor (`glitchygames/tools/bitmappy.py`)
+### Bitmappy Pixel Art Editor (`glitchygames/bitmappy/`)
 
 Features:
 - Canvas-based pixel editing with undo/redo (`UndoRedoManager`)
@@ -236,7 +236,7 @@ Features:
    - Location: Film strip per-pixel alpha handling
    - Issue: First frame pasted into new film strip loses transparency
    - Workaround: Paste a second frame, transparency works correctly
-   - Files: `glitchygames/tools/film_strip.py`
+   - Files: `glitchygames/bitmappy/film_strip.py`
 
 2. **Ball Collision Trajectory Bug** (Game Physics)
    - Location: `glitchygames/game_objects/ball.py`

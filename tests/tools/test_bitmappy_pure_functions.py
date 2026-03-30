@@ -670,15 +670,9 @@ class TestParseTomlValue:
         assert _parse_toml_value('"hello world"') == 'hello world'
 
     def test_triple_quoted_string(self):
-        """Test parsing a triple-quoted string.
-
-        Note: The function checks double-quoted strings first, so triple-quoted
-        strings like '\"\"\"content\"\"\"' will match the double-quote check and
-        strip only one quote from each end. This test verifies actual behavior.
-        """
-        # Triple-quoted strings are matched by the double-quote check first
+        """Test parsing a triple-quoted string."""
         result = _parse_toml_value('"""multi\nline"""')
-        assert result == '""multi\nline""'
+        assert result == 'multi\nline'
 
     def test_boolean_true(self):
         """Test parsing boolean true."""

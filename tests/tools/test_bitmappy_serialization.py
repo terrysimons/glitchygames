@@ -326,15 +326,8 @@ class TestParseTomlValue:
         assert _parse_toml_value('"hello"') == 'hello'
 
     def test_parse_triple_quoted_string(self):
-        """Test parsing a triple-quoted string value.
-
-        Note: The single-quote check in _parse_toml_value runs before the
-        triple-quote check, so triple-quoted strings are stripped of only
-        the outermost quotes first. This is a known ordering issue in the
-        fallback regex parser — it only handles simple cases.
-        """
-        # The single-quote check matches first, stripping outer quotes
-        assert _parse_toml_value('"""content"""') == '""content""'
+        """Test parsing a triple-quoted string value."""
+        assert _parse_toml_value('"""content"""') == 'content'
 
     def test_parse_boolean_true(self):
         """Test parsing boolean true."""

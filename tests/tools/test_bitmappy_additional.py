@@ -592,15 +592,9 @@ class TestParseTomlValue:
         """Test parsing a quoted string."""
         assert _parse_toml_value('"hello world"') == 'hello world'
 
-    def test_triple_quoted_string_handled_by_single_quote_check(self):
-        r"""Test that triple-quoted strings are caught by the single-quote check first.
-
-        Note: The code checks for single-quote wrapping before triple-quotes,
-        so '\"\"\"some text\"\"\"' strips outer quotes, leaving '\"\"some text\"\"'.
-        This is a known ordering issue in the parser.
-        """
-        # The single-quote check runs first, stripping only outermost quotes
-        assert _parse_toml_value('"""some text"""') == '""some text""'
+    def test_triple_quoted_string(self):
+        """Test parsing a triple-quoted string."""
+        assert _parse_toml_value('"""some text"""') == 'some text'
 
     def test_boolean_true(self):
         """Test parsing boolean true."""

@@ -55,6 +55,8 @@ dependencies = [
 bitmappy = "glitchygames.bitmappy:main"
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
+brave-adventurer = "glitchygames.examples.brave_adventurer:main"
+brave-adventurer-papyrus = "glitchygames.examples.brave_adventurer_papyrus:main"
 
 [project.optional-dependencies]
 docs = [

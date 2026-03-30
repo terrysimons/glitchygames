@@ -1,0 +1,106 @@
+[sprite]
+name = "cobra"
+description = "Egyptian cobra enemy with idle sway and strike animations"
+
+[colors]
+"█" = { red = 255, green = 0, blue = 255 }
+"G" = { red = 80, green = 120, blue = 60 }
+"g" = { red = 60, green = 100, blue = 40 }
+"E" = { red = 200, green = 50, blue = 50 }
+"d" = { red = 50, green = 80, blue = 30 }
+
+# Idle animation - gentle hood sway
+[[animation]]
+namespace = "idle"
+frame_interval = 0.4
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+pixels = """
+████████████
+█████GG█████
+████GGGG████
+████GGGG████
+████GEeG████
+████GGGG████
+█████GG█████
+█████GG█████
+█████GG█████
+█████GG█████
+████████████
+███gggggg███
+██gggggggg██
+██gggggggg██
+████████████
+████████████
+"""
+
+[[animation.frame]]
+namespace = "idle"
+pixels = """
+████████████
+████GG██████
+███GGGG█████
+███GGGG█████
+███GEeG█████
+███GGGG█████
+████GG██████
+████GG██████
+█████GG█████
+█████GG█████
+████████████
+███gggggg███
+██gggggggg██
+██gggggggg██
+████████████
+████████████
+"""
+
+# Strike animation - head lunges forward
+[[animation]]
+namespace = "strike"
+frame_interval = 0.15
+loop = false
+
+[[animation.frame]]
+namespace = "strike"
+pixels = """
+████████████
+████████████
+████GGGG████
+███GGGGGG███
+███GGEegg███
+███GGGGGG███
+████GGGG████
+█████GG█████
+█████GG█████
+█████GG█████
+████████████
+███gggggg███
+██gggggggg██
+██gggggggg██
+████████████
+████████████
+"""
+
+[[animation.frame]]
+namespace = "strike"
+pixels = """
+████████████
+████████████
+████████████
+███GGGGGGG██
+██GGGEEGGG██
+███GGGGGGG██
+████GGGG████
+████GG██████
+█████GG█████
+█████GG█████
+████████████
+███gggggg███
+██gggggggg██
+██gggggggg██
+████████████
+████████████
+"""

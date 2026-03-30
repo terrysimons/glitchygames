@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from glitchygames.color import ALPHA_TRANSPARENCY_THRESHOLD
 from glitchygames.sprites import SPRITE_GLYPHS
@@ -73,45 +73,86 @@ def _parse_toml_permissively(content: str, log: logging.Logger) -> dict[str, Any
         Parsed TOML data with duplicate keys resolved
 
     """
-    # Create a custom TOML parser that handles duplicates
+    # Deduplicate by tracking the current section and keeping only the last
+    # occurrence of each key within that section.
     lines = content.split('\n')
-    processed_lines: list[str] = []
-    seen_keys: set[str] = set()
+    current_section = ''
+    # Maps (section, key) -> line index for last occurrence
+    key_positions: dict[tuple[str, str], int] = {}
+    duplicate_indices: set[int] = set()
 
-    for line in lines:
-        # Check if this line defines a key-value pair
-        if '=' in line and not line.strip().startswith('#'):
-            # Extract the key part (before the =)
-            key_part = line.split('=')[0].strip()
+    for line_index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
 
-            # Check if this is a section header like [colors."X"]
-            if key_part.startswith('[') and key_part.endswith(']'):
-                # This is a section header, keep it
-                processed_lines.append(line)
-                continue
+        # Track current section
+        if stripped.startswith('[') and stripped.endswith(']'):
+            current_section = stripped
+            continue
 
-            # Check if this is a simple key = value pair
-            if not key_part.startswith('[') and not key_part.startswith('"'):
-                # This might be a simple key, check for duplicates
-                if key_part in seen_keys:
-                    log.warning('Duplicate key found: %s, keeping last value', key_part)
-                else:
-                    seen_keys.add(key_part)
-                processed_lines.append(line)
-                continue
+        # Check for key = value pairs
+        if '=' in stripped and not stripped.startswith('['):
+            key_part = stripped.split('=')[0].strip()
+            section_key = (current_section, key_part)
 
-        # For all other lines, keep them as-is
-        processed_lines.append(line)
+            if section_key in key_positions:
+                # Mark the PREVIOUS occurrence for removal (keep last)
+                duplicate_indices.add(key_positions[section_key])
+                log.warning(
+                    'Duplicate key found: %s in %s, keeping last value',
+                    key_part,
+                    current_section or 'root',
+                )
 
-    # Now try to parse the cleaned content
-    cleaned_content = '\n'.join(processed_lines)
+            key_positions[section_key] = line_index
+
+    # Build cleaned content without duplicate lines
+    cleaned_lines = [
+        line for line_index, line in enumerate(lines) if line_index not in duplicate_indices
+    ]
+    cleaned_content = '\n'.join(cleaned_lines)
 
     try:
         return tomllib.loads(cleaned_content)
     except tomllib.TOMLDecodeError as e:
-        # If it still fails, try a more aggressive approach
+        # If it still fails, try regex-based parsing
         log.warning('Cleaned TOML parsing also failed: %s', e)
         return _parse_toml_with_regex(content, log)
+
+
+class _RegexParserState:
+    """Mutable state for the regex-based TOML parser."""
+
+    def __init__(self, lines: list[str]) -> None:
+        self.data: dict[str, Any] = {}
+        self.section_path: list[str] = []
+        self.array_path: list[str] | None = None
+        self.lines = lines
+        self.line_index = 0
+
+    def advance(self) -> tuple[str, int]:
+        """Advance to the next line.
+
+        Returns:
+            Tuple of (stripped_line, line_number).
+        """
+        line = self.lines[self.line_index].strip()
+        line_num = self.line_index + 1
+        self.line_index += 1
+        return line, line_num
+
+    def get_target_dict(self) -> dict[str, Any]:
+        """Get the dict where the current key-value pair should be stored.
+
+        Returns:
+            The target dictionary for the current section.
+        """
+        if self.array_path:
+            last_entry = _get_array_last_entry(self.data, self.array_path)
+            sub_path = self.section_path[len(self.array_path) :]
+            return _get_nested_dict(last_entry, sub_path)
+        return _get_nested_dict(self.data, self.section_path)
 
 
 def _parse_toml_with_regex(content: str, log: logging.Logger) -> dict[str, Any]:
@@ -123,49 +164,241 @@ def _parse_toml_with_regex(content: str, log: logging.Logger) -> dict[str, Any]:
 
     Returns:
         Parsed TOML data
-
     """
-    data: dict[str, Any] = {}
-    current_section: str | None = None
+    state = _RegexParserState(content.split('\n'))
 
-    lines = content.split('\n')
-    for line_num, raw_line in enumerate(lines, 1):
-        line = raw_line.strip()
+    while state.line_index < len(state.lines):
+        line, line_num = state.advance()
+
         if not line or line.startswith('#'):
             continue
 
-        # Handle section headers
-        if line.startswith('[') and line.endswith(']'):
-            section_name = line[1:-1]
-            if section_name not in data:
-                data[section_name] = {}
-            current_section = section_name
-            continue
+        if line.startswith('[[') and line.endswith(']]'):
+            _handle_array_of_tables(state, line)
+        elif line.startswith('['):
+            _handle_section_header(state, line, line_num, log)
+        elif '=' in line:
+            _handle_key_value(state, line, line_num, log)
+        else:
+            log.warning('Unrecognized line %s: %s', line_num, line)
 
-        # Handle key-value pairs
-        if '=' in line:
-            try:
-                key, value = line.split('=', 1)
-                key = key.strip()
-                value = value.strip()
+    return state.data
 
-                # Remove quotes from key if present
-                if key.startswith('"') and key.endswith('"'):
-                    key = key[1:-1]
 
-                # Parse the value
-                parsed_value = _parse_toml_value(value)
+def _handle_array_of_tables(state: _RegexParserState, line: str) -> None:
+    """Handle [[array.of.tables]] headers."""
+    array_name = line[2:-2]
+    state.array_path = _parse_section_path(array_name)
+    _ensure_array_of_tables(state.data, state.array_path)
+    state.section_path = state.array_path
 
-                if current_section:
-                    data[current_section][key] = parsed_value
-                else:
-                    data[key] = parsed_value
 
-            except (ValueError, TypeError, KeyError) as e:
-                log.warning('Failed to parse line %s: %s - %s', line_num, line, e)
-                continue
+def _handle_section_header(
+    state: _RegexParserState,
+    line: str,
+    line_num: int,
+    log: logging.Logger,
+) -> None:
+    """Handle [section] headers, including malformed ones."""
+    if line.endswith(']'):
+        section_name = line[1:-1]
+    else:
+        section_name = line[1:]
+        log.warning('Malformed section header at line %s: %s', line_num, line)
 
-    return data
+    parsed_path = _parse_section_path(section_name)
+
+    if state.array_path and _is_sub_path(state.array_path, parsed_path):
+        state.section_path = parsed_path
+        last_entry = _get_array_last_entry(state.data, state.array_path)
+        sub_path = parsed_path[len(state.array_path) :]
+        _ensure_nested_dict(last_entry, sub_path)
+    else:
+        state.array_path = None
+        state.section_path = parsed_path
+        _ensure_nested_dict(state.data, state.section_path)
+
+
+def _handle_key_value(
+    state: _RegexParserState,
+    line: str,
+    line_num: int,
+    log: logging.Logger,
+) -> None:
+    """Handle key = value pairs, including multi-line triple-quoted strings."""
+    try:
+        key, value = line.split('=', 1)
+        key = key.strip()
+        value = _strip_inline_comment(value.strip())
+
+        # Handle multi-line triple-quoted strings
+        if value == '"""' or (value.startswith('"""') and not value.endswith('"""')):
+            value = _read_multiline_string(state, value)
+            parsed_value: str | bool | int | float | list[Any] = value
+        else:
+            parsed_value = _parse_toml_value(value)
+
+        # Remove quotes from key
+        if key.startswith('"') and key.endswith('"'):
+            key = key[1:-1]
+
+        state.get_target_dict()[key] = parsed_value
+
+    except (ValueError, TypeError, KeyError) as e:
+        log.warning('Failed to parse line %s: %s - %s', line_num, line, e)
+
+
+def _read_multiline_string(state: _RegexParserState, first_value: str) -> str:
+    """Read a multi-line triple-quoted string from the parser state.
+
+    Returns:
+        The concatenated multi-line string content.
+    """
+    parts = [first_value.removeprefix('"""')]
+    while state.line_index < len(state.lines):
+        next_line = state.lines[state.line_index]
+        state.line_index += 1
+        if '"""' in next_line:
+            parts.append(next_line[: next_line.index('"""')])
+            break
+        parts.append(next_line)
+    return '\n'.join(parts)
+
+
+def _is_sub_path(parent: list[str], child: list[str]) -> bool:
+    """Check if child path starts with parent path.
+
+    Returns:
+        True if child starts with all elements of parent.
+    """
+    if len(child) <= len(parent):
+        return False
+    return child[: len(parent)] == parent
+
+
+def _ensure_array_of_tables(data: dict[str, Any], path: list[str]) -> None:
+    """Ensure a path points to a list and append a new dict entry.
+
+    For [[animation.frame]], ensures data['animation'] is a list with
+    the last entry having a 'frame' key that is also a list.
+    """
+    current = data
+    for i, key in enumerate(path):
+        if i == len(path) - 1:
+            # Last key — ensure it's a list and append new dict
+            if key not in current:
+                current[key] = []
+            if isinstance(current[key], list):
+                current[key].append({})
+            else:
+                current[key] = [{}]
+        else:
+            # Intermediate key — navigate into it
+            if key not in current:
+                current[key] = {}
+            current = current[key][-1] if isinstance(current[key], list) else current[key]
+
+
+def _get_array_last_entry(data: dict[str, Any], path: list[str]) -> dict[str, Any]:
+    """Get the last entry in an array-of-tables at the given path.
+
+    Returns:
+        The last dict entry in the array at the given path.
+    """
+    current: dict[str, Any] = data
+    for key in path:
+        value: Any = current[key]
+        current = cast('dict[str, Any]', value[-1] if isinstance(value, list) else value)
+    return current
+
+
+def _strip_inline_comment(value: str) -> str:
+    """Strip an inline comment from a TOML value string.
+
+    Preserves '#' characters inside quoted strings.
+
+    Args:
+        value: The raw value string (may include trailing comment).
+
+    Returns:
+        The value with any inline comment removed.
+    """
+    if value.startswith('"'):
+        # Find the closing quote, then check for comment after it
+        close_quote = value.find('"', 1)
+        if close_quote >= 0:
+            after_quote = value[close_quote + 1 :]
+            comment_index = after_quote.find('#')
+            if comment_index >= 0:
+                return value[: close_quote + 1].strip()
+        return value
+    # Unquoted value — strip at first '#'
+    comment_index = value.find('#')
+    if comment_index >= 0:
+        return value[:comment_index].strip()
+    return value
+
+
+def _parse_section_path(section_name: str) -> list[str]:
+    """Parse a dotted TOML section name into path components.
+
+    Handles quoted keys like 'colors."."' -> ['colors', '.'].
+
+    Args:
+        section_name: The section name string (e.g., 'colors."."').
+
+    Returns:
+        List of path components with quotes stripped.
+    """
+    parts: list[str] = []
+    remaining = section_name.strip()
+    while remaining:
+        if remaining.startswith('"'):
+            # Quoted key — find closing quote
+            end_quote = remaining.index('"', 1)
+            parts.append(remaining[1:end_quote])
+            remaining = remaining[end_quote + 1 :]
+            remaining = remaining.removeprefix('.')
+        else:
+            # Unquoted key — split on dot
+            dot_index = remaining.find('.')
+            if dot_index >= 0:
+                parts.append(remaining[:dot_index])
+                remaining = remaining[dot_index + 1 :]
+            else:
+                parts.append(remaining)
+                remaining = ''
+    return parts
+
+
+def _ensure_nested_dict(data: dict[str, Any], path: list[str]) -> None:
+    """Ensure a nested dict structure exists for the given path.
+
+    Args:
+        data: Root dictionary.
+        path: List of keys to create nested dicts for.
+    """
+    current = data
+    for key in path:
+        if key not in current:
+            current[key] = {}
+        current = current[key]
+
+
+def _get_nested_dict(data: dict[str, Any], path: list[str]) -> dict[str, Any]:
+    """Get the nested dict at the given path, or root if path is empty.
+
+    Args:
+        data: Root dictionary.
+        path: List of keys to traverse.
+
+    Returns:
+        The nested dict at the path location.
+    """
+    current = data
+    for key in path:
+        current = current[key]
+    return current
 
 
 def _parse_toml_value(value: str) -> str | bool | int | float | list[Any]:  # noqa: PLR0911
@@ -180,13 +413,13 @@ def _parse_toml_value(value: str) -> str | bool | int | float | list[Any]:  # no
     """
     value = value.strip()
 
+    # Handle triple-quoted strings (must check before single quotes)
+    if value.startswith('"""') and value.endswith('"""'):
+        return value[3:-3]
+
     # Handle quoted strings
     if value.startswith('"') and value.endswith('"'):
         return value[1:-1]
-
-    # Handle triple-quoted strings
-    if value.startswith('"""') and value.endswith('"""'):
-        return value[3:-3]
 
     # Handle boolean values
     if value.lower() in {'true', 'false'}:
@@ -253,6 +486,41 @@ def _fix_comma_separated_color_field(
         fixed_color[field_name] = field_value
 
 
+def _fix_list_color_field(
+    field_name: str,
+    field_value: list[Any],
+    fixed_color: dict[str, Any],
+    color_key: str,
+    log: logging.Logger,
+) -> None:
+    """Fix a color field that was parsed as a list (e.g., [255, 0, 0] from regex parser).
+
+    Args:
+        field_name: The color field name ("red", "green", or "blue").
+        field_value: The list of parsed values.
+        fixed_color: Dictionary to populate with parsed values.
+        color_key: The color key name (for logging).
+        log: Logger for warnings.
+    """
+    values = [int(value) for value in field_value if isinstance(value, int | float)]
+
+    if field_name == 'red' and len(values) >= 1:
+        fixed_color['red'] = values[0]
+        if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_GREEN:
+            fixed_color['green'] = values[1]
+        if len(values) >= MIN_COLOR_FIELD_VALUES_FOR_BLUE:
+            fixed_color['blue'] = values[2]
+        log.warning(
+            "Fixed list color format for '%s': %s -> separate fields",
+            color_key,
+            field_value,
+        )
+    elif field_name == 'green' and len(values) >= 1:
+        fixed_color['green'] = values[0]
+    elif field_name == 'blue' and len(values) >= 1:
+        fixed_color['blue'] = values[0]
+
+
 def _fix_color_entry(
     color_data: dict[str, Any],
     color_key: str,
@@ -274,7 +542,16 @@ def _fix_color_entry(
         if field_name not in color_data:
             continue
         field_value = color_data[field_name]
-        if isinstance(field_value, str) and ',' in field_value:
+        if isinstance(field_value, list):
+            # Handle list values from regex parser (e.g., [255, 0, 0])
+            _fix_list_color_field(
+                field_name,
+                cast('list[Any]', field_value),
+                fixed_color,
+                color_key,
+                log,
+            )
+        elif isinstance(field_value, str) and ',' in field_value:
             _fix_comma_separated_color_field(field_name, field_value, fixed_color, color_key, log)
         else:
             fixed_color[field_name] = field_value

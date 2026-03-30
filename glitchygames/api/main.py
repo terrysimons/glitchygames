@@ -90,7 +90,7 @@ def create_app() -> Any:
 
     # Add CORS middleware
     application.add_middleware(
-        CORSMiddleware,  # ty: ignore[invalid-argument-type]
+        CORSMiddleware,
         allow_origins=['*'],  # Configure appropriately for production
         allow_credentials=False,
         allow_methods=['*'],

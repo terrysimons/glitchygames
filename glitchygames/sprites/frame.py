@@ -136,18 +136,26 @@ class FrameManager:
 class SpriteFrame:
     """Represents a single frame of an animated sprite."""
 
-    def __init__(self, surface: pygame.Surface, duration: float = 0.5) -> None:
+    def __init__(
+        self,
+        surface: pygame.Surface,
+        duration: float = 0.5,
+        hitbox: pygame.Rect | None = None,
+    ) -> None:
         """Initialize a sprite frame.
 
         Args:
             surface: The pygame surface for this frame
             duration: How long this frame should be displayed (in seconds)
+            hitbox: Optional collision hitbox rect (offset from frame origin).
+                    If None, hitbox defaults to the full frame dimensions.
 
         """
         self._image = surface
         self._rect = pygame.Rect((0, 0), surface.get_size())
         self.duration = duration
         self.pixels: list[tuple[int, ...]] = []
+        self._hitbox: pygame.Rect | None = hitbox
 
     @property
     def image(self) -> pygame.Surface:
@@ -168,6 +176,30 @@ class SpriteFrame:
     def rect(self, new_rect: pygame.Rect) -> None:
         """Set the rect."""
         self._rect = new_rect
+
+    @property
+    def hitbox(self) -> pygame.Rect:
+        """Return the collision hitbox for this frame.
+
+        Returns the explicit hitbox if one was set, otherwise falls back
+        to the full frame rect. Always returns a valid pygame.Rect.
+        """
+        if self._hitbox is not None:
+            return self._hitbox
+        return self._rect
+
+    @hitbox.setter
+    def hitbox(self, value: pygame.Rect | None) -> None:
+        """Set the collision hitbox, or None to revert to full-frame fallback."""
+        self._hitbox = value
+
+    @property
+    def has_explicit_hitbox(self) -> bool:
+        """Return True if this frame has an explicitly set hitbox.
+
+        When False, the hitbox property returns the full frame rect as a fallback.
+        """
+        return self._hitbox is not None
 
     def __getitem__(self, index: int) -> SpriteFrame:
         """Return a sprite from the stack.
@@ -250,4 +282,5 @@ class SpriteFrame:
             str: The string representation.
 
         """
-        return f'SpriteFrame(size={self._image.get_size()}, duration={self.duration})'
+        hitbox_info = f', hitbox={self._hitbox}' if self._hitbox is not None else ''
+        return f'SpriteFrame(size={self._image.get_size()}, duration={self.duration}{hitbox_info})'

@@ -586,19 +586,24 @@ class TestNormalizePixelForColorMap:
         result = normalize_pixel_for_color_map((255, 0, 0, 255), needs_alpha=False)
         assert result == (255, 0, 0)
 
-    def test_rgba_transparent_without_alpha_becomes_magenta(self):
-        """Test transparent RGBA without alpha flag becomes magenta."""
+    def test_rgba_transparent_without_alpha_becomes_rgb_magenta(self):
+        """Test transparent RGBA without alpha flag becomes RGB magenta (indexed key)."""
         result = normalize_pixel_for_color_map((255, 0, 0, 128), needs_alpha=False)
-        assert result == (255, 0, 255, 255)
+        assert result == (255, 0, 255)
 
     def test_rgba_with_alpha_keeps_full_tuple(self):
         """Test RGBA with alpha flag keeps full tuple."""
         result = normalize_pixel_for_color_map((255, 0, 0, 128), needs_alpha=True)
         assert result == (255, 0, 0, 128)
 
-    def test_rgb_magenta_normalizes_to_rgba(self):
-        """Test RGB magenta normalizes to RGBA."""
+    def test_rgb_magenta_stays_rgb_when_not_alpha(self):
+        """Test RGB magenta stays RGB in indexed color mode."""
         result = normalize_pixel_for_color_map((255, 0, 255), needs_alpha=False)
+        assert result == (255, 0, 255)
+
+    def test_rgb_magenta_promotes_to_rgba_when_alpha(self):
+        """Test RGB magenta promotes to RGBA in alpha mode."""
+        result = normalize_pixel_for_color_map((255, 0, 255), needs_alpha=True)
         assert result == (255, 0, 255, 255)
 
     def test_rgb_non_magenta_passes_through(self):
@@ -2329,3 +2334,323 @@ blue = 0
         sprite.load(str(toml_file))
         # Should load without error but have no animations
         assert sprite.name == 'empty_sprite'
+
+
+class TestSpriteFrameHitbox:
+    """Test SpriteFrame hitbox functionality."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def test_default_hitbox_is_full_frame(self):
+        """SpriteFrame without explicit hitbox falls back to full frame rect."""
+        surface = pygame.Surface((16, 24))
+        frame = SpriteFrame(surface)
+        assert frame.hitbox == frame.rect
+        assert not frame.has_explicit_hitbox
+
+    def test_explicit_hitbox(self):
+        """SpriteFrame with explicit hitbox returns that hitbox."""
+        surface = pygame.Surface((16, 24))
+        explicit_hitbox = pygame.Rect(4, 0, 12, 20)
+        frame = SpriteFrame(surface, hitbox=explicit_hitbox)
+        assert frame.hitbox == explicit_hitbox
+        assert frame.has_explicit_hitbox
+
+    def test_hitbox_setter(self):
+        """Setting hitbox via property updates the value."""
+        surface = pygame.Surface((16, 24))
+        frame = SpriteFrame(surface)
+        assert not frame.has_explicit_hitbox
+
+        new_hitbox = pygame.Rect(2, 3, 10, 18)
+        frame.hitbox = new_hitbox
+        assert frame.hitbox == new_hitbox
+        assert frame.has_explicit_hitbox
+
+    def test_hitbox_reset_to_none(self):
+        """Setting hitbox to None reverts to full-frame fallback."""
+        surface = pygame.Surface((16, 24))
+        frame = SpriteFrame(surface, hitbox=pygame.Rect(4, 0, 12, 20))
+        assert frame.has_explicit_hitbox
+
+        frame.hitbox = None
+        assert not frame.has_explicit_hitbox
+        assert frame.hitbox == frame.rect
+
+
+class TestAnimatedSpriteHitbox:
+    """Test AnimatedSprite hitbox resolution."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def test_sprite_hitbox_fallback(self):
+        """Sprite with no hitbox set anywhere falls back to full frame rect."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((16, 24))
+        frame = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame.pixels = [(0, 0, 0)] * (16 * 24)
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        assert sprite.default_hitbox is None
+        assert sprite.hitbox == frame.rect
+
+    def test_sprite_default_hitbox(self):
+        """Sprite-level default hitbox is returned when frame has no explicit hitbox."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((16, 24))
+        frame = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame.pixels = [(0, 0, 0)] * (16 * 24)
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        default_hitbox = pygame.Rect(4, 0, 12, 20)
+        sprite.default_hitbox = default_hitbox
+        assert sprite.hitbox == default_hitbox
+
+    def test_per_frame_hitbox_overrides_default(self):
+        """Per-frame hitbox takes priority over sprite-level default."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((16, 24))
+        frame_hitbox = pygame.Rect(3, 2, 10, 18)
+        frame = SpriteFrame(surface, duration=FRAME_DURATION, hitbox=frame_hitbox)
+        frame.pixels = [(0, 0, 0)] * (16 * 24)
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        sprite.default_hitbox = pygame.Rect(4, 0, 12, 20)
+        assert sprite.hitbox == frame_hitbox
+
+    def test_get_hitbox_world_rect(self):
+        """get_hitbox_world_rect applies world position offset to hitbox."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((16, 24))
+        frame = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame.pixels = [(0, 0, 0)] * (16 * 24)
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        sprite.default_hitbox = pygame.Rect(4, 2, 12, 20)
+        world_rect = sprite.get_hitbox_world_rect(world_x=100.0, world_y=200.0)
+        assert world_rect == pygame.Rect(104, 202, 12, 20)
+
+
+class TestHitboxTomlRoundTrip:
+    """Test hitbox TOML load/save round-trip."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def test_load_sprite_level_hitbox(self, tmp_path):
+        """Loading TOML with [sprite.hitbox] sets default_hitbox."""
+        toml_content = """[sprite]
+name = "hitbox_test"
+
+[sprite.hitbox]
+offset_x = 4
+offset_y = 0
+width = 12
+height = 25
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 0
+pixels = \"\"\"
+##
+##
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+"""
+        toml_file = tmp_path / 'hitbox.toml'
+        toml_file.write_text(toml_content)
+
+        sprite = AnimatedSprite()
+        sprite.load(str(toml_file))
+        assert sprite.default_hitbox is not None
+        assert sprite.default_hitbox == pygame.Rect(4, 0, 12, 25)
+
+    def test_load_per_frame_hitbox(self, tmp_path):
+        """Loading TOML with [animation.frame.hitbox] sets per-frame hitbox."""
+        toml_content = """[sprite]
+name = "frame_hitbox_test"
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 0
+pixels = \"\"\"
+##
+##
+\"\"\"
+
+[animation.frame.hitbox]
+offset_x = 3
+offset_y = 2
+width = 14
+height = 20
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+"""
+        toml_file = tmp_path / 'frame_hitbox.toml'
+        toml_file.write_text(toml_content)
+
+        sprite = AnimatedSprite()
+        sprite.load(str(toml_file))
+        current_frame = sprite.get_current_frame()
+        assert current_frame is not None
+        assert current_frame.has_explicit_hitbox
+        assert current_frame.hitbox == pygame.Rect(3, 2, 14, 20)
+
+    def test_load_without_hitbox_backward_compatible(self, tmp_path):
+        """Loading TOML without hitbox sections still works (fallback to full frame)."""
+        toml_content = """[sprite]
+name = "no_hitbox"
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.5
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 0
+pixels = \"\"\"
+##
+##
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+"""
+        toml_file = tmp_path / 'no_hitbox.toml'
+        toml_file.write_text(toml_content)
+
+        sprite = AnimatedSprite()
+        sprite.load(str(toml_file))
+        assert sprite.default_hitbox is None
+        current_frame = sprite.get_current_frame()
+        assert current_frame is not None
+        assert not current_frame.has_explicit_hitbox
+        # hitbox should fall back to full frame dimensions
+        assert sprite.hitbox == current_frame.rect
+
+    def test_save_sprite_level_hitbox(self, tmp_path):
+        """Saving sprite with default_hitbox writes [sprite.hitbox] section."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        frame = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.name = 'hitbox_save'
+        sprite.default_hitbox = pygame.Rect(1, 0, 6, 10)
+
+        save_path = tmp_path / 'hitbox_save.toml'
+        sprite.save(str(save_path), 'toml')
+
+        content = save_path.read_text()
+        assert '[sprite.hitbox]' in content
+        assert 'offset_x = 1' in content
+        assert 'offset_y = 0' in content
+        assert 'width = 6' in content
+        assert 'height = 10' in content
+
+    def test_save_per_frame_hitbox(self, tmp_path):
+        """Saving sprite with per-frame hitbox writes [animation.frame.hitbox]."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        pixel_data = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+
+        # Use 2 frames so the animated (not static) save path is used
+        frame_hitbox = pygame.Rect(0, 1, 4, 8)
+        frame_with_hitbox = SpriteFrame(surface, duration=FRAME_DURATION, hitbox=frame_hitbox)
+        frame_with_hitbox.pixels = pixel_data.copy()
+        frame_without_hitbox = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame_without_hitbox.pixels = pixel_data.copy()
+
+        sprite.add_animation('idle', [frame_with_hitbox, frame_without_hitbox])
+        sprite.set_animation('idle')
+        sprite.name = 'frame_hitbox_save'
+
+        save_path = tmp_path / 'frame_hitbox_save.toml'
+        sprite.save(str(save_path), 'toml')
+
+        content = save_path.read_text()
+        assert '[animation.frame.hitbox]' in content
+        assert 'offset_x = 0' in content
+        assert 'offset_y = 1' in content
+        assert 'width = 4' in content
+        assert 'height = 8' in content
+
+    def test_save_without_hitbox_omits_section(self, tmp_path):
+        """Saving sprite without hitbox does not write hitbox sections."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        frame = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.name = 'no_hitbox_save'
+
+        save_path = tmp_path / 'no_hitbox_save.toml'
+        sprite.save(str(save_path), 'toml')
+
+        content = save_path.read_text()
+        assert '[sprite.hitbox]' not in content
+        assert '[animation.frame.hitbox]' not in content
+
+    def test_round_trip_preserves_hitbox(self, tmp_path):
+        """Save then load preserves all hitbox values."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        pixel_data = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+
+        # Use 2 frames so the animated (not static) save path is used
+        frame_hitbox = pygame.Rect(1, 2, 3, 4)
+        frame_with_hitbox = SpriteFrame(surface, duration=FRAME_DURATION, hitbox=frame_hitbox)
+        frame_with_hitbox.pixels = pixel_data.copy()
+        frame_without_hitbox = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame_without_hitbox.pixels = pixel_data.copy()
+
+        sprite.add_animation('idle', [frame_with_hitbox, frame_without_hitbox])
+        sprite.set_animation('idle')
+        sprite.name = 'round_trip'
+        sprite.default_hitbox = pygame.Rect(5, 6, 7, 8)
+
+        save_path = tmp_path / 'round_trip.toml'
+        sprite.save(str(save_path), 'toml')
+
+        loaded_sprite = AnimatedSprite()
+        loaded_sprite.load(str(save_path))
+
+        assert loaded_sprite.default_hitbox == pygame.Rect(5, 6, 7, 8)
+        loaded_frame = loaded_sprite.get_current_frame()
+        assert loaded_frame is not None
+        assert loaded_frame.has_explicit_hitbox
+        assert loaded_frame.hitbox == pygame.Rect(1, 2, 3, 4)

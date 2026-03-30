@@ -1,0 +1,68 @@
+[sprite]
+name = "scarab"
+description = "Rolling scarab beetle enemy"
+
+[colors]
+"█" = { red = 255, green = 0, blue = 255 }
+"b" = { red = 40, green = 60, blue = 100 }
+"B" = { red = 30, green = 50, blue = 90 }
+"O" = { red = 220, green = 190, blue = 50 }
+"L" = { red = 25, green = 40, blue = 70 }
+
+# Roll animation - body rotates
+[[animation]]
+namespace = "roll"
+frame_interval = 0.1
+loop = true
+
+[[animation.frame]]
+namespace = "roll"
+pixels = """
+███bbbb███
+██bbbbbb██
+█bbbObbbb█
+█bbbbObbb█
+██bbbbbb██
+██bbbbbb██
+█L██████L█
+██████████
+"""
+
+[[animation.frame]]
+namespace = "roll"
+pixels = """
+███bbbb███
+██bbbbbb██
+█bbbbbbbb█
+█bbbOObbb█
+██bbbbbb██
+██bbbbbb██
+██L████L██
+██████████
+"""
+
+[[animation.frame]]
+namespace = "roll"
+pixels = """
+███bbbb███
+██bbbbbb██
+█bbbbObbb█
+█bbbObbbb█
+██bbbbbb██
+██bbbbbb██
+█L██████L█
+██████████
+"""
+
+[[animation.frame]]
+namespace = "roll"
+pixels = """
+███bbbb███
+██bbbbbb██
+█bbbbbbbb█
+█bbOObbbb█
+██bbbbbb██
+██bbbbbb██
+██L████L██
+██████████
+"""

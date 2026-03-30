@@ -111,18 +111,75 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
     def rect(self, value: pygame.FRect | pygame.Rect | None) -> None:
         self._gg_rect = cast('pygame.FRect | pygame.Rect', value)
 
+    @property
+    def default_hitbox(self) -> pygame.Rect | None:
+        """Return the sprite-level default hitbox.
+
+        This is the hitbox defined in [sprite.hitbox] in the TOML file.
+        Individual frames may override this with per-frame hitboxes.
+        """
+        return self._default_hitbox
+
+    @default_hitbox.setter
+    def default_hitbox(self, value: pygame.Rect | None) -> None:
+        """Set the sprite-level default hitbox."""
+        self._default_hitbox = value
+
+    @property
+    def hitbox(self) -> pygame.Rect:
+        """Return the effective hitbox for the current frame.
+
+        Resolution order:
+        1. Current frame's explicit hitbox (per-frame override)
+        2. Sprite-level default hitbox ([sprite.hitbox])
+        3. Current frame's full rect (backward-compatible fallback)
+
+        Always returns a valid pygame.Rect — game code never needs null checks.
+        """
+        current_frame = self.get_current_frame()
+        if current_frame is not None and current_frame.has_explicit_hitbox:
+            return current_frame.hitbox
+        if self._default_hitbox is not None:
+            return self._default_hitbox
+        # Fallback: full frame dimensions
+        if current_frame is not None:
+            return current_frame.rect
+        return pygame.Rect(0, 0, self._gg_rect.width, self._gg_rect.height)
+
+    def get_hitbox_world_rect(
+        self: Self,
+        world_x: float,
+        world_y: float,
+    ) -> pygame.Rect:
+        """Return the hitbox positioned in world coordinates.
+
+        Args:
+            world_x: The sprite's world X position.
+            world_y: The sprite's world Y position.
+
+        Returns:
+            A pygame.Rect with the hitbox offset applied to the world position.
+        """
+        current_hitbox = self.hitbox
+        return pygame.Rect(
+            round(world_x) + current_hitbox.x,
+            round(world_y) + current_hitbox.y,
+            current_hitbox.width,
+            current_hitbox.height,
+        )
+
     def __init__(
         self: Self,
         filename: str | None = None,
-        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
     ) -> None:
         """Initialize the Sprite Animation prototype."""
         super().__init__()
 
         # Initialize pygame.sprite.DirtySprite
         if groups is None:
-            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
-        pygame.sprite.DirtySprite.__init__(self, groups)  # type: ignore[arg-type]
+            groups = pygame.sprite.LayeredDirty()
+        pygame.sprite.DirtySprite.__init__(self, groups)
 
         # Animation state
         self.name = 'animated_sprite'  # Default name
@@ -144,6 +201,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
         # Initialize with default surface
         self._gg_image = pygame.Surface((32, 32))
         self._gg_rect = pygame.Rect(0, 0, 32, 32)
+
+        # Sprite-level default hitbox (loaded from [sprite.hitbox] in TOML)
+        self._default_hitbox: pygame.Rect | None = None
 
         if filename:
             self.load(filename)
@@ -623,6 +683,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
         self.name = data.get('sprite', {}).get('name', 'animated_sprite')
         self.description = data.get('sprite', {}).get('description', '')
+
+        # Parse sprite-level default hitbox from [sprite.hitbox]
+        self._default_hitbox = AnimatedSprite._parse_hitbox_data(
+            data.get('sprite', {}).get('hitbox'),
+        )
+
         self._animations = {}
         self._animation_order: list[str] = []
 
@@ -718,24 +784,31 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
                     # Default to magenta for unknown characters
                     surface.set_at((x, y), (255, 0, 255))
 
+        # Parse hitbox for static sprite from [sprite.hitbox]
+        static_hitbox = AnimatedSprite._parse_hitbox_data(sprite_data.get('hitbox'))
+
         # Create a single frame from the surface
-        frame = SpriteFrame(surface)
+        frame = SpriteFrame(surface, hitbox=static_hitbox)
         frame.pixels = []
 
-        # Check if any colors in the color map have alpha values
-        has_alpha = any(len(color) == RGBA_COMPONENT_COUNT for color in color_map.values())
-
+        # Build raw pixel data from the character grid using the color map
+        raw_pixels: list[tuple[int, ...]] = []
         for y in range(height):
             for x in range(width):
                 char = pixel_rows[y][x]
                 if char in color_map:
-                    # Use the original color from color_map to preserve alpha
-                    frame.pixels.append(color_map[char])
-                # Default to magenta for unknown characters
-                elif has_alpha:
-                    frame.pixels.append((255, 0, 255, 255))
+                    raw_pixels.append(color_map[char])
                 else:
-                    frame.pixels.append((255, 0, 255))
+                    # Default to magenta for unknown characters
+                    raw_pixels.append((255, 0, 255))
+
+        # Normalize pixel format to prevent mixed RGB/RGBA tuples.
+        # If the TOML defines any colors with per-pixel alpha (alpha 0-254),
+        # normalize all pixels to RGBA. Otherwise keep RGB (indexed color mode).
+        if any(len(color) == RGBA_COMPONENT_COUNT for color in color_map.values()):
+            frame.pixels = convert_pixels_to_rgba_if_needed(raw_pixels)
+        else:
+            frame.pixels = convert_pixels_to_rgb_if_possible(raw_pixels)
 
         # Create a single animation with one frame
         animation_name = sprite_data.get('name', 'idle')
@@ -869,7 +942,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
         else:
             self.log.debug(f'    Using global frame_interval: {frame_duration}')
 
-        frame = SpriteFrame(surface, duration=frame_duration)
+        # Parse optional per-frame hitbox from [animation.frame.hitbox]
+        frame_hitbox = AnimatedSprite._parse_hitbox_data(frame_data.get('hitbox'))
+
+        frame = SpriteFrame(surface, duration=frame_duration, hitbox=frame_hitbox)
         frame.pixels = AnimatedSprite._extract_toml_pixels(
             normalized_lines,
             width,
@@ -879,6 +955,27 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
         self._log_frame_debug_info(frame_index, pixel_lines, frame_data)
         return frame
+
+    @staticmethod
+    def _parse_hitbox_data(
+        hitbox_data: dict[str, int] | None,
+    ) -> pygame.Rect | None:
+        """Parse a hitbox dict from TOML data into a pygame.Rect.
+
+        Args:
+            hitbox_data: Dict with offset_x, offset_y, width, height keys, or None.
+
+        Returns:
+            A pygame.Rect if hitbox_data is not None, otherwise None.
+        """
+        if hitbox_data is None:
+            return None
+        return pygame.Rect(
+            hitbox_data.get('offset_x', 0),
+            hitbox_data.get('offset_y', 0),
+            hitbox_data.get('width', 0),
+            hitbox_data.get('height', 0),
+        )
 
     @staticmethod
     def _parse_toml_pixel_lines(pixel_data: str) -> list[str]:
@@ -1128,6 +1225,30 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
             # For unsupported formats, raise an error
             raise ValueError(ERR_UNSUPPORTED_FORMAT.format(file_format))
 
+    def _get_effective_static_hitbox(
+        self: Self,
+        frame: SpriteFrame,
+    ) -> dict[str, int] | None:
+        """Get the effective hitbox dict for a static (single-frame) sprite save.
+
+        For static sprites, uses the sprite-level default hitbox, or promotes
+        the frame's explicit hitbox if no default is set.
+
+        Returns:
+            A hitbox dict with offset_x, offset_y, width, height, or None.
+        """
+        effective_hitbox = self._default_hitbox
+        if effective_hitbox is None and frame.has_explicit_hitbox:
+            effective_hitbox = frame.hitbox
+        if effective_hitbox is None:
+            return None
+        return {
+            'offset_x': effective_hitbox.x,
+            'offset_y': effective_hitbox.y,
+            'width': effective_hitbox.width,
+            'height': effective_hitbox.height,
+        }
+
     def _save_toml_single_frame(self: Self, filename: str) -> None:
         """Save single frame as static TOML using existing TOML infrastructure."""
         # Get the single frame from the single animation
@@ -1170,15 +1291,21 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
             f.write('\n'.join(pixel_rows))
             f.write('\n"""\n\n')
 
-            # Write colors section
-            f.write('[colors]\n')
-            for color_tuple, char in color_map.items():
-                if len(color_tuple) == RGBA_COMPONENT_COUNT:
-                    r, g, b, a = color_tuple
-                    f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b}, alpha = {a} }}\n')
-                else:
-                    r, g, b = color_tuple
-                    f.write(f'"{char}" = {{ red = {r}, green = {g}, blue = {b} }}\n')
+            hitbox_data = self._get_effective_static_hitbox(frame)
+            if hitbox_data is not None:
+                AnimatedSprite._write_toml_hitbox_section(
+                    f,
+                    section_header='[sprite.hitbox]',
+                    hitbox_data=hitbox_data,
+                )
+
+            # Write colors using the shared writer for consistent TOML format
+            color_data = AnimatedSprite._color_map_to_defs(color_map)
+            AnimatedSprite._write_toml_colors(
+                f,
+                {'colors': color_data},
+                getattr(self, '_color_order', None),
+            )
 
     def _save_toml(self: Self, filename: str) -> None:
         """Save animated sprite in TOML format.
@@ -1223,19 +1350,28 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
         # If we have an original color map from loading, build reverse mapping (color -> char)
         original_color_to_char, used_chars = self._build_reverse_color_map()
 
-        # Reserve \u2588 for (255, 0, 255) - always use RGBA format (255, 0, 255, 255)
+        # Check if the sprite uses per-pixel alpha mode.
+        # This determines whether magenta is stored as RGBA (255,0,255,255)
+        # or stays as RGB (255,0,255) for indexed color mode.
+        sprite_needs_alpha = self._sprite_uses_per_pixel_alpha()
         has_magenta = self._any_pixel_is_magenta()
 
         if has_magenta:
-            # Always store magenta as RGBA with alpha=255
-            # Use original char if available, otherwise use \u2588
-            color_map[255, 0, 255, 255] = original_color_to_char.get((255, 0, 255, 255), '\u2588')
+            # Reserve character for magenta transparency key
+            if sprite_needs_alpha:
+                magenta_key: tuple[int, ...] = (255, 0, 255, 255)
+            else:
+                magenta_key = (255, 0, 255)
+            color_map[magenta_key] = original_color_to_char.get(
+                magenta_key,
+                original_color_to_char.get((255, 0, 255, 255), '\u2588'),
+            )
             universal_chars = [c for c in universal_chars if c != '\u2588']
 
         for frames in self._animations.values():
             for frame in frames:
                 pixels = frame.get_pixel_data()
-                needs_alpha = needs_alpha_channel(pixels)
+                needs_alpha = sprite_needs_alpha
 
                 for pixel in pixels:
                     color_tuple = normalize_pixel_for_color_map(pixel, needs_alpha=needs_alpha)
@@ -1278,25 +1414,25 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
         for char, color in self._color_map.items():
             used_chars.add(char)
-            # Normalize color to match how we'll look it up
+            # Normalize color to match how we'll look it up.
+            # Map magenta to both RGB and RGBA keys so either mode can find it.
             if len(color) == RGBA_COMPONENT_COUNT:
                 r, g, b, a = color
                 if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
-                    # Magenta - always use RGBA format
                     original_color_to_char[255, 0, 255, 255] = char
+                    original_color_to_char[255, 0, 255] = char
                 elif a == MAX_COLOR_CHANNEL_VALUE:
                     # Opaque RGBA - can match as RGB or RGBA
-                    original_color_to_char[color] = char  # RGBA key
-                    original_color_to_char[r, g, b] = char  # RGB key too
+                    original_color_to_char[color] = char
+                    original_color_to_char[r, g, b] = char
                 else:
                     # Has transparency - only RGBA key
                     original_color_to_char[color] = char
-            # RGB color
-            elif color == (255, 0, 255):
-                # Magenta - map to RGBA format
+            elif color == MAGENTA_TRANSPARENCY_KEY:
+                original_color_to_char[255, 0, 255] = char
                 original_color_to_char[255, 0, 255, 255] = char
             else:
-                original_color_to_char[color] = char  # RGB key
+                original_color_to_char[color] = char
                 # Also allow RGBA version with alpha=255
                 original_color_to_char[color[0], color[1], color[2], 255] = char
 
@@ -1319,6 +1455,25 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
                             return True
                     elif pixel == MAGENTA_TRANSPARENCY_KEY:
                         return True
+        return False
+
+    def _sprite_uses_per_pixel_alpha(self: Self) -> bool:
+        """Check if any pixel in the sprite has actual per-pixel alpha (alpha < 255).
+
+        This excludes magenta transparency which is handled by indexed color mode.
+        Used to decide whether the save pipeline should use RGBA or RGB format.
+
+        Returns:
+            True if any pixel has alpha in the range 0-254.
+        """
+        for frames in self._animations.values():
+            for frame in frames:
+                pixels = frame.get_pixel_data()
+                for pixel in pixels:
+                    if len(pixel) == RGBA_COMPONENT_COUNT:
+                        _r, _g, _b, a = pixel
+                        if a != MAX_COLOR_CHANNEL_VALUE:
+                            return True
         return False
 
     def _build_toml_color_definitions(
@@ -1380,11 +1535,22 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
             dict: The result.
 
         """
+        sprite_section: dict[str, Any] = {
+            'name': self.name or 'animated_sprite',
+            'description': self.description or '',
+        }
+
+        # Include sprite-level hitbox if one is explicitly set
+        if self._default_hitbox is not None:
+            sprite_section['hitbox'] = {
+                'offset_x': self._default_hitbox.x,
+                'offset_y': self._default_hitbox.y,
+                'width': self._default_hitbox.width,
+                'height': self._default_hitbox.height,
+            }
+
         data: dict[str, Any] = {
-            'sprite': {
-                'name': self.name or 'animated_sprite',
-                'description': self.description or '',
-            },
+            'sprite': sprite_section,
             'colors': {},
             'animation': [],
         }
@@ -1453,7 +1619,22 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
         pixels = frame.get_pixel_data()
         width, height = frame.get_size()
         pixel_chars = AnimatedSprite._convert_pixels_to_toml_chars(pixels, width, height, color_map)
-        return {'frame_index': frame_index, 'pixels': '\n'.join(pixel_chars)}
+        frame_data: dict[str, Any] = {
+            'frame_index': frame_index,
+            'pixels': '\n'.join(pixel_chars),
+        }
+
+        # Include per-frame hitbox only if explicitly set on this frame
+        if frame.has_explicit_hitbox:
+            hitbox = frame.hitbox
+            frame_data['hitbox'] = {
+                'offset_x': hitbox.x,
+                'offset_y': hitbox.y,
+                'width': hitbox.width,
+                'height': hitbox.height,
+            }
+
+        return frame_data
 
     @staticmethod
     def _convert_pixels_to_toml_chars(
@@ -1496,6 +1677,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
             f.write(f'description = """{data["sprite"]["description"]}"""\n')
         f.write('\n')
 
+        # Write sprite-level hitbox if present
+        if 'hitbox' in data['sprite']:
+            AnimatedSprite._write_toml_hitbox_section(
+                f,
+                section_header='[sprite.hitbox]',
+                hitbox_data=data['sprite']['hitbox'],
+            )
+
     @staticmethod
     def _write_toml_animations(f: IO[str], data: dict[str, Any]) -> None:
         """Write TOML animations section."""
@@ -1512,6 +1701,53 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
                 f.write('pixels = """\n')
                 f.write(frame['pixels'])
                 f.write('\n"""\n\n')
+
+                # Write per-frame hitbox if present
+                if 'hitbox' in frame:
+                    AnimatedSprite._write_toml_hitbox_section(
+                        f,
+                        section_header='[animation.frame.hitbox]',
+                        hitbox_data=frame['hitbox'],
+                    )
+
+    @staticmethod
+    def _color_map_to_defs(
+        color_map: dict[tuple[int, ...], str],
+    ) -> dict[str, dict[str, int]]:
+        """Convert a color_map (tuple→char) to TOML color definitions (char→{r,g,b[,a]}).
+
+        Returns:
+            Dict mapping character to color definition dict.
+        """
+        color_defs: dict[str, dict[str, int]] = {}
+        for color_tuple, char in color_map.items():
+            if len(color_tuple) == RGBA_COMPONENT_COUNT:
+                r, g, b, a = color_tuple
+                color_defs[char] = {'red': r, 'green': g, 'blue': b, 'alpha': a}
+            else:
+                r, g, b = color_tuple
+                color_defs[char] = {'red': r, 'green': g, 'blue': b}
+        return color_defs
+
+    @staticmethod
+    def _write_toml_hitbox_section(
+        f: IO[str],
+        section_header: str,
+        hitbox_data: dict[str, int],
+    ) -> None:
+        """Write a TOML hitbox section with offset and dimension fields.
+
+        Args:
+            f: File handle to write to.
+            section_header: The TOML section header (e.g. '[sprite.hitbox]').
+            hitbox_data: Dict with offset_x, offset_y, width, height keys.
+        """
+        f.write(f'{section_header}\n')
+        f.write(f'offset_x = {hitbox_data["offset_x"]}\n')
+        f.write(f'offset_y = {hitbox_data["offset_y"]}\n')
+        f.write(f'width = {hitbox_data["width"]}\n')
+        f.write(f'height = {hitbox_data["height"]}\n')
+        f.write('\n')
 
     @staticmethod
     def _write_toml_colors(

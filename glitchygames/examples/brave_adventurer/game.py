@@ -1,0 +1,662 @@
+"""Main game scene for Brave Adventurer - a Pitfall clone set in ancient Egypt."""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Any, Self, override
+
+import pygame
+
+from glitchygames.engine import GameEngine
+from glitchygames.examples.brave_adventurer.camera import Camera
+from glitchygames.examples.brave_adventurer.constants import (
+    COLLECTIBLE_SCORE_BONUS,
+    DISTANCE_SCORE_DIVISOR,
+    GOLD_SCARAB_SIZE,
+    GROUND_Y,
+    HUD_SHADOW_COLOR,
+    HUD_TEXT_COLOR,
+    PARALLAX_FAR,
+    PARALLAX_MID,
+    PARALLAX_NEAR,
+    PARALLAX_SKY,
+    PIT_DEATH_THRESHOLD,
+    PIT_EDGE_COLOR,
+    PIT_FLOOR_COLOR,
+    PIT_WALL_COLOR,
+    PIT_WALL_SHADOW,
+    PLAYER_HEIGHT,
+    PLAYER_WIDTH,
+    RESPAWN_OFFSET,
+    SCREEN_HEIGHT,
+    SKY_COLOR,
+    STONE_WALL_WIDTH,
+)
+from glitchygames.examples.brave_adventurer.drawing import (
+    draw_dunes_and_oasis,
+    draw_near_ground_details,
+    draw_pyramids,
+    draw_sky,
+)
+from glitchygames.examples.brave_adventurer.levels import LEVEL_1, LevelManager
+from glitchygames.examples.brave_adventurer.parallax import ParallaxLayer
+from glitchygames.examples.brave_adventurer.player import Player
+from glitchygames.examples.brave_adventurer.sounds import GameSounds
+from glitchygames.scenes import Scene
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+
+if TYPE_CHECKING:
+    import argparse
+
+    from glitchygames.events.base import HashableEvent
+
+log = logging.getLogger('game')
+
+
+class BraveAdventurerScene(Scene):
+    """Main gameplay scene for Brave Adventurer.
+
+    Orchestrates the player, camera, terrain, enemies, parallax backgrounds,
+    and HUD. The game is a Pitfall-style side-scrolling platformer set in
+    ancient Egypt.
+    """
+
+    NAME = 'Brave Adventurer'
+    VERSION = '1.0'
+
+    def __init__(
+        self: Self,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
+    ) -> None:
+        """Initialize the game scene.
+
+        Args:
+            options: Command-line options dict from GameEngine.
+            groups: Sprite group (created if not provided).
+
+        """
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()
+        super().__init__(options=options, groups=groups)
+
+        # Set background to sky color
+        self.background_color = SKY_COLOR
+
+        # Camera
+        self.camera = Camera(
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+        )
+
+        # Parallax background layers (created first so they render behind everything)
+        self.sky_layer = ParallaxLayer(
+            scroll_factor=PARALLAX_SKY,
+            draw_function=draw_sky,
+            layer_depth=0,
+            groups=self.all_sprites,
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+        )
+        self.pyramid_layer = ParallaxLayer(
+            scroll_factor=PARALLAX_FAR,
+            draw_function=draw_pyramids,
+            layer_depth=1,
+            groups=self.all_sprites,
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+        )
+        self.dune_layer = ParallaxLayer(
+            scroll_factor=PARALLAX_MID,
+            draw_function=draw_dunes_and_oasis,
+            layer_depth=2,
+            groups=self.all_sprites,
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+        )
+        self.ground_detail_layer = ParallaxLayer(
+            scroll_factor=PARALLAX_NEAR,
+            draw_function=draw_near_ground_details,
+            layer_depth=3,
+            groups=self.all_sprites,
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+        )
+
+        # Build the level (creates ground, walls, enemies, collectibles)
+        self.level_manager = LevelManager(
+            level_data=LEVEL_1,
+            groups=self.all_sprites,
+        )
+        self.ground_sprites = self.level_manager.ground_sprites
+        self.wall_sprites = self.level_manager.wall_sprites
+        self.enemy_sprites = self.level_manager.enemy_sprites
+        self.collectible_sprites = self.level_manager.collectible_sprites
+
+        # Player (on top of sprites so it renders above terrain)
+        self.player = Player(
+            world_x=100.0,
+            world_y=GROUND_Y - PLAYER_HEIGHT,
+            groups=self.all_sprites,
+        )
+
+        # Game state
+        self.game_over_triggered: bool = False
+
+        # Sound effects (generated from waveforms, initialized in setup)
+        self.sounds = GameSounds()
+
+        # Track whether player was airborne last frame (for land sound)
+        self._was_airborne: bool = False
+
+        # HUD font
+        self.hud_font: pygame.font.Font | None = None
+
+        # Track input state for smooth movement
+        self._moving_right: bool = False
+        self._moving_left: bool = False
+
+    @classmethod
+    def args(cls, parser: argparse.ArgumentParser) -> None:
+        """Add game-specific command-line arguments.
+
+        Args:
+            parser: The argument parser to add arguments to.
+
+        """
+        parser.add_argument(
+            '-v',
+            '--version',
+            action='store_true',
+            help='print the game version and exit',
+        )
+
+    @override
+    def setup(self: Self) -> None:
+        """Set up the game scene."""
+        super().setup()
+        if self.target_fps == 0:
+            self.target_fps = 60
+        self.hud_font = pygame.font.Font(None, 28)
+        self.sounds.initialize()
+        log.info('Brave Adventurer setup complete')
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Master tick: physics, collision, camera, scoring.
+
+        Args:
+            dt: Delta time in seconds since the last frame.
+
+        """
+        super().dt_tick(dt)
+
+        if self.game_over_triggered:
+            return
+
+        # 1. Track airborne state before physics (for landing sound)
+        was_airborne_before = not self.player.on_ground
+
+        # 2. Tick all sprites (player physics, enemy AI, collectible bobbing)
+        for sprite in self.all_sprites:
+            sprite.dt_tick(dt)
+
+        # 3. Ground collision
+        self._resolve_player_ground_collision()
+
+        # 4. Landing sound (transitioned from airborne to grounded)
+        if was_airborne_before and self.player.on_ground:
+            self.sounds.play_land()
+
+        # 5. Wall collision
+        self._resolve_player_wall_collision()
+
+        # 4. Pit death check
+        if self.player.world_y > self.screen_height + PIT_DEATH_THRESHOLD:
+            self._player_die()
+
+        # 5. Enemy collision
+        self._check_enemy_collisions()
+
+        # 6. Collectible pickup
+        self._check_collectible_collisions()
+
+        # 7. Update camera to follow player
+        self.camera.update(self.player.world_x)
+
+        # 8. Apply camera transform to all world-space sprites
+        self.player.apply_camera(self.camera)
+        for ground_segment in self.ground_sprites:
+            ground_segment.apply_camera(self.camera)
+        for wall in self.wall_sprites:
+            wall.apply_camera(self.camera)
+        for enemy in self.enemy_sprites:
+            enemy.apply_camera(self.camera)
+        for collectible in self.collectible_sprites:
+            collectible.apply_camera(self.camera)
+
+        # 9. Update parallax backgrounds
+        self.sky_layer.update_scroll(self.camera.world_x)
+        self.pyramid_layer.update_scroll(self.camera.world_x)
+        self.dune_layer.update_scroll(self.camera.world_x)
+        self.ground_detail_layer.update_scroll(self.camera.world_x)
+
+        # 10. Update distance score
+        self.player.max_distance = max(self.player.max_distance, self.player.world_x)
+        self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
+
+    def _resolve_player_ground_collision(self: Self) -> None:
+        """Check if the player lands on ground and snap to the surface."""
+        self.player.on_ground = False
+
+        # Use player's center X for ground checks so pits feel fair: you fall
+        # when your center passes the edge, not when your last pixel leaves.
+        # Use >= for vertical check to avoid boundary flicker (exclusive rect edges).
+        player_center_x = round(self.player.world_x) + PLAYER_WIDTH // 2
+        player_bottom = round(self.player.world_y) + PLAYER_HEIGHT
+
+        if self.ground_sprites:
+            for ground_segment in self.ground_sprites:
+                segment_left = round(ground_segment.world_x)
+                segment_right = segment_left + ground_segment.segment_width
+
+                # Player's feet center must be over this segment
+                feet_over_segment = (
+                    player_center_x >= segment_left and player_center_x < segment_right
+                )
+                feet_on_surface = player_bottom >= GROUND_Y
+
+                if feet_over_segment and feet_on_surface and self.player.velocity_y >= 0:
+                    self.player.world_y = GROUND_Y - PLAYER_HEIGHT
+                    self.player.velocity_y = 0.0
+                    self.player.on_ground = True
+                    break
+        elif player_bottom >= GROUND_Y and self.player.velocity_y >= 0:
+            # Fallback: infinite flat ground when no segments defined
+            self.player.world_y = GROUND_Y - PLAYER_HEIGHT
+            self.player.velocity_y = 0.0
+            self.player.on_ground = True
+
+        # If the player is in a pit (below ground, not on ground), the edges
+        # of adjacent ground segments act as walls to prevent climbing out.
+        if not self.player.on_ground and round(self.player.world_y) + PLAYER_HEIGHT > GROUND_Y:
+            player_left = round(self.player.world_x)
+            player_right = player_left + PLAYER_WIDTH
+
+            for ground_segment in self.ground_sprites:
+                segment_left = round(ground_segment.world_x)
+                segment_right = segment_left + ground_segment.segment_width
+
+                # Moving right into the left edge of a segment
+                if (
+                    self.player.velocity_x > 0
+                    and player_right > segment_left
+                    and player_left < segment_left
+                ):
+                    self.player.world_x = segment_left - PLAYER_WIDTH
+                    break
+
+                # Moving left into the right edge of a segment
+                if (
+                    self.player.velocity_x < 0
+                    and player_left < segment_right
+                    and player_right > segment_right
+                ):
+                    self.player.world_x = float(segment_right)
+                    break
+
+    def _resolve_player_wall_collision(self: Self) -> None:
+        """Check if the player collides with stone walls.
+
+        Handles two cases:
+        1. Landing on top of a wall (treated like ground)
+        2. Walking into the side of a wall (horizontal push-back)
+
+        The "on top" check must run first, otherwise a player standing
+        on a wall gets pushed sideways when they try to walk.
+        """
+        player_left = round(self.player.world_x)
+        player_right = player_left + PLAYER_WIDTH
+        player_top = round(self.player.world_y)
+        player_bottom = player_top + PLAYER_HEIGHT
+
+        for wall in self.wall_sprites:
+            wall_left = round(wall.world_x)
+            wall_right = wall_left + STONE_WALL_WIDTH
+            wall_top = round(wall.world_y)
+            wall_bottom = wall_top + wall.wall_height
+
+            # Check horizontal overlap (needed for both top and side collisions)
+            horizontally_overlapping = player_right > wall_left and player_left < wall_right
+
+            if not horizontally_overlapping:
+                continue
+
+            # Case 1: Landing on top of the wall.
+            # Feet must be within a small margin of the wall surface to count
+            # as "on top". Prevents walking through short walls when the player
+            # is taller than the wall.
+            landing_tolerance = 16
+            standing_on_top = (
+                player_bottom >= wall_top
+                and player_bottom <= wall_top + landing_tolerance
+                and player_top < wall_top
+                and self.player.velocity_y >= 0
+            )
+
+            if standing_on_top:
+                self.player.world_y = wall_top - PLAYER_HEIGHT
+                self.player.velocity_y = 0.0
+                self.player.on_ground = True
+                continue
+
+            # Case 2: Side collision (walking into the wall).
+            # Only applies when the player overlaps vertically with the wall body.
+            vertically_overlapping = player_bottom > wall_top and player_top < wall_bottom
+
+            if vertically_overlapping:
+                if self.player.velocity_x > 0:
+                    self.player.world_x = wall.world_x - PLAYER_WIDTH
+                elif self.player.velocity_x < 0:
+                    self.player.world_x = wall.world_x + STONE_WALL_WIDTH
+
+    def _check_enemy_collisions(self: Self) -> None:
+        """Check if the player touches any enemy (results in death)."""
+        player_rect = pygame.Rect(
+            round(self.player.world_x) + 4,
+            round(self.player.world_y) + 4,
+            PLAYER_WIDTH - 8,
+            PLAYER_HEIGHT - 8,
+        )
+
+        for enemy in self.enemy_sprites:
+            enemy_rect = pygame.Rect(
+                round(enemy.world_x),
+                round(enemy.world_y),
+                enemy.rect.width,
+                enemy.rect.height,
+            )
+            if player_rect.colliderect(enemy_rect):
+                self._player_die()
+                break
+
+    def _check_collectible_collisions(self: Self) -> None:
+        """Check if the player picks up any gold scarabs."""
+        player_rect = pygame.Rect(
+            round(self.player.world_x),
+            round(self.player.world_y),
+            PLAYER_WIDTH,
+            PLAYER_HEIGHT,
+        )
+
+        for collectible in list(self.collectible_sprites):
+            collectible_rect = pygame.Rect(
+                round(collectible.world_x),
+                round(collectible.world_y),
+                GOLD_SCARAB_SIZE,
+                GOLD_SCARAB_SIZE,
+            )
+            if player_rect.colliderect(collectible_rect):
+                self.player.score += COLLECTIBLE_SCORE_BONUS
+                self.sounds.play_collect()
+                collectible.kill()
+                self.collectible_sprites.remove(collectible)
+
+    def _player_die(self: Self) -> None:
+        """Handle player death: lose a life or trigger game over."""
+        if self.game_over_triggered:
+            return
+
+        self.player.lives -= 1
+        log.info('Player died! Lives remaining: %d', self.player.lives)
+
+        if self.player.lives <= 0:
+            self.game_over_triggered = True
+            self.sounds.play_game_over()
+            game_over_scene = GameOverScene(options=self.options)
+            self.next_scene = game_over_scene
+        else:
+            self.sounds.play_death()
+            # Respawn behind current position
+            self.player.world_x = max(0, self.player.world_x - RESPAWN_OFFSET)
+            self.player.world_y = GROUND_Y - PLAYER_HEIGHT
+            self.player.velocity_x = 0.0
+            self.player.velocity_y = 0.0
+            self.player.on_ground = True
+
+            # Restore input state
+            if self._moving_right:
+                self.player.move_right()
+            elif self._moving_left:
+                self.player.move_left()
+
+    def _pause_game(self: Self) -> None:
+        """Pause the game by switching to the built-in pause scene."""
+        pause_scene = PauseScene(options=self.options)
+        self.next_scene = pause_scene
+
+    # -----------------------------------------------------------------------
+    # Input handling
+    # -----------------------------------------------------------------------
+
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+        """Handle keyboard key presses.
+
+        Args:
+            event: The key down event.
+
+        """
+        if event.key == pygame.K_RIGHT:
+            self._moving_right = True
+            self._moving_left = False
+            self.player.move_right()
+        elif event.key == pygame.K_LEFT:
+            self._moving_left = True
+            self._moving_right = False
+            self.player.move_left()
+        elif event.key in {pygame.K_SPACE, pygame.K_UP}:
+            if self.player.on_ground:
+                self.sounds.play_jump()
+            self.player.jump()
+        elif event.key == pygame.K_ESCAPE:
+            self._pause_game()
+        elif event.key == pygame.K_q:
+            self.next_scene = None
+        else:
+            super().on_key_down_event(event)
+
+    @override
+    def on_key_up_event(self: Self, event: HashableEvent) -> None:
+        """Handle keyboard key releases.
+
+        Args:
+            event: The key up event.
+
+        """
+        if event.key == pygame.K_RIGHT:
+            self._moving_right = False
+            if self._moving_left:
+                self.player.move_left()
+            else:
+                self.player.stop_horizontal()
+        elif event.key == pygame.K_LEFT:
+            self._moving_left = False
+            if self._moving_right:
+                self.player.move_right()
+            else:
+                self.player.stop_horizontal()
+        else:
+            super().on_key_up_event(event)
+
+    @override
+    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+        """Handle game controller button presses.
+
+        Args:
+            event: The controller button down event.
+
+        """
+        if event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
+            self._moving_right = True
+            self._moving_left = False
+            self.player.move_right()
+        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
+            self._moving_left = True
+            self._moving_right = False
+            self.player.move_left()
+        elif event.button == pygame.CONTROLLER_BUTTON_A:
+            if self.player.on_ground:
+                self.sounds.play_jump()
+            self.player.jump()
+
+    @override
+    def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
+        """Handle game controller button releases.
+
+        Args:
+            event: The controller button up event.
+
+        """
+        if event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
+            self._moving_right = False
+            if self._moving_left:
+                self.player.move_left()
+            else:
+                self.player.stop_horizontal()
+        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
+            self._moving_left = False
+            if self._moving_right:
+                self.player.move_right()
+            else:
+                self.player.stop_horizontal()
+
+    # -----------------------------------------------------------------------
+    # Rendering
+    # -----------------------------------------------------------------------
+
+    @override
+    def render(self: Self, screen: pygame.Surface) -> None:
+        """Render the game scene.
+
+        Draws background, sprites, and HUD overlay.
+
+        Args:
+            screen: The display surface to render to.
+
+        """
+        # Fill with sky color
+        screen.fill(SKY_COLOR)
+
+        # Draw all sprites via the engine's LayeredDirty system
+        self.all_sprites.clear(screen, self.background)
+        self.rects = self.all_sprites.draw(screen)
+
+        # Draw pits AFTER sprites so they render on top of the parallax sand,
+        # but only in gaps between ground segments (ground sprites are opaque
+        # and already drawn, so they mask the pit fill where ground exists).
+        self._draw_pits(screen)
+        # Re-draw player on top of pits so they're visible when falling in
+        screen.blit(self.player.image, self.player.rect)
+
+        # Draw HUD on top
+        self._draw_hud(screen)
+
+        # Force full-screen update (parallax will change every frame in Phase 3)
+        self.rects = None
+
+    def _draw_pits(self: Self, screen: pygame.Surface) -> None:
+        """Draw dark pits in gaps between ground segments.
+
+        Args:
+            screen: The display surface to draw on.
+
+        """
+        if not self.ground_sprites:
+            return
+
+        sorted_segments = sorted(self.ground_sprites, key=lambda segment: segment.world_x)
+
+        for index in range(len(sorted_segments) - 1):
+            current_segment = sorted_segments[index]
+            next_segment = sorted_segments[index + 1]
+
+            gap_left_world = current_segment.world_x + current_segment.segment_width
+            gap_right_world = next_segment.world_x
+
+            if gap_right_world <= gap_left_world:
+                continue
+
+            gap_left_screen, _ = self.camera.apply(gap_left_world, 0)
+            gap_right_screen, _ = self.camera.apply(gap_right_world, 0)
+            gap_width = gap_right_screen - gap_left_screen
+
+            if gap_right_screen < 0 or gap_left_screen > self.screen_width:
+                continue
+
+            pit_depth = SCREEN_HEIGHT - GROUND_Y
+
+            # Dark fill
+            pygame.draw.rect(
+                screen,
+                PIT_WALL_COLOR,
+                (gap_left_screen, GROUND_Y, gap_width, pit_depth),
+            )
+
+            # Thin edge lines for definition
+            pygame.draw.line(
+                screen,
+                PIT_EDGE_COLOR,
+                (gap_left_screen, GROUND_Y),
+                (gap_left_screen, SCREEN_HEIGHT),
+                2,
+            )
+            pygame.draw.line(
+                screen,
+                PIT_WALL_SHADOW,
+                (gap_right_screen - 1, GROUND_Y),
+                (gap_right_screen - 1, SCREEN_HEIGHT),
+                2,
+            )
+
+            # Dark floor
+            pygame.draw.rect(
+                screen,
+                PIT_FLOOR_COLOR,
+                (gap_left_screen, SCREEN_HEIGHT - 4, gap_width, 4),
+            )
+
+    def _draw_hud(self: Self, screen: pygame.Surface) -> None:
+        """Draw the heads-up display showing score and lives.
+
+        Args:
+            screen: The display surface to draw on.
+
+        """
+        if self.hud_font is None:
+            return
+
+        score_text = f'Score: {self.player.score}'
+        lives_text = f'Lives: {self.player.lives}'
+
+        # Shadow for readability
+        antialias = True
+        shadow_surface = self.hud_font.render(score_text, antialias, HUD_SHADOW_COLOR)
+        screen.blit(shadow_surface, (11, 11))
+        text_surface = self.hud_font.render(score_text, antialias, HUD_TEXT_COLOR)
+        screen.blit(text_surface, (10, 10))
+
+        shadow_surface = self.hud_font.render(lives_text, antialias, HUD_SHADOW_COLOR)
+        screen.blit(shadow_surface, (self.screen_width - 109, 11))
+        text_surface = self.hud_font.render(lives_text, antialias, HUD_TEXT_COLOR)
+        screen.blit(text_surface, (self.screen_width - 110, 10))
+
+
+def main() -> None:
+    """Run the Brave Adventurer game."""
+    GameEngine(game=BraveAdventurerScene).start()
+
+
+if __name__ == '__main__':
+    main()

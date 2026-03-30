@@ -1,0 +1,307 @@
+[sprite]
+name = "brave_adventurer"
+description = "Egyptian adventurer at 20x28, scaled 2x at runtime to 40x56"
+
+[colors]
+"█" = { red = 255, green = 0, blue = 255 }
+"H" = { red = 40, green = 30, blue = 20 }
+"h" = { red = 60, green = 45, blue = 30 }
+"S" = { red = 180, green = 130, blue = 80 }
+"s" = { red = 150, green = 110, blue = 65 }
+"E" = { red = 30, green = 20, blue = 10 }
+"C" = { red = 220, green = 220, blue = 200 }
+"c" = { red = 190, green = 190, blue = 170 }
+"B" = { red = 160, green = 100, blue = 40 }
+"b" = { red = 130, green = 80, blue = 30 }
+"G" = { red = 180, green = 160, blue = 50 }
+"F" = { red = 140, green = 100, blue = 55 }
+"f" = { red = 120, green = 85, blue = 45 }
+"R" = { red = 160, green = 40, blue = 30 }
+
+# Idle - 2 frames
+[[animation]]
+namespace = "idle"
+frame_interval = 0.6
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+pixels = """
+██████HHHHHH████████
+█████HHHHHHHH███████
+████HHHHHHHHHH██████
+████HhHHHHHhHH██████
+█████hSSSSSSh███████
+████sSSSSSSSss██████
+████sSSESSESs███████
+████sSSSSSSSs███████
+█████sSSSSs█████████
+██████SSSS██████████
+█████RGGGGGR████████
+████RGGGGGGR████████
+████CCCCCCCC████████
+███sCCCCCCCCs███████
+███sCCCCCCCCs███████
+███sCCCCCCCCs███████
+████CCCCCCCC████████
+████BBBBBBBB████████
+████bCCCCCCb████████
+█████CCCCCC█████████
+██████CCCC██████████
+█████SS██SS█████████
+████SS████SS████████
+████SS████SS████████
+████Ss████sS████████
+████FF████FF████████
+████ff████ff████████
+████████████████████
+"""
+
+[[animation.frame]]
+namespace = "idle"
+pixels = """
+██████HHHHHH████████
+█████HHHHHHHH███████
+████HHHHHHHHHH██████
+████HhHHHHHhHH██████
+█████hSSSSSSh███████
+████sSSSSSSSss██████
+████sSSESSESs███████
+████sSSSSSSSs███████
+█████sSSSSs█████████
+██████SSSS██████████
+█████RGGGGGR████████
+████RGGGGGGR████████
+████CCCCCCCC████████
+██ssCCCCCCCCss██████
+███sCCCCCCCCs███████
+███sCCCCCCCCs███████
+████CCCCCCCC████████
+████BBBBBBBB████████
+████bCCCCCCb████████
+█████CCCCCC█████████
+██████CCCC██████████
+█████SS██SS█████████
+████SS████SS████████
+████SS████SS████████
+████Ss████sS████████
+████FF████FF████████
+████ff████ff████████
+████████████████████
+"""
+
+# Running - 4 frames
+[[animation]]
+namespace = "running"
+frame_interval = 0.15
+loop = true
+
+[[animation.frame]]
+namespace = "running"
+pixels = """
+██████HHHHHH████████
+█████HHHHHHHH███████
+████HHHHHHHHHH██████
+████HhHHHHHhHH██████
+█████hSSSSSSh███████
+████sSSSSSSSss██████
+████sSSESSESs███████
+████sSSSSSSSs███████
+█████sSSSSs█████████
+██████SSSS██████████
+█████RGGGGGR████████
+████RGGGGGGR████████
+█ssCCCCCCCCCC███████
+███sCCCCCCCCCss█████
+███sCCCCCCCCs███████
+████CCCCCCCC████████
+████BBBBBBBB████████
+████bCCCCCCb████████
+█████CCCCCC█████████
+████SS████SS████████
+███SS██████SS███████
+██SS████████SS██████
+██Ss████████sS██████
+██FF████████FF██████
+██ff████████ff██████
+████████████████████
+████████████████████
+████████████████████
+"""
+
+[[animation.frame]]
+namespace = "running"
+pixels = """
+██████HHHHHH████████
+█████HHHHHHHH███████
+████HHHHHHHHHH██████
+████HhHHHHHhHH██████
+█████hSSSSSSh███████
+████sSSSSSSSss██████
+████sSSESSESs███████
+████sSSSSSSSs███████
+█████sSSSSs█████████
+██████SSSS██████████
+█████RGGGGGR████████
+████RGGGGGGR████████
+███sCCCCCCCCs███████
+███sCCCCCCCCs███████
+███sCCCCCCCCs███████
+████CCCCCCCC████████
+████BBBBBBBB████████
+████bCCCCCCb████████
+█████CCCCCC█████████
+█████SS██SS█████████
+█████SS██SS█████████
+████Ss████sS████████
+████FF████FF████████
+████ff████ff████████
+████████████████████
+████████████████████
+████████████████████
+████████████████████
+"""
+
+[[animation.frame]]
+namespace = "running"
+pixels = """
+██████HHHHHH████████
+█████HHHHHHHH███████
+████HHHHHHHHHH██████
+████HhHHHHHhHH██████
+█████hSSSSSSh███████
+████sSSSSSSSss██████
+████sSSESSESs███████
+████sSSSSSSSs███████
+█████sSSSSs█████████
+██████SSSS██████████
+█████RGGGGGR████████
+████RGGGGGGR████████
+███sCCCCCCCCCss█████
+█ssCCCCCCCCs████████
+███sCCCCCCCCs███████
+████CCCCCCCC████████
+████BBBBBBBB████████
+████bCCCCCCb████████
+█████CCCCCC█████████
+██████SS██SS████████
+███████SS██SS███████
+████████Ss███sS█████
+████████FF████FF████
+████████ff████ff████
+████████████████████
+████████████████████
+████████████████████
+████████████████████
+"""
+
+[[animation.frame]]
+namespace = "running"
+pixels = """
+██████HHHHHH████████
+█████HHHHHHHH███████
+████HHHHHHHHHH██████
+████HhHHHHHhHH██████
+█████hSSSSSSh███████
+████sSSSSSSSss██████
+████sSSESSESs███████
+████sSSSSSSSs███████
+█████sSSSSs█████████
+██████SSSS██████████
+█████RGGGGGR████████
+████RGGGGGGR████████
+█ssCCCCCCCCs████████
+███sCCCCCCCCCss█████
+███sCCCCCCCCs███████
+████CCCCCCCC████████
+████BBBBBBBB████████
+████bCCCCCCb████████
+█████CCCCCC█████████
+████SS██SS██████████
+███SS██SS███████████
+██Ss██Ss████████████
+██FF██FF████████████
+██ff██ff████████████
+████████████████████
+████████████████████
+████████████████████
+████████████████████
+"""
+
+# Jumping - 1 frame
+[[animation]]
+namespace = "jumping"
+frame_interval = 0.3
+loop = false
+
+[[animation.frame]]
+namespace = "jumping"
+pixels = """
+██ss██████████ss████
+███ss████████ss█████
+████sHHHHHHss███████
+█████HHHHHHHH███████
+████HHHHHHHHHH██████
+████HhHHHHHhHH██████
+█████hSSSSSSh███████
+████sSSSSSSSss██████
+████sSSESSESs███████
+████sSSSSSSSs███████
+█████sSSSSs█████████
+██████SSSS██████████
+█████RGGGGGR████████
+████RGGGGGGR████████
+ss████CCCCCCCC██ss██
+s█████CCCCCCCC████s█
+██████CCCCCCCC██████
+████BBBBBBBB████████
+████bCCCCCCb████████
+█████CCCCCC█████████
+█████SSSSSS█████████
+████SSSSSSSS████████
+██████FFFF██████████
+██████ffff██████████
+████████████████████
+████████████████████
+████████████████████
+████████████████████
+"""
+
+# Falling - 1 frame
+[[animation]]
+namespace = "falling"
+frame_interval = 0.3
+loop = false
+
+[[animation.frame]]
+namespace = "falling"
+pixels = """
+██████HHHHHH████████
+█████HHHHHHHH███████
+████HHHHHHHHHH██████
+████HhHHHHHhHH██████
+█████hSSSSSSh███████
+████sSSSSSSSss██████
+████sSSESSESs███████
+████sSSSSSSSs███████
+█████sSSSSs█████████
+██████SSSS██████████
+█████RGGGGGR████████
+████RGGGGGGR████████
+ss████CCCCCCCC██ss██
+s█████CCCCCCCC████s█
+s█████CCCCCCCC█████s
+██████CCCCCCCC██████
+████BBBBBBBB████████
+████bCCCCCCb████████
+█████CCCCCC█████████
+████SS████SS████████
+███SS██████SS███████
+██SS████████SS██████
+█Ss██████████sS█████
+█FF██████████FF█████
+█ff██████████ff█████
+████████████████████
+████████████████████
+████████████████████
+"""

@@ -128,9 +128,9 @@ def lookup_pixel_char(
     """
     if len(pixel) == RGBA_COMPONENT_COUNT:
         return lookup_rgba_pixel_char(pixel, color_map, map_uses_alpha=map_uses_alpha)
-    # RGB pixel - normalize magenta to RGBA format
-    if pixel == (255, 0, 255):
-        return lookup_in_map((255, 0, 255, 255), color_map)
+    # RGB pixel - look up magenta in whichever format the color map uses
+    if pixel == MAGENTA_TRANSPARENCY_KEY:
+        return _lookup_magenta_char(color_map)
     if map_uses_alpha:
         # Try RGBA version first, then fall back to RGB
         lookup_rgba = (pixel[0], pixel[1], pixel[2], 255)
@@ -160,9 +160,9 @@ def lookup_rgba_pixel_char(
 
     """
     r, g, b, a = pixel
-    # Normalize magenta to always use RGBA format (255, 0, 255, 255)
+    # Magenta: look up in whichever format the color map uses
     if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
-        return lookup_in_map((255, 0, 255, 255), color_map)
+        return _lookup_magenta_char(color_map)
     if map_uses_alpha:
         # Map has some RGBA keys (magenta), but may have RGB keys for other colors.
         if a == MAX_COLOR_CHANNEL_VALUE:
@@ -181,8 +181,27 @@ def lookup_rgba_pixel_char(
         # Pixel has transparency, must use RGBA
         return lookup_in_map((r, g, b, a), color_map)
     # Non-alpha map: collapse to RGB for opaque, map transparent to magenta
-    lookup = (r, g, b) if a == MAX_COLOR_CHANNEL_VALUE else (255, 0, 255, 255)
-    return lookup_in_map(lookup, color_map)
+    if a != MAX_COLOR_CHANNEL_VALUE:
+        return _lookup_magenta_char(color_map)
+    return lookup_in_map((r, g, b), color_map)
+
+
+def _lookup_magenta_char(color_map: dict[tuple[int, ...], str]) -> str:
+    """Look up magenta in the color map, trying both RGB and RGBA keys.
+
+    Returns:
+        The character mapped to magenta.
+
+    Raises:
+        KeyError: If magenta is not found in either format.
+    """
+    if (255, 0, 255, 255) in color_map:
+        return color_map[255, 0, 255, 255]
+    if (255, 0, 255) in color_map:
+        return color_map[255, 0, 255]
+    raise KeyError(
+        ERR_COLOR_NOT_FOUND.format((255, 0, 255), list(color_map.keys())),
+    )
 
 
 def lookup_in_map(lookup: tuple[int, ...], color_map: dict[tuple[int, ...], str]) -> str:
@@ -211,18 +230,16 @@ def normalize_pixel_for_color_map(pixel: tuple[int, ...], *, needs_alpha: bool) 
     """
     if len(pixel) == RGBA_COMPONENT_COUNT:
         r, g, b, a = pixel
-        # Normalize magenta to always use RGBA format (255, 0, 255, 255)
-        if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
-            return (255, 0, 255, 255)
+        is_magenta = (r, g, b) == MAGENTA_TRANSPARENCY_KEY
         if needs_alpha:
-            # Use RGBA tuple for alpha-aware sprites
-            return (r, g, b, a)
-        # Convert to RGB for non-alpha sprites (but not magenta)
-        if a == MAX_COLOR_CHANNEL_VALUE:
-            return (r, g, b)
-        return (255, 0, 255, 255)  # Transparent -> magenta RGBA
-    # RGB pixel - normalize magenta to RGBA format
-    if pixel == (255, 0, 255):
+            # RGBA mode: magenta is (255,0,255,255), others keep their alpha
+            return (255, 0, 255, 255) if is_magenta else (r, g, b, a)
+        # RGB/indexed mode: collapse to 3-tuple
+        if is_magenta or a != MAX_COLOR_CHANNEL_VALUE:
+            return MAGENTA_TRANSPARENCY_KEY
+        return (r, g, b)
+    # RGB pixel: promote magenta to RGBA only for alpha-mode sprites
+    if needs_alpha and pixel == MAGENTA_TRANSPARENCY_KEY:
         return (255, 0, 255, 255)
     return pixel
 

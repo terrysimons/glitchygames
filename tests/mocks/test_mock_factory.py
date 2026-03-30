@@ -987,6 +987,10 @@ class MockFactory:  # noqa: PLR0904
         # Add duration attribute for animation timing
         mock_frame.duration = 1.0  # 1 second duration
 
+        # Add hitbox attributes (no hitbox by default)
+        mock_frame.has_explicit_hitbox = False
+        mock_frame._hitbox = None
+
         # Add pixels attribute for surface creation
         mock_frame.pixels = [pixel_color] * pixel_count
 
