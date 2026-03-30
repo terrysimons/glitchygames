@@ -6,6 +6,7 @@ This script shows the complete message structure that would be sent to the AI,
 including system prompts, training examples, and user requests.
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -13,28 +14,30 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+log: logging.Logger = logging.getLogger('game.scripts.show_ai_query')
+
 CONTENT_PREVIEW_LENGTH = 200
 MINIMUM_ARGUMENT_COUNT = 2
 
 
-def print_separator(title: str, char: str = '=', width: int = 80) -> None:
-    """Print a formatted separator with title."""
-    print(f'\n{char * width}')  # noqa: T201
-    print(f'{title:^{width}}')  # noqa: T201
-    print(f'{char * width}')  # noqa: T201
+def log_separator(title: str, char: str = '=', width: int = 80) -> None:
+    """Log a formatted separator with title."""
+    log.info('\n%s', char * width)
+    log.info('%s', f'{title:^{width}}')
+    log.info('%s', char * width)
 
 
-def print_message(message: dict[str, str], index: int) -> None:
-    """Print a formatted message."""
+def log_message(message: dict[str, str], index: int) -> None:
+    """Log a formatted message."""
     role: str = message['role']
     content: str = message['content']
-    print(f'\n--- Message {index} ({role.upper()}) ---')  # noqa: T201
-    print(f'Role: {role}')  # noqa: T201
-    print(f'Content Length: {len(content)} characters')  # noqa: T201
-    print(f'Content Preview: {content[:CONTENT_PREVIEW_LENGTH]}...')  # noqa: T201
+    log.info('\n--- Message %d (%s) ---', index, role.upper())
+    log.info('Role: %s', role)
+    log.info('Content Length: %d characters', len(content))
+    log.info('Content Preview: %s...', content[:CONTENT_PREVIEW_LENGTH])
     if len(content) > CONTENT_PREVIEW_LENGTH:
         remaining = len(content) - CONTENT_PREVIEW_LENGTH
-        print(f'[... {remaining} more characters ...]')  # noqa: T201
+        log.info('[... %d more characters ...]', remaining)
 
 
 def construct_ai_query(
@@ -45,7 +48,7 @@ def construct_ai_query(
     Returns:
         List of message dicts representing the full AI conversation.
     """
-    print_separator('BITMAPPY AI QUERY CONSTRUCTION')
+    log_separator('BITMAPPY AI QUERY CONSTRUCTION')
 
     # AI Configuration (extracted from bitmappy.py)
     ai_model: str = 'ollama:mistral-nemo:12b'
@@ -662,12 +665,12 @@ COLOR FORMAT REQUIREMENTS:
       red = 255, 0, 0
 """
 
-    print(f'AI Model: {ai_model}')  # noqa: T201
-    print(f'Max input tokens: {ai_max_input_tokens}')  # noqa: T201
-    print(f'Training format: {ai_training_format}')  # noqa: T201
+    log.info('AI Model: %s', ai_model)
+    log.info('Max input tokens: %d', ai_max_input_tokens)
+    log.info('Training format: %s', ai_training_format)
 
     # Mock training examples (since we can't load them without pygame)
-    print('\nUsing mock training examples for demonstration...')  # noqa: T201
+    log.info('\nUsing mock training examples for demonstration...')
     relevant_examples = [
         {
             'name': 'example_static_sprite',
@@ -684,7 +687,7 @@ COLOR FORMAT REQUIREMENTS:
             'animations': [{'namespace': 'walk', 'frame_interval': 0.1, 'loop': True}],
         },
     ]
-    print(f'Selected {len(relevant_examples)} mock examples')  # noqa: T201
+    log.info('Selected %d mock examples', len(relevant_examples))
 
     # Determine format instruction
     format_instruction = (
@@ -769,77 +772,73 @@ COLOR FORMAT REQUIREMENTS:
         },
     ]
 
-    # Print message summary
-    print_separator('MESSAGE STRUCTURE')
-    print(f'Total messages: {len(messages)}')  # noqa: T201
+    # Log message summary
+    log_separator('MESSAGE STRUCTURE')
+    log.info('Total messages: %d', len(messages))
 
     total_chars = sum(len(msg['content']) for msg in messages)
-    print(f'Total characters: {total_chars:,}')  # noqa: T201
+    log.info('Total characters: %s', f'{total_chars:,}')
 
     # Estimate token count (rough approximation: 1 token ~ 4 characters)
     estimated_tokens = total_chars // 4
-    print(f'Estimated tokens: {estimated_tokens:,}')  # noqa: T201
-    print(f'Max input tokens: {ai_max_input_tokens:,}')  # noqa: T201
+    log.info('Estimated tokens: %s', f'{estimated_tokens:,}')
+    log.info('Max input tokens: %s', f'{ai_max_input_tokens:,}')
     token_usage_percent = estimated_tokens / ai_max_input_tokens * 100
-    print(f'Token usage: {token_usage_percent:.1f}%')  # noqa: T201
+    log.info('Token usage: %.1f%%', token_usage_percent)
 
-    # Print each message
-    print_separator('DETAILED MESSAGE BREAKDOWN')
+    # Log each message
+    log_separator('DETAILED MESSAGE BREAKDOWN')
     for i, message in enumerate(messages):
-        print_message(message, i + 1)
+        log_message(message, i + 1)
 
         if show_full_content:
-            print('\nFull content:')  # noqa: T201
-            print('-' * 40)  # noqa: T201
-            print(message['content'])  # noqa: T201
-            print('-' * 40)  # noqa: T201
+            log.info('\nFull content:')
+            log.info('-' * 40)
+            log.info('%s', message['content'])
+            log.info('-' * 40)
 
     # Show API call parameters
-    print_separator('API CALL PARAMETERS')
+    log_separator('API CALL PARAMETERS')
 
-    print('Parameters that would be sent to AI:')  # noqa: T201
-    print(f'  model: {ai_model}')  # noqa: T201
-    print(f'  messages: {len(messages)} messages')  # noqa: T201
-    print(f'  max_tokens: {ai_max_input_tokens}')  # noqa: T201
+    log.info('Parameters that would be sent to AI:')
+    log.info('  model: %s', ai_model)
+    log.info('  messages: %d messages', len(messages))
+    log.info('  max_tokens: %d', ai_max_input_tokens)
 
     return messages
 
 
 def main() -> None:
     """Main function."""
+    logging.basicConfig(format='%(message)s', level=logging.INFO)
+
     if len(sys.argv) < MINIMUM_ARGUMENT_COUNT:
-        print(  # noqa: T201
-            'Usage: python show_ai_query.py <user_prompt> [--full-content]'
-        )
-        print('\nExamples:')  # noqa: T201
-        print("  python show_ai_query.py 'a red hat'")  # noqa: T201
-        print(  # noqa: T201
-            "  python show_ai_query.py 'animated walking character' --full-content"
-        )
+        log.info('Usage: python show_ai_query.py <user_prompt> [--full-content]')
+        log.info('\nExamples:')
+        log.info("  python show_ai_query.py 'a red hat'")
+        log.info("  python show_ai_query.py 'animated walking character' --full-content")
         sys.exit(1)
 
     user_prompt: str = sys.argv[1]
     show_full_content: bool = '--full-content' in sys.argv
 
-    print(f"User prompt: '{user_prompt}'")  # noqa: T201
-    print(f'Show full content: {show_full_content}')  # noqa: T201
+    log.info("User prompt: '%s'", user_prompt)
+    log.info('Show full content: %s', show_full_content)
 
     try:
         messages: list[dict[str, str]] = construct_ai_query(
             user_prompt, show_full_content=show_full_content
         )
 
-        print_separator('SUMMARY')
-        print(  # noqa: T201
-            f'Successfully constructed AI query with {len(messages)} messages'
+        log_separator('SUMMARY')
+        log.info(
+            'Successfully constructed AI query with %d messages',
+            len(messages),
         )
-        print('Ready to send to ollama:mistral-nemo:12b')  # noqa: T201
+        log.info('Ready to send to ollama:mistral-nemo:12b')
 
-    except Exception as exception:  # noqa: BLE001
-        print(f'Error: {exception}')  # noqa: T201
-        import traceback
-
-        traceback.print_exc()
+    except Exception:
+        log.exception('Error constructing AI query')
         sys.exit(1)
 
 

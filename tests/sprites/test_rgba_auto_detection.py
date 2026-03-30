@@ -180,7 +180,7 @@ class TestAnimatedSpriteRGBRGBA:
             },
         }
 
-        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, color_order, original_alpha_values = AnimatedSprite.build_color_map(data)
 
         assert color_map['R'] == (255, 0, 0)
         assert color_map['G'] == (0, 255, 0)
@@ -200,7 +200,7 @@ class TestAnimatedSpriteRGBRGBA:
             },
         }
 
-        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, color_order, original_alpha_values = AnimatedSprite.build_color_map(data)
 
         # Explicit alpha=255 is stored as RGBA 4-tuple to preserve the explicit declaration
         assert color_map['R'] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
@@ -219,7 +219,7 @@ class TestAnimatedSpriteRGBRGBA:
             },
         }
 
-        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, color_order, original_alpha_values = AnimatedSprite.build_color_map(data)
 
         # Should be RGB since alpha was not specified (indexed color)
         assert color_map['R'] == (255, 0, 0)  # RGB
@@ -236,7 +236,7 @@ class TestAnimatedSpriteRGBRGBA:
             },
         }
 
-        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, color_order, original_alpha_values = AnimatedSprite.build_color_map(data)
 
         # Explicit alpha=255 is stored as RGBA 4-tuple to preserve the explicit declaration
         assert color_map['R'] == (255, 0, 0, 255)  # RGBA
@@ -255,7 +255,7 @@ class TestAnimatedSpriteRGBRGBA:
             },
         }
 
-        color_map, color_order, original_alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, color_order, original_alpha_values = AnimatedSprite.build_color_map(data)
 
         assert color_map['R'] == (255, 0, 0)  # RGB
         assert color_map['G'] == (0, 255, 0, 128)  # RGBA

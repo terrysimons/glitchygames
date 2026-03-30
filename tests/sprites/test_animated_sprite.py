@@ -1620,7 +1620,7 @@ blue = 255
 
 
 class TestAnimatedSpriteBuildColorMap:
-    """Test AnimatedSprite._build_color_map static method."""
+    """Test AnimatedSprite.build_color_map static method."""
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self, mocker):
@@ -1635,7 +1635,7 @@ class TestAnimatedSpriteBuildColorMap:
                 '.': {'red': 255, 'green': 255, 'blue': 255},
             },
         }
-        color_map, color_order, alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, color_order, alpha_values = AnimatedSprite.build_color_map(data)
         assert '#' in color_map
         assert '.' in color_map
         assert color_map['#'] == (0, 0, 0)
@@ -1650,7 +1650,7 @@ class TestAnimatedSpriteBuildColorMap:
                 '#': {'red': 255, 'green': 0, 'blue': 0, 'alpha': 128},
             },
         }
-        color_map, _color_order, alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, _color_order, alpha_values = AnimatedSprite.build_color_map(data)
         assert color_map['#'] == (255, 0, 0, 128)
         assert '#' in alpha_values
         assert alpha_values['#'] == 128
@@ -1662,14 +1662,14 @@ class TestAnimatedSpriteBuildColorMap:
                 '#': {'red': 0, 'green': 0, 'blue': 0, 'alpha': 255},
             },
         }
-        color_map, _color_order, alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, _color_order, alpha_values = AnimatedSprite.build_color_map(data)
         assert color_map['#'] == (0, 0, 0, 255)
         assert '#' not in alpha_values
 
     def test_build_color_map_empty(self):
         """Test _build_color_map with no colors section."""
         data = {}
-        color_map, color_order, alpha_values = AnimatedSprite._build_color_map(data)
+        color_map, color_order, alpha_values = AnimatedSprite.build_color_map(data)
         assert color_map == {}
         assert color_order == []
         assert alpha_values == {}

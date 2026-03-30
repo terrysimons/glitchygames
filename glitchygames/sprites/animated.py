@@ -30,6 +30,8 @@ from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .frame import FrameManager, SpriteFrame
 from .pixel_utils import (
     PIXEL_ARRAY_SHAPE_DIMENSIONS,
+    compute_bounding_box_from_pixels,
+    compute_envelope_bounding_box,
     convert_pixels_to_rgb_if_possible,
     convert_pixels_to_rgba_if_needed,
     create_alpha_surface,
@@ -692,7 +694,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
         self._animations = {}
         self._animation_order: list[str] = []
 
-        color_map, color_order, colors_with_per_pixel_alpha = self._build_color_map(data)
+        color_map, color_order, colors_with_per_pixel_alpha = self.build_color_map(data)
         self._color_map = color_map  # Store color map for later use
         self._color_order = color_order  # Store color order for preserving file format
         # Store which colors originally had alpha=0-254 (per-pixel
@@ -821,7 +823,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
         )
 
     @staticmethod
-    def _build_color_map(
+    def build_color_map(
         data: dict[str, Any],
     ) -> tuple[dict[str, tuple[int, ...]], list[str], dict[str, int]]:
         """Build color map from TOML colors section.
@@ -923,7 +925,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
         self.log.debug(f'  Processing frame {frame_index} (data index {frame_idx})')
 
         pixel_data = frame_data.get('pixels', '')
-        pixel_lines = AnimatedSprite._parse_toml_pixel_lines(pixel_data)
+        pixel_lines = AnimatedSprite.parse_toml_pixel_lines(pixel_data)
 
         if not pixel_lines:
             self.log.debug(f'    Skipping empty frame {frame_index}')
@@ -978,7 +980,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
         )
 
     @staticmethod
-    def _parse_toml_pixel_lines(pixel_data: str) -> list[str]:
+    def parse_toml_pixel_lines(pixel_data: str) -> list[str]:
         """Parse pixel data string into lines.
 
         Returns:
@@ -1525,6 +1527,28 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
         return colors
 
+    def _auto_compute_envelope_hitbox(self: Self) -> dict[str, int] | None:
+        """Auto-compute a sprite-level envelope hitbox from all animation frames.
+
+        Computes per-frame bounding boxes from pixel data and returns
+        their union envelope. Used during save when no explicit hitbox
+        is set.
+
+        Returns:
+            Hitbox dict with offset_x, offset_y, width, height keys,
+            or None if all frames are fully transparent.
+
+        """
+        per_frame_boxes: list[dict[str, int]] = []
+        for frames in self._animations.values():
+            for frame in frames:
+                pixels = frame.get_pixel_data()
+                width, height = frame.get_size()
+                bounding_box = compute_bounding_box_from_pixels(pixels, width, height)
+                if bounding_box is not None:
+                    per_frame_boxes.append(bounding_box)
+        return compute_envelope_bounding_box(per_frame_boxes)
+
     def _build_toml_data_structure(
         self: Self,
         color_map: dict[tuple[int, ...], str],
@@ -1540,7 +1564,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
             'description': self.description or '',
         }
 
-        # Include sprite-level hitbox if one is explicitly set
+        # Include sprite-level hitbox: use explicit if set, otherwise auto-compute
         if self._default_hitbox is not None:
             sprite_section['hitbox'] = {
                 'offset_x': self._default_hitbox.x,
@@ -1548,6 +1572,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
                 'width': self._default_hitbox.width,
                 'height': self._default_hitbox.height,
             }
+        else:
+            # Auto-compute envelope hitbox from all animation frames
+            auto_hitbox = self._auto_compute_envelope_hitbox()
+            if auto_hitbox is not None:
+                sprite_section['hitbox'] = auto_hitbox
 
         data: dict[str, Any] = {
             'sprite': sprite_section,
@@ -1624,7 +1653,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
             'pixels': '\n'.join(pixel_chars),
         }
 
-        # Include per-frame hitbox only if explicitly set on this frame
+        # Include per-frame hitbox: use explicit if set, otherwise auto-compute
         if frame.has_explicit_hitbox:
             hitbox = frame.hitbox
             frame_data['hitbox'] = {
@@ -1633,6 +1662,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
                 'width': hitbox.width,
                 'height': hitbox.height,
             }
+        else:
+            # Auto-compute tight bounding box from pixel data
+            auto_hitbox = compute_bounding_box_from_pixels(pixels, width, height)
+            if auto_hitbox is not None:
+                frame_data['hitbox'] = auto_hitbox
 
         return frame_data
 

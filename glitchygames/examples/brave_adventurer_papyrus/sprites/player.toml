@@ -2,6 +2,13 @@
 name = "brave_adventurer"
 description = "Egyptian adventurer at 20x28, scaled 2x at runtime to 40x56"
 
+[sprite.hitbox]
+offset_x = 0
+offset_y = 0
+width = 20
+height = 27
+
+
 [colors]
 "█" = { red = 255, green = 0, blue = 255 }
 "H" = { red = 40, green = 30, blue = 20 }
@@ -57,6 +64,13 @@ pixels = """
 ████████████████████
 """
 
+[animation.frame.hitbox]
+offset_x = 3
+offset_y = 0
+width = 11
+height = 27
+
+
 [[animation.frame]]
 namespace = "idle"
 pixels = """
@@ -89,6 +103,13 @@ pixels = """
 ████ff████ff████████
 ████████████████████
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 0
+width = 12
+height = 27
+
 
 # Running - 4 frames
 [[animation]]
@@ -129,6 +150,13 @@ pixels = """
 ████████████████████
 """
 
+[animation.frame.hitbox]
+offset_x = 1
+offset_y = 0
+width = 14
+height = 25
+
+
 [[animation.frame]]
 namespace = "running"
 pixels = """
@@ -161,6 +189,13 @@ pixels = """
 ████████████████████
 ████████████████████
 """
+
+[animation.frame.hitbox]
+offset_x = 3
+offset_y = 0
+width = 11
+height = 24
+
 
 [[animation.frame]]
 namespace = "running"
@@ -195,6 +230,13 @@ pixels = """
 ████████████████████
 """
 
+[animation.frame.hitbox]
+offset_x = 1
+offset_y = 0
+width = 15
+height = 24
+
+
 [[animation.frame]]
 namespace = "running"
 pixels = """
@@ -227,6 +269,13 @@ pixels = """
 ████████████████████
 ████████████████████
 """
+
+[animation.frame.hitbox]
+offset_x = 1
+offset_y = 0
+width = 14
+height = 24
+
 
 # Jumping - 1 frame
 [[animation]]
@@ -267,6 +316,13 @@ s█████CCCCCCCC████s█
 ████████████████████
 """
 
+[animation.frame.hitbox]
+offset_x = 0
+offset_y = 0
+width = 19
+height = 24
+
+
 # Falling - 1 frame
 [[animation]]
 namespace = "falling"
@@ -305,3 +361,9 @@ s█████CCCCCCCC█████s
 ████████████████████
 ████████████████████
 """
+
+[animation.frame.hitbox]
+offset_x = 0
+offset_y = 0
+width = 20
+height = 25

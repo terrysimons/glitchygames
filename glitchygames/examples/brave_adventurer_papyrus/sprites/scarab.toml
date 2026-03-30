@@ -2,6 +2,13 @@
 name = "scarab"
 description = "Rolling scarab beetle enemy"
 
+[sprite.hitbox]
+offset_x = 1
+offset_y = 0
+width = 8
+height = 7
+
+
 [colors]
 "█" = { red = 255, green = 0, blue = 255 }
 "b" = { red = 40, green = 60, blue = 100 }

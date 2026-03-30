@@ -7,6 +7,7 @@ including system prompts, training examples, and user requests.
 
 from __future__ import annotations
 
+import logging
 import sys
 import typing
 from pathlib import Path
@@ -32,6 +33,8 @@ from glitchygames.ui import MultiLineTextBox  # noqa: E402
 
 if typing.TYPE_CHECKING:
     from glitchygames import events
+
+log: logging.Logger = logging.getLogger('game.scripts.ai_query_inspector')
 
 # --- Magic value constants ---
 CONTENT_PREVIEW_LENGTH: int = 200
@@ -125,9 +128,9 @@ class AIQueryInspectorScene(Scene):
             load_ai_training_data()
             self.training_data_loaded = True
             training_data = cast('list[Any]', ai_training_state['data'])
-            print(f'Loaded {len(training_data)} training examples')  # noqa: T201
+            log.info('Loaded %d training examples', len(training_data))
         except (TypeError, OSError, ValueError) as exception:
-            print(f'Warning: Could not load training data: {exception}')  # noqa: T201
+            log.warning('Could not load training data: %s', exception)
             self.training_data_loaded = False
 
     @override

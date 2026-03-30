@@ -2,6 +2,13 @@
 name = "gold_scarab"
 description = "Collectible gold scarab with shimmer animation"
 
+[sprite.hitbox]
+offset_x = 1
+offset_y = 0
+width = 8
+height = 8
+
+
 [colors]
 "█" = { red = 255, green = 0, blue = 255 }
 "O" = { red = 220, green = 190, blue = 50 }

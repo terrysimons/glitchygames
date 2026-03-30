@@ -35,6 +35,13 @@ pixels = """
 ................................
 """
 
+[sprite.hitbox]
+offset_x = 5
+offset_y = 0
+width = 22
+height = 19
+
+
 [colors]
 "." = { red = 255, green = 0, blue = 255 }
 "a" = { red = 0, green = 0, blue = 0 }

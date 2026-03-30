@@ -2,6 +2,13 @@
 name = "cobra"
 description = "Egyptian cobra enemy with idle sway and strike animations"
 
+[sprite.hitbox]
+offset_x = 2
+offset_y = 1
+width = 8
+height = 13
+
+
 [colors]
 "█" = { red = 255, green = 0, blue = 255 }
 "G" = { red = 80, green = 120, blue = 60 }
@@ -36,6 +43,13 @@ pixels = """
 ████████████
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 1
+width = 8
+height = 13
+
+
 [[animation.frame]]
 namespace = "idle"
 pixels = """
@@ -56,6 +70,13 @@ pixels = """
 ████████████
 ████████████
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 1
+width = 8
+height = 13
+
 
 # Strike animation - head lunges forward
 [[animation]]
@@ -84,6 +105,13 @@ pixels = """
 ████████████
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 2
+width = 8
+height = 12
+
+
 [[animation.frame]]
 namespace = "strike"
 pixels = """
@@ -104,3 +132,9 @@ pixels = """
 ████████████
 ████████████
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 3
+width = 8
+height = 11

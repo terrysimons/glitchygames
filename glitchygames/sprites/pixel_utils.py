@@ -267,6 +267,191 @@ def extract_pixel_colors(
     return pixels
 
 
+def is_pixel_transparent(
+    char: str,
+    color_map: dict[str, tuple[int, ...]],
+) -> bool:
+    """Check if a pixel character represents a transparent pixel.
+
+    A pixel is transparent if:
+    - Its color is RGB magenta (255, 0, 255) -- the indexed transparency key
+    - Its color is RGBA with alpha == 0 -- fully transparent per-pixel alpha
+    - Its color is RGBA magenta (255, 0, 255, 255) -- magenta stored as RGBA
+    - The character has no color map entry (defaults to magenta)
+
+    Semi-transparent pixels (alpha 1-254) are treated as OPAQUE for bounding
+    box purposes since they are visually present.
+
+    Args:
+        char: Single character from the pixel grid.
+        color_map: Maps characters to RGB or RGBA color tuples.
+
+    Returns:
+        True if the pixel is fully transparent.
+
+    """
+    color = color_map.get(char, MAGENTA_TRANSPARENCY_KEY)
+    if len(color) == RGBA_COMPONENT_COUNT:
+        red, green, blue, alpha = color
+        # Fully transparent per-pixel alpha
+        if alpha == 0:
+            return True
+        # Magenta stored as RGBA (opaque magenta = transparency key)
+        # Semi-transparent (alpha 1-254) or opaque non-magenta = visible
+        return (red, green, blue) == MAGENTA_TRANSPARENCY_KEY and alpha == MAX_COLOR_CHANNEL_VALUE
+    # RGB: only magenta is transparent
+    return color == MAGENTA_TRANSPARENCY_KEY
+
+
+def is_color_transparent(color: tuple[int, ...]) -> bool:
+    """Check if a color tuple represents a transparent pixel.
+
+    Same logic as is_pixel_transparent but operates on resolved color
+    tuples rather than character lookups. Useful when working with raw
+    pixel data from surfaces.
+
+    Args:
+        color: RGB or RGBA color tuple.
+
+    Returns:
+        True if the color is fully transparent.
+
+    """
+    if len(color) == RGBA_COMPONENT_COUNT:
+        red, green, blue, alpha = color
+        if alpha == 0:
+            return True
+        return (red, green, blue) == MAGENTA_TRANSPARENCY_KEY and alpha == MAX_COLOR_CHANNEL_VALUE
+    return color == MAGENTA_TRANSPARENCY_KEY
+
+
+def compute_bounding_box_from_pixels(
+    pixels: Sequence[tuple[int, ...]],
+    width: int,
+    height: int,
+) -> dict[str, int] | None:
+    """Compute the smallest bounding box from a flat list of pixel color tuples.
+
+    Works directly on pixel data (RGB/RGBA tuples) without needing a
+    color map. Suitable for use in the save pipeline where pixel data
+    is already resolved.
+
+    Args:
+        pixels: Flat list of color tuples, row-major order.
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+
+    Returns:
+        Dict with offset_x, offset_y, width, height keys, or None if
+        the frame is fully transparent.
+
+    """
+    expected_pixel_count = width * height
+    min_x = float('inf')
+    min_y = float('inf')
+    max_x = float('-inf')
+    max_y = float('-inf')
+
+    for index, color in enumerate(pixels[:expected_pixel_count]):
+        if not is_color_transparent(color):
+            x = index % width
+            y = index // width
+            min_x = min(min_x, x)
+            min_y = min(min_y, y)
+            max_x = max(max_x, x)
+            max_y = max(max_y, y)
+
+    if min_x == float('inf'):
+        return None
+
+    return {
+        'offset_x': int(min_x),
+        'offset_y': int(min_y),
+        'width': int(max_x - min_x + 1),
+        'height': int(max_y - min_y + 1),
+    }
+
+
+def compute_bounding_box(
+    pixel_lines: list[str],
+    color_map: dict[str, tuple[int, ...]],
+) -> dict[str, int] | None:
+    """Compute the smallest bounding box enclosing all opaque pixels.
+
+    Iterates through the pixel grid and finds the tightest rectangle
+    that contains all non-transparent pixels.
+
+    Args:
+        pixel_lines: List of pixel row strings from a TOML sprite frame.
+        color_map: Maps characters to RGB or RGBA color tuples.
+
+    Returns:
+        Dict with offset_x, offset_y, width, height keys matching the
+        hitbox TOML format, or None if the frame is fully transparent.
+
+    """
+    min_x = float('inf')
+    min_y = float('inf')
+    max_x = float('-inf')
+    max_y = float('-inf')
+
+    for y, row in enumerate(pixel_lines):
+        for x, char in enumerate(row):
+            if not is_pixel_transparent(char, color_map):
+                min_x = min(min_x, x)
+                min_y = min(min_y, y)
+                max_x = max(max_x, x)
+                max_y = max(max_y, y)
+
+    if min_x == float('inf'):
+        # Fully transparent frame -- no opaque pixels found
+        return None
+
+    return {
+        'offset_x': int(min_x),
+        'offset_y': int(min_y),
+        'width': int(max_x - min_x + 1),
+        'height': int(max_y - min_y + 1),
+    }
+
+
+def compute_envelope_bounding_box(
+    bounding_boxes: list[dict[str, int]],
+) -> dict[str, int] | None:
+    """Compute the union envelope of multiple bounding boxes.
+
+    Returns the smallest rectangle that encompasses all provided
+    bounding boxes. Useful for computing a sprite-level hitbox
+    that covers all animation frames.
+
+    Args:
+        bounding_boxes: List of per-frame bounding box dicts, each with
+            offset_x, offset_y, width, height keys.
+
+    Returns:
+        Union bounding box dict, or None if the input list is empty.
+
+    """
+    if not bounding_boxes:
+        return None
+
+    envelope_min_x = min(bounding_box['offset_x'] for bounding_box in bounding_boxes)
+    envelope_min_y = min(bounding_box['offset_y'] for bounding_box in bounding_boxes)
+    envelope_max_x = max(
+        bounding_box['offset_x'] + bounding_box['width'] for bounding_box in bounding_boxes
+    )
+    envelope_max_y = max(
+        bounding_box['offset_y'] + bounding_box['height'] for bounding_box in bounding_boxes
+    )
+
+    return {
+        'offset_x': envelope_min_x,
+        'offset_y': envelope_min_y,
+        'width': envelope_max_x - envelope_min_x,
+        'height': envelope_max_y - envelope_min_y,
+    }
+
+
 def create_alpha_surface(
     width: int,
     height: int,
