@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import secrets
 import time
 from typing import TYPE_CHECKING, Self, override
 
 if TYPE_CHECKING:
-    import logging
     from collections.abc import Callable
 
 import pygame
@@ -18,6 +18,8 @@ from glitchygames import game_objects
 from glitchygames.color import WHITE
 from glitchygames.movement import Speed
 from glitchygames.sprites import Sprite
+
+log: logging.Logger = logging.getLogger('game.objects.ball')
 
 # Threshold below which speed changes are considered noise
 SPEED_CHANGE_NOISE_FLOOR = 0.001
@@ -324,12 +326,9 @@ class BallSprite(Sprite):
             multiplier = self.speed_up_multiplier
 
         if speed_up_type == 'linear':
-            # Linear speed-up: preserve direction by scaling magnitude
-            current_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
-            if current_magnitude > 0:
-                new_magnitude = current_magnitude * multiplier
-                self.speed.x = (self.speed.x / current_magnitude) * new_magnitude
-                self.speed.y = (self.speed.y / current_magnitude) * new_magnitude
+            # Linear speed-up: scale both components equally (preserves direction)
+            self.speed.x *= multiplier
+            self.speed.y *= multiplier
         elif speed_up_type == 'logarithmic_x':
             # Logarithmic X speed-up: only scale X component
             self.speed.x *= multiplier
@@ -497,9 +496,6 @@ class BallSprite(Sprite):
         current_time = time.time()
 
         # Debug log speed changes
-        import logging
-
-        log = logging.getLogger('game')
         old_speed_x, old_speed_y = self.speed.x, self.speed.y
         old_magnitude = math.sqrt(old_speed_x**2 + old_speed_y**2)
 
@@ -520,11 +516,6 @@ class BallSprite(Sprite):
         # Calculate movement
         move_x = self.speed.x * dt
         move_y = self.speed.y * dt
-
-        # Debug log movement calculation
-        import logging
-
-        log = logging.getLogger('game')
 
         # Check for weird upward curving behavior
         if abs(move_y) > SIGNIFICANT_MOVEMENT_THRESHOLD:  # Only log significant Y movement
@@ -595,9 +586,6 @@ class BallSprite(Sprite):
             None
 
         """
-        import logging
-
-        log = logging.getLogger('game')
         log.debug(
             f'BALL BOUNCE CHECK: pos=({self.rect.x},{self.rect.y}) '
             f'speed=({self.speed.x:.3f},{self.speed.y:.3f}) '
@@ -785,15 +773,9 @@ class BallSprite(Sprite):
             # Enhanced corner physics - both X and Y components are reflected
             speed_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
             if speed_magnitude > 0:
-                # For corner collisions, both components are reflected
-                if in_top_left or in_bottom_right:
-                    # Diagonal reflection: both X and Y are reversed
-                    self.speed.x = abs(self.speed.x) if self.speed.x < 0 else -abs(self.speed.x)
-                    self.speed.y = abs(self.speed.y) if self.speed.y < 0 else -abs(self.speed.y)
-                elif in_top_right or in_bottom_left:
-                    # Diagonal reflection: both X and Y are reversed
-                    self.speed.x = -abs(self.speed.x) if self.speed.x > 0 else abs(self.speed.x)
-                    self.speed.y = abs(self.speed.y) if self.speed.y < 0 else -abs(self.speed.y)
+                # Corner collision: reflect both velocity components
+                self.speed.x = -self.speed.x
+                self.speed.y = -self.speed.y
 
                 # Add special visual feedback for corner collisions
                 self._add_collision_visual_feedback('corner', log)
@@ -897,15 +879,19 @@ class BallSprite(Sprite):
         if paddle_sound is not None:
             paddle_sound.play()
 
-        # Check for paddle bounce speed-up (this triggers ball spawn)
-        self._check_bounce_speed_up('paddle')
-
-        # Cap speed after paddle collision to prevent runaway physics
-        max_speed = 500.0  # Maximum speed in pixels per second
+        # Speed-up on paddle collision, with cap to prevent runaway physics.
+        # Only apply speed-up if below the cap to avoid oscillation where
+        # speed-up pushes past the cap, gets clamped, then repeats.
+        max_speed = 500.0
         speed_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
-        if speed_magnitude > max_speed:
-            # Scale down the speed while preserving direction
-            scale_factor = max_speed / speed_magnitude
+        if speed_magnitude < max_speed:
+            self._check_bounce_speed_up('paddle')
+
+        # Always clamp to max speed (handles both speed-up overshoot
+        # and balls that entered the collision already above cap)
+        capped_magnitude = math.sqrt(self.speed.x**2 + self.speed.y**2)
+        if capped_magnitude > max_speed:
+            scale_factor = max_speed / capped_magnitude
             self.speed.x *= scale_factor
             self.speed.y *= scale_factor
 

@@ -295,9 +295,7 @@ class TestBallBoundaryPhysics:
             speed_up_mode=SpeedUpMode.NONE,
         )
 
-        mock_logger = mocker.patch('logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_logger.return_value = mock_log
+        mock_log = mocker.patch('glitchygames.game_objects.ball.log')
 
         assert ball.rect is not None
         ball.rect.y = -5
