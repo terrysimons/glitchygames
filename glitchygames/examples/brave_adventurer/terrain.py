@@ -23,7 +23,7 @@ from glitchygames.examples.brave_adventurer.drawing import (
 from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
-    from glitchygames.examples.brave_adventurer.camera import Camera
+    from glitchygames.camera import Camera2D
 
 
 class GroundSegment(Sprite):
@@ -66,7 +66,7 @@ class GroundSegment(Sprite):
         self.segment_width: int = segment_width
         self.dirty = 1
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:
@@ -125,7 +125,7 @@ class StoneWall(Sprite):
         self.wall_height: int = wall_height
         self.dirty = 1
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:
@@ -196,7 +196,7 @@ class GoldScarab(Sprite):
         self.bob_timer += dt
         self.world_y = self.base_world_y + math.sin(self.bob_timer * 3.0) * 4.0
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:

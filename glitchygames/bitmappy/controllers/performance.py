@@ -120,7 +120,8 @@ class CachedPositionManager:
         """
         self.cache: dict[tuple[int, int, int], tuple[int, int]] = {}
         self.cache_size = cache_size
-        self.access_times: dict[tuple[int, int, int], float] = {}
+        self._access_counter: int = 0
+        self.access_order: dict[tuple[int, int, int], int] = {}
         self.lock = threading.Lock()
 
     def get_position(
@@ -144,7 +145,8 @@ class CachedPositionManager:
 
         with self.lock:
             if key in self.cache:
-                self.access_times[key] = time.time()
+                self._access_counter += 1
+                self.access_order[key] = self._access_counter
                 return self.cache[key]
 
         return None
@@ -173,22 +175,24 @@ class CachedPositionManager:
                 self._evict_oldest()
 
             self.cache[key] = position
-            self.access_times[key] = time.time()
+            self._access_counter += 1
+            self.access_order[key] = self._access_counter
 
     def _evict_oldest(self) -> None:
-        """Evict oldest cache entry."""
-        if not self.access_times:
+        """Evict the least recently accessed cache entry."""
+        if not self.access_order:
             return
 
-        oldest_key = min(self.access_times.keys(), key=lambda k: self.access_times[k])
+        oldest_key = min(self.access_order.keys(), key=lambda k: self.access_order[k])
         del self.cache[oldest_key]
-        del self.access_times[oldest_key]
+        del self.access_order[oldest_key]
 
     def clear_cache(self) -> None:
         """Clear all cached positions."""
         with self.lock:
             self.cache.clear()
-            self.access_times.clear()
+            self.access_order.clear()
+            self._access_counter = 0
 
     def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics.

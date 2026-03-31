@@ -57,6 +57,7 @@ glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
 brave-adventurer = "glitchygames.examples.brave_adventurer:main"
 brave-adventurer-papyrus = "glitchygames.examples.brave_adventurer_papyrus:main"
+paddleslap = "glitchygames.examples.paddleslap:main"
 
 [project.optional-dependencies]
 docs = [
@@ -213,6 +214,18 @@ fixable = ["ALL"]
 ]
 "scripts/**/*.py" = [
   "TC003", # Scripts use stdlib imports at runtime, not just for type checking
+]
+"glitchygames/effects/easing.py" = [
+  "DOC201",  # Easing functions are pure math; return type is obvious (float)
+  "PLR2004", # Mathematical constants (0.5 midpoint, Penner coefficients) are standard
+  "RUF069",  # Float equality (t == 0.0, t == 1.0) is intentional for Penner boundary conditions
+]
+"glitchygames/effects/tween.py" = [
+  "PLR0913", # Tween.__init__ needs many parameters (target, property, start, end, duration, easing, etc.)
+  "PLR0917", # Same as above -- many positional args are the natural API
+]
+"glitchygames/camera.py" = [
+  "PLR0913", # Camera2D and ParallaxLayer constructors need many configuration params
 ]
 "glitchygames/ui/menus.py" = [
   "PLR0913", # Menu constructors need geometry + identity + container params

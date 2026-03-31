@@ -24,7 +24,7 @@ from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
 from glitchygames.sprites import AnimatedSprite
 
 if TYPE_CHECKING:
-    from glitchygames.examples.brave_adventurer.camera import Camera
+    from glitchygames.camera import Camera2D
 
 
 class PapyrusCobra(AnimatedSprite):
@@ -92,7 +92,7 @@ class PapyrusCobra(AnimatedSprite):
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:
@@ -165,7 +165,7 @@ class PapyrusScarab(AnimatedSprite):
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:
@@ -258,7 +258,7 @@ class PapyrusScorpion(AnimatedSprite):
         if not self.facing_right:
             self.image = pygame.transform.flip(self.image, flip_x=True, flip_y=False)
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:

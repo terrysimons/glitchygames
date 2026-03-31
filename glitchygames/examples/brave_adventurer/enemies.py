@@ -24,7 +24,7 @@ from glitchygames.examples.brave_adventurer.drawing import (
 from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
-    from glitchygames.examples.brave_adventurer.camera import Camera
+    from glitchygames.camera import Camera2D
 
 
 class Cobra(Sprite):
@@ -93,7 +93,7 @@ class Cobra(Sprite):
         self.image.fill((0, 0, 0, 0))
         draw_cobra(self.image, striking=self.striking, animation_timer=self.dt_timer)
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:
@@ -169,7 +169,7 @@ class Scarab(Sprite):
         self.image.fill((0, 0, 0, 0))
         draw_scarab(self.image, self.roll_angle)
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:
@@ -259,7 +259,7 @@ class Scorpion(Sprite):
         self.image.fill((0, 0, 0, 0))
         draw_scorpion(self.image, facing_right=self.facing_right)
 
-    def apply_camera(self, camera: Camera) -> None:
+    def apply_camera(self, camera: Camera2D) -> None:
         """Update screen position from camera transform.
 
         Args:

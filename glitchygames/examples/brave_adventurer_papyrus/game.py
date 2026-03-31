@@ -12,22 +12,26 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.camera import Camera2D
 from glitchygames.engine import GameEngine
-from glitchygames.examples.brave_adventurer.camera import Camera
 from glitchygames.examples.brave_adventurer.drawing import (
     draw_dunes_and_oasis,
     draw_near_ground_details,
     draw_pyramids,
     draw_sky,
 )
-from glitchygames.examples.brave_adventurer.parallax import ParallaxLayer
 from glitchygames.examples.brave_adventurer.sounds import GameSounds
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
+    CAMERA_LEAD,
     COLLECTIBLE_SCORE_BONUS,
     DISTANCE_SCORE_DIVISOR,
     GROUND_Y,
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
+    LAYER_FAR_BACKGROUND,
+    LAYER_MID_BACKGROUND,
+    LAYER_NEAR_BACKGROUND,
+    LAYER_SKY,
     PAPYRUS_GOLD_SCARAB_SIZE,
     PAPYRUS_PLAYER_HEIGHT,
     PAPYRUS_PLAYER_WIDTH,
@@ -89,44 +93,37 @@ class PapyrusBraveAdventurerScene(Scene):
         # Set background to sky color
         self.background_color = SKY_COLOR
 
-        # Camera
-        self.camera = Camera(
+        # Camera with parallax background layers
+        self.camera = Camera2D(
             screen_width=self.screen_width,
             screen_height=self.screen_height,
+            lead_x=CAMERA_LEAD,
         )
+        self.camera.set_bounds(min_x=0.0)
 
-        # Parallax background layers (shared from original edition)
-        self.sky_layer = ParallaxLayer(
+        self.camera.add_background_layer(
             scroll_factor=PARALLAX_SKY,
             draw_function=draw_sky,
-            layer_depth=0,
+            layer_depth=LAYER_SKY,
             groups=self.all_sprites,
-            screen_width=self.screen_width,
-            screen_height=self.screen_height,
         )
-        self.pyramid_layer = ParallaxLayer(
+        self.camera.add_background_layer(
             scroll_factor=PARALLAX_FAR,
             draw_function=draw_pyramids,
-            layer_depth=1,
+            layer_depth=LAYER_FAR_BACKGROUND,
             groups=self.all_sprites,
-            screen_width=self.screen_width,
-            screen_height=self.screen_height,
         )
-        self.dune_layer = ParallaxLayer(
+        self.camera.add_background_layer(
             scroll_factor=PARALLAX_MID,
             draw_function=draw_dunes_and_oasis,
-            layer_depth=2,
+            layer_depth=LAYER_MID_BACKGROUND,
             groups=self.all_sprites,
-            screen_width=self.screen_width,
-            screen_height=self.screen_height,
         )
-        self.ground_detail_layer = ParallaxLayer(
+        self.camera.add_background_layer(
             scroll_factor=PARALLAX_NEAR,
             draw_function=draw_near_ground_details,
-            layer_depth=3,
+            layer_depth=LAYER_NEAR_BACKGROUND,
             groups=self.all_sprites,
-            screen_width=self.screen_width,
-            screen_height=self.screen_height,
         )
 
         # Build the level (papyrus enemies + collectibles, primitive terrain)
@@ -217,18 +214,26 @@ class PapyrusBraveAdventurerScene(Scene):
         # 5. Wall collision
         self._resolve_player_wall_collision()
 
-        # 6. Pit death check
-        if self.player.world_y > self.screen_height + PIT_DEATH_THRESHOLD:
+        # 6. Pit death check (skip during respawn animation)
+        if (
+            not self.player.is_respawning
+            and self.player.world_y > self.screen_height + PIT_DEATH_THRESHOLD
+        ):
             self._player_die()
 
-        # 7. Enemy collision
-        self._check_enemy_collisions()
+        # 7. Enemy collision (skip during respawn invincibility)
+        if not self.player.is_respawning:
+            self._check_enemy_collisions()
 
         # 8. Collectible pickup
         self._check_collectible_collisions()
 
         # 9. Update camera to follow player
-        self.camera.update(self.player.world_x)
+        self.camera.update(
+            target_x=self.player.world_x,
+            target_y=0.0,
+            dt=self.dt,
+        )
 
         # 10. Apply camera transform to all world-space sprites
         self.player.apply_camera(self.camera)
@@ -241,11 +246,7 @@ class PapyrusBraveAdventurerScene(Scene):
         for collectible in self.collectible_sprites:
             collectible.apply_camera(self.camera)
 
-        # 11. Update parallax backgrounds
-        self.sky_layer.update_scroll(self.camera.world_x)
-        self.pyramid_layer.update_scroll(self.camera.world_x)
-        self.dune_layer.update_scroll(self.camera.world_x)
-        self.ground_detail_layer.update_scroll(self.camera.world_x)
+        # 11. Distance score (parallax updated automatically by Camera2D)
 
         # 12. Update distance score
         self.player.max_distance = max(self.player.max_distance, self.player.world_x)
@@ -415,16 +416,45 @@ class PapyrusBraveAdventurerScene(Scene):
             self.next_scene = game_over_scene
         else:
             self.sounds.play_death()
-            self.player.world_x = max(0, self.player.world_x - RESPAWN_OFFSET)
-            self.player.world_y = GROUND_Y - PAPYRUS_PLAYER_HEIGHT
-            self.player.velocity_x = 0.0
-            self.player.velocity_y = 0.0
-            self.player.on_ground = True
+            self._respawn_player()
 
-            if self._moving_right:
-                self.player.move_right()
-            elif self._moving_left:
-                self.player.move_left()
+    def _respawn_player(self: Self) -> None:
+        """Respawn the player with a fade-out/fade-in animation."""
+        self.player.is_respawning = True
+        self.player.velocity_x = 0.0
+        self.player.velocity_y = 0.0
+
+        respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)
+
+        def _reposition_and_fade_in() -> None:
+            self.player.world_x = respawn_x
+            self.player.world_y = GROUND_Y - PAPYRUS_PLAYER_HEIGHT
+            self.player.on_ground = True
+            self.player.is_respawning = False
+            self.tweens.tween(
+                target=self.player,
+                property_name='alpha',
+                end_value=255.0,
+                duration=0.3,
+                easing='ease_out_quad',
+                on_complete=self._restore_input_after_respawn,
+            )
+
+        self.tweens.tween(
+            target=self.player,
+            property_name='alpha',
+            end_value=0.0,
+            duration=0.2,
+            easing='ease_in_quad',
+            on_complete=_reposition_and_fade_in,
+        )
+
+    def _restore_input_after_respawn(self: Self) -> None:
+        """Restore movement input state after respawn animation completes."""
+        if self._moving_right:
+            self.player.move_right()
+        elif self._moving_left:
+            self.player.move_left()
 
     def _pause_game(self: Self) -> None:
         """Pause the game by switching to the built-in pause scene."""

@@ -10,6 +10,7 @@ import pygame
 
 from glitchygames import events
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
+from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 
@@ -746,6 +747,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.fps: float = 0.0
         self.dt: float = 0.0
         self.dt_timer: float = 0.0
+        self.tweens: TweenManager = TweenManager()
         self.dirty = 1
         self.options = options
         self.scene_manager = SceneManager()
@@ -827,7 +829,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """Cleanup the scene."""
 
     def dt_tick(self: Self, dt: float) -> None:
-        """Update the scene's delta time.
+        """Update the scene's delta time and active tweens.
 
         Args:
             dt (float): The delta time to update.
@@ -835,6 +837,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.dt = dt
         self.dt_timer += self.dt
+        self.tweens.update(dt)
 
     @override
     def update(self: Self) -> None:

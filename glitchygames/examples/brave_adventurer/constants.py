@@ -12,6 +12,8 @@ GROUND_HEIGHT = 80
 GRAVITY = 1200.0
 JUMP_VELOCITY = -500.0
 PLAYER_RUN_SPEED = 200.0
+PLAYER_ACCELERATION = 1600.0  # pixels/sec^2 when ramping toward target speed
+PLAYER_DECELERATION = 1200.0  # pixels/sec^2 when slowing to a stop
 MAX_FALL_SPEED = 800.0
 
 # Velocity thresholds for animation state detection
