@@ -160,12 +160,15 @@ class TestBallSpriteBounce:
         ball = BallSprite()
         assert ball.rect is not None
         ball.rect.y = -5  # Above screen
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.speed.y = -2
         ball.snd = mocker.Mock()
 
         ball._do_bounce()
 
-        assert ball.rect.y == 1  # Small buffer to prevent sticking
+        # Ball reflects off top boundary preserving overshoot: world_y = -(-5) = 5
+        assert ball.world_y >= 0  # Ball is inside boundary
+        assert ball.rect.y == round(ball.world_y)
         assert ball.speed.y == SPEED_2  # Reversed
         ball.snd.play.assert_called_once()
 
@@ -176,14 +179,17 @@ class TestBallSpriteBounce:
         ball.screen_height = 600
         ball.height = 20
         assert ball.rect is not None
-        ball.rect.y = 590  # Below screen
+        ball.rect.y = 590  # Below screen (590 + 20 = 610 >= 600)
+        ball.world_y = 590.0  # Sub-pixel position must also be set
         ball.speed.y = 2
         ball.snd = mocker.Mock()
 
         ball._do_bounce()
 
-        expected_bottom_y = 579  # screen_height - height - 1 (buffer to prevent sticking)
-        assert ball.rect.y == expected_bottom_y
+        # Ball reflects off bottom boundary preserving overshoot
+        boundary = float(ball.screen_height - ball.height)  # 580.0
+        assert ball.world_y <= boundary  # Ball is inside boundary
+        assert ball.rect.y == round(ball.world_y)
         assert ball.speed.y == SPEED_NEG_2  # Reversed
         ball.snd.play.assert_called_once()
 
@@ -193,12 +199,15 @@ class TestBallSpriteBounce:
         ball = BallSprite()
         assert ball.rect is not None
         ball.rect.y = -5
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.speed.y = -2
         # No snd attribute set
 
         ball._do_bounce()
 
-        assert ball.rect.y == 1  # Small buffer to prevent sticking
+        # Ball reflects off top boundary preserving overshoot
+        assert ball.world_y >= 0  # Ball is inside boundary
+        assert ball.rect.y == round(ball.world_y)
         assert ball.speed.y == SPEED_2
 
     def test_do_bounce_no_collision(self, mocker):
@@ -327,15 +336,17 @@ class TestBallSpriteUpdate:
         assert ball.rect is not None
         ball.rect.x = 100
         ball.rect.y = 100
+        ball.world_x = 100.0  # Sub-pixel position must also be set
+        ball.world_y = 100.0
         ball.speed.x = 2
         ball.speed.y = 3
 
         ball.dt_tick(0.016)  # Use dt_tick instead of update
 
-        # With speed=2,3 and dt=0.016, movement should be (0.032, 0.048) which rounds to (0, 0)
-        # So position should remain (100, 100)
-        assert ball.rect.x == 100  # No movement due to rounding
-        assert ball.rect.y == 100  # No movement due to rounding
+        # With speed=2,3 and dt=0.016, movement should be (0.032, 0.048)
+        # world_x = 100.032, world_y = 100.048, both round to 100
+        assert ball.rect.x == 100  # No visible movement due to rounding
+        assert ball.rect.y == 100  # No visible movement due to rounding
 
     def test_ball_update_left_wall_bounce(self, mocker):
         """Test ball bounces off left wall."""
@@ -343,6 +354,7 @@ class TestBallSpriteUpdate:
         ball = BallSprite()
         assert ball.rect is not None
         ball.rect.x = -25  # Left of screen (less than -width)
+        ball.world_x = -25.0  # Sub-pixel position must also be set
         ball.direction = 45
         ball.speed.x = -2
 
@@ -362,6 +374,7 @@ class TestBallSpriteUpdate:
         ball.width = 20
         assert ball.rect is not None
         ball.rect.x = 810  # Right of screen
+        ball.world_x = 810.0  # Sub-pixel position must also be set
         ball.direction = 45
         ball.speed.x = 2
 
@@ -379,7 +392,9 @@ class TestBallSpriteUpdate:
         ball = BallSprite()
         assert ball.rect is not None
         ball.rect.x = 1000  # Way off screen
+        ball.world_x = 1000.0  # Sub-pixel position must also be set
         ball.rect.y = 100
+        ball.world_y = 100.0
 
         mock_kill = mocker.patch.object(ball, 'kill')
         ball.dt_tick(0.016)  # Use dt_tick instead of update
@@ -391,7 +406,9 @@ class TestBallSpriteUpdate:
         ball = BallSprite()
         assert ball.rect is not None
         ball.rect.x = 100
+        ball.world_x = 100.0  # Sub-pixel position must also be set
         ball.rect.y = 1000  # Way off screen
+        ball.world_y = 1000.0
         ball.screen_height = 600  # Set screen height so ball is off screen
         ball.speed.y = 0  # Don't move vertically
 
@@ -448,6 +465,7 @@ class TestBallSpriteIntegration:
         ball = BallSprite(collision_sound='bounce.wav')
         assert ball.rect is not None
         ball.rect.y = -5  # Trigger top wall bounce
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.speed.y = -2
 
         ball.dt_tick(0.016)  # Use dt_tick instead of update
@@ -623,9 +641,10 @@ class TestBallBoundaryCollisions:
         ball.speed.x = 100.0
         ball.speed.y = 100.0  # Moving downward
 
-        # Position ball at bottom boundary
+        # Position ball at bottom boundary (must set world_y for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.y = ball.screen_height - ball.height
+        ball.world_y = float(ball.screen_height - ball.height)
 
         ball._do_bounce()
 
@@ -639,9 +658,10 @@ class TestBallBoundaryCollisions:
         ball.speed.x = -100.0
         ball.speed.y = 50.0
 
-        # Position ball at left boundary
+        # Position ball at left boundary (must set world_x for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.x = 0
+        ball.world_x = 0.0
 
         ball._do_bounce()
 
@@ -657,11 +677,13 @@ class TestBallBoundaryCollisions:
 
         assert ball.rect is not None
         ball.rect.x = 0
+        ball.world_x = 0.0  # Sub-pixel position must also be set
 
         ball._do_bounce()
 
         assert ball.speed.x > 0
-        assert ball.rect.x == 1  # Just inside boundary
+        assert ball.world_x >= 0  # Ball is inside boundary
+        assert ball.rect.x == round(ball.world_x)
 
     def test_right_collision_with_sound(self, mock_pygame_patches, mocker):
         """Test right collision plays sound (line 736)."""
@@ -670,9 +692,10 @@ class TestBallBoundaryCollisions:
         ball.speed.x = 100.0
         ball.speed.y = 50.0
 
-        # Position ball at right boundary
+        # Position ball at right boundary (must set world_x for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
+        ball.world_x = float(ball.screen_width - ball.width)
 
         ball._do_bounce()
 
@@ -686,11 +709,14 @@ class TestBallBoundaryCollisions:
 
         assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
+        ball.world_x = float(ball.screen_width - ball.width)  # Sub-pixel position
 
         ball._do_bounce()
 
         assert ball.speed.x < 0
-        assert ball.rect.x == ball.screen_width - ball.width - 1
+        boundary = float(ball.screen_width - ball.width)
+        assert ball.world_x <= boundary  # Ball is inside boundary
+        assert ball.rect.x == round(ball.world_x)
 
 
 class TestCornerCollisions:
@@ -721,6 +747,8 @@ class TestCornerCollisions:
         assert ball.rect is not None
         ball.rect.x = 0
         ball.rect.y = 0
+        ball.world_x = 0.0  # Sub-pixel position must also be set
+        ball.world_y = 0.0
 
         ball._do_bounce()
 
@@ -737,6 +765,8 @@ class TestCornerCollisions:
         assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
         ball.rect.y = 0
+        ball.world_x = float(ball.screen_width - ball.width)
+        ball.world_y = 0.0
 
         ball._do_bounce()
 
@@ -752,6 +782,8 @@ class TestCornerCollisions:
         assert ball.rect is not None
         ball.rect.x = 0
         ball.rect.y = ball.screen_height - ball.height
+        ball.world_x = 0.0
+        ball.world_y = float(ball.screen_height - ball.height)
 
         ball._do_bounce()
 
@@ -767,6 +799,8 @@ class TestCornerCollisions:
         assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
         ball.rect.y = ball.screen_height - ball.height
+        ball.world_x = float(ball.screen_width - ball.width)
+        ball.world_y = float(ball.screen_height - ball.height)
 
         ball._do_bounce()
 

@@ -26,31 +26,31 @@ class TestBallLogarithmicSpeedUp:
         self.screen_height = 600
 
     def test_logarithmic_x_speed_up(self):
-        """Test logarithmic X-only speed-up."""
+        """Test logarithmic X speed-up now scales both components equally."""
         ball = BallSprite()
         ball.speed = Speed(100.0, 200.0)
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Apply logarithmic X speed-up
+        # Apply logarithmic X speed-up (now scales BOTH components to preserve direction)
         ball.speed_up(multiplier=1.2, speed_up_type='logarithmic_x')
 
-        # X should increase, Y should remain unchanged
+        # Both should increase by the same multiplier
         assert ball.speed.x == pytest.approx(initial_x * 1.2)
-        assert ball.speed.y == pytest.approx(initial_y)
+        assert ball.speed.y == pytest.approx(initial_y * 1.2)
 
     def test_logarithmic_y_speed_up(self):
-        """Test logarithmic Y-only speed-up."""
+        """Test logarithmic Y speed-up now scales both components equally."""
         ball = BallSprite()
         ball.speed = Speed(100.0, 200.0)
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Apply logarithmic Y speed-up
+        # Apply logarithmic Y speed-up (now scales BOTH components to preserve direction)
         ball.speed_up(multiplier=1.3, speed_up_type='logarithmic_y')
 
-        # Y should increase, X should remain unchanged
-        assert ball.speed.x == pytest.approx(initial_x)
+        # Both should increase by the same multiplier
+        assert ball.speed.x == pytest.approx(initial_x * 1.3)
         assert ball.speed.y == pytest.approx(initial_y * 1.3)
 
     def test_logarithmic_both_speed_up(self):
@@ -68,7 +68,7 @@ class TestBallLogarithmicSpeedUp:
         assert ball.speed.y == pytest.approx(initial_y * 1.15)
 
     def test_logarithmic_x_speed_up_with_wall_bounce(self):
-        """Test logarithmic X speed-up with wall bouncing."""
+        """Test logarithmic X speed-up with wall bouncing scales both components."""
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=True,
@@ -80,17 +80,18 @@ class TestBallLogarithmicSpeedUp:
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Simulate wall bounce
+        # Simulate wall bounce (must set world_y for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
+        ball.world_y = 0.0
         ball._do_bounce()
 
-        # X should increase, Y should be reversed but not scaled
+        # Both components scaled by multiplier, Y reversed by bounce
         assert ball.speed.x == pytest.approx(initial_x * 1.25)
-        assert ball.speed.y == pytest.approx(abs(initial_y))  # Reversed but not scaled
+        assert ball.speed.y == pytest.approx(abs(initial_y) * 1.25)
 
     def test_logarithmic_y_speed_up_with_wall_bounce(self):
-        """Test logarithmic Y speed-up with wall bouncing."""
+        """Test logarithmic Y speed-up with wall bouncing scales both components."""
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=True,
@@ -102,13 +103,14 @@ class TestBallLogarithmicSpeedUp:
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Simulate wall bounce
+        # Simulate wall bounce (must set world_y for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
+        ball.world_y = 0.0
         ball._do_bounce()
 
-        # X should remain unchanged, Y should be reversed and scaled
-        assert ball.speed.x == pytest.approx(initial_x)
+        # Both components scaled by multiplier, Y reversed by bounce
+        assert ball.speed.x == pytest.approx(initial_x * 1.3)
         assert ball.speed.y == pytest.approx(abs(initial_y) * 1.3)
 
     def test_logarithmic_both_speed_up_with_wall_bounce(self):
@@ -125,17 +127,18 @@ class TestBallLogarithmicSpeedUp:
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Simulate wall bounce
+        # Simulate wall bounce (must set world_y for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
+        ball.world_y = 0.0
         ball._do_bounce()
 
-        # Both should be affected
+        # Both should be affected (logarithmic_both scales both equally)
         assert ball.speed.x == pytest.approx(initial_x * 1.2)
         assert ball.speed.y == pytest.approx(abs(initial_y) * 1.2)
 
     def test_logarithmic_x_speed_up_with_paddle_bounce(self):
-        """Test logarithmic X speed-up with paddle bouncing."""
+        """Test logarithmic X speed-up with paddle bouncing scales both components."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
             speed_up_multiplier=1.4,
@@ -145,15 +148,15 @@ class TestBallLogarithmicSpeedUp:
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Simulate paddle bounce
+        # Simulate paddle bounce (logarithmic_x now scales BOTH components equally)
         ball.on_paddle_bounce()
 
-        # X should increase, Y should remain unchanged
+        # Both should increase by the same multiplier (direction preserved)
         assert ball.speed.x == pytest.approx(initial_x * 1.4)
-        assert ball.speed.y == pytest.approx(initial_y)
+        assert ball.speed.y == pytest.approx(initial_y * 1.4)
 
     def test_logarithmic_y_speed_up_with_paddle_bounce(self):
-        """Test logarithmic Y speed-up with paddle bouncing."""
+        """Test logarithmic Y speed-up with paddle bouncing scales both components."""
         ball = BallSprite(
             speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
             speed_up_multiplier=1.35,
@@ -163,16 +166,16 @@ class TestBallLogarithmicSpeedUp:
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Simulate paddle bounce
+        # Simulate paddle bounce (logarithmic_y now scales BOTH components equally)
         ball.on_paddle_bounce()
 
-        # Y should increase, X should remain unchanged
-        assert ball.speed.x == pytest.approx(initial_x)
+        # Both should increase by the same multiplier (direction preserved)
+        assert ball.speed.x == pytest.approx(initial_x * 1.35)
         assert ball.speed.y == pytest.approx(initial_y * 1.35)
 
     def test_logarithmic_continuous_speed_up(self):
-        """Test continuous logarithmic speed-up over time."""
-        # Test X-only continuous
+        """Test continuous logarithmic speed-up scales both components."""
+        # Test X continuous (now scales BOTH components equally)
         ball_x = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
             speed_up_multiplier=1.1,
@@ -183,9 +186,9 @@ class TestBallLogarithmicSpeedUp:
         ball_x._check_continuous_speed_up(0.1)
 
         assert ball_x.speed.x == pytest.approx(100.0 * 1.1)
-        assert ball_x.speed.y == pytest.approx(200.0)
+        assert ball_x.speed.y == pytest.approx(200.0 * 1.1)
 
-        # Test Y-only continuous
+        # Test Y continuous (now scales BOTH components equally)
         ball_y = BallSprite(
             speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
             speed_up_multiplier=1.15,
@@ -195,65 +198,65 @@ class TestBallLogarithmicSpeedUp:
         ball_y._last_speed_up_time = 0.0
         ball_y._check_continuous_speed_up(0.1)
 
-        assert ball_y.speed.x == pytest.approx(100.0)
+        assert ball_y.speed.x == pytest.approx(100.0 * 1.15)
         assert ball_y.speed.y == pytest.approx(200.0 * 1.15)
 
-    def test_logarithmic_speed_up_direction_change(self):
-        """Test that logarithmic speed-up can change direction."""
+    def test_logarithmic_speed_up_preserves_direction(self):
+        """Test that logarithmic speed-up now preserves direction."""
         ball = BallSprite()
         ball.speed = Speed(100.0, 200.0)
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
-        # Apply logarithmic X speed-up (changes direction)
+        # Apply logarithmic X speed-up (now scales both components equally)
         ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_x')
 
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
-        # Direction should have changed
-        assert initial_direction != pytest.approx(new_direction, abs=1e-5)
+        # Direction should be preserved (both components scaled equally)
+        assert initial_direction == pytest.approx(new_direction, abs=1e-12)
 
     def test_logarithmic_speed_up_multiple_applications(self):
-        """Test that multiple logarithmic speed-ups compound correctly."""
+        """Test that multiple logarithmic speed-ups compound correctly on both components."""
         ball = BallSprite()
         ball.speed = Speed(50.0, 50.0)
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Apply X speed-up multiple times
+        # Apply X speed-up multiple times (now scales BOTH components each time)
         for i in range(3):
             ball.speed_up(multiplier=1.2, speed_up_type='logarithmic_x')
 
-        # Check final X speed
+        # Both components should compound equally
         expected_x = initial_x * (1.2**3)
+        expected_y = initial_y * (1.2**3)
         assert ball.speed.x == pytest.approx(expected_x)
-        # Y should remain unchanged
-        assert ball.speed.y == pytest.approx(initial_y)
+        assert ball.speed.y == pytest.approx(expected_y)
 
     def test_logarithmic_speed_up_with_negative_speeds(self):
-        """Test logarithmic speed-up with negative speeds."""
+        """Test logarithmic speed-up with negative speeds scales both components."""
         ball = BallSprite()
         ball.speed = Speed(-100.0, -200.0)
 
-        # Apply logarithmic X speed-up
+        # Apply logarithmic X speed-up (now scales BOTH components equally)
         ball.speed_up(multiplier=1.3, speed_up_type='logarithmic_x')
 
-        # X should become more negative, Y should remain unchanged
+        # Both should become more negative
         assert ball.speed.x == pytest.approx(-100.0 * 1.3)
-        assert ball.speed.y == pytest.approx(-200.0)
+        assert ball.speed.y == pytest.approx(-200.0 * 1.3)
 
     def test_logarithmic_speed_up_with_zero_component(self):
-        """Test logarithmic speed-up with zero speed components."""
+        """Test logarithmic speed-up with zero speed component scales both."""
         ball = BallSprite()
         ball.speed = Speed(100.0, 0.0)
 
-        # Apply logarithmic Y speed-up (should have no effect)
+        # Apply logarithmic Y speed-up (now scales BOTH components equally)
         ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_y')
 
-        # Y should remain zero
+        # Y stays zero (0 * 1.5 = 0), X is scaled
         assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)
-        assert ball.speed.x == pytest.approx(100.0)
+        assert ball.speed.x == pytest.approx(100.0 * 1.5)
 
     def test_logarithmic_speed_up_precision(self):
-        """Test logarithmic speed-up precision with various multipliers."""
+        """Test logarithmic speed-up precision with various multipliers scales both."""
         ball = BallSprite()
 
         multipliers = [1.01, 1.05, 1.1, 1.15, 1.2, 1.5, 2.0]
@@ -263,9 +266,9 @@ class TestBallLogarithmicSpeedUp:
             initial_x = ball.speed.x
             initial_y = ball.speed.y
 
-            # Apply logarithmic X speed-up
+            # Apply logarithmic X speed-up (now scales BOTH components equally)
             ball.speed_up(multiplier=multiplier, speed_up_type='logarithmic_x')
 
-            # Check precision
+            # Check precision -- both components scale equally
             assert ball.speed.x == pytest.approx(initial_x * multiplier)
-            assert ball.speed.y == pytest.approx(initial_y)
+            assert ball.speed.y == pytest.approx(initial_y * multiplier)

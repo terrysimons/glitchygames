@@ -41,6 +41,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement that would go past top boundary
         assert ball.rect is not None
         ball.rect.y = -5  # Past the boundary
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)  # 60 FPS
 
         # Ball should be repositioned and speed should be positive (downward)
@@ -61,6 +62,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement that would go past bottom boundary
         assert ball.rect is not None
         ball.rect.y = 600  # Past the boundary
+        ball.world_y = 600.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)  # 60 FPS
 
         # Ball should be repositioned and speed should be negative (upward)
@@ -81,6 +83,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement that would go past left boundary
         assert ball.rect is not None
         ball.rect.x = -5  # Past the boundary
+        ball.world_x = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)  # 60 FPS
 
         # Ball should be repositioned and speed should be positive (rightward)
@@ -101,6 +104,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement that would go past right boundary
         assert ball.rect is not None
         ball.rect.x = 800  # Past the boundary
+        ball.world_x = 800.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)  # 60 FPS
 
         # Ball should be repositioned and speed should be negative (leftward)
@@ -123,6 +127,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement past boundary
         assert ball.rect is not None
         ball.rect.y = -5
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)
 
         # Speed should remain unchanged (no bounce)
@@ -143,6 +148,8 @@ class TestBallBoundaryPhysics:
         assert ball.rect is not None
         ball.rect.x = -5
         ball.rect.y = -5
+        ball.world_x = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0
         ball.dt_tick(0.016)
 
         # Both X and Y should be corrected
@@ -192,6 +199,7 @@ class TestBallBoundaryPhysics:
 
         assert ball.rect is not None
         ball.rect.y = -5
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)
 
         # Speed magnitude should be preserved (energy conservation)
@@ -215,6 +223,7 @@ class TestBallBoundaryPhysics:
         assert ball.rect is not None
         for _ in range(10):
             ball.rect.y = -5  # Past boundary
+            ball.world_y = -5.0  # Sub-pixel position must also be set
             ball.dt_tick(0.016)
 
             # Ball should always be within bounds
@@ -238,6 +247,7 @@ class TestBallBoundaryPhysics:
 
         assert ball.rect is not None
         ball.rect.y = -5
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)
 
         # Speed should be increased due to speed-up
@@ -257,6 +267,7 @@ class TestBallBoundaryPhysics:
 
         assert ball.rect is not None
         ball.rect.y = -5  # Past boundary
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)
 
         # Ball should be repositioned but speed remains zero
@@ -280,6 +291,7 @@ class TestBallBoundaryPhysics:
 
         assert ball.rect is not None
         ball.rect.y = -5
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)
 
         # Sound should be played
@@ -299,6 +311,7 @@ class TestBallBoundaryPhysics:
 
         assert ball.rect is not None
         ball.rect.y = -5
+        ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)
 
         # Debug logging should be called

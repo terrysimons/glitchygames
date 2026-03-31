@@ -152,26 +152,32 @@ class TestBallSpeedBehavior:
         """Test that bounce-triggered speed-up works."""
         ball = BallSprite(
             bounce_top_bottom=True,
-            bounce_left_right=True,
+            bounce_left_right=False,  # Disable left/right to avoid double-bounce
             speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
             speed_up_multiplier=1.1,
         )
 
-        # Get initial speed after reset() has been called
-        initial_x = abs(ball.speed.x)  # Use absolute value since direction might change
+        # Set controlled initial speed and position to avoid random interactions
+        ball.speed.x = 100.0
+        ball.speed.y = -50.0
+        initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
 
-        # Position ball to hit top boundary
+        # Position ball at top boundary (must set world coords for sub-pixel tracking)
         assert ball.rect is not None
-        ball.rect.y = 1
-        ball.speed.y = -100  # Moving up
+        ball.rect.x = 400
+        ball.world_x = 400.0
+        ball.rect.y = 0
+        ball.world_y = 0.0
 
-        # This should trigger a bounce and speed-up
-        ball.dt_tick(0.1)
+        # This should trigger a bounce and speed-up (small dt to avoid large movement)
+        ball.dt_tick(0.016)
 
-        # Speed magnitude should have increased due to wall bounce
-        final_x = abs(ball.speed.x)
-        assert final_x > initial_x, (
-            f'Speed magnitude should increase on wall bounce: {initial_x:.3f} -> {final_x:.3f}'
+        # Speed magnitude should have increased due to wall bounce speed-up
+        # (logarithmic_x now scales BOTH components by 1.1)
+        final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
+        assert final_magnitude > initial_magnitude, (
+            f'Speed magnitude should increase on wall bounce: '
+            f'{initial_magnitude:.3f} -> {final_magnitude:.3f}'
         )
 
     def test_speedup_mode_none_no_speedup(self):
@@ -258,27 +264,37 @@ class TestBallSpeedBehavior:
         assert log_final < 10000, f'Logarithmic speed-up should not be runaway, got {log_final:.3f}'
 
     def test_speedup_preserves_direction_components(self):
-        """Test that speed-up preserves the direction of individual components."""
+        """Test that speed-up preserves the trajectory angle.
+
+        logarithmic_x now scales BOTH components equally, so direction is preserved
+        and both components change proportionally.
+        """
         ball = BallSprite(
             bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,  # Only X component
+            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
             speed_up_multiplier=1.1,
             speed_up_interval=0.01,  # Much shorter interval for testing
         )
 
-        # Get speed after reset() has been called
+        # Get speed and direction after reset() has been called
         initial_x = ball.speed.x
         initial_y = ball.speed.y
+        initial_direction = math.atan2(initial_y, initial_x)
 
         # Simulate speed-up with small delays
         for i in range(5):
             ball.dt_tick(0.1)
             time.sleep(0.02)  # Small delay to ensure time passes
 
-        # Only X should change, Y should remain the same
+        # Both components should change (both scaled equally)
         assert ball.speed.x != initial_x, 'X speed should change'
-        assert ball.speed.y == initial_y, 'Y speed should remain unchanged'
+        assert ball.speed.y != initial_y, 'Y speed should also change (both scale equally)'
+        # But direction should be preserved
+        final_direction = math.atan2(ball.speed.y, ball.speed.x)
+        assert initial_direction == pytest.approx(final_direction, abs=1e-5), (
+            'Direction should be preserved'
+        )
 
     def test_speedup_with_negative_speeds(self):
         """Test that speed-up works correctly with negative speeds."""

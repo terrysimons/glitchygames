@@ -75,8 +75,11 @@ class TestBallDirectionPreservation:
                 f'Direction not preserved for angle {angle_degrees} degrees'
             )
 
-    def test_logarithmic_x_speed_up_changes_direction(self):
-        """Test that logarithmic X speed-up changes direction."""
+    def test_logarithmic_x_speed_up_preserves_direction(self):
+        """Test that logarithmic X speed-up now preserves direction.
+
+        logarithmic_x scales BOTH components equally to preserve trajectory angle.
+        """
         ball = BallSprite()
 
         # Test with non-zero Y component
@@ -86,14 +89,17 @@ class TestBallDirectionPreservation:
         # Apply logarithmic X speed-up
         ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_x')
 
-        # Direction should change
+        # Direction should be preserved (both components scaled equally)
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
-        assert initial_direction != pytest.approx(new_direction, abs=1e-5), (
-            'Direction should change with logarithmic X speed-up'
+        assert initial_direction == pytest.approx(new_direction, abs=1e-12), (
+            'Direction should be preserved with logarithmic X speed-up'
         )
 
-    def test_logarithmic_y_speed_up_changes_direction(self):
-        """Test that logarithmic Y speed-up changes direction."""
+    def test_logarithmic_y_speed_up_preserves_direction(self):
+        """Test that logarithmic Y speed-up now preserves direction.
+
+        logarithmic_y scales BOTH components equally to preserve trajectory angle.
+        """
         ball = BallSprite()
 
         # Test with non-zero X component
@@ -103,13 +109,13 @@ class TestBallDirectionPreservation:
         # Apply logarithmic Y speed-up
         ball.speed_up(multiplier=1.3, speed_up_type='logarithmic_y')
 
-        # Direction should change
+        # Direction should be preserved (both components scaled equally)
         new_direction = math.atan2(ball.speed.y, ball.speed.x)
-        assert initial_direction != pytest.approx(new_direction, abs=1e-5), (
-            'Direction should change with logarithmic Y speed-up'
+        assert initial_direction == pytest.approx(new_direction, abs=1e-12), (
+            'Direction should be preserved with logarithmic Y speed-up'
         )
 
-    def test_logarithmic_both_speed_up_changes_direction(self):
+    def test_logarithmic_both_speed_up_preserves_direction(self):
         """Test logarithmic both speed-up preserves direction.
 
         Scales both components equally.
@@ -141,9 +147,10 @@ class TestBallDirectionPreservation:
         ball.speed = Speed(150.0, 100.0)
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
-        # Simulate wall bounce with linear speed-up
+        # Simulate wall bounce with linear speed-up (must set world_y)
         assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
+        ball.world_y = 0.0
         ball._do_bounce()
 
         # Y should be reversed, but direction should be preserved relative to the bounce
@@ -152,8 +159,12 @@ class TestBallDirectionPreservation:
         assert ball.speed.y > 0  # Should be positive after top bounce
         assert ball.speed.x == pytest.approx(150.0 * 1.2)  # X should be scaled
 
-    def test_direction_change_with_logarithmic_bouncing(self):
-        """Test direction change with logarithmic bouncing."""
+    def test_direction_preserved_with_logarithmic_bouncing(self):
+        """Test direction is preserved with logarithmic bouncing.
+
+        logarithmic_x now scales both components equally, so direction is preserved
+        relative to the bounce (Y reversal is from the bounce itself, not the speed-up).
+        """
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=True,
@@ -163,18 +174,17 @@ class TestBallDirectionPreservation:
 
         # Set initial speed
         ball.speed = Speed(100.0, 200.0)
-        initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
-        # Simulate wall bounce with logarithmic X speed-up
+        # Simulate wall bounce with logarithmic X speed-up (must set world_y)
         assert ball.rect is not None
         ball.rect.y = 0  # Hit top wall
+        ball.world_y = 0.0
         ball._do_bounce()
 
-        # Direction should change due to logarithmic X scaling
-        new_direction = math.atan2(ball.speed.y, ball.speed.x)
-        assert initial_direction != pytest.approx(new_direction, abs=1e-5), (
-            'Direction should change with logarithmic X bounce speed-up'
-        )
+        # Speed-up should scale both components equally (preserving angle relative to bounce)
+        # The bounce reverses Y, and speed-up applies multiplier to both
+        assert ball.speed.x == pytest.approx(100.0 * 1.3)
+        assert ball.speed.y == pytest.approx(abs(200.0) * 1.3)  # Reversed and scaled
 
     def test_combined_linear_and_logarithmic_direction_behavior(self):
         """Test direction behavior with combined linear and logarithmic modes."""
@@ -195,12 +205,12 @@ class TestBallDirectionPreservation:
             'Linear speed-up should preserve direction'
         )
 
-        # Test paddle bounce logarithmic X (should change direction)
+        # Test paddle bounce logarithmic X (now also preserves direction)
         ball.on_paddle_bounce()
 
         bounce_direction = math.atan2(ball.speed.y, ball.speed.x)
-        assert linear_direction != pytest.approx(bounce_direction, abs=1e-5), (
-            'Logarithmic X speed-up should change direction'
+        assert linear_direction == pytest.approx(bounce_direction, abs=1e-12), (
+            'Logarithmic X speed-up should now preserve direction'
         )
 
     def test_direction_preservation_with_multiple_linear_speed_ups(self):
@@ -220,8 +230,8 @@ class TestBallDirectionPreservation:
             'Multiple linear speed-ups should preserve direction'
         )
 
-    def test_direction_change_with_multiple_logarithmic_speed_ups(self):
-        """Test that multiple logarithmic speed-ups change direction."""
+    def test_direction_preserved_with_multiple_logarithmic_speed_ups(self):
+        """Test that multiple logarithmic speed-ups now preserve direction."""
         ball = BallSprite()
 
         ball.speed = Speed(100.0, 200.0)
@@ -231,10 +241,10 @@ class TestBallDirectionPreservation:
         for i in range(3):
             ball.speed_up(multiplier=1.2, speed_up_type='logarithmic_x')
 
-        # Direction should change
+        # Direction should be preserved (both components scaled equally each time)
         final_direction = math.atan2(ball.speed.y, ball.speed.x)
-        assert initial_direction != pytest.approx(final_direction, abs=1e-5), (
-            'Multiple logarithmic speed-ups should change direction'
+        assert initial_direction == pytest.approx(final_direction, abs=1e-12), (
+            'Multiple logarithmic speed-ups should now preserve direction'
         )
 
     def test_edge_case_pure_horizontal_movement(self):
@@ -250,11 +260,11 @@ class TestBallDirectionPreservation:
         linear_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction == pytest.approx(linear_direction, abs=1e-12)
 
-        # Logarithmic Y speed-up should not affect direction (Y is already 0)
+        # Logarithmic Y speed-up now scales BOTH components equally
         ball.speed = Speed(100.0, 0.0)
         ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_y')
-        assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)  # Should remain 0
-        assert ball.speed.x == pytest.approx(100.0)  # Should remain unchanged
+        assert math.isclose(ball.speed.y, 0.0, abs_tol=1e-9)  # 0 * 1.5 = 0
+        assert ball.speed.x == pytest.approx(100.0 * 1.5)  # X also scaled
 
     def test_edge_case_pure_vertical_movement(self):
         """Test direction preservation with pure vertical movement."""
@@ -269,11 +279,11 @@ class TestBallDirectionPreservation:
         linear_direction = math.atan2(ball.speed.y, ball.speed.x)
         assert initial_direction == pytest.approx(linear_direction, abs=1e-12)
 
-        # Logarithmic X speed-up should not affect direction (X is already 0)
+        # Logarithmic X speed-up now scales BOTH components equally
         ball.speed = Speed(0.0, 100.0)
         ball.speed_up(multiplier=1.5, speed_up_type='logarithmic_x')
-        assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)  # Should remain 0
-        assert ball.speed.y == pytest.approx(100.0)  # Should remain unchanged
+        assert math.isclose(ball.speed.x, 0.0, abs_tol=1e-9)  # 0 * 1.5 = 0
+        assert ball.speed.y == pytest.approx(100.0 * 1.5)  # Y also scaled
 
     def test_direction_preservation_precision(self):
         """Test high-precision direction preservation."""

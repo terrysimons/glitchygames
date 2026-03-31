@@ -46,14 +46,16 @@ class TestWallCollisions:
         ball.speed = Speed(SPEED_3_0, SPEED_NEG_2_0)  # Moving up and right
         assert ball.rect is not None
         ball.rect.y = 0  # At top wall (triggers bounce condition)
+        ball.world_y = 0.0  # Sub-pixel position must also be set
 
         # Action: Trigger top wall collision
         ball._do_bounce()
 
-        # Expected: Speed.y reversed, speed.x unchanged
+        # Expected: Speed.y reversed, speed.x unchanged, ball inside boundary
         assert ball.speed.x == SPEED_3_0  # Unchanged
         assert ball.speed.y == SPEED_2_0  # Reversed from -2.0 to +2.0
-        assert ball.rect.y == 1  # Position adjusted to prevent sticking
+        assert ball.world_y >= 0  # Ball is inside boundary
+        assert ball.rect.y == round(ball.world_y)
 
     def test_ball_bounces_off_bottom_wall(self, mock_pygame_patches):
         """Test ball bounces off bottom wall with speed reversal."""
@@ -62,6 +64,7 @@ class TestWallCollisions:
         ball.speed = Speed(SPEED_3_0, SPEED_2_0)  # Moving down and right
         assert ball.rect is not None
         ball.rect.y = 430  # At bottom wall (430 + 20 = 450 >= 450)
+        ball.world_y = 430.0  # Sub-pixel position must also be set
         ball.screen_height = 450
         ball.height = 20  # Set ball height for collision calculation
 
@@ -79,7 +82,7 @@ class TestWallCollisions:
         ball.speed = Speed(SPEED_3_0, SPEED_4_0)  # Magnitude = 5.0
         initial_magnitude = math.sqrt(SPEED_3_0**2 + SPEED_4_0**2)
         assert ball.rect is not None
-        ball.rect.y = 1  # Near top wall
+        ball.rect.y = 1  # Near top wall (not at boundary, so no collision expected)
 
         # Action: Trigger wall collision
         ball._do_bounce()
@@ -95,6 +98,7 @@ class TestWallCollisions:
         ball.speed = Speed(SPEED_5_0, SPEED_NEG_3_0)  # Moving right and up
         assert ball.rect is not None
         ball.rect.y = 0  # At top wall (triggers bounce condition)
+        ball.world_y = 0.0  # Sub-pixel position must also be set
 
         # Action: Trigger wall collision
         ball._do_bounce()
@@ -314,6 +318,7 @@ class TestIntegrationCollisions:
         ball.speed = Speed(SPEED_3_0, SPEED_NEG_2_0)  # Moving right and up
         assert ball.rect is not None
         ball.rect.y = 0  # At top wall (triggers bounce condition)
+        ball.world_y = 0.0  # Sub-pixel position must also be set
 
         # Action 1: Wall collision
         ball._do_bounce()
@@ -346,9 +351,10 @@ class TestIntegrationCollisions:
         ball3.speed = Speed(SPEED_NEG_1_0, SPEED_1_0)
 
         # Action: Simulate various collisions
-        # Ball1 hits wall
+        # Ball1 hits wall (must set world_y for sub-pixel tracking)
         assert ball1.rect is not None
         ball1.rect.y = 0  # At top wall (triggers bounce condition)
+        ball1.world_y = 0.0
         ball1._do_bounce()
 
         # Ball2 hits paddle
@@ -371,6 +377,7 @@ class TestIntegrationCollisions:
         ball.speed = Speed(SPEED_10_0, SPEED_NEG_1_0)  # Very fast horizontal with vertical movement
         assert ball.rect is not None
         ball.rect.y = 0  # At top boundary (triggers bounce condition)
+        ball.world_y = 0.0  # Sub-pixel position must also be set
 
         # Action: Wall collision
         ball._do_bounce()
@@ -382,6 +389,7 @@ class TestIntegrationCollisions:
         # Test with very slow speed
         ball.speed = Speed(SPEED_0_1, -SPEED_0_1)
         ball.rect.y = 0  # At top wall (triggers bounce condition)
+        ball.world_y = 0.0
         ball._do_bounce()
 
         # Expected: Collision works with slow speeds too

@@ -44,28 +44,33 @@ class TestBallBounceConfiguration:
         """Test that top/bottom bouncing works correctly."""
         ball = BallSprite(bounce_top_bottom=True, bounce_left_right=False)
 
-        # Test top bounce
+        # Test top bounce (must set world_y for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.y = 0
+        ball.world_y = 0.0
         ball.speed.y = -100.0  # Moving up
         initial_speed_x = ball.speed.x
 
         ball._do_bounce()
 
-        # Should reverse Y direction and stay at boundary
-        assert ball.rect.y == 1
+        # Should reverse Y direction, ball reflected inside boundary
+        assert ball.world_y >= 0  # Ball is inside boundary
+        assert ball.rect.y == round(ball.world_y)
         assert ball.speed.y > 0  # Now moving down
         assert ball.speed.x == initial_speed_x  # X unchanged
 
         # Test bottom bounce
         ball.rect.y = ball.screen_height - ball.height
+        ball.world_y = float(ball.screen_height - ball.height)
         ball.speed.y = 100.0  # Moving down
         initial_speed_x = ball.speed.x
 
         ball._do_bounce()
 
-        # Should reverse Y direction and stay at boundary
-        assert ball.rect.y == ball.screen_height - ball.height - 1
+        # Should reverse Y direction, ball reflected inside boundary
+        boundary = float(ball.screen_height - ball.height)
+        assert ball.world_y <= boundary  # Ball is inside boundary
+        assert ball.rect.y == round(ball.world_y)
         assert ball.speed.y < 0  # Now moving up
         assert ball.speed.x == initial_speed_x  # X unchanged
 
@@ -73,28 +78,33 @@ class TestBallBounceConfiguration:
         """Test that left/right bouncing works correctly."""
         ball = BallSprite(bounce_top_bottom=False, bounce_left_right=True)
 
-        # Test left bounce
+        # Test left bounce (must set world_x for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.x = 0
+        ball.world_x = 0.0
         ball.speed.x = -100.0  # Moving left
         initial_speed_y = ball.speed.y
 
         ball._do_bounce()
 
-        # Should reverse X direction and stay at boundary
-        assert ball.rect.x == 1
+        # Should reverse X direction, ball reflected inside boundary
+        assert ball.world_x >= 0  # Ball is inside boundary
+        assert ball.rect.x == round(ball.world_x)
         assert ball.speed.x > 0  # Now moving right
         assert ball.speed.y == initial_speed_y  # Y unchanged
 
         # Test right bounce
         ball.rect.x = ball.screen_width - ball.width
+        ball.world_x = float(ball.screen_width - ball.width)
         ball.speed.x = 100.0  # Moving right
         initial_speed_y = ball.speed.y
 
         ball._do_bounce()
 
-        # Should reverse X direction and stay at boundary
-        assert ball.rect.x == ball.screen_width - ball.width - 1
+        # Should reverse X direction, ball reflected inside boundary
+        boundary = float(ball.screen_width - ball.width)
+        assert ball.world_x <= boundary  # Ball is inside boundary
+        assert ball.rect.x == round(ball.world_x)
         assert ball.speed.x < 0  # Now moving left
         assert ball.speed.y == initial_speed_y  # Y unchanged
 
@@ -119,9 +129,10 @@ class TestBallBounceConfiguration:
         """Test that ball dies when hitting side boundaries with left/right bounce disabled."""
         ball = BallSprite(bounce_left_right=False)
 
-        # Move ball off screen
+        # Move ball off screen (must set world_x for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.x = ball.screen_width + 10
+        ball.world_x = float(ball.screen_width + 10)
 
         # Should be alive before dt_tick
         assert ball.alive()
@@ -136,9 +147,10 @@ class TestBallBounceConfiguration:
         """Test that ball survives when left/right bouncing is enabled."""
         ball = BallSprite(bounce_left_right=True)
 
-        # Move ball to edge
+        # Move ball to edge (must set world_x for sub-pixel tracking)
         assert ball.rect is not None
         ball.rect.x = ball.screen_width - ball.width
+        ball.world_x = float(ball.screen_width - ball.width)
         ball.speed.x = 100.0  # Moving right
 
         # Should be alive before dt_tick
@@ -157,9 +169,10 @@ class TestBallBounceConfiguration:
         """Test that speed direction is correctly reversed during bounces."""
         ball = BallSprite(bounce_top_bottom=True, bounce_left_right=True)
 
-        # Test top bounce - should reverse Y direction
+        # Test top bounce - should reverse Y direction (must set world coords)
         assert ball.rect is not None
         ball.rect.y = 0
+        ball.world_y = 0.0
         ball.speed.y = -100.0
         initial_speed_x = ball.speed.x
 
@@ -170,7 +183,11 @@ class TestBallBounceConfiguration:
         assert ball.speed.x == initial_speed_x
 
         # Test left bounce - should reverse X direction
+        # Move ball away from top boundary to avoid double-bounce/corner collision
         ball.rect.x = 0
+        ball.world_x = 0.0
+        ball.rect.y = 100
+        ball.world_y = 100.0
         ball.speed.x = -100.0
         initial_speed_y = ball.speed.y
 
