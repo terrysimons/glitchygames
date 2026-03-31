@@ -227,6 +227,10 @@ fixable = ["ALL"]
 "glitchygames/camera.py" = [
   "PLR0913", # Camera2D and ParallaxLayer constructors need many configuration params
 ]
+"glitchygames/physics/body.py" = [
+  "PLR0913", # PhysicsBody preset factory methods need many configuration params
+  "PLR0917", # Same -- many positional args are the natural preset API
+]
 "glitchygames/ui/menus.py" = [
   "PLR0913", # Menu constructors need geometry + identity + container params
 ]
