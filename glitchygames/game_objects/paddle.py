@@ -186,21 +186,19 @@ class HorizontalPaddle(BasePaddle):
 
     @override
     def update(self: Self) -> None:
-        """Update the paddle.
+        """Constrain paddle position at screen boundaries.
 
-        Args:
-            None
-
+        Movement is handled in dt_tick() for frame-rate independence.
+        This method only clamps position and stops movement at edges.
         """
         assert self.screen is not None
-        if self.is_at_left_of_screen():
+        screen_rect = self.screen.get_rect()
+        if self.rect.x < 0:
             self.rect.x = 0
             self.stop()
-        elif self.is_at_right_of_screen():
-            self.rect.x = self.screen.get_rect().right - self.rect.width
+        elif self.rect.x + self.rect.width > screen_rect.right:
+            self.rect.x = screen_rect.right - self.rect.width
             self.stop()
-        else:
-            self.move_horizontal()
 
     def left(self: Self) -> None:
         """Move left.
@@ -371,16 +369,6 @@ class VerticalPaddle(BasePaddle):
             dt (float): The delta time.
 
         """
-        # Use centralized performance manager for adaptive clamping
-        from glitchygames.performance import performance_manager
-
-        dt = performance_manager.get_adaptive_dt(dt)
-
-        # Use the movement class's get_movement_with_dt method for frame-rate independent movement
         movement = self._move.get_movement_with_dt(dt)
-
-        # Use proper rounding to avoid precision loss from integer truncation
-
         self.rect.y += round(movement)
-
         self.dirty = 1
