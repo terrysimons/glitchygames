@@ -29,6 +29,7 @@ from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.ball import BallSpawnMode, SpeedUpMode
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
+from glitchygames.input import ActionMap
 from glitchygames.movement import Speed
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
@@ -227,7 +228,6 @@ class Game(Scene):
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
         # FPS will be set by command line arguments or default to 60
-        self._space_pressed = False
 
         # Set random seed for reproducible randomness
         seed = int(time.perf_counter() * 1000000) % 2**32
@@ -251,6 +251,9 @@ class Game(Scene):
             400,  # 400 pixels per second
             collision_sound=SFX.SLAP,
         )
+        # Input action maps (separate per player for multi-controller)
+        self.p1_actions, self.p2_actions, self.pause_actions = self._create_action_maps()
+
         self.balls: list[BallSprite] = []
         self.rally_count: int = 0  # Total paddle hits across all balls
         self.saves = SaveManager(app_name='paddleslap')
@@ -410,6 +413,9 @@ class Game(Scene):
         """
         self.dt = dt
         self.dt_timer += self.dt
+
+        # Process held-state input actions (paddle movement)
+        self._process_paddle_input()
 
         # Debug log ball positions and speeds before update
         for i, ball in enumerate(self.balls):
@@ -851,101 +857,133 @@ class Game(Scene):
         ball2.rect.x += round(separation_x)
         ball2.rect.y += round(separation_y)
 
-    @override
-    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
-        """Handle controller button down events.
+    @staticmethod
+    def _create_action_maps() -> tuple[ActionMap, ActionMap, ActionMap]:
+        """Create per-player and pause ActionMaps with default bindings.
 
-        Args:
-            event (HashableEvent): The event to handle.
+        Returns:
+            Tuple of (player1_actions, player2_actions, pause_actions).
 
         """
-        if event.button in {pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN}:
-            player = self.player1 if event.instance_id == 0 else self.player2
-            player.stop()
+        player1_actions = ActionMap()
+        player1_actions.bind(
+            'up',
+            keyboard=pygame.K_w,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
+            instance_id=0,
+        )
+        player1_actions.bind(
+            'down',
+            keyboard=pygame.K_s,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
+            instance_id=0,
+        )
 
-        self.log.info('GOT on_controller_button_down_event: %s', event)
+        player2_actions = ActionMap()
+        player2_actions.bind(
+            'up',
+            keyboard=pygame.K_UP,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
+            instance_id=1,
+        )
+        player2_actions.bind(
+            'down',
+            keyboard=pygame.K_DOWN,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
+            instance_id=1,
+        )
+
+        pause_actions = ActionMap()
+        pause_actions.bind('pause', keyboard=pygame.K_SPACE)
+
+        return player1_actions, player2_actions, pause_actions
+
+    def _process_paddle_input(self: Self) -> None:
+        """Apply held movement actions from ActionMaps each frame."""
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.begin_frame()
+
+        if self.p1_actions.is_held('up'):
+            self.player1.up()
+        elif self.p1_actions.is_held('down'):
+            self.player1.down()
+        else:
+            self.player1.stop()
+
+        if self.p2_actions.is_held('up'):
+            self.player2.up()
+        elif self.p2_actions.is_held('down'):
+            self.player2.down()
+        else:
+            self.player2.stop()
+
+    @override
+    def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
+        """Feed controller button events to action maps.
+
+        Movement is handled frame-driven in dt_tick.
+
+        Args:
+            event: The controller button down event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
 
     @override
     def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
-        """Handle controller button up events.
+        """Feed controller button releases to action maps.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The controller button up event.
 
         """
-        player = self.player1 if event.instance_id == 0 else self.player2
-        if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            player.up()
-        if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            player.down()
-
-        self.log.info('GOT on_controller_button_up_event: %s', event)
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
 
     @override
     def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
-        """Handle controller axis motion events.
+        """Feed controller axis motion to action maps.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The controller axis motion event.
 
         """
-        player = self.player1 if event.instance_id == 0 else self.player2
-        if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
-            if event.value < 0:
-                player.up()
-            if event.value == 0:
-                player.stop()
-            if event.value > 0:
-                player.down()
-            self.log.info('GOT on_controller_axis_motion_event: %s', event)
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
 
     @override
     def on_key_down_event(self: Self, event: HashableEvent) -> None:
-        """Handle key down events.
+        """Feed key presses to action maps.
+
+        Movement is handled frame-driven in dt_tick.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The key down event.
 
         """
-        # Handle specific key presses instead of scanning all keys
-        if event.key == pygame.K_SPACE:
-            # Track that spacebar is pressed (but don't act on it yet)
-            self._space_pressed = True
-        elif event.key == pygame.K_w:
-            log.debug(
-                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}',  # type: ignore[reportPrivateUsage]
-            )
-            self.player1.up()
-        elif event.key == pygame.K_s:
-            log.debug(
-                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}',  # type: ignore[reportPrivateUsage]
-            )
-            self.player1.down()
-        elif event.key == pygame.K_UP:
-            log.debug(
-                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}',  # type: ignore[reportPrivateUsage]
-            )
-            self.player2.up()
-        elif event.key == pygame.K_DOWN:
-            log.debug(
-                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}',  # type: ignore[reportPrivateUsage]
-            )
-            self.player2.down()
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.handle_event(event)
 
     @override
     def on_key_up_event(self: Self, event: HashableEvent) -> None:
-        """Handle key up events.
+        """Feed key releases to action maps.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The key up event.
 
         """
-        if event.key == pygame.K_SPACE and self._space_pressed:
-            # Spacebar was pressed and now released - pause the game
-            self._space_pressed = False
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.handle_event(event)
+
+        if self.pause_actions.just_released('pause'):
             self.pause()
-        else:
-            # Handle ESC/q to quit
+        elif self.pause_actions.get_action(event) is None:
+            # Let base Scene handle ESC/q to quit
             super().on_key_up_event(event)
 
 

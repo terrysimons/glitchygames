@@ -74,7 +74,7 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             self._id = controller_id
             self.controller = pygame._sdl2.controller.Controller(self._id)
             self.controller.init()
-            self._name: Any = pygame._sdl2.controller.name_forindex(self._id)  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+            self._name: Any = self.controller.name
             self._init = self.controller.get_init()
             self._attached = self.controller.attached()
 
@@ -206,7 +206,7 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
             """
             controller_info = [
-                f'Controller Name: {pygame._sdl2.controller.name_forindex(self._id)}',  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
+                f'Controller Name: {self._name}',
                 f'\tController Id: {self._id}',
                 f'\tController Inited: {self.controller.get_init()}',
                 f'\tController Axis Count: {self._numaxes}',
@@ -255,19 +255,17 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
                 self.log.warning('Controller #%s is not a controller.', controller_id)
                 continue
 
-            self.log.info(
-                f'Controller #{controller_id}: '
-                f'{pygame._sdl2.controller.name_forindex(controller_id)}',  # type: ignore[attr-defined] # ty: ignore[unresolved-attribute]
-            )
-
             controller_proxy = ControllerEventManager.ControllerEventProxy(
                 controller_id=controller_id,
                 game=game,
             )
             self.controllers[controller_id] = controller_proxy
 
-            # The controller proxy overrides the controller object
-            self.log.info('Added Controller: %s', controller_proxy)
+            self.log.info(
+                'Controller #%d: %s',
+                controller_id,
+                controller_proxy,
+            )
 
         self.proxies = [self.game]
 

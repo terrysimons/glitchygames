@@ -47,6 +47,7 @@ from glitchygames.examples.brave_adventurer.drawing import (
 from glitchygames.examples.brave_adventurer.levels import LEVEL_1, LevelManager
 from glitchygames.examples.brave_adventurer.player import Player
 from glitchygames.examples.brave_adventurer.sounds import GameSounds
+from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
@@ -165,9 +166,26 @@ class BraveAdventurerScene(Scene):
         # HUD font
         self.hud_font: pygame.font.Font | None = None
 
-        # Track input state for smooth movement
-        self._moving_right: bool = False
-        self._moving_left: bool = False
+        # Input action mapping (unifies keyboard + controller)
+        self.actions = ActionMap()
+        self.actions.bind(
+            'move_right',
+            keyboard=pygame.K_RIGHT,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_RIGHT,
+        )
+        self.actions.bind(
+            'move_left',
+            keyboard=pygame.K_LEFT,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_LEFT,
+        )
+        self.actions.bind(
+            'jump',
+            keyboard=pygame.K_SPACE,
+            controller_button=pygame.CONTROLLER_BUTTON_A,
+        )
+        self.actions.bind('jump', keyboard=pygame.K_UP)
+        self.actions.bind('pause', keyboard=pygame.K_ESCAPE)
+        self.actions.bind('quit', keyboard=pygame.K_q)
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
@@ -206,6 +224,9 @@ class BraveAdventurerScene(Scene):
 
         if self.game_over_triggered:
             return
+
+        # 0. Process held-state input actions (movement)
+        self._process_movement_input()
 
         # 1. Track airborne state before physics (for landing sound)
         was_airborne_before = not self.player.on_ground
@@ -563,11 +584,12 @@ class BraveAdventurerScene(Scene):
         )
 
     def _restore_input_after_respawn(self: Self) -> None:
-        """Restore movement input state after respawn animation completes."""
-        if self._moving_right:
-            self.player.move_right()
-        elif self._moving_left:
-            self.player.move_left()
+        """Restore movement input state after respawn animation completes.
+
+        Movement is now frame-driven via ActionMap in dt_tick, so
+        this just marks respawn as complete. dt_tick will pick up
+        held keys on the next frame.
+        """
 
     def _pause_game(self: Self) -> None:
         """Pause the game by switching to the built-in pause scene."""
@@ -575,34 +597,43 @@ class BraveAdventurerScene(Scene):
         self.next_scene = pause_scene
 
     # -----------------------------------------------------------------------
-    # Input handling
+    # Input handling (unified via ActionMap)
     # -----------------------------------------------------------------------
+
+    def _process_movement_input(self: Self) -> None:
+        """Apply held movement actions from ActionMap each frame."""
+        self.actions.begin_frame()
+        if self.player.is_respawning:
+            return
+        if self.actions.is_held('move_right'):
+            self.player.move_right()
+        elif self.actions.is_held('move_left'):
+            self.player.move_left()
+        else:
+            self.player.stop_horizontal()
 
     @override
     def on_key_down_event(self: Self, event: HashableEvent) -> None:
-        """Handle keyboard key presses.
+        """Handle keyboard key presses via ActionMap.
+
+        Movement is handled frame-driven in dt_tick via is_held().
+        One-shot actions (jump, pause, quit) fire here on press.
 
         Args:
             event: The key down event.
 
         """
-        if event.key == pygame.K_RIGHT:
-            self._moving_right = True
-            self._moving_left = False
-            self.player.move_right()
-        elif event.key == pygame.K_LEFT:
-            self._moving_left = True
-            self._moving_right = False
-            self.player.move_left()
-        elif event.key in {pygame.K_SPACE, pygame.K_UP}:
+        self.actions.handle_event(event)
+        action = self.actions.get_action(event)
+        if action == 'jump':
             if self.player.on_ground:
                 self.sounds.play_jump()
             self.player.jump()
-        elif event.key == pygame.K_ESCAPE:
+        elif action == 'pause':
             self._pause_game()
-        elif event.key == pygame.K_q:
+        elif action == 'quit':
             self.next_scene = None
-        else:
+        elif action is None:
             super().on_key_down_event(event)
 
     @override
@@ -613,62 +644,32 @@ class BraveAdventurerScene(Scene):
             event: The key up event.
 
         """
-        if event.key == pygame.K_RIGHT:
-            self._moving_right = False
-            if self._moving_left:
-                self.player.move_left()
-            else:
-                self.player.stop_horizontal()
-        elif event.key == pygame.K_LEFT:
-            self._moving_left = False
-            if self._moving_right:
-                self.player.move_right()
-            else:
-                self.player.stop_horizontal()
-        else:
-            super().on_key_up_event(event)
+        self.actions.handle_event(event)
 
     @override
     def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
-        """Handle game controller button presses.
+        """Handle controller button presses via ActionMap.
 
         Args:
             event: The controller button down event.
 
         """
-        if event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-            self._moving_right = True
-            self._moving_left = False
-            self.player.move_right()
-        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-            self._moving_left = True
-            self._moving_right = False
-            self.player.move_left()
-        elif event.button == pygame.CONTROLLER_BUTTON_A:
+        self.actions.handle_event(event)
+        action = self.actions.get_action(event)
+        if action == 'jump':
             if self.player.on_ground:
                 self.sounds.play_jump()
             self.player.jump()
 
     @override
     def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
-        """Handle game controller button releases.
+        """Handle controller button releases.
 
         Args:
             event: The controller button up event.
 
         """
-        if event.button == pygame.CONTROLLER_BUTTON_DPAD_RIGHT:
-            self._moving_right = False
-            if self._moving_left:
-                self.player.move_left()
-            else:
-                self.player.stop_horizontal()
-        elif event.button == pygame.CONTROLLER_BUTTON_DPAD_LEFT:
-            self._moving_left = False
-            if self._moving_right:
-                self.player.move_right()
-            else:
-                self.player.stop_horizontal()
+        self.actions.handle_event(event)
 
     # -----------------------------------------------------------------------
     # Rendering

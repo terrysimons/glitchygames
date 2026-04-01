@@ -1213,6 +1213,14 @@ class TestInitializeEventManagers:
         }
         engine.scene_manager = mock_scene_manager
 
+        # Patch joystick/controller subsystems to avoid deprecated API calls
+        mocker.patch('pygame.joystick.get_count', return_value=0)
+        mocker.patch('pygame.joystick.init')
+        mocker.patch('pygame.joystick.get_init', return_value=True)
+        mocker.patch('pygame._sdl2.controller.init')
+        mocker.patch('pygame._sdl2.controller.get_init', return_value=True)
+        mocker.patch('pygame._sdl2.controller.get_count', return_value=0)
+
         engine._initialize_event_managers()
 
         # Check that key managers are set up

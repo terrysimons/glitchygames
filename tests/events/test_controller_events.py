@@ -25,6 +25,20 @@ from glitchygames.events.controller import ControllerEventManager
 from tests.mocks.test_mock_factory import MockFactory
 
 
+def _setup_controller_patches(mocker, controller_count=0):
+    """Set up common pygame._sdl2.controller patches.
+
+    Args:
+        mocker: pytest-mock mocker fixture
+        controller_count: Number of controllers to report
+
+    """
+    mocker.patch('pygame._sdl2.controller.init')
+    mocker.patch('pygame._sdl2.controller.get_init', return_value=True)
+    mocker.patch('pygame._sdl2.controller.get_count', return_value=controller_count)
+    mocker.patch('pygame._sdl2.controller.is_controller', return_value=False)
+
+
 class TestControllerEventProxyMethods:
     """Test ControllerEventProxy forwarding methods via the manager."""
 
@@ -32,12 +46,14 @@ class TestControllerEventProxyMethods:
         """Create a ControllerEventManager with a mock controller at instance_id=0.
 
         The ControllerEventProxy requires a real SDL controller, so we mock it
-        by inserting a mock proxy directly into the controllers dict.
+        by inserting a mock proxy directly into the controllers dict. Patches
+        the controller module to avoid real SDL calls.
 
         Returns:
             Tuple of (manager, mock_game, mock_proxy).
         """
         mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
         manager = ControllerEventManager(game=mock_game)
 
         # Create a mock controller proxy with all the forwarding methods
@@ -76,6 +92,7 @@ class TestControllerEventProxyMethods:
     def test_device_added_creates_and_routes(self, mock_pygame_patches, mocker):
         """Device added event should create a new proxy and forward the event."""
         mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
         manager = ControllerEventManager(game=mock_game)
 
         # Mock the ControllerEventProxy constructor to avoid real SDL calls
@@ -115,6 +132,7 @@ class TestControllerEventProxyMethods:
     def test_device_removed_missing_instance_is_noop(self, mock_pygame_patches, mocker):
         """Device removed for unknown instance_id should not crash."""
         mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
         manager = ControllerEventManager(game=mock_game)
 
         event = HashableEvent(pygame.CONTROLLERDEVICEREMOVED, instance_id=999)
@@ -747,6 +765,7 @@ class TestControllerEventFlow:
     def test_controller_manager_initialization(self, mock_pygame_patches, mocker):
         """Test ControllerEventManager initializes correctly."""
         mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
         manager = ControllerEventManager(game=mock_game)
 
         assert manager.game == mock_game
@@ -756,6 +775,7 @@ class TestControllerEventFlow:
     def test_controller_manager_directly(self, mock_pygame_patches, mocker):
         """Test ControllerEventManager in isolation."""
         mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
         manager = ControllerEventManager(game=mock_game)
 
         # Test that manager has the required methods
