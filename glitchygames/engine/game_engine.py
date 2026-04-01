@@ -748,26 +748,33 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
         self.audio_manager = AudioEventManager(game=self.scene_manager)
         self.drop_manager = DropEventManager(game=self.scene_manager)
 
-        using_pygame_ce: bool = False
-        try:
-            using_pygame_ce = (
-                importlib.metadata.distribution('pygame').metadata['Name'] == 'pygame-ce'
-            )
-        except NameError, importlib.metadata.PackageNotFoundError:
-            using_pygame_ce = (
-                importlib.metadata.distribution('pygame-ce').metadata['Name'] == 'pygame-ce'
-            )
-            LOG.warning('Pygame CE detected, disabling controller manager.')
+        # Determine input mode for gamepads
+        input_mode = GameEngine.OPTIONS.get('input_mode', 'auto')
 
-        if using_pygame_ce:
+        if input_mode == 'auto':
+            # Detect pygame-ce and default to joystick API (controller API
+            # has compatibility issues with pygame-ce 2.5+)
+            using_pygame_ce: bool = False
+            try:
+                using_pygame_ce = (
+                    importlib.metadata.distribution('pygame').metadata['Name'] == 'pygame-ce'
+                )
+            except NameError, importlib.metadata.PackageNotFoundError:
+                with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+                    using_pygame_ce = (
+                        importlib.metadata.distribution('pygame-ce').metadata['Name'] == 'pygame-ce'
+                    )
+            input_mode = 'joystick' if using_pygame_ce else 'controller'
+            GameEngine.OPTIONS['input_mode'] = input_mode
+            LOG.info('Auto-detected input mode: %s', input_mode)
+
+        if input_mode == 'joystick':
             self.controller_manager = None
-            # Disable Controller Events
             pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            LOG.info('Input mode: joystick (controller events blocked)')
         else:
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
-            # Controller events are enabled by default when the controller module
-            # is initialized via pygame._sdl2.controller.init(). No need to call
-            # set_eventstate() — that function was removed in pygame-ce 2.5.x.
+            LOG.info('Input mode: controller (SDL Game Controller API)')
 
         self.touch_manager = TouchEventManager(game=self.scene_manager)
         # https://glitchy-games.atlassian.net/browse/GG-23
@@ -1088,6 +1095,10 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         if event.type == pygame.CONTROLLERTOUCHPADUP:
             self.controller_manager.on_controller_touchpad_up_event(event)
+            return True
+
+        if event.type == pygame.CONTROLLERSENSORUPDATE:
+            self.controller_manager.on_controller_sensor_update_event(event)
             return True
 
         if event.type == pygame.CONTROLLERDEVICEREMOVED:

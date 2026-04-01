@@ -43,6 +43,7 @@ dependencies = [
   "taplo>=0.9.3",
   "yamllint>=1.38.0",
   "wily>=1.25.0",
+  "hidapi>=0.15.0",
 ]
 
 [project.urls]
@@ -362,6 +363,11 @@ DEP002 = [
   "yamllint",
   "wily",
 ]
+
+[tool.uv]
+# aisuite pins docstring-parser<0.16, but 0.16+ is needed for Python 3.14
+# (ast.NameConstant removed). Override until aisuite loosens the pin.
+override-dependencies = ["docstring-parser>=0.16"]
 
 [build-system]
 requires = ["hatchling"]

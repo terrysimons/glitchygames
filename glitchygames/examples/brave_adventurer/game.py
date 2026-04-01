@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.audio import VoiceAssistant
 from glitchygames.camera import Camera2D
 from glitchygames.engine import GameEngine
 from glitchygames.examples.brave_adventurer.constants import (
@@ -59,6 +60,12 @@ if TYPE_CHECKING:
     from glitchygames.events.base import HashableEvent
 
 log = logging.getLogger('game')
+
+# DualSense mic mute button indices differ between APIs:
+# SDL Game Controller API reports button 15
+# Raw joystick API reports button 16
+MIC_BUTTON_CONTROLLER = 15
+MIC_BUTTON_JOYSTICK = 16
 
 
 class BraveAdventurerScene(Scene):
@@ -167,7 +174,7 @@ class BraveAdventurerScene(Scene):
         self.hud_font: pygame.font.Font | None = None
 
         # Input action mapping (unifies keyboard + controller)
-        self.actions = ActionMap()
+        self.actions = ActionMap(input_mode=self.options.get('input_mode', 'joystick'))
         self.actions.bind(
             'move_right',
             keyboard=pygame.K_RIGHT,
@@ -186,6 +193,17 @@ class BraveAdventurerScene(Scene):
         self.actions.bind('jump', keyboard=pygame.K_UP)
         self.actions.bind('pause', keyboard=pygame.K_ESCAPE)
         self.actions.bind('quit', keyboard=pygame.K_q)
+
+        # Mic mute button — bind both APIs since button indices differ
+        self.actions.bind(
+            'mic_toggle',
+            controller_button=MIC_BUTTON_CONTROLLER,
+            joystick_button=MIC_BUTTON_JOYSTICK,
+        )
+
+        # Voice assistant (auto-discovers controller mic/speaker)
+        # Voice assistant auto-discovers controller mic/speaker via miniaudio
+        self.voice_assistant: VoiceAssistant | None = VoiceAssistant.discover()
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
@@ -225,8 +243,9 @@ class BraveAdventurerScene(Scene):
         if self.game_over_triggered:
             return
 
-        # 0. Process held-state input actions (movement)
+        # 0. Process input and voice assistant
         self._process_movement_input()
+        self._update_voice_assistant()
 
         # 1. Track airborne state before physics (for landing sound)
         was_airborne_before = not self.player.on_ground
@@ -554,6 +573,7 @@ class BraveAdventurerScene(Scene):
         self.player.is_respawning = True
         self.player.velocity_x = 0.0
         self.player.velocity_y = 0.0
+        self.player.stop_horizontal()  # Clear AccelerationBehavior target
 
         # Fade out, reposition, fade in
         respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)
@@ -612,6 +632,11 @@ class BraveAdventurerScene(Scene):
         else:
             self.player.stop_horizontal()
 
+    def _update_voice_assistant(self: Self) -> None:
+        """Check for completed voice assistant responses."""
+        if self.voice_assistant is not None:
+            self.voice_assistant.update()
+
     @override
     def on_key_down_event(self: Self, event: HashableEvent) -> None:
         """Handle keyboard key presses via ActionMap.
@@ -660,6 +685,8 @@ class BraveAdventurerScene(Scene):
             if self.player.on_ground:
                 self.sounds.play_jump()
             self.player.jump()
+        elif action == 'mic_toggle' and self.voice_assistant is not None:
+            self.voice_assistant.start_listening()
 
     @override
     def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -667,6 +694,49 @@ class BraveAdventurerScene(Scene):
 
         Args:
             event: The controller button up event.
+
+        """
+        self.actions.handle_event(event)
+        action = self.actions.get_action(event)
+        if action == 'mic_toggle' and self.voice_assistant is not None:
+            self.voice_assistant.stop_listening_and_respond()
+
+    @override
+    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+        """Handle joystick button presses (pygame-ce uses joystick API).
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        self.actions.handle_event(event)
+        action = self.actions.get_action(event)
+        if action == 'jump':
+            if self.player.on_ground:
+                self.sounds.play_jump()
+            self.player.jump()
+        elif action == 'mic_toggle' and self.voice_assistant is not None:
+            self.voice_assistant.start_listening()
+
+    @override
+    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+        """Handle joystick button releases.
+
+        Args:
+            event: The joystick button up event.
+
+        """
+        self.actions.handle_event(event)
+        action = self.actions.get_action(event)
+        if action == 'mic_toggle' and self.voice_assistant is not None:
+            self.voice_assistant.stop_listening_and_respond()
+
+    @override
+    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+        """Handle joystick axis motion.
+
+        Args:
+            event: The joystick axis motion event.
 
         """
         self.actions.handle_event(event)

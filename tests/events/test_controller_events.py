@@ -798,3 +798,125 @@ class TestControllerEventFlow:
         # Test button up event
         event = HashableEvent(pygame.CONTROLLERBUTTONUP, button=0, instance_id=0)
         manager.on_controller_button_up_event(event)
+
+
+class TestControllerSensorEvent:
+    """Test sensor update event routing."""
+
+    def test_sensor_update_routes_to_proxy(self, mock_pygame_patches, mocker):
+        """Sensor update event should route to the correct controller proxy."""
+        mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
+        manager = ControllerEventManager(game=mock_game)
+
+        mock_proxy = mocker.Mock()
+        manager.controllers[0] = mock_proxy
+
+        event = HashableEvent(
+            pygame.CONTROLLERSENSORUPDATE,
+            instance_id=0,
+            sensor=0,
+            data=(0.1, 0.2, 0.3),
+        )
+        manager.on_controller_sensor_update_event(event)
+
+        mock_proxy.on_controller_sensor_update_event.assert_called_once_with(event)
+
+    def test_sensor_update_missing_instance_is_safe(self, mock_pygame_patches, mocker):
+        """Sensor update for unknown instance_id should not crash."""
+        mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
+        manager = ControllerEventManager(game=mock_game)
+
+        event = HashableEvent(
+            pygame.CONTROLLERSENSORUPDATE,
+            instance_id=999,
+            sensor=0,
+            data=(0.0, 0.0, 0.0),
+        )
+        # Should not raise
+        manager.on_controller_sensor_update_event(event)
+
+
+class TestControllerRumble:
+    """Test rumble and LED output features on the manager."""
+
+    def test_rumble_delegates_to_proxy(self, mock_pygame_patches, mocker):
+        """Rumble call should delegate to the controller proxy."""
+        mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
+        manager = ControllerEventManager(game=mock_game)
+
+        mock_proxy = mocker.Mock()
+        mock_proxy.rumble.return_value = True
+        manager.controllers[0] = mock_proxy
+
+        result = manager.rumble(
+            instance_id=0,
+            low_frequency=0.5,
+            high_frequency=0.8,
+            duration=200,
+        )
+
+        assert result is True
+        mock_proxy.rumble.assert_called_once_with(
+            low_frequency=0.5,
+            high_frequency=0.8,
+            duration=200,
+        )
+
+    def test_rumble_missing_controller_returns_false(self, mock_pygame_patches, mocker):
+        """Rumble for non-existent controller returns False."""
+        mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
+        manager = ControllerEventManager(game=mock_game)
+
+        assert manager.rumble(instance_id=99) is False
+
+    def test_stop_rumble_delegates_to_proxy(self, mock_pygame_patches, mocker):
+        """Stop rumble should delegate to the controller proxy."""
+        mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
+        manager = ControllerEventManager(game=mock_game)
+
+        mock_proxy = mocker.Mock()
+        manager.controllers[0] = mock_proxy
+
+        manager.stop_rumble(instance_id=0)
+
+        mock_proxy.stop_rumble.assert_called_once()
+
+    def test_stop_rumble_missing_controller_is_safe(self, mock_pygame_patches, mocker):
+        """Stop rumble for non-existent controller should not crash."""
+        mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
+        manager = ControllerEventManager(game=mock_game)
+
+        manager.stop_rumble(instance_id=99)  # Should not raise
+
+
+class TestControllerLED:
+    """Test LED color output feature."""
+
+    def test_set_led_delegates_to_proxy(self, mock_pygame_patches, mocker):
+        """Set LED should delegate to the controller proxy."""
+        mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
+        manager = ControllerEventManager(game=mock_game)
+
+        mock_proxy = mocker.Mock()
+        mock_proxy.set_led.return_value = True
+        manager.controllers[0] = mock_proxy
+
+        result = manager.set_led(instance_id=0, red=255, green=0, blue=0)
+
+        assert result is True
+        mock_proxy.set_led.assert_called_once_with(red=255, green=0, blue=0)
+
+    def test_set_led_missing_controller_returns_false(self, mock_pygame_patches, mocker):
+        """Set LED for non-existent controller returns False."""
+        mock_game = mocker.Mock()
+        _setup_controller_patches(mocker, controller_count=0)
+        manager = ControllerEventManager(game=mock_game)
+
+        assert manager.set_led(instance_id=99, red=0, green=0, blue=0) is False

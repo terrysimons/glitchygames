@@ -172,7 +172,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self.hud_font: pygame.font.Font | None = None
 
         # Input action mapping (unifies keyboard + controller)
-        self.actions = ActionMap()
+        self.actions = ActionMap(input_mode=self.options.get('input_mode', 'joystick'))
         self.actions.bind(
             'move_right',
             keyboard=pygame.K_RIGHT,
@@ -659,6 +659,41 @@ class PapyrusBraveAdventurerScene(Scene):
 
         Args:
             event: The controller button up event.
+
+        """
+        self.actions.handle_event(event)
+
+    @override
+    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+        """Handle joystick button presses (pygame-ce uses joystick API).
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        self.actions.handle_event(event)
+        action = self.actions.get_action(event)
+        if action == 'jump':
+            if self.player.on_ground:
+                self.sounds.play_jump()
+            self.player.jump()
+
+    @override
+    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+        """Handle joystick button releases.
+
+        Args:
+            event: The joystick button up event.
+
+        """
+        self.actions.handle_event(event)
+
+    @override
+    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+        """Handle joystick axis motion.
+
+        Args:
+            event: The joystick axis motion event.
 
         """
         self.actions.handle_event(event)

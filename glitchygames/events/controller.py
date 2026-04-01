@@ -6,6 +6,7 @@ This is a simple controller event class that can be used to handle controller ev
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
@@ -198,6 +199,60 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             self.game.on_controller_touchpad_up_event(event)
 
         @override
+        def on_controller_sensor_update_event(self: Self, event: HashableEvent) -> None:
+            """Handle controller sensor update events.
+
+            Args:
+                event (pygame.event.Event): The event to handle.
+
+            """
+            self.game.on_controller_sensor_update_event(event)
+
+        def rumble(
+            self: Self,
+            low_frequency: float = 0.0,
+            high_frequency: float = 0.0,
+            duration: int = 0,
+        ) -> bool:
+            """Trigger haptic rumble on this controller.
+
+            Args:
+                low_frequency: Low-frequency motor intensity (0.0 to 1.0).
+                high_frequency: High-frequency motor intensity (0.0 to 1.0).
+                duration: Duration in milliseconds (0 = infinite).
+
+            Returns:
+                True if rumble is supported and was started.
+
+            """
+            try:
+                return bool(self.controller.rumble(low_frequency, high_frequency, duration))
+            except pygame.error, AttributeError:
+                return False
+
+        def stop_rumble(self: Self) -> None:
+            """Stop any active rumble on this controller."""
+            with contextlib.suppress(pygame.error, AttributeError):
+                self.controller.stop_rumble()
+
+        def set_led(self: Self, red: int, green: int, blue: int) -> bool:
+            """Set the controller's LED color (DualSense, DualShock 4).
+
+            Args:
+                red: Red intensity (0-255).
+                green: Green intensity (0-255).
+                blue: Blue intensity (0-255).
+
+            Returns:
+                True if LED color was set successfully.
+
+            """
+            try:
+                return bool(self.controller.set_led((red, green, blue)))
+            except pygame.error, AttributeError:
+                return False
+
+        @override
         def __str__(self: Self) -> str:
             """Return a string representation of the controller.
 
@@ -284,9 +339,9 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         group.add_argument(
             '--input-mode',
-            choices=['joystick', 'controller'],
-            default='controller',
-            help='Choose input event family to use (default: controller)',
+            choices=['auto', 'joystick', 'controller'],
+            default='auto',
+            help='Gamepad input API (default: auto)',
         )
 
         return parser
@@ -429,3 +484,81 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
         """
         self.log.debug('CONTROLLERTOUCHPADUP triggered: on_controller_touchpad_up_event(%s)', event)
         self.controllers[event.instance_id].on_controller_touchpad_up_event(event)
+
+    @override
+    def on_controller_sensor_update_event(self: Self, event: HashableEvent) -> None:
+        """Handle controller sensor update events (gyroscope, accelerometer).
+
+        Args:
+            event (pygame.event.Event): The event to handle.
+
+        """
+        self.log.debug(
+            'CONTROLLERSENSORUPDATE triggered: on_controller_sensor_update_event(%s)',
+            event,
+        )
+        if event.instance_id in self.controllers:
+            self.controllers[event.instance_id].on_controller_sensor_update_event(event)
+
+    # --- Output features (rumble, LED) ---
+    # These are controller-only. Not available in joystick mode.
+    # Speaker and microphone are not exposed by pygame-ce.
+
+    def rumble(
+        self: Self,
+        instance_id: int,
+        low_frequency: float = 0.0,
+        high_frequency: float = 0.0,
+        duration: int = 0,
+    ) -> bool:
+        """Trigger haptic rumble on a controller.
+
+        Args:
+            instance_id: The controller instance ID.
+            low_frequency: Low-frequency motor intensity (0.0 to 1.0).
+            high_frequency: High-frequency motor intensity (0.0 to 1.0).
+            duration: Duration in milliseconds (0 = infinite).
+
+        Returns:
+            True if rumble was started.
+
+        """
+        proxy = self.controllers.get(instance_id)
+        if proxy is None:
+            return False
+        return proxy.rumble(
+            low_frequency=low_frequency,
+            high_frequency=high_frequency,
+            duration=duration,
+        )
+
+    def stop_rumble(self: Self, instance_id: int) -> None:
+        """Stop rumble on a controller.
+
+        Args:
+            instance_id: The controller instance ID.
+
+        """
+        proxy = self.controllers.get(instance_id)
+        if proxy is not None:
+            proxy.stop_rumble()
+
+    def set_led(self: Self, instance_id: int, red: int, green: int, blue: int) -> bool:
+        """Set a controller's LED color.
+
+        Only supported on DualSense and DualShock 4 controllers.
+
+        Args:
+            instance_id: The controller instance ID.
+            red: Red intensity (0-255).
+            green: Green intensity (0-255).
+            blue: Blue intensity (0-255).
+
+        Returns:
+            True if the LED color was set.
+
+        """
+        proxy = self.controllers.get(instance_id)
+        if proxy is None:
+            return False
+        return proxy.set_led(red=red, green=green, blue=blue)

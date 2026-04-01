@@ -392,11 +392,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self.log.info('POSTING QUIT EVENT')
         pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
 
-    def on_quit_event(self: Self, _event: events.HashableEvent) -> None:
+    def on_quit_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
         """Handle quit events.
 
         Args:
-            _event (pygame.event.Event): The event to handle (unused).
+            event (pygame.event.Event): The quit event.
 
         """
         # QUIT             none
