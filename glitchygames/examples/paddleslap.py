@@ -257,6 +257,10 @@ class Game(Scene):
         # when ball bounding boxes overlap across multiple consecutive frames.
         # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
         self._ball_collision_cooldowns: dict[tuple[int, int], int] = {}
+
+        # Collision layers
+        self.collisions.add_layer('balls')
+        self.collisions.add_layer('paddles')
         # Convert string argument to BallSpawnMode flag
         spawn_mode_str = self.options.get('ball_spawn_mode', 'paddle_only')
         if spawn_mode_str == 'paddle_only':
@@ -297,6 +301,11 @@ class Game(Scene):
             green = secrets.randbelow(256)
             blue = secrets.randbelow(256)
             ball.color = (red, green, blue)
+            self.collisions.get_layer('balls').add(ball)
+
+        paddle_layer = self.collisions.get_layer('paddles')
+        paddle_layer.add(self.player1)
+        paddle_layer.add(self.player2)
 
         self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
 
@@ -453,6 +462,7 @@ class Game(Scene):
 
         for ball in balls_to_remove:
             self.balls.remove(ball)
+            self.collisions.get_layer('balls').remove(ball)
 
         # Check for Game Over condition
         if len(self.balls) == 0:
@@ -520,10 +530,14 @@ class Game(Scene):
                 if not too_close:
                     break
 
+            new_ball.world_x = float(spawn_x)
+            new_ball.world_y = float(spawn_y)
             new_ball.rect.x = spawn_x
             new_ball.rect.y = spawn_y
         else:
             # Fixed position (center of screen)
+            new_ball.world_x = float(self.screen_width // 2)
+            new_ball.world_y = float(self.screen_height // 2)
             new_ball.rect.x = self.screen_width // 2
             new_ball.rect.y = self.screen_height // 2
 
@@ -564,9 +578,10 @@ class Game(Scene):
         # Set up paddle collision callback for ball spawn (with speed limit check)
         new_ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
 
-        # Add to balls list and sprite group
+        # Add to balls list, sprite group, and collision layer
         self.balls.append(new_ball)
         self.all_sprites.add(new_ball)
+        self.collisions.get_layer('balls').add(new_ball)
 
     def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
         """Spawn a new ball based on configurable spawn mode.
@@ -621,66 +636,69 @@ class Game(Scene):
     def _handle_ball_collisions(self: Self) -> None:
         """Handle ball-to-ball collisions with proper physics.
 
-        Uses normal-decomposition for energy-conserving elastic collisions
-        and per-pair cooldown to prevent duplicate collision processing when
-        bounding boxes overlap across multiple consecutive frames.
-
-        Args:
-            None
-
+        Uses the collision manager for broad-phase AABB detection, then
+        circle-distance fine check for accuracy. Energy-conserving elastic
+        collisions with per-pair cooldown.
         """
         self._tick_collision_cooldowns()
 
-        # Number of frames to suppress re-detection after a collision
+        # Use collision manager for same-layer pair detection (AABB broad phase)
+        self.collisions.check_overlap(
+            'balls', 'balls',
+            callback=self._on_ball_ball_collision,
+        )
+
+    def _on_ball_ball_collision(self: Self, ball1: BallSprite, ball2: BallSprite) -> None:
+        """Handle a ball-ball collision candidate from the collision manager.
+
+        The collision manager found an AABB overlap. We do the precise
+        circle-distance check here, then apply elastic collision physics.
+        """
         cooldown_frames = 10
 
-        # Check all pairs of balls for collisions
-        for i in range(len(self.balls)):
-            for j in range(i + 1, len(self.balls)):
-                # Skip pairs still in cooldown
-                pair_key = (id(self.balls[i]), id(self.balls[j]))
-                if pair_key in self._ball_collision_cooldowns:
-                    continue
+        # Skip pairs still in cooldown
+        pair_key = (id(ball1), id(ball2))
+        reverse_key = (id(ball2), id(ball1))
+        if (
+            pair_key in self._ball_collision_cooldowns
+            or reverse_key in self._ball_collision_cooldowns
+        ):
+            return
 
-                ball1 = self.balls[i]
-                ball2 = self.balls[j]
+        dx, dy, distance, collision_distance = self._calculate_ball_distance(ball1, ball2)
 
-                dx, dy, distance, collision_distance = self._calculate_ball_distance(ball1, ball2)
+        # Fine check: circle distance (AABB is broad phase only)
+        if distance > collision_distance or distance < SPEED_CHANGE_NOISE_FLOOR:
+            return
 
-                # Skip if balls are too far apart or at exact same position
-                if distance > collision_distance or distance < SPEED_CHANGE_NOISE_FLOOR:
-                    continue
+        # Play collision sound
+        if hasattr(ball1, 'snd') and ball1.snd is not None:  # type: ignore[reportUnnecessaryComparison]
+            ball1.snd.play()
 
-                # Play collision sound
-                if hasattr(ball1, 'snd') and ball1.snd is not None:  # type: ignore[reportUnnecessaryComparison]
-                    ball1.snd.play()
+        # Collision normal (unit vector from ball1 center to ball2 center)
+        normal_x = dx / distance
+        normal_y = dy / distance
 
-                # Collision normal (unit vector from ball1 center to ball2 center)
-                normal_x = dx / distance
-                normal_y = dy / distance
+        # Only skip if balls are clearly separating AND not overlapping
+        dvn = (ball2.speed.x - ball1.speed.x) * normal_x + (
+            ball2.speed.y - ball1.speed.y
+        ) * normal_y
+        if dvn > 0 and distance >= collision_distance:
+            return
 
-                # Calculate relative velocity along collision normal
-                dvn = (ball2.speed.x - ball1.speed.x) * normal_x + (
-                    ball2.speed.y - ball1.speed.y
-                ) * normal_y
+        self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
+        self._cap_ball_speeds(ball1, ball2)
+        self._separate_overlapping_balls(
+            ball1,
+            ball2,
+            normal_x=normal_x,
+            normal_y=normal_y,
+            collision_distance=collision_distance,
+            distance=distance,
+        )
 
-                # Only skip if balls are clearly separating AND not overlapping
-                if dvn > 0 and distance >= collision_distance:
-                    continue
-
-                self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
-                self._cap_ball_speeds(ball1, ball2)
-                self._separate_overlapping_balls(
-                    ball1,
-                    ball2,
-                    normal_x=normal_x,
-                    normal_y=normal_y,
-                    collision_distance=collision_distance,
-                    distance=distance,
-                )
-
-                # Set cooldown for this pair to prevent duplicate processing
-                self._ball_collision_cooldowns[pair_key] = cooldown_frames
+        # Set cooldown for this pair
+        self._ball_collision_cooldowns[pair_key] = cooldown_frames
 
     def _tick_collision_cooldowns(self: Self) -> None:
         """Tick cooldowns: decrement all active cooldowns and remove expired ones."""
