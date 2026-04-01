@@ -19,9 +19,14 @@ class FakeSprite:
 
     current_animation: str = 'idle'
     is_looping: bool = True
-    _loop_flags: dict = field(default_factory=lambda: {
-        'idle': True, 'running': True, 'jumping': False, 'falling': False,
-    })
+    _loop_flags: dict = field(
+        default_factory=lambda: {
+            'idle': True,
+            'running': True,
+            'jumping': False,
+            'falling': False,
+        }
+    )
 
     def play(self, animation_name: str) -> None:
         """Switch animation."""
@@ -284,7 +289,8 @@ class TestAnimationStateMachine:
 
         state_machine.on_enter('running', callback=mark_entered)
         state_machine.add_transition(
-            from_state='idle', to_state='running',
+            from_state='idle',
+            to_state='running',
             when='abs(velocity_x) > 0.1',
         )
         state_machine.set_state('idle')
@@ -303,7 +309,8 @@ class TestAnimationStateMachine:
 
         state_machine.on_exit('idle', callback=mark_exited)
         state_machine.add_transition(
-            from_state='idle', to_state='running',
+            from_state='idle',
+            to_state='running',
             when='abs(velocity_x) > 0.1',
         )
         state_machine.set_state('idle')

@@ -186,9 +186,11 @@ class AnimationStateMachine:
             Decorator function.
 
         """
+
         def decorator(func: BehaviorFunction) -> BehaviorFunction:
             self._behaviors[state_name] = func
             return func
+
         return decorator
 
     def on_enter(self, state_name: str, callback: StateCallback) -> None:

@@ -48,9 +48,8 @@ class _FallingCondition(Expression):
             True if velocity_y exceeds threshold and not on ground.
 
         """
-        return (
-            context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD
-            and not context.get('on_ground', True)
+        return context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD and not context.get(
+            'on_ground', True
         )
 
 

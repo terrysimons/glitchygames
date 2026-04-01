@@ -51,9 +51,8 @@ class _FallingCondition(Expression):
             True if velocity_y exceeds threshold and not on ground.
 
         """
-        return (
-            context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD
-            and not context.get('on_ground', True)
+        return context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD and not context.get(
+            'on_ground', True
         )
 
 
@@ -146,10 +145,14 @@ class PapyrusPlayer(AnimatedSprite):
             # We use a custom Expression that checks both conditions
             falling_condition = _FallingCondition()
             self.state_machine.add_transition(
-                from_state='idle', to_state='falling', condition=falling_condition,
+                from_state='idle',
+                to_state='falling',
+                condition=falling_condition,
             )
             self.state_machine.add_transition(
-                from_state='jumping', to_state='falling', condition=falling_condition,
+                from_state='jumping',
+                to_state='falling',
+                condition=falling_condition,
             )
             self.state_machine.set_state(self.IDLE)
 

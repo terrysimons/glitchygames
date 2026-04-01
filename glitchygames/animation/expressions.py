@@ -26,11 +26,11 @@ from typing import Any, override
 _TOKEN_PATTERN = re.compile(
     r'\s*('
     r'>=|<=|==|!=|>|<'  # comparison operators
-    r'|abs'             # abs function
-    r'|\('              # open paren
-    r'|\)'              # close paren
-    r'|-?\d+\.?\d*'     # numbers (including negative)
-    r'|[a-zA-Z_]\w*'   # identifiers
+    r'|abs'  # abs function
+    r'|\('  # open paren
+    r'|\)'  # close paren
+    r'|-?\d+\.?\d*'  # numbers (including negative)
+    r'|[a-zA-Z_]\w*'  # identifiers
     r')\s*'
 )
 
