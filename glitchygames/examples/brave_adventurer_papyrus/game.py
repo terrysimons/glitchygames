@@ -55,6 +55,7 @@ from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.state import SaveManager, SaveNotFoundError
 
 if TYPE_CHECKING:
     import argparse
@@ -156,6 +157,9 @@ class PapyrusBraveAdventurerScene(Scene):
 
         # Game state
         self.game_over_triggered: bool = False
+
+        # Persistence
+        self.saves = SaveManager(app_name='brave-adventurer-papyrus')
 
         # Sound effects (shared from original edition)
         self.sounds = GameSounds()
@@ -486,11 +490,38 @@ class PapyrusBraveAdventurerScene(Scene):
         if self.player.lives <= 0:
             self.game_over_triggered = True
             self.sounds.play_game_over()
-            game_over_scene = GameOverScene(options=self.options)
+            high_scores = self._save_high_score()
+            game_over_scene = GameOverScene(
+                final_score=self.player.score,
+                high_scores=high_scores,
+                options=self.options,
+            )
             self.next_scene = game_over_scene
         else:
             self.sounds.play_death()
             self._respawn_player()
+
+    def _save_high_score(self: Self) -> list[dict[str, int]]:
+        """Save the current score to the high scores list.
+
+        Returns:
+            The updated high scores list, sorted descending by score.
+
+        """
+        max_high_scores = 10
+        try:
+            existing = self.saves.load('high_scores')
+            scores: list[dict[str, int]] = existing.get('scores', [])
+        except SaveNotFoundError:
+            scores = []
+
+        scores.append({'score': self.player.score})
+        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
+        scores = scores[:max_high_scores]
+
+        self.saves.save('high_scores', {'scores': scores})
+        log.info('Saved high score: %d (total entries: %d)', self.player.score, len(scores))
+        return scores
 
     def _respawn_player(self: Self) -> None:
         """Respawn the player with a fade-out/fade-in animation."""

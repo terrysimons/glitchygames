@@ -1,4 +1,4 @@
-"""Game Over scene for the paddleslap game."""
+"""Game Over scene with optional score display and high score tracking."""
 
 from __future__ import annotations
 
@@ -17,16 +17,30 @@ log = logging.getLogger('game')
 
 
 class GameOverScene(Scene):
-    """Game Over scene that displays when all balls are dead."""
+    """Game Over scene with final score and high score display.
 
-    def __init__(self: Self, **kwargs: Any) -> None:
+    Accepts an optional final_score to show the player's result and
+    an optional high_scores list to display the leaderboard.
+    """
+
+    def __init__(
+        self: Self,
+        final_score: int | None = None,
+        high_scores: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Initialize the Game Over scene.
 
         Args:
+            final_score: The player's final score (displayed if provided).
+            high_scores: List of high score dicts with 'score' key,
+                sorted descending. Top 5 are displayed.
             **kwargs: Additional keyword arguments.
 
         """
         super().__init__(**kwargs)
+        self.final_score = final_score
+        self.high_scores = high_scores or []
         self.text_sprite = None
         self._space_pressed = False
         # Don't set next_scene to self - this causes infinite loops
@@ -34,29 +48,63 @@ class GameOverScene(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Set up the Game Over scene.
-
-        Args:
-            None
-
-        """
+        """Set up the Game Over scene with score display."""
         super().setup()
         log.info('GameOverScene setup() called')
 
-        # Create a text sprite for "Game Over"
+        center_x = self.screen_width // 2
+        current_y = self.screen_height // 4
+
+        # Title
         self.text_sprite = TextSprite(
             'GAME OVER',
-            (self.screen_width // 2, self.screen_height // 2),
-            color=(255, 0, 0),  # Red color
+            (center_x, current_y),
+            color=(255, 0, 0),
             font_size=48,
         )
         self.all_sprites.add(self.text_sprite)
+        current_y += 60
 
-        # Create a subtitle
+        # Final score (if provided)
+        if self.final_score is not None:
+            score_sprite = TextSprite(
+                f'Score: {self.final_score}',
+                (center_x, current_y),
+                color=(255, 255, 100),
+                font_size=32,
+            )
+            self.all_sprites.add(score_sprite)
+            current_y += 50
+
+        # High scores (top 5)
+        if self.high_scores:
+            header = TextSprite(
+                'HIGH SCORES',
+                (center_x, current_y),
+                color=(200, 200, 200),
+                font_size=28,
+            )
+            self.all_sprites.add(header)
+            current_y += 35
+
+            max_displayed = 5
+            for rank, entry in enumerate(self.high_scores[:max_displayed], start=1):
+                score_value = entry.get('score', 0)
+                entry_sprite = TextSprite(
+                    f'{rank}. {score_value}',
+                    (center_x, current_y),
+                    color=(180, 180, 180),
+                    font_size=24,
+                )
+                self.all_sprites.add(entry_sprite)
+                current_y += 30
+
+        # Subtitle
+        current_y += 20
         subtitle = TextSprite(
             'Press SPACE to restart or ESC to quit',
-            (self.screen_width // 2, self.screen_height // 2 + 60),
-            color=(255, 255, 255),  # White color
+            (center_x, current_y),
+            color=(255, 255, 255),
             font_size=24,
         )
         self.all_sprites.add(subtitle)

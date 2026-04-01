@@ -33,6 +33,7 @@ from glitchygames.movement import Speed
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
+from glitchygames.state import SaveManager, SaveNotFoundError
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
@@ -251,6 +252,8 @@ class Game(Scene):
             collision_sound=SFX.SLAP,
         )
         self.balls: list[BallSprite] = []
+        self.rally_count: int = 0  # Total paddle hits across all balls
+        self.saves = SaveManager(app_name='paddleslap')
         self.last_ball_spawn_time = 0.0  # Track when we last spawned a ball
         self.ball_spawn_cooldown = 2.0  # Minimum 2 seconds between ball spawns
         # Per-pair collision cooldown to prevent duplicate collision processing
@@ -471,14 +474,36 @@ class Game(Scene):
         super().update()
 
     def _show_game_over(self: Self) -> None:
-        """Show the Game Over scene.
+        """Save high score and show the Game Over scene."""
+        high_scores = self._save_high_score()
+        self.next_scene = GameOverScene(
+            final_score=self.rally_count,
+            high_scores=high_scores,
+            options=self.options,
+        )
+        self.previous_scene = self
 
-        Args:
-            None
+    def _save_high_score(self: Self) -> list[dict[str, int]]:
+        """Save the current rally count to the high scores list.
+
+        Returns:
+            The updated high scores list, sorted descending by score.
 
         """
-        self.next_scene = GameOverScene(options=self.options)
-        self.previous_scene = self
+        max_high_scores = 10
+        try:
+            existing = self.saves.load('high_scores')
+            scores: list[dict[str, int]] = existing.get('scores', [])
+        except SaveNotFoundError:
+            scores = []
+
+        scores.append({'score': self.rally_count})
+        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
+        scores = scores[:max_high_scores]
+
+        self.saves.save('high_scores', {'scores': scores})
+        log.info('Saved rally score: %d (total entries: %d)', self.rally_count, len(scores))
+        return scores
 
     def _spawn_new_ball(self: Self, _ball: BallSprite | None = None) -> None:
         """Spawn a new ball at random location with random direction.
@@ -584,12 +609,13 @@ class Game(Scene):
         self.collisions.get_layer('balls').add(new_ball)
 
     def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
-        """Spawn a new ball based on configurable spawn mode.
+        """Count the rally hit and conditionally spawn a new ball.
 
         Args:
             ball: The ball that triggered the collision
 
         """
+        self.rally_count += 1
         # Check if spawning is enabled
         if self.ball_spawn_mode == BallSpawnMode.NO_SPAWNING:
             return
