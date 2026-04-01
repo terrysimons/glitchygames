@@ -16,6 +16,8 @@ from typing import IO, Any, Self, cast, override
 
 import pygame
 
+from glitchygames.animation import AnimationStateMachine
+
 # YAML support removed - TOML only
 # Import constants
 from glitchygames.color import (
@@ -716,6 +718,19 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
                 if frames:
                     self._animations[anim_name] = frames
                     self._animation_order.append(anim_name)  # Track order
+
+        # Store per-animation loop flags for state machine auto-loop-mode
+        self._loop_flags: dict[str, bool] = {}
+        for anim_data in animations:
+            anim_name = anim_data.get('namespace', 'default')
+            self._loop_flags[anim_name] = anim_data.get('loop', True)
+
+        # Auto-create animation state machine if [[transition]] sections exist
+        self.state_machine: AnimationStateMachine | None = None
+        transitions = data.get('transition', [])
+        if transitions:
+            self.state_machine = AnimationStateMachine(self)
+            self.state_machine.load_from_toml(transitions)
 
         # Log if no animations found
         if not animations and not self._animations:

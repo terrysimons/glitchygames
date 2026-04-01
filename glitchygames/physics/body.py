@@ -13,7 +13,7 @@ Convenience presets create pre-configured bodies for common game types.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from glitchygames.physics.behaviors import (
     AccelerationBehavior,
@@ -104,6 +104,37 @@ class PhysicsBody:
         # Apply constraints (bounds, ground, etc.)
         for constraint in self.constraints:
             constraint.apply(self, dt)
+
+    def get_animation_context(self) -> dict[str, Any]:
+        """Generate a context dict for animation state machine evaluation.
+
+        Aggregates base physics state, derived booleans, and
+        behavior-contributed variables.
+
+        Returns:
+            Dict of variable name → value for expression evaluation.
+
+        """
+        moving_threshold = 0.1
+        context: dict[str, Any] = {
+            'velocity_x': self.velocity_x,
+            'velocity_y': self.velocity_y,
+            'on_ground': self.on_ground,
+            'in_air': not self.on_ground,
+            'facing_right': self.facing_right,
+            'is_moving': abs(self.velocity_x) > moving_threshold,
+            'is_falling': self.velocity_y > 0 and not self.on_ground,
+            'is_rising': self.velocity_y < 0,
+        }
+
+        # Let behaviors contribute their own context variables
+        for behavior in self.behaviors:
+            get_context = getattr(behavior, 'get_context', None)
+            if callable(get_context):
+                extra = cast('dict[str, Any]', get_context(self))
+                context.update(extra)
+
+        return context
 
     def add_behavior(self, behavior: PhysicsBehavior) -> None:
         """Add a composable behavior to this body.

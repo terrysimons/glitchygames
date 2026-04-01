@@ -35,9 +35,6 @@ class PapyrusCobra(AnimatedSprite):
     Stationary cobra that bobs gently and periodically strikes.
     """
 
-    STRIKE_INTERVAL = 2.0
-    STRIKE_DURATION = 0.3
-
     def __init__(
         self,
         world_x: float,
@@ -66,33 +63,27 @@ class PapyrusCobra(AnimatedSprite):
         self.rect.x = round(self.world_x)
         self.rect.y = round(self.world_y)
 
-        self.strike_timer: float = 0.0
-        self.striking: bool = False
-
         self.play('idle')
         self.is_looping = True
         self.dirty = 2
 
+        # State machine auto-loaded from cobra.toml [[transition]] sections.
+        # Timer-based idle → strike → idle cycle defined entirely in TOML.
+        if self.state_machine is not None:
+            self.state_machine.set_state('idle')
+
     def dt_tick(self: Self, dt: float) -> None:
-        """Update the strike animation cycle and advance frames.
+        """Advance state machine and animation frames.
 
         Args:
             dt: Delta time in seconds since the last frame.
 
         """
         self.dt = dt
-        self.strike_timer += dt
 
-        if not self.striking and self.strike_timer >= self.STRIKE_INTERVAL:
-            self.striking = True
-            self.strike_timer = 0.0
-            self.play('strike')
-            self.is_looping = False
-        elif self.striking and self.strike_timer >= self.STRIKE_DURATION:
-            self.striking = False
-            self.strike_timer = 0.0
-            self.play('idle')
-            self.is_looping = True
+        # State machine handles idle/strike transitions via timer
+        if self.state_machine is not None:
+            self.state_machine.evaluate({}, dt)
 
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)

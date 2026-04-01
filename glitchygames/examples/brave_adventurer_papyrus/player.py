@@ -6,22 +6,20 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
+from glitchygames.animation.expressions import Expression
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     FALLING_VELOCITY_THRESHOLD,
     GRAVITY,
     JUMP_VELOCITY,
-    JUMPING_VELOCITY_THRESHOLD,
     LAYER_PLAYER,
     MAX_FALL_SPEED,
-    MOVING_VELOCITY_THRESHOLD,
     PLAYER_ACCELERATION,
     PLAYER_DECELERATION,
     PLAYER_RUN_SPEED,
     SPRITES_DIR,
     STARTING_LIVES,
 )
-
-# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
     prepare_papyrus_sprite,
@@ -36,6 +34,27 @@ from glitchygames.sprites import AnimatedSprite
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
+
+
+class _FallingCondition(Expression):
+    """Custom compound condition: velocity_y > threshold AND NOT on_ground.
+
+    Phase 1 expression parser doesn't support 'and'/'not' yet. This
+    class provides the compound check as a code-defined Expression.
+    """
+
+    @override
+    def evaluate(self, context: dict[str, Any]) -> bool:
+        """Check if the player is falling (airborne with downward velocity).
+
+        Returns:
+            True if velocity_y exceeds threshold and not on ground.
+
+        """
+        return (
+            context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD
+            and not context.get('on_ground', True)
+        )
 
 
 class PapyrusPlayer(AnimatedSprite):
@@ -119,6 +138,21 @@ class PapyrusPlayer(AnimatedSprite):
         self.is_looping = True
         self.dirty = 2
 
+        # State machine is auto-loaded from TOML [[transition]] sections.
+        # Add code-defined transitions for compound conditions that the
+        # Phase 1 expression parser can't handle (needs "and not").
+        if self.state_machine is not None:
+            # Falling requires compound: velocity_y > threshold AND NOT on_ground
+            # We use a custom Expression that checks both conditions
+            falling_condition = _FallingCondition()
+            self.state_machine.add_transition(
+                from_state='idle', to_state='falling', condition=falling_condition,
+            )
+            self.state_machine.add_transition(
+                from_state='jumping', to_state='falling', condition=falling_condition,
+            )
+            self.state_machine.set_state(self.IDLE)
+
     # --- Property delegates to PhysicsBody ---
 
     @property
@@ -190,12 +224,10 @@ class PapyrusPlayer(AnimatedSprite):
         # PhysicsBody handles gravity, acceleration, bounds, integration
         self.physics.tick(dt)
 
-        # Detect state change and switch animation
-        new_state = self._detect_state()
-        if new_state != self.state:
-            self.state = new_state
-            self.play(self.state)
-            self.is_looping = self.state in {self.IDLE, self.RUNNING}
+        # State machine evaluates transitions from TOML + code overrides
+        if self.state_machine is not None:
+            context = self.physics.get_animation_context()
+            self.state_machine.evaluate(context, dt)
 
         # Advance TOML animation frames and fix transparency
         AnimatedSprite.update(self, dt)
@@ -207,21 +239,6 @@ class PapyrusPlayer(AnimatedSprite):
 
         # Apply alpha for respawn fade effect
         self.image.set_alpha(round(self.alpha))
-
-    def _detect_state(self) -> str:
-        """Determine the current animation state from physics.
-
-        Returns:
-            The state string matching a TOML animation namespace.
-
-        """
-        if self.velocity_y < JUMPING_VELOCITY_THRESHOLD:
-            return self.JUMPING
-        if self.velocity_y > FALLING_VELOCITY_THRESHOLD and not self.on_ground:
-            return self.FALLING
-        if abs(self.velocity_x) > MOVING_VELOCITY_THRESHOLD:
-            return self.RUNNING
-        return self.IDLE
 
     def jump(self) -> None:
         """Initiate a jump if the player is on the ground."""

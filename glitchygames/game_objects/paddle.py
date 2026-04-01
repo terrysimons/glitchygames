@@ -66,6 +66,13 @@ class BasePaddle(Sprite):
         # Create Speed object based on axis type
         speed_obj = Speed(speed, 0) if axis is Horizontal else Speed(0, speed)
         self._move: Horizontal | Vertical = axis(speed_obj)
+
+        # Sub-pixel position accumulator to prevent rounding loss at high frame rates.
+        # Without this, round(speed * tiny_dt) loses fractional pixels each frame,
+        # causing paddles to move slower as FPS increases.
+        self._sub_pixel_x: float = float(x)
+        self._sub_pixel_y: float = float(y)
+
         self.dirty = 1
 
     def move_horizontal(self: Self) -> None:
@@ -195,9 +202,11 @@ class HorizontalPaddle(BasePaddle):
         screen_rect = self.screen.get_rect()
         if self.rect.x < 0:
             self.rect.x = 0
+            self._sub_pixel_x = 0.0
             self.stop()
         elif self.rect.x + self.rect.width > screen_rect.right:
             self.rect.x = screen_rect.right - self.rect.width
+            self._sub_pixel_x = float(self.rect.x)
             self.stop()
 
     def left(self: Self) -> None:
@@ -250,13 +259,10 @@ class HorizontalPaddle(BasePaddle):
             dt (float): The delta time.
 
         """
-        # Use the movement class's get_movement_with_dt method for frame-rate independent movement
+        # Sub-pixel tracking: accumulate float, round for rect
         movement = self._move.get_movement_with_dt(dt)
-
-        # Use proper rounding to avoid precision loss from integer truncation
-
-        self.rect.x += round(movement)
-
+        self._sub_pixel_x += movement
+        self.rect.x = round(self._sub_pixel_x)
         self.dirty = 1
 
 
@@ -314,10 +320,12 @@ class VerticalPaddle(BasePaddle):
         # Constrain position at boundaries AND stop movement to prevent bouncing
         if self.rect.y < 0:
             self.rect.y = 0
-            self.stop()  # Stop movement to prevent bouncing
+            self._sub_pixel_y = 0.0
+            self.stop()
         elif self.rect.y + self.rect.height > self.screen_height:
             self.rect.y = self.screen_height - self.rect.height
-            self.stop()  # Stop movement to prevent bouncing
+            self._sub_pixel_y = float(self.rect.y)
+            self.stop()
 
     def up(self: Self) -> None:
         """Move up.
@@ -369,6 +377,8 @@ class VerticalPaddle(BasePaddle):
             dt (float): The delta time.
 
         """
+        # Sub-pixel tracking: accumulate float, round for rect
         movement = self._move.get_movement_with_dt(dt)
-        self.rect.y += round(movement)
+        self._sub_pixel_y += movement
+        self.rect.y = round(self._sub_pixel_y)
         self.dirty = 1

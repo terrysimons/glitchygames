@@ -367,3 +367,34 @@ offset_x = 0
 offset_y = 0
 width = 20
 height = 25
+
+# Animation state transitions -- driven by physics context
+[[transition]]
+from = "idle"
+to = "running"
+when = "abs(velocity_x) > 0.1"
+
+[[transition]]
+from = "running"
+to = "idle"
+when = "abs(velocity_x) <= 0.1"
+
+[[transition]]
+from = "idle"
+to = "jumping"
+when = "velocity_y < -10.0"
+
+[[transition]]
+from = "running"
+to = "jumping"
+when = "velocity_y < -10.0"
+
+[[transition]]
+from = "falling"
+to = "idle"
+when = "on_ground"
+
+[[transition]]
+from = "jumping"
+to = "idle"
+when = "on_ground"

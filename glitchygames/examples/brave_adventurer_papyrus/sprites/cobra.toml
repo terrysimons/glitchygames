@@ -138,3 +138,14 @@ offset_x = 2
 offset_y = 3
 width = 8
 height = 11
+
+# Timer-based state transitions -- cobra idles, then strikes periodically
+[[transition]]
+from = "idle"
+to = "strike"
+when = "timer > 2.0"
+
+[[transition]]
+from = "strike"
+to = "idle"
+when = "timer > 0.3"

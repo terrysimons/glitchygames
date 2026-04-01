@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, override
+from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
+from glitchygames.animation.expressions import Expression
 from glitchygames.examples.brave_adventurer.constants import (
     FALLING_VELOCITY_THRESHOLD,
     GRAVITY,
     JUMP_VELOCITY,
-    JUMPING_VELOCITY_THRESHOLD,
     LAYER_PLAYER,
     MAX_FALL_SPEED,
-    MOVING_VELOCITY_THRESHOLD,
     PLAYER_ACCELERATION,
     PLAYER_DECELERATION,
     PLAYER_HEIGHT,
@@ -21,8 +21,6 @@ from glitchygames.examples.brave_adventurer.constants import (
     PLAYER_WIDTH,
     STARTING_LIVES,
 )
-
-# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.examples.brave_adventurer.drawing import draw_player
 from glitchygames.physics import (
     AccelerationBehavior,
@@ -34,6 +32,26 @@ from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
+
+
+class _FallingCondition(Expression):
+    """Custom compound condition: velocity_y > threshold AND NOT on_ground.
+
+    Phase 1 expression parser doesn't support 'and'/'not' yet.
+    """
+
+    @override
+    def evaluate(self, context: dict[str, Any]) -> bool:
+        """Check if the player is falling.
+
+        Returns:
+            True if velocity_y exceeds threshold and not on ground.
+
+        """
+        return (
+            context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD
+            and not context.get('on_ground', True)
+        )
 
 
 class Player(Sprite):
@@ -99,9 +117,23 @@ class Player(Sprite):
             ],
         )
 
-        # Animation state
+        # Animation state machine (code-defined since primitives don't use TOML)
+        from glitchygames.animation import AnimationStateMachine
+
         self.state: str = self.IDLE
         self.animation_timer: float = 0.0
+        self.state_machine = AnimationStateMachine(self)
+        self.state_machine.add_transition('idle', 'running', when='abs(velocity_x) > 0.1')
+        self.state_machine.add_transition('running', 'idle', when='abs(velocity_x) <= 0.1')
+        self.state_machine.add_transition('idle', 'jumping', when='velocity_y < -10.0')
+        self.state_machine.add_transition('running', 'jumping', when='velocity_y < -10.0')
+        self.state_machine.add_transition('falling', 'idle', when='on_ground')
+        self.state_machine.add_transition('jumping', 'idle', when='on_ground')
+        # Falling condition is compound (needs Phase 2 parser for "and not")
+        falling_condition = _FallingCondition()
+        self.state_machine.add_transition('idle', 'falling', condition=falling_condition)
+        self.state_machine.add_transition('jumping', 'falling', condition=falling_condition)
+        self.state_machine.set_state(self.IDLE)
 
         # Game state
         self.lives: int = STARTING_LIVES
@@ -187,15 +219,10 @@ class Player(Sprite):
         # PhysicsBody handles gravity, acceleration, bounds, integration
         self.physics.tick(dt)
 
-        # Update animation state from physics
-        if self.velocity_y < JUMPING_VELOCITY_THRESHOLD:
-            self.state = self.JUMPING
-        elif self.velocity_y > FALLING_VELOCITY_THRESHOLD and not self.on_ground:
-            self.state = self.FALLING
-        elif abs(self.velocity_x) > MOVING_VELOCITY_THRESHOLD:
-            self.state = self.RUNNING
-        else:
-            self.state = self.IDLE
+        # State machine evaluates transitions from code-defined rules
+        context = self.physics.get_animation_context()
+        self.state_machine.evaluate(context, dt)
+        self.state = self.state_machine.current_state
 
     def jump(self) -> None:
         """Initiate a jump if the player is on the ground."""

@@ -231,6 +231,13 @@ fixable = ["ALL"]
   "PLR0913", # PhysicsBody preset factory methods need many configuration params
   "PLR0917", # Same -- many positional args are the natural preset API
 ]
+"glitchygames/animation/expressions.py" = [
+  "DOC501",  # Expression parser raises ValueError by design; documenting every one is noise
+  "PLR2004", # Token count checks use literal numbers (standard parser code)
+  "S105",    # 'token' variable name triggers false positive for hardcoded password
+  "ERA001",  # Comment about Phase 2 grammar looks like commented-out code
+  "FBT001",  # LiteralExpr takes bool as positional (it's a value, not a flag)
+]
 "glitchygames/ui/menus.py" = [
   "PLR0913", # Menu constructors need geometry + identity + container params
 ]

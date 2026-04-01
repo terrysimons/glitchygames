@@ -35,7 +35,7 @@ from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
 
 log = logging.getLogger('game')
-log.setLevel(logging.DEBUG)  # Enable debug logging to catch weird ball movement
+log.setLevel(logging.INFO)
 
 # Threshold below which speed changes are considered noise
 SPEED_CHANGE_NOISE_FLOOR = 0.001
@@ -644,7 +644,8 @@ class Game(Scene):
 
         # Use collision manager for same-layer pair detection (AABB broad phase)
         self.collisions.check_overlap(
-            'balls', 'balls',
+            'balls',
+            'balls',
             callback=self._on_ball_ball_collision,
         )
 
