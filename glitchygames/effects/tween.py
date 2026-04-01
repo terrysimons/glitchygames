@@ -132,8 +132,9 @@ class Tween:
         # Set the property on the target
         setattr(self._target, self._property_name, current_value)
 
-        # Mark sprite dirty for re-rendering if applicable
-        if isinstance(self._target, HasDirtyFlag):
+        # Mark sprite dirty for re-rendering if applicable.
+        # Only upgrade dirty 0→1; never downgrade 2→1 (2 = always redraw)
+        if isinstance(self._target, HasDirtyFlag) and self._target.dirty == 0:
             self._target.dirty = 1
 
         # Check if this iteration is complete.

@@ -71,6 +71,10 @@ class SceneManager(SceneInterface, events.EventManager):
         self.previous_scene: Scene | None = self.active_scene
         self.quit_requested: bool = False
 
+        # Scene transition support
+        self._active_transition: Any = None  # Transition object during effect
+        self._pending_transition: tuple[Any, Any] | None = None  # (next_scene, transition)
+
         self.clock: pygame.time.Clock = pygame.time.Clock()
 
         # Jitter tracking attributes
@@ -146,6 +150,93 @@ class SceneManager(SceneInterface, events.EventManager):
             return self.active_scene.all_sprites
 
         return None
+
+    def request_transition(
+        self: Self,
+        next_scene: SceneInterface | None,
+        transition: Any,
+    ) -> None:
+        """Request a scene switch with a visual transition effect.
+
+        The transition starts on the next frame. During the transition,
+        normal scene updates and rendering are paused.
+
+        Args:
+            next_scene: The scene to transition to.
+            transition: A Transition object (FadeTransition, SlideTransition, etc.).
+
+        """
+        self._pending_transition = (next_scene, transition)
+
+    def _start_transition(self: Self, next_scene: Any, transition: Any) -> None:
+        """Capture screenshots and begin a transition effect.
+
+        Args:
+            next_scene: The scene to transition to.
+            transition: The Transition object.
+
+        """
+        # Capture screenshot of the current (old) scene.
+        # Hide the player first so the transition can draw its own
+        # player overlay without doubling.
+        old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
+        if old_player is not None:
+            old_player.visible = False
+            old_player.dirty = 0
+            if self.active_scene and self.screen:
+                self.active_scene.update()
+                self.active_scene.render(self.screen)
+        old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
+        if old_player is not None:
+            old_player.visible = True
+            old_player.dirty = 2
+
+        # Set up the new scene (off-screen) so we can capture it
+        self.previous_scene = self.active_scene
+        self._cleanup_current_scene()
+        scene = cast('Scene | None', next_scene)
+        self._setup_new_scene(scene)
+        self.active_scene = scene
+        self._configure_active_scene()
+
+        # Snap the camera to the player position (no lerp) and render
+        # so the screenshot shows the correct view for the transition.
+        # Hide the player sprite during capture so it doesn't appear in
+        # the screenshot (the transition draws its own player overlay).
+        if self.active_scene and self.screen:
+            camera = getattr(self.active_scene, 'camera', None)
+            player = getattr(self.active_scene, 'player', None)
+            player_was_visible = True
+            if player is not None:
+                player_was_visible = getattr(player, 'visible', True)
+                player.visible = False
+                player.dirty = 0
+            if camera is not None and player is not None:
+                snap_to = getattr(camera, 'snap_to', None)
+                if callable(snap_to):
+                    world_x = getattr(player, 'world_x', 0.0)
+                    world_y = getattr(player, 'world_y', 0.0)
+                    snap_to(world_x, world_y)
+            self.active_scene.dt_tick(0.001)
+            self.active_scene.update()
+            self.active_scene.render(self.screen)
+            # Restore player visibility for when gameplay resumes
+            if player is not None:
+                player.visible = player_was_visible
+                player.dirty = 2
+        new_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
+
+        # Start the transition effect with both screenshots
+        transition.start(old_surface, new_surface)
+        self._active_transition = transition
+
+    def _finalize_transition(self: Self) -> None:
+        """Complete a transition and resume normal scene rendering."""
+        self._active_transition = None
+        # Force a full redraw of the active scene
+        if self.active_scene:
+            for sprite in self.active_scene.all_sprites:
+                sprite.dirty = max(sprite.dirty, 1)
 
     @override
     def switch_to_scene(self: Self, next_scene: SceneInterface | None) -> None:
@@ -330,10 +421,29 @@ class SceneManager(SceneInterface, events.EventManager):
             # Start timing ONLY the actual processing (after tick_clock)
             processing_start = time.perf_counter()
 
-            self._update_scene()
-            self._process_events()
-            self._render_scene()
-            self._update_display()
+            # During a transition, render the transition effect instead of the scene
+            if self._active_transition is not None:
+                transition_done = self._active_transition.update(self.dt)
+                self._active_transition.render(self.screen)
+                pygame.display.flip()
+                if transition_done:
+                    self._finalize_transition()
+            else:
+                self._update_scene()
+                self._process_events()
+                self._render_scene()
+                self._update_display()
+
+                # Check for pending transition (set by Scene.transition_to)
+                if self._pending_transition is not None:
+                    self._start_transition(*self._pending_transition)
+                    self._pending_transition = None
+                # Check for plain scene switch (no transition, backward compatible)
+                elif (
+                    self.active_scene.next_scene is not None
+                    and self.active_scene.next_scene != self.active_scene
+                ):
+                    self.switch_to_scene(self.active_scene.next_scene)
 
             self._handle_frame_pacing(timer, period_ns, prev_deadline_ns, frame_start_ns)
 
@@ -346,13 +456,6 @@ class SceneManager(SceneInterface, events.EventManager):
             if self._should_post_fps_event(current_time, previous_fps_time):
                 self._post_fps_event()
                 previous_fps_time = current_time
-
-            # Only switch scenes if the current scene has a different next_scene
-            if (
-                self.active_scene.next_scene is not None
-                and self.active_scene.next_scene != self.active_scene
-            ):
-                self.switch_to_scene(self.active_scene.next_scene)
             current_time = time.perf_counter()
 
         self._log_quit_info()
@@ -392,11 +495,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self.log.info('POSTING QUIT EVENT')
         pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
 
-    def on_quit_event(self: Self, _event: events.HashableEvent) -> None:
+    def on_quit_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
         """Handle quit events.
 
         Args:
-            _event (pygame.event.Event): The event to handle (unused).
+            event (pygame.event.Event): The quit event.
 
         """
         # QUIT             none
@@ -823,6 +926,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         assert self.screen is not None
         self.background.fill(self._background_color)
         self.all_sprites.clear(self.screen, self.background)
+
+    def transition_to(self: Self, next_scene: Any, transition: Any) -> None:
+        """Switch to another scene with a visual transition effect.
+
+        Args:
+            next_scene: The scene to transition to.
+            transition: A Transition object (FadeTransition, SlideTransition, etc.).
+
+        """
+        self.scene_manager.request_transition(next_scene, transition)
 
     def setup(self: Self) -> None:
         """Set up the scene."""

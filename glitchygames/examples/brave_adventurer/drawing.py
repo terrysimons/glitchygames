@@ -346,15 +346,16 @@ def draw_scorpion(surface: pygame.Surface, *, facing_right: bool) -> None:
 # ---------------------------------------------------------------------------
 
 
-def draw_sky(surface: pygame.Surface, _offset: float) -> None:
+def draw_sky(surface: pygame.Surface, _camera_x: float, _camera_y: float) -> None:
     """Draw a gradient sky from blue at top to pale yellow at horizon.
 
-    This is static (scroll_factor=0) so offset is ignored.
+    This is static (scroll_factor=0) so camera position is ignored.
     Intended to be called once and cached.
 
     Args:
         surface: The surface to draw onto.
-        _offset: Parallax offset (unused for static sky).
+        _camera_x: Horizontal parallax offset (unused for static sky).
+        _camera_y: Vertical parallax offset (unused for static sky).
 
     """
     height = surface.get_height()
@@ -370,7 +371,7 @@ def draw_sky(surface: pygame.Surface, _offset: float) -> None:
         pygame.draw.line(surface, (red, green, blue), (0, y_position), (width, y_position))
 
 
-def draw_pyramids(surface: pygame.Surface, offset: float) -> None:
+def draw_pyramids(surface: pygame.Surface, camera_x: float, _camera_y: float) -> None:
     """Draw large pyramids on a distant sand ground plane.
 
     A horizon-to-sand gradient fills the lower portion of the layer
@@ -381,7 +382,8 @@ def draw_pyramids(surface: pygame.Surface, offset: float) -> None:
 
     Args:
         surface: The surface to draw onto.
-        offset: Parallax-adjusted scroll offset.
+        camera_x: Parallax-adjusted horizontal camera position.
+        _camera_y: Vertical camera position (unused — horizontal game).
 
     """
     width = surface.get_width()
@@ -408,7 +410,7 @@ def draw_pyramids(surface: pygame.Surface, offset: float) -> None:
     ]
 
     for pyramid_world_x, base_half, pyramid_height in pyramid_definitions:
-        screen_x = (pyramid_world_x - offset) % repeat_width - repeat_width // 4
+        screen_x = (pyramid_world_x - camera_x) % repeat_width - repeat_width // 4
         base_y = 380
 
         # Main face (lit side)
@@ -428,12 +430,13 @@ def draw_pyramids(surface: pygame.Surface, offset: float) -> None:
         pygame.draw.polygon(surface, PYRAMID_SHADOW, shadow_points)
 
 
-def draw_dunes_and_oasis(surface: pygame.Surface, offset: float) -> None:
+def draw_dunes_and_oasis(surface: pygame.Surface, camera_x: float, _camera_y: float) -> None:
     """Draw rolling sand dunes and occasional oases.
 
     Args:
         surface: The surface to draw onto.
-        offset: Parallax-adjusted scroll offset.
+        camera_x: Parallax-adjusted horizontal camera position.
+        _camera_y: Vertical camera position (unused — horizontal game).
 
     """
     width = surface.get_width()
@@ -441,7 +444,7 @@ def draw_dunes_and_oasis(surface: pygame.Surface, offset: float) -> None:
 
     # Draw dune shapes using layered sine waves
     for x_pixel in range(width):
-        world_x = x_pixel + offset
+        world_x = x_pixel + camera_x
         dune_y = 360 + round(
             math.sin(world_x * 0.005) * 20
             + math.sin(world_x * 0.013) * 10
@@ -454,7 +457,7 @@ def draw_dunes_and_oasis(surface: pygame.Surface, offset: float) -> None:
     # Draw oases at fixed world positions (repeating every 3000 px)
     oasis_repeat = 3000
     for oasis_base_x in [800, 2200]:
-        screen_x = round((oasis_base_x - offset) % oasis_repeat - oasis_repeat // 4)
+        screen_x = round((oasis_base_x - camera_x) % oasis_repeat - oasis_repeat // 4)
 
         # Only draw if roughly on screen
         oasis_draw_margin = 100
@@ -477,12 +480,13 @@ def draw_dunes_and_oasis(surface: pygame.Surface, offset: float) -> None:
                 pygame.draw.circle(surface, OASIS_GREEN, (tip_x, tip_y), 5)
 
 
-def draw_near_ground_details(surface: pygame.Surface, offset: float) -> None:
+def draw_near_ground_details(surface: pygame.Surface, camera_x: float, _camera_y: float) -> None:
     """Draw small rocks and grass tufts on the near ground layer.
 
     Args:
         surface: The surface to draw onto.
-        offset: Parallax-adjusted scroll offset.
+        camera_x: Parallax-adjusted horizontal camera position.
+        _camera_y: Vertical camera position (unused — horizontal game).
 
     """
     width = surface.get_width()
@@ -490,7 +494,7 @@ def draw_near_ground_details(surface: pygame.Surface, offset: float) -> None:
     # Place rocks and grass at pseudo-random but deterministic positions
     # based on world position. Use a simple hash-like approach.
     detail_spacing = 60
-    rounded_offset = round(offset)
+    rounded_offset = round(camera_x)
     start_world_x = (rounded_offset // detail_spacing) * detail_spacing
 
     for world_x in range(start_world_x, start_world_x + width + detail_spacing, detail_spacing):

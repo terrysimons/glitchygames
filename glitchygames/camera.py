@@ -48,7 +48,7 @@ class ParallaxLayer(Sprite):
         self,
         *,
         scroll_factor: float,
-        draw_function: Callable[[pygame.Surface, float], None],
+        draw_function: Callable[[pygame.Surface, float, float], None],
         layer_depth: int,
         groups: pygame.sprite.LayeredDirty[Sprite],
         screen_width: int,
@@ -58,7 +58,7 @@ class ParallaxLayer(Sprite):
 
         Args:
             scroll_factor: Scroll rate relative to camera (0.0=static, 1.0=foreground).
-            draw_function: Callable(surface, offset) that draws the layer content.
+            draw_function: Callable(surface, camera_x, camera_y) that draws the layer.
             layer_depth: Z-layer for rendering order (lower = further back).
             groups: The sprite group to add this layer to.
             screen_width: Width of the display.
@@ -87,23 +87,25 @@ class ParallaxLayer(Sprite):
 
         if self.is_static:
             self.dirty = 1
-            self.draw_function(self.image, 0.0)
+            self.draw_function(self.image, 0.0, 0.0)
         else:
             self.dirty = 2
 
-    def update_scroll(self, camera_x: float) -> None:
+    def update_scroll(self, camera_x: float, camera_y: float) -> None:
         """Recalculate the parallax offset and redraw the layer.
 
         Args:
             camera_x: The camera's current world X position.
+            camera_y: The camera's current world Y position.
 
         """
         if self.is_static:
             return
 
-        offset = camera_x * self.scroll_factor
+        offset_x = camera_x * self.scroll_factor
+        offset_y = camera_y * self.scroll_factor
         self.image.fill((0, 0, 0, 0))
-        self.draw_function(self.image, offset)
+        self.draw_function(self.image, offset_x, offset_y)
 
     @override
     def update(self: Self) -> None:
@@ -205,9 +207,28 @@ class Camera2D:
         # Clamp to world bounds
         self._clamp_to_bounds()
 
+    def snap_to(self, target_x: float, target_y: float) -> None:
+        """Instantly move the camera to target position (no smoothing).
+
+        Useful for scene setup, transitions, and teleports where
+        the camera should not lerp.
+
+        Args:
+            target_x: Target X in world coordinates.
+            target_y: Target Y in world coordinates.
+
+        """
+        self.world_x = target_x - self.lead_x
+        self.world_y = target_y - self.lead_y
+        self._clamp_to_bounds()
+
+        # Update parallax layers immediately
+        for layer in self._parallax_layers:
+            layer.update_scroll(self.world_x, self.world_y)
+
         # Update parallax layers
         for layer in self._parallax_layers:
-            layer.update_scroll(self.world_x)
+            layer.update_scroll(self.world_x, self.world_y)
 
     def _clamp_to_bounds(self) -> None:
         """Clamp camera position to configured world bounds."""
@@ -278,7 +299,7 @@ class Camera2D:
         self,
         *,
         scroll_factor: float,
-        draw_function: Callable[[pygame.Surface, float], None],
+        draw_function: Callable[[pygame.Surface, float, float], None],
         layer_depth: int,
         groups: pygame.sprite.LayeredDirty[Sprite],
         screen_width: int | None = None,
@@ -288,7 +309,7 @@ class Camera2D:
 
         Args:
             scroll_factor: Scroll rate (0.0=static, 1.0=foreground speed).
-            draw_function: Callable(surface, offset) that draws the layer.
+            draw_function: Callable(surface, camera_x, camera_y) that draws the layer.
             layer_depth: Z-layer for rendering order (lower = further back).
             groups: Sprite group for the layer.
             screen_width: Layer width (defaults to camera viewport width).

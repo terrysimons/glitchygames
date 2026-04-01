@@ -838,6 +838,16 @@ class ControllerEvents(EventInterface):
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
 
+    @abc.abstractmethod
+    def on_controller_sensor_update_event(self: Self, event: HashableEvent) -> None:
+        """Handle controller sensor update events (gyroscope, accelerometer).
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # CONTROLLERSENSORUPDATE instance_id, sensor, data
+
 
 class ControllerEventStubs(ControllerEvents):
     """Mixin for controller events."""
@@ -930,6 +940,16 @@ class ControllerEventStubs(ControllerEvents):
 
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
+        unhandled_event(self, event)
+
+    def on_controller_sensor_update_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
+        """Handle controller sensor update events (gyroscope, accelerometer).
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # CONTROLLERSENSORUPDATE instance_id, sensor, data
         unhandled_event(self, event)
 
 

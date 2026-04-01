@@ -252,7 +252,9 @@ class Game(Scene):
             collision_sound=SFX.SLAP,
         )
         # Input action maps (separate per player for multi-controller)
-        self.p1_actions, self.p2_actions, self.pause_actions = self._create_action_maps()
+        self.p1_actions, self.p2_actions, self.pause_actions = self._create_action_maps(
+            input_mode=self.options.get('input_mode', 'joystick'),
+        )
 
         self.balls: list[BallSprite] = []
         self.rally_count: int = 0  # Total paddle hits across all balls
@@ -858,14 +860,19 @@ class Game(Scene):
         ball2.rect.y += round(separation_y)
 
     @staticmethod
-    def _create_action_maps() -> tuple[ActionMap, ActionMap, ActionMap]:
+    def _create_action_maps(
+        input_mode: str = 'joystick',
+    ) -> tuple[ActionMap, ActionMap, ActionMap]:
         """Create per-player and pause ActionMaps with default bindings.
+
+        Args:
+            input_mode: Gamepad event family ('joystick' or 'controller').
 
         Returns:
             Tuple of (player1_actions, player2_actions, pause_actions).
 
         """
-        player1_actions = ActionMap()
+        player1_actions = ActionMap(input_mode=input_mode)
         player1_actions.bind(
             'up',
             keyboard=pygame.K_w,
@@ -881,7 +888,7 @@ class Game(Scene):
             instance_id=0,
         )
 
-        player2_actions = ActionMap()
+        player2_actions = ActionMap(input_mode=input_mode)
         player2_actions.bind(
             'up',
             keyboard=pygame.K_UP,
@@ -897,7 +904,7 @@ class Game(Scene):
             instance_id=1,
         )
 
-        pause_actions = ActionMap()
+        pause_actions = ActionMap(input_mode=input_mode)
         pause_actions.bind('pause', keyboard=pygame.K_SPACE)
 
         return player1_actions, player2_actions, pause_actions
@@ -951,6 +958,39 @@ class Game(Scene):
 
         Args:
             event: The controller axis motion event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+        """Feed joystick button events to action maps (pygame-ce uses joystick API).
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+        """Feed joystick button releases to action maps.
+
+        Args:
+            event: The joystick button up event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+        """Feed joystick axis motion to action maps.
+
+        Args:
+            event: The joystick axis motion event.
 
         """
         for action_map in (self.p1_actions, self.p2_actions):
