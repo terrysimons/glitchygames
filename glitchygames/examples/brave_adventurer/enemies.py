@@ -9,8 +9,10 @@ import pygame
 from glitchygames.examples.brave_adventurer.constants import (
     COBRA_HEIGHT,
     COBRA_WIDTH,
+    GRAVITY,
     GROUND_Y,
     LAYER_ENEMIES,
+    MAX_FALL_SPEED,
     SCARAB_HEIGHT,
     SCARAB_WIDTH,
     SCORPION_HEIGHT,
@@ -147,19 +149,27 @@ class Scarab(Sprite):
 
         self.world_x: float = world_x
         self.world_y: float = world_y
+        self.velocity_y: float = 0.0
         self.roll_speed: float = speed
         self.roll_angle: float = 0.0
+        self.on_ground: bool = True
         self.dirty = 2  # Always redraw (rolling animation)
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
-        """Move the scarab and update roll animation.
+        """Move the scarab with gravity and update roll animation.
 
         Args:
             dt: Delta time in seconds since the last frame.
 
         """
         super().dt_tick(dt)
+
+        # Gravity
+        self.velocity_y = min(self.velocity_y + GRAVITY * dt, MAX_FALL_SPEED)
+        self.world_y += self.velocity_y * dt
+
+        # Horizontal movement
         self.world_x += self.roll_speed * dt
         self.roll_angle += abs(self.roll_speed) * dt * 0.1
 

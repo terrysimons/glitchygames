@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
+    GRAVITY,
     GROUND_Y,
     LAYER_ENEMIES,
+    MAX_FALL_SPEED,
     PAPYRUS_COBRA_HEIGHT,
     PAPYRUS_COBRA_WIDTH,
     PAPYRUS_SCARAB_HEIGHT,
@@ -57,7 +59,10 @@ class PapyrusCobra(AnimatedSprite):
         prepare_papyrus_sprite(self)
 
         self.world_x: float = world_x
-        self.world_y: float = GROUND_Y - PAPYRUS_COBRA_HEIGHT
+        # Cobra TOML sprite has 2 empty rows at the bottom (4px at 2x scale).
+        # Offset Y so the visible coiled body sits on the ground.
+        cobra_visual_padding = 4
+        self.world_y: float = GROUND_Y - PAPYRUS_COBRA_HEIGHT + cobra_visual_padding
         self.rect.x = round(self.world_x)
         self.rect.y = round(self.world_y)
 
@@ -148,19 +153,27 @@ class PapyrusScarab(AnimatedSprite):
         self.rect.y = round(self.world_y)
 
         self.roll_speed: float = speed
+        self.velocity_y: float = 0.0
+        self.on_ground: bool = True
 
         self.play('roll')
         self.is_looping = True
         self.dirty = 2
 
     def dt_tick(self: Self, dt: float) -> None:
-        """Move the scarab and advance the roll animation.
+        """Move the scarab with gravity and advance the roll animation.
 
         Args:
             dt: Delta time in seconds since the last frame.
 
         """
         self.dt = dt
+
+        # Gravity
+        self.velocity_y = min(self.velocity_y + GRAVITY * dt, MAX_FALL_SPEED)
+        self.world_y += self.velocity_y * dt
+
+        # Horizontal movement
         self.world_x += self.roll_speed * dt
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)

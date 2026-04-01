@@ -233,8 +233,8 @@ def draw_cobra(surface: pygame.Surface, *, striking: bool, animation_timer: floa
     width = surface.get_width()
     height = surface.get_height()
 
-    # Coiled body
-    pygame.draw.ellipse(surface, COBRA_BODY, (2, height - 14, width - 4, 12))
+    # Coiled body (bottom-aligned so cobra sits on the ground)
+    pygame.draw.ellipse(surface, COBRA_BODY, (2, height - 12, width - 4, 12))
 
     # Hood / head section (raised up)
     if striking:
@@ -371,7 +371,11 @@ def draw_sky(surface: pygame.Surface, _offset: float) -> None:
 
 
 def draw_pyramids(surface: pygame.Surface, offset: float) -> None:
-    """Draw large pyramids that scroll slowly across the background.
+    """Draw large pyramids on a distant sand ground plane.
+
+    A horizon-to-sand gradient fills the lower portion of the layer
+    so the pyramids sit naturally on desert ground rather than
+    floating on the sky gradient.
 
     Pyramids are spaced across a repeating 2400px world segment.
 
@@ -380,6 +384,21 @@ def draw_pyramids(surface: pygame.Surface, offset: float) -> None:
         offset: Parallax-adjusted scroll offset.
 
     """
+    width = surface.get_width()
+    height = surface.get_height()
+
+    # Draw far-sand ground plane from horizon line down.
+    # This covers the area below where pyramids sit, blending from
+    # horizon haze to warm sand so pyramids don't float on blue sky.
+    horizon_line = 300
+    for y_position in range(horizon_line, height):
+        interpolation = (y_position - horizon_line) / max(height - horizon_line - 1, 1)
+        # Blend from HORIZON_COLOR (pale haze) to DARK_SAND (warm ground)
+        red = round(HORIZON_COLOR[0] + (DARK_SAND[0] - HORIZON_COLOR[0]) * interpolation)
+        green = round(HORIZON_COLOR[1] + (DARK_SAND[1] - HORIZON_COLOR[1]) * interpolation)
+        blue = round(HORIZON_COLOR[2] + (DARK_SAND[2] - HORIZON_COLOR[2]) * interpolation)
+        pygame.draw.line(surface, (red, green, blue), (0, y_position), (width, y_position))
+
     repeat_width = 2400
 
     pyramid_definitions = [

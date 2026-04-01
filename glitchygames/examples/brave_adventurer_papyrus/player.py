@@ -20,9 +20,17 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     SPRITES_DIR,
     STARTING_LIVES,
 )
+
+# GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
     prepare_papyrus_sprite,
+)
+from glitchygames.physics import (
+    AccelerationBehavior,
+    BoundsConstraint,
+    GravityBehavior,
+    PhysicsBody,
 )
 from glitchygames.sprites import AnimatedSprite
 
@@ -30,51 +38,11 @@ if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
 
 
-def _ramp_velocity(
-    current: float,
-    target: float,
-    acceleration: float,
-    deceleration: float,
-    dt: float,
-) -> float:
-    """Smoothly ramp a velocity toward a target value.
-
-    Uses acceleration when moving toward a nonzero target, and
-    deceleration when slowing to zero.
-
-    Args:
-        current: Current velocity.
-        target: Target velocity.
-        acceleration: Rate of change when accelerating (pixels/sec^2).
-        deceleration: Rate of change when decelerating (pixels/sec^2).
-        dt: Delta time in seconds.
-
-    Returns:
-        The new velocity value.
-
-    """
-    if target != 0.0:  # noqa: RUF069 - exact float comparison is intentional
-        difference = target - current
-        max_change = acceleration * dt
-        if abs(difference) <= max_change:
-            return target
-        return current + max_change if difference > 0 else current - max_change
-
-    if current == 0.0:  # noqa: RUF069 - exact float comparison is intentional
-        return 0.0
-
-    max_change = deceleration * dt
-    if abs(current) <= max_change:
-        return 0.0
-    return current - max_change if current > 0 else current + max_change
-
-
 class PapyrusPlayer(AnimatedSprite):
     """Adventurer character using TOML sprite animations with platformer physics.
 
-    Extends AnimatedSprite for TOML rendering. Physics logic (gravity, jumping,
-    velocity) is self-contained to avoid diamond inheritance with the engine's
-    Sprite class.
+    Extends AnimatedSprite for TOML rendering. Physics is delegated to a
+    composed PhysicsBody instance.
     """
 
     IDLE = 'idle'
@@ -106,21 +74,32 @@ class PapyrusPlayer(AnimatedSprite):
         # Scale up TOML pixel art and set magenta transparency
         prepare_papyrus_sprite(self)
 
-        # World-space position (floats for sub-pixel accuracy)
-        self.world_x: float = world_x
-        self.world_y: float = world_y
+        # Physics body handles position, velocity, gravity, acceleration, bounds.
+        # Ground collision is handled by game.py (terrain-based), not by a
+        # GroundConstraint, so we build the body manually without one.
+        self.physics: PhysicsBody = PhysicsBody(
+            world_x=world_x,
+            world_y=world_y,
+            behaviors=[
+                GravityBehavior(
+                    strength=GRAVITY,
+                    terminal_velocity=MAX_FALL_SPEED,
+                ),
+                AccelerationBehavior(
+                    acceleration=PLAYER_ACCELERATION,
+                    deceleration=PLAYER_DECELERATION,
+                ),
+            ],
+            constraints=[
+                BoundsConstraint(min_x=0.0),
+            ],
+        )
+
         self.rect.x = round(world_x)
         self.rect.y = round(world_y)
 
-        # Velocity in pixels per second
-        self.velocity_x: float = 0.0
-        self.velocity_y: float = 0.0
-        self._target_velocity_x: float = 0.0
-
-        # State
-        self.on_ground: bool = False
+        # Animation state
         self.state: str = self.IDLE
-        self.facing_right: bool = True
 
         # Delta time tracking (AnimatedSprite doesn't have this)
         self.dt: float = 0.0
@@ -140,8 +119,66 @@ class PapyrusPlayer(AnimatedSprite):
         self.is_looping = True
         self.dirty = 2
 
+    # --- Property delegates to PhysicsBody ---
+
+    @property
+    def world_x(self) -> float:
+        """X position in world space."""
+        return self.physics.world_x
+
+    @world_x.setter
+    def world_x(self, value: float) -> None:
+        self.physics.world_x = value
+
+    @property
+    def world_y(self) -> float:
+        """Y position in world space."""
+        return self.physics.world_y
+
+    @world_y.setter
+    def world_y(self, value: float) -> None:
+        self.physics.world_y = value
+
+    @property
+    def velocity_x(self) -> float:
+        """Horizontal velocity in pixels/sec."""
+        return self.physics.velocity_x
+
+    @velocity_x.setter
+    def velocity_x(self, value: float) -> None:
+        self.physics.velocity_x = value
+
+    @property
+    def velocity_y(self) -> float:
+        """Vertical velocity in pixels/sec."""
+        return self.physics.velocity_y
+
+    @velocity_y.setter
+    def velocity_y(self, value: float) -> None:
+        self.physics.velocity_y = value
+
+    @property
+    def on_ground(self) -> bool:
+        """Whether the player is on the ground."""
+        return self.physics.on_ground
+
+    @on_ground.setter
+    def on_ground(self, value: bool) -> None:
+        self.physics.on_ground = value
+
+    @property
+    def facing_right(self) -> bool:
+        """Whether the player faces right."""
+        return self.physics.facing_right
+
+    @facing_right.setter
+    def facing_right(self, value: bool) -> None:
+        self.physics.facing_right = value
+
+    # --- Physics ---
+
     def dt_tick(self: Self, dt: float) -> None:
-        """Apply gravity and velocity, advance animation, detect state changes.
+        """Advance physics, animation, and detect state changes.
 
         Args:
             dt: Delta time in seconds since the last frame.
@@ -150,26 +187,8 @@ class PapyrusPlayer(AnimatedSprite):
         self.dt = dt
         self.dt_timer += dt
 
-        # Ramp horizontal velocity toward target (acceleration/deceleration)
-        self.velocity_x = _ramp_velocity(
-            current=self.velocity_x,
-            target=self._target_velocity_x,
-            acceleration=PLAYER_ACCELERATION,
-            deceleration=PLAYER_DECELERATION,
-            dt=dt,
-        )
-
-        # Apply gravity (capped at terminal velocity)
-        self.velocity_y = min(self.velocity_y + GRAVITY * dt, MAX_FALL_SPEED)
-
-        # Apply velocity to world position
-        self.world_x += self.velocity_x * dt
-        self.world_y += self.velocity_y * dt
-
-        # Prevent going left of world origin
-        if self.world_x < 0:
-            self.world_x = 0.0
-            self.velocity_x = 0.0
+        # PhysicsBody handles gravity, acceleration, bounds, integration
+        self.physics.tick(dt)
 
         # Detect state change and switch animation
         new_state = self._detect_state()
@@ -212,17 +231,23 @@ class PapyrusPlayer(AnimatedSprite):
 
     def move_right(self) -> None:
         """Start moving right with smooth acceleration."""
-        self._target_velocity_x = PLAYER_RUN_SPEED
+        accel = self.physics.get_behavior(AccelerationBehavior)
+        if accel:
+            accel.target_velocity_x = PLAYER_RUN_SPEED
         self.facing_right = True
 
     def move_left(self) -> None:
         """Start moving left with smooth acceleration."""
-        self._target_velocity_x = -PLAYER_RUN_SPEED
+        accel = self.physics.get_behavior(AccelerationBehavior)
+        if accel:
+            accel.target_velocity_x = -PLAYER_RUN_SPEED
         self.facing_right = False
 
     def stop_horizontal(self) -> None:
         """Smoothly decelerate to a stop."""
-        self._target_velocity_x = 0.0
+        accel = self.physics.get_behavior(AccelerationBehavior)
+        if accel:
+            accel.target_velocity_x = 0.0
 
     def apply_camera(self, camera: Camera2D) -> None:
         """Update the screen-space rect from world coordinates using the camera.

@@ -13,7 +13,6 @@ from glitchygames.examples.brave_adventurer.constants import (
     CAMERA_LEAD,
     COLLECTIBLE_SCORE_BONUS,
     DISTANCE_SCORE_DIVISOR,
-    GOLD_SCARAB_SIZE,
     GROUND_Y,
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
@@ -33,6 +32,8 @@ from glitchygames.examples.brave_adventurer.constants import (
     PLAYER_HEIGHT,
     PLAYER_WIDTH,
     RESPAWN_OFFSET,
+    SCARAB_HEIGHT,
+    SCARAB_WIDTH,
     SCREEN_HEIGHT,
     SKY_COLOR,
     STONE_WALL_WIDTH,
@@ -138,6 +139,16 @@ class BraveAdventurerScene(Scene):
             groups=self.all_sprites,
         )
 
+        # Collision layers
+        player_collision_layer = self.collisions.add_layer('player')
+        enemy_collision_layer = self.collisions.add_layer('enemies')
+        collectible_collision_layer = self.collisions.add_layer('collectibles')
+        player_collision_layer.add(self.player)
+        for enemy in self.enemy_sprites:
+            enemy_collision_layer.add(enemy)
+        for collectible in self.collectible_sprites:
+            collectible_collision_layer.add(collectible)
+
         # Game state
         self.game_over_triggered: bool = False
 
@@ -209,7 +220,10 @@ class BraveAdventurerScene(Scene):
         # 5. Wall collision
         self._resolve_player_wall_collision()
 
-        # 4. Pit death check (skip during respawn animation)
+        # 5b. Enemy terrain collision (scarabs follow ground/walls)
+        self._resolve_enemy_terrain_collisions()
+
+        # 6. Pit death check (skip during respawn animation)
         if (
             not self.player.is_respawning
             and self.player.world_y > self.screen_height + PIT_DEATH_THRESHOLD
@@ -245,14 +259,32 @@ class BraveAdventurerScene(Scene):
         self.player.max_distance = max(self.player.max_distance, self.player.world_x)
         self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
 
+    def _get_trailing_foot_x(self: Self, body_x: float, body_width: int, velocity_x: float) -> int:
+        """Get the X coordinate of the trailing foot for ground checks.
+
+        Uses the back foot so the player doesn't fall until their
+        trailing edge actually leaves the ground.
+
+        Returns:
+            The X pixel coordinate of the trailing foot.
+
+        """
+        left = round(body_x)
+        if velocity_x > 0:
+            return left
+        if velocity_x < 0:
+            return left + body_width
+        return left + body_width // 2
+
     def _resolve_player_ground_collision(self: Self) -> None:
         """Check if the player lands on ground and snap to the surface."""
         self.player.on_ground = False
 
-        # Use player's center X for ground checks so pits feel fair: you fall
-        # when your center passes the edge, not when your last pixel leaves.
-        # Use >= for vertical check to avoid boundary flicker (exclusive rect edges).
-        player_center_x = round(self.player.world_x) + PLAYER_WIDTH // 2
+        trailing_foot_x = self._get_trailing_foot_x(
+            body_x=self.player.world_x,
+            body_width=PLAYER_WIDTH,
+            velocity_x=self.player.velocity_x,
+        )
         player_bottom = round(self.player.world_y) + PLAYER_HEIGHT
 
         if self.ground_sprites:
@@ -260,9 +292,9 @@ class BraveAdventurerScene(Scene):
                 segment_left = round(ground_segment.world_x)
                 segment_right = segment_left + ground_segment.segment_width
 
-                # Player's feet center must be over this segment
+                # Player's trailing foot must still be over this segment
                 feet_over_segment = (
-                    player_center_x >= segment_left and player_center_x < segment_right
+                    trailing_foot_x >= segment_left and trailing_foot_x < segment_right
                 )
                 feet_on_surface = player_bottom >= GROUND_Y
 
@@ -360,47 +392,93 @@ class BraveAdventurerScene(Scene):
                 elif self.player.velocity_x < 0:
                     self.player.world_x = wall.world_x + STONE_WALL_WIDTH
 
-    def _check_enemy_collisions(self: Self) -> None:
-        """Check if the player touches any enemy (results in death)."""
-        player_rect = pygame.Rect(
-            round(self.player.world_x) + 4,
-            round(self.player.world_y) + 4,
-            PLAYER_WIDTH - 8,
-            PLAYER_HEIGHT - 8,
-        )
+    def _resolve_enemy_terrain_collisions(self: Self) -> None:
+        """Resolve enemy-terrain collisions so scarabs follow the ground.
+
+        Scarabs land on ground segments (including pit floors) and are
+        blocked by stone walls.
+        """
+        from glitchygames.examples.brave_adventurer.enemies import Scarab
 
         for enemy in self.enemy_sprites:
-            enemy_rect = pygame.Rect(
-                round(enemy.world_x),
-                round(enemy.world_y),
-                enemy.rect.width,
-                enemy.rect.height,
-            )
-            if player_rect.colliderect(enemy_rect):
-                self._player_die()
-                break
+            if not isinstance(enemy, Scarab):
+                continue
 
-    def _check_collectible_collisions(self: Self) -> None:
-        """Check if the player picks up any gold scarabs."""
-        player_rect = pygame.Rect(
-            round(self.player.world_x),
-            round(self.player.world_y),
-            PLAYER_WIDTH,
-            PLAYER_HEIGHT,
+            scarab_bottom = enemy.world_y + SCARAB_HEIGHT
+
+            # Ground collision: land on the nearest ground segment
+            landed = False
+            if self.ground_sprites:
+                scarab_center_x = round(enemy.world_x) + SCARAB_WIDTH // 2
+                for ground_segment in self.ground_sprites:
+                    segment_left = round(ground_segment.world_x)
+                    segment_right = segment_left + ground_segment.segment_width
+
+                    over_segment = (
+                        scarab_center_x >= segment_left and scarab_center_x < segment_right
+                    )
+                    if over_segment and scarab_bottom >= GROUND_Y and enemy.velocity_y >= 0:
+                        enemy.world_y = GROUND_Y - SCARAB_HEIGHT
+                        enemy.velocity_y = 0.0
+                        enemy.on_ground = True
+                        landed = True
+                        break
+
+            # Pit floor: if scarab fell below ground level, land on pit floor
+            pit_floor_y = self.screen_height - SCARAB_HEIGHT
+            if not landed and scarab_bottom >= self.screen_height:
+                enemy.world_y = float(pit_floor_y)
+                enemy.velocity_y = 0.0
+                enemy.on_ground = True
+
+            # Wall collision: reverse direction when hitting a wall
+            for wall in self.wall_sprites:
+                wall_left = round(wall.world_x)
+                wall_right = wall_left + STONE_WALL_WIDTH
+                scarab_left = round(enemy.world_x)
+                scarab_right = scarab_left + SCARAB_WIDTH
+
+                if scarab_right > wall_left and scarab_left < wall_right:
+                    # Scarab is overlapping wall -- reverse direction
+                    if enemy.roll_speed < 0:
+                        enemy.world_x = float(wall_right)
+                    else:
+                        enemy.world_x = float(wall_left - SCARAB_WIDTH)
+                    enemy.roll_speed = -enemy.roll_speed
+
+    def _check_enemy_collisions(self: Self) -> None:
+        """Check if the player touches any enemy (results in death).
+
+        Uses the collision manager for hitbox-aware detection.
+        """
+        self.collisions.check_overlap(
+            'player',
+            'enemies',
+            callback=self._on_player_enemy_collision,
         )
 
-        for collectible in list(self.collectible_sprites):
-            collectible_rect = pygame.Rect(
-                round(collectible.world_x),
-                round(collectible.world_y),
-                GOLD_SCARAB_SIZE,
-                GOLD_SCARAB_SIZE,
-            )
-            if player_rect.colliderect(collectible_rect):
-                self.player.score += COLLECTIBLE_SCORE_BONUS
-                self.sounds.play_collect()
-                collectible.kill()
-                self.collectible_sprites.remove(collectible)
+    def _on_player_enemy_collision(self: Self, _player: Any, _enemy: Any) -> None:
+        """Handle player-enemy collision by triggering death."""
+        self._player_die()
+
+    def _check_collectible_collisions(self: Self) -> None:
+        """Check if the player picks up any gold scarabs.
+
+        Uses the collision manager for hitbox-aware detection.
+        """
+        self.collisions.check_overlap(
+            'player',
+            'collectibles',
+            callback=self._on_player_collect,
+        )
+
+    def _on_player_collect(self: Self, _player: Any, collectible: Any) -> None:
+        """Handle player-collectible collision by awarding points."""
+        self.player.score += COLLECTIBLE_SCORE_BONUS
+        self.sounds.play_collect()
+        collectible.kill()
+        self.collectible_sprites.remove(collectible)
+        self.collisions.get_layer('collectibles').remove(collectible)
 
     def _player_die(self: Self) -> None:
         """Handle player death: lose a life or trigger game over."""

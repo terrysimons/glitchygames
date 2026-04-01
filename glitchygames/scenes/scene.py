@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 import pygame
 
 from glitchygames import events
+from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
@@ -748,6 +749,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.dt: float = 0.0
         self.dt_timer: float = 0.0
         self.tweens: TweenManager = TweenManager()
+        self.collisions: CollisionManager = CollisionManager()
         self.dirty = 1
         self.options = options
         self.scene_manager = SceneManager()
