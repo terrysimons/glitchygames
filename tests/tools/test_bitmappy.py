@@ -24,7 +24,7 @@ from glitchygames.bitmappy.ai_worker import (
     run_ai_worker,
 )
 from glitchygames.bitmappy.alpha import parse_toml_sprite_data
-from glitchygames.bitmappy.constants import ai_training_state
+from glitchygames.bitmappy.constants import AI_TIMEOUT, ai_training_state
 from glitchygames.bitmappy.models import AIRequest
 from glitchygames.bitmappy.pixel_sprite import BitmapPixelSprite
 from glitchygames.bitmappy.scroll_arrow import ScrollArrowSprite
@@ -1048,8 +1048,33 @@ class TestInitializeAiClient:
         mocker.patch('glitchygames.bitmappy.ai_worker._configure_ollama_provider')
         mocker.patch('glitchygames.bitmappy.ai_worker._configure_client_timeouts')
         result = _initialize_ai_client(mock_logger)
-        mock_ai.Client.assert_called_once_with(provider_config)
+        mock_ai.Client.assert_called_once_with({
+            'anthropic': {'timeout': AI_TIMEOUT},
+            'ollama': {'timeout': 600},
+        })
         assert result == mock_client
+
+    def test_anthropic_client_gets_explicit_timeout(self, mock_logger, mocker):
+        """Passes an explicit Anthropic timeout so large non-streaming requests are allowed.
+
+        anthropic>=0.40 raises "Streaming is required for operations that may take longer
+        than 10 minutes" for non-streaming requests with large max_tokens unless the client
+        has a non-default timeout. aisuite creates providers lazily, so the timeout has to
+        be supplied through the Client's provider config up front.
+        """
+        mock_ai = MagicMock()
+        mocker.patch('glitchygames.bitmappy.ai_worker.ai', mock_ai)
+        mocker.patch('glitchygames.bitmappy.ai_worker._set_ollama_env_timeout')
+        mocker.patch(
+            'glitchygames.bitmappy.ai_worker._create_ollama_config',
+            return_value={},
+        )
+        mocker.patch('glitchygames.bitmappy.ai_worker._configure_ollama_provider')
+        mocker.patch('glitchygames.bitmappy.ai_worker._configure_client_timeouts')
+
+        _initialize_ai_client(mock_logger)
+
+        mock_ai.Client.assert_called_once_with({'anthropic': {'timeout': AI_TIMEOUT}})
 
 
 # ---------------------------------------------------------------------------

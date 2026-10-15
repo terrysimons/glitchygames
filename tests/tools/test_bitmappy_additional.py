@@ -56,6 +56,18 @@ from glitchygames.bitmappy.toml_processing import (
 from glitchygames.bitmappy.utils import detect_file_format, resource_path
 from tests.mocks import MockFactory
 
+EXPECTED_CALLS_AFTER_ONE_RETRY = 2
+
+
+class ProviderStatusError(Exception):
+    """Stand-in for provider SDK HTTP errors (anthropic/openai expose ``status_code``)."""
+
+    def __init__(self, message: str, status_code: int) -> None:
+        """Store the HTTP status code alongside the message."""
+        super().__init__(message)
+        self.status_code = status_code
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -1203,6 +1215,28 @@ class TestProcessAiRequest:
         result = _process_ai_request(request, None, logger)
         assert result.content == 'AI features not available'
 
+    def test_api_exception_returns_error_response(self, logger, mocker):
+        """Test that a provider exception becomes an error response instead of propagating.
+
+        Provider SDK exceptions (e.g. anthropic.BadRequestError) are not in the worker
+        loop's caught exception types, so propagating them kills the worker process and
+        the UI never receives a response.
+        """
+        mocker.patch('glitchygames.bitmappy.ai_worker.backoff', None)
+        client = mocker.Mock()
+        client.chat.completions.create.side_effect = ProviderStatusError(
+            'Your credit balance is too low to access the Anthropic API.',
+            status_code=400,
+        )
+        request = AIRequest(prompt='test', request_id='1', messages=[])
+
+        result = _process_ai_request(request, client, logger)
+
+        assert result.content is None
+        assert result.error is not None
+        assert 'credit balance is too low' in result.error
+        assert 'ProviderStatusError' in result.error
+
 
 # ---------------------------------------------------------------------------
 # _create_ai_retry_decorator tests
@@ -1228,6 +1262,47 @@ class TestCreateAiRetryDecorator:
 
         decorated = decorator(sample_function)
         assert decorated is sample_function
+
+    @pytest.mark.filterwarnings(
+        "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
+    )
+    def test_does_not_retry_client_errors(self, logger, mocker):
+        """Test that 4xx errors like billing/auth failures are not retried."""
+        sleep = mocker.patch('time.sleep')
+        call_count = 0
+
+        @_create_ai_retry_decorator(logger)
+        def failing_call():
+            nonlocal call_count
+            call_count += 1
+            message = 'Your credit balance is too low'
+            raise ProviderStatusError(message, status_code=400)
+
+        with pytest.raises(ProviderStatusError):
+            failing_call()
+
+        assert call_count == 1
+        sleep.assert_not_called()
+
+    @pytest.mark.filterwarnings(
+        "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning",
+    )
+    def test_retries_rate_limit_errors(self, logger, mocker):
+        """Test that 429 rate-limit errors are still retried."""
+        mocker.patch('time.sleep')
+        call_count = 0
+
+        @_create_ai_retry_decorator(logger)
+        def flaky_call():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                message = 'Rate limited'
+                raise ProviderStatusError(message, status_code=429)
+            return 'ok'
+
+        assert flaky_call() == 'ok'
+        assert call_count == EXPECTED_CALLS_AFTER_ONE_RETRY
 
 
 # ---------------------------------------------------------------------------

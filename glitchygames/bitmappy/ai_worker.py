@@ -28,6 +28,7 @@ from .constants import (
     AI_MODEL_DOWNLOAD_TIMEOUT,
     AI_TIMEOUT,
     MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS,
+    RETRYABLE_CLIENT_ERROR_STATUS_CODES,
     SPRITE_ASPECT_RATIO_TOLERANCE,
     ai_training_state,
 )
@@ -279,13 +280,19 @@ def _initialize_ai_client(log: logging.Logger) -> Any:
     _set_ollama_env_timeout(log)
 
     log.info('Initializing AI client...')
-    provider_config = _create_ollama_config(log)
+    # anthropic>=0.40 refuses non-streaming requests whose max_tokens implies more than
+    # 10 minutes ("Streaming is required...") unless the client has a non-default timeout.
+    # aisuite creates providers lazily on first use, so _configure_client_timeouts() below
+    # cannot reach the Anthropic client; the timeout must be passed in up front.
+    # See https://github.com/anthropics/anthropic-sdk-python#long-requests
+    # aisuite only instantiates the provider named in AI_MODEL, so unused entries are inert.
+    provider_config: dict[str, Any] = {
+        'anthropic': {'timeout': AI_TIMEOUT},
+        **_create_ollama_config(log),
+    }
 
-    if provider_config:
-        log.info('Initializing client with provider config: %s', provider_config)
-        client = ai.Client(provider_config)
-    else:
-        client = ai.Client()
+    log.info('Initializing client with provider config: %s', provider_config)
+    client = ai.Client(provider_config)
 
     _configure_ollama_provider(log, client)
     _configure_client_timeouts(log, client)
@@ -480,6 +487,34 @@ def _get_model_capabilities(log: logging.Logger) -> dict[str, Any]:  # type: ign
         return {'max_tokens': None}
 
 
+def _is_non_retryable_ai_error(error: BaseException) -> bool:
+    """Decide whether an AI request error should stop the retry loop immediately.
+
+    HTTP 4xx errors from provider SDKs (bad request, billing, auth, not found) will
+    fail the same way every time, so retrying them only delays the error message.
+    Request timeouts (408), conflicts (409), and rate limits (429) are transient and
+    are still retried.
+
+    Args:
+        error: The exception raised by the API call.
+
+    Returns:
+        bool: True if retrying cannot help.
+
+    """
+    if isinstance(error, (ValueError, KeyboardInterrupt, SystemExit)):
+        return True
+
+    status_code = getattr(error, 'status_code', None)
+    if not isinstance(status_code, int):
+        return False
+
+    return (
+        HTTPStatus.BAD_REQUEST <= status_code < HTTPStatus.INTERNAL_SERVER_ERROR
+        and status_code not in RETRYABLE_CLIENT_ERROR_STATUS_CODES
+    )
+
+
 def _create_ai_retry_decorator(
     log: logging.Logger,
 ) -> Callable[[Callable[..., object]], Callable[..., object]]:
@@ -516,7 +551,7 @@ def _create_ai_retry_decorator(
         max_tries=AI_MAX_RETRIES,
         base=AI_BASE_DELAY,
         max_value=AI_MAX_DELAY,
-        giveup=lambda e: isinstance(e, (ValueError, KeyboardInterrupt, SystemExit)),
+        giveup=_is_non_retryable_ai_error,
         on_giveup=giveup_handler,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         on_backoff=backoff_handler,  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
     )
@@ -610,9 +645,13 @@ def _process_ai_request(request: AIRequest, client: Any, log: logging.Logger) ->
     try:
         response = _retryable_api_call()
         return _extract_response_content(response, log)
-    except Exception:
+    except Exception as error:
+        # Provider SDKs raise their own exception types (anthropic.BadRequestError,
+        # openai.APIError, httpx errors, ...). Re-raising them would escape the worker
+        # loop's except clause, kill the worker process, and leave the UI waiting forever,
+        # so report the failure back to the UI as an error response instead.
         log.exception('AI request failed permanently')
-        raise
+        return AIResponse(content=None, error=f'{type(error).__name__}: {error}')
 
 
 def _score_size_match(requested_size: tuple[int, int], example: dict[str, Any]) -> int:
