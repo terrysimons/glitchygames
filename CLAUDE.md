@@ -232,13 +232,7 @@ Features:
 
 **Active Issues** (see BUGS.md for full details):
 
-1. **First Pasted Frame Alpha Loss** (Film Strip)
-   - Location: Film strip per-pixel alpha handling
-   - Issue: First frame pasted into new film strip loses transparency
-   - Workaround: Paste a second frame, transparency works correctly
-   - Files: `glitchygames/bitmappy/film_strip.py`
-
-2. **Ball Collision Trajectory Bug** (Game Physics)
+1. **Ball Collision Trajectory Bug** (Game Physics, unverified)
    - Location: `glitchygames/game_objects/ball.py`
    - Issue: Horizontal ball doesn't update trajectory after diagonal collision
    - Priority: High

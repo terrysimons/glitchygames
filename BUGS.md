@@ -4,7 +4,14 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
-(No active bugs at this time)
+### 7. Ball Collision Trajectory Bug
+- **Description**: A horizontally moving ball doesn't update its trajectory after a diagonal collision
+- **Status**: Active (unverified; carried over from the CLAUDE.md "Known Bugs" list, which had no BUGS.md entry)
+- **Priority**: High
+- **Reporter**: User
+- **Date Reported**: Not recorded
+- **Files**: `glitchygames/game_objects/ball.py`
+- **Notes**: Distinct from resolved bug #4 (perpendicular collisions being skipped entirely). Needs a reproduction to confirm whether it still occurs.
 
 ## Resolved Bugs
 
@@ -41,8 +48,8 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Status**: Resolved
 - **Priority**: High
 - **Reporter**: User
-- **Date Reported**: Current session
-- **Date Resolved**: Current session
+- **Date Reported**: Not recorded
+- **Date Resolved**: 2026-03-21 (commit c9b9f5f)
 - **Root Cause**: Collision detection checked if `dvn > 0` (relative velocity along normal), which can be positive for perpendicular collisions depending on geometry. Complex speed ratio logic then incorrectly skipped valid collisions when speeds were similar (speed_ratio < 1.2).
 - **Solution**: Simplified collision detection to only skip when balls are BOTH moving away (dvn > 0) AND not overlapping (distance >= collision_distance). Removed faulty speed ratio check that prevented perpendicular collisions.
 - **Impact**: Vertical vs horizontal collisions now processed correctly, no more missed collisions
@@ -55,22 +62,23 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Status**: Resolved
 - **Priority**: High
 - **Reporter**: User
-- **Date Reported**: Current session
-- **Date Resolved**: Current session
+- **Date Reported**: Not recorded
+- **Date Resolved**: 2026-03-21 (commit c9b9f5f)
 - **Root Cause**: Code duplication - `_add_new_animation()` created surfaces without `pygame.SRCALPHA` flag, while `_insert_frame_at_tab()` had it
 - **Solution**: Created canonical `_create_blank_frame()` helper method with proper SRCALPHA support, eliminated 24 lines of duplicated code
 - **Impact**: All new frames (first and subsequent) now properly preserve per-pixel alpha transparency
 - **Files Modified**:
   - `glitchygames/tools/bitmappy.py` - Created `_create_blank_frame()` helper, refactored `_add_new_animation()` and `_create_animated_sprite()`
   - `glitchygames/tools/film_strip.py` - Refactored `_insert_frame_at_tab()` to use shared helper
+- **Current Locations** (after the bitmappy editor refactor, #87): `_create_blank_frame()` and `_add_new_animation()` in `glitchygames/bitmappy/film_strip_coordinator.py`, `_create_animated_sprite()` in `glitchygames/bitmappy/editor_setup.py`, `_insert_frame_at_tab()` in `glitchygames/bitmappy/film_strip.py`
 
 ### 2. Ball-to-Ball Collision Clipping Bug
 - **Description**: Balls moving perpendicular (horizontal vs vertical) would clip through each other, getting stuck in repeated collision loops
 - **Status**: Resolved
 - **Priority**: High
 - **Reporter**: User
-- **Date Reported**: Current session
-- **Date Resolved**: Current session
+- **Date Reported**: Not recorded
+- **Date Resolved**: 2025-10-24 (commit e117684)
 - **Root Cause**: Float separation values (< 1.0) rounded to 0 when assigned to integer rect.x/rect.y positions, leaving balls overlapped after collision
 - **Solution**: Ensure minimum 1-pixel separation in each direction where collision normal has significant component, use round() for integer conversion
 - **Impact**: Balls can now collide cleanly without clipping, especially in horizontal vs vertical scenarios
@@ -83,11 +91,11 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Status**: Resolved
 - **Priority**: High
 - **Reporter**: User
-- **Date Reported**: Current session
-- **Date Resolved**: Current session
+- **Date Reported**: Not recorded
+- **Date Resolved**: 2025-10-24 (commit e117684)
 - **Root Cause**: The `speed_up()` method in `BallSprite` was using a flawed logarithmic scaling formula that capped speed increases at 5% instead of the expected 15%, causing inconsistent speed changes over time.
 - **Solution**: Replaced the complex logarithmic scaling with simple linear scaling that applies the multiplier directly to both speed components.
-- **Files Modified**: 
+- **Files Modified**:
   - `glitchygames/game_objects/ball.py` - Fixed `speed_up()` method
   - `glitchygames/game_objects/ball.py` - Added `round()` calls in `dt_tick()` for precision
   - `glitchygames/game_objects/paddle.py` - Added `round()` calls in `dt_tick()` for precision
