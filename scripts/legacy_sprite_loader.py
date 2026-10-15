@@ -8,7 +8,7 @@ import logging
 import struct
 from collections import OrderedDict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -29,7 +29,7 @@ LOG.setLevel(logging.INFO)
 class BitmappyLegacySprite(Sprite):
     """A sprite class for loading legacy bitmappy sprites."""
 
-    log: logging.Logger = LOG
+    log: ClassVar[logging.Logger] = LOG
 
     def __init__(
         self: Self,
@@ -48,8 +48,6 @@ class BitmappyLegacySprite(Sprite):
 
         """
         super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-        self.image: pygame.Surface | None = None
-        self.rect: pygame.Rect | None = None
         self.name: str | None = None
         self.palette: list[Color] = palette
 
@@ -90,14 +88,15 @@ class BitmappyLegacySprite(Sprite):
         # Read 1 byte, unsigned.
         indexed_rgb_data = struct.iter_unpack('<B', data)
 
-        pixels: list[tuple[int, int, int]] = list(
+        # Each byte is a palette index
+        palette_indices: list[int] = list(
             indexed_rgb_triplet_generator(pixel_data=indexed_rgb_data),
         )
 
         # NOTE: This code replaces the below for loop but hasn't been tested.
         palette_colors: list[tuple[int, int, int]] = [
-            palette[pixel]  # pyright: ignore[reportCallIssue, reportArgumentType]  # ty: ignore[invalid-argument-type]
-            for pixel in pixels[0 : width * height]
+            (palette[palette_index].r, palette[palette_index].g, palette[palette_index].b)
+            for palette_index in palette_indices[0 : width * height]
         ]
         rgb_pixels.extend(palette_colors)
 
@@ -166,12 +165,6 @@ class BitmappyLegacySprite(Sprite):
         color_map: dict[tuple[int, int, int], str] = {}
         pixels: list[str] = []
 
-        if self.image is None:
-            config.add_section('sprite')
-            config.set('sprite', 'name', self.name or '')
-            config.set('sprite', 'pixels', '')
-            return config
-
         raw_pixels: list[tuple[int, int, int]] = list(
             rgb_triplet_generator(
                 pygame.image.tobytes(self.image, 'RGB'),
@@ -210,7 +203,7 @@ class BitmappyLegacySprite(Sprite):
             row.append(color_map[raw_pixels.pop(0)])
             x += 1
 
-            if self.rect is not None and x % self.rect.width == 0:
+            if x % self.rect.width == 0:
                 self.log.debug('Row: %s', row)
                 pixels.append(''.join(row))
                 row = []

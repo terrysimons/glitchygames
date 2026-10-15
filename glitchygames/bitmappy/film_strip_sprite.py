@@ -49,7 +49,7 @@ class FilmStripSprite(BitmappySprite):
     - If wrong timing: Verify delta time is being passed from scene update loop
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self,
         film_strip_widget: FilmStripWidget,
         *,

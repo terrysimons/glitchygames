@@ -79,7 +79,7 @@ class VoiceAssistant:
 
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self,
         controller_audio: ControllerAudio,
         *,

@@ -33,7 +33,7 @@ class Platform(Sprite):
 
     """
 
-    def __init__(  # noqa: PLR0913, PLR0917
+    def __init__(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
         self,
         world_x: float,
         world_y: float,
@@ -130,7 +130,7 @@ class MovingGear(Sprite):
 
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self,
         world_x: float,
         world_y: float,

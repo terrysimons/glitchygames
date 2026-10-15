@@ -135,10 +135,10 @@ class TestAISStripIntegration:
             return_value=True,
         )
         scene._ai_integration._save_current_frame_to_temp_toml = self._mocker.Mock(
-            return_value='/tmp/frame.toml',  # noqa: S108
+            return_value='/tmp/frame.toml',  # ruff: ignore[hardcoded-temp-file]
         )
         scene._ai_integration._save_current_strip_to_temp_toml = self._mocker.Mock(
-            return_value='/tmp/strip.toml',  # noqa: S108
+            return_value='/tmp/strip.toml',  # ruff: ignore[hardcoded-temp-file]
         )
         scene._ai_integration._load_temp_toml_as_example = self._mocker.Mock(
             side_effect=[

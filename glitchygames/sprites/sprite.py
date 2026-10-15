@@ -23,7 +23,7 @@ LOG = logging.getLogger('game.sprites')
 _ERR_CANNOT_CREATE_SURFACE = "Can't create Surface(({width}, {height}))."
 
 
-class Sprite(RootSprite):  # noqa: PLR0904
+class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
     """A convenience class for handling all of the common sprite behaviors."""
 
     log = LOG
@@ -57,7 +57,7 @@ class Sprite(RootSprite):  # noqa: PLR0904
         else:
             LOG.info('Register break when sprite_type==<any>')
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self: Self,
         x: float,
         y: float,
@@ -146,20 +146,20 @@ class Sprite(RootSprite):  # noqa: PLR0904
             if len(self.SPRITE_BREAKPOINTS) == 0:
                 self.log.info(f'Break when sprite_type=={type(self)}')
                 # This breakpoint is intentional
-                breakpoint()  # noqa: T100
+                breakpoint()  # ruff: ignore[debugger]
             else:
                 for sprite_type in self.SPRITE_BREAKPOINTS:
                     # This breakpoint is intentional
-                    breakpoint()  # noqa: T100
+                    breakpoint()  # ruff: ignore[debugger]
                     if str(type(self)) == sprite_type:
                         self.log.info('Break when sprite_type==<any>')
 
                         # This breakpoint is intentional
-                        breakpoint()  # noqa: T100
+                        breakpoint()  # ruff: ignore[debugger]
 
     @property
     def width(self: Self) -> int | float:
-        """Return the width of the sprite.
+        """The width of the sprite.
 
         Returns:
             int | float: The width of the sprite.
@@ -180,7 +180,7 @@ class Sprite(RootSprite):  # noqa: PLR0904
 
     @property
     def height(self: Self) -> int | float:
-        """Return the height of the sprite.
+        """The height of the sprite.
 
         Returns:
             int | float: The height of the sprite.

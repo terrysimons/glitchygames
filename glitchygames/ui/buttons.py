@@ -98,7 +98,7 @@ class ButtonSprite(BitmappySprite):
 
     @property
     def x(self: Self) -> int:
-        """Get the x coordinate of the button sprite.
+        """The x coordinate of the button sprite.
 
         Args:
             None
@@ -123,7 +123,7 @@ class ButtonSprite(BitmappySprite):
 
     @property
     def y(self: Self) -> int:
-        """Get the y coordinate of the button sprite.
+        """The y coordinate of the button sprite.
 
         Args:
             None

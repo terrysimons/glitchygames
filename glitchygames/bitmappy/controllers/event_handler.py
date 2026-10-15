@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
-from glitchygames import events  # noqa: TC001 - used at runtime
+from glitchygames import events  # ruff: ignore[typing-only-first-party-import] - used at runtime
 from glitchygames.bitmappy.constants import (
     HAT_INPUT_MAGNITUDE_THRESHOLD,
     JOYSTICK_HAT_DOWN,
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from glitchygames.sprites import BitmappySprite
 
 
-class ControllerEventHandler:  # noqa: PLR0904
+class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     """Manages controller/joystick event handling for the Bitmappy editor.
 
     Handles all controller input, multi-controller support, visual indicators,

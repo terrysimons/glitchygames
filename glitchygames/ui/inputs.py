@@ -94,7 +94,7 @@ class InputBox(Sprite):
         self.color = color
         self.font = pygame.font.SysFont('Times', 14)
         self.text = text
-        self.text_image = self.font.render(self.text, True, self.color)  # noqa: FBT003
+        self.text_image = self.font.render(self.text, True, self.color)  # ruff: ignore[boolean-positional-value-in-call]
         self.is_active = False
         self.image = pygame.Surface((self.width, self.height))
         self.image.convert()
@@ -168,7 +168,7 @@ class InputBox(Sprite):
             screen (pygame.Surface | None): The surface to render to.
 
         """
-        self.text_image = self.font.render(self.text, True, (255, 255, 255))  # noqa: FBT003
+        self.text_image = self.font.render(self.text, True, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
 
     def on_mouse_up_event(self: Self, _event: HashableEvent) -> None:
         """Handle mouse up events.

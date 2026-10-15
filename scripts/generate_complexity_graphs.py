@@ -15,7 +15,7 @@ Output:
 from __future__ import annotations
 
 import logging
-import subprocess  # noqa: S404 - subprocess used to invoke trusted local dev tool (wily)
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - subprocess used to invoke trusted local dev tool (wily)
 import sys
 from pathlib import Path
 
@@ -46,7 +46,7 @@ def ensure_wily_cache() -> bool:
         bool: True if the cache is ready, False on error.
 
     """
-    result = subprocess.run(  # noqa: S603 - trusted local dev tool
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted local dev tool
         [WILY_CMD, 'index'],
         capture_output=True,
         text=True,
@@ -55,7 +55,7 @@ def ensure_wily_cache() -> bool:
     )
     if result.returncode != 0:
         LOG.info('Wily cache not found. Building...')
-        build_result = subprocess.run(  # noqa: S603 - trusted local dev tool
+        build_result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted local dev tool
             [WILY_CMD, 'build'],
             capture_output=True,
             text=True,
@@ -76,7 +76,7 @@ def get_top_files() -> list[str]:
         list[str]: File paths ranked by complexity.
 
     """
-    result = subprocess.run(  # noqa: S603 - trusted local dev tool
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted local dev tool
         [WILY_CMD, 'rank', '--limit', str(TOP_N), '--no-wrap', '--desc'],
         capture_output=True,
         text=True,
@@ -125,7 +125,7 @@ def generate_graph(file_path: str, metric: str) -> bool:
     metric_name = metric.replace('.', '_')
     output_path = GRAPHS_DIR / f'{safe_name}_{metric_name}.html'
 
-    result = subprocess.run(  # noqa: S603 - trusted local dev tool
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - trusted local dev tool
         [WILY_CMD, 'graph', file_path, '-m', metric, '-o', str(output_path)],
         capture_output=True,
         text=True,

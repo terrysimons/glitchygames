@@ -109,7 +109,7 @@ class KeyboardEventStubs(EventInterface):
 
 
 # Mixin
-class MouseEvents(EventInterface):  # noqa: PLR0904
+class MouseEvents(EventInterface):  # ruff: ignore[too-many-public-methods]
     """Mixin for mouse events."""
 
     @abc.abstractmethod
@@ -352,7 +352,7 @@ class MouseEvents(EventInterface):  # noqa: PLR0904
 
 
 # Mixin
-class MouseEventStubs(EventInterface):  # noqa: PLR0904
+class MouseEventStubs(EventInterface):  # ruff: ignore[too-many-public-methods]
     """Mixin for mouse events."""
 
     def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:

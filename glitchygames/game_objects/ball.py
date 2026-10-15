@@ -459,7 +459,7 @@ class BallSprite(Sprite):
 
     @property
     def color(self: Self) -> tuple[int, int, int]:
-        """Get the color of the ball.
+        """The color of the ball.
 
         Args:
             None

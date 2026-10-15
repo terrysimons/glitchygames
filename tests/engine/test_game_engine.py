@@ -2018,7 +2018,7 @@ class TestGetAttrAttributeError:
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
 
         with pytest.raises(AttributeError, match="has no attribute 'some_random_attr'"):
-            engine.some_random_attr  # noqa: B018
+            engine.some_random_attr  # ruff: ignore[useless-expression]
 
 
 class TestGameEngineLinuxVideoDriverArgs:

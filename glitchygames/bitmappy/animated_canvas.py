@@ -29,12 +29,12 @@ if TYPE_CHECKING:
     from glitchygames.bitmappy.editor import BitmapEditorScene
 
 
-class AnimatedCanvasSprite(BitmappySprite):  # noqa: PLR0904
+class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-methods]
     """Animated Canvas Sprite for editing animated sprites."""
 
     log = LOG
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self,
         animated_sprite: AnimatedSprite,
         *,
@@ -858,7 +858,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # noqa: PLR0904
                 self.log.error('No sprite found to save')
 
     @classmethod
-    def from_file(  # noqa: PLR0913
+    def from_file(  # ruff: ignore[too-many-arguments]
         cls,
         filename: str,
         *,
@@ -1015,7 +1015,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # noqa: PLR0904
             if pixel_num < len(self._drag_frame.pixels):
                 self._drag_frame.pixels[pixel_num] = color
                 if not hasattr(self._drag_frame, '_image_stale'):
-                    self._drag_frame._image_stale = True  # type: ignore[attr-defined]
+                    self._drag_frame._image_stale = True  # type: ignore[reportPrivateUsage]
             return
 
         # Fallback: slower get/set_pixel_data path
@@ -1049,7 +1049,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # noqa: PLR0904
 
         # Clear stale flag since image is now up to date
         if hasattr(frame, '_image_stale'):
-            del frame._image_stale  # type: ignore[attr-defined]
+            del frame._image_stale  # type: ignore[reportPrivateUsage]
 
     @override
     def on_left_mouse_drag_event(self, event: events.HashableEvent, trigger: object) -> None:
@@ -1726,7 +1726,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # noqa: PLR0904
 
         # Create a single frame with the static sprite data
         frame = SpriteFrame(surface=pygame.Surface((width, height), pygame.SRCALPHA))
-        frame.set_pixel_data(pixel_data)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+        frame.set_pixel_data(pixel_data)  # type: ignore[arg-type]
 
         # Get the animation name from the static sprite if available
         animation_name = 'idle'  # Default fallback
@@ -2189,7 +2189,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # noqa: PLR0904
         )
 
         # Set viewport pixel data
-        new_frame.set_pixel_data(viewport_pixels)  # ty: ignore[invalid-argument-type]
+        new_frame.set_pixel_data(viewport_pixels)
 
         return new_frame
 

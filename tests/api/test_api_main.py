@@ -100,7 +100,7 @@ class TestRunEntryPoint:
 
     def test_run_uses_custom_env_vars(self, mocker):
         """Test run() reads custom host, port, reload from environment."""
-        all_interfaces_host = '0.0.0.0'  # noqa: S104
+        all_interfaces_host = '0.0.0.0'  # ruff: ignore[hardcoded-bind-all-interfaces]
         mock_uvicorn_run = mocker.patch('uvicorn.run')
         mocker.patch.dict(
             'os.environ',

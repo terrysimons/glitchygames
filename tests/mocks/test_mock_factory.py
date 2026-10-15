@@ -211,7 +211,7 @@ class MockSurface(pygame.Surface):
         return self._mock_path
 
 
-class MockFactory:  # noqa: PLR0904
+class MockFactory:  # ruff: ignore[too-many-public-methods]
     """Factory class for creating properly configured mock objects."""
 
     # Cache for expensive mock objects to improve test performance
@@ -736,7 +736,7 @@ class MockFactory:  # noqa: PLR0904
         pixels_tall: int = 32,
         pixel_size: int = 16,
         *,
-        use_cache: bool = True,  # noqa: ARG004
+        use_cache: bool = True,  # ruff: ignore[unused-static-method-argument]
     ) -> Mock:
         """Create an optimized scene mock with caching for performance.
 
@@ -774,7 +774,7 @@ class MockFactory:  # noqa: PLR0904
         options: dict | None = None,
         event_handlers: dict | None = None,
         *,
-        use_cache: bool = True,  # noqa: ARG004
+        use_cache: bool = True,  # ruff: ignore[unused-static-method-argument]
     ) -> Mock:
         """Create a scene mock for event testing.
 
@@ -1267,7 +1267,7 @@ class MockFactory:  # noqa: PLR0904
         return screen
 
     @staticmethod
-    def _mock_sprite_init(self, *args, **kwargs):  # noqa: PLW0211, ARG004  # pyright: ignore[reportSelfClsParameterName]
+    def _mock_sprite_init(self, *args, **kwargs):  # ruff: ignore[bad-staticmethod-argument, unused-static-method-argument]  # pyright: ignore[reportSelfClsParameterName]
         """Mock Sprite.__init__ that handles pygame.display.get_surface() properly."""
         # Avoid referencing self in debug output to prevent __str__ access before attributes are set
         # Extract arguments from kwargs since that's how they're being passed
@@ -1475,7 +1475,7 @@ class MockFactory:  # noqa: PLR0904
         mock_group.remove = mock_remove
 
     @staticmethod
-    def _create_mock_layered_dirty(*args, **kwargs):  # noqa: ARG004
+    def _create_mock_layered_dirty(*args, **kwargs):  # ruff: ignore[unused-static-method-argument]
         """Mock pygame.sprite.LayeredDirty constructor that returns a working mock.
 
         Returns:
@@ -1497,7 +1497,7 @@ class MockFactory:  # noqa: PLR0904
         return mock_group
 
     @staticmethod
-    def _mock_sprite_factory_load_sprite(*, filename: str | None = None):  # noqa: ARG004
+    def _mock_sprite_factory_load_sprite(*, filename: str | None = None):  # ruff: ignore[unused-static-method-argument]
         """Mock SpriteFactory.load_sprite to return a mocked animated sprite.
 
         Returns:

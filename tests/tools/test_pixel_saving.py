@@ -47,33 +47,33 @@ class TestPixelSaving:
             [],
         ]
 
-        print('Testing pixel processing logic:')  # noqa: T201
-        print('=' * 50)  # noqa: T201
+        print('Testing pixel processing logic:')  # ruff: ignore[print]
+        print('=' * 50)  # ruff: ignore[print]
 
         unique_colors = set()
 
         for i, pixel in enumerate(test_cases):
-            print(f'Pixel {i}: {pixel} (type: {type(pixel)})')  # noqa: T201
+            print(f'Pixel {i}: {pixel} (type: {type(pixel)})')  # ruff: ignore[print]
 
             if isinstance(pixel, tuple) and len(pixel) >= 3:
                 color = pixel[:3]
-                print(f'  -> tuple with {len(pixel)} values -> color {color}')  # noqa: T201
+                print(f'  -> tuple with {len(pixel)} values -> color {color}')  # ruff: ignore[print]
             elif isinstance(pixel, int):
                 r = (pixel >> 16) & 0xFF
                 g = (pixel >> 8) & 0xFF
                 b = pixel & 0xFF
                 color = (r, g, b)
-                print(f'  -> int {hex(pixel)} -> color {color}')  # noqa: T201
+                print(f'  -> int {hex(pixel)} -> color {color}')  # ruff: ignore[print]
             else:
                 color = (255, 0, 255)  # Default magenta
-                print(f'  -> unknown type -> default magenta {color}')  # noqa: T201
+                print(f'  -> unknown type -> default magenta {color}')  # ruff: ignore[print]
 
             unique_colors.add(color)
-            print()  # noqa: T201
+            print()  # ruff: ignore[print]
 
-        print(f'Unique colors found: {len(unique_colors)}')  # noqa: T201
+        print(f'Unique colors found: {len(unique_colors)}')  # ruff: ignore[print]
         for color in sorted(unique_colors):
-            print(f'  {color}')  # noqa: T201
+            print(f'  {color}')  # ruff: ignore[print]
 
         # Assertions
         assert len(unique_colors) > 1, 'Should have multiple unique colors, not just magenta'

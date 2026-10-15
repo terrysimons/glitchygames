@@ -174,7 +174,7 @@ class ShapesSprite(Sprite):
 
     @property
     def rectangle(self: Self) -> pygame.rect.Rect:
-        """Get the rectangle.
+        """The rectangle.
 
         Args:
             None

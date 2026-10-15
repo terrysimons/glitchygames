@@ -401,7 +401,7 @@ def _get_nested_dict(data: dict[str, Any], path: list[str]) -> dict[str, Any]:
     return current
 
 
-def _parse_toml_value(value: str) -> str | bool | int | float | list[Any]:  # noqa: PLR0911
+def _parse_toml_value(value: str) -> str | bool | int | float | list[Any]:  # ruff: ignore[too-many-return-statements]
     """Parse a TOML value string into Python object.
 
     Args:
@@ -785,7 +785,7 @@ def build_color_to_glyph_mapping(
     return color_mapping
 
 
-def generate_pixel_string(  # noqa: PLR0913
+def generate_pixel_string(  # ruff: ignore[too-many-arguments]
     pixel_array: np.ndarray[Any, Any],
     width: int,
     height: int,
@@ -924,7 +924,7 @@ def collect_unique_colors_from_pixels(
     return unique_colors
 
 
-def build_pixel_string_from_pixels(  # noqa: PLR0913
+def build_pixel_string_from_pixels(  # ruff: ignore[too-many-arguments]
     pixels: list[tuple[int, ...]],
     width: int,
     height: int,

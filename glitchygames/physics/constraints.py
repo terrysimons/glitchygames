@@ -60,7 +60,7 @@ class BoundsConstraint:
         self.max_x = max_x
         self.max_y = max_y
 
-    def apply(self, body: PhysicsBody, dt: float) -> None:  # noqa: ARG002
+    def apply(self, body: PhysicsBody, dt: float) -> None:  # ruff: ignore[unused-method-argument]
         """Clamp body position to bounds, zeroing velocity at boundaries.
 
         Args:
@@ -103,7 +103,7 @@ class GroundConstraint:
         self.ground_y = ground_y
         self.body_height = body_height
 
-    def apply(self, body: PhysicsBody, dt: float) -> None:  # noqa: ARG002
+    def apply(self, body: PhysicsBody, dt: float) -> None:  # ruff: ignore[unused-method-argument]
         """Snap body to ground when touching, set on_ground flag.
 
         Args:

@@ -156,7 +156,7 @@ class BrushStrokeCommand(_ApplyingUndoRedoGuard):
                 self.editor.canvas.canvas_interface.set_pixel_at(x, y, color)
                 return True
             LOG.warning('Canvas not available for pixel change')
-            return False  # noqa: TRY300
+            return False  # ruff: ignore[try-consider-else]
         except Exception:
             LOG.exception('Error setting pixel at (%s, %s)', x, y)
             return False
@@ -165,7 +165,7 @@ class BrushStrokeCommand(_ApplyingUndoRedoGuard):
 class FloodFillCommand(_ApplyingUndoRedoGuard):
     """Command for a flood fill operation."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self,
         editor: Any,
         *,
@@ -242,7 +242,7 @@ class FloodFillCommand(_ApplyingUndoRedoGuard):
                 self.editor.canvas.canvas_interface.set_pixel_at(x, y, color)
                 return True
             LOG.warning('Canvas not available for pixel change')
-            return False  # noqa: TRY300
+            return False  # ruff: ignore[try-consider-else]
         except Exception:
             LOG.exception('Error setting pixel at (%s, %s)', x, y)
             return False
@@ -315,7 +315,7 @@ class FrameSelectionCommand(_ApplyingUndoRedoGuard):
                     LOG.debug('Applied frame selection: %s[%s]', animation, frame)
                     return True
                 LOG.warning('Canvas not available for frame selection')
-                return False  # noqa: TRY300
+                return False  # ruff: ignore[try-consider-else]
             except AttributeError, IndexError, KeyError, TypeError, ValueError:
                 LOG.exception('Error applying frame selection')
                 return False
@@ -331,7 +331,7 @@ class FrameSelectionCommand(_ApplyingUndoRedoGuard):
 class FramePasteCommand(_ApplyingUndoRedoGuard):
     """Command for pasting pixel data into a frame."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self,
         editor: Any,
         *,
@@ -972,7 +972,7 @@ class AnimationDeleteCommand:
 class ControllerPositionCommand(_ApplyingUndoRedoGuard):
     """Command for a controller position change."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self,
         editor: Any,
         controller_id: int,
@@ -1041,7 +1041,7 @@ class ControllerPositionCommand(_ApplyingUndoRedoGuard):
                     LOG.debug(f'Applied controller position: {self.controller_id} -> {position}')
                     return True
                 LOG.warning('Mode switcher not available for controller position')
-                return False  # noqa: TRY300
+                return False  # ruff: ignore[try-consider-else]
             except AttributeError, KeyError, TypeError:
                 LOG.exception('Error applying controller position')
                 return False
@@ -1129,7 +1129,7 @@ class ControllerModeCommand(_ApplyingUndoRedoGuard):
                     LOG.debug(f'Applied controller mode: {self.controller_id} -> {mode}')
                     return True
                 LOG.warning('Mode switcher not available for controller mode')
-                return False  # noqa: TRY300
+                return False  # ruff: ignore[try-consider-else]
             except AttributeError, KeyError, TypeError, ValueError:
                 LOG.exception('Error applying controller mode')
                 return False

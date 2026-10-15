@@ -631,7 +631,7 @@ class TestParseTomlValue:
 
     def test_float(self):
         """Test parsing a float."""
-        expected_value = 3.14  # noqa: FURB152
+        expected_value = 3.14  # ruff: ignore[math-constant]
         result = _parse_toml_value('3.14')
         assert isinstance(result, float)
         assert abs(result - expected_value) < 1e-9

@@ -357,7 +357,7 @@ class ControllerAudio:
     with speaker on channel 1 and haptic motors on channels 2-3.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self,
         controller_name: str,
         *,

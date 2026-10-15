@@ -9,6 +9,9 @@ miniaudio_available = importlib.util.find_spec('miniaudio') is not None
 sr_available = importlib.util.find_spec('speech_recognition') is not None
 
 
+# voice_miniaudio imports speech_recognition unconditionally (MiniaudioMicrophone
+# subclasses sr.AudioSource), so even _BlockingByteStream needs it to import.
+@pytest.mark.skipif(not sr_available, reason='speech_recognition not installed')
 class TestBlockingByteStream:
     """Tests for the _BlockingByteStream internal class."""
 

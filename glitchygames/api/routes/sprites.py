@@ -59,7 +59,7 @@ def _get_services() -> tuple[SpriteGenerationService, RendererService]:
     return sprite_service, renderer_service
 
 
-def _save_sprite_files(  # noqa: PLR0913
+def _save_sprite_files(  # ruff: ignore[too-many-arguments]
     output_path: str,
     sprite_name: str,
     *,

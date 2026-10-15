@@ -262,7 +262,7 @@ class FrameOperationManager:
 
         self.log.debug("Copied frame %s from animation '%s' to clipboard", frame, animation)
 
-    def handle_paste_frame(self) -> None:  # noqa: PLR0911
+    def handle_paste_frame(self) -> None:  # ruff: ignore[too-many-return-statements]
         """Handle pasting a frame from clipboard to the current frame."""
         if not hasattr(self.editor, 'canvas') or not self.editor.canvas:
             self.log.warning('No canvas available for frame pasting')

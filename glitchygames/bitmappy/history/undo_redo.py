@@ -95,7 +95,7 @@ class Operation:
 # ---------------------------------------------------------------------------
 
 
-class UndoRedoManager:  # noqa: PLR0904
+class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
     """Manages undo/redo command stacks for the Bitmappy editor.
 
     Commands are objects that implement the ``UndoRedoCommand`` protocol
@@ -332,7 +332,7 @@ class UndoRedoManager:  # noqa: PLR0904
         adapter = _OperationAdapter(operation, self)
         self.push_command(adapter)
 
-    def add_frame_operation(  # noqa: PLR0913, PLR0917
+    def add_frame_operation(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
         self,
         animation: str,
         frame: int,
@@ -689,7 +689,7 @@ class _OperationAdapter:
 
     @property
     def operation(self) -> Operation:
-        """Return the wrapped legacy Operation dataclass."""
+        """The wrapped legacy Operation dataclass."""
         return self._operation
 
     def execute(self) -> bool:
@@ -710,7 +710,7 @@ class _OperationAdapter:
         """
         return self._dispatch(is_undo=True)
 
-    def _dispatch(self, *, is_undo: bool) -> bool:  # noqa: PLR0911
+    def _dispatch(self, *, is_undo: bool) -> bool:  # ruff: ignore[too-many-return-statements]
         """Route to the correct legacy callback based on operation type.
 
         Returns:
@@ -774,7 +774,7 @@ class _OperationAdapter:
 
     # -- Canvas dispatch ----------------------------------------------------
 
-    def _dispatch_canvas(  # noqa: C901
+    def _dispatch_canvas(  # ruff: ignore[complex-structure]
         self,
         operation: Operation,
         data: dict[str, Any],
@@ -820,7 +820,7 @@ class _OperationAdapter:
 
     # -- Film strip dispatch ------------------------------------------------
 
-    def _dispatch_film_strip(  # noqa: C901, PLR0911, PLR0912, PLR0915
+    def _dispatch_film_strip(  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches, too-many-statements]
         self,
         operation: Operation,
         data: dict[str, Any],
@@ -915,7 +915,7 @@ class _OperationAdapter:
         operation: Operation,
         data: dict[str, Any],
         *,
-        is_undo: bool,  # noqa: ARG002
+        is_undo: bool,  # ruff: ignore[unused-method-argument]
     ) -> bool:
         if operation.operation_type == OperationType.FRAME_PASTE:
             callback = getattr(self._manager, '_frame_paste_callback', None)

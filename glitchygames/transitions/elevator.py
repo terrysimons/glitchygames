@@ -31,7 +31,7 @@ class ElevatorTransition(Transition):
 
     """
 
-    def __init__(  # noqa: PLR0913, PLR0917
+    def __init__(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
         self,
         duration: float = 1.5,
         easing: str = 'ease_in_out_quad',

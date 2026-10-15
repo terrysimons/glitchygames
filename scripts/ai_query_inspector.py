@@ -19,17 +19,17 @@ import pygame
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from glitchygames.bitmappy import (  # noqa: E402
+from glitchygames.bitmappy import (  # ruff: ignore[module-import-not-at-top-of-file]
     AI_MAX_CONTEXT_SIZE,
     AI_MAX_INPUT_TOKENS,
     AI_MODEL,
     load_ai_training_data,
 )
-from glitchygames.bitmappy.constants import ai_training_state  # noqa: E402
-from glitchygames.engine import GameEngine  # noqa: E402
-from glitchygames.scenes import Scene  # noqa: E402
-from glitchygames.sprites import SPRITE_GLYPHS  # noqa: E402
-from glitchygames.ui import MultiLineTextBox  # noqa: E402
+from glitchygames.bitmappy.constants import ai_training_state  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.engine import GameEngine  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.scenes import Scene  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.sprites import SPRITE_GLYPHS  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.ui import MultiLineTextBox  # ruff: ignore[module-import-not-at-top-of-file]
 
 if typing.TYPE_CHECKING:
     from glitchygames import events
@@ -78,8 +78,11 @@ class _ButtonSprite(pygame.sprite.Sprite):
         """
         super().__init__()
         self.name: str = name
-        self.image: pygame.Surface = pygame.Surface((0, 0))
-        self.rect: pygame.Rect = self.image.get_rect()
+        # pygame.sprite.Sprite declares image/rect as properties whose setters accept
+        # None, so these assignments must not narrow the declared type.
+        placeholder_surface = pygame.Surface((0, 0))
+        self.image = placeholder_surface
+        self.rect = placeholder_surface.get_rect()
 
 
 class AIQueryInspectorScene(Scene):
@@ -222,7 +225,7 @@ class AIQueryInspectorScene(Scene):
             assert self.send_button.image is not None
             send_text: pygame.Surface = font.render(
                 'Send Query',
-                True,  # noqa: FBT003
+                True,  # ruff: ignore[boolean-positional-value-in-call]
                 TEXT_COLOR_WHITE,
             )
             send_text_rect: pygame.Rect = send_text.get_rect(center=self.send_button.rect.center)
@@ -234,7 +237,7 @@ class AIQueryInspectorScene(Scene):
             assert self.full_content_button.image is not None
             toggle_text: pygame.Surface = font.render(
                 'Toggle Full',
-                True,  # noqa: FBT003
+                True,  # ruff: ignore[boolean-positional-value-in-call]
                 TEXT_COLOR_WHITE,
             )
             toggle_text_rect: pygame.Rect = toggle_text.get_rect(
@@ -248,7 +251,7 @@ class AIQueryInspectorScene(Scene):
             assert self.back_button.image is not None
             back_text: pygame.Surface = font.render(
                 'Back',
-                True,  # noqa: FBT003
+                True,  # ruff: ignore[boolean-positional-value-in-call]
                 TEXT_COLOR_WHITE,
             )
             back_text_rect: pygame.Rect = back_text.get_rect(center=self.back_button.rect.center)
@@ -596,7 +599,7 @@ class AIQueryInspectorScene(Scene):
         font: pygame.font.Font = pygame.font.Font(None, FONT_SIZE_LARGE)
         title_text: pygame.Surface = font.render(
             'AI Query Inspector',
-            True,  # noqa: FBT003
+            True,  # ruff: ignore[boolean-positional-value-in-call]
             TEXT_COLOR_WHITE,
         )
         screen.blit(title_text, (UI_MARGIN, UI_MARGIN))
@@ -611,7 +614,7 @@ class AIQueryInspectorScene(Scene):
         for instruction_index, instruction in enumerate(instructions):
             text: pygame.Surface = font_small.render(
                 instruction,
-                True,  # noqa: FBT003
+                True,  # ruff: ignore[boolean-positional-value-in-call]
                 TEXT_COLOR_GRAY,
             )
             screen.blit(

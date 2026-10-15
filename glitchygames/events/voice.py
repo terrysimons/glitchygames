@@ -27,7 +27,7 @@ try:
 
     SPEECH_RECOGNITION_AVAILABLE = True
 except ImportError:
-    sr = None  # ty: ignore[invalid-assignment]
+    sr = None
     SPEECH_RECOGNITION_AVAILABLE = False  # pyright: ignore[reportConstantRedefinition]
 
 
@@ -73,9 +73,11 @@ class VoiceEventManager(ResourceManager):
         # Provide a proxy for API symmetry with other event managers
         self.proxies = [VoiceEventManager.VoiceEventProxy(game=self)]
 
-        # Initialize speech recognition components if available
-        if SPEECH_RECOGNITION_AVAILABLE:
-            self.recognizer: Any = sr.Recognizer()  # type: ignore[union-attr]
+        # Initialize speech recognition components if available.
+        # The explicit `sr is not None` check lets type checkers prove `sr` is the
+        # module here; SPEECH_RECOGNITION_AVAILABLE alone cannot narrow `sr`.
+        if SPEECH_RECOGNITION_AVAILABLE and sr is not None:
+            self.recognizer: Any = sr.Recognizer()
             self.microphone: Any = None
             # Select a backend microphone class
             mic_cls = get_microphone_backend()
@@ -128,15 +130,15 @@ class VoiceEventManager(ResourceManager):
 
     def _setup_microphone(self) -> None:
         """Set up the microphone for voice recognition."""
-        if not SPEECH_RECOGNITION_AVAILABLE:
+        if not SPEECH_RECOGNITION_AVAILABLE or sr is None:
             self.microphone = None
             return
 
         try:
-            self.microphone = sr.Microphone()  # type: ignore[union-attr]
+            self.microphone = sr.Microphone()
             self.log.info('Microphone initialized successfully')
         except OSError, AttributeError:
-            self.log.error('Failed to initialize microphone')  # noqa: TRY400
+            self.log.error('Failed to initialize microphone')  # ruff: ignore[error-instead-of-exception]
             self.microphone = None
 
     def _register_default_commands(self) -> None:
@@ -192,7 +194,9 @@ class VoiceEventManager(ResourceManager):
 
     def _listen_loop(self) -> None:
         """Run the main listening loop in a separate thread."""
-        if not SPEECH_RECOGNITION_AVAILABLE:
+        # `sr is None` is checked too so the `except sr.*Error` clauses below can
+        # never evaluate an attribute on None.
+        if not SPEECH_RECOGNITION_AVAILABLE or sr is None:
             self.log.error('Cannot start listen loop: speech recognition not available')
             return
 
@@ -217,19 +221,19 @@ class VoiceEventManager(ResourceManager):
                         text = self.recognizer.recognize_google(audio).lower()
                         self.log.info("Recognized speech: '%s'", text)
                         self._process_command(text)
-                    except sr.UnknownValueError:  # type: ignore[union-attr]
+                    except sr.UnknownValueError:
                         # Speech was unintelligible, continue listening
                         self.log.debug('Could not understand audio')
-                    except sr.RequestError:  # type: ignore[union-attr]
-                        self.log.error('Speech recognition service error')  # noqa: TRY400
+                    except sr.RequestError:
+                        self.log.error('Speech recognition service error')  # ruff: ignore[error-instead-of-exception]
                         # Wait a bit before trying again
                         time.sleep(2)
 
-                except sr.WaitTimeoutError:  # type: ignore[union-attr]
+                except sr.WaitTimeoutError:
                     # Timeout is normal, continue listening
                     continue
                 except OSError:
-                    self.log.error('Error in voice recognition loop')  # noqa: TRY400
+                    self.log.error('Error in voice recognition loop')  # ruff: ignore[error-instead-of-exception]
                     time.sleep(1)
 
     def _process_command(self, text: str) -> None:

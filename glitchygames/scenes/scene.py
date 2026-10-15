@@ -107,7 +107,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
     @property
     def game_engine(self: Self) -> GameEngine | None:
-        """Return the game engine.
+        """The game engine.
 
         Returns:
             GameEngine | None: The game engine.
@@ -140,7 +140,7 @@ class SceneManager(SceneInterface, events.EventManager):
     # not a scene, but is the entry point for event proxies.
     @property
     def all_sprites(self: Self) -> pygame.sprite.LayeredDirty[Any] | None:
-        """Return the active scene's sprite group.
+        """The active scene's sprite group.
 
         Returns:
             pygame.sprite.LayeredDirty[Any] | None: The active scene's sprite group.
@@ -495,7 +495,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self.log.info('POSTING QUIT EVENT')
         pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
 
-    def on_quit_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
+    def on_quit_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle quit events.
 
         Args:
@@ -530,7 +530,7 @@ class SceneManager(SceneInterface, events.EventManager):
             event_subtype: int = getattr(event, 'subtype', 0)
             self.game_engine.registered_events[event_subtype](event)
         except KeyError:
-            self.log.error(  # noqa: TRY400
+            self.log.error(  # ruff: ignore[error-instead-of-exception]
                 'Unregistered Event: %s '
                 '(call self.register_game_event(<event subtype>, <event data>))',
                 event,
@@ -887,7 +887,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     @property
     def screenshot(self: Self) -> pygame.Surface:
-        """Return a screenshot of the scene.
+        """A screenshot of the scene.
 
         Returns:
             pygame.Surface: The scene screenshot.
@@ -901,7 +901,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     @property
     def background_color(self: Self) -> tuple[int, ...] | None:
-        """Return the background color.
+        """The background color.
 
         Returns:
             tuple[int, ...] | None: The background color.

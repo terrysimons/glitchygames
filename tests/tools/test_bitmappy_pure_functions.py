@@ -699,7 +699,7 @@ class TestParseTomlValue:
         """Test parsing a float value."""
         result = _parse_toml_value('3.14')
         assert isinstance(result, float)
-        assert result == pytest.approx(3.14)  # noqa: FURB152
+        assert result == pytest.approx(3.14)  # ruff: ignore[math-constant]
 
     def test_comma_separated_list(self):
         """Test parsing comma-separated values as a list."""

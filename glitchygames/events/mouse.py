@@ -28,7 +28,7 @@ MOUSE_WHEEL_SCROLL_DOWN = 5
 class MouseEventManager(ResourceManager):
     """Mouse manager event handler."""
 
-    class MouseEventProxy(MouseEvents, ResourceManager):  # noqa: PLR0904 - one handler per mouse event type
+    class MouseEventProxy(MouseEvents, ResourceManager):  # ruff: ignore[too-many-public-methods] - one handler per mouse event type
         """Mouse manager event proxy."""
 
         def __init__(self: Self, game: object = None) -> None:
@@ -468,7 +468,7 @@ class MousePointer:
 
     @property
     def x(self: Self) -> int:
-        """Get the x coordinate of the mouse pointer.
+        """The x coordinate of the mouse pointer.
 
         Returns:
             int
@@ -488,7 +488,7 @@ class MousePointer:
 
     @property
     def y(self: Self) -> int:
-        """Get the y coordinate of the mouse pointer.
+        """The y coordinate of the mouse pointer.
 
         Returns:
             int

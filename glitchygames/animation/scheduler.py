@@ -47,7 +47,7 @@ class BehaviorContext:
         self._variables: dict[str, Any] = dict(initial_context) if initial_context else {}
         self._dt: float = 0.0
 
-    def get(self, name: str, default: Any = False) -> Any:  # noqa: FBT002
+    def get(self, name: str, default: Any = False) -> Any:  # ruff: ignore[boolean-default-value-positional-argument]
         """Get a context variable.
 
         Args:

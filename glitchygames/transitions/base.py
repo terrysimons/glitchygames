@@ -133,7 +133,7 @@ class Transition:
     def _render_frame(
         self,
         screen: pygame.Surface,
-        old_surface: pygame.Surface,  # noqa: ARG002
+        old_surface: pygame.Surface,  # ruff: ignore[unused-method-argument]
         new_surface: pygame.Surface,
     ) -> None:
         """Render one frame of the transition effect.

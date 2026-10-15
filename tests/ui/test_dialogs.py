@@ -20,9 +20,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Save REAL LayeredDirty before mock_pygame_patches replaces it with a Mock.
 _RealLayeredDirty = pygame.sprite.LayeredDirty
 
-from glitchygames.events.base import HashableEvent  # noqa: E402
-from glitchygames.ui import ConfirmDialog, InputDialog  # noqa: E402
-from glitchygames.ui.dialogs import (  # noqa: E402
+from glitchygames.events.base import HashableEvent  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.ui import ConfirmDialog, InputDialog  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.ui.dialogs import (  # ruff: ignore[module-import-not-at-top-of-file]
     InputConfirmationDialogScene,
     LoadDialogScene,
     NewCanvasDialogScene,
@@ -32,7 +32,7 @@ from glitchygames.ui.dialogs import (  # noqa: E402
     _get_save_path,
     _process_example_filename,
 )
-from tests.mocks import MockFactory  # noqa: E402
+from tests.mocks import MockFactory  # ruff: ignore[module-import-not-at-top-of-file]
 
 # Test constants from test_confirm_dialog_coverage.py
 TEST_CONFIRM_DIALOG_X = 50
@@ -396,7 +396,7 @@ class TestGetExamplesDir:
 
     def test_pyinstaller_bundle_path(self, mocker):
         """Test _get_examples_dir with PyInstaller _MEIPASS."""
-        bundle_path = Path('/tmp/bundle')  # noqa: S108
+        bundle_path = Path('/tmp/bundle')  # ruff: ignore[hardcoded-temp-file]
         mocker.patch.object(sys, '_MEIPASS', str(bundle_path), create=True)
         result = _get_examples_dir()
         assert isinstance(result, Path)

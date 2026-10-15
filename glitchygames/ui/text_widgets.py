@@ -122,7 +122,7 @@ class TextSprite(BitmappySprite):
 
     @property
     def x(self) -> int | float:
-        """Get the x position."""
+        """The x position."""
         return self._x
 
     @x.setter
@@ -134,7 +134,7 @@ class TextSprite(BitmappySprite):
 
     @property
     def y(self) -> int | float:
-        """Get the y position."""
+        """The y position."""
         return self._y
 
     @y.setter
@@ -146,7 +146,7 @@ class TextSprite(BitmappySprite):
 
     @property
     def text(self) -> str:
-        """Get the text content."""
+        """The text content."""
         return self._text
 
     @text.setter
@@ -287,14 +287,14 @@ class TextSprite(BitmappySprite):
         """
         if is_transparent:
             return (  # pyright: ignore[reportReturnType, reportUnknownVariableType]
-                font.render(str(text), True, text_color)[0]  # noqa: FBT003  # pyright: ignore[reportIndexIssue, reportArgumentType]  # ty: ignore[invalid-return-type, not-subscriptable, invalid-argument-type]
-                if isinstance(font.render(str(text), True, text_color), tuple)  # noqa: FBT003  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-                else font.render(str(text), True, text_color)  # noqa: FBT003  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                font.render(str(text), True, text_color)[0]  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportIndexIssue, reportArgumentType]  # ty: ignore[invalid-return-type, not-subscriptable, invalid-argument-type]
+                if isinstance(font.render(str(text), True, text_color), tuple)  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+                else font.render(str(text), True, text_color)  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
             )
         return (  # pyright: ignore[reportReturnType, reportUnknownVariableType]
-            font.render(str(text), True, text_color)[0]  # noqa: FBT003  # pyright: ignore[reportIndexIssue, reportArgumentType]  # ty: ignore[invalid-return-type, not-subscriptable, invalid-argument-type]
-            if isinstance(font.render(str(text), True, text_color), tuple)  # noqa: FBT003  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            else font.render(str(text), True, text_color)  # noqa: FBT003  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            font.render(str(text), True, text_color)[0]  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportIndexIssue, reportArgumentType]  # ty: ignore[invalid-return-type, not-subscriptable, invalid-argument-type]
+            if isinstance(font.render(str(text), True, text_color), tuple)  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            else font.render(str(text), True, text_color)  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         )
 
     def _draw_cursor(self, text_rect: pygame.Rect, _font: GameFont) -> None:
@@ -942,7 +942,7 @@ class MultiLineTextBox(BitmappySprite):
 
     @property
     def text(self) -> str:
-        """Get the text content."""
+        """The text content."""
         return self._text
 
     @text.setter
@@ -1027,7 +1027,7 @@ class MultiLineTextBox(BitmappySprite):
                     else:
                         text_surface = render_result
                 else:
-                    font_result = self.font.render(line, True, text_color)  # type: ignore[arg-type]  # noqa: FBT003
+                    font_result = self.font.render(line, True, text_color)  # type: ignore[arg-type]  # ruff: ignore[boolean-positional-value-in-call]
                     text_surface = font_result[0] if isinstance(font_result, tuple) else font_result
                 self.image.blit(text_surface, (5, y_offset))  # ty: ignore[invalid-argument-type]
             y_offset += line_height
@@ -1307,7 +1307,7 @@ class MultiLineTextBox(BitmappySprite):
             else:
                 pyperclip.copy(self._text)
         except ImportError, AttributeError:
-            self.log.error('Error copying text')  # noqa: TRY400
+            self.log.error('Error copying text')  # ruff: ignore[error-instead-of-exception]
 
     def _handle_paste(self) -> None:
         """Handle paste operation."""
@@ -1321,7 +1321,7 @@ class MultiLineTextBox(BitmappySprite):
                 self.text = before_cursor + clipboard_text + after_cursor
                 self.cursor_pos += len(clipboard_text)
         except ImportError, AttributeError:
-            self.log.error('Error pasting text')  # noqa: TRY400
+            self.log.error('Error pasting text')  # ruff: ignore[error-instead-of-exception]
 
     def _handle_cut(self) -> None:
         """Handle cut operation."""
@@ -1340,7 +1340,7 @@ class MultiLineTextBox(BitmappySprite):
                 self.text = ''
                 self.cursor_pos = 0
         except ImportError, AttributeError:
-            self.log.error('Error cutting text')  # noqa: TRY400
+            self.log.error('Error cutting text')  # ruff: ignore[error-instead-of-exception]
 
     def _handle_delete_selection(self, event: HashableEvent) -> bool:
         """Handle delete key with active selection.

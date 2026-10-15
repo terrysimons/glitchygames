@@ -285,7 +285,7 @@ class Camera2D:
         )
 
         # Y-axis check (skip if height is 0, for backward compatibility)
-        if height == 0.0:  # noqa: RUF069 - exact zero means "X-only check"
+        if height == 0.0:  # ruff: ignore[float-equality-comparison] - exact zero means "X-only check"
             return x_visible
 
         y_visible = (

@@ -460,7 +460,7 @@ class TestDragAndDropPNG:
                 '_load_converted_sprite',
             )
 
-            mock_convert.return_value = '/tmp/test.toml'  # noqa: S108
+            mock_convert.return_value = '/tmp/test.toml'  # ruff: ignore[hardcoded-temp-file]
 
             # Create a mock event with the correct attribute
             class MockEvent:
@@ -476,7 +476,7 @@ class TestDragAndDropPNG:
             mock_convert.assert_called_once_with(str(tmp_png_path))
 
             # Verify loading was called
-            mock_load.assert_called_once_with('/tmp/test.toml')  # noqa: S108
+            mock_load.assert_called_once_with('/tmp/test.toml')  # ruff: ignore[hardcoded-temp-file]
         finally:
             tmp_png_path.unlink(missing_ok=True)
 
@@ -743,14 +743,14 @@ blue = 5
             self.mock_scene._ai_integration,
             '_save_current_frame_to_temp_toml',
         )
-        mock_save.return_value = '/tmp/test.toml'  # noqa: S108
+        mock_save.return_value = '/tmp/test.toml'  # ruff: ignore[hardcoded-temp-file]
 
         # Call the method
         temp_path = self.mock_scene._ai_integration._save_current_frame_to_temp_toml()
 
         # Verify it was called
         mock_save.assert_called_once()
-        assert temp_path == '/tmp/test.toml'  # noqa: S108
+        assert temp_path == '/tmp/test.toml'  # ruff: ignore[hardcoded-temp-file]
 
         # Note: We can't verify the internal call to _generate_frame_toml_content
         # because _save_current_frame_to_temp_toml is mocked, but the test verifies

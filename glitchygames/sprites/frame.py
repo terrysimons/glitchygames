@@ -17,6 +17,8 @@ from glitchygames.color import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from glitchygames.sprites.animated import AnimatedSprite
 
 
@@ -54,7 +56,7 @@ class FrameManager:
 
     @property
     def current_animation(self) -> str:
-        """Get the current animation name."""
+        """The current animation name."""
         return self._current_animation
 
     @current_animation.setter
@@ -68,7 +70,7 @@ class FrameManager:
 
     @property
     def current_frame(self) -> int:
-        """Get the current frame index."""
+        """The current frame index."""
         return self._current_frame
 
     @current_frame.setter
@@ -136,6 +138,13 @@ class FrameManager:
 class SpriteFrame:
     """Represents a single frame of an animated sprite."""
 
+    # Presence-based "image is stale" flag used by the Bitmappy canvas drag fast path
+    # (glitchygames/bitmappy/animated_canvas.py). It is intentionally declared without a
+    # value: the attribute only exists while ``pixels`` has been edited ahead of ``_image``,
+    # and callers test for it with ``hasattr`` and clear it with ``del``. Leaving it
+    # uninitialized is therefore deliberate.
+    _image_stale: bool  # pyright: ignore[reportUninitializedInstanceVariable]
+
     def __init__(
         self,
         surface: pygame.Surface,
@@ -159,7 +168,7 @@ class SpriteFrame:
 
     @property
     def image(self) -> pygame.Surface:
-        """Return the flattened sprite stack image."""
+        """The flattened sprite stack image."""
         return self._image
 
     @image.setter
@@ -169,7 +178,7 @@ class SpriteFrame:
 
     @property
     def rect(self) -> pygame.Rect:
-        """Return the sprite stack pygame.Rect."""
+        """The sprite stack pygame.Rect."""
         return self._rect
 
     @rect.setter
@@ -179,7 +188,7 @@ class SpriteFrame:
 
     @property
     def hitbox(self) -> pygame.Rect:
-        """Return the collision hitbox for this frame.
+        """The collision hitbox for this frame.
 
         Returns the explicit hitbox if one was set, otherwise falls back
         to the full frame rect. Always returns a valid pygame.Rect.
@@ -195,7 +204,7 @@ class SpriteFrame:
 
     @property
     def has_explicit_hitbox(self) -> bool:
-        """Return True if this frame has an explicitly set hitbox.
+        """Whether this frame has an explicitly set hitbox.
 
         When False, the hitbox property returns the full frame rect as a fallback.
         """
@@ -258,9 +267,15 @@ class SpriteFrame:
                     extracted_pixels.append((color.r, color.g, color.b, MAX_COLOR_CHANNEL_VALUE))
         return extracted_pixels  # ty: ignore[invalid-return-type]
 
-    def set_pixel_data(self, pixels: list[tuple[int, ...]]) -> None:
-        """Set pixel data from a list of RGB or RGBA tuples."""
-        self.pixels = pixels.copy()
+    def set_pixel_data(self, pixels: Sequence[tuple[int, ...]]) -> None:
+        """Set pixel data from a sequence of RGB or RGBA tuples.
+
+        Accepts a read-only ``Sequence`` (rather than ``list``) so callers can pass
+        lists of fixed-arity tuples such as ``list[tuple[int, int, int, int]]``;
+        ``list`` is invariant, so those would not match ``list[tuple[int, ...]]``.
+        The input is always copied into a new list.
+        """
+        self.pixels = list(pixels)
         # Update the surface with the new pixel data
         width, height = self._image.get_size()
         for i, pixel in enumerate(pixels):

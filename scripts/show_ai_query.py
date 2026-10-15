@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ruff: noqa: RUF001
+# ruff: file-ignore[ambiguous-unicode-character-string]
 """Script to demonstrate how Bitmappy constructs AI queries for sprite generation.
 
 This script shows the complete message structure that would be sent to the AI,

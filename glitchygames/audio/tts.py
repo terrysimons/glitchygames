@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import shutil
-import subprocess  # noqa: S404 — used for macOS 'say' command only
+import subprocess  # ruff: ignore[suspicious-subprocess-import] — used for macOS 'say' command only
 import sys
 import tempfile
 from pathlib import Path
@@ -89,7 +89,7 @@ class MacOSTTS:
 
         say_path = self._say_path or 'say'
         try:
-            subprocess.run(  # noqa: S603 — 'say' is a trusted macOS system command
+            subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — 'say' is a trusted macOS system command
                 [
                     say_path,
                     '-v',

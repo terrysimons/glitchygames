@@ -77,14 +77,18 @@ class AudioEventManager(ResourceManager):
 
         # Sound Stuff
         # pygame.mixer.get_init() -> (frequency, format, channels)
-        (sound_frequency, sound_format, sound_channels) = pygame.mixer.get_init()
-        log.info('Mixer Settings:')
-        log.info(
-            'Frequency: %s, Format: %s, Channels: %s',
-            sound_frequency,
-            sound_format,
-            sound_channels,
-        )
+        mixer_settings = pygame.mixer.get_init()  # None if the mixer is not initialized
+        if mixer_settings is None:
+            log.warning('Mixer is not initialized; audio may be unavailable')
+        else:
+            (sound_frequency, sound_format, sound_channels) = mixer_settings
+            log.info('Mixer Settings:')
+            log.info(
+                'Frequency: %s, Format: %s, Channels: %s',
+                sound_frequency,
+                sound_format,
+                sound_channels,
+            )
 
         self.proxies = [AudioEventManager.AudioEventProxy(game=game)]
 

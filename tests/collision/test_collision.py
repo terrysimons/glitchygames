@@ -27,7 +27,7 @@ class FakeSprite:
     world_y: float = 0.0
     rect: pygame.Rect = field(default_factory=lambda: pygame.Rect(0, 0, 32, 32))
 
-    def __post_init__(self):  # noqa: D105
+    def __post_init__(self):  # ruff: ignore[undocumented-magic-method]
         self.rect = _default_rect(self.world_x, self.world_y)
 
 
@@ -43,7 +43,7 @@ class HitboxSprite:
     hitbox_width: int = 24
     hitbox_height: int = 28
 
-    def __post_init__(self):  # noqa: D105
+    def __post_init__(self):  # ruff: ignore[undocumented-magic-method]
         self.rect = _default_rect(self.world_x, self.world_y)
 
     def get_hitbox_world_rect(

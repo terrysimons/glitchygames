@@ -19,8 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # because pygame.sprite.Sprite.add_internal() requires a real group, not a Mock.
 _RealLayeredDirty = pygame.sprite.LayeredDirty
 
-from glitchygames.ui import MenuBar, MenuItem  # noqa: E402
-from tests.mocks.test_mock_factory import MockFactory  # noqa: E402
+from glitchygames.ui import MenuBar, MenuItem  # ruff: ignore[module-import-not-at-top-of-file]
+from tests.mocks.test_mock_factory import MockFactory  # ruff: ignore[module-import-not-at-top-of-file]
 
 # Test constants
 TEST_MENUBAR_WIDTH = 800

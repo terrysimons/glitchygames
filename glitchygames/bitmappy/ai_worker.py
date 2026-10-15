@@ -321,7 +321,7 @@ def _check_ollama_model_status(log: logging.Logger) -> dict[str, Any]:
         # Check if model exists locally
         request = urllib.request.Request('http://localhost:11434/api/tags')
         # URL is constructed from hardcoded http://localhost for local ollama API only
-        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 # nosec B310 -- hardcoded http://localhost URL
+        with urllib.request.urlopen(request, timeout=10) as response:  # ruff: ignore[suspicious-url-open-usage] # nosec B310 -- hardcoded http://localhost URL
             if response.status == HTTPStatus.OK:
                 data = json.loads(response.read().decode())
                 models = data.get('models', [])

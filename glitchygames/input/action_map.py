@@ -129,7 +129,7 @@ class ActionMap:
 
     # --- Binding API ---
 
-    def bind(  # noqa: PLR0913
+    def bind(  # ruff: ignore[too-many-arguments]
         self,
         action: str,
         *,

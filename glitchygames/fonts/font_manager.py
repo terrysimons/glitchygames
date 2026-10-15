@@ -69,7 +69,7 @@ class GameFont(Protocol):
         ...
 
 
-from glitchygames.events import FontEvents, ResourceManager  # noqa: E402
+from glitchygames.events import FontEvents, ResourceManager  # ruff: ignore[module-import-not-at-top-of-file]
 
 log = logging.getLogger('game.fonts')
 log.addHandler(logging.NullHandler())

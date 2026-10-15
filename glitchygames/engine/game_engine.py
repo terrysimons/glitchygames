@@ -55,7 +55,7 @@ GAME_NOT_INITIALIZED_MSG = 'Game not initialized.  Pass a game class to the Game
 MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 
 
-class GameEngine(events.EventManager):  # noqa: PLR0904
+class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     """Glitchy Games' Game engine.
 
     The game engine is responsible for initializing pygame and
@@ -304,7 +304,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return options
 
-    def __init__(  # noqa: PLR0915
+    def __init__(  # ruff: ignore[too-many-statements]
         self: Self,
         game: type[Scene] | Scene,
         icon: pygame.Surface | Path | str | None = None,
@@ -548,7 +548,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
     @property
     def screen_width(self: Self) -> int:
-        """Get the screen width.
+        """The screen width.
 
         Returns:
             int: The screen width.
@@ -558,7 +558,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
     @property
     def screen_height(self: Self) -> int:
-        """Get the screen height.
+        """The screen height.
 
         Returns:
             int: The screen height.
@@ -1024,7 +1024,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_app_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: PLR0911
+    def process_app_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
         """Process an app event.
 
         Args:
@@ -1060,7 +1060,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_controller_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: C901, PLR0911
+    def process_controller_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[complex-structure, too-many-return-statements]
         """Process a controller event.
 
         Args:
@@ -1248,7 +1248,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_joystick_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: PLR0911
+    def process_joystick_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
         """Process a joystick event.
 
         Args:
@@ -1313,7 +1313,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_window_focus_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: PLR0911
+    def process_window_focus_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
         """Process a window focus event.
 
         Args:
@@ -1396,7 +1396,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_game_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: PLR0911
+    def process_game_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
         """Process a game event.
 
         Args:
@@ -1483,7 +1483,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
             # Check if this might be a controller event by looking at controller count
             try:
-                from pygame._sdl2 import controller as sdl2_controller  # noqa: PLC2701
+                from pygame._sdl2 import controller as sdl2_controller  # ruff: ignore[import-private-name]
 
                 current_controller_count: int = int(
                     sdl2_controller.get_count(),

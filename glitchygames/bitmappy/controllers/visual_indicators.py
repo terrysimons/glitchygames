@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
-from glitchygames.bitmappy.controllers.modes import ControllerMode  # noqa: TC001 - used at runtime
+from glitchygames.bitmappy.controllers.modes import ControllerMode  # ruff: ignore[typing-only-first-party-import] - used at runtime
 from glitchygames.bitmappy.controllers.selection import (
-    ControllerSelection,  # noqa: TC001 - used at runtime
+    ControllerSelection,  # ruff: ignore[typing-only-first-party-import] - used at runtime
 )
 from glitchygames.sprites import BitmappySprite
 
@@ -464,7 +464,7 @@ class VisualIndicators:
 
         return slider_groups
 
-    def _create_slider_indicators_with_collision_avoidance(  # noqa: C901
+    def _create_slider_indicators_with_collision_avoidance(  # ruff: ignore[complex-structure]
         self,
         slider_mode: str,
         controllers: list[dict[str, Any]],
@@ -640,14 +640,14 @@ class VisualIndicators:
         if canvas_controllers:
             self.handler.canvas_controller_indicators = canvas_controllers
             if hasattr(self.handler.editor.canvas, 'canvas_interface'):
-                self.handler.editor.canvas.canvas_interface.controller_indicators = (  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
+                self.handler.editor.canvas.canvas_interface.controller_indicators = (
                     canvas_controllers
                 )
             self.handler.editor.canvas.force_redraw()
         else:
             self.handler.canvas_controller_indicators = []
             if hasattr(self.handler.editor.canvas, 'canvas_interface'):
-                self.handler.editor.canvas.canvas_interface.controller_indicators = []  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
+                self.handler.editor.canvas.canvas_interface.controller_indicators = []
 
     def _collect_canvas_controllers(self) -> list[dict[str, Any]]:
         """Collect all active controllers in canvas mode with their positions.

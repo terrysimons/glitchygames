@@ -34,7 +34,7 @@ LOG = logging.getLogger('game.tools.film_strip')
 LOG.addHandler(logging.NullHandler())
 
 
-class FilmStripWidget:  # noqa: PLR0904
+class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
     """Film reel-style widget for frame selection in animated sprites.
 
     ARCHITECTURE OVERVIEW:
@@ -86,7 +86,7 @@ class FilmStripWidget:  # noqa: PLR0904
     # Number of frames to show at a time in the film strip
     FRAMES_PER_VIEW: ClassVar[int] = 4
 
-    def __init__(self, x: int, y: int, width: int, height: int) -> None:  # noqa: PLR0915
+    def __init__(self, x: int, y: int, width: int, height: int) -> None:  # ruff: ignore[too-many-statements]
         """Initialize the film strip widget."""
         self.rect = pygame.Rect(x, y, width, height)
         self.animated_sprite: AnimatedSprite | None = None

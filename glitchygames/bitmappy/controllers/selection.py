@@ -49,7 +49,7 @@ class ControllerSelectionState:
             self.navigation_history = []
 
 
-class ControllerSelection:  # noqa: PLR0904
+class ControllerSelection:  # ruff: ignore[too-many-public-methods]
     """Individual controller selection state management.
 
     Handles independent navigation, frame preservation, and selection state

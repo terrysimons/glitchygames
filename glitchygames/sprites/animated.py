@@ -49,7 +49,7 @@ try:
     from glitchygames.bitmappy import detect_file_format
 except ImportError:
     # Fallback if bitmappy module is not available
-    def detect_file_format(filename: str) -> str:  # noqa: ARG001
+    def detect_file_format(filename: str) -> str:  # ruff: ignore[unused-function-argument]
         """Detect file format based on extension.
 
         Currently only supports TOML format. To add new formats:
@@ -86,7 +86,7 @@ ERR_INCONSISTENT_LINE_LENGTH = (
 ERR_TOO_MANY_COLORS = 'Too many colors (max {})'
 
 
-class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noqa: PLR0904
+class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruff: ignore[too-many-public-methods]
     """A prototype Sprite Animation class with proper dirty sprite integration."""
 
     log = LOG
@@ -98,7 +98,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
     @property
     @override
     def image(self) -> pygame.Surface:
-        """Return the sprite image (always non-None for AnimatedSprite)."""
+        """The sprite image (always non-None for AnimatedSprite)."""
         return self._gg_image
 
     @image.setter
@@ -108,7 +108,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
     @property
     @override
     def rect(self) -> pygame.FRect | pygame.Rect:
-        """Return the sprite rect (always non-None for AnimatedSprite)."""
+        """The sprite rect (always non-None for AnimatedSprite)."""
         return self._gg_rect
 
     @rect.setter
@@ -117,7 +117,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
     @property
     def default_hitbox(self) -> pygame.Rect | None:
-        """Return the sprite-level default hitbox.
+        """The sprite-level default hitbox.
 
         This is the hitbox defined in [sprite.hitbox] in the TOML file.
         Individual frames may override this with per-frame hitboxes.
@@ -131,7 +131,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
     @property
     def hitbox(self) -> pygame.Rect:
-        """Return the effective hitbox for the current frame.
+        """The effective hitbox for the current frame.
 
         Resolution order:
         1. Current frame's explicit hitbox (per-frame override)
@@ -294,37 +294,37 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
     @property
     @override
     def current_animation(self: Self) -> str:
-        """Return the current animation name."""
+        """The current animation name."""
         return self.frame_manager.current_animation
 
     @property
     @override
     def current_frame(self: Self) -> int:
-        """Return the current frame index."""
+        """The current frame index."""
         return self.frame_manager.current_frame
 
     @property
     @override
     def is_playing(self: Self) -> bool:
-        """Return whether animation is currently playing."""
+        """Whether animation is currently playing."""
         return self._is_playing
 
     @property
     @override
     def is_looping(self: Self) -> bool:
-        """Return whether current animation loops."""
+        """Whether current animation loops."""
         return self._is_looping
 
     @property
     @override
     def frames(self: Self) -> dict[str, list[SpriteFrame]]:
-        """Return all frames for all animations."""
+        """All frames for all animations."""
         return self._animations.copy()
 
     @property
     @override
-    def animations(self: Self) -> dict[str, list[SpriteFrame]]:  # type: ignore[override]
-        """Return animation frames for all animations."""
+    def animations(self: Self) -> dict[str, list[SpriteFrame]]:
+        """Animation frames for all animations."""
         return self._animations.copy()
 
     @property
@@ -339,13 +339,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
     @property
     def animation_order(self: Self) -> list[str]:
-        """Return the order of animations as loaded from file."""
+        """The order of animations as loaded from file."""
         return getattr(self, '_animation_order', list(self._animations.keys()))
 
     @property
     @override
     def frame_interval(self: Self) -> float:
-        """Return the frame interval for the current animation."""
+        """The frame interval for the current animation."""
         if not self.frame_manager.current_animation:
             return 0.5  # Default frame interval
 
@@ -359,25 +359,25 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
     @property
     @override
     def loop(self: Self) -> bool:
-        """Return whether the current animation loops."""
+        """Whether the current animation loops."""
         return self._is_looping
 
     # Animation metadata properties (read-only)
     @property
     def animation_count(self: Self) -> int:
-        """Return the number of animations."""
+        """The number of animations."""
         return len(self._animations)
 
     @property
     def current_animation_frame_count(self: Self) -> int:
-        """Return the number of frames in the current animation."""
+        """The number of frames in the current animation."""
         if not self.frame_manager.current_animation:
             return 0
         return len(self._animations.get(self.frame_manager.current_animation, []))
 
     @property
     def current_animation_total_duration(self: Self) -> float:
-        """Return the total duration of the current animation."""
+        """The total duration of the current animation."""
         if not self.frame_manager.current_animation:
             return 0.0
         frames = self._animations.get(self.frame_manager.current_animation, [])
@@ -385,7 +385,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
     @property
     def animation_names(self: Self) -> list[str]:
-        """Return list of animation names."""
+        """List of animation names."""
         return list(self._animations.keys())
 
     # Animation metadata properties (read/write)
@@ -396,12 +396,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # noq
 
     @property
     def frame_count(self: Self) -> int:
-        """Return the number of frames in the current animation."""
+        """The number of frames in the current animation."""
         return self.frame_manager.get_frame_count()
 
     @property
     def next_animation(self: Self) -> str:
-        """Return the next animation in the sequence."""
+        """The next animation in the sequence."""
         if not self._animations:
             return ''
         animation_names = list(self._animations.keys())

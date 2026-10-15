@@ -146,7 +146,7 @@ class FrictionBehavior:
         """Initialize friction behavior."""
         self.coefficient = coefficient
 
-    def compute_force(self, body: PhysicsBody, dt: float) -> tuple[float, float]:  # noqa: ARG002
+    def compute_force(self, body: PhysicsBody, dt: float) -> tuple[float, float]:  # ruff: ignore[unused-method-argument]
         """Apply friction by scaling velocity toward zero.
 
         Like AccelerationBehavior, this modifies velocity directly
@@ -185,14 +185,14 @@ def _ramp_velocity(
         The new velocity value.
 
     """
-    if target != 0.0:  # noqa: RUF069 - exact float comparison is intentional
+    if target != 0.0:  # ruff: ignore[float-equality-comparison] - exact float comparison is intentional
         difference = target - current
         max_change = acceleration * dt
         if abs(difference) <= max_change:
             return target
         return current + max_change if difference > 0 else current - max_change
 
-    if current == 0.0:  # noqa: RUF069 - exact float comparison is intentional
+    if current == 0.0:  # ruff: ignore[float-equality-comparison] - exact float comparison is intentional
         return 0.0
 
     max_change = deceleration * dt

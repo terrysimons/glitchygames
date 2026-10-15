@@ -27,7 +27,7 @@ ANIMATION_NAME_MAX_LENGTH = 50
 LOG = logging.getLogger('game.tools.film_strip')
 
 
-class FilmStripEventHandler:  # noqa: PLR0904
+class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
     """Delegate providing event/interaction methods for FilmStripWidget."""
 
     def __init__(self, widget: FilmStripWidget) -> None:
@@ -62,7 +62,7 @@ class FilmStripEventHandler:  # noqa: PLR0904
             if hasattr(self.widget, 'parent_scene') and self.widget.parent_scene:
                 self.widget.parent_scene.on_film_strip_frame_selected(self.widget, animation, frame)
 
-    def handle_click(  # noqa: PLR0911
+    def handle_click(  # ruff: ignore[too-many-return-statements]
         self,
         pos: tuple[int, int],
         *,

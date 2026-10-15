@@ -20,13 +20,18 @@ LOG = logging.getLogger('game.pixels')
 LOG.addHandler(logging.NullHandler())
 
 
-def indexed_rgb_triplet_generator(
-    pixel_data: Iterable[tuple[tuple[int, int, int], ...]],
-) -> Iterator[tuple[int, int, int]]:
-    """Yield (R, G, B) pixel tuples from a buffer of pixel tuples.
+def indexed_rgb_triplet_generator[PixelValue](
+    pixel_data: Iterable[tuple[PixelValue, ...]],
+) -> Iterator[PixelValue]:
+    """Yield the first value of each pixel datum.
+
+    For indexed image data unpacked with struct.iter_unpack('<B', ...) each datum is a
+    1-tuple holding a palette index, so this yields the indices to look up in the
+    palette. For data whose first element is already an (R, G, B) tuple, it yields
+    those tuples.
 
     Yields:
-        tuple[int, int, int]: An (R, G, B) color tuple for each pixel datum.
+        PixelValue: The first element of each pixel datum.
 
     """
     try:
