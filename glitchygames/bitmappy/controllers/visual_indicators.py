@@ -631,58 +631,44 @@ class VisualIndicators:
     # ------------------------------------------------------------------
 
     def _update_canvas_indicators(self) -> None:
-        """Update canvas indicators for controllers in canvas mode."""
+        """Redraw the canvas while any controller is in canvas mode.
+
+        The canvas draws controller "+" markers from live controller state on every
+        redraw (CanvasRenderer._draw_controller_indicators_only), so all this needs to do
+        is trigger the redraw. Markers left behind when a controller leaves canvas mode
+        are cleared by the redraw forced on every mode change.
+        """
         if not hasattr(self.handler.editor, 'canvas') or not self.handler.editor.canvas:
             return
 
-        canvas_controllers = self._collect_canvas_controllers()
-
-        if canvas_controllers:
-            self.handler.canvas_controller_indicators = canvas_controllers
-            if hasattr(self.handler.editor.canvas, 'canvas_interface'):
-                self.handler.editor.canvas.canvas_interface.controller_indicators = (
-                    canvas_controllers
-                )
+        if self._has_controller_in_canvas_mode():
             self.handler.editor.canvas.force_redraw()
-        else:
-            self.handler.canvas_controller_indicators = []
-            if hasattr(self.handler.editor.canvas, 'canvas_interface'):
-                self.handler.editor.canvas.canvas_interface.controller_indicators = []
 
-    def _collect_canvas_controllers(self) -> list[dict[str, Any]]:
-        """Collect all active controllers in canvas mode with their positions.
+    def _has_controller_in_canvas_mode(self) -> bool:
+        """Return True if an active, known controller is in canvas mode at a valid position.
 
         Returns:
-            List of dicts with controller_id, position, and color.
+            bool: Whether any controller's canvas marker needs drawing.
 
         """
-        canvas_controllers: list[dict[str, Any]] = []
-        selections = self.handler.editor.controller_selections
-        for controller_id, controller_selection in selections.items():
+        if not hasattr(self.handler.editor, 'mode_switcher'):
+            return False
+        mode_switcher = self.handler.editor.mode_switcher
+        for (
+            controller_id,
+            controller_selection,
+        ) in self.handler.editor.controller_selections.items():
             if not controller_selection.is_active():
                 continue
-
-            controller_mode = None
-            if hasattr(self.handler.editor, 'mode_switcher'):
-                controller_mode = self.handler.editor.mode_switcher.get_controller_mode(
-                    controller_id,
-                )
-
+            controller_mode = mode_switcher.get_controller_mode(controller_id)
             if not (controller_mode and controller_mode.value == 'canvas'):
                 continue
-
-            controller_info = self.handler.find_controller_info(controller_id)
-            if not controller_info:
+            if not self.handler.find_controller_info(controller_id):
                 continue
-
-            position = self.handler.editor.mode_switcher.get_controller_position(controller_id)
+            position = mode_switcher.get_controller_position(controller_id)
             if position and position.is_valid:
-                canvas_controllers.append({
-                    'controller_id': controller_id,
-                    'position': position.position,
-                    'color': controller_info.color,
-                })
-        return canvas_controllers
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Controller registration

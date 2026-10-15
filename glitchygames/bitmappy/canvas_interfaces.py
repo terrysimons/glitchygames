@@ -261,9 +261,6 @@ class AnimatedCanvasInterface:
         else:
             self.current_animation = ''
         self.current_frame: int = 0
-        # Canvas-mode controller indicators (controller_id, position, color), pushed here by
-        # the controller visual indicator manager (controllers/visual_indicators.py).
-        self.controller_indicators: list[dict[str, Any]] = []
 
     def get_pixel_data(self) -> list[tuple[int, int, int, int]]:
         """Get the current pixel data as a list of RGBA tuples.

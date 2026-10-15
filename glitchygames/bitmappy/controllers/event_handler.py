@@ -73,7 +73,6 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         self.slider_indicator_sprites: dict[int, Any] = {}
         self.slider_indicators: dict[int, BitmappySprite] = {}
         self.film_strip_controller_selections: dict[str, Any] = {}
-        self.canvas_controller_indicators: list[dict[str, Any]] = []
 
         # Axis tracking state
         self._controller_axis_deadzone = 500
