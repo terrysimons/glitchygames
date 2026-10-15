@@ -26,7 +26,14 @@ from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.game_objects import BallSprite
-from glitchygames.game_objects.ball import BallSpawnMode, SpeedUpMode
+from glitchygames.game_objects.ball import (
+    BallSpawnMode,
+    ServeSettings,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+)
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
 from glitchygames.input import ActionMap
@@ -53,6 +60,21 @@ MIN_TRAJECTORY_POSITIONS_FOR_CURVE = 5
 
 # Y trend threshold for detecting significant upward movement (negative = upward)
 UPWARD_CURVE_Y_TREND_THRESHOLD = -5
+
+# Paddle hits speed the ball up along a logarithmic curve: big early boosts that taper
+# off so long rallies stay playable, preserving the angle the paddle set, capped at 500.
+# Opening serves: Pong-style diagonals 15-60 degrees from horizontal, toward either side
+PADDLESLAP_SERVE = ServeSettings()
+# Randomly-launched extra balls (BallSpawnMode.RANDOM_SPEED) start slower
+PADDLESLAP_SPAWN_SERVE = ServeSettings(speed=150.0)
+
+PADDLESLAP_SPEED_UP = SpeedUpSettings(
+    triggers=SpeedUpTrigger.PADDLE_BOUNCE,
+    curve=SpeedUpCurve.LOGARITHMIC,
+    axes=SpeedUpAxes.BOTH,
+    multiplier=1.15,
+    max_speed=500.0,
+)
 
 
 class TextSprite(Sprite):
@@ -290,14 +312,9 @@ class Game(Scene):
                 collision_sound=SFX.BOUNCE,
                 bounce_top_bottom=True,  # Bounce off top and bottom walls
                 bounce_left_right=False,  # Don't bounce off side walls (scoring)
-                # Logarithmic speed up on X only for paddle hits
-                speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
-                speed_up_multiplier=1.15,  # 15% speed increase
-                speed_up_interval=1.0,  # Not used for paddle-only mode
+                speed_up_settings=PADDLESLAP_SPEED_UP,
+                serve_settings=PADDLESLAP_SERVE,
             )
-            # Set a more reasonable speed for the ball (pixels per second)
-            # 250 pixels/sec horizontal, 125 pixels/sec vertical
-            ball.speed = Speed(250.0, 125.0)
             # Add collision cooldown tracking
             ball.collision_cooldowns = {}
             # Set up paddle collision callback for ball spawn (with speed limit check)
@@ -525,10 +542,7 @@ class Game(Scene):
             collision_sound=SFX.BOUNCE,
             bounce_top_bottom=True,  # Bounce off top and bottom walls
             bounce_left_right=False,  # Don't bounce off side walls (scoring)
-            # Logarithmic speed up on X only for paddle hits
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
-            speed_up_multiplier=1.15,  # 15% speed increase
-            speed_up_interval=1.0,  # Not used for paddle-only mode
+            speed_up_settings=PADDLESLAP_SPEED_UP,
         )
 
         # Position the ball based on spawn mode
@@ -565,34 +579,16 @@ class Game(Scene):
 
             new_ball.world_x = float(spawn_x)
             new_ball.world_y = float(spawn_y)
-            new_ball.rect.x = spawn_x
-            new_ball.rect.y = spawn_y
         else:
             # Fixed position (center of screen)
             new_ball.world_x = float(self.screen_width // 2)
             new_ball.world_y = float(self.screen_height // 2)
-            new_ball.rect.x = self.screen_width // 2
-            new_ball.rect.y = self.screen_height // 2
 
         # Set speed based on spawn mode
         if self.ball_spawn_mode & BallSpawnMode.RANDOM_SPEED:
-            # Random direction with lower base speed for new balls
-            # Ensure both X and Y speeds are non-zero by avoiding cardinal directions
-            angle = secrets.randbelow(360) * (2 * math.pi / 360)
-            base_speed = 150.0  # Lower speed for new balls
-
-            # Calculate initial speeds
-            speed_x = base_speed * math.cos(angle)
-            speed_y = base_speed * math.sin(angle)
-
-            # Ensure minimum speed in both directions (avoid zero speeds)
-            min_speed = 50.0  # Minimum 50 pixels per second in each direction
-            if abs(speed_x) < min_speed:
-                speed_x = min_speed if speed_x >= 0 else -min_speed
-            if abs(speed_y) < min_speed:
-                speed_y = min_speed if speed_y >= 0 else -min_speed
-
-            new_ball.speed = Speed(speed_x, speed_y)
+            # Random diagonal at a lower speed (serve() keeps the ball where we placed it)
+            new_ball.serve_settings = PADDLESLAP_SPAWN_SERVE
+            new_ball.serve()
         else:
             # Fixed speed (default ball speed)
             new_ball.speed = Speed(250.0, 125.0)
@@ -854,10 +850,13 @@ class Game(Scene):
         ):
             separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
 
-        ball1.rect.x -= round(separation_x)
-        ball1.rect.y -= round(separation_y)
-        ball2.rect.x += round(separation_x)
-        ball2.rect.y += round(separation_y)
+        # Move the sub-pixel world positions; their setters snap rect to match.
+        # Moving rect directly would be undone on the next frame, because
+        # BallSprite.dt_tick() rebuilds rect from world_x/world_y.
+        ball1.world_x -= separation_x
+        ball1.world_y -= separation_y
+        ball2.world_x += separation_x
+        ball2.world_y += separation_y
 
     @staticmethod
     def _create_action_maps(

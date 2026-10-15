@@ -3,21 +3,30 @@
 import math
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 import pygame
 import pytest
 
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
+import glitchygames.game_objects.ball as ball_module
+from glitchygames.game_objects.ball import (
+    BallSprite,
+    PixelSnapMode,
+    ServeHorizontalDirection,
+    ServeSettings,
+    ServeVerticalDirection,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+    snap_to_pixel,
+)
 from glitchygames.movement import Speed
 from tests.mocks.test_mock_factory import MockFactory
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 SIZE_20 = 20
 SIZE_30 = 30
-POS_50 = 50
-POS_749 = 749
-POS_25 = 25
-POS_399 = 399
 DIRECTION_360 = 360
 SPEED_2 = 2
 SPEED_1 = 1
@@ -25,10 +34,16 @@ SPEED_NEG_2 = -2
 Y_580 = 580
 POS_102 = 102
 POS_103 = 103
-DIRECTION_125 = 125
-DIRECTION_340 = 340
 DIRECTION_315 = 315
 MULTIPLIER_1_1 = 1.1
+
+
+def _assert_within_spawn_area(ball: BallSprite) -> None:
+    """Assert the ball lies within ServeSettings.spawn_margin of every screen edge."""
+    margin = ball.serve_settings.spawn_margin
+    assert ball.rect is not None
+    assert margin <= ball.rect.x <= ball.screen_width - ball.width - margin
+    assert margin <= ball.rect.y <= ball.screen_height - ball.height - margin
 
 
 class TestBallSpriteInitialization:
@@ -47,20 +62,13 @@ class TestBallSpriteInitialization:
         assert ball.height == SIZE_20
         # Position is set by reset() during initialization, so it will be random
         assert ball.rect is not None
-        assert POS_50 <= ball.rect.x <= POS_749  # Reset sets random position in this range
-        assert POS_25 <= ball.rect.y <= POS_399  # Reset sets random position in this range
+        _assert_within_spawn_area(ball)
         assert ball.use_gfxdraw is True
         # Direction is set by reset() during initialization, so it will be random
         assert 0 <= ball.direction <= DIRECTION_360  # Reset sets random direction
         assert isinstance(ball.speed, Speed)
-        # Speed is calculated from random direction in reset(), so we can't predict exact values
-        # But we can test that it's a reasonable speed magnitude
-        # (around 250.0 based on current implementation)
-        speed_magnitude = (ball.speed.x**2 + ball.speed.y**2) ** 0.5
-        min_speed_magnitude = 240.0
-        max_speed_magnitude = 260.0
-        # Should be around 250.0 (current implementation uses fixed speed_magnitude = 250.0)
-        assert min_speed_magnitude <= speed_magnitude <= max_speed_magnitude
+        # reset() serves at the default ServeSettings speed in a random direction
+        assert math.hypot(ball.speed.x, ball.speed.y) == pytest.approx(ServeSettings().speed)
         assert ball.dirty == SPEED_2
 
     def test_ball_sprite_initialization_custom(self, mocker):
@@ -78,8 +86,7 @@ class TestBallSpriteInitialization:
 
         # Position is set by reset() during initialization, so it will be random
         assert ball.rect is not None
-        assert POS_50 <= ball.rect.x <= POS_749  # Reset sets random position in this range
-        assert POS_25 <= ball.rect.y <= POS_399  # Reset sets random position in this range
+        _assert_within_spawn_area(ball)
         assert ball.width == SIZE_30
         assert ball.height == SIZE_30
         # groups() returns a list, so we need to check the content
@@ -234,33 +241,35 @@ class TestBallSpriteReset:
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_ball_reset_position(self, mocker):
-        """Test ball reset sets random position within bounds."""
+        """Test ball reset places the ball at the random position it draws, inside the margin."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
-        assert ball.rect is not None
-        original_x = ball.rect.x
-        original_y = ball.rect.y
+        randint = mocker.patch.object(ball_module._SERVE_RANDOM, 'randint', side_effect=[173, 70])
 
         ball.reset()
 
-        # Position should be within expected bounds
-        assert POS_50 <= ball.rect.x <= POS_749
-        assert POS_25 <= ball.rect.y <= POS_399
-        # Should be different from original (very likely)
-        assert ball.rect.x != original_x or ball.rect.y != original_y
+        assert ball.rect is not None
+        assert (ball.rect.x, ball.rect.y) == (173, 70)
+        margin = ball.serve_settings.spawn_margin
+        assert randint.call_args_list == [
+            mocker.call(margin, ball.screen_width - ball.width - margin),
+            mocker.call(margin, ball.screen_height - ball.height - margin),
+        ]
 
     def test_ball_reset_direction(self, mocker):
-        """Test ball reset sets random direction."""
+        """Test ball.direction reports the served heading (0 = right, 90 = down)."""
         mocker.patch('pygame.draw.circle')
-        ball = BallSprite()
-        original_direction = ball.direction
+        ball = BallSprite(
+            serve_settings=ServeSettings(
+                horizontal=ServeHorizontalDirection.LEFT,
+                vertical=ServeVerticalDirection.UP,
+            ),
+        )
+        mocker.patch.object(ball_module._SERVE_RANDOM, 'uniform', return_value=30.0)
 
         ball.reset()
 
-        # Direction should be in 0-360 range
-        assert 0 <= ball.direction <= DIRECTION_360
-        # Should be different from original (very likely)
-        assert ball.direction != original_direction
+        assert ball.direction == pytest.approx(210.0)  # left and 30 degrees up
 
     def test_ball_reset_direction_range(self, mocker):
         """Test ball reset direction is within expected range."""
@@ -272,53 +281,425 @@ class TestBallSpriteReset:
             ball.reset()
             assert 0 <= ball.direction <= DIRECTION_360
 
+    def test_reset_restores_serve_after_speed_changes(self):
+        """reset() always serves at the configured speed, whatever the ball was doing."""
+        ball = BallSprite(serve_settings=ServeSettings(speed=180.0))
+        ball.speed = Speed(999.0, -5.0)
+        ball.reset()
+        assert math.hypot(ball.speed.x, ball.speed.y) == pytest.approx(180.0)
 
-class TestBallSpriteBounceMethod:
-    """Test BallSprite bounce method."""
 
-    @pytest.fixture(autouse=True)
-    def setup_mocks(self, mocker):
+# ---------------------------------------------------------------------------
+# Serve settings: every combination of settings and random outcomes.
+# ---------------------------------------------------------------------------
+
+SERVE_ANGLE_BAND = (15.0, 60.0)
+SERVE_SPEED = 250.0
+HORIZONTAL_COIN_OUTCOMES = (ServeHorizontalDirection.LEFT, ServeHorizontalDirection.RIGHT)
+VERTICAL_COIN_OUTCOMES = (ServeVerticalDirection.UP, ServeVerticalDirection.DOWN)
+
+
+class ServeCase(NamedTuple):
+    """One combination of serve settings and pinned random outcomes."""
+
+    horizontal: ServeHorizontalDirection
+    vertical: ServeVerticalDirection
+    angle: float
+    horizontal_coin: ServeHorizontalDirection
+    vertical_coin: ServeVerticalDirection
+    serve_toward: ServeHorizontalDirection | None
+
+
+def _serve_outcome_cases():
+    """Every direction setting x band-edge/middle angle x coin outcome x override.
+
+    Returns:
+        list: pytest params of ServeCase.
+
+    """
+    angles = (SERVE_ANGLE_BAND[0], sum(SERVE_ANGLE_BAND) / 2, SERVE_ANGLE_BAND[1])
+    return [
+        pytest.param(
+            ServeCase(horizontal, vertical, angle, horizontal_coin, vertical_coin, serve_toward),
+            id=(
+                f'{horizontal.name}-{vertical.name}-{angle}deg-coins'
+                f'{horizontal_coin.name}{vertical_coin.name}-toward'
+                f'{serve_toward.name if serve_toward else "None"}'
+            ),
+        )
+        for horizontal in ServeHorizontalDirection
+        for vertical in ServeVerticalDirection
+        for angle in angles
+        for horizontal_coin in HORIZONTAL_COIN_OUTCOMES
+        for vertical_coin in VERTICAL_COIN_OUTCOMES
+        for serve_toward in (None, ServeHorizontalDirection.LEFT, ServeHorizontalDirection.RIGHT)
+    ]
+
+
+@pytest.mark.usefixtures('pygame_mocks')
+class TestServeSettings:
+    """ServeSettings controls serve speed, angle band, directions, and spawn area."""
+
+    @pytest.fixture
+    def pygame_mocks(self, mocker):
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    def test_ball_bounce_direction_change(self, mocker):
-        """Test ball bounce changes direction correctly."""
-        mocker.patch('pygame.draw.circle')
+    def test_defaults_are_pong_style(self):
+        """Default serves: 15-60 degrees from horizontal, any diagonal, 250 px/s."""
+        settings = ServeSettings()
+        assert (settings.minimum_angle_degrees, settings.maximum_angle_degrees) == (15.0, 60.0)
+        assert settings.horizontal is ServeHorizontalDirection.EITHER
+        assert settings.vertical is ServeVerticalDirection.EITHER
+        assert settings.speed == SERVE_SPEED
+        assert settings.spawn_margin == 50
+
+    @pytest.mark.parametrize('serve_case', _serve_outcome_cases())
+    def test_every_serve_outcome(self, mocker, serve_case):
+        """The serve has the configured speed and drawn angle, toward the right sides.
+
+        serve_toward overrides the horizontal setting; EITHER uses the coin flip.
+        """
+        (horizontal, vertical, angle, horizontal_coin, vertical_coin, serve_toward) = serve_case
+        ball = BallSprite(
+            serve_settings=ServeSettings(
+                minimum_angle_degrees=SERVE_ANGLE_BAND[0],
+                maximum_angle_degrees=SERVE_ANGLE_BAND[1],
+                horizontal=horizontal,
+                vertical=vertical,
+                speed=SERVE_SPEED,
+            ),
+        )
+        mocker.patch.object(ball_module._SERVE_RANDOM, 'uniform', return_value=angle)
+        mocker.patch.object(
+            ball_module._SERVE_RANDOM,
+            'choice',
+            side_effect=lambda options: (
+                horizontal_coin if options[0] in HORIZONTAL_COIN_OUTCOMES else vertical_coin
+            ),
+        )
+
+        ball.serve(serve_toward=serve_toward)
+
+        expected_horizontal = serve_toward or (
+            horizontal_coin if horizontal is ServeHorizontalDirection.EITHER else horizontal
+        )
+        expected_vertical = vertical_coin if vertical is ServeVerticalDirection.EITHER else vertical
+        description = f'{horizontal.name}/{vertical.name} {angle} toward {serve_toward}'
+        assert math.hypot(ball.speed.x, ball.speed.y) == pytest.approx(SERVE_SPEED), description
+        assert math.degrees(math.atan2(abs(ball.speed.y), abs(ball.speed.x))) == pytest.approx(
+            angle
+        ), description
+        if expected_horizontal is ServeHorizontalDirection.RIGHT:
+            assert ball.speed.x > 0, description
+        else:
+            assert ball.speed.x < 0, description
+        if expected_vertical is ServeVerticalDirection.DOWN:
+            assert ball.speed.y > 0, description
+        else:
+            assert ball.speed.y < 0, description
+        assert ball.direction == pytest.approx(
+            math.degrees(math.atan2(ball.speed.y, ball.speed.x)) % 360
+        ), description
+
+    def test_default_serves_reach_all_four_diagonals_within_the_band(self):
+        """With real randomness, serves stay in the band and cover every diagonal."""
         ball = BallSprite()
-        ball.direction = 45
-        original_speed_x = ball.speed.x
-        original_speed_y = ball.speed.y
+        quadrants = set()
+        for _ in range(400):
+            ball.serve()
+            angle = math.degrees(math.atan2(abs(ball.speed.y), abs(ball.speed.x)))
+            assert SERVE_ANGLE_BAND[0] - 1e-9 <= angle <= SERVE_ANGLE_BAND[1] + 1e-9
+            quadrants.add((ball.speed.x > 0, ball.speed.y > 0))
+        assert len(quadrants) == 4
 
-        ball.bounce(10)
+    @pytest.mark.parametrize('angle', [0.0, 90.0])
+    def test_horizontal_and_vertical_extremes(self, mocker, angle):
+        """A 0-degree serve is purely horizontal; a 90-degree serve purely vertical."""
+        ball = BallSprite(
+            serve_settings=ServeSettings(
+                minimum_angle_degrees=angle,
+                maximum_angle_degrees=angle,
+                horizontal=ServeHorizontalDirection.RIGHT,
+                vertical=ServeVerticalDirection.DOWN,
+            ),
+        )
+        mocker.patch.object(ball_module._SERVE_RANDOM, 'uniform', return_value=angle)
+        ball.serve()
+        expected = (250.0, 0.0) if angle == 0.0 else (0.0, 250.0)
+        assert (ball.speed.x, ball.speed.y) == pytest.approx(expected, abs=1e-9)
 
-        # Direction should be (180 - 45) % 360 - 10 = 125
-        assert ball.direction == DIRECTION_125
-        # Speed should be increased by 1.1
-        assert ball.speed.x == original_speed_x * MULTIPLIER_1_1
-        assert ball.speed.y == original_speed_y * MULTIPLIER_1_1
-
-    def test_ball_bounce_speed_increase(self, mocker):
-        """Test ball bounce increases speed."""
-        mocker.patch('pygame.draw.circle')
+    @pytest.mark.parametrize(
+        ('screen_width', 'screen_height'), [(320, 240), (800, 600), (1920, 1080), (121, 121)]
+    )
+    @pytest.mark.parametrize('pick', ['lowest', 'highest'])
+    def test_spawn_position_fits_any_screen(self, mocker, screen_width, screen_height, pick):
+        """The serve position is within the margin of the actual screen at any size."""
         ball = BallSprite()
-        original_speed_x = ball.speed.x
-        original_speed_y = ball.speed.y
+        ball.screen_width = screen_width
+        ball.screen_height = screen_height
+        mocker.patch.object(
+            ball_module._SERVE_RANDOM,
+            'randint',
+            side_effect=lambda low, high: low if pick == 'lowest' else high,
+        )
+        ball.reset()
+        _assert_within_spawn_area(ball)
 
-        ball.bounce(0)
-
-        assert ball.speed.x == original_speed_x * MULTIPLIER_1_1
-        assert ball.speed.y == original_speed_y * MULTIPLIER_1_1
-
-    def test_ball_bounce_direction_wrapping(self, mocker):
-        """Test ball bounce handles direction wrapping correctly."""
-        mocker.patch('pygame.draw.circle')
+    @pytest.mark.parametrize(('screen_width', 'screen_height'), [(100, 100), (20, 20), (10, 10)])
+    def test_spawn_position_on_screens_too_small_for_the_margin(self, screen_width, screen_height):
+        """Without room for the margin, the ball is centered (clamped to stay on screen)."""
         ball = BallSprite()
-        ball.direction = 200
+        ball.screen_width = screen_width
+        ball.screen_height = screen_height
+        ball.reset()
+        expected_x = max((screen_width - ball.width) // 2, 0)
+        expected_y = max((screen_height - ball.height) // 2, 0)
+        assert (ball.world_x, ball.world_y) == (expected_x, expected_y)
 
-        ball.bounce(0)
+    @pytest.mark.parametrize(
+        ('field', 'value'),
+        [
+            ('minimum_angle_degrees', -1.0),
+            ('maximum_angle_degrees', 90.5),
+            ('minimum_angle_degrees', math.nan),
+            ('speed', 0.0),
+            ('speed', -10.0),
+            ('speed', math.inf),
+            ('spawn_margin', -1),
+        ],
+    )
+    def test_rejects_invalid_settings(self, field, value):
+        """Out-of-range serve settings raise ValueError naming the field."""
+        with pytest.raises(ValueError, match=field.split('_')[0]):
+            ServeSettings(**{field: value})
 
-        # (180 - 200) % 360 = 340
-        assert ball.direction == DIRECTION_340
+    def test_rejects_minimum_angle_above_maximum(self):
+        """The angle band must not be inverted."""
+        with pytest.raises(ValueError, match='angle'):
+            ServeSettings(minimum_angle_degrees=60.0, maximum_angle_degrees=15.0)
+
+
+WALL_BOUNCE_SWEEP_ANGLES_DEGREES = tuple(range(0, 360, 15))
+WALL_BOUNCE_SWEEP_SPEEDS = (60.0, 250.0, 450.0)
+# How far past a wall the ball starts (negative: just inside, but its rounded rect
+# already touches the wall)
+WALL_OVERSHOOTS = (2.0, 0.0, -0.3)
+WALL_BOUNCE_TOLERANCE = 1e-9
+WALL_BOUNCE_SPEED_UP_MULTIPLIER = 1.1
+FRAMES_AFTER_BOUNCE = 10
+CORNERS = (('top', 'left'), ('top', 'right'), ('bottom', 'left'), ('bottom', 'right'))
+# Unit direction pointing INTO each wall
+INTO_WALL_DIRECTIONS = {'top': (0, -1), 'bottom': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
+
+
+def _place_ball_past_walls(ball: BallSprite, walls: tuple[str, ...], overshoot: float) -> None:
+    """Put the ball `overshoot` past each given wall, centered along any other axis."""
+    maximum_x = float(ball.screen_width - ball.width)
+    maximum_y = float(ball.screen_height - ball.height)
+    world_x = maximum_x / 2
+    world_y = maximum_y / 2
+    if 'left' in walls:
+        world_x = -overshoot
+    if 'right' in walls:
+        world_x = maximum_x + overshoot
+    if 'top' in walls:
+        world_y = -overshoot
+    if 'bottom' in walls:
+        world_y = maximum_y + overshoot
+    ball.world_x = world_x
+    ball.world_y = world_y
+
+
+def _expected_position_after_bounce(
+    ball: BallSprite, walls: tuple[str, ...], overshoot: float
+) -> tuple[float, float]:
+    """Mirror the overshoot back inside each wall; a ball already inside stays put."""
+    maximum_x = float(ball.screen_width - ball.width)
+    maximum_y = float(ball.screen_height - ball.height)
+    expected_x = maximum_x / 2
+    expected_y = maximum_y / 2
+    inside_distance = abs(overshoot)
+    if 'left' in walls:
+        expected_x = inside_distance
+    if 'right' in walls:
+        expected_x = maximum_x - inside_distance
+    if 'top' in walls:
+        expected_y = inside_distance
+    if 'bottom' in walls:
+        expected_y = maximum_y - inside_distance
+    return expected_x, expected_y
+
+
+def _is_moving_into_walls(unit_x: float, unit_y: float, walls: tuple[str, ...]) -> bool:
+    """Return True if the direction has a non-zero component into every given wall."""
+    return all(
+        unit_x * INTO_WALL_DIRECTIONS[wall][0] + unit_y * INTO_WALL_DIRECTIONS[wall][1]
+        > WALL_BOUNCE_TOLERANCE
+        for wall in walls
+    )
+
+
+def _wall_bounce_sweep_cases():
+    """Every wall and corner x every 15-degree heading into it x overshoots x speeds.
+
+    Returns:
+        list: pytest params of (walls, angle, overshoot, speed).
+
+    """
+    cases = []
+    for walls in [(wall,) for wall in INTO_WALL_DIRECTIONS] + list(CORNERS):
+        for angle in WALL_BOUNCE_SWEEP_ANGLES_DEGREES:
+            unit_x = math.cos(math.radians(angle))
+            unit_y = math.sin(math.radians(angle))
+            if not _is_moving_into_walls(unit_x, unit_y, walls):
+                continue
+            cases.extend(
+                pytest.param(
+                    walls,
+                    angle,
+                    overshoot,
+                    speed,
+                    id=f'{"+".join(walls)}-{angle:03d}deg-overshoot{overshoot}@{speed:.0f}',
+                )
+                for overshoot in WALL_OVERSHOOTS
+                for speed in WALL_BOUNCE_SWEEP_SPEEDS
+            )
+    return cases
+
+
+@pytest.mark.usefixtures('pygame_mocks')
+class TestBallSpriteWallBounceSpeed:
+    """Wall bounces only change speed through the configured WALL_BOUNCE speed-up.
+
+    Replaces tests of the removed legacy BallSprite.bounce(), which applied a hidden,
+    hardcoded 1.1x speed-up that bypassed speed_up_settings.
+    """
+
+    @pytest.fixture
+    def pygame_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @pytest.mark.parametrize(
+        'speed_ups_enabled', [False, True], ids=['no_speed_up', 'wall_speed_up']
+    )
+    @pytest.mark.parametrize(('walls', 'angle', 'overshoot', 'speed'), _wall_bounce_sweep_cases())
+    def test_bounce_reflects_once_and_leaves(
+        self, walls, angle, overshoot, speed, speed_ups_enabled
+    ):
+        """A wall or corner hit is one bounce: mirrored, inside the field, then gone.
+
+        Checks the hit-walls' velocity components flip and the others don't, speed is
+        unchanged (or one WALL_BOUNCE step if enabled, even for a corner touching two
+        walls), the ball ends up inside the playfield at the mirrored position, and in
+        the following frames it moves away without bouncing again.
+        """
+        speed_up_settings = (
+            SpeedUpSettings(
+                triggers=SpeedUpTrigger.WALL_BOUNCE,
+                curve=SpeedUpCurve.EXPONENTIAL,
+                multiplier=WALL_BOUNCE_SPEED_UP_MULTIPLIER,
+            )
+            if speed_ups_enabled
+            else None
+        )
+        ball = BallSprite(
+            bounce_top_bottom=True,
+            bounce_left_right=True,
+            speed_up_settings=speed_up_settings,
+        )
+        initial_x = speed * math.cos(math.radians(angle))
+        initial_y = speed * math.sin(math.radians(angle))
+        ball.speed = Speed(initial_x, initial_y)
+        _place_ball_past_walls(ball, walls, overshoot)
+        description = (
+            f'{"+".join(walls)} hit from ({initial_x:.2f}, {initial_y:.2f}), overshoot {overshoot}'
+        )
+
+        ball._do_bounce()
+
+        expected_factor = WALL_BOUNCE_SPEED_UP_MULTIPLIER if speed_ups_enabled else 1.0
+        flips_x = 'left' in walls or 'right' in walls
+        flips_y = 'top' in walls or 'bottom' in walls
+        expected_speed = (
+            (-initial_x if flips_x else initial_x) * expected_factor,
+            (-initial_y if flips_y else initial_y) * expected_factor,
+        )
+        assert (ball.speed.x, ball.speed.y) == pytest.approx(
+            expected_speed, abs=WALL_BOUNCE_TOLERANCE
+        ), description
+        assert ball.speed_up_count == (1 if speed_ups_enabled else 0), description
+        assert (ball.world_x, ball.world_y) == pytest.approx(
+            _expected_position_after_bounce(ball, walls, overshoot), abs=WALL_BOUNCE_TOLERANCE
+        ), description
+        assert 0.0 <= ball.world_x <= ball.screen_width - ball.width, description
+        assert 0.0 <= ball.world_y <= ball.screen_height - ball.height, description
+
+        speed_after_bounce = (ball.speed.x, ball.speed.y)
+        for frame in range(1, FRAMES_AFTER_BOUNCE + 1):
+            ball.dt_tick(1 / 60)
+            assert (ball.speed.x, ball.speed.y) == speed_after_bounce, (
+                f'{description}: bounced again {frame} frame(s) later'
+            )
+        assert ball.speed_up_count == (1 if speed_ups_enabled else 0), description
+
+    @pytest.mark.parametrize('motion', ['away', 'stationary'])
+    @pytest.mark.parametrize('overshoot', [2.0, 7.5])
+    @pytest.mark.parametrize(
+        'walls', [(wall,) for wall in INTO_WALL_DIRECTIONS] + list(CORNERS), ids='+'.join
+    )
+    def test_ball_past_wall_is_put_back_inside_without_bouncing(
+        self, mocker, walls, overshoot, motion
+    ):
+        """A ball found past a wall but not moving into it is moved inside, not bounced.
+
+        No velocity change, no sound, and no WALL_BOUNCE speed-up; only the position is
+        mirrored back inside the playfield.
+        """
+        ball = BallSprite(
+            bounce_top_bottom=True,
+            bounce_left_right=True,
+            speed_up_settings=SpeedUpSettings(triggers=SpeedUpTrigger.WALL_BOUNCE),
+        )
+        ball.snd = mocker.Mock()
+        away_x = -sum(INTO_WALL_DIRECTIONS[wall][0] for wall in walls)
+        away_y = -sum(INTO_WALL_DIRECTIONS[wall][1] for wall in walls)
+        velocity = (away_x * 200.0, away_y * 200.0) if motion == 'away' else (0.0, 0.0)
+        ball.speed = Speed(*velocity)
+        _place_ball_past_walls(ball, walls, overshoot)
+
+        ball._do_bounce()
+
+        assert (ball.speed.x, ball.speed.y) == velocity
+        assert ball.speed_up_count == 0
+        ball.snd.play.assert_not_called()
+        assert (ball.world_x, ball.world_y) == pytest.approx(
+            _expected_position_after_bounce(ball, walls, overshoot)
+        )
+
+    def test_wall_bounce_trigger_applies_one_curve_step_per_bounce(self):
+        """Three real wall bounces with WALL_BOUNCE give exactly three curve steps."""
+        ball = BallSprite(
+            speed_up_settings=SpeedUpSettings(
+                triggers=SpeedUpTrigger.WALL_BOUNCE,
+                curve=SpeedUpCurve.EXPONENTIAL,
+                multiplier=MULTIPLIER_1_1,
+            ),
+        )
+        ball.speed = Speed(200.0, -100.0)
+
+        for wall in ('top', 'bottom', 'top'):
+            _place_ball_past_walls(ball, (wall,), overshoot=2.0)
+            ball._do_bounce()
+
+        assert ball.speed_up_count == 3
+        assert math.hypot(ball.speed.x, ball.speed.y) == pytest.approx(
+            math.hypot(200.0, 100.0) * MULTIPLIER_1_1**3
+        )
+        # Three vertical reflections leave the ball moving up and to the right
+        assert ball.speed.x > 0
+        assert ball.speed.y > 0
 
 
 class TestBallSpriteUpdate:
@@ -474,146 +855,173 @@ class TestBallSpriteIntegration:
         mock_sound.play.assert_called()
 
     def test_ball_speed_progression(self, mocker):
-        """Test ball speed increases with bounces."""
+        """Test ball speed increases with each speed-up (replaces the legacy bounce() test)."""
         mocker.patch('pygame.draw.circle')
-        ball = BallSprite()
+        ball = BallSprite(speed_up_settings=SpeedUpSettings(multiplier=MULTIPLIER_1_1))
         original_speed = ball.speed.x
 
-        # Multiple bounces should increase speed
         for _ in range(3):
-            ball.bounce(0)
+            ball.speed_up()
 
-        # Speed should be significantly higher (1.1^3 = 1.331)
-        expected_speed = original_speed * (1.1**3)
+        # Exponential curve: 1.1^3 = 1.331
+        expected_speed = original_speed * (MULTIPLIER_1_1**3)
         floating_point_tolerance = 1e-10  # Use approximate equality for floating point
         assert abs(ball.speed.x - expected_speed) < floating_point_tolerance
 
 
 class TestBallSpeedUpExponentialBoth:
-    """Test speed_up with exponential_both type (lines 345->exit)."""
+    """Test speed_up with the EXPONENTIAL curve on BOTH axes."""
 
     def _create_ball(self):
-        """Create a BallSprite for testing.
+        """Create a BallSprite configured for exponential speed-ups on both axes.
 
         Returns:
             BallSprite: A configured ball sprite.
 
         """
-        return BallSprite(x=100, y=100, width=20, height=20)
+        return BallSprite(
+            x=100,
+            y=100,
+            width=20,
+            height=20,
+            speed_up_settings=SpeedUpSettings(
+                curve=SpeedUpCurve.EXPONENTIAL,
+                axes=SpeedUpAxes.BOTH,
+                multiplier=MULTIPLIER_1_1,
+            ),
+        )
 
     def test_speed_up_exponential_both(self, mock_pygame_patches):
-        """Test speed_up with exponential_both type."""
+        """Test speed_up scales both components by the exponential multiplier."""
         ball = self._create_ball()
         ball.speed.x = 150.0
         ball.speed.y = 100.0
         original_x = ball.speed.x
         original_y = ball.speed.y
 
-        ball.speed_up(multiplier=1.1, speed_up_type='exponential_both')
+        ball.speed_up()
 
-        # Both components should be scaled exponentially
-        assert ball.speed.x != original_x
-        assert ball.speed.y != original_y
+        # Both components should be scaled by exactly the multiplier
+        assert ball.speed.x == pytest.approx(original_x * MULTIPLIER_1_1)
+        assert ball.speed.y == pytest.approx(original_y * MULTIPLIER_1_1)
+        assert ball.speed_up_count == 1
 
     def test_speed_up_exponential_both_with_zero_speeds(self, mock_pygame_patches):
-        """Test speed_up exponential_both when speeds are zero."""
+        """Test speed_up exponential on both axes when speeds are zero."""
         ball = self._create_ball()
         ball.speed.x = 0
         ball.speed.y = 0
 
-        ball.speed_up(multiplier=1.1, speed_up_type='exponential_both')
+        ball.speed_up()
 
         assert ball.speed.x == 0
         assert ball.speed.y == 0
 
 
 class TestContinuousSpeedUpExponentialY:
-    """Test continuous exponential Y speed-up (lines 381-382)."""
+    """Test continuous exponential speed-up on the Y axis only."""
 
     def test_continuous_exponential_y_speed_up(self, mock_pygame_patches):
-        """Test continuous speed-up with CONTINUOUS_EXPONENTIAL_Y mode."""
+        """Test the CONTINUOUS trigger with an EXPONENTIAL curve on Y_ONLY."""
         ball = BallSprite(
             x=100,
             y=100,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
-            speed_up_interval=0.0,  # Immediate speed-up
+            speed_up_settings=SpeedUpSettings(
+                triggers=SpeedUpTrigger.CONTINUOUS,
+                curve=SpeedUpCurve.EXPONENTIAL,
+                axes=SpeedUpAxes.Y_ONLY,
+                multiplier=MULTIPLIER_1_1,
+                interval=1.0,
+            ),
         )
+        ball.speed.x = 50.0
         ball.speed.y = 100.0
+        original_x = ball.speed.x
         original_y = ball.speed.y
 
-        # Set last speed-up time to past so it triggers
-        ball._last_speed_up_time = 0.0
+        # One full interval of game time elapses
+        ball._advance_continuous_speed_up(1.0)
 
-        import time
-
-        ball._check_continuous_speed_up(time.time())
-
-        assert ball.speed.y != original_y
+        assert ball.speed_up_count == 1
+        assert ball.speed.y == pytest.approx(original_y * MULTIPLIER_1_1)
+        assert ball.speed.x == original_x
+        # The timer starts counting toward the next step from zero
+        assert ball._continuous_elapsed_time == pytest.approx(0.0)
 
 
 class TestContinuousSpeedUpLinear:
-    """Test continuous linear speed-up (lines 392->exit)."""
+    """Test continuous linear speed-up on both axes."""
 
     def test_continuous_linear_speed_up(self, mock_pygame_patches):
-        """Test continuous speed-up with CONTINUOUS_LINEAR mode."""
+        """Test the CONTINUOUS trigger with a LINEAR curve on BOTH axes."""
         ball = BallSprite(
             x=100,
             y=100,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LINEAR,
-            speed_up_interval=0.0,
+            speed_up_settings=SpeedUpSettings(
+                triggers=SpeedUpTrigger.CONTINUOUS,
+                curve=SpeedUpCurve.LINEAR,
+                axes=SpeedUpAxes.BOTH,
+                multiplier=MULTIPLIER_1_1,
+                interval=1.0,
+            ),
         )
         ball.speed.x = 100.0
         ball.speed.y = 100.0
         original_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
 
-        ball._last_speed_up_time = 0.0
+        # One full interval of game time elapses
+        ball._advance_continuous_speed_up(1.0)
 
-        import time
-
-        ball._check_continuous_speed_up(time.time())
-
+        assert ball.speed_up_count == 1
+        # First linear step from n=0 is (1 + k) / 1 = multiplier
         new_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-        assert new_magnitude > original_magnitude
+        assert new_magnitude == pytest.approx(original_magnitude * MULTIPLIER_1_1)
 
 
-class TestResolveSpeedUpType:
-    """Test _resolve_speed_up_type with exponential_both (line 421)."""
+class TestPaddleBounceTriggerExponentialBoth:
+    """Test the PADDLE_BOUNCE trigger scaling both axes exponentially."""
 
-    def test_resolve_exponential_both(self, mock_pygame_patches):
-        """Test resolving when both exponential X and Y flags are set."""
+    def test_paddle_bounce_scales_both_axes(self, mock_pygame_patches):
+        """Test on_paddle_bounce speeds up both components when PADDLE_BOUNCE is set."""
         ball = BallSprite(
             x=100,
             y=100,
-            speed_up_mode=(
-                SpeedUpMode.ON_BOUNCE_EXPONENTIAL_X | SpeedUpMode.ON_BOUNCE_EXPONENTIAL_Y
+            speed_up_settings=SpeedUpSettings(
+                triggers=SpeedUpTrigger.PADDLE_BOUNCE,
+                curve=SpeedUpCurve.EXPONENTIAL,
+                axes=SpeedUpAxes.BOTH,
+                multiplier=MULTIPLIER_1_1,
             ),
         )
+        ball.speed.x = 150.0
+        ball.speed.y = 100.0
 
-        result = ball._resolve_speed_up_type(
-            SpeedUpMode.ON_BOUNCE_EXPONENTIAL_X,
-            SpeedUpMode.ON_BOUNCE_EXPONENTIAL_Y,
-            SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
-            SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
-            SpeedUpMode.ON_BOUNCE_LINEAR,
+        ball.on_paddle_bounce()
+
+        assert ball.speed.x == pytest.approx(150.0 * MULTIPLIER_1_1)
+        assert ball.speed.y == pytest.approx(100.0 * MULTIPLIER_1_1)
+        assert ball.speed_up_count == 1
+
+
+class TestTriggeredSpeedUpNotConfigured:
+    """Test _apply_triggered_speed_up with a trigger that is not configured."""
+
+    def test_unconfigured_trigger_does_nothing(self, mock_pygame_patches):
+        """Test that a trigger missing from settings.triggers leaves speed unchanged."""
+        ball = BallSprite(
+            x=100,
+            y=100,
+            speed_up_settings=SpeedUpSettings(triggers=SpeedUpTrigger.PADDLE_BOUNCE),
         )
-
-        assert result == 'exponential_both'
-
-
-class TestCheckBounceSpeedUpUnknownType:
-    """Test _check_bounce_speed_up with unknown type (line 466)."""
-
-    def test_unknown_bounce_type_does_nothing(self, mock_pygame_patches):
-        """Test that unknown bounce type results in None speed_up_type."""
-        ball = BallSprite(x=100, y=100)
         original_x = ball.speed.x
         original_y = ball.speed.y
 
-        ball._check_bounce_speed_up('unknown_type')
+        ball._apply_triggered_speed_up(SpeedUpTrigger.WALL_BOUNCE)
 
-        # Speed should remain unchanged
+        # Speed should remain unchanged and no curve step consumed
         assert ball.speed.x == original_x
         assert ball.speed.y == original_y
+        assert ball.speed_up_count == 0
 
 
 class TestBallBoundaryCollisions:
@@ -720,7 +1128,12 @@ class TestBallBoundaryCollisions:
 
 
 class TestCornerCollisions:
-    """Test corner collision handling (lines 773-807)."""
+    """A ball touching two walls at a corner bounces off both, once, and leaves.
+
+    These used to expect the ball to be teleported to 1 px inside the corner; that
+    placement came with a double reflection that sent the ball back into the corner
+    (bug #14). The full corner sweep lives in TestBallSpriteWallBounceSpeed.
+    """
 
     def _create_bouncing_ball(self):
         """Create a ball with all bouncing enabled.
@@ -738,74 +1151,62 @@ class TestCornerCollisions:
             bounce_left_right=True,
         )
 
-    def test_top_left_corner_collision(self, mock_pygame_patches):
-        """Test top-left corner collision (lines 783-786, 796-798)."""
-        ball = self._create_bouncing_ball()
-        ball.speed.x = -100.0  # Moving left
-        ball.speed.y = -100.0  # Moving up
-
-        assert ball.rect is not None
-        ball.rect.x = 0
-        ball.rect.y = 0
-        ball.world_x = 0.0  # Sub-pixel position must also be set
-        ball.world_y = 0.0
+    def _assert_corner_bounce(self, ball, *, corner_x, corner_y, speed_x, speed_y):
+        """Bounce a ball sitting exactly in a corner and check it reflects and leaves."""
+        ball.speed.x = speed_x
+        ball.speed.y = speed_y
+        ball.world_x = corner_x
+        ball.world_y = corner_y
 
         ball._do_bounce()
 
-        # After corner collision, ball should be placed at (1, 1)
-        assert ball.rect.x == 1
-        assert ball.rect.y == 1
+        # Both components reflected away from the walls; the ball stays where it touched
+        assert (ball.speed.x, ball.speed.y) == (-speed_x, -speed_y)
+        assert (ball.world_x, ball.world_y) == (corner_x, corner_y)
+
+        # Next frame it moves out of the corner instead of bouncing again
+        ball.dt_tick(1 / 60)
+        assert (ball.speed.x, ball.speed.y) == (-speed_x, -speed_y)
+        assert abs(ball.world_x - corner_x) > 0
+        assert abs(ball.world_y - corner_y) > 0
+
+    def test_top_left_corner_collision(self, mock_pygame_patches):
+        """Test top-left corner collision."""
+        ball = self._create_bouncing_ball()
+        self._assert_corner_bounce(ball, corner_x=0.0, corner_y=0.0, speed_x=-100.0, speed_y=-100.0)
 
     def test_top_right_corner_collision(self, mock_pygame_patches):
-        """Test top-right corner collision (lines 787-790, 799-801)."""
+        """Test top-right corner collision."""
         ball = self._create_bouncing_ball()
-        ball.speed.x = 100.0  # Moving right
-        ball.speed.y = -100.0  # Moving up
-
-        assert ball.rect is not None
-        ball.rect.x = ball.screen_width - ball.width
-        ball.rect.y = 0
-        ball.world_x = float(ball.screen_width - ball.width)
-        ball.world_y = 0.0
-
-        ball._do_bounce()
-
-        assert ball.rect.x == ball.screen_width - ball.width - 1
-        assert ball.rect.y == 1
+        self._assert_corner_bounce(
+            ball,
+            corner_x=float(ball.screen_width - ball.width),
+            corner_y=0.0,
+            speed_x=100.0,
+            speed_y=-100.0,
+        )
 
     def test_bottom_left_corner_collision(self, mock_pygame_patches):
-        """Test bottom-left corner collision (lines 802-804)."""
+        """Test bottom-left corner collision."""
         ball = self._create_bouncing_ball()
-        ball.speed.x = -100.0
-        ball.speed.y = 100.0
-
-        assert ball.rect is not None
-        ball.rect.x = 0
-        ball.rect.y = ball.screen_height - ball.height
-        ball.world_x = 0.0
-        ball.world_y = float(ball.screen_height - ball.height)
-
-        ball._do_bounce()
-
-        assert ball.rect.x == 1
-        assert ball.rect.y == ball.screen_height - ball.height - 1
+        self._assert_corner_bounce(
+            ball,
+            corner_x=0.0,
+            corner_y=float(ball.screen_height - ball.height),
+            speed_x=-100.0,
+            speed_y=100.0,
+        )
 
     def test_bottom_right_corner_collision(self, mock_pygame_patches):
-        """Test bottom-right corner collision (lines 805-807)."""
+        """Test bottom-right corner collision."""
         ball = self._create_bouncing_ball()
-        ball.speed.x = 100.0
-        ball.speed.y = 100.0
-
-        assert ball.rect is not None
-        ball.rect.x = ball.screen_width - ball.width
-        ball.rect.y = ball.screen_height - ball.height
-        ball.world_x = float(ball.screen_width - ball.width)
-        ball.world_y = float(ball.screen_height - ball.height)
-
-        ball._do_bounce()
-
-        assert ball.rect.x == ball.screen_width - ball.width - 1
-        assert ball.rect.y == ball.screen_height - ball.height - 1
+        self._assert_corner_bounce(
+            ball,
+            corner_x=float(ball.screen_width - ball.width),
+            corner_y=float(ball.screen_height - ball.height),
+            speed_x=100.0,
+            speed_y=100.0,
+        )
 
 
 class TestDtTickMovementMismatch:
@@ -831,8 +1232,14 @@ class TestPaddleCollisionSpeedCap:
     """Test paddle collision speed capping (lines 897-899, 903)."""
 
     def test_paddle_collision_caps_speed(self, mock_pygame_patches, mocker):
-        """Test that paddle collision caps speed at max_speed."""
-        ball = BallSprite(x=100, y=100, width=20, height=20)
+        """Test that paddle collision caps speed at the configured max_speed."""
+        ball = BallSprite(
+            x=100,
+            y=100,
+            width=20,
+            height=20,
+            speed_up_settings=SpeedUpSettings(max_speed=500.0),
+        )
 
         # Create a mock paddle
         paddle = mocker.Mock()
@@ -853,6 +1260,27 @@ class TestPaddleCollisionSpeedCap:
         # Speed should be capped
         speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert speed_magnitude <= 500.0 + 0.01  # max_speed = 500.0
+
+    def test_paddle_collision_without_max_speed_does_not_cap(self, mock_pygame_patches, mocker):
+        """Test that default settings (max_speed=None) leave a fast ball uncapped."""
+        ball = BallSprite(x=100, y=100, width=20, height=20)
+
+        paddle = mocker.Mock()
+        paddle.rect = pygame.Rect(90, 90, 20, 100)
+        paddle.snd = None
+
+        ball.speed.x = 1000.0
+        ball.speed.y = 1000.0
+
+        assert ball.rect is not None
+        ball.rect.x = 95
+        ball.rect.y = 100
+
+        ball._adjust_position_for_paddle_collision(paddle)
+
+        # No cap and no PADDLE_BOUNCE trigger: magnitude is unchanged by the collision
+        speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
+        assert speed_magnitude == pytest.approx(math.sqrt(2) * 1000.0)
 
     def test_paddle_collision_with_sound(self, mock_pygame_patches, mocker):
         """Test paddle collision plays paddle's sound (lines 886->890)."""
@@ -1040,3 +1468,152 @@ class TestBallBottomBounceZeroSpeed:
         ball._handle_right_collision(log)
 
         assert ball.speed.x == pytest.approx(0.0)
+
+
+# Expected whole pixel for each input under every PixelSnapMode, in column order:
+# (NEAREST_HALF_UP, NEAREST_EVEN, FLOOR, CEIL, TRUNCATE).
+SNAP_EXPECTATION_MODES = (
+    PixelSnapMode.NEAREST_HALF_UP,
+    PixelSnapMode.NEAREST_EVEN,
+    PixelSnapMode.FLOOR,
+    PixelSnapMode.CEIL,
+    PixelSnapMode.TRUNCATE,
+)
+LARGEST_FLOAT_BELOW_HALF = math.nextafter(0.5, 0.0)  # 0.49999999999999994
+SMALLEST_FLOAT_ABOVE_HALF = math.nextafter(0.5, 1.0)
+LARGEST_FLOAT_BELOW_TWO = math.nextafter(2.0, 0.0)
+SMALLEST_FLOAT_ABOVE_TWO = math.nextafter(2.0, 3.0)
+# Above 2**52 adjacent floats are 1 apart, so value + 0.5 rounds to an even neighbor.
+LARGE_ODD_WHOLE_NUMBER = float(2**52 + 1)
+SNAP_EXPECTATIONS = {
+    # Whole numbers: no rounding required, every mode must return the value unchanged
+    'zero': (0.0, (0, 0, 0, 0, 0)),
+    'negative zero': (-0.0, (0, 0, 0, 0, 0)),
+    'positive whole': (3.0, (3, 3, 3, 3, 3)),
+    'negative whole': (-3.0, (-3, -3, -3, -3, -3)),
+    'large positive whole': (1_000_000.0, (1_000_000,) * 5),
+    'large negative whole': (-1_000_000.0, (-1_000_000,) * 5),
+    'whole above 2**52': (LARGE_ODD_WHOLE_NUMBER, (2**52 + 1,) * 5),
+    'negative whole above 2**52': (-LARGE_ODD_WHOLE_NUMBER, (-(2**52 + 1),) * 5),
+    # Fractions: rounding required
+    'quarter': (0.25, (0, 0, 0, 1, 0)),
+    'three quarters': (0.75, (1, 1, 0, 1, 0)),
+    'negative quarter': (-0.25, (0, 0, -1, 0, 0)),
+    'negative three quarters': (-0.75, (-1, -1, -1, 0, 0)),
+    # Exact halves: where the nearest modes differ from each other
+    'half': (0.5, (1, 0, 0, 1, 0)),
+    'one and a half': (1.5, (2, 2, 1, 2, 1)),
+    'two and a half': (2.5, (3, 2, 2, 3, 2)),
+    'negative half': (-0.5, (0, 0, -1, 0, 0)),
+    'negative one and a half': (-1.5, (-1, -2, -2, -1, -1)),
+    'negative two and a half': (-2.5, (-2, -2, -3, -2, -2)),
+    'large half': (1_000_000.5, (1_000_001, 1_000_000, 1_000_000, 1_000_001, 1_000_000)),
+    'large negative half': (
+        -1_000_000.5,
+        (-1_000_000, -1_000_000, -1_000_001, -1_000_000, -1_000_000),
+    ),
+    # One float step either side of a half
+    'just below half': (LARGEST_FLOAT_BELOW_HALF, (0, 0, 0, 1, 0)),
+    'just above half': (SMALLEST_FLOAT_ABOVE_HALF, (1, 1, 0, 1, 0)),
+    'just above negative half': (-LARGEST_FLOAT_BELOW_HALF, (0, 0, -1, 0, 0)),
+    'just below negative half': (-SMALLEST_FLOAT_ABOVE_HALF, (-1, -1, -1, 0, 0)),
+    # One float step either side of a whole number
+    'just below two': (LARGEST_FLOAT_BELOW_TWO, (2, 2, 1, 2, 1)),
+    'just above two': (SMALLEST_FLOAT_ABOVE_TWO, (2, 2, 2, 3, 2)),
+    'just above negative two': (-LARGEST_FLOAT_BELOW_TWO, (-2, -2, -2, -1, -1)),
+    'just below negative two': (-SMALLEST_FLOAT_ABOVE_TWO, (-2, -2, -3, -2, -2)),
+}
+
+
+def _snap_expectation_cases():
+    """Flatten SNAP_EXPECTATIONS into one pytest param per (input, mode).
+
+    Returns:
+        list: pytest params of (value, mode, expected_pixel).
+
+    """
+    return [
+        pytest.param(value, mode, expected_pixel, id=f'{label}-{mode.name}')
+        for label, (value, expected_pixels) in SNAP_EXPECTATIONS.items()
+        for mode, expected_pixel in zip(SNAP_EXPECTATION_MODES, expected_pixels, strict=True)
+    ]
+
+
+class TestSnapToPixel:
+    """Test snap_to_pixel for every PixelSnapMode at every rounding boundary."""
+
+    def test_expectation_table_covers_every_mode(self):
+        """A new PixelSnapMode must be added to the expectation table to be tested."""
+        assert set(SNAP_EXPECTATION_MODES) == set(PixelSnapMode)
+
+    @pytest.mark.parametrize(('value', 'mode', 'expected_pixel'), _snap_expectation_cases())
+    def test_snap_modes(self, value, mode, expected_pixel):
+        """Each mode maps the value to the documented whole pixel, as an int."""
+        snapped = snap_to_pixel(value, mode)
+        assert snapped == expected_pixel
+        assert type(snapped) is int
+
+
+@pytest.mark.usefixtures('pygame_mocks')
+class TestBallSpritePixelSnapping:
+    """Test that world_x/world_y keep rect in sync using the ball's pixel snap mode."""
+
+    @pytest.fixture
+    def pygame_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def test_default_mode_is_nearest_half_up(self):
+        """Balls default to NEAREST_HALF_UP for smooth, unbiased motion."""
+        ball = BallSprite()
+        assert ball.pixel_snap_mode is PixelSnapMode.NEAREST_HALF_UP
+
+    def test_setting_world_position_updates_rect(self):
+        """Assigning world_x/world_y moves rect without any manual sync."""
+        ball = BallSprite()
+        ball.world_x = 123.6
+        ball.world_y = 45.5
+        assert (ball.rect.x, ball.rect.y) == (124, 46)
+
+    def test_in_place_adjustment_updates_rect(self):
+        """Augmented assignment (e.g. collision separation) also moves rect."""
+        ball = BallSprite()
+        ball.world_x = 100.0
+        ball.world_y = 100.0
+        ball.world_x -= 2.5
+        ball.world_y += 1.5
+        assert (ball.rect.x, ball.rect.y) == (98, 102)
+        assert (ball.world_x, ball.world_y) == (97.5, 101.5)
+
+    def test_custom_mode_is_used_for_rect(self):
+        """A ball created with FLOOR snapping draws at the floored position."""
+        ball = BallSprite(pixel_snap_mode=PixelSnapMode.FLOOR)
+        ball.world_x = 10.9
+        ball.world_y = -0.5
+        assert (ball.rect.x, ball.rect.y) == (10, -1)
+
+    def test_changing_mode_resnaps_rect(self):
+        """Switching modes immediately re-derives rect from the world position."""
+        ball = BallSprite()
+        ball.world_x = 10.5
+        assert ball.rect.x == 11
+        ball.pixel_snap_mode = PixelSnapMode.FLOOR
+        assert ball.rect.x == 10
+
+    def test_half_pixel_per_frame_motion_steps_evenly(self):
+        """At 0.5 px/frame, NEAREST_HALF_UP advances exactly 1 px every 2 frames.
+
+        Python's round() (NEAREST_EVEN) instead holds some pixels for 3 frames and others
+        for 1, which shows up as visible stutter in slow-moving sprites.
+        """
+        ball = BallSprite(bounce_top_bottom=False)
+        ball.world_x = 100.0
+        ball.world_y = 100.0
+        # 32 px/s at 1/64 s per frame is exactly 0.5 px/frame in binary floating point,
+        # so accumulated error cannot nudge a position off the .5 boundary.
+        ball.speed = Speed(32.0, 0.0)
+        rendered_x_positions = [ball.rect.x]
+        for _ in range(8):
+            ball.dt_tick(1 / 64)
+            rendered_x_positions.append(ball.rect.x)
+        assert rendered_x_positions == [100, 101, 101, 102, 102, 103, 103, 104, 104]

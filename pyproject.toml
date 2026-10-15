@@ -100,9 +100,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-# Exclude examples directory from test collection
+# Directory *name* patterns pytest will not recurse into, matched at any depth. Do not
+# list "examples": it also matched tests/examples/ and silently skipped those tests.
+# (The top-level examples/ directory is already outside testpaths.)
 norecursedirs = [
-  "examples",
   "build",
   "dist",
   "*.egg-info",

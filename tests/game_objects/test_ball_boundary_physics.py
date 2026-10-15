@@ -8,7 +8,14 @@ from pathlib import Path
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
+from glitchygames.game_objects.ball import (
+    BallSprite,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+    speed_up_step_ratio,
+)
 from glitchygames.movement import Speed
 
 
@@ -20,12 +27,12 @@ class TestBallBoundaryPhysics:
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
         )
 
         assert ball.bounce_top_bottom
         assert not ball.bounce_left_right
-        assert ball.speed_up_mode == SpeedUpMode.NONE
+        assert ball.speed_up_settings == SpeedUpSettings()
+        assert ball.speed_up_settings.triggers == SpeedUpTrigger.NONE
 
     def test_top_boundary_bounce(self):
         """Test ball bouncing off top boundary."""
@@ -34,7 +41,6 @@ class TestBallBoundaryPhysics:
             y=0,  # Start at top edge
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(100.0, -50.0)  # Moving up
 
@@ -55,7 +61,6 @@ class TestBallBoundaryPhysics:
             y=580,  # Start near bottom
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(100.0, 50.0)  # Moving down
 
@@ -76,7 +81,6 @@ class TestBallBoundaryPhysics:
             y=300,  # Start at left edge
             bounce_top_bottom=False,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(-50.0, 100.0)  # Moving left
 
@@ -97,7 +101,6 @@ class TestBallBoundaryPhysics:
             y=300,  # Start near right edge
             bounce_top_bottom=False,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(50.0, 100.0)  # Moving right
 
@@ -118,7 +121,6 @@ class TestBallBoundaryPhysics:
             y=0,  # Start at top edge
             bounce_top_bottom=False,  # Disabled
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(100.0, -50.0)  # Moving up
 
@@ -141,7 +143,6 @@ class TestBallBoundaryPhysics:
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(-50.0, -50.0)  # Moving up-left
 
@@ -165,7 +166,6 @@ class TestBallBoundaryPhysics:
             y=300,
             bounce_top_bottom=True,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.NONE,
         )
 
         # Test with very high speed that could cause clipping
@@ -190,7 +190,6 @@ class TestBallBoundaryPhysics:
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
         )
 
         # Set a known speed first
@@ -215,7 +214,6 @@ class TestBallBoundaryPhysics:
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(0.0, -100.0)  # Moving straight up
 
@@ -237,8 +235,12 @@ class TestBallBoundaryPhysics:
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_Y,
-            speed_up_multiplier=1.2,
+            speed_up_settings=SpeedUpSettings(
+                triggers=SpeedUpTrigger.WALL_BOUNCE,
+                curve=SpeedUpCurve.LOGARITHMIC,
+                axes=SpeedUpAxes.Y_ONLY,
+                multiplier=1.2,
+            ),
         )
 
         # Set initial speed first, then measure
@@ -250,9 +252,15 @@ class TestBallBoundaryPhysics:
         ball.world_y = -5.0  # Sub-pixel position must also be set
         ball.dt_tick(0.016)
 
-        # Speed should be increased due to speed-up
+        # Vertical speed should be increased by the first logarithmic step; X untouched
         final_speed_y = abs(ball.speed.y)
         assert final_speed_y > initial_speed_y
+        expected_ratio = speed_up_step_ratio(
+            curve=SpeedUpCurve.LOGARITHMIC, multiplier=1.2, completed_steps=0
+        )
+        assert math.isclose(final_speed_y, initial_speed_y * expected_ratio)
+        assert math.isclose(ball.speed.x, 100.0)
+        assert ball.speed_up_count == 1
 
     def test_edge_case_zero_speed_boundary(self):
         """Test ball behavior at boundary with zero speed."""
@@ -261,7 +269,6 @@ class TestBallBoundaryPhysics:
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
         )
         ball.speed = Speed(0.0, 0.0)  # Zero speed
 
@@ -283,11 +290,13 @@ class TestBallBoundaryPhysics:
             bounce_top_bottom=True,
             bounce_left_right=False,
             collision_sound='test_sound',
-            speed_up_mode=SpeedUpMode.NONE,
         )
 
         # Mock the sound
         ball.snd = mocker.Mock()
+        # Moving up into the top wall; reset() picks a random direction, and a ball
+        # moving away from a wall is moved back inside without bouncing (no sound)
+        ball.speed = Speed(0.0, -100.0)
 
         assert ball.rect is not None
         ball.rect.y = -5
@@ -304,7 +313,6 @@ class TestBallBoundaryPhysics:
             y=0,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
         )
 
         mock_log = mocker.patch('glitchygames.game_objects.ball.log')

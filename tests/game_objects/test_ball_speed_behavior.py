@@ -1,17 +1,79 @@
 #!/usr/bin/env python3
-"""Test ball speed behavior and speed-up modes."""
+"""Test ball speed behavior over many speed-ups driven through dt_tick."""
 
+import itertools
 import math
-import time
 
 import pygame
 import pytest
 
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
+from glitchygames.game_objects.ball import (
+    BallSprite,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+)
+from glitchygames.movement import Speed
+
+# Positions on the 800x600 test screen well away from every wall
+SCREEN_CENTER_X = 400.0
+SCREEN_CENTER_Y = 300.0
+
+# A binary-exact frame duration so accumulated game time adds up exactly
+FRAME_SECONDS = 1 / 64
+
+# Binary-exact interval that is a whole number of frames (4)
+SPEED_UP_INTERVAL = 0.0625
+
+# Relative slack for float error when comparing against max_speed
+MAX_SPEED_TOLERANCE = 1e-9
+
+
+# Copied from tests/game_objects/test_ball_speed_up.py
+def _curve_value(curve: SpeedUpCurve, multiplier: float, completed_steps: int) -> float:
+    """Return the documented growth factor f(n) relative to the base speed."""
+    growth = multiplier - 1.0
+    if curve is SpeedUpCurve.LINEAR:
+        return 1.0 + completed_steps * growth
+    if curve is SpeedUpCurve.EXPONENTIAL:
+        return multiplier**completed_steps
+    return 1.0 + growth * math.log1p(completed_steps)
+
+
+def _continuous_ball(**settings_fields) -> BallSprite:
+    """Create a non-bouncing ball at the screen center that speeds up on a timer.
+
+    Bouncing is disabled, so the ball drifting off screen (and being killed) never
+    changes its speed; only the timer does.
+
+    Returns:
+        BallSprite: The ball.
+
+    """
+    ball = BallSprite(
+        bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
+        bounce_left_right=False,
+        speed_up_settings=SpeedUpSettings(
+            triggers=SpeedUpTrigger.CONTINUOUS,
+            interval=SPEED_UP_INTERVAL,
+            **settings_fields,
+        ),
+    )
+    ball.world_x = SCREEN_CENTER_X
+    ball.world_y = SCREEN_CENTER_Y
+    return ball
+
+
+def _tick_through_intervals(ball: BallSprite, interval_count: int) -> None:
+    """Run dt_tick with FRAME_SECONDS frames for interval_count intervals of game time."""
+    frames_per_interval = round(SPEED_UP_INTERVAL / FRAME_SECONDS)
+    for _ in range(interval_count * frames_per_interval):
+        ball.dt_tick(FRAME_SECONDS)
 
 
 class TestBallSpeedBehavior:
-    """Test ball speed behavior and speed-up modes."""
+    """Test ball speed behavior and speed-up settings."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -23,304 +85,219 @@ class TestBallSpeedBehavior:
         pygame.quit()
 
     def test_exponential_speedup_no_runaway_growth(self):
-        """Test that exponential speed-up doesn't cause runaway growth."""
-        # Create ball with exponential speed-up
-        ball = BallSprite(
-            bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
-            bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X
-            | SpeedUpMode.CONTINUOUS_EXPONENTIAL_Y,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.01,  # Much shorter interval for testing
+        """max_speed stops exponential growth; uncapped it follows multiplier**n exactly."""
+        uncapped_ball = _continuous_ball(curve=SpeedUpCurve.EXPONENTIAL, multiplier=1.1)
+        capped_ball = _continuous_ball(
+            curve=SpeedUpCurve.EXPONENTIAL, multiplier=1.1, max_speed=1000.0
         )
+        initial_magnitude = math.hypot(uncapped_ball.speed.x, uncapped_ball.speed.y)
+        capped_ball.speed = Speed(uncapped_ball.speed.x, uncapped_ball.speed.y)
+        initial_direction = math.atan2(capped_ball.speed.y, capped_ball.speed.x)
 
-        # Get speed after reset() has been called
-        initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
+        for step in range(1, 21):
+            _tick_through_intervals(uncapped_ball, interval_count=1)
+            _tick_through_intervals(capped_ball, interval_count=1)
+            capped_magnitude = math.hypot(capped_ball.speed.x, capped_ball.speed.y)
+            assert capped_magnitude <= 1000.0 * (1.0 + MAX_SPEED_TOLERANCE), f'step {step}'
 
-        # Simulate speed-ups with small delays
-        for i in range(20):
-            ball.dt_tick(0.1)
-            time.sleep(0.02)  # Small delay to ensure time passes
-
-        final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-
-        # Speed should increase significantly with capped exponential
-        # With capped exponent (max 2.0), speed can grow substantially but not runaway
-        assert final_magnitude > initial_magnitude * 2, (
-            'Speed should increase significantly with exponential speed-up'
-        )
-
-        # Speed should not exceed 100x initial speed (safety check for capped exponential)
-        assert final_magnitude < initial_magnitude * 100, (
-            'Speed should not grow more than 100x initial speed with capped exponential'
+        uncapped_magnitude = math.hypot(uncapped_ball.speed.x, uncapped_ball.speed.y)
+        assert uncapped_ball.speed_up_count == 20
+        assert uncapped_magnitude == pytest.approx(initial_magnitude * 1.1**20)
+        assert uncapped_magnitude > 1000.0  # So the cap really was needed
+        assert math.hypot(capped_ball.speed.x, capped_ball.speed.y) == pytest.approx(1000.0)
+        assert math.atan2(capped_ball.speed.y, capped_ball.speed.x) == pytest.approx(
+            initial_direction
         )
 
     def test_logarithmic_speedup_behavior(self):
-        """Test that logarithmic speed-up works correctly."""
-        ball = BallSprite(
-            bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
-            bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
-            | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.01,  # Much shorter interval for testing
-        )
-
-        # Get speed after reset() has been called
+        """Logarithmic growth reaches 1 + k*ln(1 + n) with ever smaller steps."""
+        ball = _continuous_ball(curve=SpeedUpCurve.LOGARITHMIC, multiplier=1.1)
         initial_x = ball.speed.x
         initial_y = ball.speed.y
-        initial_magnitude = math.sqrt(initial_x**2 + initial_y**2)
+        initial_magnitude = math.hypot(initial_x, initial_y)
 
-        # Simulate speed-ups with small delays
-        for i in range(20):  # More iterations to ensure we get enough speed-ups
-            ball.dt_tick(0.1)
-            time.sleep(0.02)  # Small delay to ensure time passes
+        magnitudes = [initial_magnitude]
+        for _ in range(20):
+            _tick_through_intervals(ball, interval_count=1)
+            magnitudes.append(math.hypot(ball.speed.x, ball.speed.y))
 
-        final_x = ball.speed.x
-        final_y = ball.speed.y
-        final_magnitude = math.sqrt(final_x**2 + final_y**2)
-
-        # Speed should have increased significantly
-        assert final_magnitude > initial_magnitude * 1.5, (
-            'Speed should increase significantly with logarithmic speed-up'
-        )
-
-        # Direction should be preserved (signs should match)
-        if initial_x != 0:
-            assert (final_x > 0) == (initial_x > 0), 'X direction should be preserved'
-        if initial_y != 0:
-            assert (final_y > 0) == (initial_y > 0), 'Y direction should be preserved'
+        assert ball.speed_up_count == 20
+        assert magnitudes[-1] == pytest.approx(initial_magnitude * (1.0 + 0.1 * math.log(21.0)))
+        increments = [later - earlier for earlier, later in itertools.pairwise(magnitudes)]
+        assert all(increment > 0.0 for increment in increments)
+        assert all(later < earlier for earlier, later in itertools.pairwise(increments))
+        # Signs are preserved
+        assert (ball.speed.x > 0) == (initial_x > 0)
+        assert (ball.speed.y > 0) == (initial_y > 0)
 
     def test_linear_speedup_behavior(self):
-        """Test that linear speed-up preserves direction."""
-        ball = BallSprite(
-            bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
-            bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LINEAR,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.01,  # Much shorter interval for testing
-        )
-
-        # Get speed after reset() has been called
-        initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
+        """Linear growth adds the same amount each step and preserves direction."""
+        ball = _continuous_ball(curve=SpeedUpCurve.LINEAR, multiplier=1.1)
+        initial_magnitude = math.hypot(ball.speed.x, ball.speed.y)
         initial_direction = math.atan2(ball.speed.y, ball.speed.x)
 
-        # Simulate 5 speed-ups with small delays
-        for i in range(5):
-            ball.dt_tick(0.1)
-            time.sleep(0.02)  # Small delay to ensure time passes
+        magnitudes = [initial_magnitude]
+        for _ in range(5):
+            _tick_through_intervals(ball, interval_count=1)
+            magnitudes.append(math.hypot(ball.speed.x, ball.speed.y))
 
-        final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-        final_direction = math.atan2(ball.speed.y, ball.speed.x)
-
-        # Direction should be preserved
-        assert initial_direction == pytest.approx(final_direction, abs=1e-5)
-
-        # Speed should have increased significantly
-        assert final_magnitude > initial_magnitude * 1.2, (
-            'Speed should increase significantly with linear speed-up'
-        )
+        increments = [later - earlier for earlier, later in itertools.pairwise(magnitudes)]
+        assert increments == pytest.approx([initial_magnitude * 0.1] * 5)
+        assert magnitudes[-1] == pytest.approx(initial_magnitude * 1.5)
+        assert math.atan2(ball.speed.y, ball.speed.x) == pytest.approx(initial_direction, abs=1e-9)
 
     def test_continuous_speedup_respects_interval(self):
-        """Test that continuous speed-up respects the interval."""
-        ball = BallSprite(
-            bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
-            bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.1,  # Speed up every 0.1 seconds (shorter interval for testing)
-        )
-
-        # Get speed after reset() has been called
+        """dt_tick speeds up once per elapsed interval, not on every frame."""
+        ball = _continuous_ball(curve=SpeedUpCurve.EXPONENTIAL, multiplier=1.1)
         initial_x = ball.speed.x
+        half_interval = SPEED_UP_INTERVAL / 2
 
-        # First dt_tick should not trigger speed-up (interval not reached)
-        ball.dt_tick(0.05)  # Half the interval
-        assert ball.speed.x == initial_x, 'Speed should not change before interval'
-
-        # After 2 dt_tick calls (0.1 seconds total), speed-up should trigger
-        for i in range(2):
-            ball.dt_tick(0.05)
-
-        expected_x = initial_x * 1.1
-        assert ball.speed.x == pytest.approx(
-            expected_x,
-            abs=abs(expected_x) * 0.1,
-        )  # More tolerant delta
+        expected_counts = [0, 1, 1, 2, 2, 3]  # After each half-interval frame
+        for frame, expected_count in enumerate(expected_counts, start=1):
+            ball.dt_tick(half_interval)
+            assert ball.speed_up_count == expected_count, f'frame {frame}'
+            assert ball.speed.x == pytest.approx(initial_x * 1.1**expected_count)
 
     def test_bounce_speedup_triggers(self):
-        """Test that bounce-triggered speed-up works."""
+        """A real top-wall bounce in dt_tick reflects Y and applies one speed-up."""
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=False,  # Disable left/right to avoid double-bounce
-            speed_up_mode=SpeedUpMode.ON_WALL_BOUNCE_LOGARITHMIC_X,
-            speed_up_multiplier=1.1,
+            speed_up_settings=SpeedUpSettings(
+                triggers=SpeedUpTrigger.WALL_BOUNCE,
+                curve=SpeedUpCurve.EXPONENTIAL,
+                multiplier=1.1,
+            ),
         )
 
         # Set controlled initial speed and position to avoid random interactions
-        ball.speed.x = 100.0
-        ball.speed.y = -50.0
-        initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-
-        # Position ball at top boundary (must set world coords for sub-pixel tracking)
-        assert ball.rect is not None
-        ball.rect.x = 400
-        ball.world_x = 400.0
-        ball.rect.y = 0
+        ball.speed = Speed(100.0, -50.0)
+        ball.world_x = SCREEN_CENTER_X
         ball.world_y = 0.0
+        # Game time passing must not matter for walls (CONTINUOUS is not a trigger)
+        ball._advance_continuous_speed_up(1_000.0)
+        assert ball.speed_up_count == 0
 
         # This should trigger a bounce and speed-up (small dt to avoid large movement)
         ball.dt_tick(0.016)
 
-        # Speed magnitude should have increased due to wall bounce speed-up
-        # (logarithmic_x now scales BOTH components by 1.1)
-        final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-        assert final_magnitude > initial_magnitude, (
-            f'Speed magnitude should increase on wall bounce: '
-            f'{initial_magnitude:.3f} -> {final_magnitude:.3f}'
-        )
+        assert ball.speed_up_count == 1
+        assert (ball.speed.x, ball.speed.y) == pytest.approx((110.0, 55.0))
 
     def test_speedup_mode_none_no_speedup(self):
-        """Test that SpeedUpMode.NONE prevents any speed-up."""
+        """SpeedUpTrigger.NONE prevents any automatic speed-up, however long it runs."""
         ball = BallSprite(
             bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.1,
+            speed_up_settings=SpeedUpSettings(
+                triggers=SpeedUpTrigger.NONE,
+                multiplier=1.1,
+                interval=SPEED_UP_INTERVAL,
+            ),
         )
-
-        # Get speed after reset() has been called
+        ball.world_x = SCREEN_CENTER_X
+        ball.world_y = SCREEN_CENTER_Y
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Simulate many dt_tick calls
-        for i in range(50):
-            ball.dt_tick(0.1)
+        for _ in range(50):
+            ball.dt_tick(1.0)  # 50 seconds of game time, 800 intervals
 
-        # Speed should remain unchanged
+        assert ball.speed_up_count == 0
         assert ball.speed.x == initial_x
         assert ball.speed.y == initial_y
 
     def test_speedup_magnitude_bounds(self):
-        """Test that speed doesn't grow beyond reasonable bounds."""
+        """With bouncing and frequent speed-ups, speed never exceeds max_speed."""
         ball = BallSprite(
             bounce_top_bottom=True,
             bounce_left_right=True,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
-            | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.01,  # Very frequent speed-up
+            speed_up_settings=SpeedUpSettings(
+                triggers=SpeedUpTrigger.CONTINUOUS | SpeedUpTrigger.WALL_BOUNCE,
+                curve=SpeedUpCurve.EXPONENTIAL,
+                multiplier=1.1,
+                interval=SPEED_UP_INTERVAL,
+                max_speed=600.0,
+            ),
         )
+        ball.world_x = SCREEN_CENTER_X
+        ball.world_y = SCREEN_CENTER_Y
 
-        initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
+        # 100 frames, each one interval long, so every frame is due a speed-up
+        for frame in range(1, 101):
+            ball.dt_tick(SPEED_UP_INTERVAL)
+            magnitude = math.hypot(ball.speed.x, ball.speed.y)
+            assert magnitude <= 600.0 * (1.0 + MAX_SPEED_TOLERANCE), f'frame {frame}'
 
-        # Simulate 100 speed-ups (1 second at 0.01 interval)
-        for i in range(100):
-            ball.dt_tick(0.01)
-
-        final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-
-        # Speed should not grow more than 100x initial speed (safety check)
-        assert final_magnitude < initial_magnitude * 100, (
-            f'Speed magnitude {final_magnitude:.3f} should not exceed 100x initial'
-        )
+        assert ball.speed_up_count >= 100
+        assert math.hypot(ball.speed.x, ball.speed.y) == pytest.approx(600.0)
 
     def test_exponential_vs_logarithmic_comparison(self):
-        """Test that both exponential and logarithmic speed-up modes work correctly."""
-        # Create two balls with same settings but different speed-up modes
-        exp_ball = BallSprite(
-            speed_up_mode=SpeedUpMode.CONTINUOUS_EXPONENTIAL_X,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.01,  # Much shorter interval for testing
-        )
+        """After 10 steps each curve gives its documented speed: exp > linear > log.
 
-        log_ball = BallSprite(
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.01,  # Much shorter interval for testing
-        )
-
-        # Simulate speed-ups for both with small delays
-        for i in range(10):
-            exp_ball.dt_tick(0.1)
-            log_ball.dt_tick(0.1)
-            time.sleep(0.02)  # Small delay to ensure time passes
-
-        # Both should have increased significantly (exact relationship may vary)
-        exp_final = abs(exp_ball.speed.x)
-        log_final = abs(log_ball.speed.x)
-
-        # Both modes should show significant speed increase
-        assert exp_final > 50, (
-            f'Exponential speed-up should show significant increase, got {exp_final:.3f}'
-        )
-        assert log_final > 50, (
-            f'Logarithmic speed-up should show significant increase, got {log_final:.3f}'
-        )
-
-        # Both should be reasonable (not runaway)
-        assert exp_final < 10000, f'Exponential speed-up should not be runaway, got {exp_final:.3f}'
-        assert log_final < 10000, f'Logarithmic speed-up should not be runaway, got {log_final:.3f}'
-
-    def test_speedup_preserves_direction_components(self):
-        """Test that speed-up preserves the trajectory angle.
-
-        logarithmic_x now scales BOTH components equally, so direction is preserved
-        and both components change proportionally.
+        Guards against the old behavior where LOGARITHMIC matched LINEAR and LINEAR
+        compounded like EXPONENTIAL.
         """
-        ball = BallSprite(
-            bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
-            bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.01,  # Much shorter interval for testing
+        balls_by_curve = {
+            curve: _continuous_ball(curve=curve, multiplier=1.1) for curve in SpeedUpCurve
+        }
+        for ball in balls_by_curve.values():
+            ball.speed = Speed(100.0, 0.0)
+
+        for ball in balls_by_curve.values():
+            _tick_through_intervals(ball, interval_count=10)
+
+        final_speeds = {curve: ball.speed.x for curve, ball in balls_by_curve.items()}
+        assert final_speeds[SpeedUpCurve.EXPONENTIAL] == pytest.approx(100.0 * 1.1**10)
+        assert final_speeds[SpeedUpCurve.LINEAR] == pytest.approx(200.0)
+        assert final_speeds[SpeedUpCurve.LOGARITHMIC] == pytest.approx(
+            100.0 * (1.0 + 0.1 * math.log(11.0))
+        )
+        assert (
+            final_speeds[SpeedUpCurve.EXPONENTIAL]
+            > final_speeds[SpeedUpCurve.LINEAR]
+            > final_speeds[SpeedUpCurve.LOGARITHMIC]
         )
 
-        # Get speed and direction after reset() has been called
-        initial_x = ball.speed.x
-        initial_y = ball.speed.y
-        initial_direction = math.atan2(initial_y, initial_x)
+    @pytest.mark.parametrize(
+        ('axes', 'angle_trend'),
+        [
+            (SpeedUpAxes.BOTH, 'constant'),
+            (SpeedUpAxes.X_ONLY, 'flatter'),
+            (SpeedUpAxes.Y_ONLY, 'steeper'),
+        ],
+    )
+    def test_speedup_preserves_direction_components(self, axes, angle_trend):
+        """Over many steps BOTH keeps the angle, X_ONLY flattens it, Y_ONLY steepens it."""
+        ball = _continuous_ball(curve=SpeedUpCurve.LINEAR, axes=axes, multiplier=1.1)
+        ball.speed = Speed(150.0, 100.0)
 
-        # Simulate speed-up with small delays
-        for i in range(5):
-            ball.dt_tick(0.1)
-            time.sleep(0.02)  # Small delay to ensure time passes
+        angles = [math.atan2(ball.speed.y, ball.speed.x)]
+        for _ in range(10):
+            _tick_through_intervals(ball, interval_count=1)
+            angles.append(math.atan2(ball.speed.y, ball.speed.x))
 
-        # Both components should change (both scaled equally)
-        assert ball.speed.x != initial_x, 'X speed should change'
-        assert ball.speed.y != initial_y, 'Y speed should also change (both scale equally)'
-        # But direction should be preserved
-        final_direction = math.atan2(ball.speed.y, ball.speed.x)
-        assert initial_direction == pytest.approx(final_direction, abs=1e-5), (
-            'Direction should be preserved'
-        )
+        consecutive_angles = list(itertools.pairwise(angles))
+        if angle_trend == 'constant':
+            assert angles == pytest.approx([angles[0]] * len(angles))
+        elif angle_trend == 'flatter':
+            assert all(later < earlier for earlier, later in consecutive_angles)
+            assert math.tan(angles[-1]) == pytest.approx((100.0 / 150.0) / 2.0)
+        else:
+            assert all(later > earlier for earlier, later in consecutive_angles)
+            assert math.tan(angles[-1]) == pytest.approx((100.0 / 150.0) * 2.0)
 
-    def test_speedup_with_negative_speeds(self):
-        """Test that speed-up works correctly with negative speeds."""
-        ball = BallSprite(
-            bounce_top_bottom=False,  # Disable bouncing to avoid speed changes
-            bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
-            | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y,
-            speed_up_multiplier=1.1,
-            speed_up_interval=0.01,  # Much shorter interval for testing
-        )
+    @pytest.mark.parametrize('axes', list(SpeedUpAxes))
+    def test_speedup_with_negative_speeds(self, axes):
+        """Negative components grow in magnitude on the configured axes and keep their sign."""
+        ball = _continuous_ball(curve=SpeedUpCurve.LOGARITHMIC, axes=axes, multiplier=1.1)
+        ball.speed = Speed(-100.0, -50.0)
 
-        # Set negative speeds (after reset() has been called)
-        ball.speed.x = -100
-        ball.speed.y = -50
+        _tick_through_intervals(ball, interval_count=5)
 
-        initial_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-
-        # Simulate speed-up with small delays
-        for i in range(5):
-            ball.dt_tick(0.1)
-            time.sleep(0.02)  # Small delay to ensure time passes
-
-        final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
-
-        # Magnitude should increase, but signs should be preserved
-        assert final_magnitude > initial_magnitude
+        factor = _curve_value(SpeedUpCurve.LOGARITHMIC, 1.1, 5)
+        expected_x = -100.0 * factor if axes is not SpeedUpAxes.Y_ONLY else -100.0
+        expected_y = -50.0 * factor if axes is not SpeedUpAxes.X_ONLY else -50.0
+        assert (ball.speed.x, ball.speed.y) == pytest.approx((expected_x, expected_y))
         assert ball.speed.x < 0, 'X speed should remain negative'
         assert ball.speed.y < 0, 'Y speed should remain negative'

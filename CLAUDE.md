@@ -230,12 +230,7 @@ Features:
 
 ## Known Bugs
 
-**Active Issues** (see BUGS.md for full details):
-
-1. **Ball Collision Trajectory Bug** (Game Physics, unverified)
-   - Location: `glitchygames/game_objects/ball.py`
-   - Issue: Horizontal ball doesn't update trajectory after diagonal collision
-   - Priority: High
+**Active Issues**: see BUGS.md for the current list.
 
 ## File Formats and Sprite Loading
 

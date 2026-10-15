@@ -9,7 +9,9 @@ This module tests the three types of collisions:
 import math
 import time
 
+from glitchygames.examples.paddleslap import PADDLESLAP_SPEED_UP
 from glitchygames.game_objects import BallSprite
+from glitchygames.game_objects.ball import speed_up_step_ratio
 from glitchygames.movement import Speed
 
 # MockFactory imported for potential future use
@@ -28,7 +30,6 @@ SPEED_1_0 = 1.0
 SPEED_NEG_1_0 = -1.0
 SPEED_NEG_2_0_COLLISION = -2.0
 SPEED_0_0 = 0.0
-SPEED_1_15 = 1.15
 SPEED_2_0_COLLISION = 2.0
 SPEED_5_0_OVERLAP = 5.0
 SPEED_2_0_SEPARATION = 2.0
@@ -114,34 +115,40 @@ class TestPaddleCollisions:
     def test_ball_bounces_off_left_paddle(self, mock_pygame_patches):
         """Test ball bounces off left paddle with speed increase."""
         # Setup: Ball moving left towards left paddle
-        ball = BallSprite()
+        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
         ball.speed = Speed(SPEED_NEG_3_0, SPEED_2_0)  # Moving left and down
         initial_magnitude = math.sqrt(SPEED_3_0**2 + SPEED_2_0**2)
 
         # Action: Trigger left paddle collision (simulate speed_up)
         ball.speed.x *= -1  # Reverse direction
-        ball.speed_up(SPEED_1_15)  # 15% speed increase
+        ball.speed_up()  # 15% speed increase
 
         # Expected: Direction reversed, speed increased (using logarithmic scaling)
-        # The speed_up method uses logarithmic scaling, not simple multiplication
+        # PaddleSlap uses the LOGARITHMIC curve, so the first step is 1 + 0.15*ln(2)
         assert ball.speed.x > SPEED_3_0  # Reversed and increased
         assert ball.speed.y > SPEED_2_0  # Increased
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert final_magnitude > initial_magnitude  # Speed increased
+        expected_ratio = speed_up_step_ratio(
+            curve=PADDLESLAP_SPEED_UP.curve,
+            multiplier=PADDLESLAP_SPEED_UP.multiplier,
+            completed_steps=0,
+        )
+        assert math.isclose(final_magnitude, initial_magnitude * expected_ratio)
 
     def test_ball_bounces_off_right_paddle(self, mock_pygame_patches):
         """Test ball bounces off right paddle with speed increase."""
         # Setup: Ball moving right towards right paddle
-        ball = BallSprite()
+        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
         ball.speed = Speed(SPEED_3_0, SPEED_2_0)  # Moving right and down
         initial_magnitude = math.sqrt(SPEED_3_0**2 + SPEED_2_0**2)
 
         # Action: Trigger right paddle collision
         ball.speed.x *= -1  # Reverse direction
-        ball.speed_up(SPEED_1_15)  # 15% speed increase
+        ball.speed_up()  # 15% speed increase
 
         # Expected: Direction reversed, speed increased (using logarithmic scaling)
-        # The speed_up method uses logarithmic scaling, not simple multiplication
+        # PaddleSlap uses the LOGARITHMIC curve, so the first step is 1 + 0.15*ln(2)
         assert ball.speed.x < SPEED_NEG_3_0  # Reversed and increased (negative)
         assert ball.speed.y > SPEED_2_0  # Increased
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
@@ -151,12 +158,12 @@ class TestPaddleCollisions:
         """Test paddle collision spawns a new ball."""
         # This test would require mocking the game instance
         # For now, we'll test the speed_up behavior
-        ball = BallSprite()
+        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
         initial_speed_x = ball.speed.x
         initial_speed_y = ball.speed.y
 
         # Action: Simulate paddle collision
-        ball.speed_up(SPEED_1_15)
+        ball.speed_up()
 
         # Expected: Speed magnitude increased (regardless of direction)
         assert abs(ball.speed.x) > abs(initial_speed_x)  # Speed magnitude increased
@@ -165,12 +172,12 @@ class TestPaddleCollisions:
     def test_paddle_collision_reverses_horizontal_direction(self, mock_pygame_patches):
         """Test paddle collision reverses horizontal direction."""
         # Setup: Ball moving left
-        ball = BallSprite()
+        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
         ball.speed = Speed(SPEED_NEG_4_0, SPEED_1_0)  # Moving left
 
         # Action: Simulate paddle collision
         ball.speed.x *= -1  # Reverse direction
-        ball.speed_up(SPEED_1_15)  # Speed increase
+        ball.speed_up()  # Speed increase
 
         # Expected: Horizontal direction reversed
         assert ball.speed.x > 0  # Now moving right
@@ -314,7 +321,7 @@ class TestIntegrationCollisions:
     def test_mixed_collision_scenarios(self, mock_pygame_patches):
         """Test sequence of different collision types."""
         # Setup: Ball that will hit wall, then paddle, then another ball
-        ball = BallSprite()
+        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
         ball.speed = Speed(SPEED_3_0, SPEED_NEG_2_0)  # Moving right and up
         assert ball.rect is not None
         ball.rect.y = 0  # At top wall (triggers bounce condition)
@@ -326,7 +333,7 @@ class TestIntegrationCollisions:
 
         # Action 2: Paddle collision
         ball.speed.x *= -1  # Reverse direction
-        ball.speed_up(SPEED_1_15)  # Speed increase
+        ball.speed_up()  # Speed increase
         paddle_speed = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
 
         # Expected: Each collision behaves correctly
@@ -337,7 +344,7 @@ class TestIntegrationCollisions:
         """Test multiple balls with various collision types."""
         # Setup: Multiple balls
         ball1 = BallSprite()
-        ball2 = BallSprite()
+        ball2 = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
         ball3 = BallSprite()
 
         ball1.speed = Speed(
@@ -359,7 +366,7 @@ class TestIntegrationCollisions:
 
         # Ball2 hits paddle
         ball2.speed.x *= -1
-        ball2.speed_up(1.15)
+        ball2.speed_up()
 
         # Ball1 and Ball3 collide (simplified)
         ball1.speed.x, ball3.speed.x = ball3.speed.x, ball1.speed.x
