@@ -463,8 +463,12 @@ class ClockworkKeepScene(Scene):
                 self.collectible_sprites.remove(cog)
 
     def _check_elevator(self: Self) -> None:
-        """Check if player is on an elevator and pressing interact."""
-        if not self.actions.just_pressed('interact') and not self.actions.just_pressed('jump'):
+        """Ride the elevator when the player stands on it and presses interact.
+
+        Jump is deliberately not accepted: jumping clears on_ground before this check runs,
+        so it could never ride (BUGS.md #24), and jump should always jump.
+        """
+        if not self.actions.just_pressed('interact'):
             return
 
         for elevator in self.elevator_sprites:

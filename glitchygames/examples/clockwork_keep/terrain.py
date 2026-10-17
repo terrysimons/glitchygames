@@ -73,7 +73,7 @@ class Platform(Sprite):
 class Elevator(Sprite):
     """An interactable elevator that triggers floor transitions.
 
-    The player stands on it and presses up/interact to ride it.
+    The player stands on it and presses interact to ride it.
 
     Args:
         world_x: X position in world space.
