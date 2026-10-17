@@ -4,6 +4,7 @@ import pygame
 import pytest
 
 from glitchygames.camera import Camera2D
+from glitchygames.effects.shake import Shake, ShakeAxis, ShakeStyle
 
 
 class TestCamera2DApply:
@@ -180,3 +181,54 @@ class TestCamera2DParallax:
         update_scroll = self._add_recording_layer(camera, mocker)
         camera.snap_to(target_x=120.0, target_y=30.0)
         update_scroll.assert_called_once_with(120.0, 30.0)
+
+
+def _bounce(strength=10.0):
+    return Shake(
+        style=ShakeStyle.BOUNCE,
+        strength=strength,
+        duration=1.0,
+        frequency=2.0,
+        axis=ShakeAxis.VERTICAL,
+    )
+
+
+class TestCamera2DShake:
+    """Screen shake applied to world sprites and parallax layers."""
+
+    def test_apply_includes_shake_offset(self):
+        camera = Camera2D(screen_width=200, screen_height=100)
+        camera.shake_effect.add(_bounce())
+        assert camera.apply(50.0, 50.0) == (50, 40)
+
+    def test_update_advances_shake(self):
+        camera = Camera2D(screen_width=200, screen_height=100, smooth_factor=1.0)
+        camera.shake_effect.add(_bounce())
+        camera.update(target_x=0.0, target_y=0.0, dt=1.0)
+        assert not camera.shake_effect.is_active
+
+    def test_world_position_is_unshaken(self):
+        """Collision and visibility use world_x/world_y, which shake never changes."""
+        camera = Camera2D(screen_width=200, screen_height=100, smooth_factor=1.0)
+        camera.shake_effect.add(_bounce())
+        camera.update(target_x=30.0, target_y=0.0, dt=1.0 / 60.0)
+        assert camera.world_x == pytest.approx(30.0, abs=0.1)
+
+    def test_shake_intensity_zero_disables(self):
+        camera = Camera2D(screen_width=200, screen_height=100, shake_intensity=0.0)
+        camera.shake_effect.add(_bounce())
+        assert camera.apply(50.0, 50.0) == (50, 50)
+
+    def test_parallax_receives_shaken_position(self, mocker):
+        camera = Camera2D(screen_width=200, screen_height=100, smooth_factor=1.0)
+        update_scroll = TestCamera2DParallax._add_recording_layer(camera, mocker)
+        camera.shake_effect.add(_bounce())
+        camera.update(target_x=0.0, target_y=0.0, dt=0.0)
+        update_scroll.assert_called_once_with(pytest.approx(0.0), pytest.approx(10.0))
+
+    def test_snap_to_ignores_shake(self, mocker):
+        camera = Camera2D(screen_width=200, screen_height=100)
+        update_scroll = TestCamera2DParallax._add_recording_layer(camera, mocker)
+        camera.shake_effect.add(_bounce())
+        camera.snap_to(target_x=0.0, target_y=0.0)
+        update_scroll.assert_called_once_with(0.0, 0.0)

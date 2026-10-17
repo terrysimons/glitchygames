@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Self, override
 
 import pygame
 
+from glitchygames.effects.shake import ScreenShake
 from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
@@ -126,6 +127,7 @@ class Camera2D:
         lead_x: Horizontal offset from target to viewport left edge.
         lead_y: Vertical offset from target to viewport top edge.
         visibility_margin: Extra pixels around viewport for culling checks.
+        shake_intensity: Player setting 0.0-1.0 scaling world shake (0 disables it).
 
     """
 
@@ -138,6 +140,7 @@ class Camera2D:
         lead_x: float = 0.0,
         lead_y: float = 0.0,
         visibility_margin: float = DEFAULT_VISIBILITY_MARGIN,
+        shake_intensity: float = 1.0,
     ) -> None:
         """Initialize the camera."""
         self.world_x: float = 0.0
@@ -148,6 +151,9 @@ class Camera2D:
         self.lead_x: float = lead_x
         self.lead_y: float = lead_y
         self.visibility_margin: float = visibility_margin
+
+        # Shake moves world sprites only; world_x/world_y stay unshaken for logic
+        self.shake_effect: ScreenShake = ScreenShake(intensity=shake_intensity)
 
         # World bounds (None = unbounded in that direction)
         self._min_x: float | None = None
@@ -207,7 +213,13 @@ class Camera2D:
         # Clamp to world bounds
         self._clamp_to_bounds()
 
-        self._update_parallax_layers(camera_x=self.world_x, camera_y=self.world_y)
+        self.shake_effect.update(dt)
+        shake_x, shake_y = self.shake_effect.offset
+        # Layers scroll from the shaken position, so each shakes in proportion to its
+        # scroll_factor: a static sky never shakes, distant scenery barely moves.
+        self._update_parallax_layers(
+            camera_x=self.world_x + shake_x, camera_y=self.world_y + shake_y
+        )
 
     def snap_to(self, target_x: float, target_y: float) -> None:
         """Instantly move the camera to target position (no smoothing).
@@ -259,7 +271,11 @@ class Camera2D:
             A tuple of (screen_x, screen_y) pixel coordinates.
 
         """
-        return (round(world_x - self.world_x), round(world_y - self.world_y))
+        shake_x, shake_y = self.shake_effect.offset
+        return (
+            round(world_x - self.world_x - shake_x),
+            round(world_y - self.world_y - shake_y),
+        )
 
     def is_visible(
         self,
