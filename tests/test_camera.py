@@ -1,5 +1,6 @@
 """Tests for Camera2D viewport system."""
 
+import pygame
 import pytest
 
 from glitchygames.camera import Camera2D
@@ -147,3 +148,35 @@ class TestCamera2DVisibility:
             )
             is False
         )
+
+
+class TestCamera2DParallax:
+    """Parallax layers follow the camera (regression for BUGS.md #21)."""
+
+    @staticmethod
+    def _add_recording_layer(camera, mocker):
+        if not pygame.get_init():
+            pygame.init()
+        layer = camera.add_background_layer(
+            scroll_factor=0.5,
+            draw_function=lambda surface, offset_x, offset_y: None,
+            layer_depth=0,
+            groups=pygame.sprite.LayeredDirty(),
+        )
+        return mocker.patch.object(layer, 'update_scroll')
+
+    def test_update_scrolls_parallax_layers(self, mocker):
+        """update() passes the new camera position to every parallax layer."""
+        camera = Camera2D(screen_width=200, screen_height=100, smooth_factor=1.0)
+        update_scroll = self._add_recording_layer(camera, mocker)
+        camera.update(target_x=300.0, target_y=40.0, dt=1.0 / 60.0)
+        update_scroll.assert_called_once_with(
+            pytest.approx(camera.world_x), pytest.approx(camera.world_y)
+        )
+
+    def test_snap_to_scrolls_parallax_layers_once(self, mocker):
+        """snap_to() updates each layer exactly once (the duplicate loop is gone)."""
+        camera = Camera2D(screen_width=200, screen_height=100)
+        update_scroll = self._add_recording_layer(camera, mocker)
+        camera.snap_to(target_x=120.0, target_y=30.0)
+        update_scroll.assert_called_once_with(120.0, 30.0)

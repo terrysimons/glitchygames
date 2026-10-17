@@ -207,6 +207,8 @@ class Camera2D:
         # Clamp to world bounds
         self._clamp_to_bounds()
 
+        self._update_parallax_layers(camera_x=self.world_x, camera_y=self.world_y)
+
     def snap_to(self, target_x: float, target_y: float) -> None:
         """Instantly move the camera to target position (no smoothing).
 
@@ -222,13 +224,18 @@ class Camera2D:
         self.world_y = target_y - self.lead_y
         self._clamp_to_bounds()
 
-        # Update parallax layers immediately
-        for layer in self._parallax_layers:
-            layer.update_scroll(self.world_x, self.world_y)
+        self._update_parallax_layers(camera_x=self.world_x, camera_y=self.world_y)
 
-        # Update parallax layers
+    def _update_parallax_layers(self, *, camera_x: float, camera_y: float) -> None:
+        """Scroll every parallax layer to the given camera position.
+
+        Args:
+            camera_x: Camera X used for the parallax offset.
+            camera_y: Camera Y used for the parallax offset.
+
+        """
         for layer in self._parallax_layers:
-            layer.update_scroll(self.world_x, self.world_y)
+            layer.update_scroll(camera_x, camera_y)
 
     def _clamp_to_bounds(self) -> None:
         """Clamp camera position to configured world bounds."""
