@@ -35,6 +35,7 @@ Covers:
 - quit_game class method
 """
 
+import argparse
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -47,6 +48,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames import events
 from glitchygames.engine import GameEngine
+from glitchygames.engine.game_engine import non_negative_int, unit_interval
 from tests.mocks import MockFactory
 
 
@@ -2171,3 +2173,55 @@ class TestGameEnginePerformanceImportError:
 
         # _shutdown should handle the ImportError gracefully
         engine._shutdown()
+
+
+class TestShakeAndAudioArguments:
+    """Test the screen shake, rumble and live voice pool arguments."""
+
+    @pytest.mark.parametrize(('text', 'expected'), [('0', 0.0), ('0.5', 0.5), ('1', 1.0)])
+    def test_unit_interval_accepts_range(self, text, expected):
+        """Test unit_interval accepts values from 0.0 to 1.0 inclusive."""
+        assert unit_interval(text) == expected
+
+    @pytest.mark.parametrize('text', ['-0.01', '1.01', 'abc', 'nan'])
+    def test_unit_interval_rejects(self, text):
+        """Test unit_interval rejects out-of-range, non-numeric and NaN text."""
+        with pytest.raises(argparse.ArgumentTypeError):
+            unit_interval(text)
+
+    @pytest.mark.parametrize('text', ['-1', '1.5', 'x'])
+    def test_non_negative_int_rejects(self, text):
+        """Test non_negative_int rejects negatives, floats and non-numeric text."""
+        with pytest.raises(argparse.ArgumentTypeError):
+            non_negative_int(text)
+
+    def test_non_negative_int_accepts_zero(self):
+        """Test non_negative_int accepts zero (a zero-size voice pool is valid)."""
+        assert non_negative_int('0') == 0
+
+    def test_defaults(self):
+        """Test the new arguments default to full shake, full rumble and four voices."""
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        options = vars(parser.parse_args([]))
+        assert options['screen_shake_intensity'] == 1.0
+        assert options['rumble_intensity'] == 1.0
+        assert options['live_voice_pool'] == 4
+
+    def test_values_are_parsed(self):
+        """Test explicit command-line values reach the parsed options."""
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        options = vars(
+            parser.parse_args([
+                '--screen-shake-intensity',
+                '0.25',
+                '--rumble-intensity',
+                '0',
+                '--live-voice-pool',
+                '0',
+            ])
+        )
+        assert options['screen_shake_intensity'] == 0.25
+        assert options['rumble_intensity'] == 0.0
+        assert options['live_voice_pool'] == 0

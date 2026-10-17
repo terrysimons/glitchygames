@@ -3,6 +3,7 @@
 import math
 import random
 
+import pygame
 import pytest
 
 from glitchygames.effects.shake import (
@@ -12,6 +13,7 @@ from glitchygames.effects.shake import (
     ShakeAxis,
     ShakeStyle,
 )
+from glitchygames.scenes import SceneManager
 
 SEED = 1234
 ALL_STYLES = list(ShakeStyle)
@@ -246,3 +248,81 @@ class TestRumbleLevels:
         )
         shaker.update(0.75)
         assert shaker.rumble_levels == pytest.approx((0.25, 0.25))
+
+
+@pytest.fixture
+def scene_manager_with_screen(mocker):
+    """Provide a SceneManager with a real surface and patched display flip/update.
+
+    Yields:
+        The manager, the flip mock and the update mock.
+
+    """
+    if not pygame.get_init():
+        pygame.init()
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode((64, 48))
+    manager = SceneManager()
+    manager.screen = pygame.Surface((64, 48))
+    manager.active_scene = mocker.Mock(rects=[])
+    flip = mocker.patch('pygame.display.flip')
+    update = mocker.patch('pygame.display.update')
+    yield manager, flip, update
+    manager.screen_shake.clear()
+
+
+class TestScreenShakePresentation:
+    """SCREEN shake is applied at present time and never leaks into the display surface."""
+
+    def _paint_marker(self, screen):
+        screen.fill((0, 0, 255))
+        screen.set_at((10, 10), (255, 0, 0))
+
+    def test_shaken_frame_is_presented_shifted_and_screen_restored(
+        self, scene_manager_with_screen, mocker
+    ):
+        manager, flip, _update = scene_manager_with_screen
+        self._paint_marker(manager.screen)
+        manager.screen_shake.add(
+            Shake(
+                style=ShakeStyle.BOUNCE,
+                strength=4.0,
+                duration=1.0,
+                frequency=1.0,
+                axis=ShakeAxis.VERTICAL,
+            )
+        )
+        presented = {}
+
+        def capture_flip():
+            presented['marker_moved'] = manager.screen.get_at((10, 14))[:3] == (255, 0, 0)
+            presented['top_strip_black'] = manager.screen.get_at((30, 1))[:3] == (0, 0, 0)
+
+        flip.side_effect = capture_flip
+        manager._present_frame(full_update=False)
+        assert presented == {'marker_moved': True, 'top_strip_black': True}
+        # Between presents the display surface holds the unshifted frame
+        assert manager.screen.get_at((10, 10))[:3] == (255, 0, 0)
+        assert manager.screen.get_at((30, 1))[:3] == (0, 0, 255)
+
+    def test_first_frame_after_shake_is_a_full_flip(self, scene_manager_with_screen):
+        manager, flip, update = scene_manager_with_screen
+        manager.screen_shake.add(
+            Shake(style=ShakeStyle.BOUNCE, strength=4.0, duration=0.1, frequency=1.0)
+        )
+        manager._present_frame(full_update=False)
+        manager.screen_shake.update(0.2)
+        flip.reset_mock()
+        manager._present_frame(full_update=False)
+        flip.assert_called_once()
+        update.assert_not_called()
+        flip.reset_mock()
+        manager._present_frame(full_update=False)  # Back to normal dirty-rect updates
+        flip.assert_not_called()
+
+    def test_unshaken_frame_uses_existing_update_path(self, scene_manager_with_screen, mocker):
+        manager, flip, _update = scene_manager_with_screen
+        update_display = mocker.patch.object(manager, '_update_display')
+        manager._present_frame(full_update=False)
+        update_display.assert_called_once()
+        flip.assert_not_called()

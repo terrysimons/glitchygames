@@ -54,6 +54,58 @@ UNKNOWN_SDL2_EVENT_TYPE_1543 = 1543
 GAME_NOT_INITIALIZED_MSG = 'Game not initialized.  Pass a game class to the GameEngine constructor.'
 MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 
+DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
+DEFAULT_RUMBLE_INTENSITY = 1.0
+DEFAULT_LIVE_VOICE_POOL = 4
+
+
+def unit_interval(value: str) -> float:
+    """Argparse type: a float from 0.0 to 1.0 inclusive.
+
+    Args:
+        value: The command-line text.
+
+    Returns:
+        The parsed float.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not a number in 0.0-1.0.
+
+    """
+    try:
+        number = float(value)
+    except ValueError as error:
+        message = f'{value!r} is not a number'
+        raise argparse.ArgumentTypeError(message) from error
+    if not 0.0 <= number <= 1.0:  # Also rejects NaN, which fails every comparison
+        message = f'{value!r} must be between 0.0 and 1.0'
+        raise argparse.ArgumentTypeError(message)
+    return number
+
+
+def non_negative_int(value: str) -> int:
+    """Argparse type: an integer >= 0.
+
+    Args:
+        value: The command-line text.
+
+    Returns:
+        The parsed integer.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not an integer >= 0.
+
+    """
+    try:
+        number = int(value)
+    except ValueError as error:
+        message = f'{value!r} is not an integer'
+        raise argparse.ArgumentTypeError(message) from error
+    if number < 0:
+        message = f'{value!r} must be >= 0'
+        raise argparse.ArgumentTypeError(message)
+    return number
+
 
 class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     """Glitchy Games' Game engine.
@@ -201,6 +253,24 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             type=float,
             help='percent of frames to trim from top and bottom in global FPS report',
             default=5.0,
+        )
+        group.add_argument(
+            '--screen-shake-intensity',
+            type=unit_interval,
+            help='screen shake strength from 0.0 (off) to 1.0 (default: 1.0)',
+            default=DEFAULT_SCREEN_SHAKE_INTENSITY,
+        )
+        group.add_argument(
+            '--rumble-intensity',
+            type=unit_interval,
+            help='controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)',
+            default=DEFAULT_RUMBLE_INTENSITY,
+        )
+        group.add_argument(
+            '--live-voice-pool',
+            type=non_negative_int,
+            help='mixer channels reserved for real-time synth voices (default: 4)',
+            default=DEFAULT_LIVE_VOICE_POOL,
         )
 
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode

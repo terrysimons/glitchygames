@@ -373,3 +373,36 @@ class TestSceneManagerInternals:
 
         # Test current scene cleanup
         scene_manager._cleanup_current_scene()
+
+    def test_switch_to_scene_clears_screen_shake(self, mocker):
+        """Review focus 3: pause and game over never inherit a running screen shake."""
+        from glitchygames.effects.shake import Shake, ShakeStyle
+
+        self.scene_manager.screen_shake.add(
+            Shake(style=ShakeStyle.NOISE, strength=5.0, duration=1.0, frequency=5.0)
+        )
+        self.scene_manager.switch_to_scene(mocker.Mock())
+        assert not self.scene_manager.screen_shake.is_active
+
+    def test_frame_services_advance_screen_shake(self):
+        """Test the per-frame services advance the screen shake by the frame time."""
+        from glitchygames.effects.shake import Shake, ShakeStyle
+
+        self.scene_manager.screen_shake.add(
+            Shake(style=ShakeStyle.NOISE, strength=5.0, duration=0.5, frequency=5.0)
+        )
+        self.scene_manager.dt = 1.0
+        self.scene_manager._update_frame_services()
+        assert not self.scene_manager.screen_shake.is_active
+
+    def test_game_engine_options_set_shake_intensity(self, mocker):
+        """Test the game engine setter applies the screen shake intensity option."""
+        engine = mocker.Mock()
+        engine.OPTIONS = {
+            'update_type': 'update',
+            'fps_log_interval_ms': 1000,
+            'screen_shake_intensity': 0.25,
+            'rumble_intensity': 0.5,
+        }
+        self.scene_manager.game_engine = engine
+        assert self.scene_manager.screen_shake.intensity == 0.25

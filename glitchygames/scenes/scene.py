@@ -9,8 +9,10 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 import pygame
 
 from glitchygames import events
+from glitchygames.camera import Camera2D
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
+from glitchygames.effects.shake import ScreenShake
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
 from glitchygames.interfaces import SceneInterface, SpriteInterface
@@ -24,6 +26,7 @@ LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
 JITTER_SAMPLE_BUFFER_MAX_SIZE = 512
+SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
 
 
 class SceneManager(SceneInterface, events.EventManager):
@@ -77,6 +80,10 @@ class SceneManager(SceneInterface, events.EventManager):
 
         self.clock: pygame.time.Clock = pygame.time.Clock()
 
+        # SCREEN shake lives here (not on a scene) so it outlives scene switches
+        self.screen_shake: ScreenShake = ScreenShake()
+        self._screen_shake_was_presented: bool = False
+
         # Jitter tracking attributes
         self._jitter_samples: list[int] = []
         self._jitter_last_log_ns: int = 0
@@ -123,6 +130,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.update_type = self.OPTIONS['update_type']
             self.fps_log_interval_ms = self.OPTIONS['fps_log_interval_ms']
             self.target_fps = self.OPTIONS.get('target_fps', 60)
+            self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
         self.log.info(f'Screen update type: {self.update_type}')
         self.log.info(f'FPS Log Interval: {self.fps_log_interval_ms}ms')
         self.log.info(f'Target FPS: {self.target_fps}')
@@ -180,12 +188,20 @@ class SceneManager(SceneInterface, events.EventManager):
         # Hide the player first so the transition can draw its own
         # player overlay without doubling.
         old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
+
+        # Clear a WORLD shake so the old-floor screenshot is unshaken.
+        old_camera = getattr(self.active_scene, 'camera', None) if self.active_scene else None
+        camera_was_shaking = isinstance(old_camera, Camera2D) and old_camera.shake_effect.is_active
+        if camera_was_shaking and old_camera is not None and self.active_scene is not None:
+            old_camera.shake_effect.clear()
+            self.active_scene.apply_camera_to_sprites()
+
         if old_player is not None:
             old_player.visible = False
             old_player.dirty = 0
-            if self.active_scene and self.screen:
-                self.active_scene.update()
-                self.active_scene.render(self.screen)
+        if (old_player is not None or camera_was_shaking) and self.active_scene and self.screen:
+            self.active_scene.update()
+            self.active_scene.render(self.screen)
         old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
         if old_player is not None:
             old_player.visible = True
@@ -238,6 +254,43 @@ class SceneManager(SceneInterface, events.EventManager):
             for sprite in self.active_scene.all_sprites:
                 sprite.dirty = max(sprite.dirty, 1)
 
+    def _update_frame_services(self: Self) -> None:
+        """Advance services that outlive scenes: screen shake (rumble and live audio join later)."""
+        self.screen_shake.update(self.dt)
+
+    def _present_frame(self: Self, *, full_update: bool) -> None:
+        """Present the rendered frame, shifted by any active SCREEN shake.
+
+        The display surface always holds the unshifted frame between presents: a shaken frame
+        is copied, shifted for the flip, then restored. Dirty-rect rendering, screenshots and
+        transition captures therefore never see the shift or the black strips.
+
+        Args:
+            full_update: True to flip the whole display (transitions); False to use the
+                configured update type.
+
+        """
+        offset_x, offset_y = self.screen_shake.offset
+        pixel_offset = (round(offset_x), round(offset_y))
+        if self.screen is not None and pixel_offset != (0, 0):
+            unshifted = self.screen.copy()
+            self.screen.fill(SHAKE_BORDER_COLOR)
+            self.screen.blit(unshifted, pixel_offset)
+            pygame.display.flip()
+            self.screen.blit(unshifted, (0, 0))
+            self._screen_shake_was_presented = True
+            return
+        if self._screen_shake_was_presented:
+            # The display still shows the last shifted frame; the surface holds the correct
+            # unshifted one, so one full flip replaces it (a dirty-rect update would not).
+            self._screen_shake_was_presented = False
+            pygame.display.flip()
+            return
+        if full_update:
+            pygame.display.flip()
+        else:
+            self._update_display()
+
     @override
     def switch_to_scene(self: Self, next_scene: SceneInterface | None) -> None:
         """Switch to the next scene.
@@ -250,6 +303,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # are Scene instances or mocks that satisfy the Scene interface.
         scene = cast('Scene | None', next_scene)
         if scene != self.active_scene:
+            self.screen_shake.clear()  # Pause, game over and direct switches never inherit a shake
             # Track the previous scene BEFORE any cleanup or setup
             self.previous_scene = self.active_scene
             self._reset_scene_timers()
@@ -424,15 +478,17 @@ class SceneManager(SceneInterface, events.EventManager):
             # During a transition, render the transition effect instead of the scene
             if self._active_transition is not None:
                 transition_done = self._active_transition.update(self.dt)
+                self._update_frame_services()
                 self._active_transition.render(self.screen)
-                pygame.display.flip()
+                self._present_frame(full_update=True)
                 if transition_done:
                     self._finalize_transition()
             else:
                 self._update_scene()
                 self._process_events()
+                self._update_frame_services()
                 self._render_scene()
-                self._update_display()
+                self._present_frame(full_update=False)
 
                 # Check for pending transition (set by Scene.transition_to)
                 if self._pending_transition is not None:
@@ -861,6 +917,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
         self.quit_requested: bool = False
+        self.camera: Camera2D | None = None  # Assigned by games that scroll
         self.next_scene: Scene | Self | None = self
         self.rects = None
         self.screen = pygame.display.get_surface()
@@ -942,6 +999,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def cleanup(self: Self) -> None:
         """Cleanup the scene."""
+
+    def apply_camera_to_sprites(self: Self) -> None:
+        """Reposition camera-relative sprites from the current camera.
+
+        Default: nothing. Games that place sprites through Camera2D.apply() override this so
+        the scene manager can refresh positions (for example, after clearing a WORLD shake
+        before a transition screenshot).
+        """
 
     def dt_tick(self: Self, dt: float) -> None:
         """Update the scene's delta time and active tweens.
