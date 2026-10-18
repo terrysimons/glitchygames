@@ -233,12 +233,16 @@ def dropout_risk(
     sample_rate: int = DEFAULT_SAMPLE_RATE,
     risk_fraction: float = DEFAULT_RISK_FRACTION,
 ) -> bool:
-    """Say whether the worst GIL wait reaches risk_fraction of the mixer buffer's duration.
+    """Say whether the p99 GIL wait reaches risk_fraction of the mixer buffer's duration.
+
+    The p99 is used rather than the maximum: on a busy machine the maximum is dominated by OS
+    scheduling noise that no GIL setting can remove, while the p99 separates a fixed switch
+    interval (about 2 ms) from the 5 ms default (about 6.4 ms).
 
     Returns:
-        True when maximum wait >= risk_fraction x buffer duration (512 samples at 44100 Hz is
+        True when p99 wait >= risk_fraction x buffer duration (512 samples at 44100 Hz is
         11.6 ms, so 5.8 ms by default).
 
     """
     buffer_milliseconds = buffer_samples / sample_rate * SECONDS_TO_MILLISECONDS
-    return report.maximum_milliseconds >= risk_fraction * buffer_milliseconds
+    return report.p99_milliseconds >= risk_fraction * buffer_milliseconds

@@ -82,22 +82,32 @@ class TestDescribeEdges:
 
 
 class TestDropoutRisk:
-    """Tests for dropout_risk at the half-buffer threshold."""
+    """Tests for dropout_risk: the p99 wait against half the mixer buffer."""
 
     @staticmethod
-    def _report(maximum_milliseconds):
+    def _report(*, p99_milliseconds, maximum_milliseconds=None):
         return LockWaitReport(
             median_milliseconds=0.1,
-            p99_milliseconds=0.2,
-            maximum_milliseconds=maximum_milliseconds,
+            p99_milliseconds=p99_milliseconds,
+            maximum_milliseconds=(
+                p99_milliseconds if maximum_milliseconds is None else maximum_milliseconds
+            ),
             sample_count=100,
         )
 
-    def test_exactly_half_the_buffer_is_a_risk(self):
-        assert dropout_risk(self._report(BUFFER_MILLISECONDS * 0.5)) is True
+    def test_p99_exactly_half_the_buffer_is_a_risk(self):
+        assert dropout_risk(self._report(p99_milliseconds=BUFFER_MILLISECONDS * 0.5)) is True
 
-    def test_just_below_half_the_buffer_is_safe(self):
-        assert dropout_risk(self._report(BUFFER_MILLISECONDS * 0.5 - 0.01)) is False
+    def test_p99_just_below_half_the_buffer_is_safe(self):
+        assert (
+            dropout_risk(self._report(p99_milliseconds=BUFFER_MILLISECONDS * 0.5 - 0.01)) is False
+        )
+
+    def test_high_maximum_with_low_p99_is_safe(self):
+        """OS scheduling noise can spike the maximum; only the p99 decides."""
+        report = self._report(p99_milliseconds=2.0, maximum_milliseconds=50.0)
+
+        assert dropout_risk(report) is False
 
 
 class TestMeasureLockWait:

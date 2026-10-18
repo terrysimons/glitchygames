@@ -12,8 +12,8 @@ Two independent checks, because they find different problems:
   realtime  Measures how late a background thread gets the GIL while the main thread runs a
             game-like frame loop. pygame's channel-finished callback needs the GIL to queue the
             next live-voice chunk, so a wait approaching the mixer buffer (512 samples at
-            44100 Hz = 11.6 ms) is an audible click. Exits with status 1 when the worst wait
-            reaches half the buffer.
+            44100 Hz = 11.6 ms) is an audible click. Exits with status 1 when the p99 wait
+            reaches half the buffer (the max is shown but includes OS scheduling noise).
 
 Usage:
     uv run python scripts/audio_glitch_probe.py
@@ -194,7 +194,7 @@ def run_realtime_mode(arguments: argparse.Namespace) -> bool:
     """Measure GIL wait for a background thread under game-like load.
 
     Returns:
-        True when the worst wait puts the mixer buffer at risk.
+        True when the p99 wait puts the mixer buffer at risk.
 
     """
     emit('== realtime: GIL wait of a 2 ms-period background thread under game load ==')
@@ -212,16 +212,17 @@ def run_realtime_mode(arguments: argparse.Namespace) -> bool:
     )
     emit(
         f'wait for the GIL: median {report.median_milliseconds:.2f} ms, '
-        f'p99 {report.p99_milliseconds:.2f} ms, max {report.maximum_milliseconds:.2f} ms '
+        f'p99 {report.p99_milliseconds:.2f} ms (decides the result), '
+        f'max {report.maximum_milliseconds:.2f} ms (includes OS scheduling noise) '
         f'({report.sample_count} samples)'
     )
     emit(
         f'budget: mixer buffer {DEFAULT_BUFFER_SAMPLES} samples = {buffer_milliseconds:.1f} ms; '
-        f'risk threshold (half) {buffer_milliseconds / 2:.1f} ms'
+        f'risk threshold for p99 (half) {buffer_milliseconds / 2:.1f} ms'
     )
     at_risk = dropout_risk(report)
     emit('RESULT: ' + ('DROPOUT RISK (clicks likely)' if at_risk else 'ok (within budget)'))
-    emit('meaning: the mixer callback waits like this thread does; waits near the buffer')
+    emit('meaning: the mixer callback waits like this thread does; p99 waits near the buffer')
     emit('         length leave a silent gap, heard as a click at each chunk boundary.')
     return at_risk
 
