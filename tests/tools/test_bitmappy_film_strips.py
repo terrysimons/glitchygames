@@ -527,3 +527,69 @@ class TestFilmStripWidgetIntegration:
 
         # Assert - should not create tabs without frames
         assert len(widget.film_tabs) == 0
+
+
+class TestFilmStripAnimationTransitions:
+    """Renaming or deleting an animation in Bitmappy keeps the sprite's transitions valid."""
+
+    TOML = (
+        '[sprite]\nname = "machine"\n\n'
+        '[[animation]]\nnamespace = "idle"\n\n'
+        '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\npixels = """\n#\n"""\n\n'
+        '[[animation]]\nnamespace = "run"\n\n'
+        '[[animation.frame]]\nnamespace = "run"\nframe_index = 0\npixels = """\n#\n"""\n\n'
+        '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
+        '[[transition]]\nfrom = "idle"\nto = "run"\nwhen = "velocity_x > 0.1"\n\n'
+        '[[transition]]\nfrom = "run"\nto = "idle"\nwhen = "velocity_x <= 0.1"\n'
+    )
+
+    @pytest.fixture(autouse=True)
+    def real_display(self):
+        """Use a real display for the real AnimatedSprite.
+
+        Yields:
+            None: Control to the test.
+
+        """
+        pygame.init()
+        pygame.display.set_mode((800, 600))
+        yield
+        pygame.quit()
+
+    def _scene_with_real_sprite(self, mocker, tmp_path):
+        from glitchygames.sprites import AnimatedSprite
+
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
+        scene = BitmapEditorScene({})
+        sprite_file = tmp_path / 'machine.toml'
+        sprite_file.write_text(self.TOML, encoding='utf-8')
+        scene.canvas = mocker.Mock()
+        scene.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
+        return scene
+
+    def test_renaming_an_animation_renames_its_transitions(self, mocker, tmp_path):
+        """on_animation_rename renames the animation in the sprite's transitions too."""
+        scene = self._scene_with_real_sprite(mocker, tmp_path)
+        coordinator = scene.film_strip_coordinator
+
+        coordinator._rename_animation_in_sprite(scene.canvas.animated_sprite, 'run', 'sprint')
+
+        assert scene.canvas.animated_sprite.transition_data == [
+            {'from': 'idle', 'to': 'sprint', 'when': 'velocity_x > 0.1'},
+            {'from': 'sprint', 'to': 'idle', 'when': 'velocity_x <= 0.1'},
+        ]
+
+    def test_deleting_an_animation_drops_its_transitions(self, mocker, tmp_path):
+        """Deleting an animation drops the transitions from or to it (with a warning)."""
+        scene = self._scene_with_real_sprite(mocker, tmp_path)
+        coordinator = scene.film_strip_coordinator
+        coordinator.on_sprite_loaded = mocker.Mock()
+        scene.update_film_strip_visibility = mocker.Mock()
+        scene.update_scroll_arrows = mocker.Mock()
+        scene.canvas.show_frame = mocker.Mock()
+        mocker.patch.object(coordinator, '_select_animation_after_deletion')
+
+        coordinator._delete_animation('run', confirmed=True)
+
+        assert 'run' not in scene.canvas.animated_sprite._animations
+        assert scene.canvas.animated_sprite.transition_data == []

@@ -806,6 +806,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self._capture_animation_deletion_for_undo(animation_name)
 
         del self.editor.canvas.animated_sprite._animations[animation_name]  # type: ignore[reportPrivateUsage]
+        # Transitions from or to the deleted animation are dropped (each logged)
+        self.editor.canvas.animated_sprite.remove_transitions_for_animation(animation_name)
         self.log.info('Deleted animation: %s at index %s', animation_name, deleted_index)
 
         # Switch to the first remaining animation and select the previous frame
@@ -1350,6 +1352,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         frames = sprite_to_update._animations[old_name]  # type: ignore[reportPrivateUsage]
         del sprite_to_update._animations[old_name]  # type: ignore[reportPrivateUsage]
         sprite_to_update._animations[new_name] = frames  # type: ignore[reportPrivateUsage]
+        # Transitions from or to the animation follow the new name
+        sprite_to_update.rename_animation_in_transitions(old_name=old_name, new_name=new_name)
         # Maintain animation order list if present
         if hasattr(sprite_to_update, '_animation_order'):
             order = list(getattr(sprite_to_update, '_animation_order', []))

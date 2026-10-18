@@ -1819,6 +1819,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         if hasattr(self.animated_sprite, 'description'):
             animated_sprite.description = self.animated_sprite.description
             self.log.debug(f"Preserved description: '{animated_sprite.description}'")
+        # ...and its animation state machine ([[transition]] sections)
+        animated_sprite.copy_transitions_from(self.animated_sprite)
 
         # Update the sprite's image to match the frame
         animated_sprite.image = frame.image.copy()
@@ -2161,6 +2163,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         viewport_sprite.frame_anchor = self.animated_sprite.frame_anchor
         # ...and each animation's loaded frame_interval and loop
         viewport_sprite.copy_animation_timing_from(self.animated_sprite)
+        # ...and the animation state machine ([[transition]] sections)
+        viewport_sprite.copy_transitions_from(self.animated_sprite)
         if self.animated_sprite.default_hitbox is not None:
             viewport_sprite.default_hitbox = self._viewport_hitbox(
                 self.animated_sprite.default_hitbox

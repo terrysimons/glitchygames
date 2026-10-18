@@ -542,3 +542,60 @@ def test_static_sprite_metadata_survives_a_save_round_trip(tmp_path):
         original_sprite.frame_anchor,
         original_sprite.hitbox,
     )
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+def test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
+    """Load -> save writes every [[transition]] back with the same keys, values and order.
+
+    The writers used to drop them, so saving (e.g. from Bitmappy) lost the animation state
+    machine (cobra 2 -> 0 transitions, Papyrus player 6 -> 0).
+    """
+    import tomllib
+
+    from glitchygames.sprites import AnimatedSprite
+
+    original_data = tomllib.loads(sprite_file.read_text(encoding='utf-8'))
+    saved_file = tmp_path / sprite_file.name
+    AnimatedSprite(str(sprite_file)).save(str(saved_file), 'toml')
+
+    saved_data = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+    assert saved_data.get('transition', []) == original_data.get('transition', [])
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize(
+    ('sprite_file', 'expected_pairs'),
+    [
+        (
+            Path('glitchygames/examples/brave_adventurer_papyrus/sprites/player.toml'),
+            [
+                ('idle', 'running'),
+                ('running', 'idle'),
+                ('idle', 'jumping'),
+                ('running', 'jumping'),
+                ('falling', 'idle'),
+                ('jumping', 'idle'),
+            ],
+        ),
+        (
+            Path('glitchygames/examples/brave_adventurer_papyrus/sprites/cobra.toml'),
+            [('idle', 'strike'), ('strike', 'idle')],
+        ),
+    ],
+    ids=['papyrus-player', 'cobra'],
+)
+def test_state_machine_transitions_reload_in_order(sprite_file, expected_pairs, tmp_path):
+    """The reloaded sprite's state machine has the same transitions in the same order."""
+    from glitchygames.sprites import AnimatedSprite
+
+    saved_file = tmp_path / sprite_file.name
+    AnimatedSprite(str(sprite_file)).save(str(saved_file), 'toml')
+    reloaded_sprite = AnimatedSprite(str(saved_file))
+
+    assert reloaded_sprite.state_machine is not None
+    assert [
+        (transition.from_state, transition.to_state)
+        for transition in reloaded_sprite.state_machine._transitions
+    ] == expected_pairs

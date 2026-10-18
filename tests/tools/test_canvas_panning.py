@@ -536,3 +536,62 @@ class TestViewportSaveKeepsHitboxesAndAnchor:
         animation = tomllib.loads(saved_file.read_text(encoding='utf-8'))['animation'][0]
         assert (animation['frame_interval'], animation['loop']) == (0.15, False)
         assert [frame.get('frame_interval') for frame in animation['frame']] == [None, 0.4]
+
+    def test_viewport_save_keeps_transitions(self, tmp_path):
+        """A panned viewport save writes the sprite's [[transition]] sections back in order."""
+        import tomllib
+
+        from glitchygames.sprites import AnimatedSprite
+
+        sprite_file = tmp_path / 'machine.toml'
+        sprite_file.write_text(
+            '[sprite]\nname = "machine"\n\n'
+            '[[animation]]\nnamespace = "idle"\nframe_interval = 0.15\n\n'
+            '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\n'
+            'pixels = """\n##\n##\n"""\n\n'
+            '[[animation.frame]]\nnamespace = "idle"\nframe_index = 1\n'
+            'pixels = """\n#.\n.#\n"""\n\n'
+            '[[animation]]\nnamespace = "run"\nframe_interval = 0.15\n\n'
+            '[[animation.frame]]\nnamespace = "run"\nframe_index = 0\n'
+            'pixels = """\n.#\n#.\n"""\n\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
+            '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n\n'
+            '[[transition]]\nfrom = "idle"\nto = "run"\nwhen = "abs(velocity_x) > 0.1"\n\n'
+            '[[transition]]\nfrom = "run"\nto = "idle"\nwhen = "abs(velocity_x) <= 0.1"\n',
+            encoding='utf-8',
+        )
+        self.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
+        self.canvas.pan_canvas(1, 0)
+        saved_file = tmp_path / 'viewport.toml'
+
+        self.canvas._save_viewport_sprite(str(saved_file))
+
+        saved_transitions = tomllib.loads(saved_file.read_text(encoding='utf-8'))['transition']
+        assert saved_transitions == [
+            {'from': 'idle', 'to': 'run', 'when': 'abs(velocity_x) > 0.1'},
+            {'from': 'run', 'to': 'idle', 'when': 'abs(velocity_x) <= 0.1'},
+        ]
+
+    def test_static_save_keeps_transitions(self, tmp_path):
+        """The canvas's single-frame save path keeps the sprite's transitions."""
+        import tomllib
+
+        from glitchygames.sprites import AnimatedSprite
+
+        sprite_file = tmp_path / 'single.toml'
+        sprite_file.write_text(
+            '[sprite]\nname = "single"\n\n'
+            '[[animation]]\nnamespace = "idle"\nframe_interval = 0.15\n\n'
+            '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\n'
+            'pixels = """\n##\n##\n"""\n\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
+            '[[transition]]\nfrom = "idle"\nto = "idle"\nwhen = "timer > 1.0"\n',
+            encoding='utf-8',
+        )
+        self.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
+        saved_file = tmp_path / 'static.toml'
+
+        self.canvas._save_as_static_sprite(str(saved_file), 'toml')
+
+        saved_transitions = tomllib.loads(saved_file.read_text(encoding='utf-8'))['transition']
+        assert saved_transitions == [{'from': 'idle', 'to': 'idle', 'when': 'timer > 1.0'}]

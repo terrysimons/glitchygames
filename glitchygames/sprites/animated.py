@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import tomllib
 from collections import Counter
 from enum import Enum
@@ -43,6 +44,85 @@ from .pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
 )
+
+# Characters TOML basic strings must escape with a short escape sequence
+# (https://toml.io/en/v1.0.0#string)
+TOML_SHORT_ESCAPES = {
+    '\\': '\\\\',
+    '"': '\\"',
+    '\b': '\\b',
+    '\t': '\\t',
+    '\n': '\\n',
+    '\f': '\\f',
+    '\r': '\\r',
+}
+# Code points below this, and DEL, are control characters TOML strings must escape
+TOML_FIRST_PRINTABLE_CODE_POINT = 0x20
+TOML_DELETE_CODE_POINT = 0x7F
+# Bare TOML keys may use only these characters
+TOML_BARE_KEY_CHARACTERS = frozenset(
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
+)
+
+
+def toml_basic_string(value: str) -> str:
+    """Quote a string as a TOML basic string, escaping what TOML requires.
+
+    Returns:
+        str: The quoted, escaped string: a quote becomes backslash-quote, a backslash
+        becomes two backslashes and control characters use their escape sequences.
+
+    """
+    escaped_characters: list[str] = []
+    for character in value:
+        if character in TOML_SHORT_ESCAPES:
+            escaped_characters.append(TOML_SHORT_ESCAPES[character])
+        elif (
+            ord(character) < TOML_FIRST_PRINTABLE_CODE_POINT
+            or ord(character) == TOML_DELETE_CODE_POINT
+        ):
+            escaped_characters.append(f'\\u{ord(character):04X}')
+        else:
+            escaped_characters.append(character)
+    return '"' + ''.join(escaped_characters) + '"'
+
+
+def toml_key(key: str) -> str:
+    """Return a TOML key: bare when TOML allows it, otherwise a quoted basic string.
+
+    Returns:
+        str: The key as written in a TOML file.
+
+    """
+    if key and all(character in TOML_BARE_KEY_CHARACTERS for character in key):
+        return key
+    return toml_basic_string(key)
+
+
+def toml_scalar(value: object) -> str:
+    """Format a string, boolean, integer or float as a TOML value.
+
+    Returns:
+        str: The value as written in a TOML file.
+
+    Raises:
+        TypeError: For any other type (TOML tables, arrays and dates are not supported here).
+
+    """
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    if isinstance(value, str):
+        return toml_basic_string(value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if math.isnan(value):
+            return 'nan'
+        if math.isinf(value):
+            return 'inf' if value > 0 else '-inf'
+        return repr(value)
+    msg = f'Cannot write {type(value).__name__} value {value!r} as a TOML scalar'
+    raise TypeError(msg)
 
 
 class FrameAnchor(Enum):
@@ -500,6 +580,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # machine reads _loop_flags too
         self._animation_frame_intervals: dict[str, float] = {}
         self._loop_flags: dict[str, bool] = {}
+        # The [[transition]] tables as loaded (keys and values verbatim, in file order), so a
+        # save writes the animation state machine back; transitions games add in code are not
+        # part of it
+        self.transition_data: list[dict[str, Any]] = []
         self._is_playing: bool = False
         self._is_looping: bool = False
         self._frame_timer: float = 0.0
@@ -826,9 +910,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
     @override
     def remove_animation(self: Self, name: str) -> None:
-        """Remove an animation."""
+        """Remove an animation and the transitions from or to it."""
         if name in self._animations:
             del self._animations[name]
+            self.remove_transitions_for_animation(name)
             if self.frame_manager.current_animation == name:
                 # Switch to first available animation
                 if self._animations:
@@ -837,6 +922,34 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 else:
                     self.frame_manager.current_animation = ''
                     self.frame_manager.current_frame = 0
+
+    def rename_animation_in_transitions(self: Self, *, old_name: str, new_name: str) -> None:
+        """Rename an animation in transition_data, wherever it is a transition's from or to."""
+        for transition in self.transition_data:
+            for end_key in ('from', 'to'):
+                if transition.get(end_key) == old_name:
+                    transition[end_key] = new_name
+
+    def remove_transitions_for_animation(self: Self, animation_name: str) -> None:
+        """Drop the transitions from or to a deleted animation, logging a warning for each."""
+        kept_transitions: list[dict[str, Any]] = []
+        for transition in self.transition_data:
+            if animation_name in {transition.get('from'), transition.get('to')}:
+                self.log.warning(
+                    "Dropping transition %s: animation '%s' was removed", transition, animation_name
+                )
+            else:
+                kept_transitions.append(transition)
+        self.transition_data = kept_transitions
+
+    def copy_transitions_from(self: Self, source: AnimatedSprite) -> None:
+        """Copy another sprite's transition_data (Bitmappy builds derived sprites to save).
+
+        Args:
+            source (AnimatedSprite): The sprite whose transitions to copy.
+
+        """
+        self.transition_data = [dict(transition) for transition in source.transition_data]
 
     @override
     def get_frame(self: Self, animation_name: str, frame_index: int) -> SpriteFrame:
@@ -1041,6 +1154,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._animation_order: list[str] = []
         self._animation_frame_intervals = {}
         self._loop_flags = {}
+        self.transition_data = [dict(transition) for transition in data.get('transition', [])]
 
         color_map, color_order, colors_with_per_pixel_alpha = self.build_color_map(data)
         self._color_map = color_map  # Store color map for later use
@@ -1655,6 +1769,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 {'colors': color_data},
                 getattr(self, '_color_order', None),
             )
+            AnimatedSprite._write_toml_transitions(f, self.transition_data)
 
     def _save_toml(self: Self, filename: str) -> None:
         """Save animated sprite in TOML format.
@@ -1675,6 +1790,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             # Use original color order if available to preserve file format
             color_order = getattr(self, '_color_order', None)
             AnimatedSprite._write_toml_colors(f, data, color_order)
+            AnimatedSprite._write_toml_transitions(f, self.transition_data)
 
     def _build_toml_color_map(self: Self) -> dict[tuple[int, ...], str]:
         """Build color map for TOML format.
@@ -2136,6 +2252,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 r, g, b = color_tuple
                 color_defs[char] = {'red': r, 'green': g, 'blue': b}
         return color_defs
+
+    @staticmethod
+    def _write_toml_transitions(f: IO[str], transitions: list[dict[str, Any]]) -> None:
+        """Write [[transition]] tables in order, each key and value as loaded (escaped)."""
+        for transition in transitions:
+            f.write('\n[[transition]]\n')
+            for key, value in transition.items():
+                f.write(f'{toml_key(key)} = {toml_scalar(value)}\n')
 
     @staticmethod
     def _write_toml_hitbox_section(

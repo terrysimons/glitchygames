@@ -1,5 +1,6 @@
 """Tests for animated sprite functionality."""
 
+import logging
 import math
 import shutil
 import sys
@@ -3231,3 +3232,80 @@ class TestPerAnimationLoop:
         assert sprite.is_looping  # idle (current) is unaffected and still loops
         sprite.set_animation('strike')
         assert sprite.is_looping
+
+
+TRANSITIONS_TOML = (
+    LOOPING_AND_ONE_SHOT_TOML
+    + """
+[[transition]]
+from = "idle"
+to = "strike"
+when = "timer > 2.0"
+
+[[transition]]
+from = "strike"
+to = "idle"
+when = "timer > 0.3"
+"""
+)
+
+
+class TestTransitionData:
+    """Loaded [[transition]] sections are kept as data and follow animation renames/deletes."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @staticmethod
+    def _load(tmp_path) -> AnimatedSprite:
+        toml_file = tmp_path / 'transitions.toml'
+        toml_file.write_text(TRANSITIONS_TOML, encoding='utf-8')
+        return AnimatedSprite(str(toml_file))
+
+    @staticmethod
+    def _saved_transitions(sprite: AnimatedSprite, tmp_path) -> list[dict]:
+        import tomllib
+
+        saved_file = tmp_path / 'resaved.toml'
+        sprite.save(str(saved_file), 'toml')
+        return tomllib.loads(saved_file.read_text(encoding='utf-8')).get('transition', [])
+
+    def test_transitions_are_kept_in_file_order(self, tmp_path):
+        """transition_data holds each [[transition]] table as loaded."""
+        sprite = self._load(tmp_path)
+
+        assert sprite.transition_data == [
+            {'from': 'idle', 'to': 'strike', 'when': 'timer > 2.0'},
+            {'from': 'strike', 'to': 'idle', 'when': 'timer > 0.3'},
+        ]
+
+    def test_renaming_an_animation_renames_it_in_transitions(self, tmp_path):
+        """A renamed animation keeps its transitions under the new name."""
+        sprite = self._load(tmp_path)
+
+        sprite.rename_animation_in_transitions(old_name='strike', new_name='lunge')
+
+        assert self._saved_transitions(sprite, tmp_path) == [
+            {'from': 'idle', 'to': 'lunge', 'when': 'timer > 2.0'},
+            {'from': 'lunge', 'to': 'idle', 'when': 'timer > 0.3'},
+        ]
+
+    def test_removing_an_animation_drops_its_transitions_with_a_warning(self, tmp_path, caplog):
+        """Transitions from or to a removed animation are dropped and logged."""
+        sprite = self._load(tmp_path)
+
+        with caplog.at_level(logging.WARNING):
+            sprite.remove_animation('strike')
+
+        assert sprite.transition_data == []
+        assert 'strike' in caplog.text
+
+    def test_when_strings_with_quotes_and_backslashes_round_trip(self, tmp_path):
+        """Transition when strings are escaped for TOML: quotes and backslashes survive a save."""
+        sprite = self._load(tmp_path)
+        tricky_when = 'name == "a\\\\b" and timer > 1'
+        sprite.transition_data[0]['when'] = tricky_when
+
+        assert self._saved_transitions(sprite, tmp_path)[0]['when'] == tricky_when

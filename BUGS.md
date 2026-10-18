@@ -44,14 +44,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-18
 - **Details**: `glitchygames/bitmappy/animated_canvas.py:~1810`. Identical on main. Fix: copy every sprite-level field the writers save (name, description, frame_anchor, default hitbox), and round-trip-test through this save path.
 
-### 44. TOML Save Drops Animation State Machine Transitions
-- **Description**: The TOML writers never write `[[transition]]` sections, so loading and saving a sprite loses its animation state machine (cobra: 2 transitions → 0; Papyrus player: 6 → 0). Saving a sprite in Bitmappy silently breaks the game's animation logic
-- **Status**: Active
-- **Priority**: High (silent data loss in game assets)
-- **Reporter**: Found by the re-review of `feature/debug-overlay`
-- **Date Reported**: 2026-10-18
-- **Details**: `glitchygames/sprites/animated.py` (both writers). Identical on main. Fix: keep loaded transitions (from, to, when expression, ordering) on the sprite and write them back in order; extend the bundled-sprite round-trip test to compare transitions.
-
 ### 45. Renaming an Animation in Bitmappy Drops Its Timing and Loop Flag
 - **Description**: `_rename_animation_in_sprite` moves the animation's frames but not its loop flag or frame interval, so a renamed one-shot animation stops honouring `loop = false` at runtime and saves as `loop = true` with the most common frame duration as its interval
 - **Status**: Active
@@ -69,6 +61,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: `scripts/legacy_sprite_loader.py:~50`. Unchanged on the branch. Fix the call, or delete the script if it is obsolete.
 
 ## Resolved Bugs
+
+### 44. TOML Save Drops Animation State Machine Transitions
+- **Description**: The TOML writers never wrote `[[transition]]` sections, so loading and saving a sprite lost its animation state machine (cobra: 2 transitions → 0; Papyrus player: 6 → 0). Saving a sprite in Bitmappy silently broke the game's animation logic
+- **Status**: Resolved
+- **Priority**: High (silent data loss in game assets)
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_load_toml` handed the `[[transition]]` tables straight to `AnimationStateMachine.load_from_toml` (which keeps only parsed `Transition` objects) and kept no copy, so neither `_save_toml` nor `_save_toml_single_frame` had anything to write. Bitmappy's derived sprites (viewport save, single-frame canvas save) had nothing to copy either
+- **Solution**: The loader keeps each table verbatim, in file order, in `AnimatedSprite.transition_data`; both writers append them as `[[transition]]` sections with the same keys, values and order (`_write_toml_transitions`). Strings are escaped as TOML basic strings (`toml_basic_string`: backslash, quote and control characters; also `toml_key` and `toml_scalar`), so `when` expressions with quotes or backslashes round-trip. Transitions that games add in code (the Papyrus player's compound falling transitions) are not part of the data and are not written. Bitmappy's viewport and single-frame canvas saves copy the transitions (`copy_transitions_from`); renaming an animation renames it in its transitions (`rename_animation_in_transitions`, called by `FilmStripCoordinator._rename_animation_in_sprite`); deleting one drops the transitions from or to it with a logged warning (`remove_transitions_for_animation`, called by `_delete_animation` and `AnimatedSprite.remove_animation`). Undoing a Bitmappy animation delete does not restore the dropped transitions
+- **Tests**: `test_bundled_transitions_survive_a_save_round_trip` (every bundled sprite) and `test_state_machine_transitions_reload_in_order` (Papyrus player, cobra) in `tests/examples/test_examples_sprites.py`; `TestTransitionData` in `tests/sprites/test_animated_sprite.py`; `test_viewport_save_keeps_transitions` and `test_static_save_keeps_transitions` in `tests/tools/test_canvas_panning.py`; `TestFilmStripAnimationTransitions` in `tests/tools/test_bitmappy_film_strips.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/animated_canvas.py`, `glitchygames/bitmappy/film_strip_coordinator.py`
 
 ### 39. Single-Frame TOML Save Drops the Description
 - **Description**: Saving a single-frame (static) sprite lost its `[sprite] description`
