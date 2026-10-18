@@ -156,7 +156,9 @@ class CollisionManager:
 
         Each sprite_a's rect is computed once, before its inner loop, so a callback
         that moves sprite_a does not change which later sprite_b it is tested against
-        in this pass.
+        in this pass. Both layers are iterated as snapshots taken at the start, so a
+        callback may add or remove sprites (e.g. collect a pickup) without skipping
+        pairs; a sprite removed during the pass can still be paired later in it.
 
         Args:
             layer_a_name: Name of the first layer.
@@ -168,12 +170,14 @@ class CollisionManager:
         layer_b = self.get_layer(layer_b_name)
 
         same_layer = layer_a_name == layer_b_name
+        # Snapshots: callbacks may change the layers while we iterate
+        sprites_a = list(layer_a.sprites)
+        all_sprites_b = sprites_a if same_layer else list(layer_b.sprites)
 
-        for index_a, sprite_a in enumerate(layer_a.sprites):
+        for index_a, sprite_a in enumerate(sprites_a):
             rect_a = get_sprite_collision_rect(sprite_a)
 
-            start_b = index_a + 1 if same_layer else 0
-            sprites_b = layer_b.sprites[start_b:] if same_layer else layer_b.sprites
+            sprites_b = all_sprites_b[index_a + 1 :] if same_layer else all_sprites_b
 
             for sprite_b in sprites_b:
                 rect_b = get_sprite_collision_rect(sprite_b)
@@ -186,7 +190,7 @@ class CollisionManager:
         layer_name: str,
         callback: Callable[[Any, Any], None],
     ) -> None:
-        """Check one sprite against all sprites in a layer.
+        """Check one sprite against all sprites in a layer (iterating a snapshot of it).
 
         Args:
             sprite: The sprite to check.
@@ -197,7 +201,8 @@ class CollisionManager:
         layer = self.get_layer(layer_name)
         rect = get_sprite_collision_rect(sprite)
 
-        for other in layer.sprites:
+        # Snapshot: the callback may change the layer while we iterate
+        for other in list(layer.sprites):
             if other is sprite:
                 continue
             other_rect = get_sprite_collision_rect(other)

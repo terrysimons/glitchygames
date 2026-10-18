@@ -676,3 +676,48 @@ class TestPapyrusHitboxScale:
         assert frame is not None
         native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
         assert player.hitbox == native_hitbox
+
+
+class TestCallbacksThatRemoveSprites:
+    """Callbacks may remove sprites from the layers being checked without skipping pairs."""
+
+    def test_check_overlap_collects_two_overlapped_pickups_in_one_pass(self):
+        """Removing the first pickup inside the callback must not skip the second."""
+        manager = CollisionManager()
+        manager.add_layer('player')
+        manager.add_layer('cogs')
+        player = FakeSprite(world_x=100.0, world_y=100.0)
+        first_cog = FakeSprite(world_x=110.0, world_y=110.0)
+        second_cog = FakeSprite(world_x=120.0, world_y=105.0)
+        manager.get_layer('player').add(player)
+        manager.get_layer('cogs').add(first_cog)
+        manager.get_layer('cogs').add(second_cog)
+        collected = []
+
+        def collect(_player, cog):
+            collected.append(cog)
+            manager.get_layer('cogs').remove(cog)
+
+        manager.check_overlap('player', 'cogs', callback=collect)
+
+        assert collected == [first_cog, second_cog]
+        assert manager.get_layer('cogs').sprites == []
+
+    def test_check_single_collects_two_overlapped_pickups_in_one_pass(self):
+        """check_single iterates a snapshot too."""
+        manager = CollisionManager()
+        manager.add_layer('cogs')
+        player = FakeSprite(world_x=100.0, world_y=100.0)
+        first_cog = FakeSprite(world_x=110.0, world_y=110.0)
+        second_cog = FakeSprite(world_x=120.0, world_y=105.0)
+        manager.get_layer('cogs').add(first_cog)
+        manager.get_layer('cogs').add(second_cog)
+        collected = []
+
+        def collect(_player, cog):
+            collected.append(cog)
+            manager.get_layer('cogs').remove(cog)
+
+        manager.check_single(player, 'cogs', callback=collect)
+
+        assert collected == [first_cog, second_cog]

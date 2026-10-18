@@ -474,3 +474,24 @@ class TestHitboxLooseEnds:
         assert clockwork_scene.collisions.get_layer('cogs').sprites == (
             clockwork_scene.collectible_sprites
         )
+
+
+def test_two_overlapped_cogs_are_both_collected_in_one_frame(clockwork_scene, played):
+    """Collecting one cog (removing it from the layer) must not skip the next one."""
+    scene = clockwork_scene
+    player = scene.player
+    player.update()
+    player.world_x = 400.0
+    player.world_y = 200.0
+    hitbox = get_sprite_collision_rect(player)
+    first_cog, second_cog = scene.collectible_sprites[:2]
+    for cog in (first_cog, second_cog):
+        cog.dt_tick(0.0)
+        cog.world_x = float(hitbox.left + 2)
+        cog.world_y = float(hitbox.top + 10)
+        cog._base_world_y = cog.world_y
+
+    scene._check_collectibles()
+
+    assert first_cog not in scene.collectible_sprites
+    assert second_cog not in scene.collectible_sprites
