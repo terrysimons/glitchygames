@@ -591,3 +591,50 @@ class TestRedrawnGameSprites:
         striking_visible = cobra.image.get_bounding_rect()
         assert striking_visible != idle_visible
         assert get_sprite_collision_rect(cobra).size == striking_visible.size
+
+
+class TestPapyrusHitboxScale:
+    """Papyrus draws sprites at SPRITE_SCALE, so its TOML hitboxes must scale with them."""
+
+    @pytest.fixture(autouse=True)
+    def real_display(self):
+        """Papyrus sprites load TOML art and convert against a real display."""
+        pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 600))
+
+    def test_scaled_papyrus_player_collides_at_twice_the_toml_hitbox(self):
+        """After its first tick the player's collision rect is the TOML hitbox times 2."""
+        from glitchygames.examples.brave_adventurer_papyrus.constants import SPRITE_SCALE
+        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+
+        player = PapyrusPlayer(100.0, 200.0, pygame.sprite.LayeredDirty())
+        player.dt_tick(0.0)
+
+        assert player.hitbox_scale == SPRITE_SCALE == 2
+        frame = player.get_current_frame()
+        assert frame is not None
+        native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
+        assert native_hitbox is not None
+        assert get_sprite_collision_rect(player) == pygame.Rect(
+            round(player.world_x) + native_hitbox.x * 2,
+            round(player.world_y) + native_hitbox.y * 2,
+            native_hitbox.width * 2,
+            native_hitbox.height * 2,
+        )
+
+    def test_scale_one_keeps_native_hitbox(self):
+        """apply_transparency_and_scale with scale_factor=1 leaves hitboxes native."""
+        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+        from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+            apply_transparency_and_scale,
+        )
+
+        player = PapyrusPlayer(100.0, 200.0, pygame.sprite.LayeredDirty())
+        apply_transparency_and_scale(player, scale_factor=1)
+
+        assert player.hitbox_scale == 1
+        frame = player.get_current_frame()
+        assert frame is not None
+        native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
+        assert player.hitbox == native_hitbox

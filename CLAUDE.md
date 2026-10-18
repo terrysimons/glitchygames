@@ -205,7 +205,7 @@ annotations with `debug_draw(surface, camera)`.
 
 **Hitboxes** (`glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
 trimmed, `collision/bounds.py`, measured every query so redrawn images are fine);
-`TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win.
+`TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win (native pixels times `AnimatedSprite.hitbox_scale`).
 
 **Rendering Optimization**:
 - `pygame.sprite.LayeredDirty` for dirty-rect rendering

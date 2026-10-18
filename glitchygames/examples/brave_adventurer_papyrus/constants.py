@@ -124,7 +124,9 @@ SPRITE_SCALE = 2
 # Magenta transparency key
 MAGENTA_KEY = (255, 0, 255)
 
-# Papyrus sprite dimensions (native TOML size * SPRITE_SCALE for collision hitboxes)
+# Papyrus sprite dimensions (native TOML size * SPRITE_SCALE): drawn body sizes used for
+# terrain, wall and pit resolution and camera visibility in game.py/enemies.py. Sprite-vs-
+# sprite hitboxes come from the TOML [hitbox] sections, scaled by AnimatedSprite.hitbox_scale.
 # Player native image: 20x28. Visible feet end at row 25 in the tallest
 # frames. Collision height uses feet position so the player stands on ground.
 PAPYRUS_PLAYER_WIDTH = 20 * SPRITE_SCALE

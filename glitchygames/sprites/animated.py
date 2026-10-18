@@ -134,6 +134,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def hitbox(self) -> pygame.Rect:
         """The effective hitbox for the current frame.
 
+        Hitboxes are in native (TOML) pixels and are multiplied by hitbox_scale, offset
+        and size, for sprites drawn scaled up (Papyrus draws at 2x).
+
         Resolution order:
         1. Current frame's explicit hitbox (per-frame override)
         2. Sprite-level default hitbox ([sprite.hitbox])
@@ -145,17 +148,32 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """
         current_frame = self.get_current_frame()
         if current_frame is not None and current_frame.has_explicit_hitbox:
-            return current_frame.hitbox
+            return self._scaled_hitbox(current_frame.hitbox)
         if self._default_hitbox is not None:
-            return self._default_hitbox
+            return self._scaled_hitbox(self._default_hitbox)
         # Fallback: the frame's visible pixels (cached per frame surface), or its full rect.
         # The bounds come from the unflipped frame image; a game that mirrors self.image (e.g.
         # facing left) gets unmirrored bounds, so asymmetric sprites need a TOML hitbox.
         if current_frame is not None:
             if trims_transparent_hitbox(self):
-                return current_frame.opaque_bounds()
-            return current_frame.rect
+                return self._scaled_hitbox(current_frame.opaque_bounds())
+            return self._scaled_hitbox(current_frame.rect)
+        # No frame: the sprite's own rect is already in drawn pixels, so it is not scaled
         return pygame.Rect(0, 0, self._gg_rect.width, self._gg_rect.height)
+
+    def _scaled_hitbox(self: Self, native_hitbox: pygame.Rect) -> pygame.Rect:
+        """Return a new rect: a native-pixel hitbox multiplied by hitbox_scale.
+
+        Returns:
+            pygame.Rect: The hitbox in drawn pixels (never the caller's rect object).
+
+        """
+        return pygame.Rect(
+            native_hitbox.x * self.hitbox_scale,
+            native_hitbox.y * self.hitbox_scale,
+            native_hitbox.width * self.hitbox_scale,
+            native_hitbox.height * self.hitbox_scale,
+        )
 
     def get_hitbox_world_rect(
         self: Self,
@@ -215,6 +233,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         # Sprite-level default hitbox (loaded from [sprite.hitbox] in TOML)
         self._default_hitbox: pygame.Rect | None = None
+
+        # Multiplier from native TOML pixels to drawn pixels for hitboxes (see hitbox);
+        # games that draw this sprite scaled up set it to their scale factor
+        self.hitbox_scale: int = 1
 
         if filename:
             self.load(filename)

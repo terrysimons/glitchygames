@@ -2524,6 +2524,49 @@ class TestAnimatedSpriteVisiblePixelHitbox:
 
         assert sprite.hitbox == pygame.Rect(0, 0, 5, 6)
 
+    def test_hitbox_scale_defaults_to_one(self):
+        """Unscaled sprites keep native-pixel hitboxes."""
+        sprite = AnimatedSprite()
+        assert sprite.hitbox_scale == 1
+
+    def test_hitbox_scale_multiplies_explicit_frame_hitbox(self):
+        """A sprite drawn at 2x gets its per-frame TOML hitbox at 2x offset and size."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(
+            pygame.Rect(3, 4, 10, 18), hitbox=pygame.Rect(3, 0, 11, 27)
+        )
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.hitbox_scale = 2
+
+        assert sprite.hitbox == pygame.Rect(6, 0, 22, 54)
+        assert frame.hitbox == pygame.Rect(3, 0, 11, 27)  # the frame's own hitbox is untouched
+        assert sprite.get_hitbox_world_rect(world_x=100.0, world_y=200.0) == pygame.Rect(
+            106, 200, 22, 54
+        )
+
+    def test_hitbox_scale_multiplies_default_hitbox(self):
+        """The sprite-level default hitbox is scaled too."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.default_hitbox = pygame.Rect(1, 2, 12, 20)
+        sprite.hitbox_scale = 2
+
+        assert sprite.hitbox == pygame.Rect(2, 4, 24, 40)
+        assert sprite.default_hitbox == pygame.Rect(1, 2, 12, 20)
+
+    def test_hitbox_scale_multiplies_trimmed_fallback(self):
+        """The visible-pixel fallback, measured on the native frame, is scaled too."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.hitbox_scale = 3
+
+        assert sprite.hitbox == pygame.Rect(9, 12, 30, 54)
+
     def test_default_hitbox_wins_over_trimming(self):
         """A sprite-level TOML hitbox is used as-is."""
         sprite = AnimatedSprite()

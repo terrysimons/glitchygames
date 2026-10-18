@@ -68,13 +68,17 @@ def apply_transparency_and_scale(
     Always reads from the current animation frame's source surface
     (not self.image) to prevent cumulative double-scaling.
     The SRCALPHA format set by prepare_papyrus_sprite() is preserved
-    through pygame.transform.scale().
+    through pygame.transform.scale(). Also sets the sprite's hitbox_scale,
+    so its native-pixel TOML hitboxes match the scaled image.
 
     Args:
         sprite: The sprite to process.
         scale_factor: Integer scale multiplier.
 
     """
+    # TOML hitboxes are in native pixels; the sprite is drawn scale_factor times larger
+    sprite.hitbox_scale = scale_factor
+
     frame = sprite.get_current_frame()
     if frame is None:
         return
