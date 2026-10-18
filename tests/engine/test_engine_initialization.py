@@ -23,8 +23,8 @@ from glitchygames.scenes import Scene
 from glitchygames.timing import GIL_SWITCH_INTERVAL_SECONDS, FastTimer
 from tests.mocks import MockFactory
 
-EXPECTED_DEFAULT_TARGET_FPS = 60.5
-EXPECTED_DEFAULT_PERIOD_NS = 16_528_926  # round(1e9 / 60.5)
+EXPECTED_DEFAULT_TARGET_FPS = 60.44
+EXPECTED_DEFAULT_PERIOD_NS = 16_545_334  # round(1e9 / 60.44)
 
 
 class TestEngineInitialization:
@@ -284,7 +284,7 @@ class TestTargetFpsArguments:
     """Tests for the --target-fps argument and DEFAULT_TARGET_FPS."""
 
     def test_target_fps_defaults_to_engine_default(self):
-        """Test that --target-fps is None when not passed (resolved later to 60.5)."""
+        """Test that --target-fps is None when not passed (resolved later to 60.44)."""
         parser = GameEngine.args(argparse.ArgumentParser())
 
         args = parser.parse_args([])
@@ -314,7 +314,7 @@ class TestTargetFpsArguments:
         assert math.isclose(args.target_fps, 144.5, abs_tol=1e-9)
 
     def test_default_target_fps_period_in_nanoseconds(self):
-        """Test that the default target yields a 16.53 ms frame period."""
+        """Test that the default target yields a 16.55 ms frame period."""
         assert FastTimer().start_frame(DEFAULT_TARGET_FPS) == EXPECTED_DEFAULT_PERIOD_NS
 
 
