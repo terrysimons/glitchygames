@@ -66,7 +66,7 @@ def screen_rect_for(
     world_rect = get_sprite_collision_rect(sprite)
     screen_rect = world_rect.copy()
     if hasattr(sprite, 'world_x') and hasattr(sprite, 'world_y'):
-        screen_rect.topleft = camera.apply(world_rect.x, world_rect.y)
+        screen_rect.topleft = camera.world_to_screen(world_rect.x, world_rect.y)
     screen_rect.move_ip(screen_offset)
     return screen_rect
 

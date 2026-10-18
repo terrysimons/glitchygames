@@ -298,3 +298,17 @@ class TestPhysicsPanel:
         scene = types.SimpleNamespace(camera=camera)
         self.draw_physics(surface=surface, scene=scene, camera=camera, font=font)
         font.render.assert_not_called()
+
+
+class TestReadOnlyCamera:
+    """The panels never mark the camera as applied."""
+
+    def test_panels_leave_camera_unapplied(self, surface, camera, font):
+        """Drawing both panels must not flip Camera2D.has_been_applied."""
+        sprite = PhysicsSprite(body=Body(velocity_x=300), world_x=100, world_y=100)
+        scene = build_scene(camera=camera, layers={'a': [sprite]})
+        draw_collision(surface=surface, scene=scene, camera=camera, font=font)
+        draw_physics_panel(
+            surface=surface, scene=scene, camera=camera, screen_offset=(0, 0), font=font
+        )
+        assert camera.has_been_applied is False
