@@ -156,6 +156,42 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             self._native_frame_hitbox(current_frame), native_frame_width=current_frame.rect.width
         )
 
+    def common_hitbox_x_range(self: Self) -> tuple[int, int]:
+        """Return the horizontal hitbox span shared by every animation frame.
+
+        The intersection of all frames' hitbox x-ranges (drawn pixels, after hitbox_scale and
+        hitbox_flip_x), relative to the sprite's position. Unlike ``hitbox`` it does not
+        change from frame to frame, so games use it for support (standing on ledges and wall
+        tops): a wider falling frame then cannot catch a player that just walked off an edge
+        with a narrower idle frame, which would make it land, fall and land again forever.
+
+        Returns:
+            tuple[int, int]: (left, right) offsets; right is exclusive. Without frames, or if
+            the frames share no column, the current hitbox's x-range.
+
+        """
+        common_left: int | None = None
+        common_right: int | None = None
+        for frames in self._animations.values():
+            for frame in frames:
+                frame_hitbox = self._drawn_hitbox(
+                    self._native_frame_hitbox(frame), native_frame_width=frame.rect.width
+                )
+                common_left = (
+                    frame_hitbox.left
+                    if common_left is None
+                    else max(common_left, frame_hitbox.left)
+                )
+                common_right = (
+                    frame_hitbox.right
+                    if common_right is None
+                    else min(common_right, frame_hitbox.right)
+                )
+        if common_left is None or common_right is None or common_left >= common_right:
+            current_hitbox = self.hitbox
+            return (current_hitbox.left, current_hitbox.right)
+        return (common_left, common_right)
+
     def _native_frame_hitbox(self: Self, frame: SpriteFrame) -> pygame.Rect:
         """Return a frame's hitbox in native, unflipped pixels (resolution order of hitbox).
 

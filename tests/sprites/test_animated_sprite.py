@@ -2597,6 +2597,25 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         sprite.default_hitbox = pygame.Rect(1, 2, 12, 20)
         assert sprite.hitbox == pygame.Rect(16 - (1 + 12), 2, 12, 20)
 
+    def test_common_hitbox_x_range_is_the_intersection_of_all_frames(self):
+        """Support uses the columns every frame covers, scaled and mirrored like hitbox."""
+        sprite = AnimatedSprite()
+        idle = self._frame_with_visible_box(
+            pygame.Rect(0, 0, 1, 1), hitbox=pygame.Rect(3, 0, 8, 20)
+        )
+        falling = self._frame_with_visible_box(
+            pygame.Rect(0, 0, 1, 1), hitbox=pygame.Rect(0, 0, 10, 20)
+        )
+        sprite.add_animation('idle', [idle])
+        sprite.add_animation('falling', [falling])
+        sprite.set_animation('idle')
+
+        assert sprite.common_hitbox_x_range() == (3, 10)
+        sprite.hitbox_scale = 2
+        assert sprite.common_hitbox_x_range() == (6, 20)
+        sprite.hitbox_flip_x = True  # mirrored in 16 * 2 = 32 px
+        assert sprite.common_hitbox_x_range() == (12, 26)
+
     def test_default_hitbox_wins_over_trimming(self):
         """A sprite-level TOML hitbox is used as-is."""
         sprite = AnimatedSprite()

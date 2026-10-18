@@ -386,3 +386,94 @@ class TestPapyrusFacingLeftHitbox:
         player.velocity_x = -200.0
         player.dt_tick(0.0)
         assert get_sprite_collision_rect(player).left == 0
+
+
+def _tick_like_the_game(scene):
+    """One frame: player tick, terrain resolution, then draw (Brave Adventurer draws in update).
+
+    Returns:
+        True if the player landed this frame (in the air before, on the ground after).
+
+    """
+    player = scene.player
+    player.velocity_x = 0.0
+    player.dt_tick(1 / 60)
+    was_in_the_air = not player.on_ground
+    scene._resolve_player_ground_collision()
+    scene._resolve_player_wall_collision()
+    player.update()
+    return was_in_the_air and player.on_ground
+
+
+class TestStableSupportAtEdges:
+    """Standing at a ledge or wall-top edge never oscillates between idle and falling.
+
+    Falling poses/frames are wider than idle ones, so support measured with the current
+    hitbox would drop an idle player, catch it on the wider falling hitbox, and repeat.
+    """
+
+    SEGMENT_LEFT = 300
+    SEGMENT_WIDTH = 200
+
+    def _count_landings_at(self, scene, *, start_x, start_y, facing_right):
+        player = scene.player
+        player.facing_right = facing_right
+        player.world_x = float(start_x)
+        player.world_y = float(start_y)
+        player.velocity_y = 0.0
+        for _ in range(20):
+            _tick_like_the_game(scene)
+        return sum(_tick_like_the_game(scene) for _ in range(40))
+
+    @pytest.mark.parametrize('facing_right', [True, False], ids=['facing_right', 'facing_left'])
+    def test_ledge_edges(self, adventurer_scene, facing_right):
+        """At every start position around both ends of a ledge: at most one landing."""
+        scene = adventurer_scene
+        scene.ground_sprites[:] = [
+            types.SimpleNamespace(
+                world_x=float(self.SEGMENT_LEFT), segment_width=self.SEGMENT_WIDTH
+            )
+        ]
+        scene.wall_sprites[:] = []
+        segment_right = self.SEGMENT_LEFT + self.SEGMENT_WIDTH
+        starts = [
+            *range(self.SEGMENT_LEFT - 50, self.SEGMENT_LEFT + 10),
+            *range(segment_right - 40, segment_right + 10),
+        ]
+        oscillating = []
+        for start_x in starts:
+            landings = self._count_landings_at(
+                scene, start_x=start_x, start_y=GROUND_Y - 49, facing_right=facing_right
+            )
+            if landings > 1:
+                oscillating.append((start_x, landings))
+        assert oscillating == []
+
+    @pytest.mark.parametrize('facing_right', [True, False], ids=['facing_right', 'facing_left'])
+    def test_wall_top_edges(self, adventurer_scene, facing_right):
+        """Standing on a wall top near either edge: at most one landing."""
+        scene = adventurer_scene
+        wall_x = 400.0
+        wall_height = 64
+        scene.wall_sprites[:] = [
+            types.SimpleNamespace(
+                world_x=wall_x, world_y=float(GROUND_Y - wall_height), wall_height=wall_height
+            )
+        ]
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
+        wall_left = round(wall_x)
+        wall_right = wall_left + STONE_WALL_WIDTH
+        oscillating = []
+        for start_x in [
+            *range(wall_left - 40, wall_left + 8),
+            *range(wall_right - 30, wall_right + 10),
+        ]:
+            landings = self._count_landings_at(
+                scene,
+                start_x=start_x,
+                start_y=GROUND_Y - wall_height - 49,
+                facing_right=facing_right,
+            )
+            if landings > 1:
+                oscillating.append((start_x, landings))
+        assert oscillating == []

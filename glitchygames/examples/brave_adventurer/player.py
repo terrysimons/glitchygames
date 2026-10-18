@@ -8,6 +8,7 @@ import pygame
 
 # GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.animation.expressions import Expression
+from glitchygames.collision.bounds import opaque_bounds
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer.constants import (
     FALLING_VELOCITY_THRESHOLD,
@@ -52,6 +53,32 @@ class _FallingCondition(Expression):
         return context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD and not context.get(
             'on_ground', True
         )
+
+
+# Common (every-pose) hitbox x-range per facing, measured once; see common_hitbox_x_range
+_COMMON_POSE_X_RANGES: dict[bool, tuple[int, int]] = {}
+# Animation times sampled when measuring poses (two seconds at 50 ms covers every cycle)
+_POSE_SAMPLE_TIMES = tuple(sample_index * 0.05 for sample_index in range(40))
+
+
+def _measure_common_pose_x_range(*, facing_right: bool) -> tuple[int, int]:
+    """Draw every pose for one facing and intersect their visible-pixel x-ranges.
+
+    Returns:
+        tuple[int, int]: (left, right) of the columns every pose covers; right exclusive.
+
+    """
+    scratch = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT), pygame.SRCALPHA)
+    common_left = 0
+    common_right = PLAYER_WIDTH
+    for state in (Player.IDLE, Player.RUNNING, Player.JUMPING, Player.FALLING):
+        for animation_time in _POSE_SAMPLE_TIMES:
+            scratch.fill((0, 0, 0, 0))
+            draw_player(scratch, state, facing_right=facing_right, animation_timer=animation_time)
+            visible = opaque_bounds(scratch)
+            common_left = max(common_left, visible.left)
+            common_right = min(common_right, visible.right)
+    return (common_left, common_right)
 
 
 class Player(Sprite):
@@ -204,6 +231,24 @@ class Player(Sprite):
         self.physics.facing_right = value
 
     # --- Physics ---
+
+    def common_hitbox_x_range(self: Self) -> tuple[int, int]:
+        """Return the horizontal hitbox span shared by every pose, for the current facing.
+
+        Poses are drawn procedurally and differ in width (falling is wider than idle), so
+        support (ledges, wall tops) uses the columns every pose covers: otherwise an idle
+        player at an edge would fall, be caught by the wider falling pose, land, and repeat.
+        Measured once per facing by drawing every state over a range of animation times.
+
+        Returns:
+            tuple[int, int]: (left, right) offsets from the drawn position; right exclusive.
+
+        """
+        cached_range = _COMMON_POSE_X_RANGES.get(self.facing_right)
+        if cached_range is None:
+            cached_range = _measure_common_pose_x_range(facing_right=self.facing_right)
+            _COMMON_POSE_X_RANGES[self.facing_right] = cached_range
+        return cached_range
 
     def _fit_world_edge_to_hitbox(self: Self) -> None:
         """Let the hitbox, not the image's transparent margin, stop at the world's left edge.

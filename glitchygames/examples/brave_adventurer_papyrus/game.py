@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.camera import Camera2D
+from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.engine import GameEngine
 from glitchygames.examples.brave_adventurer.constants import (
@@ -321,9 +322,12 @@ class PapyrusBraveAdventurerScene(Scene):
 
         # Horizontal support comes from the collision rect (hitbox), not the drawn width
         player_rect = get_sprite_collision_rect(self.player)
+        # Support uses the span every frame/pose shares, so a pose change cannot drop and
+        # re-catch a player at a ledge edge (see common_hitbox_x_range)
+        support_left, support_right = self._player_support_span()
         trailing_foot_x = self._get_trailing_foot_x(
-            body_x=player_rect.left,
-            body_width=player_rect.width,
+            body_x=support_left,
+            body_width=support_right - support_left,
             velocity_x=self.player.velocity_x,
         )
         player_bottom = round(self.player.world_y) + PAPYRUS_PLAYER_HEIGHT
@@ -395,6 +399,8 @@ class PapyrusBraveAdventurerScene(Scene):
         player_top = round(self.player.world_y)
         player_bottom = player_top + PAPYRUS_PLAYER_HEIGHT
 
+        support_left, support_right = self._player_support_span()
+
         for wall in self.wall_sprites:
             wall_left = round(wall.world_x)
             wall_right = wall_left + STONE_WALL_WIDTH
@@ -417,6 +423,9 @@ class PapyrusBraveAdventurerScene(Scene):
                 and player_bottom <= wall_top + landing_tolerance
                 and player_top < wall_top
                 and self.player.velocity_y >= 0
+                # Supported by the span every frame/pose shares, not the current hitbox
+                and support_right > wall_left
+                and support_left < wall_right
             )
 
             if standing_on_top:
@@ -434,6 +443,22 @@ class PapyrusBraveAdventurerScene(Scene):
                     self.player.world_x = float(wall_left - (player_offset_x + player_rect.width))
                 else:
                     self.player.world_x = float(wall_right - player_offset_x)
+
+    def _player_support_span(self: Self) -> tuple[int, int]:
+        """Return the player's support span in world pixels: (left, right), right exclusive.
+
+        It is the hitbox x-range every animation frame or pose shares (it does not change
+        when the frame changes), at the player's snapped world position.
+
+        Returns:
+            tuple[int, int]: The span's left and right world x.
+
+        """
+        snapped_world_x, _ = snapped_world_position(
+            self.player, self.player.world_x, self.player.world_y
+        )
+        left_offset, right_offset = self.player.common_hitbox_x_range()
+        return (snapped_world_x + left_offset, snapped_world_x + right_offset)
 
     def _entered_wall_from_left(
         self: Self, *, player_rect: pygame.Rect, wall_left: int, wall_right: int
