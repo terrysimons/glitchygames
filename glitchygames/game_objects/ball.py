@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 import pygame
 
 from glitchygames import game_objects
+from glitchygames.collision.detection import get_collision_rect, snapped_world_position
+from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.color import WHITE
 from glitchygames.movement import Speed
 
@@ -606,8 +608,8 @@ class BallSprite(Sprite):
         # Ensure the ball is marked as dirty for redrawing
         self.dirty = 1
 
-        # Check for paddle collisions and prevent clipping
-        self._check_paddle_collisions()
+        # Paddle hits are found by the game's CollisionManager after the balls move and
+        # resolved by handle_paddle_collision() (see PaddleSlap's update()).
 
         self._do_bounce()
 
@@ -815,48 +817,49 @@ class BallSprite(Sprite):
         # Mark ball as needing visual update
         self.dirty = 2  # Force full redraw for visual effects
 
-    def _check_paddle_collisions(self: Self) -> None:
-        """Check for paddle collisions and prevent ball clipping through paddles.
+    def handle_paddle_collision(self: Self, paddle: Sprite) -> bool:
+        """Bounce off a paddle if the ball's visible circle touches it.
+
+        Meant as the fine check after a CollisionManager broad-phase overlap. The ball is
+        the circle inscribed in its collision rect (its visible pixels); the paddle is its
+        collision rect. Touching counts. On a hit the ball is placed with its visible edge
+        flush against the paddle face on its side (decided by collision-rect centres), its
+        horizontal speed points away from the paddle, the paddle's sound plays, a
+        PADDLE_BOUNCE speed-up and the max_speed clamp are applied, and on_paddle_collision
+        is called.
 
         Args:
-            None
+            paddle (Sprite): The paddle the broad phase paired with this ball.
+
+        Returns:
+            bool: True if the ball hit the paddle and bounced; False (with no side effects)
+            otherwise.
 
         """
-        # Get all paddle sprites from the same groups as this ball
-        paddle_sprites = [
-            sprite
-            for group in self.groups()
-            for sprite in group
-            if (hasattr(sprite, 'snd') or sprite.__class__.__name__.lower().find('paddle') != -1)
-            and sprite != self
-        ]
+        ball_rect = get_collision_rect(self, self.world_x, self.world_y)
+        paddle_rect = get_sprite_collision_rect(paddle)
 
-        # Check collision with each paddle
-        for paddle in paddle_sprites:
-            assert paddle.rect is not None
-            if self.rect.colliderect(paddle.rect):
-                # Ball is overlapping with paddle - adjust position to prevent clipping
-                self._adjust_position_for_paddle_collision(paddle)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+        radius = ball_rect.width / 2
+        ball_center_x = ball_rect.x + ball_rect.width / 2
+        ball_center_y = ball_rect.y + ball_rect.height / 2
+        closest_x = min(max(ball_center_x, paddle_rect.left), paddle_rect.right)
+        closest_y = min(max(ball_center_y, paddle_rect.top), paddle_rect.bottom)
+        distance_squared = (ball_center_x - closest_x) ** 2 + (ball_center_y - closest_y) ** 2
+        if distance_squared > radius * radius:
+            return False
 
-    def _adjust_position_for_paddle_collision(self: Self, paddle: Sprite) -> None:
-        """Adjust ball position to prevent clipping through paddle and make it bounce.
-
-        Args:
-            paddle (Sprite): The paddle sprite that the ball is colliding with
-
-        """
-        assert paddle.rect is not None
-        # Determine which side of the paddle the ball is on
-        ball_center_x = self.rect.centerx
-        paddle_center_x = paddle.rect.centerx
+        # Offset of the visible pixels from the snapped position the ball is drawn at
+        snapped_world_x, _ = snapped_world_position(self, self.world_x, self.world_y)
+        visible_offset_x = ball_rect.x - snapped_world_x
+        paddle_center_x = paddle_rect.x + paddle_rect.width / 2
 
         if ball_center_x < paddle_center_x:
-            # Ball is on the left side of paddle - position ball to the left
-            self.world_x = float(paddle.rect.left - self.rect.width)
+            # Ball is on the left side of paddle - visible right edge on the left face
+            self.world_x = float(paddle_rect.left - (visible_offset_x + ball_rect.width))
             self.speed.x = -abs(self.speed.x)
         else:
-            # Ball is on the right side of paddle - position ball to the right
-            self.world_x = float(paddle.rect.right)
+            # Ball is on the right side of paddle - visible left edge on the right face
+            self.world_x = float(paddle_rect.right - visible_offset_x)
             self.speed.x = abs(self.speed.x)
 
         # Play collision sound if paddle has one
@@ -876,3 +879,4 @@ class BallSprite(Sprite):
 
         # Mark ball as dirty for redraw
         self.dirty = 2
+        return True

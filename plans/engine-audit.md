@@ -32,7 +32,7 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 | 4 | High-score table | Open | `_save_high_score` copied into 4 games |
 | 5 | Sound effect synthesis | **Done** (this branch) | Same spec: toolkit, recipes, live voices |
 | 6 | Engine world space (absorbs pixel snapping and camera follow) | Open — next design | See below |
-| 7 | Balls on `CollisionManager` | Open | Commit `fa5750f`: "except balls which we'll do later" |
+| 7 | Balls on `CollisionManager` | Partly done (feature/debug-overlay): ball–paddle and ball–ball detection on CollisionManager; resolution waits for #1 | Commit `fa5750f`: "except balls which we'll do later" |
 | 8 | Sprite transparency/scaling helpers; masks instead of alpha trimming | Open | Papyrus `sprite_utils.py` |
 | 9 | Particles | Open | None exist |
 | 10 | Timers and cooldowns on game time | Open | Ad-hoc cooldown dicts in `ball.py` and PaddleSlap |

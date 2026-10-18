@@ -5,11 +5,13 @@ import math
 import sys
 from pathlib import Path
 
+import pygame
 import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.examples.paddleslap import (
     PADDLESLAP_SERVE,
     PADDLESLAP_SPAWN_SERVE,
@@ -25,6 +27,10 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from tests.mocks.test_mock_factory import MockFactory
+
+# The class's autouse MockFactory patches replace pygame.sprite.LayeredDirty with a mock
+# group, so keep the real class for tests that need dt_tick to reach real sprites.
+_RealLayeredDirty = pygame.sprite.LayeredDirty
 
 
 class TestPaddleslapExample:
@@ -187,6 +193,53 @@ class TestPaddleslapExample:
 
         new_ball = game.balls[-1]
         assert (new_ball.speed.x, new_ball.speed.y) == (250.0, 125.0)
+
+    def test_ball_moving_into_paddle_bounces_in_one_game_update(self, mocker):
+        """One dt_tick + update: the collision manager finds the overlap and the ball bounces.
+
+        BallSprite.dt_tick no longer checks paddles; the game's update runs
+        collisions.check_overlap('balls', 'paddles') and the ball handles the hit.
+        """
+        game = Game(options=self.mock_options)
+        ball = game.balls[0]
+        paddle = game.player1
+        paddle.snd = mocker.Mock()
+        game.all_sprites = _RealLayeredDirty(game.player1, game.player2, ball)
+        handle_spy = mocker.spy(ball, 'handle_paddle_collision')
+        check_overlap_spy = mocker.spy(game.collisions, 'check_overlap')
+
+        # Just right of the left paddle, moving left: 15 px into it after a 0.05 s frame.
+        ball.world_x = float(paddle.rect.right + 5)
+        ball.world_y = float(paddle.rect.centery - ball.rect.height // 2)
+        ball.speed.x = -300.0
+        ball.speed.y = 0.0
+
+        game.dt_tick(0.05)
+        assert get_sprite_collision_rect(ball).colliderect(get_sprite_collision_rect(paddle))
+        handle_spy.assert_not_called()
+
+        game.update()
+
+        handle_spy.assert_called_once_with(paddle)
+        assert any(
+            call.args[:2] == ('balls', 'paddles') for call in check_overlap_spy.call_args_list
+        )
+        assert ball.speed.x > 0
+        assert get_sprite_collision_rect(ball).left == paddle.rect.right
+        paddle.snd.play.assert_called_once()
+        assert ball.alive()
+
+    def test_dead_ball_still_in_layer_is_not_bounced(self, mocker):
+        """A ball killed this frame (still in the 'balls' layer until cleanup) is skipped."""
+        game = Game(options=self.mock_options)
+        ball = game.balls[0]
+        paddle = game.player1
+        handle_spy = mocker.spy(ball, 'handle_paddle_collision')
+        mocker.patch.object(ball, 'alive', return_value=False)
+
+        game._on_ball_paddle_collision(ball, paddle)
+
+        handle_spy.assert_not_called()
 
     def test_paddleslap_game_setup(self):
         """Test that the game setup method works correctly."""

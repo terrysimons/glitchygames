@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 import pygame
 import pygame.freetype
 
+from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickEventManager
@@ -476,8 +477,15 @@ class Game(Scene):
                 f'{self.player2.rect.height})',
             )
 
-            # Paddle collision handling is now done in BallSprite._check_paddle_collisions()
-            # The new system prevents clipping and triggers ball spawn via callback
+        # Ball-paddle hits: the collision manager pairs overlapping collision rects (AABB broad
+        # phase) and BallSprite.handle_paddle_collision does the exact circle-vs-rect check and
+        # the bounce (which also triggers ball spawn via on_paddle_collision). This runs after
+        # every ball moved in dt_tick and before ball-ball collisions and dead-ball cleanup.
+        self.collisions.check_overlap(
+            'balls',
+            'paddles',
+            callback=self._on_ball_paddle_collision,
+        )
 
         # Check for ball-to-ball collisions
         self._handle_ball_collisions()
@@ -660,6 +668,17 @@ class Game(Scene):
         # NORMAL or default
         return 2.0
 
+    @staticmethod
+    def _on_ball_paddle_collision(ball: BallSprite, paddle: VerticalPaddle) -> None:
+        """Handle a ball-paddle candidate from the collision manager.
+
+        A ball that left the screen this frame was killed in its dt_tick but stays in the
+        'balls' layer until update() removes dead balls, so it is skipped here.
+        """
+        if not ball.alive():
+            return
+        ball.handle_paddle_collision(paddle)
+
     def _handle_ball_collisions(self: Self) -> None:
         """Handle ball-to-ball collisions with proper physics.
 
@@ -745,14 +764,20 @@ class Game(Scene):
     ) -> tuple[float, float, float, int]:
         """Calculate distance and collision threshold between two balls.
 
+        Uses the balls' collision rects (their visible circles, the same rects the
+        collision manager's broad phase compared), so balls collide when the circles
+        players see touch rather than when their larger transparent images do.
+
         Returns:
             Tuple of (dx, dy, distance, collision_distance).
 
         """
-        dx = float(ball2.rect.centerx - ball1.rect.centerx)
-        dy = float(ball2.rect.centery - ball1.rect.centery)
+        ball1_rect = get_sprite_collision_rect(ball1)
+        ball2_rect = get_sprite_collision_rect(ball2)
+        dx = float(ball2_rect.centerx - ball1_rect.centerx)
+        dy = float(ball2_rect.centery - ball1_rect.centery)
         distance = math.sqrt(dx * dx + dy * dy)
-        collision_distance = int(ball1.rect.width // 2 + ball2.rect.width // 2)
+        collision_distance = int(ball1_rect.width // 2 + ball2_rect.width // 2)
         return dx, dy, distance, collision_distance
 
     @staticmethod

@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-import pygame
 import pytest
 
 import glitchygames.game_objects.ball as ball_module
@@ -21,6 +20,7 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
     snap_to_pixel,
 )
+from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.movement import Speed
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -1228,10 +1228,21 @@ class TestDtTickMovementMismatch:
         assert ball.rect.x != original_x or ball.rect.y != original_y
 
 
-class TestPaddleCollisionSpeedCap:
-    """Test paddle collision speed capping (lines 897-899, 903)."""
+def _speed_cap_paddle(*, x):
+    """A real VerticalPaddle at (x, 90), 20x100, with no collision sound."""
+    paddle = VerticalPaddle('Test Paddle', (20, 100), (x, 90), (255, 255, 255), 400)
+    paddle.snd = None
+    return paddle
 
-    def test_paddle_collision_caps_speed(self, mock_pygame_patches, mocker):
+
+class TestPaddleCollisionSpeedCap:
+    """Test handle_paddle_collision's speed cap, sound and callback (mocked pygame).
+
+    With pygame mocked the ball's circle is not drawn, so its collision rect is its full
+    20x20 image; the visible-pixel geometry is covered in test_ball_paddle_collision.py.
+    """
+
+    def test_paddle_collision_caps_speed(self, mock_pygame_patches):
         """Test that paddle collision caps speed at the configured max_speed."""
         ball = BallSprite(
             x=100,
@@ -1240,86 +1251,70 @@ class TestPaddleCollisionSpeedCap:
             height=20,
             speed_up_settings=SpeedUpSettings(max_speed=500.0),
         )
-
-        # Create a mock paddle
-        paddle = mocker.Mock()
-        paddle.rect = pygame.Rect(90, 90, 20, 100)
-        paddle.snd = None
+        paddle = _speed_cap_paddle(x=90)
 
         # Set extremely high speed
         ball.speed.x = 1000.0
         ball.speed.y = 1000.0
 
         # Position ball overlapping with paddle
-        assert ball.rect is not None
-        ball.rect.x = 95
-        ball.rect.y = 100
+        ball.world_x = 95.0
+        ball.world_y = 100.0
 
-        ball._adjust_position_for_paddle_collision(paddle)
+        assert ball.handle_paddle_collision(paddle) is True
 
         # Speed should be capped
         speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert speed_magnitude <= 500.0 + 0.01  # max_speed = 500.0
 
-    def test_paddle_collision_without_max_speed_does_not_cap(self, mock_pygame_patches, mocker):
+    def test_paddle_collision_without_max_speed_does_not_cap(self, mock_pygame_patches):
         """Test that default settings (max_speed=None) leave a fast ball uncapped."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
-
-        paddle = mocker.Mock()
-        paddle.rect = pygame.Rect(90, 90, 20, 100)
-        paddle.snd = None
+        paddle = _speed_cap_paddle(x=90)
 
         ball.speed.x = 1000.0
         ball.speed.y = 1000.0
+        ball.world_x = 95.0
+        ball.world_y = 100.0
 
-        assert ball.rect is not None
-        ball.rect.x = 95
-        ball.rect.y = 100
-
-        ball._adjust_position_for_paddle_collision(paddle)
+        assert ball.handle_paddle_collision(paddle) is True
 
         # No cap and no PADDLE_BOUNCE trigger: magnitude is unchanged by the collision
         speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert speed_magnitude == pytest.approx(math.sqrt(2) * 1000.0)
 
     def test_paddle_collision_with_sound(self, mock_pygame_patches, mocker):
-        """Test paddle collision plays paddle's sound (lines 886->890)."""
+        """Test paddle collision plays paddle's sound."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
-
-        paddle = mocker.Mock()
-        paddle.rect = pygame.Rect(120, 90, 20, 100)
+        paddle = _speed_cap_paddle(x=120)
         paddle.snd = mocker.Mock()
 
         ball.speed.x = 100.0
         ball.speed.y = 50.0
 
         # Ball center is to the right of paddle center
-        assert ball.rect is not None
-        ball.rect.x = 130
-        ball.rect.y = 100
+        ball.world_x = 130.0
+        ball.world_y = 100.0
 
-        ball._adjust_position_for_paddle_collision(paddle)
+        assert ball.handle_paddle_collision(paddle) is True
 
         paddle.snd.play.assert_called_once()
 
     def test_paddle_collision_triggers_on_paddle_collision(self, mock_pygame_patches, mocker):
-        """Test paddle collision calls on_paddle_collision if it exists (line 903)."""
+        """Test paddle collision calls on_paddle_collision if it exists."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
 
         mock_callback = mocker.Mock()
         ball.on_paddle_collision = mock_callback  # type: ignore[unresolved-attribute]
 
-        paddle = mocker.Mock()
-        paddle.rect = pygame.Rect(120, 90, 20, 100)
-        paddle.snd = None
+        paddle = _speed_cap_paddle(x=120)
 
         ball.speed.x = 100.0
         ball.speed.y = 50.0
-        assert ball.rect is not None
-        ball.rect.x = 130
-        ball.rect.y = 100
+        ball.world_x = 130.0
+        ball.world_y = 100.0
 
-        ball._adjust_position_for_paddle_collision(paddle)
+        assert ball.handle_paddle_collision(paddle) is True
 
         mock_callback.assert_called_once_with(ball)
 
@@ -1359,26 +1354,20 @@ class TestBallMovementMismatchWarning:
         assert ball.rect.y >= 0
 
 
-class TestBallCheckPaddleCollisions:
-    """Test _check_paddle_collisions with actual paddle sprites (line 859->858)."""
+class TestBallHandlePaddleCollisionMiss:
+    """Test handle_paddle_collision with a paddle the ball does not touch."""
 
-    def test_check_paddle_collisions_no_matching_sprites(self, mock_pygame_patches, mocker):
-        """Test _check_paddle_collisions when no paddle sprites overlap.
-
-        Covers branch 859->858 where colliderect returns False.
-        """
+    def test_far_paddle_is_not_a_collision(self, mock_pygame_patches):
+        """A paddle far from the ball returns False and leaves the ball's velocity alone."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
+        ball.world_x = 100.0
+        ball.world_y = 100.0
+        ball.speed.x = 100.0
+        paddle = _speed_cap_paddle(x=500)
 
-        # Create a mock group with a non-colliding sprite
-        mock_group = mocker.Mock()
-        mock_sprite = mocker.Mock()
-        mock_sprite.rect = pygame.Rect(500, 500, 20, 100)  # Far away
-        mock_sprite.__class__.__name__ = 'PaddleSprite'
-        mock_group.__iter__ = mocker.Mock(return_value=iter([mock_sprite, ball]))
-
-        mocker.patch.object(ball, 'groups', return_value=[mock_group])
-
-        ball._check_paddle_collisions()
+        assert ball.handle_paddle_collision(paddle) is False
+        assert ball.speed.x == 100.0
+        assert ball.world_x == 100.0
 
 
 class TestBallBottomBounceZeroSpeed:
