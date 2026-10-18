@@ -141,20 +141,37 @@ class TestBounceResponse:
         assert ball.speed.x == 100.0
         assert math.isclose(ball.speed.y, 50.0)
 
-    def test_side_uses_collision_rect_centres(self, paddle):
-        """A ball centred left of the paddle's centre goes left even if it moves right."""
-        # Visible box (54, 95)-(64, 105): centre 59 < paddle centre 60.
-        ball = make_ball(world_x=49, world_y=90, speed_x=-100.0)
+    def test_fast_ball_past_the_paddle_centre_moving_right_hits_the_left_face(self, paddle):
+        """A ball moving right always hits the left face, even if one long frame (30 fps, a
+        hitch) carried its centre past the paddle's centre; it must not be ejected out the back.
+        """
+        # Visible box (61, 95)-(71, 105): centre 66 > paddle centre 60, moving right.
+        ball = make_ball(world_x=56, world_y=90, speed_x=600.0)
         assert ball.handle_paddle_collision(paddle) is True
-        assert ball.speed.x == -100.0
+        assert ball.speed.x == -600.0
         assert get_sprite_collision_rect(ball).right == paddle.rect.left
 
-    def test_ball_centred_on_the_paddle_goes_right(self, paddle):
-        """Exactly centred counts as the right side, as before."""
-        # Visible box (55, 95)-(65, 105): centre 60 == paddle centre 60.
-        ball = make_ball(world_x=50, world_y=90, speed_x=-100.0)
+    def test_ball_moving_left_hits_the_right_face(self, paddle):
+        """A ball moving left hits the right face even with its centre left of the paddle's."""
+        # Visible box (54, 95)-(64, 105): centre 59 < paddle centre 60, moving left.
+        ball = make_ball(world_x=49, world_y=90, speed_x=-100.0)
         assert ball.handle_paddle_collision(paddle) is True
         assert ball.speed.x == 100.0
+        assert get_sprite_collision_rect(ball).left == paddle.rect.right
+
+    def test_horizontally_still_ball_uses_collision_rect_centres(self, paddle):
+        """With speed.x == 0 the face falls back to ball centre vs paddle centre."""
+        # Visible box (54, 95)-(64, 105): centre 59 < paddle centre 60.
+        ball = make_ball(world_x=49, world_y=90, speed_x=0.0)
+        assert ball.handle_paddle_collision(paddle) is True
+        assert get_sprite_collision_rect(ball).right == paddle.rect.left
+
+    def test_still_ball_centred_on_the_paddle_goes_right(self, paddle):
+        """Exactly centred and not moving horizontally counts as the right side, as before."""
+        # Visible box (55, 95)-(65, 105): centre 60 == paddle centre 60.
+        ball = make_ball(world_x=50, world_y=90, speed_x=0.0)
+        assert ball.handle_paddle_collision(paddle) is True
+        assert get_sprite_collision_rect(ball).left == paddle.rect.right
 
     def test_hit_plays_the_paddle_sound(self, paddle):
         """The paddle's collision sound plays once."""

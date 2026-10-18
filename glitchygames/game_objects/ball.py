@@ -881,10 +881,11 @@ class BallSprite(Sprite):
         Meant as the fine check after a CollisionManager broad-phase overlap. The ball is
         the circle inscribed in its collision rect (its visible pixels); the paddle is its
         collision rect. Touching counts. On a hit the ball is placed with its visible edge
-        flush against the paddle face on its side (decided by collision-rect centres), its
-        horizontal speed points away from the paddle, the paddle's sound plays, a
-        PADDLE_BOUNCE speed-up and the max_speed clamp are applied, and on_paddle_collision
-        is called.
+        flush against the face it is moving toward (moving right hits the left face, moving
+        left the right face; with no horizontal speed, the side of the paddle's centre its
+        collision-rect centre is on), its horizontal speed points away from the paddle, the
+        paddle's sound plays, a PADDLE_BOUNCE speed-up and the max_speed clamp are applied,
+        and on_paddle_collision is called.
 
         Args:
             paddle (Sprite): The paddle the broad phase paired with this ball.
@@ -909,12 +910,22 @@ class BallSprite(Sprite):
         visible_offset_x = ball_rect.offset_x
         paddle_center_x = paddle_rect.x + paddle_rect.width / 2
 
-        if ball_center_x < paddle_center_x:
-            # Ball is on the left side of paddle - visible right edge on the left face
+        # The face comes from the direction of travel, not position: after a long frame
+        # (30 fps, a hitch) a fast ball's centre may already be past the paddle's centre,
+        # and a position test would eject it out the back of the paddle.
+        if self.speed.x > 0:
+            hits_left_face = True
+        elif self.speed.x < 0:
+            hits_left_face = False
+        else:
+            hits_left_face = ball_center_x < paddle_center_x
+
+        if hits_left_face:
+            # Ball hits the paddle's left face - visible right edge on the left face
             self.world_x = float(paddle_rect.left - (visible_offset_x + ball_rect.width))
             self.speed.x = -abs(self.speed.x)
         else:
-            # Ball is on the right side of paddle - visible left edge on the right face
+            # Ball hits the paddle's right face - visible left edge on the right face
             self.world_x = float(paddle_rect.right - visible_offset_x)
             self.speed.x = abs(self.speed.x)
 
