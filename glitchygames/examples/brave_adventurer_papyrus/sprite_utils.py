@@ -37,17 +37,23 @@ def _convert_to_alpha_surface(surface: pygame.Surface) -> pygame.Surface:
     return alpha_surface
 
 
-def prepare_papyrus_sprite(sprite: AnimatedSprite) -> None:
+def prepare_papyrus_sprite(sprite: AnimatedSprite, scale_factor: int = SPRITE_SCALE) -> None:
     """Convert all animation frames from colorkey to per-pixel alpha.
 
     Call this immediately after AnimatedSprite.__init__() loads the TOML file.
     Replaces every frame surface with an SRCALPHA version where magenta
-    pixels are fully transparent.
+    pixels are fully transparent, and sets the sprite's hitbox_scale to the
+    scale it will be drawn at, so its hitboxes are scaled from construction on
+    (before its first dt_tick).
 
     Args:
         sprite: The AnimatedSprite to prepare.
+        scale_factor: Integer scale the sprite is drawn at.
 
     """
+    # TOML hitboxes are in native pixels; the sprite is drawn scale_factor times larger
+    sprite.hitbox_scale = scale_factor
+
     for frames in sprite.animation_data.values():
         for frame in frames:
             frame.image = _convert_to_alpha_surface(frame.image)

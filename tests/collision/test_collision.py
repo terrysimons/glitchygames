@@ -623,6 +623,46 @@ class TestPapyrusHitboxScale:
             native_hitbox.height * 2,
         )
 
+    @pytest.mark.parametrize(
+        'sprite_name', ['player', 'cobra', 'scarab', 'scorpion', 'gold_scarab']
+    )
+    def test_freshly_constructed_sprites_have_scaled_hitboxes_before_any_tick(
+        self, sprite_name
+    ):
+        """No frame ever uses native-size hitboxes: the scale is set when the sprite is built."""
+        from glitchygames.examples.brave_adventurer_papyrus.constants import SPRITE_SCALE
+        from glitchygames.examples.brave_adventurer_papyrus.enemies import (
+            PapyrusCobra,
+            PapyrusScarab,
+            PapyrusScorpion,
+        )
+        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+        from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+
+        group = pygame.sprite.LayeredDirty()
+        builders = {
+            'player': lambda: PapyrusPlayer(100.0, 200.0, group),
+            'cobra': lambda: PapyrusCobra(100.0, group),
+            'scarab': lambda: PapyrusScarab(100.0, group),
+            'scorpion': lambda: PapyrusScorpion(100.0, group),
+            'gold_scarab': lambda: PapyrusGoldScarab(100.0, 200.0, group),
+        }
+        sprite = builders[sprite_name]()
+
+        assert sprite.hitbox_scale == SPRITE_SCALE
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        if frame.has_explicit_hitbox:
+            native_hitbox = frame.hitbox
+        elif sprite.default_hitbox is not None:
+            native_hitbox = sprite.default_hitbox
+        else:
+            native_hitbox = frame.opaque_bounds()
+        assert sprite.hitbox.size == (
+            native_hitbox.width * SPRITE_SCALE,
+            native_hitbox.height * SPRITE_SCALE,
+        )
+
     def test_scale_one_keeps_native_hitbox(self):
         """apply_transparency_and_scale with scale_factor=1 leaves hitboxes native."""
         from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
