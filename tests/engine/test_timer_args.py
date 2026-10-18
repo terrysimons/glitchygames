@@ -74,3 +74,35 @@ def test_timer_args_overrides(mocker):
     assert opts['sleep_granularity_ns'] == 0
     assert opts['windows_timer_1ms'] is True
     assert opts['log_timer_jitter'] is True
+
+
+def _parse_graphics_arguments(argument_list):
+    """Parse command-line arguments with the engine's real Graphics Options.
+
+    Returns:
+        The parsed argparse namespace.
+
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    GameEngine.args(parser)
+    return parser.parse_args(argument_list)
+
+
+def test_timer_backend_defaults_to_fast():
+    """The fast timer backend is the default."""
+    assert _parse_graphics_arguments([]).timer_backend == 'fast'
+
+
+def test_timer_backend_accepts_pygame():
+    """The legacy pygame backend can still be selected."""
+    assert _parse_graphics_arguments(['--timer-backend=pygame']).timer_backend == 'pygame'
+
+
+def test_timer_backend_rejects_invalid_choice():
+    """An unknown timer backend is rejected by argparse."""
+    import pytest
+
+    with pytest.raises(SystemExit):
+        _parse_graphics_arguments(['--timer-backend=bogus'])

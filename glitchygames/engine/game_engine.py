@@ -226,9 +226,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         group.add_argument(
             '--timer-backend',
-            help='timer backend for draw loop pacing (pygame|fast)',
+            help='timer backend for draw loop pacing (default: fast; pygame is the legacy backend)',
             choices=['pygame', 'fast'],
-            default='pygame',
+            default='fast',
         )
         group.add_argument(
             '--sleep-granularity-ns',

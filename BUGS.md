@@ -14,6 +14,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 26. Paced Frames Measured in Whole Milliseconds; Fractional Target FPS Truncated
+- **Description**: In Clockwork Keep (target 60, default pygame timer) the target-relative FPS histogram showed 68.5% of frames in "90-99% (54-59)" and 31.5% in ">=100%", although the game ran at a steady 60 FPS
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: User
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-17
+- **Root Cause**: (1) With the `pygame` timer backend, `PygameTimer.ns_now()` is `pygame.time.get_ticks() * 1_000_000` (whole milliseconds), and `SceneManager._handle_frame_pacing` overwrote `self.dt` from those timestamps. A 16.67 ms cadence was measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS, the reported 2:1 split), and `_track_performance` records `1 / self.dt`, so paced frames were quantized again (the uncapped path was fixed in #25, this path was not). (2) `SceneManager.start` called `timer.start_frame(int(self.target_fps))`, truncating fractional targets (60.5 became 60), and both timers computed `1_000_000_000 // target_fps`
+- **Solution**: (1) Paced `dt` is measured with `time.perf_counter()` from a frame start recorded in the main loop; deadlines still use the timer's own clock. (2) The `int(...)` truncation was removed; `start_frame(target_fps: float)` in both timers returns `round(1_000_000_000 / target_fps)` (0 when not positive), and `target_fps` attributes are annotated `float`. For integer targets the period is now rounded rather than floored (60 FPS: 16_666_667 ns instead of 16_666_666). (3) `--timer-backend` now defaults to `fast` (`pygame` remains a choice); CLAUDE.md updated
+- **Tests**: `TestHandleFramePacing` in `tests/scenes/test_scene.py`; `test_scene_manager_passes_fractional_target_fps_to_timer` in `tests/scenes/test_scene_timer_pacing.py`; `TestFractionalTargetFps` in `tests/timing/test_timing.py`; `test_timer_backend_*` in `tests/engine/test_timer_args.py`
+- **Files**: `glitchygames/scenes/scene.py`, `glitchygames/timing.py`, `glitchygames/engine/game_engine.py`, `CLAUDE.md`
+
 ### 25. FPS Statistics Sampled pygame's 10-Frame Counter
 - **Description**: Per-frame FPS statistics held repeated, quantized and stale values. A PauseScene run had 10 frames, 9 at 243.9 (10000/41) and 1 stale 526.3, so the median equalled the minimum. The report also said `dropped top/bottom 5.0%` when no frames were dropped (fewer than 20 frames at 5% drops none)
 - **Status**: Resolved

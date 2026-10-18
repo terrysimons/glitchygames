@@ -13,6 +13,7 @@ class FakeTimer:
     def __init__(self) -> None:
         """Initialize the fake timer with call counters."""
         self.start_calls = 0
+        self.start_frame_targets: list[float] = []
         self.compute_calls = 0
         self.sleep_calls = 0
         self._now = 0
@@ -27,7 +28,7 @@ class FakeTimer:
         self._now += 100_000
         return self._now
 
-    def start_frame(self, target_fps: int) -> int:
+    def start_frame(self, target_fps: float) -> int:
         """Record a start_frame call and return a 60 FPS period.
 
         Returns:
@@ -35,6 +36,7 @@ class FakeTimer:
 
         """
         self.start_calls += 1
+        self.start_frame_targets.append(target_fps)
         return 16_666_667
 
     def compute_deadline(self, prev_deadline_ns: int | None, period_ns: int) -> int:
@@ -102,3 +104,34 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
     assert fake_timer.start_calls >= 1
     assert fake_timer.compute_calls >= 1
     assert fake_timer.sleep_calls >= 1
+
+
+def test_scene_manager_passes_fractional_target_fps_to_timer(monkeypatch, mocker):
+    """Test that a fractional target FPS reaches start_frame without truncation."""
+    sm = SceneManager()
+    fake_timer = FakeTimer()
+    engine_mock = mocker.Mock()
+    engine_mock.OPTIONS = {
+        'update_type': 'update',
+        'fps_log_interval_ms': 1000,
+        'target_fps': 60.5,
+        'log_timer_jitter': False,
+    }
+    engine_mock.timer = fake_timer
+    sm.game_engine = engine_mock
+    sm.target_fps = 60.5
+
+    monkeypatch.setattr(sm, '_update_scene', lambda: None)
+    monkeypatch.setattr(sm, '_process_events', lambda: None)
+    monkeypatch.setattr(sm, '_render_scene', lambda: None)
+
+    def stop_after_first_frame():
+        sm.quit_requested = True
+
+    monkeypatch.setattr(sm, '_update_display', stop_after_first_frame)
+
+    sm.active_scene = MockFactory.create_event_test_scene_mock()
+    sm.active_scene.next_scene = sm.active_scene
+    sm.start()
+
+    assert fake_timer.start_frame_targets[0] == 60.5

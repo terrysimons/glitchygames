@@ -54,8 +54,8 @@ class TestPygameTimer:
     def test_start_frame_with_fps(self):
         timer = PygameTimer()
         period = timer.start_frame(60)
-        # 1_000_000_000 // 60 = 16666666
-        assert period == 1_000_000_000 // 60
+        # round(1_000_000_000 / 60) = 16666667
+        assert period == 16_666_667
 
     def test_start_frame_zero_fps(self):
         timer = PygameTimer()
@@ -118,7 +118,7 @@ class TestFastTimer:
     def test_start_frame_with_fps(self):
         timer = FastTimer()
         period = timer.start_frame(60)
-        assert period == 1_000_000_000 // 60
+        assert period == 16_666_667
 
     def test_start_frame_zero_fps(self):
         timer = FastTimer()
@@ -203,8 +203,8 @@ ONE_MS_IN_NS = 1_000_000
 ONE_S_IN_NS = 1_000_000_000
 TARGET_FPS_60 = 60
 TARGET_FPS_120 = 120
-EXPECTED_PERIOD_60 = ONE_S_IN_NS // TARGET_FPS_60
-EXPECTED_PERIOD_120 = ONE_S_IN_NS // TARGET_FPS_120
+EXPECTED_PERIOD_60 = 16_666_667  # round(1e9 / 60)
+EXPECTED_PERIOD_120 = 8_333_333  # round(1e9 / 120)
 
 
 class TestMsToNs:
@@ -497,3 +497,25 @@ class TestCreateTimerExtended:
         options = {'timer_backend': 'fast'}
         timer = create_timer(None, options=options)
         assert isinstance(timer, FastTimer)
+
+
+class TestFractionalTargetFps:
+    """Fractional target FPS is rounded to a nanosecond period, not truncated."""
+
+    def test_fast_timer_fractional_target(self):
+        assert FastTimer().start_frame(60.5) == 16_528_926
+
+    def test_fast_timer_integer_target_rounds_up(self):
+        assert FastTimer().start_frame(60) == 16_666_667
+
+    def test_fast_timer_zero_target(self):
+        assert FastTimer().start_frame(0) == 0
+
+    def test_pygame_timer_fractional_target(self):
+        assert PygameTimer().start_frame(60.5) == 16_528_926
+
+    def test_pygame_timer_integer_target_rounds_up(self):
+        assert PygameTimer().start_frame(60) == 16_666_667
+
+    def test_pygame_timer_zero_target(self):
+        assert PygameTimer().start_frame(0) == 0

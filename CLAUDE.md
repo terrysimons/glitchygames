@@ -101,8 +101,8 @@ nox -s build-wheel         # Build wheel (.whl) only
 # Run with default settings
 uv run bitmappy
 
-# High-precision timing backend
-uv run bitmappy --timer-backend=fast
+# Legacy pygame timing backend (the fast backend is the default)
+uv run bitmappy --timer-backend=pygame
 
 # Custom target FPS
 uv run bitmappy --target-fps=120
@@ -134,8 +134,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 
 **Frame Pacing** (`glitchygames/timing.py`)
 - Two timer backends:
-  - `PygameTimer`: Legacy pygame-based timing
-  - `FastTimer`: High-resolution `time.perf_counter_ns()` with sleep+spin hybrid
+  - `FastTimer` (default): High-resolution `time.perf_counter_ns()` with sleep+spin hybrid
+  - `PygameTimer`: Legacy pygame-based timing (whole milliseconds); select with `--timer-backend=pygame`
+- Paced frame time (`dt`, FPS tracking) is always measured with `time.perf_counter()`, and
+  `target_fps` may be fractional (the period is `round(1e9 / target_fps)` ns)
 - Configurable sleep granularity for tight frame pacing
 - Windows timer resolution control via WinMM
 

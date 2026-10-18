@@ -54,15 +54,18 @@ class PygameTimer:
         """
         return self._pg.time.get_ticks() * 1_000_000
 
-    def start_frame(self, target_fps: int) -> int:
+    def start_frame(self, target_fps: float) -> int:
         """Return the frame period in nanoseconds for the given target FPS.
 
+        The target may be fractional (60.5 FPS); the period is rounded to the nearest
+        nanosecond rather than floored, so 60 FPS is 16_666_667 ns.
+
         Returns:
-            int: The frame period in nanoseconds.
+            int: The frame period in nanoseconds (0 when the target is not positive).
 
         """
-        if target_fps and target_fps > 0:
-            return 1_000_000_000 // target_fps
+        if target_fps > 0:
+            return round(1_000_000_000 / target_fps)
         return 0
 
     def compute_deadline(self, prev_deadline_ns: int | None, period_ns: int) -> int:
@@ -130,15 +133,18 @@ class FastTimer:
         """
         return time.perf_counter_ns()
 
-    def start_frame(self, target_fps: int) -> int:
+    def start_frame(self, target_fps: float) -> int:
         """Return the frame period in nanoseconds for the given target FPS.
 
+        The target may be fractional (60.5 FPS); the period is rounded to the nearest
+        nanosecond rather than floored, so 60 FPS is 16_666_667 ns.
+
         Returns:
-            int: The frame period in nanoseconds.
+            int: The frame period in nanoseconds (0 when the target is not positive).
 
         """
-        if target_fps and target_fps > 0:
-            return 1_000_000_000 // target_fps
+        if target_fps > 0:
+            return round(1_000_000_000 / target_fps)
         return 0
 
     def compute_deadline(self, prev_deadline_ns: int | None, period_ns: int) -> int:

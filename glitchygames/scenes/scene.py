@@ -67,7 +67,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.screen = None
         self.update_type: str = 'update'
         self.fps_log_interval_ms: int = 1000
-        self.target_fps: int = 0
+        self.target_fps: float = 0
         self.dt: float = 0.0
         self.timer: Any = 0
         self._game_engine: GameEngine | None = None
@@ -434,7 +434,7 @@ class SceneManager(SceneInterface, events.EventManager):
         timer: object | None,
         period_ns: int,
         prev_deadline_ns: int | None,
-        frame_start_ns: int,
+        frame_start_seconds: float,
     ) -> None:
         """Handle frame pacing via timer or fallback to pygame clock.
 
@@ -442,7 +442,7 @@ class SceneManager(SceneInterface, events.EventManager):
             timer: The timer backend instance (or None)
             period_ns: Frame period in nanoseconds (0 if no timer)
             prev_deadline_ns: Previous frame deadline in nanoseconds (or None)
-            frame_start_ns: Frame start time in nanoseconds
+            frame_start_seconds: Frame start time from time.perf_counter() in seconds
 
         """
         if timer is not None and period_ns > 0:
@@ -451,8 +451,11 @@ class SceneManager(SceneInterface, events.EventManager):
             deadline_ns: int = timer_any.compute_deadline(prev_deadline_ns, period_ns)  # ty: ignore[unresolved-attribute]
             wake_ns: int = timer_any.sleep_until_next(deadline_ns)  # ty: ignore[unresolved-attribute]
             self._timer_prev_deadline_ns = deadline_ns
-            # Update dt based on actual pacing wake time for next iteration
-            self.dt = (wake_ns - frame_start_ns) / 1e9
+            # Measure dt with time.perf_counter(), NOT the timer backend's clock. The pygame
+            # backend's ns_now() is whole milliseconds (get_ticks() * 1_000_000), so a true
+            # 16.67 ms cadence would be measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS).
+            # Deadlines above still use the timer's own clock; only the measurement changes.
+            self.dt = time.perf_counter() - frame_start_seconds
             # Optional jitter logging
             if self.OPTIONS.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
@@ -495,11 +498,9 @@ class SceneManager(SceneInterface, events.EventManager):
             timer = getattr(self.game_engine, 'timer', None)
             period_ns = 0
             if timer is not None:
-                period_ns = timer.start_frame(int(self.target_fps))
+                period_ns = timer.start_frame(self.target_fps)
 
             prev_deadline_ns = getattr(self, '_timer_prev_deadline_ns', None)
-            frame_start_ns = timer.ns_now() if timer is not None else 0
-
             now: float = time.perf_counter()
             self.dt = now - previous_time
             previous_time = now
@@ -535,7 +536,12 @@ class SceneManager(SceneInterface, events.EventManager):
                 ):
                     self.switch_to_scene(self.active_scene.next_scene)
 
-            self._handle_frame_pacing(timer, period_ns, prev_deadline_ns, frame_start_ns)
+            self._handle_frame_pacing(
+                timer=timer,
+                period_ns=period_ns,
+                prev_deadline_ns=prev_deadline_ns,
+                frame_start_seconds=now,
+            )
 
             # End timing the actual processing
             processing_end = time.perf_counter()
@@ -915,7 +921,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # This helps us keep the upper layers clean by not requiring
         # new scenes to care about the SceneManager when being
         # instantiated.
-        self.target_fps: int = 0
+        self.target_fps: float = 0
         self.fps: float = 0.0
         self.dt: float = 0.0
         self.dt_timer: float = 0.0
