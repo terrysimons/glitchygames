@@ -330,6 +330,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if self.active_scene is None:
             return False
+        # `is True` rather than truthiness: Mock sprites report a truthy Mock for any attribute
         return any(
             getattr(sprite, 'is_active', False) is True for sprite in self.active_scene.all_sprites
         )
@@ -345,6 +346,9 @@ class SceneManager(SceneInterface, events.EventManager):
         Args:
             event (events.HashableEvent): The key-down event.
 
+        Raises:
+            AttributeError: If neither the active scene nor the game engine has a handler.
+
         """
         overlay_keys = {pygame.K_F3, pygame.K_F4}
         if event.key in overlay_keys and not self._active_scene_has_focused_sprite():
@@ -355,9 +359,14 @@ class SceneManager(SceneInterface, events.EventManager):
             return
         if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
             self.active_scene.on_key_down_event(event)
-        else:
-            assert self.game_engine is not None
+        elif self.game_engine is not None and hasattr(self.game_engine, 'on_key_down_event'):
             self.game_engine.on_key_down_event(event)
+        else:
+            message = (
+                f"'{type(self)}' object has no attribute 'on_key_down_event': neither the "
+                'active scene nor the game engine provides it'
+            )
+            raise AttributeError(message)
 
     def _present_frame(self: Self, *, full_update: bool) -> None:
         """Present the rendered frame, shifted by any active SCREEN shake and overlaid if shown.
@@ -372,6 +381,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 configured update type.
 
         """
+        # The overlay also draws during transitions (it reflects active_scene); captures stay clean
         offset_x, offset_y = self.screen_shake.offset
         pixel_offset = (round(offset_x), round(offset_y))
         overlay_visible = self.debug_overlay.is_visible

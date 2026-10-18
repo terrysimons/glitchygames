@@ -319,7 +319,8 @@ class TestPresentation:
         assert pixels_of(manager.screen) == clean_pixels
 
     def test_overlay_draws_after_the_shift(self, manager, mocker):
-        """Test overlay pixels are drawn on the shifted frame (the HUD stays put)."""
+        """Test the HUD marker stays put while the clean content shifts with the SCREEN shake."""
+        hud_marker_position = (40, 5)
         mocker.patch.object(
             type(manager.screen_shake),
             'offset',
@@ -327,8 +328,59 @@ class TestPresentation:
             return_value=SHAKE_OFFSET,
         )
         snapshots = capture_at_flip(mocker, manager)
+        draw = mocker.patch.object(
+            manager.debug_overlay,
+            'draw',
+            side_effect=lambda surface, **_: surface.set_at(hud_marker_position, MARKER_COLOR),
+        )
         manager.debug_overlay.is_visible = True
         manager._present_frame(full_update=False)
-        shifted_only = pygame.Surface(SCREEN_SIZE)
-        shifted_only.blit(manager.screen, (0, 4))
-        assert snapshots[0] != pixels_of(shifted_only)
+
+        assert draw.call_args.kwargs['screen_offset'] == (0, 4)
+        flipped = pygame.image.frombytes(snapshots[0], SCREEN_SIZE, 'RGB')
+        assert tuple(flipped.get_at(hud_marker_position))[:3] == MARKER_COLOR
+        shifted_content = (MARKER_POSITION[0], MARKER_POSITION[1] + 4)
+        assert tuple(flipped.get_at(shifted_content))[:3] == MARKER_COLOR
+        assert tuple(flipped.get_at(MARKER_POSITION))[:3] == BACKGROUND_COLOR
+
+    def test_full_update_with_overlay_draws_and_restores(self, manager, mocker):
+        """Test a full_update present also overlays for the flip and restores the clean frame."""
+        clean_pixels = pixels_of(manager.screen)
+        snapshots = capture_at_flip(mocker, manager)
+        manager.debug_overlay.is_visible = True
+        manager._present_frame(full_update=True)
+        assert len(snapshots) == 1
+        assert snapshots[0] != clean_pixels
+        assert pixels_of(manager.screen) == clean_pixels
+
+    def test_ending_shake_forces_one_full_flip(self, manager, mocker):
+        """Test the present after a shake ends is one full flip, then updates resume."""
+        offset = mocker.patch.object(
+            type(manager.screen_shake),
+            'offset',
+            new_callable=mocker.PropertyMock,
+            return_value=SHAKE_OFFSET,
+        )
+        capture_at_flip(mocker, manager)
+        manager._present_frame(full_update=False)
+        offset.return_value = (0.0, 0.0)
+
+        flip = mocker.patch('pygame.display.flip')
+        update_display = mocker.patch.object(manager, '_update_display')
+        manager._present_frame(full_update=False)
+        flip.assert_called_once_with()
+        update_display.assert_not_called()
+        manager._present_frame(full_update=False)
+        flip.assert_called_once_with()
+        update_display.assert_called_once_with()
+
+
+class TestMissingKeyHandler:
+    """The key-down fallback when nothing can handle the event."""
+
+    def test_raises_when_neither_scene_nor_engine_has_a_handler(self, manager):
+        """Test the old proxy's AttributeError survives with no scene and no game engine."""
+        manager.active_scene = None
+        manager._game_engine = None
+        with pytest.raises(AttributeError, match='on_key_down_event'):
+            manager.on_key_down_event(key_down(pygame.K_a))
