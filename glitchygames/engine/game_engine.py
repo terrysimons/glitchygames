@@ -255,6 +255,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             default=5.0,
         )
         group.add_argument(
+            '--fps-histogram',
+            choices=['equal-range', 'target-relative'],
+            help=(
+                'FPS histogram buckets in the shutdown report: equal-range (10 equal buckets '
+                'spanning the analyzed min to max, default) or target-relative (10%% steps of '
+                'the target FPS)'
+            ),
+            default='equal-range',
+        )
+        group.add_argument(
             '--screen-shake-intensity',
             type=unit_interval,
             help='screen shake strength from 0.0 (off) to 1.0 (default: 1.0)',
@@ -971,6 +981,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 trim = float(GameEngine.OPTIONS.get('perf_trim_percent', 5.0))
                 if hasattr(performance_manager, 'set_trim_percent'):
                     performance_manager.set_trim_percent(trim)
+                performance_manager.set_histogram_mode(
+                    GameEngine.OPTIONS.get('fps_histogram', 'equal-range')
+                )
             except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
                 LOG.debug('Performance trim percent configuration failed: %s', perf_error)
             self.scene_manager.start()

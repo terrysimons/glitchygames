@@ -2225,3 +2225,61 @@ class TestShakeAndAudioArguments:
         assert options['screen_shake_intensity'] == 0.25
         assert options['rumble_intensity'] == 0.0
         assert options['live_voice_pool'] == 0
+
+
+class TestFpsHistogramArgument:
+    """Test the --fps-histogram argument and its plumbing to the performance manager."""
+
+    @staticmethod
+    def _parse(arguments):
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        return vars(parser.parse_args(arguments))
+
+    def test_defaults_to_equal_range(self):
+        """Test the default histogram mode is equal-range."""
+        assert self._parse([])['fps_histogram'] == 'equal-range'
+
+    @pytest.mark.parametrize('choice', ['equal-range', 'target-relative'])
+    def test_both_choices_parse(self, choice):
+        """Test both documented choices parse."""
+        assert self._parse(['--fps-histogram', choice])['fps_histogram'] == choice
+
+    def test_invalid_choice_is_rejected(self, capsys):
+        """Test an unknown choice makes argparse exit with a usage error."""
+        with pytest.raises(SystemExit):
+            self._parse(['--fps-histogram', 'logarithmic'])
+        assert 'invalid choice' in capsys.readouterr().err
+
+    def test_choices_match_the_performance_modes(self):
+        """Test the CLI choices are exactly the FpsHistogramMode values."""
+        from glitchygames.performance.adaptive_clamping import FpsHistogramMode
+
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        action = next(
+            action for action in parser._actions if '--fps-histogram' in action.option_strings
+        )
+        assert list(action.choices) == [mode.value for mode in FpsHistogramMode]
+
+    def test_start_passes_the_mode_to_the_performance_manager(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """Test start() calls set_histogram_mode with the parsed option."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        mocker.patch('glitchygames.engine.game_engine.create_timer')
+        mock_manager = mocker.patch('glitchygames.performance.performance_manager')
+        GameEngine.game = mocker.Mock()
+        GameEngine.OPTIONS = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 5.0,
+            'fps_histogram': 'target-relative',
+        }
+        engine.scene_manager = mocker.Mock()
+        engine._initialize_event_managers = mocker.Mock()
+        engine._shutdown = mocker.Mock()
+
+        engine.start()
+
+        mock_manager.set_histogram_mode.assert_called_once_with('target-relative')

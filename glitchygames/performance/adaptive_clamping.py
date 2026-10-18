@@ -7,6 +7,7 @@ import math
 import statistics
 import time
 from collections import deque
+from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 if TYPE_CHECKING:
@@ -41,8 +42,12 @@ FPS_HISTORY_MAX_SIZE = 10000
 # Trim percent ceiling (must be below 50% to avoid trimming all data)
 MAX_TRIM_PERCENT = 50.0
 
-# Histogram bucketing: at most this many buckets, so the distribution is readable on one screen
-MAX_HISTOGRAM_BUCKETS = 10
+# Equal-range histogram: exactly this many equal-width buckets span the analyzed [min, max],
+# so the distribution is readable on one screen.
+HISTOGRAM_BUCKET_COUNT = 10
+
+# Target-relative histogram: buckets are this many percentage points of the target FPS wide.
+TARGET_RELATIVE_STEP_PERCENT = 10
 
 # "1% low" definition: the mean FPS of the slowest ONE_PERCENT_LOW_FRACTION of ALL valid
 # (untrimmed) frames, using max(1, ceil(fraction * total_frames)) frames.
@@ -50,6 +55,13 @@ ONE_PERCENT_LOW_FRACTION = 0.01
 
 # Reliability: minimum samples for "5 nines" (99.999%) confidence
 RELIABILITY_MIN_SAMPLES = 1000000
+
+
+class FpsHistogramMode(Enum):
+    """How the shutdown FPS histogram groups frames into buckets."""
+
+    EQUAL_RANGE = 'equal-range'
+    TARGET_RELATIVE = 'target-relative'
 
 
 class AdaptiveClamping:
@@ -75,7 +87,6 @@ class AdaptiveClamping:
             # deque(maxlen=...) discards the oldest sample in O(1); list.pop(0) shifted the whole
             # list on every frame once full (measured 12.5 us per frame per 100k-entry list).
             self._fps_history: deque[float] = deque(maxlen=FPS_HISTORY_MAX_SIZE)
-            self._fps_histogram: dict[str, int] = {}
             # Track performance per scene:
             # {scene_name: {'fps_history': deque, 'fps_histogram': {},
             #  'frame_times': deque, 'statistical_aggregates': {}}}
@@ -86,6 +97,7 @@ class AdaptiveClamping:
             self._target_fps = 0.0  # 0 means unlimited FPS
             # Percentage of frames to trim from both tails when summarizing FPS.
             self._trim_percent = 5.0
+            self._histogram_mode = FpsHistogramMode.EQUAL_RANGE
             # Sliding window configuration for low-RAM systems
             self._max_fps_history = 100000  # Keep 100k samples in memory
             self._statistical_sample_size = 1000000  # Target 1M samples for 5 9s reliability
@@ -180,6 +192,24 @@ class AdaptiveClamping:
             # Prevent trimming away all data; clamp just below 50%
             percent = 49.9
         self._trim_percent = float(percent)
+
+    def set_histogram_mode(self: Self, mode: str) -> None:
+        """Choose how the shutdown FPS histogram groups frames.
+
+        Args:
+            mode (str): 'equal-range' (10 equal buckets spanning the analyzed min to max) or
+                'target-relative' (10% steps of the target FPS).
+
+        Raises:
+            ValueError: If mode is not one of the allowed values.
+
+        """
+        try:
+            self._histogram_mode = FpsHistogramMode(mode)
+        except ValueError:
+            allowed_values = ', '.join(repr(member.value) for member in FpsHistogramMode)
+            message = f'Unknown FPS histogram mode {mode!r}; allowed values: {allowed_values}'
+            raise ValueError(message) from None
 
     def set_current_scene(self: Self, scene_name: str) -> None:
         """Set the current scene for per-scene tracking.
@@ -351,60 +381,138 @@ class AdaptiveClamping:
         """Reset performance tracking."""
         self._dt_history = []
         self._fps_history = deque(maxlen=FPS_HISTORY_MAX_SIZE)
-        self._fps_histogram = {}
         LOG.info('Reset performance tracking')
 
     @staticmethod
-    def _choose_bucket_width(lowest_fps: float, highest_fps: float) -> int:
-        """Choose the smallest "nice" bucket width that fits MAX_HISTOGRAM_BUCKETS.
+    def _build_equal_range_histogram(trimmed_fps: list[float]) -> tuple[dict[str, int], float]:
+        """Count frames in HISTOGRAM_BUCKET_COUNT equal-width buckets spanning [min, max].
 
-        Widths follow the 1, 2, 5, 10, 20, 50, 100, ... (1/2/5 x 10^k) sequence.
+        The bucket index is min(last, floor((fps - min) / width)) so the maximum lands in the
+        last bucket. Labels use integer bounds "lower-upper" with lower = round(min + index *
+        width) and upper = (the next bucket's lower) - 1, the last bucket's upper being
+        round(max). Buckets whose rounded lower bounds collide (a spread narrower than the
+        bucket count) are merged so labels stay unique and ascending.
 
         Args:
-            lowest_fps: Lowest FPS value in the analyzed (trimmed) data
-            highest_fps: Highest FPS value in the analyzed (trimmed) data
+            trimmed_fps: Analyzed (trimmed) FPS values, ascending
 
         Returns:
-            The bucket width in FPS.
+            Tuple of (label to frame count in ascending FPS order, bucket width in FPS).
 
         """
-        power_of_ten = 1
-        while True:
-            for multiplier in (1, 2, 5):
-                width = multiplier * power_of_ten
-                bucket_count = math.floor(highest_fps / width) - math.floor(lowest_fps / width) + 1
-                if bucket_count <= MAX_HISTOGRAM_BUCKETS:
-                    return width
-            power_of_ten *= 10
+        lowest_fps = trimmed_fps[0]
+        highest_fps = trimmed_fps[-1]
+        bucket_width = (highest_fps - lowest_fps) / HISTOGRAM_BUCKET_COUNT
+        if bucket_width == 0:
+            return {f'{round(lowest_fps)}': len(trimmed_fps)}, 0.0
+
+        counts_by_index = [0] * HISTOGRAM_BUCKET_COUNT
+        for fps in trimmed_fps:
+            bucket_index = min(
+                HISTOGRAM_BUCKET_COUNT - 1,
+                math.floor((fps - lowest_fps) / bucket_width),
+            )
+            counts_by_index[bucket_index] += 1
+
+        # Merge consecutive buckets that share the same rounded lower bound.
+        merged_buckets: list[list[int]] = []  # each entry: [rounded lower bound, frame count]
+        for bucket_index, count in enumerate(counts_by_index):
+            lower_bound = round(lowest_fps + bucket_index * bucket_width)
+            if merged_buckets and merged_buckets[-1][0] == lower_bound:
+                merged_buckets[-1][1] += count
+            else:
+                merged_buckets.append([lower_bound, count])
+
+        fps_histogram: dict[str, int] = {}
+        for merged_index, (lower_bound, count) in enumerate(merged_buckets):
+            if merged_index + 1 < len(merged_buckets):
+                upper_bound = merged_buckets[merged_index + 1][0] - 1
+            else:
+                upper_bound = round(highest_fps)
+            upper_bound = max(lower_bound, upper_bound)
+            label = (
+                f'{lower_bound}' if lower_bound == upper_bound else f'{lower_bound}-{upper_bound}'
+            )
+            fps_histogram[label] = count
+        return fps_histogram, bucket_width
 
     @staticmethod
-    def _build_fps_histogram(trimmed_fps: list[float], bucket_width: int) -> dict[str, int]:
-        """Count frames per bucket, ordered numerically by bucket lower bound.
+    def _build_target_relative_histogram(
+        trimmed_fps: list[float],
+        target_fps: float,
+    ) -> dict[str, int]:
+        """Count frames in 10% steps of the target FPS, listing only non-empty buckets.
 
-        A bucket covers [lower, lower + bucket_width). The key is "lower" when the width is 1,
-        otherwise "lower-upper" with upper = lower + bucket_width - 1.
+        A frame belongs to step floor(percent / 10) * 10 where percent = fps / target * 100;
+        100% and above share the top bucket. FPS bounds in the labels are integers derived from
+        the target: step N covers ceil(N% of target) through ceil((N + 10)% of target) - 1.
 
         Args:
             trimmed_fps: Analyzed (trimmed) FPS values
-            bucket_width: Width of each bucket in FPS
+            target_fps: Target FPS (must be greater than 0)
 
         Returns:
-            Dictionary mapping bucket label to frame count, in ascending FPS order.
+            Dictionary mapping label to frame count, lowest FPS first (">=100%" is last).
 
         """
-        counts_by_lower_bound: dict[int, int] = {}
+        top_step_index = 100 // TARGET_RELATIVE_STEP_PERCENT
+        counts_by_step_index: dict[int, int] = {}
         for fps in trimmed_fps:
-            lower_bound = math.floor(fps / bucket_width) * bucket_width
-            counts_by_lower_bound[lower_bound] = counts_by_lower_bound.get(lower_bound, 0) + 1
+            # Multiply before dividing so exact boundaries (54 of 60 FPS = 90%) stay exact.
+            step_index = min(
+                top_step_index,
+                math.floor(fps * 100 / (target_fps * TARGET_RELATIVE_STEP_PERCENT)),
+            )
+            counts_by_step_index[step_index] = counts_by_step_index.get(step_index, 0) + 1
+
+        def lower_fps_bound(step_index: int) -> int:
+            return math.ceil(step_index * TARGET_RELATIVE_STEP_PERCENT * target_fps / 100)
 
         fps_histogram: dict[str, int] = {}
-        for lower_bound in sorted(counts_by_lower_bound):
-            if bucket_width == 1:
-                label = f'{lower_bound}'
+        for step_index in sorted(counts_by_step_index):
+            lower_bound = lower_fps_bound(step_index)
+            if step_index == top_step_index:
+                label = f'>=100% ({lower_bound}+ FPS)'
+            elif step_index == 0:
+                label = f'<{TARGET_RELATIVE_STEP_PERCENT}% (<{lower_fps_bound(1)})'
             else:
-                label = f'{lower_bound}-{lower_bound + bucket_width - 1}'
-            fps_histogram[label] = counts_by_lower_bound[lower_bound]
+                upper_bound = max(lower_bound, lower_fps_bound(step_index + 1) - 1)
+                step_percent = step_index * TARGET_RELATIVE_STEP_PERCENT
+                label = (
+                    f'{step_percent}-{step_percent + TARGET_RELATIVE_STEP_PERCENT - 1}% '
+                    f'({lower_bound}-{upper_bound})'
+                )
+            fps_histogram[label] = counts_by_step_index[step_index]
         return fps_histogram
+
+    def _build_histogram_stats(self: Self, trimmed_fps: list[float]) -> dict[str, Any]:
+        """Build the histogram entries of the stats dictionary for the selected mode.
+
+        Target-relative mode needs a target FPS; with an uncapped target (0) it falls back to
+        equal range, and 'fps_histogram_mode' reports the mode actually used.
+
+        Args:
+            trimmed_fps: Analyzed (trimmed) FPS values, ascending
+
+        Returns:
+            Dictionary with 'fps_histogram_mode', 'fps_histogram' and, in equal-range mode,
+            'fps_bucket_width'.
+
+        """
+        if self._histogram_mode is FpsHistogramMode.TARGET_RELATIVE and self._target_fps > 0:
+            return {
+                'fps_histogram_mode': FpsHistogramMode.TARGET_RELATIVE.value,
+                'fps_histogram': self._build_target_relative_histogram(
+                    trimmed_fps, target_fps=self._target_fps
+                ),
+            }
+
+        fps_histogram, bucket_width = self._build_equal_range_histogram(trimmed_fps)
+        return {
+            'fps_histogram_mode': FpsHistogramMode.EQUAL_RANGE.value,
+            'fps_bucket_width': bucket_width,
+            'fps_histogram': fps_histogram,
+        }
 
     def _calculate_fps_stats(self: Self, fps_history: Collection[float]) -> dict[str, Any]:
         """Calculate FPS statistics for one set of samples (shared by global and per-scene).
@@ -431,17 +539,14 @@ class AdaptiveClamping:
         # Drop top and bottom self._trim_percent
         trim_ratio = max(0.0, min(self._trim_percent, 49.9)) / 100.0
         drop_count = int(total_frames * trim_ratio)
-        trimmed_fps: list[float]
-        if drop_count == 0 or total_frames <= 2 * drop_count:
-            trimmed_fps = fps_values
-        else:
-            trimmed_fps = fps_values[drop_count:-drop_count]
+        # drop_count < total_frames / 2 always holds: the ratio is capped at 49.9%.
+        # (A zero drop_count must not slice: fps_values[0:-0] is empty.)
+        trimmed_fps: list[float] = (
+            fps_values if drop_count == 0 else fps_values[drop_count:-drop_count]
+        )
 
         slowest_frame_count = max(1, math.ceil(ONE_PERCENT_LOW_FRACTION * total_frames))
-        bucket_width = self._choose_bucket_width(
-            lowest_fps=trimmed_fps[0],
-            highest_fps=trimmed_fps[-1],
-        )
+        histogram_stats = self._build_histogram_stats(trimmed_fps)
 
         return {
             'total_frames': total_frames,
@@ -451,8 +556,7 @@ class AdaptiveClamping:
             'max_fps': fps_values[-1],
             'one_percent_low_fps': sum(fps_values[:slowest_frame_count]) / slowest_frame_count,
             'median_fps': statistics.median(trimmed_fps),
-            'fps_bucket_width': bucket_width,
-            'fps_histogram': self._build_fps_histogram(trimmed_fps, bucket_width),
+            **histogram_stats,
             'performance_grade': self._calculate_performance_grade(trimmed_fps),
         }
 
@@ -582,6 +686,11 @@ class AdaptiveClamping:
             'could_tick_times': target_frame_time / avg_frame_time if avg_frame_time > 0 else 0,
         }
 
+    @staticmethod
+    def _pluralize_frames(count: int) -> str:
+        """Return 'frame' for exactly one, otherwise 'frames'."""
+        return 'frame' if count == 1 else 'frames'
+
     def _build_trim_label(self: Self, stats: dict[str, Any]) -> str:
         """Describe, from the actual numbers, how many frames trimming dropped.
 
@@ -601,12 +710,15 @@ class AdaptiveClamping:
             # Smallest total where int(total * percent / 100) >= 1.
             minimum_frames = math.ceil(100 / self._trim_percent)
             return (
-                f'dropped 0 of {total_frames:,} frames; '
+                f'dropped 0 of {total_frames:,} {self._pluralize_frames(total_frames)}; '
                 f'the {self._trim_percent:.1f}% setting needs at least {minimum_frames:,}'
             )
 
         frames_per_end = dropped_frames // 2
-        return f'dropped {frames_per_end:,} frames from each end ({self._trim_percent:.1f}%)'
+        return (
+            f'dropped {frames_per_end:,} {self._pluralize_frames(frames_per_end)} '
+            f'from each end ({self._trim_percent:.1f}%)'
+        )
 
     def _log_fps_stats(
         self: Self,
@@ -649,40 +761,61 @@ class AdaptiveClamping:
             )
             LOG.info(f'🔄 Could Tick: {spare_stats["could_tick_times"]:.1f}x faster')
 
-    @staticmethod
-    def _log_fps_histogram(fps_histogram: dict[str, int], trimmed_frames: int) -> None:
-        """Log FPS histogram in ascending numeric order of bucket lower bound.
+    def _build_histogram_header(self: Self, stats: dict[str, Any]) -> str:
+        """Describe how the histogram buckets were chosen.
 
         Args:
-            fps_histogram: Dictionary mapping bucket keys to frame counts
-            trimmed_frames: Total number of trimmed frames for percentage calculation
+            stats: Stats dictionary with 'fps_histogram_mode' and, for equal range,
+                'fps_bucket_width'
+
+        Returns:
+            The header line printed above the histogram.
 
         """
-        LOG.info('\n📊 FPS Distribution:')
+        if stats['fps_histogram_mode'] == FpsHistogramMode.TARGET_RELATIVE.value:
+            return f'\n📊 FPS Distribution (relative to target {self._target_fps:g} FPS):'
+
+        bucket_width = stats['fps_bucket_width']
+        if bucket_width == 0:
+            description = 'single bucket; every analyzed frame has the same FPS'
+        else:
+            description = f'{HISTOGRAM_BUCKET_COUNT} equal buckets, {bucket_width:.1f} FPS wide'
+        if self._histogram_mode is FpsHistogramMode.TARGET_RELATIVE:
+            description += '; no target FPS set for target-relative'
+        return f'\n📊 FPS Distribution ({description}):'
+
+    def _log_fps_histogram(self: Self, stats: dict[str, Any]) -> None:
+        """Log the FPS histogram, lowest FPS first (the stats dictionary is already ordered).
+
+        Args:
+            stats: Stats dictionary with 'fps_histogram', 'fps_histogram_mode',
+                'fps_bucket_width' (equal range) and 'trimmed_frames'
+
+        """
+        fps_histogram: dict[str, int] = stats['fps_histogram']
+        trimmed_frames: int = stats['trimmed_frames']
+        LOG.info(self._build_histogram_header(stats))
         max_count = max(fps_histogram.values())
 
-        # Build bucket list with percentages
-        all_buckets: list[tuple[str, int, float]] = []
-        for bucket, count in fps_histogram.items():
-            percentage = (count / trimmed_frames) * 100 if trimmed_frames > 0 else 0
-            all_buckets.append((bucket, count, percentage))
-
-        # Ascending numeric order of the bucket's lower bound (lowest FPS first); with range
-        # buckets this already shows the shape of the distribution. Sorting by int, not by
-        # string, keeps '900-999' before '1000-1099'.
-        all_buckets.sort(key=lambda bucket_entry: int(bucket_entry[0].split('-')[0]))
+        # Equal-range labels are bare FPS bounds; target-relative labels carry their own units.
+        unit_suffix = (
+            '' if stats['fps_histogram_mode'] == FpsHistogramMode.TARGET_RELATIVE.value else ' FPS'
+        )
 
         # Calculate available space for bars (accounting for prefix text)
         prefix_length = 40  # Conservative estimate for prefix text
         max_bar_length = 80 - prefix_length  # Maximum bar length (40 chars)
 
         label_width = max(len(bucket) for bucket in fps_histogram)
-        for bucket, count, percentage in all_buckets:
+        for bucket, count in fps_histogram.items():
+            percentage = (count / trimmed_frames) * 100 if trimmed_frames > 0 else 0
             bar_length = int((count / max_count) * max_bar_length) if max_count > 0 else 0
             bar_length = min(bar_length, max_bar_length)
             bar = '█' * bar_length
-            fps_range = f'{bucket:>{label_width}s} FPS'
-            LOG.info(f'  {fps_range} {count:5d} frames ({percentage:5.1f}%) {bar}')
+            LOG.info(
+                f'  {bucket:>{label_width}s}{unit_suffix} {count:5d} frames '
+                f'({percentage:5.1f}%) {bar}'
+            )
 
     def print_shutdown_report(self: Self) -> None:
         """Print a comprehensive performance report at shutdown."""
@@ -700,7 +833,7 @@ class AdaptiveClamping:
         self._log_fps_stats(stats, spare_stats)
 
         if stats['fps_histogram']:
-            self._log_fps_histogram(stats['fps_histogram'], stats['trimmed_frames'])
+            self._log_fps_histogram(stats)
 
         LOG.info('=' * 80)
 
@@ -735,7 +868,7 @@ class AdaptiveClamping:
             self._log_fps_stats(stats, spare_stats)
 
             if stats['fps_histogram']:
-                self._log_fps_histogram(stats['fps_histogram'], stats['trimmed_frames'])
+                self._log_fps_histogram(stats)
 
         LOG.info('=' * 80)
 
