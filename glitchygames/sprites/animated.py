@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
+import operator
 import tomllib
 from collections import Counter
 from enum import Enum
@@ -943,6 +944,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if name in self._animations:
             del self._animations[name]
             self.remove_transitions_for_animation(name)
+            self.forget_animation_settings(name)
             if self.frame_manager.current_animation == name:
                 # Switch to first available animation
                 if self._animations:
@@ -1020,6 +1022,94 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             else:
                 kept_transitions.append(transition)
         self.transition_data = kept_transitions
+
+    def transitions_for_animation(
+        self: Self, animation_name: str
+    ) -> list[tuple[int, dict[str, Any]]]:
+        """Return a copy of each transition from or to an animation, with its index.
+
+        Bitmappy captures them before deleting the animation so an undo can put them back with
+        restore_transitions.
+
+        Args:
+            animation_name (str): The animation's name.
+
+        Returns:
+            list[tuple[int, dict[str, Any]]]: (index in transition_data, transition copy) pairs,
+            in transition order.
+
+        """
+        return [
+            (index, dict(transition))
+            for index, transition in enumerate(self.transition_data)
+            if animation_name in {transition.get('from'), transition.get('to')}
+        ]
+
+    def restore_transitions(
+        self: Self, indexed_transitions: list[tuple[int, dict[str, Any]]]
+    ) -> None:
+        """Put transitions back at the indices transitions_for_animation reported.
+
+        Inserting in ascending index order rebuilds the original order, provided transition_data
+        is otherwise as it was when they were removed.
+
+        Args:
+            indexed_transitions (list[tuple[int, dict[str, Any]]]): (index, transition) pairs.
+
+        """
+        for index, transition in sorted(indexed_transitions, key=operator.itemgetter(0)):
+            self.transition_data.insert(index, dict(transition))
+
+    def forget_animation_settings(self: Self, animation_name: str) -> None:
+        """Drop a removed animation's loop flag, frame interval and place in the order.
+
+        Otherwise a later animation given the same name would inherit them, and animation_order
+        would still list it.
+
+        Args:
+            animation_name (str): The removed animation's name.
+
+        """
+        self._loop_flags.pop(animation_name, None)
+        self._animation_frame_intervals.pop(animation_name, None)
+        if hasattr(self, '_animation_order'):
+            self._animation_order = [
+                name for name in self._animation_order if name != animation_name
+            ]
+
+    def restore_animation_settings(
+        self: Self,
+        animation_name: str,
+        *,
+        position: int,
+        loop_flag: bool | None,
+        frame_interval: float | None,
+    ) -> None:
+        """Put a restored animation back in its place, with its loop flag and frame interval.
+
+        The animation's frames must already be in the sprite (Bitmappy's undo re-adds them).
+
+        Args:
+            animation_name (str): The restored animation's name.
+            position (int): Its index in the animation order before it was removed.
+            loop_flag (bool | None): Its loop flag, or None if it had none.
+            frame_interval (float | None): Its frame interval, or None if it had none.
+
+        """
+        frames = self._animations.pop(animation_name)
+        names = list(self._animations)
+        names.insert(position, animation_name)
+        self._animations = {
+            name: (frames if name == animation_name else self._animations[name]) for name in names
+        }
+        if hasattr(self, '_animation_order'):
+            order = [name for name in self._animation_order if name != animation_name]
+            order.insert(position, animation_name)
+            self._animation_order = order
+        if loop_flag is not None:
+            self._loop_flags[animation_name] = loop_flag
+        if frame_interval is not None:
+            self._animation_frame_intervals[animation_name] = frame_interval
 
     def copy_transitions_from(self: Self, source: AnimatedSprite) -> None:
         """Copy another sprite's transition_data (Bitmappy builds derived sprites to save).

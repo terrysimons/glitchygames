@@ -558,13 +558,29 @@ class TestFilmStripAnimationTransitions:
         yield
         pygame.quit()
 
-    def _scene_with_real_sprite(self, mocker, tmp_path):
+    # Three animations, so an undone delete must put the middle one back in place
+    THREE_ANIMATION_TOML = (
+        '[sprite]\nname = "machine"\n\n'
+        '[[animation]]\nnamespace = "idle"\n\n'
+        '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\npixels = """\n#\n"""\n\n'
+        '[[animation]]\nnamespace = "run"\nframe_interval = 0.25\nloop = false\n\n'
+        '[[animation.frame]]\nnamespace = "run"\nframe_index = 0\npixels = """\n#\n"""\n\n'
+        '[[animation]]\nnamespace = "jump"\n\n'
+        '[[animation.frame]]\nnamespace = "jump"\nframe_index = 0\npixels = """\n#\n"""\n\n'
+        '[colors."#"]\nred = 200\ngreen = 0\nblue = 0\n\n'
+        '[[transition]]\nfrom = "idle"\nto = "run"\nwhen = "velocity_x > 0.1"\n\n'
+        '[[transition]]\nfrom = "idle"\nto = "jump"\nwhen = "velocity_y < 0"\n\n'
+        '[[transition]]\nfrom = "run"\nto = "idle"\nwhen = "velocity_x <= 0.1"\n\n'
+        '[[transition]]\nfrom = "jump"\nto = "idle"\nwhen = "on_ground"\n'
+    )
+
+    def _scene_with_real_sprite(self, mocker, tmp_path, toml_text=None):
         from glitchygames.sprites import AnimatedSprite
 
         mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
         scene = BitmapEditorScene({})
         sprite_file = tmp_path / 'machine.toml'
-        sprite_file.write_text(self.TOML, encoding='utf-8')
+        sprite_file.write_text(self.TOML if toml_text is None else toml_text, encoding='utf-8')
         scene.canvas = mocker.Mock()
         scene.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
         return scene
@@ -595,6 +611,58 @@ class TestFilmStripAnimationTransitions:
 
         assert 'run' not in scene.canvas.animated_sprite._animations
         assert scene.canvas.animated_sprite.transition_data == []
+
+    def test_undoing_an_animation_delete_restores_its_transitions_and_settings(
+        self, mocker, tmp_path
+    ):
+        """Undo puts back the animation, its place, settings and dropped transitions; redo drops."""
+        import tomllib
+
+        scene = self._scene_with_real_sprite(mocker, tmp_path, self.THREE_ANIMATION_TOML)
+        sprite = scene.canvas.animated_sprite
+        coordinator = scene.film_strip_coordinator
+        coordinator.on_sprite_loaded = mocker.Mock()
+        mocker.patch.object(coordinator, '_select_animation_after_deletion')
+        original_transitions = [dict(transition) for transition in sprite.transition_data]
+        transitions_without_run = [
+            {'from': 'idle', 'to': 'jump', 'when': 'velocity_y < 0'},
+            {'from': 'jump', 'to': 'idle', 'when': 'on_ground'},
+        ]
+
+        coordinator._delete_animation('run', confirmed=True)
+        assert list(sprite._animations) == ['idle', 'jump']
+        assert sprite.animation_order == ['idle', 'jump']
+        assert sprite.transition_data == transitions_without_run
+        assert 'run' not in sprite._loop_flags
+        assert 'run' not in sprite._animation_frame_intervals
+
+        assert scene.undo_redo_manager.undo() is True
+        assert list(sprite._animations) == ['idle', 'run', 'jump']
+        assert tuple(sprite._animations['run'][0].image.get_at((0, 0)))[:3] == (200, 0, 0)
+        assert sprite._animations['run'][0].duration == pytest.approx(0.25)
+        assert sprite.animation_order == ['idle', 'run', 'jump']
+        assert sprite.transition_data == original_transitions
+        assert sprite._loop_flags['run'] is False
+        assert sprite._animation_frame_intervals['run'] == pytest.approx(0.25)
+        saved_file = tmp_path / 'restored.toml'
+        sprite.save(str(saved_file), 'toml')
+        saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+        assert [animation['namespace'] for animation in saved['animation']] == [
+            'idle',
+            'run',
+            'jump',
+        ]
+        assert saved['animation'][1]['loop'] is False
+        assert saved['transition'] == original_transitions
+
+        assert scene.undo_redo_manager.redo() is True
+        assert list(sprite._animations) == ['idle', 'jump']
+        assert sprite.animation_order == ['idle', 'jump']
+        assert sprite.transition_data == transitions_without_run
+        assert 'run' not in sprite._loop_flags
+
+        assert scene.undo_redo_manager.undo() is True
+        assert sprite.transition_data == original_transitions
 
     def test_renaming_an_animation_moves_its_loop_flag_and_frame_interval(self, mocker, tmp_path):
         """The loop flag and frame interval follow a renamed animation (BUGS.md #45)."""

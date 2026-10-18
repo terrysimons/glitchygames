@@ -22,6 +22,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 51. Undoing a Bitmappy Animation Delete Fails and Loses Its Transitions and Settings
+- **Description**: Deleting an animation drops the `[[transition]]` entries from or to it (BUGS.md #44), and undoing the delete did not bring them back. Fixing that showed the undo had never worked: it failed with `AttributeError: 'PixelArray' object has no attribute 'flat'` and restored nothing
+- **Status**: Resolved
+- **Priority**: Medium (undo of an animation delete was broken; transitions silently lost)
+- **Reporter**: Found while fixing BUGS.md #44 (`plans/future-work.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_capture_animation_deletion_for_undo` saved only the frames. `AnimationAddCommand._add_animation` (which `AnimationDeleteCommand.undo` uses) copied pixels through `PixelArray.flat`, which pygame-ce's `PixelArray` does not have, so the undo raised, logged, and returned False. The delete also left the animation's loop flag, frame interval and `_animation_order` entry behind, and its redo (`AnimationAddCommand._delete_animation`) did not drop the transitions again
+- **Solution**: The delete capture also records the animation's position, loop flag, frame interval and the transitions it drops with their indices (`AnimatedSprite.transitions_for_animation`); frames are captured with `get_pixel_data()`. The delete (and `AnimatedSprite.remove_animation`) now drops the settings and order entry (`forget_animation_settings`). `AnimationDeleteCommand.undo` re-adds the frames (now via `SpriteFrame.set_pixel_data`), puts the animation back in its place with its settings (`restore_animation_settings`) and the transitions back at their original positions (`restore_transitions`); its redo drops the transitions and settings again
+- **Files Modified**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/film_strip_coordinator.py`, `glitchygames/bitmappy/history/commands.py`
+- **Tests**: `test_undoing_an_animation_delete_restores_its_transitions_and_settings` in `TestFilmStripAnimationTransitions` (`tests/tools/test_bitmappy_film_strips.py`, real `AnimatedSprite`: delete, undo, save, redo, undo); `test_removed_transitions_restore_to_their_original_positions` and `test_remove_animation_forgets_its_settings` in `tests/sprites/test_animated_sprite.py`
+
 ### 50. Packaged Bitmappy AI Requests Fail With "Supported providers: set()"
 - **Description**: In the PyInstaller binary every AI sprite request failed with `ValueError: Invalid provider key 'anthropic'. Supported providers: set()`
 - **Status**: Resolved

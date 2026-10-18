@@ -855,14 +855,11 @@ class AnimationAddCommand:
             animations = self.editor.canvas.animated_sprite._animations
             for frame_data in self.animation_data.get('frames', []):
                 surface = pygame.Surface((frame_data['width'], frame_data['height']))
-                if frame_data.get('pixels'):
-                    pixel_array = pygame.PixelArray(surface)
-                    for i, pixel in enumerate(frame_data['pixels']):
-                        if i < len(pixel_array.flat):  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-                            pixel_array.flat[i] = pixel  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-                    del pixel_array
-
                 new_frame = SpriteFrame(surface=surface, duration=frame_data.get('duration', 1.0))
+                if frame_data.get('pixels'):
+                    # Row-major pixels; also keeps frame.pixels, which saves read. (PixelArray
+                    # has no .flat, so the previous copy raised and every restore failed.)
+                    new_frame.set_pixel_data(frame_data['pixels'])
 
                 animations[self.animation_name] = animations.get(self.animation_name, [])
                 animations[self.animation_name].append(new_frame)
@@ -942,7 +939,7 @@ class AnimationDeleteCommand:
         self.description = f"Deleted animation '{animation_name}'"
 
     def execute(self) -> bool:
-        """Delete the animation (redo).
+        """Delete the animation (redo), dropping its transitions and settings again.
 
         Returns:
             True on success, False on failure.
@@ -950,10 +947,20 @@ class AnimationDeleteCommand:
         """
         # AnimationAddCommand.undo() performs deletion
         inverse = AnimationAddCommand(self.editor, self.animation_name, self.animation_data)
-        return inverse.undo()
+        if not inverse.undo():
+            return False
+        animated_sprite = self.editor.canvas.animated_sprite
+        animated_sprite.remove_transitions_for_animation(self.animation_name)
+        animated_sprite.forget_animation_settings(self.animation_name)
+        return True
 
     def undo(self) -> bool:
         """Re-add the animation (undo the deletion).
+
+        The frames go back in the animation's original place in the order, with its loop flag
+        and frame interval, and the transitions the delete dropped return to their original
+        positions in the transition order. Commands recorded without that data (older
+        captures) restore only the frames.
 
         Returns:
             True on success, False on failure.
@@ -961,7 +968,20 @@ class AnimationDeleteCommand:
         """
         # AnimationAddCommand.execute() performs addition
         inverse = AnimationAddCommand(self.editor, self.animation_name, self.animation_data)
-        return inverse.execute()
+        if not inverse.execute():
+            return False
+        position = self.animation_data.get('position')
+        if position is None:
+            return True
+        animated_sprite = self.editor.canvas.animated_sprite
+        animated_sprite.restore_animation_settings(
+            self.animation_name,
+            position=position,
+            loop_flag=self.animation_data.get('loop_flag'),
+            frame_interval=self.animation_data.get('frame_interval'),
+        )
+        animated_sprite.restore_transitions(self.animation_data.get('transitions', []))
+        return True
 
 
 class AnimationRenameCommand:

@@ -3302,6 +3302,29 @@ class TestTransitionData:
         assert sprite.animation_order == ['rest', 'strike']
         assert sprite.transition_data[0] == {'from': 'rest', 'to': 'strike', 'when': 'timer > 2.0'}
 
+    def test_removed_transitions_restore_to_their_original_positions(self, tmp_path):
+        """transitions_for_animation + restore_transitions undo remove_transitions_for_animation."""
+        sprite = self._load(tmp_path)
+        sprite.transition_data.insert(1, {'from': 'idle', 'to': 'idle', 'when': 'timer > 9.0'})
+        original_transitions = [dict(transition) for transition in sprite.transition_data]
+
+        dropped_transitions = sprite.transitions_for_animation('strike')
+        sprite.remove_transitions_for_animation('strike')
+        assert sprite.transition_data == [{'from': 'idle', 'to': 'idle', 'when': 'timer > 9.0'}]
+
+        sprite.restore_transitions(dropped_transitions)
+        assert sprite.transition_data == original_transitions
+
+    def test_remove_animation_forgets_its_settings(self, tmp_path):
+        """A removed animation's loop flag, interval and place in the order are dropped."""
+        sprite = self._load(tmp_path)
+
+        sprite.remove_animation('strike')
+
+        assert 'strike' not in sprite._loop_flags
+        assert 'strike' not in sprite._animation_frame_intervals
+        assert sprite.animation_order == ['idle']
+
     def test_rename_animation_rejects_a_missing_or_existing_name(self, tmp_path):
         """Renaming a missing animation, or onto an existing one, raises ValueError."""
         sprite = self._load(tmp_path)

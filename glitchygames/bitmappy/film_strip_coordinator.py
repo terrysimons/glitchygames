@@ -806,8 +806,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self._capture_animation_deletion_for_undo(animation_name)
 
         del self.editor.canvas.animated_sprite._animations[animation_name]  # type: ignore[reportPrivateUsage]
-        # Transitions from or to the deleted animation are dropped (each logged)
+        # Transitions from or to the deleted animation are dropped (each logged); the undo
+        # command captured them and the animation's settings to restore them
         self.editor.canvas.animated_sprite.remove_transitions_for_animation(animation_name)
+        self.editor.canvas.animated_sprite.forget_animation_settings(animation_name)
         self.log.info('Deleted animation: %s at index %s', animation_name, deleted_index)
 
         # Switch to the first remaining animation and select the previous frame
@@ -830,15 +832,26 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             return
 
         # Get the animation data before deletion
-        animation = self.editor.canvas.animated_sprite._animations[animation_name]  # type: ignore[reportPrivateUsage]
-        animation_data: dict[str, Any] = {'frames': [], 'frame_count': len(animation)}
+        animated_sprite = self.editor.canvas.animated_sprite
+        animation = animated_sprite._animations[animation_name]  # type: ignore[reportPrivateUsage]
+        animation_data: dict[str, Any] = {
+            'frames': [],
+            'frame_count': len(animation),
+            # Restored by AnimationDeleteCommand.undo: the animation's place in the order, its
+            # loop flag and frame interval, and the transitions the delete drops
+            'position': list(animated_sprite._animations).index(animation_name),  # type: ignore[reportPrivateUsage]
+            'loop_flag': animated_sprite._loop_flags.get(animation_name),  # type: ignore[reportPrivateUsage]
+            'frame_interval': animated_sprite._animation_frame_intervals.get(animation_name),  # type: ignore[reportPrivateUsage]
+            'transitions': animated_sprite.transitions_for_animation(animation_name),
+        }
 
         # Capture frame data for each frame in the animation
         for frame in animation:
             frame_data = {
                 'width': frame.image.get_width(),
                 'height': frame.image.get_height(),
-                'pixels': frame.pixels.copy() if hasattr(frame, 'pixels') else [],
+                # The frame's pixels, read from its surface if it has no pixel list
+                'pixels': frame.get_pixel_data(),
                 'duration': frame.duration,
             }
             animation_data['frames'].append(frame_data)
