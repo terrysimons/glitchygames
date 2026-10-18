@@ -36,6 +36,38 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-18
 - **Details**: `glitchygames/sprites/animated.py:1633-1636` (single-frame writer) and `_write_toml_sprite_section` (`:2076-2081`, animated writer). Identical on main. Fix: escape per the TOML spec (or emit the values through a TOML writer) and round-trip-test names and descriptions with quotes, backslashes and triple quotes.
 
+### 43. Bitmappy Single-Frame Save Drops the Sprite Name, Frame Anchor and Sprite Hitbox
+- **Description**: Bitmappy's normal save of a single-frame sprite (`on_save_file_event` → `_save_as_static_sprite`) builds a new `AnimatedSprite` and copies only `description`, so the saved file's `name` becomes `"animated_sprite"` (battle_axe: `bttlaxe.get` → `animated_sprite`) and `frame_anchor` and a sprite-level hitbox not stored on the frame are lost
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Details**: `glitchygames/bitmappy/animated_canvas.py:~1810`. Identical on main. Fix: copy every sprite-level field the writers save (name, description, frame_anchor, default hitbox), and round-trip-test through this save path.
+
+### 44. TOML Save Drops Animation State Machine Transitions
+- **Description**: The TOML writers never write `[[transition]]` sections, so loading and saving a sprite loses its animation state machine (cobra: 2 transitions → 0; Papyrus player: 6 → 0). Saving a sprite in Bitmappy silently breaks the game's animation logic
+- **Status**: Active
+- **Priority**: High (silent data loss in game assets)
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Details**: `glitchygames/sprites/animated.py` (both writers). Identical on main. Fix: keep loaded transitions (from, to, when expression, ordering) on the sprite and write them back in order; extend the bundled-sprite round-trip test to compare transitions.
+
+### 45. Renaming an Animation in Bitmappy Drops Its Timing and Loop Flag
+- **Description**: `_rename_animation_in_sprite` moves the animation's frames but not its loop flag or frame interval, so a renamed one-shot animation stops honouring `loop = false` at runtime and saves as `loop = true` with the most common frame duration as its interval
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Details**: `glitchygames/bitmappy/film_strip_coordinator.py:~1352` (`_loop_flags`, `_animation_frame_intervals`). Not a regression from main, which saved `loop = true` for everything.
+
+### 46. scripts/legacy_sprite_loader.py Cannot Start
+- **Description**: The script raises `TypeError: Sprite.__init__() missing 'x' and 'y'` while building its scene
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Details**: `scripts/legacy_sprite_loader.py:~50`. Unchanged on the branch. Fix the call, or delete the script if it is obsolete.
+
 ## Resolved Bugs
 
 ### 39. Single-Frame TOML Save Drops the Description

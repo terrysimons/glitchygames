@@ -30,10 +30,13 @@ detection by size, grey placeholder frames.
 | D9 | **Sprite metadata panel** (Galibmap's object attributes, narrowed) | Edit art-intrinsic data only: name, description, frame timing per animation and per frame, `frame_anchor`, hitboxes (D1). Game-use data (solid, item, damage) belongs in tilesets (sub-plan C), not in the sprite. | Keeps one source of truth per kind of data. |
 | D10 | **Transparent key handling** | TOML sprites keep magenta as an *opaque* pixel unless a game converts it (Papyrus does), so the engine's visible-pixel hitbox default does nothing for them (final-review finding M2 on `feature/debug-overlay`). Decide whether the loader should convert the magenta key to alpha for all TOML sprites; Bitmappy then previews exactly what games draw. | Engine-level decision with a Bitmappy-visible effect. GEDIT allowed any colour as the key; keep magenta. |
 
-## Already being fixed on `feature/debug-overlay` (not part of this plan)
+## Fixed on `feature/debug-overlay` (not part of this plan)
 
-Saving resets frame timings to 0.5 s; saving converts the visible-pixel fallback into explicit
-hitboxes; `toadstool.toml` changes on a load/save round trip. See BUGS.md once that branch lands.
+Saving reset frame timings and loop flags (BUGS.md #34), converted the visible-pixel fallback into
+explicit hitboxes (#35), blanked static sprites with RGBA colours (#36, `toadstool.toml`), and
+dropped the single-frame description (#39). Still open and related: #43 (single-frame save drops
+the name, frame anchor and sprite hitbox), #44 (`[[transition]]` sections not saved), #45 (renaming
+an animation drops its timing and loop flag).
 
 ## Suggested order
 
