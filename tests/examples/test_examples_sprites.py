@@ -309,3 +309,46 @@ class TestExamplesSprites:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+
+
+BUNDLED_SPRITE_FILES = sorted([
+    *Path('glitchygames/examples').glob('**/sprites/*.toml'),
+    *Path('glitchygames/assets').glob('*.toml'),
+])
+
+
+def _pixel_blocks(sprite_data: dict) -> list[tuple[str, str]]:
+    """Return (label, pixels) for the static sprite and every animation frame in a sprite file.
+
+    Returns:
+        list[tuple[str, str]]: One entry per pixel block, labelled for failure messages.
+
+    """
+    blocks: list[tuple[str, str]] = []
+    static_pixels = sprite_data.get('sprite', {}).get('pixels')
+    if static_pixels is not None:
+        blocks.append(('sprite', static_pixels))
+    for animation_index, animation in enumerate(sprite_data.get('animation', [])):
+        for frame_index, frame in enumerate(animation.get('frame', [])):
+            if 'pixels' in frame:
+                label = f'animation {animation_index} frame {frame_index}'
+                blocks.append((label, frame['pixels']))
+    return blocks
+
+
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+def test_bundled_sprite_rows_have_equal_lengths(sprite_file):
+    """Every pixel row in a bundled sprite is the same width.
+
+    The loader pads a short row with its last character (and truncates a long one), which
+    silently changes the art, e.g. a 9-wide row in gold_scarab.toml frame 2 drew a notch.
+    """
+    import tomllib
+
+    from glitchygames.sprites import AnimatedSprite
+
+    sprite_data = tomllib.loads(sprite_file.read_text(encoding='utf-8'))
+    for label, pixels in _pixel_blocks(sprite_data):
+        rows = AnimatedSprite.parse_toml_pixel_lines(pixels)
+        row_lengths = {len(row) for row in rows}
+        assert len(row_lengths) <= 1, f'{sprite_file} {label}: row lengths {sorted(row_lengths)}'
