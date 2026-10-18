@@ -398,3 +398,16 @@ when = "on_ground"
 from = "jumping"
 to = "idle"
 when = "on_ground"
+
+# The falling transitions come last so they are evaluated after every other rule from the same
+# state, exactly as when they were added in code after the TOML rules were loaded.
+# The 10.0 below mirrors FALLING_VELOCITY_THRESHOLD in constants.py (a test keeps them in sync).
+[[transition]]
+from = "idle"
+to = "falling"
+when = "velocity_y > 10.0 and not on_ground"
+
+[[transition]]
+from = "jumping"
+to = "falling"
+when = "velocity_y > 10.0 and not on_ground"
