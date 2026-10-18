@@ -142,8 +142,10 @@ class TestBounceResponse:
         assert math.isclose(ball.speed.y, 50.0)
 
     def test_fast_ball_past_the_paddle_centre_moving_right_hits_the_left_face(self, paddle):
-        """A ball moving right always hits the left face, even if one long frame (30 fps, a
-        hitch) carried its centre past the paddle's centre; it must not be ejected out the back.
+        """A ball moving right hits the left face even with its centre past the paddle's.
+
+        One long frame (30 fps, a hitch) can carry a fast ball's centre past the paddle's
+        centre; it must not be ejected out the back.
         """
         # Visible box (61, 95)-(71, 105): centre 66 > paddle centre 60, moving right.
         ball = make_ball(world_x=56, world_y=90, speed_x=600.0)
