@@ -768,7 +768,7 @@ class TestEventManager:
         # Create EventManager with empty proxies list
         event_manager = EventManager()
         event_manager.proxies = []
-        type(event_manager).log = mocker.Mock()
+        mocker.patch.object(type(event_manager), 'log')
 
         # EventManager uses ResourceManager.__getattr__ which raises AttributeError
         # when no proxies exist (but doesn't log in this case due to a bug in the implementation)
@@ -791,7 +791,7 @@ class TestEventManager:
                 raise AttributeError(msg)
 
         event_manager.proxies = [FailingProxy()]
-        type(event_manager).log = mocker.Mock()
+        mocker.patch.object(type(event_manager), 'log')
 
         # EventManager uses ResourceManager.__getattr__ which tries proxies
         # When proxy raises AttributeError, it logs and re-raises
