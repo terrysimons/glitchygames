@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import collections
 import enum
+import logging
 import math
+from typing import TYPE_CHECKING, Any
+
+import pygame
+
+if TYPE_CHECKING:
+    from glitchygames.debug.protocols import DebugDrawable
+
+log: logging.Logger = logging.getLogger('game.debug.overlay')
 
 PHYSICS_ARROW_SECONDS = 0.1
 PHYSICS_ARROW_MAXIMUM_PIXELS = 80
@@ -56,6 +65,9 @@ class DebugOverlay:
         self._frame_times: collections.deque[float] = collections.deque(
             maxlen=FRAME_HISTORY_LENGTH,
         )
+        self._font: pygame.font.Font | None = None
+        # id() of every debug_draw hook that raised; those hooks are never called again.
+        self._disabled_hook_ids: set[int] = set()
 
     def toggle(self) -> None:
         """Show the overlay if it is hidden, hide it if it is shown."""
@@ -169,3 +181,95 @@ class DebugOverlay:
 
         """
         return self._window(window_seconds)
+
+    def draw(  # ruff: ignore[too-many-arguments] - signature fixed by the scene manager call
+        self,
+        surface: pygame.Surface,
+        *,
+        scene: Any,
+        screen_offset: tuple[int, int],
+        target_fps: float,
+        live_voice_count: int | None,
+        rumble_levels: tuple[float, float],
+        screen_shake_offset: tuple[float, float],
+        mouse_position: tuple[int, int] | None,
+    ) -> None:
+        """Draw the selected panels, the mode line and game hooks onto the presented frame.
+
+        The font is created on the first call only. Built-in panels do not catch errors;
+        game hooks that raise are logged once and disabled.
+
+        Args:
+            surface (pygame.Surface): The presented frame to draw onto.
+            scene (Any): The active scene (needs `camera`; may have `all_sprites`, `collisions`).
+            screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
+            target_fps (float): The engine's target FPS; 0 means uncapped.
+            live_voice_count (int | None): Playing live voices, or None when unavailable.
+            rumble_levels (tuple[float, float]): Last (low, high) rumble levels sent.
+            screen_shake_offset (tuple[float, float]): Current SCREEN shake offset.
+            mouse_position (tuple[int, int] | None): Mouse position, or None.
+
+        """
+        # panels imports this module's constants, so it is imported here to avoid a cycle.
+        from glitchygames.debug import panels
+
+        if self._font is None:
+            self._font = pygame.font.Font(None, 16)
+        font = self._font
+        camera = scene.camera
+
+        if self.shows(DebugPanel.COLLISION):
+            panels.draw_collision_panel(
+                surface=surface,
+                scene=scene,
+                camera=camera,
+                screen_offset=screen_offset,
+                font=font,
+            )
+        if self.shows(DebugPanel.PHYSICS):
+            panels.draw_physics_panel(
+                surface=surface,
+                scene=scene,
+                camera=camera,
+                screen_offset=screen_offset,
+                font=font,
+            )
+        if self.shows(DebugPanel.CAMERA):
+            panels.draw_camera_panel(
+                surface=surface,
+                camera=camera,
+                screen_offset=screen_offset,
+                font=font,
+                mouse_position=mouse_position,
+                screen_shake_offset=screen_shake_offset,
+            )
+        if self.shows(DebugPanel.PERFORMANCE):
+            panels.draw_performance_panel(
+                surface=surface,
+                overlay=self,
+                font=font,
+                target_fps=target_fps,
+                live_voice_count=live_voice_count,
+                rumble_levels=rumble_levels,
+            )
+        panels.draw_mode_line(surface=surface, font=font, panel=self.panel)
+
+        if self.panel is not DebugPanel.PERFORMANCE:
+            self._call_hooks(surface=surface, scene=scene, camera=camera)
+
+    def _call_hooks(self, *, surface: pygame.Surface, scene: Any, camera: Any) -> None:
+        """Call `debug_draw` on the scene and on every sprite that has one."""
+        hook_owners: list[Any] = [scene, *getattr(scene, 'all_sprites', ())]
+        for hook_owner in hook_owners:
+            if id(hook_owner) in self._disabled_hook_ids:
+                continue
+            hook: DebugDrawable | None = (
+                hook_owner if callable(getattr(hook_owner, 'debug_draw', None)) else None
+            )
+            if hook is None:
+                continue
+            try:
+                hook.debug_draw(surface, camera)
+            except Exception:
+                log.exception('Debug hook %r failed; disabling it', hook_owner)
+                self._disabled_hook_ids.add(id(hook_owner))
