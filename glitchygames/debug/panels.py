@@ -506,14 +506,14 @@ def draw_performance_panel(
     rumble_levels = frame_info.rumble_levels
     current_fps = overlay.current_fps()
     one_percent_low = overlay.one_percent_low_fps()
-    frame_times = overlay.frame_times()
     lines = [
         'FPS: n/a' if current_fps is None else f'FPS: {current_fps:.1f}',
         '1% low: n/a' if one_percent_low is None else f'1% low: {one_percent_low:.1f}',
         f'target: {target_fps:g}' if target_fps > 0 else 'target: uncapped',
     ]
-    if frame_times:
-        lines.insert(1, f'frame: {frame_times[-1] * MILLISECONDS_PER_SECOND:.1f} ms')
+    if current_fps is not None:
+        # current_fps is 1 / the last frame time, so this avoids copying the whole history.
+        lines.insert(1, f'frame: {MILLISECONDS_PER_SECOND / current_fps:.1f} ms')
     if live_voice_count is not None:
         lines.append(f'voices: {live_voice_count}')
     if rumble_levels[0] > 0 or rumble_levels[1] > 0:
