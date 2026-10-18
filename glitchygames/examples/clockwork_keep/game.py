@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.audio.recipes import SoundBank, Tremolo
+from glitchygames.audio.synth import Waveform
 from glitchygames.camera import Camera2D
+from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
 from glitchygames.examples.clockwork_keep.constants import (
     BOILER_LED,
@@ -23,7 +26,23 @@ from glitchygames.examples.clockwork_keep.constants import (
     COG_GOLD_POINTS,
     COG_SILVER_POINTS,
     COG_SIZE,
+    ELEVATOR_BOUNCE_DURATION,
+    ELEVATOR_BOUNCE_FREQUENCY,
+    ELEVATOR_BOUNCE_STRENGTH,
+    ELEVATOR_MOTOR_IDLE_FREQUENCY,
+    ELEVATOR_MOTOR_LOW_PASS_CUTOFF,
+    ELEVATOR_MOTOR_MAXIMUM_VOLUME,
+    ELEVATOR_MOTOR_MINIMUM_VOLUME,
+    ELEVATOR_MOTOR_PEAK_FREQUENCY,
+    ELEVATOR_MOTOR_TREMOLO_DEPTH,
+    ELEVATOR_MOTOR_TREMOLO_RATE,
+    ELEVATOR_RATTLE_DURATION,
+    ELEVATOR_RATTLE_FREQUENCY,
+    ELEVATOR_RATTLE_STRENGTH,
+    ELEVATOR_RIDE_DURATION,
+    ELEVATOR_RIDE_EASING,
     ELEVATOR_SNAP_TOLERANCE,
+    ELEVATOR_SPEED_SAMPLES,
     GEAR_LED,
     GEAR_PLATFORM,
     GEAR_PLATFORM_TOP,
@@ -42,6 +61,7 @@ from glitchygames.examples.clockwork_keep.drawing import (
 )
 from glitchygames.examples.clockwork_keep.levels import ALL_FLOORS, FloorData
 from glitchygames.examples.clockwork_keep.player import Tinker
+from glitchygames.examples.clockwork_keep.sounds import ALL_RECIPES
 from glitchygames.examples.clockwork_keep.terrain import Elevator, Platform
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
@@ -54,7 +74,9 @@ from glitchygames.transitions import ElevatorTransition, FadeTransition
 if TYPE_CHECKING:
     import argparse
 
+    from glitchygames.audio.live import LiveVoice
     from glitchygames.events.base import HashableEvent
+    from glitchygames.transitions import Transition
 
 log = logging.getLogger('game')
 
@@ -71,6 +93,23 @@ _FLOOR_THEMES: list[tuple[tuple[int, int, int], tuple[int, int, int], tuple[int,
     (GEAR_PLATFORM, GEAR_PLATFORM_TOP, GEAR_LED),
     (CLOCK_PLATFORM, CLOCK_PLATFORM_TOP, CLOCK_LED),
 ]
+
+# Arrival shakes: the car slams into the floor, then the cage rattles
+ELEVATOR_STOP_BOUNCE = Shake(
+    style=ShakeStyle.BOUNCE,
+    strength=ELEVATOR_BOUNCE_STRENGTH,
+    duration=ELEVATOR_BOUNCE_DURATION,
+    frequency=ELEVATOR_BOUNCE_FREQUENCY,
+    axis=ShakeAxis.VERTICAL,
+    rumble=RumbleSettings(low_frequency=0.9, high_frequency=0.3),
+)
+ELEVATOR_STOP_RATTLE = Shake(
+    style=ShakeStyle.NOISE,
+    strength=ELEVATOR_RATTLE_STRENGTH,
+    duration=ELEVATOR_RATTLE_DURATION,
+    frequency=ELEVATOR_RATTLE_FREQUENCY,
+    rumble=RumbleSettings(low_frequency=0.3, high_frequency=0.6),
+)
 
 # Cog colors and points
 _COG_TYPES: dict[str, tuple[tuple[int, int, int], int]] = {
@@ -197,6 +236,7 @@ class ClockworkKeepScene(Scene):
             screen_height=self.screen_height,
             lead_x=CAMERA_LEAD_X,
             lead_y=CAMERA_LEAD_Y,
+            shake_intensity=self.options.get('screen_shake_intensity', 1.0),
         )
         self.camera.set_bounds(
             min_x=0.0,
@@ -259,6 +299,12 @@ class ClockworkKeepScene(Scene):
 
         # Game state
         self.game_over_triggered: bool = False
+
+        # Sound
+        self.sounds = SoundBank(ALL_RECIPES)
+        self._was_grounded: bool | None = None  # Set from the first real collision result
+        self._elevator_motor: LiveVoice | None = None
+        self._elevator_peak_velocity = 1.0
 
         # Persistence
         self.saves = SaveManager(app_name='clockwork-keep')
@@ -356,6 +402,7 @@ class ClockworkKeepScene(Scene):
 
         # Ground collision
         self._resolve_ground_collision()
+        self._play_land_on_touchdown()
 
         # Pit death
         if (
@@ -368,20 +415,29 @@ class ClockworkKeepScene(Scene):
         self._check_collectibles()
 
         # Camera follows player (both axes)
-        self.camera.update(
-            target_x=self.player.world_x,
-            target_y=self.player.world_y,
-            dt=dt,
-        )
+        if self.camera is not None:
+            self.camera.update(
+                target_x=self.player.world_x,
+                target_y=self.player.world_y,
+                dt=dt,
+            )
 
         # Apply camera to all world-space sprites
-        self.player.apply_camera(self.camera)
+        self.apply_camera_to_sprites()
+
+    @override
+    def apply_camera_to_sprites(self: Self) -> None:
+        """Position every world-space sprite from the camera."""
+        camera = self.camera
+        if camera is None:
+            return
+        self.player.apply_camera(camera)
         for platform in self.platform_sprites:
-            platform.apply_camera(self.camera)
+            platform.apply_camera(camera)
         for elevator in self.elevator_sprites:
-            elevator.apply_camera(self.camera)
+            elevator.apply_camera(camera)
         for cog in self.collectible_sprites:
-            cog.apply_camera(self.camera)
+            cog.apply_camera(camera)
 
     # --- Movement ---
 
@@ -442,6 +498,28 @@ class ClockworkKeepScene(Scene):
                 self.player.on_ground = True
                 break
 
+    def _play_land_on_touchdown(self: Self) -> None:
+        """Play land on the frame the player touches down.
+
+        Ground collision resets on_ground to False and back every frame, so this compares
+        with the previous frame's result. The first result only initializes the edge (the
+        transition's off-screen dt_tick must not play it), and respawning resets it (the
+        respawn tween sets on_ground directly).
+        """
+        if self.player.is_respawning:
+            self._was_grounded = None
+            return
+        grounded = self.player.on_ground
+        if self._was_grounded is False and grounded:
+            self.sounds.play('land')
+        self._was_grounded = grounded
+
+    def _try_jump(self: Self) -> None:
+        """Jump if standing on something, with its sound."""
+        if self.player.on_ground:
+            self.player.jump(running=self.actions.is_held('run'))
+            self.sounds.play('jump')
+
     def _check_collectibles(self: Self) -> None:
         """Check player against collectibles."""
         player_rect = pygame.Rect(
@@ -459,6 +537,7 @@ class ClockworkKeepScene(Scene):
             )
             if player_rect.colliderect(cog_rect):
                 self.player.score += cog.points
+                self.sounds.play('cog_pickup')
                 cog.kill()
                 self.collectible_sprites.remove(cog)
 
@@ -503,15 +582,82 @@ class ClockworkKeepScene(Scene):
             player_lives=self.player.lives,
             options=self.options,
         )
-        self.transition_to(
-            next_scene,
-            ElevatorTransition(
-                duration=4.0,
-                wall_color=_FLOOR_THEMES[self.floor_index][0],
-                wall_accent=_FLOOR_THEMES[self.floor_index][1],
-                player_surface=self.player.image,
-            ),
+        transition = ElevatorTransition(
+            duration=ELEVATOR_RIDE_DURATION,
+            easing=ELEVATOR_RIDE_EASING,
+            wall_color=_FLOOR_THEMES[self.floor_index][0],
+            wall_accent=_FLOOR_THEMES[self.floor_index][1],
+            player_surface=self.player.image,
+            on_update=self._update_elevator_motor,
         )
+        self._elevator_peak_velocity = max(
+            transition.eased_velocity_at(step / ELEVATOR_SPEED_SAMPLES)
+            for step in range(ELEVATOR_SPEED_SAMPLES + 1)
+        )
+        self._elevator_motor = self._start_elevator_motor(owner=transition)
+        transition.add_cue(1.0, self._elevator_arrived)
+        self.transition_to(next_scene, transition)
+
+    def _start_elevator_motor(self: Self, *, owner: object) -> LiveVoice | None:
+        """Start the motor voice owned by the ride; None (silent ride) if no channel is free.
+
+        Returns:
+            The running voice, or None.
+
+        """
+        try:
+            motor = self.scene_manager.live_audio.create_voice(
+                owner=owner,
+                waveform=Waveform.SAWTOOTH,
+                frequency=ELEVATOR_MOTOR_IDLE_FREQUENCY,
+                volume=ELEVATOR_MOTOR_MINIMUM_VOLUME,
+                low_pass_cutoff=ELEVATOR_MOTOR_LOW_PASS_CUTOFF,
+                tremolo=Tremolo(
+                    rate_hz=ELEVATOR_MOTOR_TREMOLO_RATE, depth=ELEVATOR_MOTOR_TREMOLO_DEPTH
+                ),
+            )
+        except ValueError:
+            log.warning('No live voice channel free; the elevator rides without its motor')
+            return None
+        motor.start()
+        return motor
+
+    def _update_elevator_motor(self: Self, transition: Transition) -> None:
+        """Drive motor pitch and volume from the car's speed (the easing's slope).
+
+        Runs from the transition after this scene was cleaned up, so it only touches the
+        motor voice, never sprites or the camera.
+
+        Args:
+            transition: The running elevator transition.
+
+        """
+        if self._elevator_motor is None:
+            return
+        speed_fraction = min(
+            1.0, transition.eased_velocity_at(transition.progress) / self._elevator_peak_velocity
+        )
+        self._elevator_motor.frequency = (
+            ELEVATOR_MOTOR_IDLE_FREQUENCY
+            + (ELEVATOR_MOTOR_PEAK_FREQUENCY - ELEVATOR_MOTOR_IDLE_FREQUENCY) * speed_fraction
+        )
+        self._elevator_motor.volume = (
+            ELEVATOR_MOTOR_MINIMUM_VOLUME
+            + (ELEVATOR_MOTOR_MAXIMUM_VOLUME - ELEVATOR_MOTOR_MINIMUM_VOLUME) * speed_fraction
+        )
+
+    def _elevator_arrived(self: Self) -> None:
+        """The car slams into the floor: stop the motor, clank, shake and rumble.
+
+        Uses only SceneManager-owned services (SCREEN shake), because this scene has been
+        cleaned up by the time the ride ends.
+        """
+        if self._elevator_motor is not None:
+            self._elevator_motor.stop_now()
+            self._elevator_motor = None
+        self.sounds.play('elevator_clank')
+        self.shake(ELEVATOR_STOP_BOUNCE, targets=ShakeTarget.SCREEN)
+        self.shake(ELEVATOR_STOP_RATTLE, targets=ShakeTarget.SCREEN)
 
     # --- Death / Respawn ---
 
@@ -525,6 +671,7 @@ class ClockworkKeepScene(Scene):
 
         if self.player.lives <= 0:
             self.game_over_triggered = True
+            self.sounds.play('game_over')
             self._save_high_score()
             high_scores = self._load_high_scores()
             game_over = GameOverScene(
@@ -534,6 +681,7 @@ class ClockworkKeepScene(Scene):
             )
             self.transition_to(game_over, FadeTransition(duration=1.0))
         else:
+            self.sounds.play('death')
             self._respawn_player()
 
     def _respawn_player(self: Self) -> None:
@@ -624,8 +772,8 @@ class ClockworkKeepScene(Scene):
         """
         self.actions.handle_event(event)
         action = self.actions.get_action(event)
-        if action == 'jump' and self.player.on_ground:
-            self.player.jump(running=self.actions.is_held('run'))
+        if action == 'jump':
+            self._try_jump()
         elif action == 'pause':
             self.next_scene = PauseScene(options=self.options)
         elif action == 'quit':
@@ -653,8 +801,8 @@ class ClockworkKeepScene(Scene):
         """
         self.actions.handle_event(event)
         action = self.actions.get_action(event)
-        if action == 'jump' and self.player.on_ground:
-            self.player.jump(running=self.actions.is_held('run'))
+        if action == 'jump':
+            self._try_jump()
 
     @override
     def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
@@ -686,8 +834,8 @@ class ClockworkKeepScene(Scene):
         """
         self.actions.handle_event(event)
         action = self.actions.get_action(event)
-        if action == 'jump' and self.player.on_ground:
-            self.player.jump(running=self.actions.is_held('run'))
+        if action == 'jump':
+            self._try_jump()
 
     @override
     def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:

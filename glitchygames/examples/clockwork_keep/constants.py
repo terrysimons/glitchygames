@@ -160,3 +160,23 @@ HUD_SHADOW_COLOR = (40, 30, 20)
 # ---------------------------------------------------------------------------
 MIC_BUTTON_CONTROLLER = 15
 MIC_BUTTON_JOYSTICK = 16
+
+# ---------------------------------------------------------------------------
+# Elevator ride feel (tuned by eye and ear)
+# ---------------------------------------------------------------------------
+ELEVATOR_RIDE_DURATION = 4.0
+ELEVATOR_RIDE_EASING = 'ease_in_sine'  # Arrives at speed so the stop reads as a slam
+ELEVATOR_SPEED_SAMPLES = 100  # Points used to find the easing's peak slope
+ELEVATOR_MOTOR_IDLE_FREQUENCY = 45.0  # Hz, motor at rest
+ELEVATOR_MOTOR_PEAK_FREQUENCY = 110.0  # Hz, motor at full speed
+ELEVATOR_MOTOR_MINIMUM_VOLUME = 0.15
+ELEVATOR_MOTOR_MAXIMUM_VOLUME = 0.6
+ELEVATOR_MOTOR_LOW_PASS_CUTOFF = 600.0  # Hz, keeps the sawtooth deep
+ELEVATOR_MOTOR_TREMOLO_RATE = 8.0  # Hz, the motor's chug
+ELEVATOR_MOTOR_TREMOLO_DEPTH = 0.4
+ELEVATOR_BOUNCE_STRENGTH = 14.0  # Pixels
+ELEVATOR_BOUNCE_DURATION = 0.6
+ELEVATOR_BOUNCE_FREQUENCY = 7.0  # Hz
+ELEVATOR_RATTLE_STRENGTH = 5.0
+ELEVATOR_RATTLE_DURATION = 0.35
+ELEVATOR_RATTLE_FREQUENCY = 25.0
