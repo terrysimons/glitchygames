@@ -6,6 +6,7 @@ import collections
 import enum
 import logging
 import math
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pygame
@@ -17,6 +18,11 @@ if TYPE_CHECKING:
     from glitchygames.debug.protocols import DebugDrawable
 
 log: logging.Logger = logging.getLogger('game.debug.overlay')
+
+# The engine's bundled Bitstream Vera Sans: crisp at small sizes, unlike pygame's default font,
+# and the same file every game can rely on (bitmappy.spec bundles this directory).
+DEBUG_FONT_PATH = Path(__file__).parent.parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
+DEBUG_FONT_SIZE = 13
 
 PERFORMANCE_WINDOW_SECONDS = 5.0
 GRAPH_WINDOW_SECONDS = 2.0
@@ -206,7 +212,7 @@ class DebugOverlay:
 
         """
         if self._font is None:
-            self._font = pygame.font.Font(None, 16)
+            self._font = pygame.font.Font(DEBUG_FONT_PATH, DEBUG_FONT_SIZE)
         font = self._font
         camera = scene.camera
 

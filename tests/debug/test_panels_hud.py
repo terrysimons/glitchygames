@@ -14,6 +14,7 @@ from glitchygames.debug.panels import (
     GRAPH_BAR_COLOR,
     HUD_LINE_HEIGHT,
     TARGET_LINE_COLOR,
+    TEXT_BACKING_PADDING,
     DebugFrameInfo,
     draw_camera_panel,
     draw_mode_line,
@@ -405,8 +406,20 @@ class TestModeLine:
         mock_font = mocker.Mock()
         mock_font.render.return_value = text_surface
         draw_mode_line(surface=surface, font=mock_font, panel=DebugPanel.ALL)
-        assert surface.get_at((SURFACE_SIZE[0] // 2, 1))[:3] == (255, 255, 255)
-        assert surface.get_at((SURFACE_SIZE[0] // 2 - 60, 1)) == BLACK
+        # The text sits TEXT_BACKING_PADDING below the top edge so its backing stays on screen.
+        text_row = TEXT_BACKING_PADDING + 1
+        assert surface.get_at((SURFACE_SIZE[0] // 2, text_row))[:3] == (255, 255, 255)
+        assert surface.get_at((SURFACE_SIZE[0] // 2 - 60, text_row)) == BLACK
+
+    def test_text_has_a_translucent_dark_backing(self, surface, mocker):
+        """Debug text is drawn over a dark backing that dims, but does not hide, the game."""
+        surface.fill((200, 200, 200))
+        text_surface = pygame.Surface((100, 10), pygame.SRCALPHA)  # fully transparent text
+        mock_font = mocker.Mock()
+        mock_font.render.return_value = text_surface
+        draw_mode_line(surface=surface, font=mock_font, panel=DebugPanel.ALL)
+        dimmed = surface.get_at((SURFACE_SIZE[0] // 2, TEXT_BACKING_PADDING + 1))[:3]
+        assert all(0 < channel < 200 for channel in dimmed)
 
 
 class HookScene:
