@@ -416,6 +416,31 @@ class TestSceneManagerInternals:
         self.scene_manager._update_frame_services()
         assert update.call_args.kwargs['shakers'] == [self.scene_manager.screen_shake]
 
+    def test_frame_services_rumble_active_scene_camera_shake(self, mocker):
+        """Test a camera shake's rumble reaches the engine's controllers."""
+        from glitchygames.camera import Camera2D
+        from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle
+
+        device = mocker.Mock()
+        engine = mocker.Mock()
+        engine.controller_manager.controllers = {0: device}
+        self.scene_manager._game_engine = engine
+        scene = Scene()
+        scene.camera = Camera2D(screen_width=100, screen_height=100)
+        scene.camera.shake_effect.add(
+            Shake(
+                style=ShakeStyle.NOISE,
+                strength=5.0,
+                duration=1.0,
+                frequency=5.0,
+                rumble=RumbleSettings(low_frequency=1.0, high_frequency=1.0),
+            )
+        )
+        self.scene_manager.active_scene = scene
+        self.scene_manager.dt = 0.0
+        self.scene_manager._update_frame_services()
+        device.rumble.assert_called_once()
+
 
 class TestSceneShake:
     """Test Scene.shake targeting."""

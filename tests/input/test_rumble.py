@@ -64,6 +64,34 @@ class TestRumbleController:
         controller.update(shakers=[shaker], dt=0.2, devices=lambda: devices)
         assert devices[0].rumble.call_count == 2
 
+    def test_resends_before_sent_rumble_expires(self, devices):
+        """No gap mid-shake: refresh when the sent rumble is about to run out."""
+        controller = RumbleController()
+        shaker = _rumbling_shaker(duration=10.0)
+        controller.update(shakers=[shaker], dt=0.0, devices=lambda: devices)
+        # Same level, but the sent 10 s rumble has only 0.04 s left (inside the margin)
+        shaker.update(9.96)
+        controller.update(shakers=[shaker], dt=9.96, devices=lambda: devices)
+        assert devices[0].rumble.call_count == 2
+
+    def test_no_resend_while_time_left_above_margin(self, devices):
+        controller = RumbleController()
+        shaker = _rumbling_shaker(duration=10.0)
+        controller.update(shakers=[shaker], dt=0.0, devices=lambda: devices)
+        for _ in range(4):
+            shaker.update(0.1)
+            controller.update(shakers=[shaker], dt=0.1, devices=lambda: devices)
+        assert devices[0].rumble.call_count == 1
+
+    def test_longer_same_level_shake_extends_rumble(self, devices):
+        controller = RumbleController()
+        short_shaker = _rumbling_shaker(duration=1.0)
+        controller.update(shakers=[short_shaker], dt=0.0, devices=lambda: devices)
+        long_shaker = _rumbling_shaker(duration=5.0)
+        controller.update(shakers=[short_shaker, long_shaker], dt=0.0, devices=lambda: devices)
+        assert devices[0].rumble.call_count == 2
+        assert devices[0].rumble.call_args.args[2] == 5000
+
     def test_stops_when_shakes_end(self, devices):
         controller = RumbleController()
         shaker = _rumbling_shaker(duration=0.1)
@@ -126,3 +154,10 @@ class TestConnectedRumbleDevices:
         joystick = mocker.patch('pygame.joystick.Joystick', side_effect=['first', 'second'])
         assert connected_rumble_devices(None) == ['first', 'second']
         assert joystick.call_count == 2
+
+    def test_joystick_vanishing_before_open_is_skipped(self, mocker):
+        mocker.patch('pygame.joystick.get_count', return_value=2)
+        mocker.patch(
+            'pygame.joystick.Joystick', side_effect=[pygame.error('device gone'), 'second']
+        )
+        assert connected_rumble_devices(None) == ['second']

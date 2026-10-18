@@ -22,6 +22,9 @@ log: logging.Logger = logging.getLogger('game.input.rumble')
 
 RESEND_LEVEL_THRESHOLD = 0.05
 MILLISECONDS_PER_SECOND = 1000
+# Re-send when the rumble already sent has this many seconds (or less) left, so the motor is
+# refreshed just before SDL expires it instead of stopping and restarting a frame later.
+RESEND_TIME_MARGIN = 0.05
 
 
 class RumbleDevice(Protocol):
@@ -50,7 +53,14 @@ def connected_rumble_devices(controller_manager: object | None) -> list[RumbleDe
     if controller_manager is not None:
         controllers: dict[int, RumbleDevice] = getattr(controller_manager, 'controllers', {})
         return list(controllers.values())
-    return [pygame.joystick.Joystick(index) for index in range(pygame.joystick.get_count())]
+    joysticks: list[RumbleDevice] = []
+    for index in range(pygame.joystick.get_count()):
+        try:
+            joysticks.append(pygame.joystick.Joystick(index))
+        except pygame.error:
+            # Unplugged between get_count() and construction; skip it, keep the others
+            log.debug('Joystick %d vanished before it could be opened', index, exc_info=True)
+    return joysticks
 
 
 class RumbleController:
@@ -107,7 +117,13 @@ class RumbleController:
             return
 
         level_change = max(abs(low - self._sent_levels[0]), abs(high - self._sent_levels[1]))
-        if level_change <= RESEND_LEVEL_THRESHOLD and self._sent_time_left > 0.0:
+        sent_rumble_about_to_run_out = self._sent_time_left <= RESEND_TIME_MARGIN
+        sent_rumble_ends_before_shakes = remaining > self._sent_time_left + RESEND_TIME_MARGIN
+        if (
+            level_change <= RESEND_LEVEL_THRESHOLD
+            and not sent_rumble_about_to_run_out
+            and not sent_rumble_ends_before_shakes
+        ):
             return
 
         duration_milliseconds = max(1, math.ceil(remaining * MILLISECONDS_PER_SECOND))
