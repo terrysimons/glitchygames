@@ -140,3 +140,13 @@ the statistics disagreed with what the loop actually did.
 timer backend and records that same frame's measured time, so pacing and measurement cannot
 disagree. `SceneManager._tick_clock()` was an early form of this idea; it was dead code and was
 removed in the BUGS.md #25 change (it is in git history).
+
+**Requirements recorded so far:**
+- (BUGS.md #26, 2026-10-17) Since #26, paced frame time is measured with `time.perf_counter()` from
+  the start of the loop iteration to the end of the pacing sleep. Work done after the sleep
+  (`_track_performance`, the FPS-event check, loop overhead) is not counted in that frame's
+  tracked time, so reported FPS is marginally high (microseconds per frame). `_finish_frame()`
+  must measure the full period: the time from one frame's start to the next frame's start, and
+  record that as the frame's FPS sample, so tracked frames sum exactly to wall-clock time.
+- Keep pacing deadlines on the timer backend's own clock (`FastTimer` by default since #26);
+  measurement always uses the perf counter, and fractional target FPS must stay untruncated.
