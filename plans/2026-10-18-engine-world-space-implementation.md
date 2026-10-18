@@ -35,7 +35,8 @@
 | File | Status | Responsibility |
 |---|---|---|
 | `scripts/record_golden_traces.py` | create | Deterministic headless runs of each game recording per-frame sprite `rect`/`visible` |
-| `tests/world/golden/*.json` | create | Baseline traces recorded from the pre-change code |
+| `tests/world/golden/*.jsonl.gz` | create | Baseline traces recorded from the pre-change code (format version 2: gzip JSON Lines, keyframes + deltas; Task 1c) |
+| `glitchygames/tracing.py` | create | Trace format: `TraceWriter` (streaming), `read_trace`/`read_trace_result`, `write_trace`, `encode_frame`/`decode_frame`, `StableSpriteIds`, `sample_scene_frame` (Task 1c) |
 | `tests/world/test_golden_traces.py` | create | Re-runs the harness and compares with the baseline (plus enumerated expected differences) |
 | `glitchygames/scenes/scene.py` | modify | Extract `_run_scene_frame()`; camera aim + positioning in the frame; active snap mode on activation; `PIXEL_SNAP_MODE`, `camera_target()`; `_finish_frame()` |
 | `glitchygames/pixel_snap.py` | modify | `set_active_default_snap_mode`, `active_default_snap_mode`, `resolve_snap_mode(sprite)` |

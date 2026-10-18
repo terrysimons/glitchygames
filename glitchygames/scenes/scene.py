@@ -642,21 +642,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 if transition_done:
                     self._finalize_transition()
             else:
-                # Order matters: Scene.dt_tick runs first, then frame services (shake and
-                # rumble). Scene.update() runs inside _render_scene, after frame services.
-                self._update_scene()
-                self._process_events()
-                self._update_frame_services()
-                self._render_scene()
-                self._present_frame(full_update=False)
-
-                # Check for pending transition (set by Scene.transition_to)
-                if self._pending_transition is not None:
-                    self._start_transition(*self._pending_transition)
-                    self._pending_transition = None
-                # Check for plain scene switch (no transition, backward compatible)
-                else:
-                    self._switch_to_requested_scene()
+                self._run_scene_frame()
 
             self._handle_frame_pacing(
                 timer=timer,
@@ -678,6 +664,29 @@ class SceneManager(SceneInterface, events.EventManager):
 
         self._log_quit_info()
         return self.terminate()
+
+    def _run_scene_frame(self: Self) -> None:
+        """Run one non-transition frame of the active scene.
+
+        Updates the scene, processes events, updates frame services, renders and
+        presents the frame, then starts a pending transition or performs a requested
+        scene switch. ``self.dt`` must already hold this frame's delta time.
+        """
+        # Order matters: Scene.dt_tick runs first, then frame services (shake and
+        # rumble). Scene.update() runs inside _render_scene, after frame services.
+        self._update_scene()
+        self._process_events()
+        self._update_frame_services()
+        self._render_scene()
+        self._present_frame(full_update=False)
+
+        # Check for pending transition (set by Scene.transition_to)
+        if self._pending_transition is not None:
+            self._start_transition(*self._pending_transition)
+            self._pending_transition = None
+        # Check for plain scene switch (no transition, backward compatible)
+        else:
+            self._switch_to_requested_scene()
 
     def _update_timing(self, previous_time: float, current_time: float) -> tuple[float, float]:
         """Update timing variables for the game loop.
