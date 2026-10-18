@@ -16,6 +16,7 @@ from glitchygames.debug import DebugFrameInfo, DebugOverlay
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
+from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.timing import DEFAULT_TARGET_FPS
@@ -35,7 +36,8 @@ SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
 # Input dropped while a transition plays (SceneManager._process_transition_events): presses
 # and motion, so nothing pressed during a ride acts when it ends. Releases (KEYUP,
 # MOUSEBUTTONUP, JOYBUTTONUP, CONTROLLERBUTTONUP, FINGERUP), quit, window, focus and device
-# events are still delivered, so held-input state (ActionMap) is never left stuck.
+# events are still delivered, so held-input state (ActionMap) is never left stuck. Motion back
+# to neutral is a release too and is delivered: see is_discarded_during_transition.
 TRANSITION_DISCARDED_EVENT_TYPES: frozenset[int] = frozenset({
     pygame.KEYDOWN,
     pygame.TEXTINPUT,
@@ -51,6 +53,38 @@ TRANSITION_DISCARDED_EVENT_TYPES: frozenset[int] = frozenset({
     pygame.FINGERDOWN,
     pygame.FINGERMOTION,
 })
+
+
+# Axis motions whose value is neutral (a stick back at rest) are releases
+_AXIS_MOTION_EVENT_TYPES: frozenset[int] = frozenset({
+    pygame.JOYAXISMOTION,
+    pygame.CONTROLLERAXISMOTION,
+})
+HAT_CENTRED: tuple[int, int] = (0, 0)
+
+
+def is_discarded_during_transition(event: pygame.event.Event) -> bool:
+    """Report whether a transition frame drops this event.
+
+    Presses and motion (TRANSITION_DISCARDED_EVENT_TYPES) are dropped, except motion back to
+    neutral, which releases a held stick or hat: an axis inside ActionMap's DEFAULT_DEADZONE
+    (the value ActionMap treats as zero) or a hat at (0, 0).
+
+    Args:
+        event: A raw pygame event.
+
+    Returns:
+        True if the event is dropped, False if it is delivered.
+
+    """
+    if event.type not in TRANSITION_DISCARDED_EVENT_TYPES:
+        return False
+    if event.type in _AXIS_MOTION_EVENT_TYPES:
+        position = normalized_axis_value(event_type=event.type, value=event.value)
+        return abs(position) >= DEFAULT_DEADZONE
+    if event.type == pygame.JOYHATMOTION:
+        return tuple(event.value) != HAT_CENTRED
+    return True
 
 
 class SceneManager(SceneInterface, events.EventManager):
@@ -890,14 +924,15 @@ class SceneManager(SceneInterface, events.EventManager):
         """Drain the event queue during a transition frame.
 
         Presses and motion (``TRANSITION_DISCARDED_EVENT_TYPES``) are discarded, so input
-        pressed during a ride never acts when it ends. Everything else goes through the normal
+        pressed during a ride never acts when it ends; motion back to neutral is delivered
+        (``is_discarded_during_transition``). Everything else goes through the normal
         GameEngine dispatch: releases (so held keys, including ActionMap state, are never left
         stuck), quit, window, focus and device events. ``_start_transition`` has already made
         the incoming scene the active scene, so the delivered events reach the scene that will
         be active after the transition; the outgoing scene has been cleaned up.
         """
         if self.game_engine is not None:
-            self.game_engine.process_events(discarded_event_types=TRANSITION_DISCARDED_EVENT_TYPES)
+            self.game_engine.process_events(should_discard=is_discarded_during_transition)
 
     def _render_scene(self) -> None:
         """Render the active scene."""

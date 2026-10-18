@@ -40,7 +40,10 @@ from scripts.record_golden_traces import (
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
-from glitchygames.scenes.scene import TRANSITION_DISCARDED_EVENT_TYPES
+from glitchygames.scenes.scene import (
+    TRANSITION_DISCARDED_EVENT_TYPES,
+    is_discarded_during_transition,
+)
 from glitchygames.transitions import FadeTransition
 
 if TYPE_CHECKING:
@@ -58,6 +61,12 @@ ARRIVAL_WATCH_FRAMES = 30
 
 TEST_FADE_SECONDS = 0.25
 
+# The stick pushes the tests use, against 'move_right' bound at STICK_ACTION_THRESHOLD
+STICK_ACTION_THRESHOLD = 0.3
+STICK_FULL_RIGHT = 1.0
+STICK_CENTRED = 0.05  # Inside DEFAULT_DEADZONE (0.15): a stick at rest
+TEST_JOYSTICK_INSTANCE_ID = 3
+
 
 def new_shared_actions() -> ActionMap:
     """Build the game-level ActionMap both scenes of the generic transition tests share.
@@ -66,8 +75,12 @@ def new_shared_actions() -> ActionMap:
         An ActionMap with 'move_right' bound to the right arrow key.
 
     """
-    actions = ActionMap()
-    actions.bind('move_right', keyboard=pygame.K_RIGHT)
+    actions = ActionMap(input_mode='joystick')
+    actions.bind(
+        'move_right',
+        keyboard=pygame.K_RIGHT,
+        controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, STICK_ACTION_THRESHOLD),
+    )
     return actions
 
 
@@ -77,8 +90,9 @@ class ArrivalScene(Scene):
     NAME = 'Arrival'
     VERSION = '1.0'
 
-    # Replaced with a fresh map by running_game, so every test starts with nothing held
+    # Replaced by running_game, so every test starts with nothing held
     shared_actions: ClassVar[ActionMap] = new_shared_actions()
+    hat_values: ClassVar[dict[int, tuple[int, int]]] = {}
 
     @override
     def on_key_down_event(self: Self, event: Any) -> None:
@@ -89,6 +103,16 @@ class ArrivalScene(Scene):
     def on_key_up_event(self: Self, event: Any) -> None:
         """Feed key releases to the shared ActionMap."""
         ArrivalScene.shared_actions.handle_event(event)
+
+    @override
+    def on_joy_axis_motion_event(self: Self, event: Any) -> None:
+        """Feed stick motion to the shared ActionMap."""
+        ArrivalScene.shared_actions.handle_event(event)
+
+    @override
+    def on_joy_hat_motion_event(self: Self, event: Any) -> None:
+        """Remember each hat's position (the game-level controller state)."""
+        ArrivalScene.hat_values[event.hat] = tuple(event.value)
 
 
 class DepartureScene(ArrivalScene):
@@ -116,6 +140,7 @@ def running_game(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager]
     """
     clock = FakeClock(start_seconds=FAKE_CLOCK_START_SECONDS)
     ArrivalScene.shared_actions = new_shared_actions()
+    ArrivalScene.hat_values = {}
     with (
         tempfile.TemporaryDirectory(prefix='transition-input-saves-') as save_directory,
         deterministic_environment(clock=clock, save_root=Path(save_directory)),
@@ -170,6 +195,68 @@ def step_until_transition_ends(manager: GoldenTraceSceneManager) -> None:
             return
         step(manager)
     pytest.fail('The transition never ended')
+
+
+class ForwardingJoystick:
+    """Stands in for a connected joystick: forwards its motion to the scene manager."""
+
+    def __init__(self, *, manager: GoldenTraceSceneManager) -> None:
+        """Forward to this scene manager."""
+        self.manager = manager
+
+    def on_joy_axis_motion_event(self, event: Any) -> None:
+        """Forward axis motion."""
+        self.manager.on_joy_axis_motion_event(event)
+
+    def on_joy_hat_motion_event(self, event: Any) -> None:
+        """Forward hat motion."""
+        self.manager.on_joy_hat_motion_event(event)
+
+
+def connect_test_joystick(manager: GoldenTraceSceneManager) -> None:
+    """Register a stand-in joystick, so its events reach the active scene.
+
+    Args:
+        manager: The running scene manager.
+
+    """
+    assert manager.game_engine is not None
+    manager.game_engine.joystick_manager.joysticks[TEST_JOYSTICK_INSTANCE_ID] = ForwardingJoystick(
+        manager=manager
+    )
+
+
+def stick_x(value: float) -> pygame.event.Event:
+    """Build a left-stick x motion from the test joystick.
+
+    Args:
+        value: The normalized stick position.
+
+    Returns:
+        The JOYAXISMOTION event.
+
+    """
+    return pygame.event.Event(
+        pygame.JOYAXISMOTION,
+        instance_id=TEST_JOYSTICK_INSTANCE_ID,
+        axis=pygame.CONTROLLER_AXIS_LEFTX,
+        value=value,
+    )
+
+
+def hat(value: tuple[int, int]) -> pygame.event.Event:
+    """Build a hat 0 motion from the test joystick.
+
+    Args:
+        value: The hat position.
+
+    Returns:
+        The JOYHATMOTION event.
+
+    """
+    return pygame.event.Event(
+        pygame.JOYHATMOTION, instance_id=TEST_JOYSTICK_INSTANCE_ID, hat=0, value=value
+    )
 
 
 def start_departure(manager: GoldenTraceSceneManager) -> None:
@@ -291,3 +378,65 @@ def test_controller_disconnect_during_transition_is_processed(mocker):
         assert manager._active_transition is not None
         removed_handler.assert_called_once()
         assert removed_handler.call_args.args[0].instance_id == 7
+
+
+def test_stick_pushed_before_transition_and_centred_during_it_is_not_held_after():
+    """A stick back inside the deadzone mid-transition is a release: it is delivered."""
+    with running_game(DepartureScene) as manager:
+        connect_test_joystick(manager)
+        step(manager, stick_x(STICK_FULL_RIGHT))
+        assert ArrivalScene.shared_actions.is_held('move_right')
+
+        start_departure(manager)
+        step(manager, stick_x(STICK_CENTRED))
+        step_until_transition_ends(manager)
+
+        assert not ArrivalScene.shared_actions.is_held('move_right')
+
+
+def test_stick_pushed_during_transition_is_discarded():
+    """A stick pushed outside the deadzone mid-transition is a press: it is discarded."""
+    with running_game(DepartureScene) as manager:
+        connect_test_joystick(manager)
+        start_departure(manager)
+        step(manager, stick_x(STICK_FULL_RIGHT))
+        step_until_transition_ends(manager)
+        step(manager)
+
+        assert not ArrivalScene.shared_actions.is_held('move_right')
+
+
+def test_hat_centred_during_transition_is_delivered_and_pushed_hat_discarded():
+    """A hat back at (0, 0) mid-transition is delivered; a pushed hat is not."""
+    with running_game(DepartureScene) as manager:
+        connect_test_joystick(manager)
+        step(manager, hat((1, 0)))
+        assert ArrivalScene.hat_values == {0: (1, 0)}
+
+        start_departure(manager)
+        step(manager, hat((0, 0)))
+        assert ArrivalScene.hat_values == {0: (0, 0)}
+
+        step(manager, hat((0, 1)))
+        step_until_transition_ends(manager)
+        step(manager)
+        assert ArrivalScene.hat_values == {0: (0, 0)}
+
+
+@pytest.mark.parametrize(
+    ('event', 'is_discarded'),
+    [
+        # Controller axis values are raw SDL ints: 4000 / 32767 = 0.12 is inside the deadzone
+        (pygame.event.Event(pygame.CONTROLLERAXISMOTION, axis=0, value=4000), False),
+        (pygame.event.Event(pygame.CONTROLLERAXISMOTION, axis=0, value=-32767), True),
+        (pygame.event.Event(pygame.JOYAXISMOTION, axis=0, value=-0.1), False),
+        (pygame.event.Event(pygame.JOYAXISMOTION, axis=0, value=0.5), True),
+        (pygame.event.Event(pygame.JOYHATMOTION, hat=0, value=(0, 0)), False),
+        (pygame.event.Event(pygame.JOYHATMOTION, hat=0, value=(-1, 0)), True),
+        (pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a), True),
+        (pygame.event.Event(pygame.KEYUP, key=pygame.K_a), False),
+    ],
+)
+def test_neutral_motion_is_delivered_and_other_presses_discarded(event, is_discarded):
+    """Axis motion inside DEFAULT_DEADZONE and a centred hat are releases, not presses."""
+    assert is_discarded_during_transition(event) is is_discarded
