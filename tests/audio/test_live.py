@@ -266,6 +266,59 @@ class TestLiveAudio:
         audio.update(active_scene='new', previous_scene='old', active_transitions=(None,))
         assert voice.state is VoiceState.STOPPED
 
+    def test_fading_voice_finishes_when_owner_becomes_previous_scene(self, audio, rendered_chunks):
+        voice = self._create(audio, 'scene')
+        voice.start()
+        voice.stop(fade_out=0.1)
+        audio.update(active_scene='pause', previous_scene='scene', active_transitions=())
+        assert abs(rendered_chunks[-1][-1]) < 1e-9  # The fade chunk was queued
+        assert voice.state is VoiceState.DRAINING
+
+    def test_paused_voice_that_is_stopped_renders_its_fade(self, audio, rendered_chunks):
+        voice = self._create(audio, 'scene')
+        voice.start()
+        audio.update(active_scene='pause', previous_scene='scene', active_transitions=())
+        assert voice.state is VoiceState.PAUSED
+        voice.stop(fade_out=0.1)
+        audio.update(active_scene='pause', previous_scene='scene', active_transitions=())
+        assert abs(rendered_chunks[-1][-1]) < 1e-9
+        assert voice.state is VoiceState.DRAINING
+
+    def test_stopped_voice_returns_its_channel_to_the_pool(self, mocker, rendered_chunks):
+        mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
+        mocker.patch('pygame.mixer.Channel', side_effect=lambda index: mocker.Mock())
+        single = LiveAudio(channel_indices=(0,))
+        voice = self._create(single, 'scene')
+        voice.start()
+        voice.stop_now()
+        single.update(active_scene='scene', previous_scene=None, active_transitions=())
+        assert self._create(single, 'scene') is not None
+
+    def test_drained_voice_returns_its_channel_to_the_pool(self, mocker, rendered_chunks):
+        mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))
+        drained_channel = mocker.Mock()
+        drained_channel.get_queue.return_value = None
+        drained_channel.get_busy.return_value = True
+        mocker.patch('pygame.mixer.Channel', return_value=drained_channel)
+        single = LiveAudio(channel_indices=(0,))
+        voice = self._create(single, 'scene')
+        voice.start()
+        voice.stop(fade_out=0.1)
+        single.update(active_scene='scene', previous_scene=None, active_transitions=())
+        assert voice.state is VoiceState.DRAINING
+        drained_channel.get_busy.return_value = False
+        single.update(active_scene='scene', previous_scene=None, active_transitions=())
+        assert self._create(single, 'scene') is not None
+
+    def test_releasing_a_voice_twice_is_idempotent(self, audio):
+        first = self._create(audio, 'scene')
+        audio.release_voice(first)
+        audio.release_voice(first)
+        self._create(audio, 'scene')
+        self._create(audio, 'scene')
+        with pytest.raises(ValueError, match='live-voice-pool'):
+            self._create(audio, 'scene')
+
     def test_no_mixer_returns_silent_voice(self, mocker):
         mocker.patch('pygame.mixer.get_init', return_value=None)
         voice = LiveAudio(channel_indices=()).create_voice(

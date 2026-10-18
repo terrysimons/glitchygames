@@ -177,6 +177,17 @@ class LiveVoice:
             return True
         return self._state is VoiceState.DRAINING and bool(self._channel.get_busy())
 
+    @property
+    def is_finished(self) -> bool:
+        """True once the voice was stopped, or has faded out and its channel has drained."""
+        if self._state is VoiceState.STOPPED:
+            return True
+        return (
+            self._state is VoiceState.DRAINING
+            and self._channel is not None
+            and not self._channel.get_busy()
+        )
+
     # --- Lifecycle ---
 
     def start(self) -> None:
@@ -198,7 +209,11 @@ class LiveVoice:
             self._channel.queue(to_sound(self._render_chunk(), volume=1.0))
 
     def stop(self, *, fade_out: float = DEFAULT_FADE_OUT) -> None:
-        """Fade to silence over fade_out seconds of rendered audio, then drain."""
+        """Fade to silence over fade_out seconds of rendered audio, then drain.
+
+        LiveAudio.update() keeps rendering the fade and returns the channel to the pool once
+        the voice has drained.
+        """
         if self._channel is None or self._state not in {VoiceState.PLAYING, VoiceState.PAUSED}:
             return
         if self._state is VoiceState.PAUSED:
@@ -321,7 +336,8 @@ class LiveAudio:
     ) -> LiveVoice:
         """Create a stopped voice on a free pool channel.
 
-        Without a mixer the voice is a silent no-op (logged once).
+        Without a mixer the voice is a silent no-op (logged once). The channel returns to the
+        pool once the voice has drained or been stopped (see update()).
 
         Returns:
             The voice; call start() to hear it.
@@ -382,6 +398,10 @@ class LiveAudio:
     ) -> None:
         """Play voices of active owners, pause the paused scene's, release the rest.
 
+        Voices that are stopped, or faded out and drained, give their channel back first. A
+        fading or draining voice keeps updating even when its owner is the previous scene:
+        stopping wins over pausing, so the fade is rendered instead of cut off.
+
         Args:
             active_scene: SceneManager.active_scene.
             previous_scene: SceneManager.previous_scene (what a PauseScene returns to).
@@ -391,6 +411,9 @@ class LiveAudio:
         """
         live_transitions = [transition for transition in active_transitions if transition]
         for voice in list(self._voices):
+            if voice.is_finished:
+                self.release_voice(voice)
+                continue
             owner = voice.owner
             owner_is_live_transition = any(
                 owner is live_transition for live_transition in live_transitions
@@ -399,6 +422,9 @@ class LiveAudio:
                 voice.resume()
                 voice.update()
             elif owner is previous_scene:
-                voice.pause()
+                if voice.state in {VoiceState.FADING, VoiceState.DRAINING}:
+                    voice.update()
+                else:
+                    voice.pause()
             else:
                 self.release_voice(voice)
