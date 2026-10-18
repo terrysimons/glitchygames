@@ -1075,14 +1075,36 @@ class TestSceneMouseEventHandlers:
 class TestScenePauseAndResume:
     """Test Scene pause/resume/game_over methods."""
 
-    def test_pause_creates_pause_scene(self, mock_pygame_patches, mocker):
-        """Test pause() creates and switches to a PauseScene."""
+    def test_pause_requests_a_pause_scene_after_this_frame(self, mock_pygame_patches, mocker):
+        """pause() sets next_scene instead of switching mid-frame.
+
+        Switching during event processing would freeze the screenshot of the previous render
+        while sprites have already moved this frame, so the paused picture and game state
+        would disagree by one frame.
+        """
+        from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+
         scene = Scene()
         scene.scene_manager.switch_to_scene = mocker.Mock()
 
         scene.pause()
 
-        scene.scene_manager.switch_to_scene.assert_called_once()
+        assert isinstance(scene.next_scene, PauseScene)
+        scene.scene_manager.switch_to_scene.assert_not_called()
+
+    def test_activating_a_scene_clears_its_pending_switch(self, mock_pygame_patches, mocker):
+        """A scene that becomes active again (after a resume) has no pending switch left over.
+
+        Otherwise a game that paused by setting next_scene pauses again one frame after resuming.
+        """
+        scene_manager = SceneManager()
+        game_scene = Scene()
+        old_pause_scene = Scene()
+        game_scene.next_scene = old_pause_scene  # left over from the pause request
+
+        scene_manager.switch_to_scene(game_scene)
+
+        assert game_scene.next_scene is game_scene
 
     def test_resume_switches_to_previous_scene(self, mock_pygame_patches, mocker):
         """Test resume() switches back to the previous scene."""

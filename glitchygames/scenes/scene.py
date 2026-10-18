@@ -881,6 +881,9 @@ class SceneManager(SceneInterface, events.EventManager):
         """Set up the new scene."""
         if next_scene:
             self.log.info('Setting up new scene %s.', next_scene)
+            # A scene becoming active (again, after a resume) starts with no pending switch;
+            # otherwise a game that paused via next_scene would pause again on the next frame
+            next_scene.next_scene = next_scene
             # Ensure the new scene has access to the game engine
             if hasattr(self, 'game_engine') and self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
@@ -2076,19 +2079,19 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     def pause(self: Self) -> None:
         """Pause the current scene.
 
-        Default implementation switches to a PauseScene.
+        Default implementation requests a PauseScene for the end of this frame.
         Scenes can override this method to provide custom pause behavior.
+
+        The switch happens after this frame renders (via next_scene), not immediately: pause()
+        usually runs during event processing, after sprites have moved this frame, so an
+        immediate switch would freeze the previous frame's picture one frame behind the game.
 
         """
         from .builtin_scenes.pause_scene import PauseScene
 
-        # Create the pause scene
-        pause_scene = PauseScene(options=self.options)
+        self.next_scene = PauseScene(options=self.options)
 
-        # Switch to the pause scene
-        self.scene_manager.switch_to_scene(pause_scene)
-
-        self.log.info('Scene paused')
+        self.log.info('Scene pause requested')
 
     def resume(self: Self) -> None:
         """Resume the current scene.
