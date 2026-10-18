@@ -36,6 +36,30 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-18
 - **Details**: `scripts/legacy_sprite_loader.py:~50`. Unchanged on the branch. Fix the call, or delete the script if it is obsolete.
 
+### 47. Packaged Bitmappy Re-Launches Itself for Background Processes (No freeze_support)
+- **Description**: In the PyInstaller build (`dist/bitmappy`), background processes (the AI worker and multiprocessing's resource tracker) start the bundled app again with multiprocessing's own arguments (`--multiprocessing-fork …`, `-B -S -I -c …`), which the app's argument parser rejects, so those processes fail
+- **Status**: Active
+- **Priority**: High for the packaged build (AI sprite generation likely cannot run there); no effect when running from source
+- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary` (2026-10-18)
+- **Date Reported**: 2026-10-18
+- **Details**: No `multiprocessing.freeze_support()` call exists in the repo. Frozen executables must call it first thing in the entry point (before argument parsing) so child processes run their task instead of the app. Fix: call it in Bitmappy's entry point (and any other packaged entry point), then rebuild and confirm an AI request completes in the binary.
+
+### 48. Packaged Bitmappy Is Missing `pygame._sdl2.audio`
+- **Description**: A background process in the PyInstaller build crashes with `ModuleNotFoundError: No module named 'pygame._sdl2.audio'`
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary`
+- **Date Reported**: 2026-10-18
+- **Details**: `bitmappy.spec` does not collect `pygame._sdl2.audio` (used for audio device listing). Fix: add it to `hiddenimports` and confirm the process starts in the rebuilt binary. May disappear once #47 stops the re-launch, but the module should be bundled either way if any code imports it.
+
+### 49. bitmappy.spec Lists a Hidden Import That No Longer Exists
+- **Description**: The PyInstaller build logs `ERROR: Hidden import 'glitchygames.events.voice_portaudio' not found`
+- **Status**: Active
+- **Priority**: Low (the build still succeeds, but the PortAudio voice backend may be missing from the binary)
+- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary`
+- **Date Reported**: 2026-10-18
+- **Details**: `bitmappy.spec:55` lists `glitchygames.events.voice_portaudio`; the module moved to `glitchygames.events.voice_backends.voice_portaudio`. Fix: update the hidden import (and check the spec's other module names against the package), rebuild, and confirm the log is clean.
+
 ## Resolved Bugs
 
 ### 44. TOML Save Drops Animation State Machine Transitions
