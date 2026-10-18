@@ -49,10 +49,16 @@ class ShakeAxis(enum.Enum):
 
 @dataclasses.dataclass(frozen=True)
 class RumbleSettings:
-    """Controller motor intensities (0.0-1.0) at full shake strength."""
+    """Controller motor intensities (0.0-1.0).
+
+    By default they are reached at full shake strength (strength / maximum offset), so a small
+    on-screen shake rumbles gently. With scale_with_strength=False the intensities are absolute
+    and only the shake's decay envelope scales them.
+    """
 
     low_frequency: float
     high_frequency: float
+    scale_with_strength: bool = True
 
     def __post_init__(self) -> None:
         """Validate motor intensities.
@@ -290,16 +296,22 @@ class ScreenShake:
 
     @property
     def rumble_levels(self) -> tuple[float, float]:
-        """Per-motor maximum over rumbling shakes of value x decay x strength fraction."""
+        """Per-motor maximum over rumbling shakes of value x decay x strength fraction.
+
+        The strength fraction is 1.0 for shakes whose rumble has scale_with_strength=False.
+        """
         low = 0.0
         high = 0.0
         for active_shake in self._active:
             rumble = active_shake.shake.rumble
             if rumble is None:
                 continue
-            scale = active_shake.decay() * min(
-                1.0, active_shake.shake.strength / self._maximum_offset
+            strength_fraction = (
+                min(1.0, active_shake.shake.strength / self._maximum_offset)
+                if rumble.scale_with_strength
+                else 1.0
             )
+            scale = active_shake.decay() * strength_fraction
             low = max(low, rumble.low_frequency * scale)
             high = max(high, rumble.high_frequency * scale)
         return (low, high)

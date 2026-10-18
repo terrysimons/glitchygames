@@ -339,6 +339,7 @@ class SceneManager(SceneInterface, events.EventManager):
         scene = cast('Scene | None', next_scene)
         if scene != self.active_scene:
             self.screen_shake.clear()  # Pause, game over and direct switches never inherit a shake
+            self.rumble.clear_sustained()  # ...nor leave a controller buzzing
             # Track the previous scene BEFORE any cleanup or setup
             self.previous_scene = self.active_scene
             self._reset_scene_timers()

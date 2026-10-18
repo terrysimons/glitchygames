@@ -13,6 +13,20 @@ import pygame
 from glitchygames.examples.clockwork_keep.constants import (
     ANIMATION_SPEED,
     ARM_SWING_AMPLITUDE,
+    CLOCK_BRASS,
+    CLOCK_CENTER_CAP_RADIUS,
+    CLOCK_HOUR_HAND_LENGTH,
+    CLOCK_HOUR_HAND_WIDTH,
+    CLOCK_MINUTE_HAND_LENGTH,
+    CLOCK_MINUTE_HAND_WIDTH,
+    CLOCK_SECOND_HAND,
+    CLOCK_SECOND_HAND_LENGTH,
+    CLOCK_SECOND_HAND_TAIL_LENGTH,
+    CLOCK_SECOND_HAND_WIDTH,
+    CLOCK_SECONDS_PER_HALF_DAY,
+    CLOCK_SECONDS_PER_HOUR,
+    CLOCK_SECONDS_PER_MINUTE,
+    CLOCK_START_SECONDS,
     LEG_SWING_AMPLITUDE,
     PLAYER_BOOTS,
     PLAYER_GOGGLE_FRAME,
@@ -367,22 +381,54 @@ def draw_gear_background(
     _draw_tower_walls(surface, camera_y, GEAR_WALL, GEAR_WALL_ACCENT, GEAR_WINDOW_SKY)
 
 
+def clock_hand_angles(clock_seconds: float) -> tuple[float, float, float]:
+    """Return the hour, minute and second hand angles for a time on a 12-hour dial.
+
+    The hands sweep smoothly: each one advances continuously with the fractional seconds.
+
+    Args:
+        clock_seconds: Seconds since midnight (wraps every 12 hours).
+
+    Returns:
+        (hour, minute, second) angles in radians, clockwise from 12 o'clock.
+
+    """
+    full_turn = 2 * math.pi
+    hour_angle = (
+        full_turn * (clock_seconds % CLOCK_SECONDS_PER_HALF_DAY) / CLOCK_SECONDS_PER_HALF_DAY
+    )
+    minute_angle = full_turn * (clock_seconds % CLOCK_SECONDS_PER_HOUR) / CLOCK_SECONDS_PER_HOUR
+    second_angle = full_turn * (clock_seconds % CLOCK_SECONDS_PER_MINUTE) / CLOCK_SECONDS_PER_MINUTE
+    return (hour_angle, minute_angle, second_angle)
+
+
+def _clock_hand_end(center: tuple[int, int], *, clock_angle: float, length: int) -> tuple[int, int]:
+    """Return the pixel at length from center along a clockwise-from-12 angle."""
+    screen_angle = clock_angle - math.pi / 2
+    return (
+        center[0] + round(length * math.cos(screen_angle)),
+        center[1] + round(length * math.sin(screen_angle)),
+    )
+
+
 def draw_clock_background(
     surface: pygame.Surface,
     _camera_x: float,
     camera_y: float,
+    *,
+    clock_seconds: float = CLOCK_START_SECONDS,
 ) -> None:
-    """Draw Clock Face background — midnight blue with clock elements.
+    """Draw Clock Face background — midnight blue with a working clock.
 
     Args:
         surface: Surface to draw onto.
         _camera_x: Horizontal camera (unused).
         camera_y: Vertical camera position.
+        clock_seconds: Seconds since midnight shown by the hands (12-hour dial).
 
     """
     from glitchygames.examples.clockwork_keep.constants import (
         CLOCK_BG,
-        CLOCK_BRASS,
         CLOCK_WALL,
         CLOCK_WALL_ACCENT,
         CLOCK_WINDOW_SKY,
@@ -405,18 +451,33 @@ def draw_clock_background(
         my = center_y + round((clock_radius - 15) * math.sin(angle))
         pygame.draw.circle(surface, (35, 35, 60), (mx, my), 4)
 
-    # Clock hands (static — decorative)
-    # Hour hand
-    hour_angle = -math.pi / 3
-    hx = center_x + round(60 * math.cos(hour_angle))
-    hy = center_y + round(60 * math.sin(hour_angle))
-    pygame.draw.line(surface, CLOCK_BRASS, (center_x, center_y), (hx, hy), 3)
-
-    # Minute hand
-    min_angle = math.pi / 6
-    minx = center_x + round(85 * math.cos(min_angle))
-    miny = center_y + round(85 * math.sin(min_angle))
-    pygame.draw.line(surface, CLOCK_BRASS, (center_x, center_y), (minx, miny), 2)
+    # Clock hands, sweeping smoothly with clock_seconds
+    center = (center_x, center_y)
+    hour_angle, minute_angle, second_angle = clock_hand_angles(clock_seconds)
+    pygame.draw.line(
+        surface,
+        CLOCK_BRASS,
+        center,
+        _clock_hand_end(center, clock_angle=hour_angle, length=CLOCK_HOUR_HAND_LENGTH),
+        CLOCK_HOUR_HAND_WIDTH,
+    )
+    pygame.draw.line(
+        surface,
+        CLOCK_BRASS,
+        center,
+        _clock_hand_end(center, clock_angle=minute_angle, length=CLOCK_MINUTE_HAND_LENGTH),
+        CLOCK_MINUTE_HAND_WIDTH,
+    )
+    pygame.draw.line(
+        surface,
+        CLOCK_SECOND_HAND,
+        _clock_hand_end(
+            center, clock_angle=second_angle + math.pi, length=CLOCK_SECOND_HAND_TAIL_LENGTH
+        ),
+        _clock_hand_end(center, clock_angle=second_angle, length=CLOCK_SECOND_HAND_LENGTH),
+        CLOCK_SECOND_HAND_WIDTH,
+    )
+    pygame.draw.circle(surface, CLOCK_BRASS, center, CLOCK_CENTER_CAP_RADIUS)
 
     # Pendulum chains
     for px in [300, 500]:

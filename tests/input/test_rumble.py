@@ -141,6 +141,60 @@ class TestRumbleController:
             RumbleController(intensity=1.5)
 
 
+class TestSustainedRumble:
+    """A held level (e.g. the elevator hum) combined with shakes."""
+
+    def test_sustained_alone_sends_short_slices_and_refreshes_before_expiry(self, devices):
+        controller = RumbleController()
+        controller.set_sustained(low_frequency=0.25, high_frequency=0.05)
+        controller.update(shakers=[], dt=0.0, devices=lambda: devices)
+        devices[0].rumble.assert_called_once_with(0.25, 0.05, 250)
+
+        controller.update(shakers=[], dt=0.1, devices=lambda: devices)  # 0.15 s left
+        assert devices[0].rumble.call_count == 1
+        controller.update(shakers=[], dt=0.1, devices=lambda: devices)  # 0.05 s left: refresh
+        assert devices[0].rumble.call_count == 2
+        assert devices[0].rumble.call_args.args == (0.25, 0.05, 250)
+
+    def test_sustained_and_shake_take_per_motor_maximum(self, devices):
+        controller = RumbleController()
+        controller.set_sustained(low_frequency=0.25, high_frequency=0.9)
+        controller.update(shakers=[_rumbling_shaker()], dt=0.0, devices=lambda: devices)
+        # Shake gives (1.0, 0.5): low from the shake, high from the sustained level
+        devices[0].rumble.assert_called_once_with(1.0, 0.9, 1000)
+
+    def test_clear_sustained_stops_rumble_when_no_shakes_remain(self, devices):
+        controller = RumbleController()
+        controller.set_sustained(low_frequency=0.25, high_frequency=0.05)
+        controller.update(shakers=[], dt=0.0, devices=lambda: devices)
+        controller.clear_sustained()
+        assert controller.sustained_levels == (0.0, 0.0)
+        controller.update(shakers=[], dt=0.016, devices=lambda: devices)
+        devices[0].stop_rumble.assert_called_once()
+
+    def test_clear_sustained_leaves_shake_rumble(self, devices):
+        controller = RumbleController()
+        controller.set_sustained(low_frequency=0.25, high_frequency=0.05)
+        controller.clear_sustained()
+        controller.update(shakers=[_rumbling_shaker()], dt=0.0, devices=lambda: devices)
+        devices[0].rumble.assert_called_once_with(1.0, 0.5, 1000)
+
+    @pytest.mark.parametrize(
+        ('low_frequency', 'high_frequency'), [(-0.1, 0.0), (1.1, 0.0), (0.0, -0.1), (0.0, 1.1)]
+    )
+    def test_set_sustained_validates_range(self, low_frequency, high_frequency):
+        controller = RumbleController()
+        with pytest.raises(ValueError, match=r'between 0\.0 and 1\.0'):
+            controller.set_sustained(low_frequency=low_frequency, high_frequency=high_frequency)
+        assert controller.sustained_levels == (0.0, 0.0)
+
+    def test_intensity_scales_sustained(self, devices):
+        controller = RumbleController(intensity=0.5)
+        controller.set_sustained(low_frequency=0.4, high_frequency=0.2)
+        controller.update(shakers=[], dt=0.0, devices=lambda: devices)
+        devices[0].rumble.assert_called_once_with(0.2, 0.1, 250)
+
+
 class TestConnectedRumbleDevices:
     """Test device discovery in controller and joystick modes."""
 

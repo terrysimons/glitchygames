@@ -25,6 +25,10 @@ MILLISECONDS_PER_SECOND = 1000
 # Re-send when the rumble already sent has this many seconds (or less) left, so the motor is
 # refreshed just before SDL expires it instead of stopping and restarting a frame later.
 RESEND_TIME_MARGIN = 0.05
+# A sustained level has no natural end, so it is sent in short slices and refreshed by the
+# time-left margin above. If the game stops updating (crash, hang), the motor stops within
+# this many seconds instead of buzzing forever.
+SUSTAINED_SEND_DURATION = 0.25
 
 
 class RumbleDevice(Protocol):
@@ -77,6 +81,36 @@ class RumbleController:
         self.intensity = intensity
         self._sent_levels = (0.0, 0.0)
         self._sent_time_left = 0.0
+        self._sustained_levels = (0.0, 0.0)
+
+    @property
+    def sustained_levels(self) -> tuple[float, float]:
+        """The sustained (low frequency, high frequency) motor levels, (0.0, 0.0) if none."""
+        return self._sustained_levels
+
+    def set_sustained(self, *, low_frequency: float, high_frequency: float) -> None:
+        """Hold a rumble level until changed or cleared (e.g. an elevator's hum).
+
+        Args:
+            low_frequency: Low-frequency (heavy) motor level, 0.0-1.0.
+            high_frequency: High-frequency (light) motor level, 0.0-1.0.
+
+        Raises:
+            ValueError: If either level is outside 0.0-1.0.
+
+        """
+        for field_name, value in (
+            ('low_frequency', low_frequency),
+            ('high_frequency', high_frequency),
+        ):
+            if not 0.0 <= value <= 1.0:
+                message = f'{field_name} must be between 0.0 and 1.0, got {value}'
+                raise ValueError(message)
+        self._sustained_levels = (low_frequency, high_frequency)
+
+    def clear_sustained(self) -> None:
+        """Stop holding a sustained level (shake rumble is unaffected)."""
+        self._sustained_levels = (0.0, 0.0)
 
     @property
     def intensity(self) -> float:
@@ -106,9 +140,17 @@ class RumbleController:
 
         """
         self._sent_time_left -= dt
-        low = max((shaker.rumble_levels[0] for shaker in shakers), default=0.0) * self._intensity
-        high = max((shaker.rumble_levels[1] for shaker in shakers), default=0.0) * self._intensity
+        sustained_low, sustained_high = self._sustained_levels
+        low = max((shaker.rumble_levels[0] for shaker in shakers), default=0.0)
+        low = max(low, sustained_low) * self._intensity
+        high = max((shaker.rumble_levels[1] for shaker in shakers), default=0.0)
+        high = max(high, sustained_high) * self._intensity
         remaining = max((shaker.rumble_remaining for shaker in shakers), default=0.0)
+        # Only shakes have a real end; the sustained slice must not look like "shakes outlast
+        # what was sent" every frame, or it would be re-sent every frame.
+        send_remaining = remaining
+        if max(sustained_low, sustained_high) > 0.0:
+            send_remaining = max(remaining, SUSTAINED_SEND_DURATION)
 
         if max(low, high) <= 0.0:
             if self._sent_levels != (0.0, 0.0):
@@ -126,7 +168,7 @@ class RumbleController:
         ):
             return
 
-        duration_milliseconds = max(1, math.ceil(remaining * MILLISECONDS_PER_SECOND))
+        duration_milliseconds = max(1, math.ceil(send_remaining * MILLISECONDS_PER_SECOND))
         self._send_rumble(
             devices=devices,
             levels=(low, high),

@@ -384,6 +384,12 @@ class TestSceneManagerInternals:
         self.scene_manager.switch_to_scene(mocker.Mock())
         assert not self.scene_manager.screen_shake.is_active
 
+    def test_switch_to_scene_clears_sustained_rumble(self, mocker):
+        """Pause must never leave a controller buzzing."""
+        self.scene_manager.rumble.set_sustained(low_frequency=0.25, high_frequency=0.05)
+        self.scene_manager.switch_to_scene(mocker.Mock())
+        assert self.scene_manager.rumble.sustained_levels == (0.0, 0.0)
+
     def test_frame_services_advance_screen_shake(self):
         """Test the per-frame services advance the screen shake by the frame time."""
         from glitchygames.effects.shake import Shake, ShakeStyle

@@ -271,6 +271,39 @@ def scene_manager_with_screen(mocker):
     manager.screen_shake.clear()
 
 
+class TestRumbleStrengthScaling:
+    """scale_with_strength=False makes rumble absolute."""
+
+    @staticmethod
+    def _levels(*, strength, scale_with_strength=None):
+        shaker = _shaker(maximum_offset=32.0)
+        rumble_arguments = {'low_frequency': 1.0, 'high_frequency': 0.5}
+        if scale_with_strength is not None:
+            rumble_arguments['scale_with_strength'] = scale_with_strength
+        shaker.add(
+            Shake(
+                style=ShakeStyle.JITTER,
+                strength=strength,
+                duration=1.0,
+                frequency=5.0,
+                rumble=RumbleSettings(**rumble_arguments),
+            )
+        )
+        shaker.update(0.5)  # Decay 0.5
+        return shaker.rumble_levels
+
+    @pytest.mark.parametrize('strength', [1.0, 14.0, 32.0, 100.0])
+    def test_absolute_rumble_ignores_strength(self, strength):
+        assert self._levels(strength=strength, scale_with_strength=False) == pytest.approx((
+            0.5,
+            0.25,
+        ))
+
+    def test_default_still_scales_with_strength(self):
+        assert RumbleSettings(low_frequency=1.0, high_frequency=1.0).scale_with_strength is True
+        assert self._levels(strength=16.0) == pytest.approx((0.25, 0.125))
+
+
 class TestScreenShakePresentation:
     """SCREEN shake is applied at present time and never leaks into the display surface."""
 

@@ -1,5 +1,7 @@
 """Tests for the Clockwork Keep example game."""
 
+import math
+
 import pygame
 import pytest
 
@@ -8,7 +10,16 @@ from glitchygames.audio.live import VoiceState
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples.clockwork_keep import sounds as clockwork_sounds
-from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
+from glitchygames.examples.clockwork_keep.constants import (
+    CLOCK_START_SECONDS,
+    ELEVATOR_ASCENT_RUMBLE_LOW,
+)
+from glitchygames.examples.clockwork_keep.drawing import clock_hand_angles
+from glitchygames.examples.clockwork_keep.game import (
+    ELEVATOR_STOP_BOUNCE,
+    ELEVATOR_STOP_RATTLE,
+    ClockworkKeepScene,
+)
 
 FRAME_TIME = 1.0 / 60.0
 
@@ -215,3 +226,92 @@ class TestElevatorRide:
         clockwork_scene.apply_camera_to_sprites()
         platform = clockwork_scene.platform_sprites[0]
         assert platform.rect.y == round(platform.world_y - 37.0)
+
+
+class TestElevatorRumble:
+    """Sustained ascent rumble and the stronger, absolute stop rumble."""
+
+    _ride = TestElevatorRide._ride
+
+    def test_sustained_low_level_rises_with_speed_and_is_capped(self, clockwork_scene, mocker):
+        mocker.patch.object(
+            clockwork_scene.scene_manager.live_audio,
+            'create_voice',
+            return_value=mocker.Mock(state=VoiceState.PLAYING),
+        )
+        transition = self._ride(clockwork_scene)
+        rumble = clockwork_scene.scene_manager.rumble
+        transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))
+        transition.update(0.5)
+        early_level = rumble.sustained_levels[0]
+        transition.update(3.0)
+        late_level = rumble.sustained_levels[0]
+        assert 0.0 < early_level < late_level <= ELEVATOR_ASCENT_RUMBLE_LOW
+
+    def test_arrival_clears_sustained_rumble(self, clockwork_scene, played):
+        transition = self._ride(clockwork_scene)
+        transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))
+        transition.update(3.0)
+        assert clockwork_scene.scene_manager.rumble.sustained_levels[0] > 0.0
+        transition.update(2.0)  # Arrives
+        assert clockwork_scene.scene_manager.rumble.sustained_levels == (0.0, 0.0)
+
+    def test_ride_without_free_voice_still_rumbles(self, clockwork_scene, mocker):
+        mocker.patch.object(
+            clockwork_scene.scene_manager.live_audio,
+            'create_voice',
+            side_effect=ValueError('All 0 live voice channels are in use'),
+        )
+        transition = self._ride(clockwork_scene)
+        transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))
+        transition.update(3.0)
+        assert clockwork_scene.scene_manager.rumble.sustained_levels[0] > 0.0
+
+    def test_stop_shakes_rumble_in_absolute_terms(self):
+        for stop_shake in (ELEVATOR_STOP_BOUNCE, ELEVATOR_STOP_RATTLE):
+            assert stop_shake.rumble is not None
+            assert stop_shake.rumble.scale_with_strength is False
+        assert ELEVATOR_STOP_BOUNCE.rumble.low_frequency == 1.0
+
+
+class TestFloorThreeClock:
+    """The floor-3 clock: smooth sweep hands driven by game time."""
+
+    def test_hand_angles_at_start_time(self):
+        hour, minute, second = clock_hand_angles(CLOCK_START_SECONDS)
+        assert second == pytest.approx(0.0)
+        assert minute == pytest.approx(2 * math.pi * 58 / 60)
+        assert hour == pytest.approx(2 * math.pi * (11 + 58 / 60) / 12)
+
+    def test_second_hand_sweeps_half_turn_after_thirty_seconds(self):
+        _hour, _minute, second = clock_hand_angles(CLOCK_START_SECONDS + 30.0)
+        assert second == pytest.approx(math.pi)
+
+    def test_second_hand_wraps_at_exactly_sixty_seconds(self):
+        _hour, minute_before, _second = clock_hand_angles(CLOCK_START_SECONDS)
+        _hour, minute_after, second = clock_hand_angles(CLOCK_START_SECONDS + 60.0)
+        assert second == pytest.approx(0.0)
+        assert minute_after - minute_before == pytest.approx(2 * math.pi / 60)
+
+    def test_floor_elapsed_time_advances_and_stops_after_game_over(self, clockwork_scene):
+        assert clockwork_scene.floor_elapsed_time == 0.0
+        clockwork_scene.dt_tick(0.02)
+        assert clockwork_scene.floor_elapsed_time == pytest.approx(0.02)
+        clockwork_scene.game_over_triggered = True
+        clockwork_scene.dt_tick(0.02)
+        assert clockwork_scene.floor_elapsed_time == pytest.approx(0.02)
+
+    def test_floor_elapsed_time_uses_capped_dt(self, clockwork_scene):
+        clockwork_scene.dt_tick(5.0)
+        assert clockwork_scene.floor_elapsed_time == pytest.approx(0.05)
+
+    def test_floor_three_scene_renders_a_frame(self, mocker):
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 480))
+        scene = ClockworkKeepScene(floor_index=2, options={'input_mode': 'joystick'})
+        scene.dt_tick(FRAME_TIME)
+        surface = pygame.Surface((800, 480))
+        scene.all_sprites.draw(surface)
+        assert scene.floor_elapsed_time == pytest.approx(FRAME_TIME)

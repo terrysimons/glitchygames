@@ -23,10 +23,13 @@ from glitchygames.examples.clockwork_keep.constants import (
     CLOCK_LED,
     CLOCK_PLATFORM,
     CLOCK_PLATFORM_TOP,
+    CLOCK_START_SECONDS,
     COG_BRONZE_POINTS,
     COG_GOLD_POINTS,
     COG_SILVER_POINTS,
     COG_SIZE,
+    ELEVATOR_ASCENT_RUMBLE_HIGH,
+    ELEVATOR_ASCENT_RUMBLE_LOW,
     ELEVATOR_BOUNCE_DURATION,
     ELEVATOR_BOUNCE_FREQUENCY,
     ELEVATOR_BOUNCE_STRENGTH,
@@ -102,14 +105,14 @@ ELEVATOR_STOP_BOUNCE = Shake(
     duration=ELEVATOR_BOUNCE_DURATION,
     frequency=ELEVATOR_BOUNCE_FREQUENCY,
     axis=ShakeAxis.VERTICAL,
-    rumble=RumbleSettings(low_frequency=0.9, high_frequency=0.3),
+    rumble=RumbleSettings(low_frequency=1.0, high_frequency=0.5, scale_with_strength=False),
 )
 ELEVATOR_STOP_RATTLE = Shake(
     style=ShakeStyle.NOISE,
     strength=ELEVATOR_RATTLE_STRENGTH,
     duration=ELEVATOR_RATTLE_DURATION,
     frequency=ELEVATOR_RATTLE_FREQUENCY,
-    rumble=RumbleSettings(low_frequency=0.3, high_frequency=0.6),
+    rumble=RumbleSettings(low_frequency=0.4, high_frequency=0.8, scale_with_strength=False),
 )
 
 # Cog colors and points
@@ -219,6 +222,8 @@ class ClockworkKeepScene(Scene):
 
         self.floor_index = floor_index
         self.floor_data: FloorData = ALL_FLOORS[floor_index]
+        # Game time on this floor (capped dt, frozen after game over); drives the floor-3 clock
+        self.floor_elapsed_time: float = 0.0
 
         # Theme colors
         platform_color, top_color, self.led_color = _FLOOR_THEMES[floor_index]
@@ -247,7 +252,11 @@ class ClockworkKeepScene(Scene):
         )
 
         # Background parallax
-        bg_func = _FLOOR_BACKGROUNDS[floor_index]
+        bg_func = (
+            self._draw_timed_clock_background
+            if _FLOOR_BACKGROUNDS[floor_index] is draw_clock_background
+            else _FLOOR_BACKGROUNDS[floor_index]
+        )
         self.camera.add_background_layer(
             scroll_factor=PARALLAX_FAR,
             draw_function=bg_func,
@@ -393,6 +402,8 @@ class ClockworkKeepScene(Scene):
         # Cap dt to prevent physics tunneling after focus loss (Cmd-Tab, etc.)
         max_dt = 0.05  # 50ms = 20fps minimum
         dt = min(dt, max_dt)
+
+        self.floor_elapsed_time += dt
 
         # Check elevator BEFORE begin_frame() clears just_pressed
         self._check_elevator()
@@ -568,6 +579,17 @@ class ClockworkKeepScene(Scene):
                 self._go_to_next_floor()
                 return
 
+    def _draw_timed_clock_background(
+        self: Self, surface: pygame.Surface, camera_x: float, camera_y: float
+    ) -> None:
+        """Draw the floor-3 clock showing this floor's elapsed game time."""
+        draw_clock_background(
+            surface,
+            camera_x,
+            camera_y,
+            clock_seconds=CLOCK_START_SECONDS + self.floor_elapsed_time,
+        )
+
     def _go_to_next_floor(self: Self) -> None:
         """Ride the elevator to the next floor."""
         next_floor = self.floor_index + 1
@@ -632,11 +654,20 @@ class ClockworkKeepScene(Scene):
             transition: The running elevator transition.
 
         """
-        if self._elevator_motor is None:
+        # The arrival cue (progress 1.0) fires before on_update on the completing frame and
+        # clears the rumble; updating again here would re-start it and never stop.
+        if transition.progress >= 1.0:
             return
         speed_fraction = min(
             1.0, transition.eased_velocity_at(transition.progress) / self._elevator_peak_velocity
         )
+        # Rumble does not depend on the motor voice: a ride without a free voice still hums
+        self.scene_manager.rumble.set_sustained(
+            low_frequency=ELEVATOR_ASCENT_RUMBLE_LOW * speed_fraction,
+            high_frequency=ELEVATOR_ASCENT_RUMBLE_HIGH * speed_fraction,
+        )
+        if self._elevator_motor is None:
+            return
         self._elevator_motor.frequency = (
             ELEVATOR_MOTOR_IDLE_FREQUENCY
             + (ELEVATOR_MOTOR_PEAK_FREQUENCY - ELEVATOR_MOTOR_IDLE_FREQUENCY) * speed_fraction
@@ -655,6 +686,7 @@ class ClockworkKeepScene(Scene):
         if self._elevator_motor is not None:
             self._elevator_motor.stop_now()
             self._elevator_motor = None
+        self.scene_manager.rumble.clear_sustained()
         self.sounds.play('elevator_clank')
         self.shake(ELEVATOR_STOP_BOUNCE, targets=ShakeTarget.SCREEN)
         self.shake(ELEVATOR_STOP_RATTLE, targets=ShakeTarget.SCREEN)
