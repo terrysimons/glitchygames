@@ -28,6 +28,7 @@ nav:
     - Argument System: "architecture/argument_system.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"
+    - Galimore Survey: "galimore.md"
 
 extra_javascript:
   - https://unpkg.com/mermaid/dist/mermaid.min.js

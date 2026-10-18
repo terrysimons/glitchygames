@@ -105,7 +105,7 @@ Sources `src/galibmap.cpp`, `src/bmap_gui.cpp`, `src/gmore_raw.cpp`, `src/g_obje
 **GALIMORE_OBJECT (tile/object), 2332 bytes** (`.bg`, `.fg`, `.get`):
 | Offset | Size | Field |
 |---|---|---|
-| 0 | 2048 | `INT16 array[32][32]`, **[x][y]** (offset (x·32+y)·2), **RGB565**; `0xF81F` = transparent |
+| 0 | 2048 | `INT16 array[32][32]`, **`[x][y]`** (offset (x·32+y)·2), **RGB565**; `0xF81F` = transparent |
 | 2048 | 21 | objectName |
 | 2069 | 1 | objectType |
 | 2070 | 1 | objectState |
@@ -117,7 +117,7 @@ Sources `src/galibmap.cpp`, `src/bmap_gui.cpp`, `src/gmore_raw.cpp`, `src/g_obje
 
 The attribute block is all zeros in every shipped `.dat` (never authored).
 
-**GALIMORE_SPRITE, 49,152 bytes** (`.spr`): 16 × `short array[32][48]`, [x][y] RGB565. Frame plan
+**GALIMORE_SPRITE, 49,152 bytes** (`.spr`): 16 × `short array[32][48]`, `[x][y]` RGB565. Frame plan
 (`spriteguide.html`): front / away / side × still / walk-R / walk-L, side mirrored → 9 used.
 `pockets.spr` uses 6 (rest grey).
 
@@ -161,7 +161,7 @@ GEDIT (32×32, 256 colours, rotate/mirror/replace/transparent colour, 8-frame sp
 maps, layer toggles, exits); GATTRIB (attributes); GTORAW / RAWTOG (bitmap ↔ RGB raw, palette as a
 `switch`). The two DOCs are swapped (`GMAP.DOC` documents GEDIT).
 - **Bitmap, 1312 B:** bitmapSize, transparentImage, transparencyColor (default 15); `byte
-  array[32][32]` palette indices [x][y]; attribs (name[21], 3 type bytes, misc, weight,
+  array[32][32]` palette indices `[x][y]`; attribs (name[21], 3 type bytes, misc, weight,
   description[256]). `BKG.DAT` 19,680 = 15×1312.
 - **Sprite, 9262 B:** 8 frames (DOWN1/2, UP1/2, LEFT1/2, RIGHT1/2) + speed, dimensions, direction,
   X, Y + temp array + `struct time`.
@@ -235,9 +235,9 @@ Roadmap **#11 "Level/room data format (and tilemaps)"** is open; each game rolls
 ### 5.2 Converting Galimore data
 The survey's read-only decoder (not in this repository) decodes everything below to PNG; sub-plan E
 (`plans/2026-10-18-level-tools-e-galimore-import.md`) plans a reviewed converter.
-- **Tiles:** `<1024H`, transpose from [x][y], RGB565 → RGB888, `0xF81F` → magenta; write TOML
+- **Tiles:** `<1024H`, transpose from `[x][y]`, RGB565 → RGB888, `0xF81F` → magenta; write TOML
   `pixels` + `[colors]` (10–60 colours per tile); keep the 1-based `.dat` index as the tile ID.
-- **Sprites:** 16 × 32×48 frames (`<1536H`, [x][y]); drop all-grey frames; `walk_down` (0–2),
+- **Sprites:** 16 × 32×48 frames (`<1536H`, `[x][y]`); drop all-grey frames; `walk_down` (0–2),
   `walk_up` (3–5), `walk_side` (6–8, mirrored).
 - **Raw:** RGB888 row-major → PNG for Bitmappy.
 - **Maps:** offsets in §2.3; layers per floor; mask bits → named properties.
