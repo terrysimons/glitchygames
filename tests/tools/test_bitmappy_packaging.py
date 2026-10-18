@@ -71,3 +71,8 @@ def test_spec_script_and_data_sources_exist():
     assert all(Path(script).is_file() for script in scripts), scripts
     assert data_sources
     assert all(Path(source).is_dir() for source in data_sources), data_sources
+
+
+def test_spec_lists_the_audio_module_pygame_sdl2_imports():
+    """pygame._sdl2 imports pygame._sdl2.audio when the package is imported; list it explicitly."""
+    assert 'pygame._sdl2.audio' in _spec_hidden_imports()

@@ -55,6 +55,10 @@ a = Analysis(
         'glitchygames.events.voice_backends.voice_portaudio',
         # numpy is required by pygame.surfarray (array3d/array4d)
         'numpy',
+        # pygame._sdl2 (imported by glitchygames.events.controller) imports its audio
+        # extension at package import; PyInstaller's analysis currently finds it, but it is
+        # listed so the binary cannot lose it (BUGS.md #48)
+        'pygame._sdl2.audio',
     ],
     hookspath=[],
     hooksconfig={},
