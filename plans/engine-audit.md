@@ -39,6 +39,7 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 | 11 | Level/room data format (and tilemaps) | Open | Each game defines its own `ScreenData`/`FloorData`/`LevelManager` |
 | 12 | Debug overlay (hitboxes, velocities, FPS) | Open | None exists |
 | 13 | Controller rebinding UI and settings persistence | Open | `ActionMap.to_dict`/`from_dict` exist; nothing saves or edits bindings |
+| 14 | Multiplayer input: player slots and targeted rumble | Open | All rumble is broadcast to every device; no engine player-to-device mapping (only Bitmappy's own controller manager). See below |
 
 Nice to have, not needed by current games: sprite-sheet import, localization, pathfinding.
 
@@ -94,3 +95,37 @@ nothing; it now warns. Positioning sprites automatically fixes that properly.
 
 **Next step:** brainstorm this brief into `plans/<date>-engine-world-space.md` (spec) and its
 implementation plan, linking back here.
+
+---
+
+## #14 Multiplayer input: player slots and targeted rumble — design brief
+
+**Origin:** 2026-10-17, while adding Brave Adventurer's death rumble. With more than one player, a
+personal event (one player's death) must rumble only that player's controller, while shared events
+(the elevator slam) rumble everyone.
+
+**Decided so far (with the user):**
+- The game decides targets when it creates an effect (`pulse(..., targets=players(2))`), not the
+  scene manager through a callback: only the game knows why a rumble happens, and deciding at
+  creation is explicit and testable. `SceneManager`/`RumbleController` only mix and route.
+- Until this lands, all rumble is broadcast (correct for the current single-player games). When it
+  lands, `RumbleController.pulse`, `set_sustained` and `RumbleSettings` gain a `targets` keyword
+  defaulting to all devices, so existing calls keep working.
+
+**Sketch:**
+1. **Player slots** (engine input registry, owned by the engine because devices are global): player
+   number → joystick/controller instance id; default assignment in connection order, explicit
+   `assign(player=..., instance_id=...)`, a defined disconnect/reconnect policy. Per-player input
+   follows for free: `ActionMap` bindings already filter by `instance_id`. Could later replace
+   Bitmappy's own controller manager.
+2. **Targets on every rumble source:** shake rumble, sustained rumble and pulses carry `targets`
+   (all devices by default, or specific players).
+3. **Per-device mixing:** for each device, find its player and take the per-motor maximum over
+   sources aimed at that player or at everyone; unassigned devices receive only broadcast rumble.
+   Resend state becomes per device (SDL rumble is per device anyway).
+4. **Usage:** `pulse(..., targets=players(self.player.number))`; single-player games use player 0.
+
+**Open questions:** joystick vs controller input modes (instance ids differ), hot-plug policy,
+how players join (press-to-join vs connection order), whether screen-shake rumble should ever be
+per player (split screen), keyboard players (no rumble).
+
