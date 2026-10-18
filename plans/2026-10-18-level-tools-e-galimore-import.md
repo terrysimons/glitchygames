@@ -4,9 +4,9 @@
 - **Status:** Design brief
 - **Master plan:** [Level Tools](2026-10-18-level-tools.md) (see "Design for today's constraints")
 - **Depends on:** the existing sprite format (now); [A — Tilemap format](2026-10-18-level-tools-a-tilemap-format.md) (maps)
-- **Source data:** `../galimore_files/` (read-only), surveyed in the session scratchpad
-  (`galimore/SUMMARY.md`, which documents every binary layout). A read-only decoder written during
-  the survey (`galimore/tools/galimore_decode.py`) renders all of it to PNG; review it before reuse.
+- **Source data:** `../galimore_files/` (read-only), surveyed in `docs/galimore.md`
+  (which documents every binary layout). A read-only decoder written during the survey (kept in
+  the session scratchpad, not in the repo) renders all of it to PNG; review it before reuse.
 
 ## Goal
 

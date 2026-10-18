@@ -4,8 +4,8 @@
 - **Status:** Design brief (to be brainstormed into specs, one sub-plan at a time)
 - **Roadmap:** `plans/engine-audit.md` item #11 (level/room data format and tilemaps); helps #1
   (solid collision)
-- **Inspiration:** the Galimore tools (1999–2000), surveyed in the session scratchpad
-  (`galimore/SUMMARY.md`): **Mapedit** (map editor), **Galimake** (tile packer) and **GATTRIB**
+- **Inspiration:** the Galimore tools (1999–2000), surveyed in `docs/galimore.md`:
+  **Mapedit** (map editor), **Galimake** (tile packer) and **GATTRIB**
   (tile attribute editor). Galibmap (pixel editor) is already covered by Bitmappy.
 
 ## Goal
