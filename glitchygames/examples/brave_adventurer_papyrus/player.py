@@ -247,9 +247,15 @@ class PapyrusPlayer(AnimatedSprite):
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)
 
-        # Flip image when facing left
+        # Flip image when facing left, and mirror the hitbox with it
+        self.hitbox_flip_x = not self.facing_right
         if not self.facing_right:
             self.image = pygame.transform.flip(self.image, flip_x=True, flip_y=False)
+
+        # The frame and facing may have changed the hitbox's offset since physics clamped
+        # against the world edge, so refit and clamp again with the hitbox now drawn
+        self._fit_world_edge_to_hitbox()
+        self._world_edge_bounds.apply(self.physics, dt)
 
         # Apply alpha for respawn fade effect
         self.image.set_alpha(round(self.alpha))

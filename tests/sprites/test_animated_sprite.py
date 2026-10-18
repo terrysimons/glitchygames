@@ -2567,6 +2567,36 @@ class TestAnimatedSpriteVisiblePixelHitbox:
 
         assert sprite.hitbox == pygame.Rect(9, 12, 30, 54)
 
+    def test_hitbox_flip_x_defaults_to_false(self):
+        """Unflipped sprites keep their hitboxes where the TOML puts them."""
+        assert AnimatedSprite().hitbox_flip_x is False
+
+    def test_hitbox_flip_x_mirrors_explicit_hitbox_within_drawn_width(self):
+        """Facing left, a 2x sprite's hitbox is mirrored inside its 32 px drawn width."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(
+            pygame.Rect(3, 4, 10, 18), hitbox=pygame.Rect(3, 0, 11, 27)
+        )
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.hitbox_scale = 2
+        sprite.hitbox_flip_x = True
+
+        # Drawn (6, 0, 22, 54) mirrored in 16 * 2 = 32 px: x = 32 - (6 + 22) = 4
+        assert sprite.hitbox == pygame.Rect(4, 0, 22, 54)
+
+    def test_hitbox_flip_x_mirrors_default_and_trimmed_hitboxes(self):
+        """The default hitbox and the visible-pixel fallback are mirrored too."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.hitbox_flip_x = True
+
+        assert sprite.hitbox == pygame.Rect(16 - (3 + 10), 4, 10, 18)
+        sprite.default_hitbox = pygame.Rect(1, 2, 12, 20)
+        assert sprite.hitbox == pygame.Rect(16 - (1 + 12), 2, 12, 20)
+
     def test_default_hitbox_wins_over_trimming(self):
         """A sprite-level TOML hitbox is used as-is."""
         sprite = AnimatedSprite()

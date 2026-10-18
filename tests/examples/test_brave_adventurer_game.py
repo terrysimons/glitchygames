@@ -15,6 +15,7 @@ from glitchygames.examples.brave_adventurer.constants import (
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
     GROUND_Y,
+    STONE_WALL_WIDTH,
 )
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
@@ -206,8 +207,18 @@ class TestHitboxLooseEnds:
         """The player's hitbox, not its transparent margin, meets the world's left edge."""
         player = _drawn_player(adventurer_scene)
         player.world_x = -50.0
-        player.velocity_x = -200.0
-        player.dt_tick(0.0)
+        # A few frames walking left, then at rest against the edge. Turning or changing pose
+        # moves the hitbox inside the image; the bound is refitted from the hitbox each tick,
+        # so the edge is exact once the pose settles (Brave Adventurer draws its pose in
+        # update(), after dt_tick, so a pose change can lag the bound by one frame).
+        for _ in range(3):
+            player.velocity_x = -200.0
+            player.dt_tick(1 / 60)
+            player.update()
+        for _ in range(3):
+            player.velocity_x = 0.0
+            player.dt_tick(1 / 60)
+            player.update()
         assert _player_hitbox(adventurer_scene).left == 0
 
     @pytest.mark.parametrize('adventurer_scene', [BraveAdventurerScene], indirect=True)
@@ -245,3 +256,76 @@ class TestHitboxLooseEnds:
 
         assert scarab.on_ground
         assert get_sprite_collision_rect(scarab).bottom == GROUND_Y
+
+
+class TestPapyrusFacingLeftHitbox:
+    """Papyrus flips its image when facing left; the hitbox must be mirrored with it."""
+
+    @pytest.fixture
+    def papyrus_scene(self, mocker):
+        """A Papyrus scene with a long flat floor and no walls.
+
+        Returns:
+            The scene.
+
+        """
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 480))
+        scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
+        mocker.patch.object(scene, 'sounds')
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
+        scene.wall_sprites[:] = []
+        return scene
+
+    @staticmethod
+    def _face_left(scene):
+        player = scene.player
+        player.facing_right = False
+        player.velocity_x = 0.0
+        player.dt_tick(0.0)
+        return player
+
+    def test_facing_left_hitbox_matches_the_flipped_figure(self, papyrus_scene):
+        """Hitbox == the flipped image's visible pixels (Papyrus hitboxes match its art)."""
+        player = self._face_left(papyrus_scene)
+        visible = player.image.get_bounding_rect()
+        hitbox = get_sprite_collision_rect(player)
+        assert hitbox.x - round(player.world_x) == visible.x
+        assert hitbox.width == visible.width
+
+    def test_facing_right_is_unchanged(self, papyrus_scene):
+        """Facing right the hitbox is the TOML hitbox, unmirrored."""
+        player = papyrus_scene.player
+        player.dt_tick(0.0)
+        assert player.hitbox_flip_x is False
+        visible = player.image.get_bounding_rect()
+        assert get_sprite_collision_rect(player).x - round(player.world_x) == visible.x
+
+    def test_walking_left_into_a_wall_touches_it(self, papyrus_scene):
+        """Hitbox left edge and the flipped figure's visible left edge both meet the wall."""
+        scene = papyrus_scene
+        wall_x = 300.0
+        scene.wall_sprites[:] = [
+            types.SimpleNamespace(world_x=wall_x, world_y=GROUND_Y - 64.0, wall_height=64)
+        ]
+        wall_right = round(wall_x) + STONE_WALL_WIDTH
+        player = self._face_left(scene)
+        player.world_y = float(GROUND_Y - 50)
+        offset_x, _ = collision_rect_offset(player)
+        player.world_x = float(wall_right - offset_x - 3)  # 3 px into the wall
+        player.velocity_x = -200.0
+
+        scene._resolve_player_wall_collision()
+
+        assert get_sprite_collision_rect(player).left == wall_right
+        assert round(player.world_x) + player.image.get_bounding_rect().left == wall_right
+
+    def test_world_left_edge_facing_left(self, papyrus_scene):
+        """Facing left, the mirrored hitbox stops at the world's left edge."""
+        player = self._face_left(papyrus_scene)
+        player.world_x = -50.0
+        player.velocity_x = -200.0
+        player.dt_tick(0.0)
+        assert get_sprite_collision_rect(player).left == 0
