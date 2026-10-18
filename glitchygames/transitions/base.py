@@ -10,16 +10,23 @@ the visual effect.
 
 from __future__ import annotations
 
+import bisect
 import enum
 import logging
+import operator
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import pygame
 
 from glitchygames.effects.easing import get_easing
 
 log: logging.Logger = logging.getLogger('game.transitions')
+
+# Half-width of the central difference used to estimate the easing slope
+EASING_SLOPE_STEP = 1e-3
 
 
 class TransitionState(enum.Enum):
@@ -39,6 +46,8 @@ class Transition:
     Args:
         duration: Transition duration in seconds.
         easing: Easing function name (from glitchygames.effects.easing).
+        on_update: Called with this transition after every update() that is still
+            running, after cues fire. Use it to drive state from the transition's progress.
 
     """
 
@@ -46,11 +55,16 @@ class Transition:
         self,
         duration: float = 0.5,
         easing: str = 'ease_in_out_quad',
+        on_update: Callable[[Transition], None] | None = None,
     ) -> None:
         """Initialize the transition."""
         self._duration = duration
         self._easing_name = easing
         self._easing_func = get_easing(easing)
+        self._on_update = on_update
+        # Sorted by progress; equal progresses keep insertion order
+        self._cues: list[tuple[float, int, Callable[[], None]]] = []
+        self._next_cue_index = 0
         self._elapsed: float = 0.0
         self._state = TransitionState.IDLE
         self._old_surface: pygame.Surface | None = None
@@ -73,6 +87,46 @@ class Transition:
         """Eased progress from 0.0 to 1.0."""
         return self._easing_func(self.progress)
 
+    def add_cue(self, progress: float, callback: Callable[[], None]) -> None:
+        """Call callback once when raw progress first reaches progress.
+
+        Cues fire in ascending progress order, before on_update, on the frame that reaches
+        them; one large dt fires every cue it passes. A cue at 0.0 fires on the first update
+        and a cue at 1.0 on the completing frame.
+
+        Args:
+            progress: Raw progress 0.0-1.0 at which to fire.
+            callback: Called with no arguments.
+
+        Raises:
+            ValueError: If progress is outside 0.0-1.0.
+
+        """
+        if not 0.0 <= progress <= 1.0:
+            message = f'progress must be between 0.0 and 1.0, got {progress}'
+            raise ValueError(message)
+        bisect.insort(
+            self._cues,
+            (progress, len(self._cues), callback),
+            key=operator.itemgetter(0, 1),
+        )
+
+    def eased_velocity_at(self, progress: float) -> float:
+        """Slope of the easing curve (d eased / d raw progress) at a raw progress.
+
+        Uses a central difference, one-sided at 0.0 and 1.0.
+
+        Args:
+            progress: Raw progress 0.0-1.0.
+
+        Returns:
+            The slope; 1.0 everywhere for linear easing.
+
+        """
+        lower = max(0.0, progress - EASING_SLOPE_STEP)
+        upper = min(1.0, progress + EASING_SLOPE_STEP)
+        return (self._easing_func(upper) - self._easing_func(lower)) / (upper - lower)
+
     def start(
         self,
         old_surface: pygame.Surface,
@@ -88,6 +142,7 @@ class Transition:
         self._old_surface = old_surface.copy()
         self._new_surface = new_surface.copy()
         self._elapsed = 0.0
+        self._next_cue_index = 0
         self._state = TransitionState.RUNNING
         log.info(
             'Transition started: %s (%.1fs, %s)',
@@ -110,6 +165,17 @@ class Transition:
             return True
 
         self._elapsed += dt
+
+        current_progress = self.progress
+        while (
+            self._next_cue_index < len(self._cues)
+            and self._cues[self._next_cue_index][0] <= current_progress
+        ):
+            callback = self._cues[self._next_cue_index][2]
+            self._next_cue_index += 1
+            callback()
+        if self._on_update is not None:
+            self._on_update(self)
 
         if self._elapsed >= self._duration:
             self._state = TransitionState.COMPLETE

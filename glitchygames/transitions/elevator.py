@@ -8,11 +8,14 @@ The elevator and player are pinned at center screen throughout.
 
 from __future__ import annotations
 
-from typing import override
+from typing import TYPE_CHECKING, override
 
 import pygame
 
 from glitchygames.transitions.base import Transition
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class ElevatorTransition(Transition):
@@ -28,6 +31,8 @@ class ElevatorTransition(Transition):
         shaft_height: Height of the empty shaft between floors.
         wall_color: Tower wall color for the shaft section.
         wall_accent: Brick/mortar accent color.
+        player_surface: Optional sprite drawn standing on the elevator.
+        on_update: Called with this transition after every running update().
 
     """
 
@@ -39,9 +44,10 @@ class ElevatorTransition(Transition):
         wall_color: tuple[int, int, int] = (60, 40, 25),
         wall_accent: tuple[int, int, int] = (80, 55, 30),
         player_surface: pygame.Surface | None = None,
+        on_update: Callable[[Transition], None] | None = None,
     ) -> None:
         """Initialize the elevator transition."""
-        super().__init__(duration=duration, easing=easing)
+        super().__init__(duration=duration, easing=easing, on_update=on_update)
         self._shaft_height = shaft_height
         self._wall_color = wall_color
         self._wall_accent = wall_accent
@@ -132,7 +138,9 @@ class ElevatorTransition(Transition):
 
         screen_height = screen.get_height()
         screen_width = screen.get_width()
-        progress = self.eased_progress
+        # Overshooting easings (ease_in_back -0.10, ease_in_elastic -0.37, ease_out_back > 1)
+        # would scroll past the composite and show black
+        progress = min(1.0, max(0.0, self.eased_progress))
 
         # Calculate scroll offset — start showing old floor, end showing new floor
         # The composite has: [new floor (top)] [shaft (middle)] [old floor (bottom)]
