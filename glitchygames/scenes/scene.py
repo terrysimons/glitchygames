@@ -219,6 +219,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
         # Set up the new scene (off-screen) so we can capture it
         self.previous_scene = self.active_scene
+        self._clear_outgoing_scene_pending_switch()
         self._cleanup_current_scene()
         scene = cast('Scene | None', next_scene)
         self._setup_new_scene(scene)
@@ -441,12 +442,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.rumble.clear_sustained()  # ...nor leave a controller buzzing
             # Track the previous scene BEFORE any cleanup or setup
             self.previous_scene = self.active_scene
-            # The outgoing scene's pending switch has been honoured (or superseded): clear it,
-            # otherwise a game that paused via next_scene would pause again one frame after
-            # resuming. The incoming scene's next_scene is left alone, because bootstrap
-            # scenes request their real scene from __init__.
-            if self.active_scene is not None:
-                self.active_scene.next_scene = self.active_scene
+            self._clear_outgoing_scene_pending_switch()
             self._reset_scene_timers()
             self._log_scene_switch(scene)
             self._cleanup_current_scene()
@@ -463,6 +459,18 @@ class SceneManager(SceneInterface, events.EventManager):
                     performance_manager.set_current_scene(scene.NAME)
             except ImportError:
                 pass  # Performance module not available
+
+    def _clear_outgoing_scene_pending_switch(self: Self) -> None:
+        """Clear the pending switch of the scene being switched away from.
+
+        Its pending switch has been honoured (or superseded by a transition): without this,
+        a game that paused via next_scene would pause again one frame after resuming, and a
+        scene left through a transition would switch back to a stale next_scene when it is
+        returned to. The incoming scene's next_scene is left alone, because bootstrap scenes
+        request their real scene from __init__.
+        """
+        if self.active_scene is not None:
+            self.active_scene.next_scene = self.active_scene
 
     def _switch_to_requested_scene(self: Self) -> None:
         """Perform the plain scene switch the active scene requested via next_scene.

@@ -1136,6 +1136,47 @@ class TestScenePauseAndResume:
         assert scene_manager.active_scene is game_scene
         assert game_scene.next_scene is game_scene
 
+    def test_scene_left_through_a_transition_does_not_switch_back_on_return(
+        self, mock_pygame_patches, mocker
+    ):
+        """A next_scene left on a scene that leaves via a transition is cleared.
+
+        Otherwise returning to that scene later would switch straight back to the stale
+        next_scene (e.g. an old pause scene) at the end of the first frame.
+        """
+        scene_manager = SceneManager()
+        game_scene = Scene()
+        stale_pause_scene = Scene()
+        next_floor_scene = Scene()
+        scene_manager.switch_to_scene(game_scene)
+        game_scene.next_scene = stale_pause_scene  # left over, then the game transitions
+
+        scene_manager._start_transition(next_floor_scene, mocker.Mock())
+        assert game_scene.next_scene is game_scene
+
+        scene_manager.switch_to_scene(game_scene)  # the game is returned to later
+        scene_manager._switch_to_requested_scene()
+
+        assert scene_manager.active_scene is game_scene
+
+    def test_bootstrap_scene_reached_through_a_transition_still_hands_over(
+        self, mock_pygame_patches, mocker
+    ):
+        """A transition into a scene whose __init__ sets next_scene keeps that request."""
+        scene_manager = SceneManager()
+        first_real_scene = Scene()
+
+        class BootstrapScene(Scene):
+            def __init__(self) -> None:
+                super().__init__()
+                self.next_scene = first_real_scene
+
+        scene_manager.switch_to_scene(Scene())
+        scene_manager._start_transition(BootstrapScene(), mocker.Mock())
+        scene_manager._switch_to_requested_scene()
+
+        assert scene_manager.active_scene is first_real_scene
+
     def test_resume_switches_to_previous_scene(self, mock_pygame_patches, mocker):
         """Test resume() switches back to the previous scene."""
         scene = Scene()
