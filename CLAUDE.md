@@ -203,6 +203,10 @@ annotations with `debug_draw(surface, camera)`.
 - Per-frame timing overrides
 - TOML format with RGBA/RGB support (magenta key: 255,0,255)
 
+**Hitboxes** (`glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
+trimmed, `collision/bounds.py`); `TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win.
+Call `forget_opaque_bounds(image)` after redrawing a different shape into the same image.
+
 **Rendering Optimization**:
 - `pygame.sprite.LayeredDirty` for dirty-rect rendering
 - Sprites with `dirty=1` force redraw; `dirty=0` skips rendering

@@ -12,7 +12,14 @@ from glitchygames.collision import (
     get_collision_rect,
     get_collision_rect_with_margin,
 )
+from glitchygames.collision.bounds import (
+    forget_opaque_bounds,
+    opaque_bounds,
+    trims_transparent_hitbox,
+)
+from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.pixel_snap import PixelSnapMode
 
 
 def _default_rect(world_x: float, world_y: float, size: int = 32) -> pygame.Rect:
@@ -345,3 +352,197 @@ class TestCollisionManager:
         )
         # Should NOT collide because hitbox doesn't reach (97, 97)
         assert len(hits) == 0
+
+
+# --- Visible-pixel hitboxes ---
+
+
+BALL_IMAGE_SIZE = 20
+BALL_RADIUS = 5
+
+
+def _ball_like_image() -> pygame.Surface:
+    """A 20x20 colorkey image with a radius-5 circle in the middle, like BallSprite's."""
+    image = pygame.Surface((BALL_IMAGE_SIZE, BALL_IMAGE_SIZE))
+    image.set_colorkey(0)
+    pygame.draw.circle(
+        image,
+        (255, 255, 255),
+        (BALL_IMAGE_SIZE // 2, BALL_IMAGE_SIZE // 2),
+        BALL_RADIUS,
+        0,
+    )
+    return image
+
+
+class ImageWorldSprite:
+    """A world-space sprite with a real image and no TOML hitbox."""
+
+    def __init__(self, *, image, world_x=0.0, world_y=0.0):
+        """Initialize the test double."""
+        self.image = image
+        self.world_x = world_x
+        self.world_y = world_y
+        self.rect = image.get_rect()
+
+
+class UntrimmedImageWorldSprite(ImageWorldSprite):
+    """A world-space sprite whose class opts out of visible-pixel trimming."""
+
+    TRIM_TRANSPARENT_HITBOX = False
+
+
+class SnappingImageWorldSprite(ImageWorldSprite):
+    """A world-space sprite with its own pixel snap mode, like BallSprite."""
+
+    def __init__(self, *, pixel_snap_mode, **kwargs):
+        """Initialize the test double."""
+        super().__init__(**kwargs)
+        self.pixel_snap_mode = pixel_snap_mode
+
+
+class ImageScreenSprite:
+    """A screen-space sprite (rect only, no world position) with a real image."""
+
+    def __init__(self, *, image, x, y):
+        """Initialize the test double."""
+        self.image = image
+        self.rect = image.get_rect(topleft=(x, y))
+
+
+class TestOpaqueBounds:
+    """opaque_bounds: the visible-pixel rect of an image, cached per surface."""
+
+    def test_colorkey_circle_is_trimmed_to_its_visible_pixels(self):
+        """The ball's radius-5 circle on a 20x20 colorkey image is a 10x10 box at (5, 5)."""
+        assert opaque_bounds(_ball_like_image()) == pygame.Rect(5, 5, 10, 10)
+
+    def test_per_pixel_alpha_is_honoured(self):
+        """Fully transparent SRCALPHA pixels are trimmed."""
+        image = pygame.Surface((8, 8), pygame.SRCALPHA)
+        image.fill((10, 20, 30, 255), pygame.Rect(2, 3, 4, 1))
+        assert opaque_bounds(image) == pygame.Rect(2, 3, 4, 1)
+
+    def test_opaque_image_keeps_its_full_rect(self):
+        """An image without colorkey or alpha is visible everywhere."""
+        assert opaque_bounds(pygame.Surface((12, 7))) == pygame.Rect(0, 0, 12, 7)
+
+    def test_fully_transparent_image_keeps_its_full_rect(self):
+        """An invisible trigger image keeps its whole area instead of an empty rect."""
+        image = pygame.Surface((16, 9), pygame.SRCALPHA)
+        assert opaque_bounds(image) == pygame.Rect(0, 0, 16, 9)
+
+    def test_returns_a_copy_callers_may_mutate(self):
+        """Mutating a returned rect does not change later results."""
+        image = _ball_like_image()
+        first = opaque_bounds(image)
+        first.move_ip(100, 100)
+        assert opaque_bounds(image) == pygame.Rect(5, 5, 10, 10)
+
+    def test_in_place_redraw_keeps_cached_bounds_until_forgotten(self):
+        """Bounds are cached per surface; forget_opaque_bounds recomputes after a redraw."""
+        image = _ball_like_image()
+        assert opaque_bounds(image) == pygame.Rect(5, 5, 10, 10)
+
+        image.fill((0, 0, 0))
+        image.fill((255, 255, 255), pygame.Rect(1, 2, 3, 4))
+        assert opaque_bounds(image) == pygame.Rect(5, 5, 10, 10)
+
+        forget_opaque_bounds(image)
+        assert opaque_bounds(image) == pygame.Rect(1, 2, 3, 4)
+
+    def test_forgetting_an_unknown_image_is_harmless(self):
+        """forget_opaque_bounds on an image never measured does nothing."""
+        forget_opaque_bounds(pygame.Surface((4, 4)))
+
+    def test_trims_transparent_hitbox_defaults_to_true(self):
+        """Sprites without the attribute trim; the attribute opts out."""
+        assert trims_transparent_hitbox(ImageWorldSprite(image=_ball_like_image())) is True
+        untrimmed = UntrimmedImageWorldSprite(image=_ball_like_image())
+        assert trims_transparent_hitbox(untrimmed) is False
+
+
+class TestVisiblePixelCollisionRect:
+    """Collision rects default to the visible pixels of the sprite's image."""
+
+    def test_world_sprite_rect_is_trimmed_to_visible_pixels(self):
+        """A ball-like world sprite at (100, 50) collides as the 10x10 circle box."""
+        sprite = ImageWorldSprite(image=_ball_like_image(), world_x=100.0, world_y=50.0)
+        rect = get_collision_rect(sprite, world_x=100.0, world_y=50.0)
+        assert rect == pygame.Rect(105, 55, 10, 10)
+
+    def test_class_attribute_opts_out_of_trimming(self):
+        """TRIM_TRANSPARENT_HITBOX = False on the class keeps the full image size."""
+        sprite = UntrimmedImageWorldSprite(image=_ball_like_image(), world_x=100.0, world_y=50.0)
+        rect = get_collision_rect(sprite, world_x=100.0, world_y=50.0)
+        assert rect == pygame.Rect(100, 50, 20, 20)
+
+    def test_instance_attribute_opts_out_of_trimming(self):
+        """TRIM_TRANSPARENT_HITBOX = False on one instance keeps the full image size."""
+        sprite = ImageWorldSprite(image=_ball_like_image(), world_x=100.0, world_y=50.0)
+        sprite.TRIM_TRANSPARENT_HITBOX = False
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(100, 50, 20, 20)
+
+    def test_toml_hitbox_wins_over_trimming(self):
+        """A sprite with get_hitbox_world_rect keeps its explicit hitbox."""
+        sprite = HitboxSprite(world_x=100.0, world_y=200.0)
+        sprite.image = _ball_like_image()  # type: ignore[attr-defined]
+        assert get_collision_rect(sprite, world_x=100.0, world_y=200.0) == pygame.Rect(
+            104, 202, 24, 28
+        )
+
+    def test_screen_sprite_rect_is_trimmed_to_visible_pixels(self):
+        """A sprite without a world position trims from its screen rect's top-left."""
+        sprite = ImageScreenSprite(image=_ball_like_image(), x=30, y=40)
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(35, 45, 10, 10)
+
+    def test_screen_sprite_opt_out_returns_its_rect(self):
+        """A screen sprite that opts out collides as its full rect."""
+        sprite = ImageScreenSprite(image=_ball_like_image(), x=30, y=40)
+        sprite.TRIM_TRANSPARENT_HITBOX = False
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(30, 40, 20, 20)
+
+    def test_check_overlap_ignores_transparent_corners(self):
+        """Two ball-like sprites whose full boxes overlap but visible boxes do not miss."""
+        manager = CollisionManager()
+        manager.add_layer('balls')
+        first = ImageWorldSprite(image=_ball_like_image(), world_x=100.0, world_y=100.0)
+        # Full boxes overlap (100-120 vs 112-132); visible boxes (105-115 vs 117-127) do not.
+        second = ImageWorldSprite(image=_ball_like_image(), world_x=112.0, world_y=100.0)
+        manager.get_layer('balls').add(first)
+        manager.get_layer('balls').add(second)
+
+        hits: list[tuple] = []
+        manager.check_overlap('balls', 'balls', callback=lambda a, b: hits.append((a, b)))
+        assert hits == []
+
+
+class TestSnappedCollisionPosition:
+    """Collision rects use the sprite's own pixel snapping, matching where it is drawn."""
+
+    def test_snap_mode_sprite_rounds_half_up(self):
+        """NEAREST_HALF_UP draws 10.5 at 11, so the collision rect is at 11 too."""
+        sprite = SnappingImageWorldSprite(
+            image=_ball_like_image(),
+            world_x=10.5,
+            world_y=20.5,
+            pixel_snap_mode=PixelSnapMode.NEAREST_HALF_UP,
+        )
+        assert snapped_world_position(sprite, world_x=10.5, world_y=20.5) == (11, 21)
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(16, 26, 10, 10)
+
+    def test_floor_snap_mode_sprite(self):
+        """FLOOR snapping is honoured as well."""
+        sprite = SnappingImageWorldSprite(
+            image=_ball_like_image(),
+            world_x=10.9,
+            world_y=-0.5,
+            pixel_snap_mode=PixelSnapMode.FLOOR,
+        )
+        assert snapped_world_position(sprite, world_x=10.9, world_y=-0.5) == (10, -1)
+
+    def test_sprite_without_snap_mode_uses_round(self):
+        """Sprites without pixel_snap_mode keep Python round() (halves to even)."""
+        sprite = FakeSprite(world_x=10.5, world_y=11.5)
+        assert snapped_world_position(sprite, world_x=10.5, world_y=11.5) == (10, 12)
+        assert get_collision_rect(sprite, world_x=10.5, world_y=11.5).topleft == (10, 12)

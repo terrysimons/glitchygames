@@ -2441,6 +2441,72 @@ class TestAnimatedSpriteHitbox:
         assert world_rect == pygame.Rect(104, 202, 12, 20)
 
 
+class TestAnimatedSpriteVisiblePixelHitbox:
+    """AnimatedSprite falls back to the current frame's visible pixels (real surfaces)."""
+
+    @staticmethod
+    def _frame_with_visible_box(visible_box: pygame.Rect, *, hitbox=None) -> SpriteFrame:
+        """Build a 16x24 per-pixel-alpha frame whose only visible pixels fill visible_box."""
+        surface = pygame.Surface((16, 24), pygame.SRCALPHA)
+        surface.fill((200, 100, 50, 255), visible_box)
+        return SpriteFrame(surface, duration=FRAME_DURATION, hitbox=hitbox)
+
+    def test_fallback_hitbox_is_trimmed_to_visible_pixels(self):
+        """With no explicit or default hitbox, the hitbox is the frame's visible box."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+        assert sprite.get_hitbox_world_rect(world_x=100.0, world_y=200.0) == pygame.Rect(
+            103, 204, 10, 18
+        )
+
+    def test_fallback_follows_the_current_frame(self):
+        """Each frame's own visible box is used as the animation advances."""
+        sprite = AnimatedSprite()
+        first = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        second = self._frame_with_visible_box(pygame.Rect(0, 10, 16, 14))
+        sprite.add_animation('walk', [first, second])
+        sprite.set_animation('walk')
+
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+        sprite.set_frame(1)
+        assert sprite.hitbox == pygame.Rect(0, 10, 16, 14)
+
+    def test_opt_out_keeps_the_full_frame_rect(self):
+        """TRIM_TRANSPARENT_HITBOX = False restores the full-frame fallback."""
+        sprite = AnimatedSprite()
+        sprite.TRIM_TRANSPARENT_HITBOX = False  # type: ignore[attr-defined]
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        assert sprite.hitbox == pygame.Rect(0, 0, 16, 24)
+
+    def test_explicit_frame_hitbox_wins_over_trimming(self):
+        """A per-frame TOML hitbox is used as-is."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(
+            pygame.Rect(3, 4, 10, 18), hitbox=pygame.Rect(1, 1, 2, 2)
+        )
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        assert sprite.hitbox == pygame.Rect(1, 1, 2, 2)
+
+    def test_default_hitbox_wins_over_trimming(self):
+        """A sprite-level TOML hitbox is used as-is."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.default_hitbox = pygame.Rect(4, 0, 12, 20)
+
+        assert sprite.hitbox == pygame.Rect(4, 0, 12, 20)
+
+
 class TestHitboxTomlRoundTrip:
     """Test hitbox TOML load/save round-trip."""
 

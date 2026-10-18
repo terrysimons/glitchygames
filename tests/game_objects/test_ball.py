@@ -1553,6 +1553,16 @@ class TestSnapToPixel:
         assert snapped == expected_pixel
         assert type(snapped) is int
 
+    def test_snapping_lives_in_neutral_module_and_is_re_exported(self):
+        """glitchygames.pixel_snap owns snapping; ball and game_objects re-export it."""
+        import glitchygames.game_objects as game_objects_package
+        import glitchygames.pixel_snap as pixel_snap_module
+
+        assert ball_module.PixelSnapMode is pixel_snap_module.PixelSnapMode
+        assert ball_module.snap_to_pixel is pixel_snap_module.snap_to_pixel
+        assert game_objects_package.PixelSnapMode is pixel_snap_module.PixelSnapMode
+        assert game_objects_package.snap_to_pixel is pixel_snap_module.snap_to_pixel
+
 
 @pytest.mark.usefixtures('pygame_mocks')
 class TestBallSpritePixelSnapping:

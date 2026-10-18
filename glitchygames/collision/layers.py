@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
 from glitchygames.collision.detection import (
     check_aabb_overlap,
     get_collision_rect,
@@ -212,8 +213,11 @@ def get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
 
     Returns:
         A pygame.Rect for collision detection. Sprites with world_x/world_y
-        get a rect in world coordinates; sprites with only rect get that rect
-        unchanged, in screen coordinates; sprites with neither get an empty rect.
+        get a rect in world coordinates (see get_collision_rect); sprites with
+        only rect get a screen-space rect, trimmed to the visible pixels of
+        their image unless they have no image or set
+        TRIM_TRANSPARENT_HITBOX = False (then their rect, unchanged); sprites
+        with neither get an empty rect.
 
     """
     import pygame
@@ -222,6 +226,15 @@ def get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
         return get_collision_rect(sprite, sprite.world_x, sprite.world_y)
 
     if hasattr(sprite, 'rect') and sprite.rect is not None:
+        image = getattr(sprite, 'image', None)
+        if image is not None and trims_transparent_hitbox(sprite):
+            visible_bounds = opaque_bounds(image)
+            return pygame.Rect(
+                sprite.rect.x + visible_bounds.x,
+                sprite.rect.y + visible_bounds.y,
+                visible_bounds.width,
+                visible_bounds.height,
+            )
         return sprite.rect
 
     return pygame.Rect(0, 0, 0, 0)
