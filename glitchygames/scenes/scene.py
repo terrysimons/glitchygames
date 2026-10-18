@@ -299,11 +299,15 @@ class SceneManager(SceneInterface, events.EventManager):
             self._live_audio = LiveAudio(channel_indices=channels)
         return self._live_audio
 
-    def _debug_frame_info(self: Self, *, shake_offset: tuple[float, float]) -> DebugFrameInfo:
+    def _debug_frame_info(
+        self: Self, *, shake_offset: tuple[float, float], inspected_scene_label: str | None
+    ) -> DebugFrameInfo:
         """Gather the per-frame engine readings the debug overlay displays.
 
         Args:
             shake_offset (tuple[float, float]): The current SCREEN shake offset.
+            inspected_scene_label (str | None): Name of the scene the overlay inspects when it
+                is not the active scene (a paused game), else None.
 
         Returns:
             DebugFrameInfo: The readings for this frame.
@@ -319,6 +323,7 @@ class SceneManager(SceneInterface, events.EventManager):
             rumble_levels=self.rumble.sent_levels,
             screen_shake_offset=shake_offset,
             mouse_position=mouse_position,
+            inspected_scene_label=inspected_scene_label,
         )
 
     def _active_scene_has_focused_sprite(self: Self) -> bool:
@@ -391,11 +396,19 @@ class SceneManager(SceneInterface, events.EventManager):
                 self.screen.fill(SHAKE_BORDER_COLOR)
                 self.screen.blit(clean_frame, pixel_offset)
             if overlay_visible and self.active_scene is not None:
+                # A pause screen hands over the paused game, whose frozen picture it shows
+                debug_subject = self.active_scene.debug_subject
+                inspected_scene_label = (
+                    None if debug_subject is self.active_scene else debug_subject.NAME
+                )
                 self.debug_overlay.draw(
                     self.screen,
-                    scene=self.active_scene,
+                    scene=debug_subject,
                     screen_offset=pixel_offset,
-                    frame_info=self._debug_frame_info(shake_offset=(offset_x, offset_y)),
+                    frame_info=self._debug_frame_info(
+                        shake_offset=(offset_x, offset_y),
+                        inspected_scene_label=inspected_scene_label,
+                    ),
                 )
             pygame.display.flip()
             self.screen.blit(clean_frame, (0, 0))
@@ -1053,6 +1066,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.rect = self.screen.get_rect()
 
         self.dirty = 1
+
+    @property
+    def debug_subject(self: Self) -> Scene:
+        """The scene the debug overlay inspects: normally this scene itself.
+
+        A scene that only presents another scene (PauseScene shows a frozen screenshot of the
+        paused game) returns that scene, so its hitboxes and physics stay visible and line up
+        with the frozen picture.
+        """
+        return self
 
     @property
     def screenshot(self: Self) -> pygame.Surface:

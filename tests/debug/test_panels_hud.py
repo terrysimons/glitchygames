@@ -411,6 +411,13 @@ class TestModeLine:
         assert surface.get_at((SURFACE_SIZE[0] // 2, text_row))[:3] == (255, 255, 255)
         assert surface.get_at((SURFACE_SIZE[0] // 2 - 60, text_row)) == BLACK
 
+    def test_names_the_inspected_scene_when_given(self, surface, font):
+        """The mode line says which paused scene the overlay is showing."""
+        draw_mode_line(
+            surface=surface, font=font, panel=DebugPanel.ALL, inspected_scene_label='Keep'
+        )
+        assert rendered_texts(font) == ['DEBUG: All (F3 off, F4 next) | paused: Keep']
+
     def test_text_has_a_translucent_dark_backing(self, surface, mocker):
         """Debug text is drawn over a dark backing that dims, but does not hide, the game."""
         surface.fill((200, 200, 200))

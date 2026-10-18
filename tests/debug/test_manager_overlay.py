@@ -11,7 +11,8 @@ from glitchygames.debug import DebugFrameInfo
 from glitchygames.debug.overlay import DebugOverlay, DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 
 SCREEN_SIZE = (64, 48)
 BACKGROUND_COLOR = (0, 0, 0)
@@ -34,11 +35,14 @@ def scene(mocker):
         A SimpleNamespace standing in for the active scene.
 
     """
-    return types.SimpleNamespace(
+    fake_scene = types.SimpleNamespace(
         camera=Camera2D(*SCREEN_SIZE),
         all_sprites=[],
         on_key_down_event=mocker.Mock(),
+        NAME='FakeScene',
     )
+    fake_scene.debug_subject = fake_scene  # a normal scene inspects itself
+    return fake_scene
 
 
 @pytest.fixture
@@ -384,3 +388,59 @@ class TestMissingKeyHandler:
         manager._game_engine = None
         with pytest.raises(AttributeError, match='on_key_down_event'):
             manager.on_key_down_event(key_down(pygame.K_a))
+
+
+class TestPausedSceneInspection:
+    """The overlay inspects the paused gameplay scene, not the pause screen showing it."""
+
+    def test_scene_inspects_itself_by_default(self):
+        """A plain Scene's debug_subject is the scene itself."""
+        plain_scene = Scene(options={})
+        assert plain_scene.debug_subject is plain_scene
+
+    def test_pause_scene_inspects_the_scene_it_paused(self, mocker):
+        """After setup, PauseScene.debug_subject is the scene that was active before the pause."""
+        pygame.display.set_mode(SCREEN_SIZE)
+        SceneManager._reset()
+        scene_manager = SceneManager()
+        gameplay_scene = Scene(options={})
+        scene_manager.previous_scene = gameplay_scene
+        scene_manager.game_engine = mocker.Mock(
+            OPTIONS={
+                'update_type': 'dirty',
+                'fps_refresh_rate': 1,
+                'target_fps': 60,
+                'fps_log_interval_ms': 1000.0,
+            }
+        )
+        mocker.patch(
+            'glitchygames.scenes.builtin_scenes.pause_scene.PauseOverlay',
+            return_value=pygame.sprite.DirtySprite(),
+        )
+        pause_scene = PauseScene(options={})
+        assert pause_scene.debug_subject is pause_scene  # nothing paused yet
+        pause_scene.setup()
+        assert pause_scene.debug_subject is gameplay_scene
+        SceneManager._reset()
+
+    def test_draw_receives_the_debug_subject_and_a_label(self, manager, scene, mocker):
+        """A pause-like active scene hands the overlay its subject and names it in frame_info."""
+        capture_at_flip(mocker, manager)
+        paused_gameplay = types.SimpleNamespace(
+            camera=Camera2D(*SCREEN_SIZE), all_sprites=[], NAME='Clockwork Keep'
+        )
+        scene.debug_subject = paused_gameplay
+        draw = mocker.patch.object(manager.debug_overlay, 'draw')
+        manager.debug_overlay.is_visible = True
+        manager._present_frame(full_update=False)
+        assert draw.call_args.kwargs['scene'] is paused_gameplay
+        assert draw.call_args.kwargs['frame_info'].inspected_scene_label == 'Clockwork Keep'
+
+    def test_no_label_when_the_active_scene_inspects_itself(self, manager, mocker):
+        """frame_info carries no label for an ordinary scene."""
+        capture_at_flip(mocker, manager)
+        draw = mocker.patch.object(manager.debug_overlay, 'draw')
+        manager.debug_overlay.is_visible = True
+        manager._present_frame(full_update=False)
+        assert draw.call_args.kwargs['scene'] is manager.active_scene
+        assert draw.call_args.kwargs['frame_info'].inspected_scene_label is None

@@ -81,6 +81,8 @@ class DebugFrameInfo:
         rumble_levels (tuple[float, float]): Last (low, high) rumble levels sent.
         screen_shake_offset (tuple[float, float]): Current SCREEN shake offset.
         mouse_position (tuple[int, int] | None): Mouse position, or None.
+        inspected_scene_label (str | None): Name of the scene being inspected when it is not
+            the active scene (a paused game), named on the mode line; None otherwise.
 
     """
 
@@ -89,6 +91,7 @@ class DebugFrameInfo:
     rumble_levels: tuple[float, float]
     screen_shake_offset: tuple[float, float]
     mouse_position: tuple[int, int] | None
+    inspected_scene_label: str | None = None
 
 
 def screen_rect_for(
@@ -560,17 +563,27 @@ def draw_performance_panel(
     )
 
 
-def draw_mode_line(*, surface: pygame.Surface, font: Any, panel: DebugPanel) -> None:
+def draw_mode_line(
+    *,
+    surface: pygame.Surface,
+    font: Any,
+    panel: DebugPanel,
+    inspected_scene_label: str | None = None,
+) -> None:
     """Draw the mode line at the top centre of the surface.
 
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
         font (Any): Font used for the text.
         panel (DebugPanel): The selected panel, named in the text.
+        inspected_scene_label (str | None): The paused scene being shown, if any.
 
     """
+    mode_text = f'DEBUG: {panel.value.capitalize()} (F3 off, F4 next)'
+    if inspected_scene_label is not None:
+        mode_text += f' | paused: {inspected_scene_label}'
     text_surface = font.render(
-        f'DEBUG: {panel.value.capitalize()} (F3 off, F4 next)',
+        mode_text,
         antialias=True,
         color=HUD_TEXT_COLOR,
     )

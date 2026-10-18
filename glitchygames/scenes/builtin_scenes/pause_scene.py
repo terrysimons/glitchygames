@@ -64,6 +64,8 @@ class PauseScene(Scene):
         super().__init__(**kwargs)
         self.overlay = None
         self._space_pressed = False
+        # The gameplay scene this pause screen froze; the debug overlay inspects it instead
+        self._paused_scene: Scene | None = None
 
     @override
     def setup(self: Self) -> None:
@@ -72,6 +74,7 @@ class PauseScene(Scene):
 
         # Create the pause overlay using the previous scene's screenshot
         previous_scene = self.scene_manager.previous_scene
+        self._paused_scene = previous_scene
         if previous_scene:
             # Use the scene's screenshot property (which will use custom screenshot if set)
             screenshot = previous_scene.screenshot
@@ -87,6 +90,12 @@ class PauseScene(Scene):
         self.all_sprites.add(self.overlay)
 
         self.log.info('Pause scene setup complete')
+
+    @property
+    @override
+    def debug_subject(self: Self) -> Scene:
+        """The paused gameplay scene, so the debug overlay keeps showing its hitboxes."""
+        return self._paused_scene if self._paused_scene is not None else self
 
     @override
     def on_key_down_event(self: Self, event: HashableEvent) -> None:

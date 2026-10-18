@@ -247,7 +247,12 @@ class DebugOverlay:
                 font=font,
                 frame_info=frame_info,
             )
-        panels.draw_mode_line(surface=surface, font=font, panel=self.panel)
+        panels.draw_mode_line(
+            surface=surface,
+            font=font,
+            panel=self.panel,
+            inspected_scene_label=frame_info.inspected_scene_label,
+        )
 
         if self.panel is not DebugPanel.PERFORMANCE:
             self._call_hooks(surface=surface, scene=scene, camera=camera)
