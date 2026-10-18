@@ -12,41 +12,53 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-15
 - **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
 
-### 21. Parallax Backgrounds Never Scroll During Gameplay
-- **Description**: `Camera2D.update()` no longer updates parallax layers, so backgrounds stay frozen at their `snap_to()` position in Brave Adventurer, Papyrus, and Clockwork Keep
-- **Status**: Active (fix planned in `plans/2026-10-17-screen-shake-and-synth.md`)
-- **Priority**: Medium
-- **Reporter**: Found by the adversarial audit of the screen shake spec
-- **Date Reported**: 2026-10-17
-- **Root Cause**: Commit `df21435` inserted `snap_to()` between `update()`'s `_clamp_to_bounds()` call and its parallax loop, so the loop became the tail of `snap_to()` (which now updates layers twice) and `update()` lost it. Nothing else calls `ParallaxLayer.update_scroll()`.
-- **Files**: `glitchygames/camera.py`
-
-### 22. Mixer Pre-Init Settings Never Take Effect
-- **Description**: `AudioEventManager` calls `pygame.mixer.pre_init(22050, -16, 2, 1024)` after `pygame.init()` has already started the mixer at (44100, -16, 2) with a 512-sample buffer, so the settings are ignored
-- **Status**: Active (fix planned: delete the `pre_init`, document 44100/512)
-- **Priority**: Medium
-- **Reporter**: Found by the adversarial audit of the screen shake spec
-- **Date Reported**: 2026-10-17
-- **Impact**: Brave Adventurer generates its sounds for 22050 Hz, so they have always played an octave high at half length. Decided: restore them as written when they move to the engine synthesizer.
-- **Files**: `glitchygames/events/audio.py:75`, `glitchygames/engine/game_engine.py:358`, `glitchygames/examples/brave_adventurer/sounds.py`
-
-### 23. Engine Crashes Without an Audio Device
-- **Description**: `pygame.mixer.init()` in `AudioEventManager.__init__` raises an uncaught `pygame.error` when no audio device is available
-- **Status**: Active (fix planned: catch, log once, run silently)
-- **Priority**: Low
-- **Reporter**: Found by the adversarial audit of the screen shake spec
-- **Date Reported**: 2026-10-17
-- **Files**: `glitchygames/events/audio.py:76`
+## Resolved Bugs
 
 ### 24. Jumping on a Clockwork Keep Elevator Never Rides It
-- **Description**: `_check_elevator()` accepts `jump` as well as `interact`, but the jump handler clears `on_ground` during event processing and `_check_elevator()` requires `on_ground` on the next frame, so jump only ever jumps
-- **Status**: Active (fix planned: interact only; jump always jumps)
+- **Description**: `_check_elevator()` accepted `jump` as well as `interact`, but the jump handler clears `on_ground` during event processing and `_check_elevator()` requires `on_ground` on the next frame, so jump only ever jumped
+- **Status**: Resolved
 - **Priority**: Low
 - **Reporter**: Found by the adversarial audit of the screen shake spec
 - **Date Reported**: 2026-10-17
-- **Files**: `glitchygames/examples/clockwork_keep/game.py:467`
+- **Date Resolved**: 2026-10-17
+- **Solution**: Elevator activation uses interact only; jump always jumps (commit `2850d4f`)
+- **Tests**: `TestElevatorActivation` in `tests/examples/test_clockwork_keep.py`
+- **Files**: `glitchygames/examples/clockwork_keep/game.py`
 
-## Resolved Bugs
+### 23. Engine Crashes Without an Audio Device
+- **Description**: `pygame.mixer.init()` in `AudioEventManager.__init__` raised an uncaught `pygame.error` when no audio device was available
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the adversarial audit of the screen shake spec
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-17
+- **Solution**: The error is caught and logged once, and the engine runs silently (commit `ebc2b48`)
+- **Tests**: `test_init_survives_missing_audio_device` in `tests/events/test_audio_events.py`
+- **Files**: `glitchygames/events/audio.py`
+
+### 22. Mixer Pre-Init Settings Never Take Effect
+- **Description**: `AudioEventManager` called `pygame.mixer.pre_init(22050, -16, 2, 1024)` after `pygame.init()` had already started the mixer at (44100, -16, 2) with a 512-sample buffer, so the settings were ignored
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the adversarial audit of the screen shake spec
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-17
+- **Impact**: Brave Adventurer generated its sounds for 22050 Hz, so they had always played an octave high at half length
+- **Solution**: Deleted the `pre_init` call and documented the real mixer settings (44100 Hz, 512-sample buffer) (commit `ebc2b48`). The Brave Adventurer sounds were restored as written when they moved to the engine synthesizer (commit `bb4b352`), so they now play an octave lower and longer than before
+- **Tests**: `test_init_does_not_call_pre_init` in `tests/events/test_audio_events.py`; `tests/examples/test_brave_adventurer_sounds.py`
+- **Files**: `glitchygames/events/audio.py`, `glitchygames/engine/game_engine.py`, `glitchygames/examples/brave_adventurer/sounds.py`
+
+### 21. Parallax Backgrounds Never Scroll During Gameplay
+- **Description**: `Camera2D.update()` no longer updated parallax layers, so backgrounds stayed frozen at their `snap_to()` position in Brave Adventurer, Papyrus, and Clockwork Keep
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the adversarial audit of the screen shake spec
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-17
+- **Root Cause**: Commit `df21435` inserted `snap_to()` between `update()`'s `_clamp_to_bounds()` call and its parallax loop, so the loop became the tail of `snap_to()` (which updated layers twice) and `update()` lost it. Nothing else called `ParallaxLayer.update_scroll()`.
+- **Solution**: Parallax layers are updated from `Camera2D.update()` again (commit `afab532`, "Fix parallax layers not following the camera")
+- **Tests**: `TestCamera2DParallax` in `tests/test_camera.py`
+- **Files**: `glitchygames/camera.py`
 
 ### 20. ty Static Analysis Fails (36 Errors)
 - **Description**: The `static-analysis` pre-push hook fails at its `ty` step with 36 errors (plus 57 `unused-ignore-comment` warnings) in `glitchygames/` and `scripts/`

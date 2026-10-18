@@ -139,6 +139,27 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 - Configurable sleep granularity for tight frame pacing
 - Windows timer resolution control via WinMM
 
+**Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
+- `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`
+- Styles: `NOISE` (trauma model), `JITTER`, `BOUNCE`; shakes stack and are capped
+- WORLD shakes `Camera2D` sprites (HUD stays still); SCREEN shifts the presented frame,
+  survives `transition_to`, and is cleared by `switch_to_scene`
+- Optional `RumbleSettings` per shake; `SceneManager` sends combined rumble in controller and
+  joystick modes
+- `--screen-shake-intensity`, `--rumble-intensity` (0.0-1.0)
+
+**Sound Synthesis** (`glitchygames/audio/synth.py`, `recipes.py`, `live.py`)
+- Toolkit: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR filters,
+  mixing, `to_sound()`
+- Recipes: `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank`
+- Live voices: `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on
+  a channel pool reserved at startup (`--live-voice-pool`, default 4)
+- Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer (started by `pygame.init()`)
+
+**Transitions** (`glitchygames/transitions/`): `on_update` callback, `add_cue(progress, callback)`,
+`eased_velocity_at(progress)`; cues run after the old scene's cleanup, so they may use only
+SceneManager services
+
 ### Event System
 
 **Event Flow**: `pygame.event.get()` → `GameEngine.process_events()` → `EVENT_HANDLERS[type]()` → `SceneManager.on_*_event()` → `Scene.on_*_event()` → `Sprite.on_*_event()`
