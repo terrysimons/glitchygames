@@ -265,11 +265,25 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """
         if self._default_hitbox is not None:
             return self._default_hitbox
-        frame_hitboxes = [
-            self._native_frame_hitbox(frame)
-            for frames in self._animations.values()
-            for frame in frames
-        ]
+        # Cached per frame set: frames are not changed after loading, so the union is built
+        # again only when frames are added, removed or replaced. A frame whose hitbox is
+        # edited in place keeps the old union (no game does that; Bitmappy does not anchor).
+        current_frames = tuple(frame for frames in self._animations.values() for frame in frames)
+        cached_entry = self._frame_anchor_reference_cache
+        if cached_entry is None or cached_entry[0] != current_frames:
+            cached_entry = (current_frames, self._union_of_frame_hitboxes(current_frames))
+            self._frame_anchor_reference_cache = cached_entry
+        cached_reference = cached_entry[1]
+        return None if cached_reference is None else cached_reference.copy()
+
+    def _union_of_frame_hitboxes(self: Self, frames: tuple[SpriteFrame, ...]) -> pygame.Rect | None:
+        """Return the union of the given frames' native hitboxes.
+
+        Returns:
+            pygame.Rect | None: The union, or None for no frames.
+
+        """
+        frame_hitboxes = [self._native_frame_hitbox(frame) for frame in frames]
         if not frame_hitboxes:
             return None
         return frame_hitboxes[0].unionall(frame_hitboxes[1:])
@@ -504,6 +518,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # How frames of different shapes line up when drawn (see draw_offset); NONE draws
         # each frame as authored
         self.frame_anchor: FrameAnchor = FrameAnchor.NONE
+        # (frames it was built from, union of their hitboxes); see _frame_anchor_reference
+        self._frame_anchor_reference_cache: (
+            tuple[tuple[SpriteFrame, ...], pygame.Rect | None] | None
+        ) = None
 
         if filename:
             self.load(filename)

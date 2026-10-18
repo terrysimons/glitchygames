@@ -2803,6 +2803,24 @@ class TestAnimatedSpriteFrameAnchor:
         assert len(set(hitbox_points)) == 1
         assert set(drawn_points) == set(hitbox_points)
 
+    def test_reference_is_cached_until_the_frames_change(self, mocker):
+        """The union reference is built once per frame set, not on every draw_offset."""
+        sprite = self._sprite(FrameAnchor.BOTTOM)
+        union_spy = mocker.spy(sprite, '_union_of_frame_hitboxes')
+        for frame_index in (0, 1, 2, 0, 1):
+            sprite.set_frame(frame_index)
+            _ = sprite.draw_offset
+        assert union_spy.call_count == 1
+
+        taller = pygame.Surface((20, 40), pygame.SRCALPHA)
+        sprite.add_animation(
+            'tall', [SpriteFrame(taller, duration=FRAME_DURATION, hitbox=pygame.Rect(0, 0, 20, 40))]
+        )
+        sprite.set_animation('cycle')
+        sprite.set_frame(0)
+        assert sprite.draw_offset == (0, 40 - 27)
+        assert union_spy.call_count == 2
+
     def test_reference_prefers_the_default_hitbox(self):
         """With a sprite-level default hitbox, frames align to it, not the union."""
         sprite = self._sprite(FrameAnchor.BOTTOM)
