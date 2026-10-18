@@ -166,6 +166,8 @@ class PapyrusBraveAdventurerScene(Scene):
 
         # Game state
         self.game_over_triggered: bool = False
+        # Set by the first enemy contact in a collision pass (see _on_player_enemy_collision)
+        self._enemy_hit_this_pass: bool = False
 
         # Persistence
         self.saves = SaveManager(app_name='brave-adventurer-papyrus')
@@ -544,6 +546,7 @@ class PapyrusBraveAdventurerScene(Scene):
         Uses the collision manager with TOML hitboxes for accurate
         sprite-vs-sprite detection.
         """
+        self._enemy_hit_this_pass = False
         self.collisions.check_overlap(
             'player',
             'enemies',
@@ -551,7 +554,14 @@ class PapyrusBraveAdventurerScene(Scene):
         )
 
     def _on_player_enemy_collision(self: Self, _player: Any, _enemy: Any) -> None:
-        """Handle player-enemy collision by triggering death."""
+        """Handle player-enemy collision by triggering death, once per collision pass.
+
+        Touching two enemies at once must cost one life and one respawn, and a player
+        already dying or respawning cannot die again.
+        """
+        if self._enemy_hit_this_pass or self.player.is_respawning:
+            return
+        self._enemy_hit_this_pass = True
         self._player_die()
 
     def _check_collectible_collisions(self: Self) -> None:

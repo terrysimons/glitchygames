@@ -581,3 +581,29 @@ class TestPapyrusFeetAnchoring:
             scene._resolve_player_wall_collision()
             grounded_frames.append(player.on_ground)
         assert all(grounded_frames)
+
+
+class TestOneDeathPerHit:
+    """Touching two enemies in the same collision pass costs one life, not two."""
+
+    def test_two_overlapping_enemies_cost_one_life_and_one_respawn(self, adventurer_scene):
+        """Both enemies overlap the player; only the first contact kills."""
+        scene = adventurer_scene
+        player = _drawn_player(scene)
+        player.lives = 3
+        hitbox = _player_hitbox(scene)
+        enemy_layer = scene.collisions.get_layer('enemies')
+        enemy_layer.clear()
+        for offset in (0, 4):
+            enemy_layer.add(
+                types.SimpleNamespace(
+                    world_x=float(hitbox.x + offset),
+                    world_y=float(hitbox.y),
+                    rect=pygame.Rect(0, 0, 10, 10),
+                )
+            )
+
+        scene._check_enemy_collisions()
+
+        assert player.lives == 2
+        scene._respawn_player.assert_called_once()
