@@ -34,9 +34,9 @@ detection by size, grey placeholder frames.
 
 Saving reset frame timings and loop flags (BUGS.md #34), converted the visible-pixel fallback into
 explicit hitboxes (#35), blanked static sprites with RGBA colours (#36, `toadstool.toml`), and
-dropped the single-frame description (#39) and the `[[transition]]` sections (#44). Still open and
-related: #43 (single-frame save drops the name, frame anchor and sprite hitbox), #45 (renaming an
-animation drops its timing and loop flag).
+dropped the single-frame description (#39), the `[[transition]]` sections (#44) and, in Bitmappy's
+single-frame save, the name, frame anchor and sprite hitbox (#43). Still open and related: #45
+(renaming an animation drops its timing and loop flag).
 
 ## Suggested order
 

@@ -15,7 +15,6 @@ One line per item, with where it is detailed. Review, then promote items into
 | `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |
 | Frame-anchor reference cache doesn't notice a frame hitbox edited in place (only frame add/remove/replace) | `glitchygames/sprites/animated.py` (documented) | Nothing edits in place today. |
 | Bitmappy's panned-viewport save drops a hitbox that lies entirely outside the viewport | `glitchygames/bitmappy/animated_canvas.py` | Decide: drop, clamp, or warn. |
-| Bitmappy single-frame save drops the sprite name, frame anchor and sprite hitbox | `glitchygames/bitmappy/animated_canvas.py:~1810` | BUGS.md #43 (active). |
 | Undoing an animation delete in Bitmappy restores its frames but not the `[[transition]]` entries dropped with it | `glitchygames/bitmappy/` (delete-animation command and its undo) | Found while fixing BUGS.md #44; the transitions should be captured by the delete command. |
 | Renaming an animation in Bitmappy drops its timing and loop flag | `glitchygames/bitmappy/film_strip_coordinator.py:~1352` | BUGS.md #45 (active). |
 | `scripts/legacy_sprite_loader.py` cannot start (`Sprite.__init__()` missing x and y) | `scripts/legacy_sprite_loader.py:~50` | BUGS.md #46 (active); fix or delete. |

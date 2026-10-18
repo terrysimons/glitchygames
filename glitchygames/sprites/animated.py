@@ -979,6 +979,30 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """
         self.transition_data = [dict(transition) for transition in source.transition_data]
 
+    def copy_sprite_metadata_from(self: Self, source: AnimatedSprite) -> None:
+        """Copy every sprite-level field the TOML writers save from another sprite.
+
+        name, description, frame_anchor, the sprite-level default hitbox, the transitions,
+        and the loaded color glyphs and their order (so a save reuses the source file's
+        characters). Bitmappy uses it when it builds a new sprite to save from a loaded one.
+
+        Args:
+            source (AnimatedSprite): The sprite whose metadata to copy.
+
+        """
+        self.name = source.name
+        self.description = source.description
+        self.frame_anchor = source.frame_anchor
+        self.default_hitbox = (
+            None if source.default_hitbox is None else source.default_hitbox.copy()
+        )
+        self.copy_transitions_from(source)
+        self._color_map = dict(source._color_map)
+        self._color_order = list(getattr(source, '_color_order', []))
+        self._colors_with_per_pixel_alpha = dict(
+            getattr(source, '_colors_with_per_pixel_alpha', {})
+        )
+
     @override
     def get_frame(self: Self, animation_name: str, frame_index: int) -> SpriteFrame:
         """Get a specific frame from a specific animation.

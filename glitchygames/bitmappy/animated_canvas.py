@@ -1815,12 +1815,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         animated_sprite.frame_manager.current_animation = animation_name
         animated_sprite.frame_manager.current_frame = 0
 
-        # Preserve the description from the original sprite
-        if hasattr(self.animated_sprite, 'description'):
-            animated_sprite.description = self.animated_sprite.description
-            self.log.debug(f"Preserved description: '{animated_sprite.description}'")
-        # ...and its animation state machine ([[transition]] sections)
-        animated_sprite.copy_transitions_from(self.animated_sprite)
+        # Preserve every sprite-level field the writer saves: name, description, frame_anchor,
+        # the sprite-level hitbox, transitions and the original color glyphs
+        animated_sprite.copy_sprite_metadata_from(self.animated_sprite)
 
         # Update the sprite's image to match the frame
         animated_sprite.image = frame.image.copy()

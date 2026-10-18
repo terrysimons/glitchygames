@@ -28,14 +28,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-18
 - **Details**: `glitchygames/ui/dialogs.py:~305-317`. Identical on main. Base-class key-down handling never runs for that dialog, and key-up handling runs twice per key press.
 
-### 43. Bitmappy Single-Frame Save Drops the Sprite Name, Frame Anchor and Sprite Hitbox
-- **Description**: Bitmappy's normal save of a single-frame sprite (`on_save_file_event` → `_save_as_static_sprite`) builds a new `AnimatedSprite` and copies only `description`, so the saved file's `name` becomes `"animated_sprite"` (battle_axe: `bttlaxe.get` → `animated_sprite`) and `frame_anchor` and a sprite-level hitbox not stored on the frame are lost
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found by the re-review of `feature/debug-overlay`
-- **Date Reported**: 2026-10-18
-- **Details**: `glitchygames/bitmappy/animated_canvas.py:~1810`. Identical on main. Fix: copy every sprite-level field the writers save (name, description, frame_anchor, default hitbox), and round-trip-test through this save path.
-
 ### 45. Renaming an Animation in Bitmappy Drops Its Timing and Loop Flag
 - **Description**: `_rename_animation_in_sprite` moves the animation's frames but not its loop flag or frame interval, so a renamed one-shot animation stops honouring `loop = false` at runtime and saves as `loop = true` with the most common frame duration as its interval
 - **Status**: Active
@@ -65,6 +57,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Solution**: The loader keeps each table verbatim, in file order, in `AnimatedSprite.transition_data`; both writers append them as `[[transition]]` sections with the same keys, values and order (`_write_toml_transitions`). Strings are escaped as TOML basic strings (`toml_basic_string`: backslash, quote and control characters; also `toml_key` and `toml_scalar`), so `when` expressions with quotes or backslashes round-trip. Transitions that games add in code (the Papyrus player's compound falling transitions) are not part of the data and are not written. Bitmappy's viewport and single-frame canvas saves copy the transitions (`copy_transitions_from`); renaming an animation renames it in its transitions (`rename_animation_in_transitions`, called by `FilmStripCoordinator._rename_animation_in_sprite`); deleting one drops the transitions from or to it with a logged warning (`remove_transitions_for_animation`, called by `_delete_animation` and `AnimatedSprite.remove_animation`). Undoing a Bitmappy animation delete does not restore the dropped transitions
 - **Tests**: `test_bundled_transitions_survive_a_save_round_trip` (every bundled sprite) and `test_state_machine_transitions_reload_in_order` (Papyrus player, cobra) in `tests/examples/test_examples_sprites.py`; `TestTransitionData` in `tests/sprites/test_animated_sprite.py`; `test_viewport_save_keeps_transitions` and `test_static_save_keeps_transitions` in `tests/tools/test_canvas_panning.py`; `TestFilmStripAnimationTransitions` in `tests/tools/test_bitmappy_film_strips.py`
 - **Files**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/animated_canvas.py`, `glitchygames/bitmappy/film_strip_coordinator.py`
+
+### 43. Bitmappy Single-Frame Save Drops the Sprite Name, Frame Anchor and Sprite Hitbox
+- **Description**: Bitmappy's normal save of a single-frame sprite (`on_save_file_event` → `_save_as_static_sprite`) built a new `AnimatedSprite` and copied only `description`, so the saved file's `name` became `"animated_sprite"` (battle_axe: `bttlaxe.get` → `animated_sprite`) and `frame_anchor` and a sprite-level hitbox not stored on the frame were lost
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `AnimatedCanvasSprite._save_as_static_sprite` copied sprite-level fields one at a time and only `description` (and, since #44, the transitions) was ever added; the new sprite also lacked the loaded color glyphs, so a save could pick different characters
+- **Solution**: New `AnimatedSprite.copy_sprite_metadata_from` copies every sprite-level field the writers save (name, description, frame_anchor, the default hitbox, transitions) plus the loaded color glyphs and their order; `_save_as_static_sprite` uses it
+- **Tests**: `test_static_save_keeps_the_sprite_name` (battle_axe: name and pixel glyphs) and `test_static_save_keeps_frame_anchor_and_sprite_hitbox` in `tests/tools/test_canvas_panning.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/animated_canvas.py`
 
 ### 42. TOML Writers Don't Escape Sprite Names and Descriptions
 - **Description**: Both TOML writers wrote `name = "{name}"` and `description = """{description}"""` without escaping, so a description containing `"""` or a name containing `"` or a backslash produced an invalid TOML file that could not be loaded again

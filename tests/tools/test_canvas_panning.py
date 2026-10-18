@@ -2,6 +2,7 @@
 """Tests for canvas panning functionality."""
 
 import math
+from pathlib import Path
 
 import pygame
 import pytest
@@ -595,3 +596,45 @@ class TestViewportSaveKeepsHitboxesAndAnchor:
 
         saved_transitions = tomllib.loads(saved_file.read_text(encoding='utf-8'))['transition']
         assert saved_transitions == [{'from': 'idle', 'to': 'idle', 'when': 'timer > 1.0'}]
+
+    def test_static_save_keeps_the_sprite_name(self, tmp_path):
+        """battle_axe saved through the canvas's single-frame path keeps its name and glyphs."""
+        import tomllib
+
+        from glitchygames.sprites import AnimatedSprite
+
+        source_file = Path('glitchygames/examples/resources/sprites/battle_axe.toml')
+        self.canvas.animated_sprite = AnimatedSprite(str(source_file))
+        saved_file = tmp_path / 'battle_axe.toml'
+
+        self.canvas._save_as_static_sprite(str(saved_file), 'toml')
+
+        original_data = tomllib.loads(source_file.read_text(encoding='utf-8'))
+        saved_data = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+        assert saved_data['sprite']['name'] == 'bttlaxe.get'
+        assert saved_data['sprite']['pixels'] == original_data['sprite']['pixels']
+
+    def test_static_save_keeps_frame_anchor_and_sprite_hitbox(self, tmp_path):
+        """A sprite-level hitbox (not stored on the frame) and frame_anchor survive."""
+        from glitchygames.sprites import AnimatedSprite, FrameAnchor
+
+        sprite_file = tmp_path / 'anchored.toml'
+        sprite_file.write_text(
+            '[sprite]\nname = "anchored"\nframe_anchor = "bottom"\n\n'
+            '[sprite.hitbox]\noffset_x = 0\noffset_y = 1\nwidth = 2\nheight = 1\n\n'
+            '[[animation]]\nnamespace = "idle"\n\n'
+            '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\n'
+            'pixels = """\n..\n##\n"""\n\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
+            '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n',
+            encoding='utf-8',
+        )
+        self.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
+        saved_file = tmp_path / 'static.toml'
+
+        self.canvas._save_as_static_sprite(str(saved_file), 'toml')
+        reloaded_sprite = AnimatedSprite(str(saved_file))
+
+        assert reloaded_sprite.name == 'anchored'
+        assert reloaded_sprite.frame_anchor is FrameAnchor.BOTTOM
+        assert reloaded_sprite.default_hitbox == pygame.Rect(0, 1, 2, 1)
