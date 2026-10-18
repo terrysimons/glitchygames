@@ -992,12 +992,22 @@ class SceneManager(SceneInterface, events.EventManager):
             self.active_scene.cleanup()
 
     def _setup_new_scene(self, next_scene: Scene | None) -> None:
-        """Set up the new scene."""
+        """Set up the new scene.
+
+        Every switch and transition (including resuming a paused scene) passes through here, so
+        the incoming scene also forgets the key presses it recorded while it was last active.
+        """
         if next_scene:
             self.log.info('Setting up new scene %s.', next_scene)
             # Ensure the new scene has access to the game engine
             if hasattr(self, 'game_engine') and self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
+            # A press recorded before the scene was left (an ESC that paused it, released in
+            # the pause scene) must not let a later release quit. Looked up by name, like
+            # record_key_press: the scene may be a SceneInterface stand-in without it
+            forget_key_presses = getattr(next_scene, 'forget_key_presses', None)
+            if forget_key_presses is not None:
+                forget_key_presses()
             next_scene.setup()
 
     def _log_blocked_events(self, next_scene: Scene | None) -> None:
@@ -1431,6 +1441,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         self._keys_pressed_in_scene.add(key)
+
+    def forget_key_presses(self: Self) -> None:
+        """Forget every key press recorded by record_key_press.
+
+        SceneManager calls this whenever the scene becomes active (switched to, resumed, or
+        the target of a transition), before setup(). A press whose release went to another
+        scene would otherwise stay recorded, and a later release of that key (whose press was
+        discarded during a transition) would quit.
+        """
+        self._keys_pressed_in_scene.clear()
 
     def _handle_quit_key_press(self) -> None:
         """Handle quit key press when no sprites are focused."""

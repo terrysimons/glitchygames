@@ -32,6 +32,7 @@ from scripts.record_golden_traces import (
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.scenes.scene import (
     TRANSITION_DISCARDED_EVENT_TYPES,
     is_discarded_during_transition,
@@ -125,6 +126,20 @@ class DepartureScene(ArrivalScene):
         self.transition_to(
             ArrivalScene(options=self.options), FadeTransition(duration=TEST_FADE_SECONDS)
         )
+
+
+class EscapePausingScene(DepartureScene):
+    """A game that pauses on the ESC key-down, so the ESC release reaches the pause scene."""
+
+    NAME = 'Escape Pausing'
+
+    @override
+    def on_key_down_event(self: Self, event: Any) -> None:
+        """Pause on ESC; every other key goes to the ArrivalScene handling."""
+        if event.key == pygame.K_ESCAPE:
+            self.pause()
+            return
+        super().on_key_down_event(event)
 
 
 @contextlib.contextmanager
@@ -499,3 +514,36 @@ def test_file_dropped_during_transition_lands_in_the_arriving_scene():
 
         assert manager._active_transition is not None
         assert ArrivalScene.dropped_files == [('ArrivalScene', 'sprite.toml')]
+
+
+def test_escape_that_paused_a_scene_cannot_quit_it_after_resume():
+    """The press that paused a scene is forgotten when the scene becomes active again.
+
+    ESC pauses; its release goes to the pause scene, so the paused scene never saw it released.
+    After resuming (and later returning to the scene through a transition), an ESC pressed
+    during a transition is discarded; its release must not pair with the stale press and quit.
+    """
+    with running_game(EscapePausingScene) as manager:
+        pausing_scene = manager.active_scene
+        assert isinstance(pausing_scene, EscapePausingScene)
+        step(manager, press(pygame.K_ESCAPE))
+        assert isinstance(manager.active_scene, PauseScene)
+        step(manager, release(pygame.K_ESCAPE))
+        step(manager, press(pygame.K_SPACE))
+        step(manager, release(pygame.K_SPACE))
+        assert manager.active_scene is pausing_scene
+
+        start_departure(manager)
+        step_until_transition_ends(manager)
+        arrival_scene = manager.active_scene
+        assert isinstance(arrival_scene, ArrivalScene)
+        arrival_scene.transition_to(pausing_scene, FadeTransition(duration=TEST_FADE_SECONDS))
+        step_until_transition_starts(manager)
+        step(manager, press(pygame.K_ESCAPE))
+        step(manager, release(pygame.K_ESCAPE))
+        step_until_transition_ends(manager)
+        step(manager)
+        step(manager)
+
+        assert manager.active_scene is pausing_scene
+        assert manager.quit_requested is False
