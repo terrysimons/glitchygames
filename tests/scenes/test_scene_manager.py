@@ -10,7 +10,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
 from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
@@ -406,3 +406,63 @@ class TestSceneManagerInternals:
         }
         self.scene_manager.game_engine = engine
         assert self.scene_manager.screen_shake.intensity == 0.25
+        assert self.scene_manager.rumble.intensity == 0.5
+
+    def test_frame_services_drive_rumble(self, mocker):
+        """Test the per-frame services feed the screen shake to the rumble controller."""
+        update = mocker.patch.object(self.scene_manager.rumble, 'update')
+        self.scene_manager.active_scene = Scene()
+        self.scene_manager.dt = 0.0
+        self.scene_manager._update_frame_services()
+        assert update.call_args.kwargs['shakers'] == [self.scene_manager.screen_shake]
+
+
+class TestSceneShake:
+    """Test Scene.shake targeting."""
+
+    def setup_method(self):
+        """Reset the singleton so each test starts clean."""
+        SceneManager._reset()
+
+    def teardown_method(self):
+        """Reset the singleton so no shake leaks between tests."""
+        SceneManager._reset()
+
+    @staticmethod
+    def _shake():
+        from glitchygames.effects.shake import Shake, ShakeStyle
+
+        return Shake(style=ShakeStyle.NOISE, strength=5.0, duration=1.0, frequency=5.0)
+
+    def test_world_requires_camera(self):
+        scene = Scene()
+        with pytest.raises(ValueError, match='camera'):
+            scene.shake(self._shake())
+
+    def test_world_on_inactive_scene_raises(self):
+        """Cue callbacks run on a cleaned-up scene; WORLD must fail loudly there."""
+        from glitchygames.camera import Camera2D
+
+        scene = Scene()
+        scene.camera = Camera2D(screen_width=100, screen_height=100)
+        scene.scene_manager.active_scene = None
+        with pytest.raises(RuntimeError, match='active'):
+            scene.shake(self._shake())
+
+    def test_world_on_active_scene_shakes_camera(self):
+        from glitchygames.camera import Camera2D
+
+        scene = Scene()
+        scene.camera = Camera2D(screen_width=100, screen_height=100)
+        scene.scene_manager.active_scene = scene
+        scene.shake(self._shake())
+        assert scene.camera.shake_effect.is_active
+
+    def test_screen_works_from_any_scene(self):
+        from glitchygames.effects.shake import ShakeTarget
+
+        scene = Scene()
+        scene.scene_manager.active_scene = None
+        scene.shake(self._shake(), targets=ShakeTarget.SCREEN)
+        assert scene.scene_manager.screen_shake.is_active
+        scene.scene_manager.screen_shake.clear()

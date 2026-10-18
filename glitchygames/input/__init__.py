@@ -13,9 +13,11 @@ Usage:
 """
 
 from glitchygames.input.action_map import ActionMap, AxisBinding, Binding
+from glitchygames.input.rumble import RumbleController
 
 __all__ = [
     'ActionMap',
     'AxisBinding',
     'Binding',
+    'RumbleController',
 ]

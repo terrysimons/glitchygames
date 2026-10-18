@@ -12,9 +12,10 @@ from glitchygames import events
 from glitchygames.camera import Camera2D
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
-from glitchygames.effects.shake import ScreenShake
+from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
+from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 
 if TYPE_CHECKING:
@@ -83,6 +84,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # SCREEN shake lives here (not on a scene) so it outlives scene switches
         self.screen_shake: ScreenShake = ScreenShake()
         self._screen_shake_was_presented: bool = False
+        self.rumble: RumbleController = RumbleController()
 
         # Jitter tracking attributes
         self._jitter_samples: list[int] = []
@@ -131,6 +133,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.fps_log_interval_ms = self.OPTIONS['fps_log_interval_ms']
             self.target_fps = self.OPTIONS.get('target_fps', 60)
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
+            self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
         self.log.info(f'Screen update type: {self.update_type}')
         self.log.info(f'FPS Log Interval: {self.fps_log_interval_ms}ms')
         self.log.info(f'Target FPS: {self.target_fps}')
@@ -255,8 +258,19 @@ class SceneManager(SceneInterface, events.EventManager):
                 sprite.dirty = max(sprite.dirty, 1)
 
     def _update_frame_services(self: Self) -> None:
-        """Advance services that outlive scenes: screen shake (rumble and live audio join later)."""
+        """Advance services that outlive scenes: screen shake and rumble."""
         self.screen_shake.update(self.dt)
+
+        shakers = [self.screen_shake]
+        camera = getattr(self.active_scene, 'camera', None)
+        if isinstance(camera, Camera2D):
+            shakers.append(camera.shake_effect)
+        controller_manager = getattr(self.game_engine, 'controller_manager', None)
+        self.rumble.update(
+            shakers=shakers,
+            dt=self.dt,
+            devices=lambda: connected_rumble_devices(controller_manager),
+        )
 
     def _present_frame(self: Self, *, full_update: bool) -> None:
         """Present the rendered frame, shifted by any active SCREEN shake.
@@ -999,6 +1013,32 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     def cleanup(self: Self) -> None:
         """Cleanup the scene."""
+
+    def shake(self: Self, shake: Shake, *, targets: ShakeTarget = ShakeTarget.WORLD) -> None:
+        """Start a shake on the world (camera), the whole screen, or both.
+
+        Rumble, if the shake has it, is sent automatically by the scene manager.
+
+        Args:
+            shake: The shake to start.
+            targets: ShakeTarget.WORLD, ShakeTarget.SCREEN, or both combined with |.
+
+        Raises:
+            ValueError: If WORLD is requested and the scene has no camera.
+            RuntimeError: If WORLD is requested on a scene that is not active (for example
+                from a transition cue, which runs after the scene was cleaned up).
+
+        """
+        if ShakeTarget.WORLD in targets:
+            if self.camera is None:
+                message = f'{self.NAME} has no camera; WORLD shake needs Scene.camera'
+                raise ValueError(message)
+            if self.scene_manager.active_scene is not self:
+                message = f'{self.NAME} is not the active scene; use ShakeTarget.SCREEN'
+                raise RuntimeError(message)
+            self.camera.shake_effect.add(shake)
+        if ShakeTarget.SCREEN in targets:
+            self.scene_manager.screen_shake.add(shake)
 
     def apply_camera_to_sprites(self: Self) -> None:
         """Reposition camera-relative sprites from the current camera.
