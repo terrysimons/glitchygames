@@ -71,6 +71,16 @@ def _make_engine(mocker, mock_pygame_patches, mock_game_args):
     return GameEngine(game=mock_game)
 
 
+def _raw_event(mocker, event_type, **attributes):
+    """Build a stand-in raw pygame event (mock_pygame_patches replaces pygame.event.Event).
+
+    Returns:
+        Mock: An object with the type and dict a pygame event has.
+
+    """
+    return mocker.Mock(type=event_type, dict=dict(attributes))
+
+
 # ---------------------------------------------------------------------------
 # From test_engine_coverage.py
 # ---------------------------------------------------------------------------
@@ -1106,6 +1116,107 @@ class TestProcessEvents:
         result = engine.process_events()
         engine.process_unimplemented_event.assert_called_once()
         assert result is False
+
+    def test_process_events_unhandled_event_does_not_drop_rest_of_batch(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """An unhandled event must not drop the key-down queued after it in the same batch."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+
+        unhandled_raw_event = _raw_event(mocker, pygame.KEYUP, key=pygame.K_b)
+        key_down_raw_event = _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a)
+        mocker.patch('pygame.event.get', return_value=[unhandled_raw_event, key_down_raw_event])
+
+        key_up_handler = mocker.Mock(return_value=False)
+        key_down_handler = mocker.Mock(return_value=True)
+        mocker.patch.dict(
+            GameEngine.EVENT_HANDLERS,
+            {pygame.KEYUP: key_up_handler, pygame.KEYDOWN: key_down_handler},
+        )
+        mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
+
+        result = engine.process_events()
+
+        key_down_handler.assert_called_once()
+        assert key_down_handler.call_args.args[0].key == pygame.K_a
+        mock_unimplemented.assert_called_once()
+        assert mock_unimplemented.call_args.args[0].type == pygame.KEYUP
+        assert result is False
+
+    def test_process_events_raw_event_scene_receives_every_event_in_order(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """A scene with process_event receives all N events of a batch, in order."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        raw_events = [
+            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(mocker, pygame.MOUSEMOTION, pos=(1, 2)),
+            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        mock_scene = mocker.Mock()
+        engine._active_scene = mock_scene
+
+        result = engine.process_events()
+
+        assert [call.args[0] for call in mock_scene.process_event.call_args_list] == raw_events
+        assert result is True
+
+    def test_process_events_unmapped_type_after_handled_event_is_unhandled(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """An event type missing from EVENT_HANDLERS never inherits the previous result."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        unmapped_event_type = 88887
+        GameEngine.EVENT_HANDLERS.pop(unmapped_event_type, None)
+
+        raw_events = [
+            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(mocker, unmapped_event_type),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        mocker.patch.dict(
+            GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: mocker.Mock(return_value=True)}
+        )
+        mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
+
+        result = engine.process_events()
+
+        mock_unimplemented.assert_called_once()
+        assert mock_unimplemented.call_args.args[0].type == unmapped_event_type
+        assert result is False
+
+    def test_process_events_returns_true_only_when_every_event_handled(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """The return value is True only if every event of the batch was handled."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        raw_events = [
+            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        mocker.patch.dict(
+            GameEngine.EVENT_HANDLERS,
+            {
+                pygame.KEYDOWN: mocker.Mock(return_value=True),
+                pygame.KEYUP: mocker.Mock(return_value=True),
+            },
+        )
+        mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
+
+        assert engine.process_events() is True
+        mock_unimplemented.assert_not_called()
+
+        # A handled event after an unhandled one does not turn the result back to True
+        mocker.patch('pygame.event.get', return_value=list(reversed(raw_events)))
+        GameEngine.EVENT_HANDLERS[pygame.KEYUP] = mocker.Mock(return_value=False)
+
+        assert engine.process_events() is False
+        mock_unimplemented.assert_called_once()
 
 
 class TestHandleEventAdditionalPaths:

@@ -1154,13 +1154,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.scene_manager.handle_event(event)
 
     def process_events(self: Self) -> bool:
-        """Process events.
+        """Process every event queued this frame.
+
+        ``pygame.event.get()`` removes the whole batch from SDL's queue at once, so every event
+        of the batch is handled here: none may be dropped. Each event is judged on its own; an
+        event whose type has no entry in ``EVENT_HANDLERS``, or whose handler did not handle
+        it, goes to ``process_unimplemented_event``.
 
         Returns:
-            bool: True if the event was handled, False otherwise.
+            bool: True if every event of the batch was handled, False otherwise (including an
+            empty batch).
 
         """
-        event_was_handled = False
         # To use events in a different thread, use the fastevent package from pygame.
         # if you're using pygame < 2.2, you'll need to use pygame.fastevent.
         # if you're using pygame >= 2.2, you can use the new pygame.event.
@@ -1173,27 +1178,33 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         raw_events: list[pygame.event.Event] = cast(  # ty: ignore[redundant-cast]
             'list[pygame.event.Event]', pump_events()
         )
+        if not raw_events:
+            return False
+
+        every_event_was_handled = True
         for pygame_event in raw_events:
             # Support scenes processing pygame raw events, bypassing
             # the glitchygames.engine event processing altogether
             if hasattr(self._active_scene, 'process_event'):
                 self._active_scene.process_event(pygame_event)  # type: ignore[union-attr] # ty: ignore[call-non-callable]
-                return True
+                continue
 
             event: events.HashableEvent = events.HashableEvent(type=pygame_event.type)
             event.__dict__.update(pygame_event.dict)
 
+            # Decided per event: a type missing from the map is unhandled
+            event_was_handled = False
             if event.type in GameEngine.EVENT_HANDLERS:
-                event_was_handled = GameEngine.EVENT_HANDLERS[event.type](event)
+                event_was_handled = bool(GameEngine.EVENT_HANDLERS[event.type](event))
 
-            # If an event is in the event handler map, but the function
+            # If an event is not in the event handler map, or the function
             # called didn't handle the event in question, we'll process it
-            # as an uinimplemented event
+            # as an unimplemented event
             if not event_was_handled:
                 self.process_unimplemented_event(event)
-                return False
+                every_event_was_handled = False
 
-        return event_was_handled
+        return every_event_was_handled
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.

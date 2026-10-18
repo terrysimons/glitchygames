@@ -22,6 +22,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 54. GameEngine.process_events Drops Events
+- **Description**: Events queued in the same frame as an unhandled event were lost, scenes that take raw pygame events (`process_event`) only ever received the first event of each frame, and an event type missing from `EVENT_HANDLERS` was reported with the previous event's result
+- **Status**: Resolved
+- **Priority**: Medium (lost input whenever an unhandled event shared a frame with it)
+- **Reporter**: Found while planning the engine world space (`plans/2026-10-18-engine-world-space.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `pygame.event.get()` removes the whole batch from SDL's queue, but the loop returned `False` right after `process_unimplemented_event`, returned `True` after the first raw event, and never reset `event_was_handled` per event
+- **Solution**: Every event of the batch is handled; handled/unhandled is decided per event (a type with no handler is unhandled and goes to `process_unimplemented_event`); the loop never returns early; raw-event scenes get every event in order. The return value is True only when every event was handled (False for an empty batch, as before)
+- **Files Modified**: `glitchygames/engine/game_engine.py`
+- **Tests**: `TestProcessEvents` in `tests/engine/test_game_engine.py`: an unhandled event followed by a key-down in one batch (both processed); a raw-event scene receives all events in order; an unmapped type after a handled event is unhandled; True only when every event was handled. The golden traces did not change (the scripts never mix an unhandled event into a batch)
+
 ### 53. Undoing a Bitmappy Frame Delete Fails
 - **Description**: Deleting a frame from an animation in the film strip and then undoing the delete restored nothing: the undo failed with `AttributeError: 'PixelArray' object has no attribute 'flat'` and the frame stayed deleted. A frame known only by its surface came back black, and a restored frame lost its explicit hitbox and per-pixel alpha
 - **Status**: Resolved
