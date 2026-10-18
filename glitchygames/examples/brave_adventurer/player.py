@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Self, override
 
 import pygame
 
 # GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
-from glitchygames.animation.expressions import Expression
 from glitchygames.collision.bounds import opaque_bounds
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer.constants import (
@@ -34,25 +33,6 @@ from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
-
-
-class _FallingCondition(Expression):
-    """Custom compound condition: velocity_y > threshold AND NOT on_ground.
-
-    Phase 1 expression parser doesn't support 'and'/'not' yet.
-    """
-
-    @override
-    def evaluate(self, context: dict[str, Any]) -> bool:
-        """Check if the player is falling.
-
-        Returns:
-            True if velocity_y exceeds threshold and not on ground.
-
-        """
-        return context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD and not context.get(
-            'on_ground', True
-        )
 
 
 # Common (every-pose) hitbox x-range per facing, measured once; see common_hitbox_x_range
@@ -156,10 +136,9 @@ class Player(Sprite):
         self.state_machine.add_transition('running', 'jumping', when='velocity_y < -10.0')
         self.state_machine.add_transition('falling', 'idle', when='on_ground')
         self.state_machine.add_transition('jumping', 'idle', when='on_ground')
-        # Falling condition is compound (needs Phase 2 parser for "and not")
-        falling_condition = _FallingCondition()
-        self.state_machine.add_transition('idle', 'falling', condition=falling_condition)
-        self.state_machine.add_transition('jumping', 'falling', condition=falling_condition)
+        falling_when = f'velocity_y > {FALLING_VELOCITY_THRESHOLD} and not on_ground'
+        self.state_machine.add_transition('idle', 'falling', when=falling_when)
+        self.state_machine.add_transition('jumping', 'falling', when=falling_when)
         self.state_machine.set_state(self.IDLE)
 
         # Game state

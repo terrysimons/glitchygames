@@ -7,10 +7,8 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 # GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
-from glitchygames.animation.expressions import Expression
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
-    FALLING_VELOCITY_THRESHOLD,
     GRAVITY,
     JUMP_VELOCITY,
     LAYER_PLAYER,
@@ -35,26 +33,6 @@ from glitchygames.sprites import AnimatedSprite, FrameAnchor
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
-
-
-class _FallingCondition(Expression):
-    """Custom compound condition: velocity_y > threshold AND NOT on_ground.
-
-    Phase 1 expression parser doesn't support 'and'/'not' yet. This
-    class provides the compound check as a code-defined Expression.
-    """
-
-    @override
-    def evaluate(self, context: dict[str, Any]) -> bool:
-        """Check if the player is falling (airborne with downward velocity).
-
-        Returns:
-            True if velocity_y exceeds threshold and not on ground.
-
-        """
-        return context.get('velocity_y', 0.0) > FALLING_VELOCITY_THRESHOLD and not context.get(
-            'on_ground', True
-        )
 
 
 class PapyrusPlayer(AnimatedSprite):
@@ -142,23 +120,9 @@ class PapyrusPlayer(AnimatedSprite):
         self.is_looping = True
         self.dirty = 2
 
-        # State machine is auto-loaded from TOML [[transition]] sections.
-        # Add code-defined transitions for compound conditions that the
-        # Phase 1 expression parser can't handle (needs "and not").
+        # State machine is auto-loaded from TOML [[transition]] sections
+        # (including the falling transitions; see sprites/player.toml).
         if self.state_machine is not None:
-            # Falling requires compound: velocity_y > threshold AND NOT on_ground
-            # We use a custom Expression that checks both conditions
-            falling_condition = _FallingCondition()
-            self.state_machine.add_transition(
-                from_state='idle',
-                to_state='falling',
-                condition=falling_condition,
-            )
-            self.state_machine.add_transition(
-                from_state='jumping',
-                to_state='falling',
-                condition=falling_condition,
-            )
             self.state_machine.set_state(self.IDLE)
 
     # --- Property delegates to PhysicsBody ---

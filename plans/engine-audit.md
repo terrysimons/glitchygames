@@ -27,7 +27,7 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 | # | Item | Status | Evidence / notes |
 |---|---|---|---|
 | 1 | Solid/terrain collision resolution (ground, walls, one-way platforms) | Open | 7 `_resolve_*_collision` methods across the games; `CollisionManager` detects but does not resolve. `_player_support_span` and `_entered_wall_from_left` are duplicated between Brave Adventurer and Papyrus (candidates for the solid-collision design) |
-| 2 | Expressions phase 2: `and` / `or` / `not` / parentheses | Open | Promised in `animation/expressions.py:17`; `_FallingCondition` copied into all three platformer players |
+| 2 | Expressions phase 2: `and` / `or` / `not` / parentheses | **Done** (branch `feature/expressions-phase-2`) | Grammar, whole-word keywords (fixes `abs`-prefix tokenizer bug); the three `_FallingCondition` copies became `when` strings (Papyrus's in `sprites/player.toml`) |
 | 3 | Screen shake | **Done** (this branch) | `plans/2026-10-17-screen-shake-and-synth.md` |
 | 4 | High-score table | Open | `_save_high_score` copied into 4 games |
 | 5 | Sound effect synthesis | **Done** (this branch) | Same spec: toolkit, recipes, live voices |
