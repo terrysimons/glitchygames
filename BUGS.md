@@ -22,6 +22,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 57. PaddleSlap Reseeds Python's Global random Module at Startup
+- **Description**: Creating PaddleSlap's `Game` called `random.seed()` with a value from `time.perf_counter()`, under the comment "Set random seed for reproducible randomness". The seed was neither reproducible (it came from the clock) nor used by PaddleSlap (its randomness comes from `secrets` and the ball's `_SERVE_RANDOM`), but it reset the process-wide `random` module for every other user in the process (for example `glitchygames/audio/controller_audio.py`'s noise), and the golden-trace harness had to save and restore the global state around each run
+- **Status**: Resolved
+- **Priority**: Low (no visible effect; a hidden global side effect)
+- **Reporter**: Found on feature/engine-world-space (Task 1)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: A leftover reseed from the coverage branch (a029a67); nothing in PaddleSlap reads the global `random` module
+- **Solution**: Removed the reseed, its log line and the `random` import. The golden-trace harness no longer fakes `time.perf_counter` for PaddleSlap or saves/restores the global random state; the PaddleSlap golden trace is unchanged (the harness never depended on the reseed)
+- **Files Modified**: `glitchygames/examples/paddleslap.py`, `scripts/record_golden_traces.py`
+- **Tests**: `test_game_initialization_leaves_global_random_state_alone` in `tests/examples/test_paddleslap.py`; `tests/world/test_golden_traces.py` (PaddleSlap trace still matches)
+
 ### 56. isinstance/issubclass Against Scene, Sprite and Every Concrete Event Class Is False for Subclasses
 - **Description**: `issubclass(SubScene, Scene)` and `isinstance(sub_scene, Scene)` were False for every real subclass; the same held for every concrete class deriving from `EventInterface` (`Sprite`, `BitmappySprite`, `Scene`, the `*EventStubs`, the example game scenes, UI widgets and dialogs). Only an object whose exact type is the checked class passed (Python's exact-type fast path)
 - **Status**: Resolved

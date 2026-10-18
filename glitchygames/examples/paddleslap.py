@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import math
-import random
 import secrets
 import time
 from typing import TYPE_CHECKING, Self, cast, override
@@ -251,11 +250,6 @@ class Game(Scene):
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
         # FPS will be set by command line arguments or default to 60
-
-        # Set random seed for reproducible randomness
-        seed = int(time.perf_counter() * 1000000) % 2**32
-        random.seed(seed)
-        log.info('Random seed set to: %s', seed)
 
         v_center = self.screen_height // 2
         self.player1 = VerticalPaddle(

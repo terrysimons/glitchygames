@@ -2,6 +2,7 @@
 """Test paddleslap example using centralized mocks."""
 
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -86,6 +87,15 @@ class TestPaddleslapExample:
         assert math.isclose(ball.speed_up_settings.multiplier, 1.15)
         assert ball.bounce_top_bottom is True
         assert ball.bounce_left_right is False
+
+    def test_game_initialization_leaves_global_random_state_alone(self):
+        """Creating the game must not reseed Python's process-wide random module."""
+        random_state_before = random.getstate()
+
+        Game(options=self.mock_options)
+
+        random_state_is_unchanged = random.getstate() == random_state_before
+        assert random_state_is_unchanged, 'Game() reseeded the global random module'
 
     def test_paddleslap_ball_speed_up_mechanism(self):
         """Test that the ball speeds up logarithmically on paddle bounces only."""

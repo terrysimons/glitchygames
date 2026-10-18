@@ -11,8 +11,8 @@ Determinism:
     - Randomness the games use (``secrets.randbelow`` in PaddleSlap, the ball serve's
       ``_SERVE_RANDOM``, and the shake effects' ``secrets.SystemRandom``) is replaced by one
       ``random.Random`` seeded with ``RANDOM_SEED``.
-    - PaddleSlap's clock reads (``time.perf_counter`` for its seed, ``time.time`` for the ball
-      spawn cooldown) come from a fake clock that advances exactly 1/60 second per frame.
+    - PaddleSlap's clock reads (``time.time`` for the ball spawn cooldown) come from a fake
+      clock that advances exactly 1/60 second per frame.
     - Save files go to a fresh temporary directory, so high scores on disk cannot leak in.
     - Events the host environment posts (window focus, window shown, audio devices, ...) are
       discarded before each frame. SDL's dummy video driver posts a focus-lost event at
@@ -82,7 +82,7 @@ RANDOM_SEED = 20261018
 GOLDEN_TRACE_SOURCE = 'golden-script'
 SCREEN_RESOLUTION = '800x480'
 
-# Where the fake clock starts: PaddleSlap derives its random.seed from perf_counter at init
+# Where the fake clock starts (PaddleSlap's ball spawn cooldown reads time.time)
 FAKE_CLOCK_START_SECONDS = 1000.0
 
 # Events posted by the host environment rather than by the scripted player
@@ -461,13 +461,12 @@ def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator
 
     replacements: list[tuple[object, str, object]] = [
         (paddleslap, 'secrets', types.SimpleNamespace(randbelow=seeded_random.randrange)),
-        (paddleslap, 'time', types.SimpleNamespace(time=clock.now, perf_counter=clock.now)),
+        (paddleslap, 'time', types.SimpleNamespace(time=clock.now)),
         (ball_module, '_SERVE_RANDOM', seeded_random),
         (shake_module, 'secrets', types.SimpleNamespace(SystemRandom=seeded_system_random)),
         (save_manager_module, 'get_save_directory', temporary_save_directory),
     ]
     originals = [(owner, name, getattr(owner, name)) for owner, name, _ in replacements]
-    random_state = random.getstate()
     try:
         for owner, name, replacement in replacements:
             setattr(owner, name, replacement)
@@ -475,8 +474,6 @@ def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator
     finally:
         for owner, name, original in originals:
             setattr(owner, name, original)
-        # PaddleSlap reseeds the global random module from its (fake) clock
-        random.setstate(random_state)
 
 
 @contextlib.contextmanager
