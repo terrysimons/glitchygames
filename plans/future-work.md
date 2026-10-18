@@ -8,7 +8,6 @@ One line per item, with where it is detailed. Review, then promote items into
 
 | Item | Where | Notes |
 |---|---|---|
-| `test_game_over_scene.py` reassigns the global `pygame.K_SPACE`/`K_ESCAPE` | `tests/scenes/` | Harmless today (same values); a test-isolation hazard. |
 | PaddleSlap reseeds Python's global `random` module at startup under a misleading comment | `glitchygames/examples/paddleslap.py:~257` | Found on feature/engine-world-space (Task 1). Replay will move games to `engine_random()`. |
 | Undoing an animation delete loses its per-frame hitboxes and rebuilds frames on surfaces without SRCALPHA (alpha lost); frame-add and animation-create undo captures still copy `frame.pixels`, which is fragile | `glitchygames/bitmappy/history/commands.py` | Found while fixing BUGS.md #53; same family as #51/#53. |
 | Brave Adventurer and Clockwork Keep draw their poses in `update()`, after wall resolution, so after turning the hitbox can sit past a wall (up to 4 px) for one frame | `examples/brave_adventurer/player.py`, `examples/clockwork_keep/player.py` | Needs pose drawing earlier in the frame; fits engine world space (#6). |

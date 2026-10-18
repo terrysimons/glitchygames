@@ -75,10 +75,6 @@ class TestGameOverScene:
         scene = GameOverScene()
         scene.scene_manager = mocker.Mock()
 
-        # Mock pygame events
-        pygame.K_SPACE = 32
-        pygame.K_ESCAPE = 27
-
         # Test SPACE key (restart)
         space_event = mocker.Mock()
         space_event.key = pygame.K_SPACE

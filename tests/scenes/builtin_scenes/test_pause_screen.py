@@ -56,7 +56,6 @@ class TestPauseScreen:
         )
 
         # Simulate spacebar press to trigger pause
-        pygame.K_SPACE = 32
         space_down_event = mocker.Mock()
         space_down_event.key = pygame.K_SPACE
         space_down_event.type = pygame.KEYDOWN
@@ -87,7 +86,6 @@ class TestPauseScreen:
         game.setup()
 
         # Simulate pause
-        pygame.K_SPACE = 32
         space_down_event = mocker.Mock()
         space_down_event.key = pygame.K_SPACE
         space_down_event.type = pygame.KEYDOWN
@@ -171,7 +169,6 @@ class TestPauseScreenIntegration:
         game.setup()
 
         # Simulate pause
-        pygame.K_SPACE = 32
         space_down_event = mocker.Mock()
         space_down_event.key = pygame.K_SPACE
         space_down_event.type = pygame.KEYDOWN

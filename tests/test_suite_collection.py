@@ -80,3 +80,47 @@ def test_every_test_file_matches_python_files():
         f'Files define tests but are not collected (python_files={python_files_patterns}): '
         f'{misnamed_test_files}'
     )
+
+
+def _assigned_pygame_constants(python_file: Path) -> list[str]:
+    """Return 'line: target' for every assignment to an upper-case pygame attribute.
+
+    Matches `pygame.K_SPACE = ...` and `pygame.locals.K_ESCAPE = ...` (any dotted path under
+    `pygame` ending in a constant-style name), including augmented and annotated assignments.
+    """
+    module = ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file))
+    assigned_constants = []
+    for node in ast.walk(module):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            targets = [node.target]
+        else:
+            continue
+        for target in targets:
+            if not isinstance(target, ast.Attribute) or not target.attr.isupper():
+                continue
+            root = target.value
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if isinstance(root, ast.Name) and root.id == 'pygame':
+                assigned_constants.append(f'{node.lineno}: {ast.unparse(target)}')
+    return assigned_constants
+
+
+def test_no_test_reassigns_pygame_constants():
+    """Tests must not overwrite pygame's module-level constants.
+
+    An assignment like `pygame.K_SPACE = 32` outlives the test and changes the constant for
+    every later test in the same process. Use the real constant, or `mocker.patch` it so the
+    original is restored.
+    """
+    offending_assignments = [
+        f'{python_file.relative_to(PROJECT_ROOT)}:{assignment}'
+        for python_file in sorted(TESTS_ROOT.rglob('*.py'))
+        if '__pycache__' not in python_file.parts
+        for assignment in _assigned_pygame_constants(python_file)
+    ]
+    assert not offending_assignments, (
+        f'Tests reassign pygame constants (use mocker.patch): {offending_assignments}'
+    )
