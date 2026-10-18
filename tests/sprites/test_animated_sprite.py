@@ -2919,6 +2919,66 @@ blue = 0
         assert 'width = 6' in content
         assert 'height = 10' in content
 
+    def test_frame_anchor_survives_a_save_and_reload(self, tmp_path):
+        """[sprite] frame_anchor is written back (the path Bitmappy's save uses) and reloads."""
+        source = Path('glitchygames/examples/brave_adventurer_papyrus/sprites/player.toml')
+        toml_file = tmp_path / 'anchored.toml'
+        toml_file.write_text(
+            source.read_text(encoding='utf-8').replace(
+                '[sprite]\n', '[sprite]\nframe_anchor = "bottom"\n', 1
+            )
+        )
+        sprite = AnimatedSprite(str(toml_file))
+        assert sprite.frame_anchor is FrameAnchor.BOTTOM
+        frame_hitboxes = {
+            name: [frame.hitbox if frame.has_explicit_hitbox else None for frame in frames]
+            for name, frames in sprite.animation_data.items()
+        }
+
+        save_path = tmp_path / 'resaved.toml'
+        sprite.save(str(save_path), 'toml')
+        reloaded = AnimatedSprite(str(save_path))
+
+        assert 'frame_anchor = "bottom"' in save_path.read_text()
+        assert reloaded.frame_anchor is FrameAnchor.BOTTOM
+        assert reloaded.default_hitbox == sprite.default_hitbox
+        assert {
+            name: [frame.hitbox if frame.has_explicit_hitbox else None for frame in frames]
+            for name, frames in reloaded.animation_data.items()
+        } == frame_hitboxes
+
+    def test_frame_anchor_none_writes_nothing(self, tmp_path):
+        """The default NONE leaves the TOML without a frame_anchor key."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        frames = []
+        for _ in range(2):
+            frame = SpriteFrame(surface, duration=FRAME_DURATION)
+            frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+            frames.append(frame)
+        sprite.add_animation('idle', frames)
+        sprite.set_animation('idle')
+
+        save_path = tmp_path / 'plain.toml'
+        sprite.save(str(save_path), 'toml')
+
+        assert 'frame_anchor' not in save_path.read_text()
+
+    def test_static_sprite_frame_anchor_is_written(self, tmp_path):
+        """The single-frame (static) save path writes frame_anchor too."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        frame = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.frame_anchor = FrameAnchor.TOP_LEFT
+
+        save_path = tmp_path / 'static.toml'
+        sprite.save(str(save_path), 'toml')
+
+        assert 'frame_anchor = "top_left"' in save_path.read_text()
+
     def test_save_per_frame_hitbox(self, tmp_path):
         """Saving sprite with per-frame hitbox writes [animation.frame.hitbox]."""
         sprite = AnimatedSprite()

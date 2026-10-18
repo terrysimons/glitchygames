@@ -2157,6 +2157,12 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         viewport_sprite = AnimatedSprite()
         viewport_sprite.name = self.animated_sprite.name + '_viewport'
         viewport_sprite.description = f'Viewport of {self.animated_sprite.name} (panned)'
+        # Keep how frames are anchored and the sprite-level hitbox (moved into the viewport)
+        viewport_sprite.frame_anchor = self.animated_sprite.frame_anchor
+        if self.animated_sprite.default_hitbox is not None:
+            viewport_sprite.default_hitbox = self._viewport_hitbox(
+                self.animated_sprite.default_hitbox
+            )
 
         # Copy viewport data for each animation
         for anim_name, frames in self.animated_sprite._animations.items():  # type: ignore[reportPrivateUsage]
@@ -2182,16 +2188,51 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         # Get viewport pixel data
         viewport_pixels = self._get_viewport_pixels_from_frame(original_frame)
 
-        # Create new frame with viewport dimensions
+        # Create new frame with viewport dimensions; an explicit hitbox moves with the pan
+        original_hitbox = original_frame.hitbox if original_frame.has_explicit_hitbox else None
         new_frame = SpriteFrame(
             surface=pygame.Surface((self.pixels_across, self.pixels_tall), pygame.SRCALPHA),
             duration=original_frame.duration,
+            hitbox=None if original_hitbox is None else self._viewport_hitbox(original_hitbox),
         )
 
         # Set viewport pixel data
         new_frame.set_pixel_data(viewport_pixels)
 
         return new_frame
+
+    def _current_pan_offset(self) -> tuple[int, int]:
+        """Return the current frame's pan offset, (0, 0) when it is not panned.
+
+        Returns:
+            tuple[int, int]: (pan_x, pan_y) in sprite pixels.
+
+        """
+        frame_key = self._get_current_frame_key()
+        if frame_key in self._frame_panning and self._frame_panning[frame_key]['active']:
+            return (
+                self._frame_panning[frame_key]['pan_x'],
+                self._frame_panning[frame_key]['pan_y'],
+            )
+        return (0, 0)
+
+    def _viewport_hitbox(self, hitbox: pygame.Rect) -> pygame.Rect | None:
+        """Move a sprite hitbox into viewport coordinates and clip it to the viewport.
+
+        Uses the same pan offset as _get_viewport_pixels_from_frame, so the hitbox stays on
+        the pixels it covered.
+
+        Returns:
+            pygame.Rect | None: The viewport hitbox, or None if it lies outside the viewport.
+
+        """
+        pan_x, pan_y = self._current_pan_offset()
+        viewport_hitbox = hitbox.move(-pan_x, -pan_y).clip(
+            pygame.Rect(0, 0, self.pixels_across, self.pixels_tall)
+        )
+        if viewport_hitbox.width == 0 or viewport_hitbox.height == 0:
+            return None
+        return viewport_hitbox
 
     def _get_viewport_pixels_from_frame(
         self,
@@ -2208,13 +2249,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         frame_width, frame_height = frame.get_size()
 
         # Get current frame panning offset
-        frame_key = self._get_current_frame_key()
-        if frame_key in self._frame_panning and self._frame_panning[frame_key]['active']:
-            pan_offset_x = self._frame_panning[frame_key]['pan_x']
-            pan_offset_y = self._frame_panning[frame_key]['pan_y']
-        else:
-            pan_offset_x = 0
-            pan_offset_y = 0
+        pan_offset_x, pan_offset_y = self._current_pan_offset()
 
         # Create viewport pixels
         # Magenta (255, 0, 255, 255) is used as transparency key color

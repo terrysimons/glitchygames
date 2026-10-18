@@ -446,3 +446,65 @@ class TestPanningKeyboardHandling:
 
 if __name__ == '__main__':
     pytest.main([__file__])
+
+
+class TestViewportSaveKeepsHitboxesAndAnchor:
+    """Saving a panned viewport keeps hitboxes (moved into the viewport) and frame_anchor."""
+
+    def setup_method(self):
+        """Create a canvas around a mock sprite (as TestCanvasPanning does)."""
+        pygame.init()
+        pygame.display.set_mode((800, 600))
+        self.canvas = AnimatedCanvasSprite(
+            animated_sprite=MockFactory.create_animated_sprite_mock(
+                config=MockSpriteConfig(
+                    animation_name='test_animation',
+                    frame_size=(8, 8),
+                    pixel_color=(255, 0, 0),
+                    current_frame=0,
+                ),
+            ),
+            pixels_across=8,
+            pixels_tall=8,
+            pixel_width=16,
+            pixel_height=16,
+        )
+
+    def teardown_method(self):
+        """Clean up after tests."""
+        pygame.quit()
+
+    def test_viewport_save_preserves_hitboxes_and_frame_anchor(self, mocker):
+        """Hitboxes are moved by the pan offset and clipped to the viewport; anchor kept."""
+        from glitchygames.sprites import AnimatedSprite, FrameAnchor
+
+        self.canvas.pan_canvas(2, 1)
+        frame_key = self.canvas._get_current_frame_key()
+        pan_x = self.canvas._frame_panning[frame_key]['pan_x']
+        pan_y = self.canvas._frame_panning[frame_key]['pan_y']
+
+        real_sprite = AnimatedSprite()
+        frames = [
+            SpriteFrame(pygame.Surface((8, 8), pygame.SRCALPHA), hitbox=pygame.Rect(3, 2, 4, 5)),
+            SpriteFrame(pygame.Surface((8, 8), pygame.SRCALPHA)),
+        ]
+        real_sprite.add_animation('test_animation', frames)
+        real_sprite.set_animation('test_animation')
+        real_sprite.default_hitbox = pygame.Rect(1, 1, 6, 7)
+        real_sprite.frame_anchor = FrameAnchor.BOTTOM
+        self.canvas.animated_sprite = real_sprite
+        save_mock = mocker.patch.object(self.canvas.sprite_serializer, 'save')
+
+        self.canvas._save_viewport_sprite('viewport.toml')
+
+        viewport_sprite = save_mock.call_args.args[0]
+        viewport_rect = pygame.Rect(0, 0, 8, 8)
+        assert viewport_sprite.frame_anchor is FrameAnchor.BOTTOM
+        assert viewport_sprite.default_hitbox == pygame.Rect(1, 1, 6, 7).move(-pan_x, -pan_y).clip(
+            viewport_rect
+        )
+        viewport_frames = viewport_sprite.animation_data['test_animation']
+        assert viewport_frames[0].hitbox == pygame.Rect(3, 2, 4, 5).move(-pan_x, -pan_y).clip(
+            viewport_rect
+        )
+        assert not viewport_frames[1].has_explicit_hitbox

@@ -1595,6 +1595,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         with Path(filename).open('w', encoding='utf-8') as f:
             f.write('[sprite]\n')
             f.write(f'name = "{self.name}"\n')
+            if self.frame_anchor is not FrameAnchor.NONE:
+                f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
             f.write('pixels = """\n')
             f.write('\n'.join(pixel_rows))
             f.write('\n"""\n\n')
@@ -1869,6 +1871,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             'name': self.name or 'animated_sprite',
             'description': self.description or '',
         }
+        if self.frame_anchor is not FrameAnchor.NONE:
+            sprite_section['frame_anchor'] = self.frame_anchor.value
 
         # Include sprite-level hitbox: use explicit if set, otherwise auto-compute
         if self._default_hitbox is not None:
@@ -2015,6 +2019,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         f.write(f'name = "{data["sprite"]["name"]}"\n')
         if data['sprite'].get('description'):
             f.write(f'description = """{data["sprite"]["description"]}"""\n')
+        if 'frame_anchor' in data['sprite']:
+            f.write(f'frame_anchor = "{data["sprite"]["frame_anchor"]}"\n')
         f.write('\n')
 
         # Write sprite-level hitbox if present
