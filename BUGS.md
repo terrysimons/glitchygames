@@ -12,14 +12,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-15
 - **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
 
-### 41. Input Confirmation Dialog Sends Key-Down Events to the Key-Up Handler
-- **Description**: `InputConfirmationDialogScene.on_key_down_event` passes unhandled key-down events to `super().on_key_up_event(event)` instead of `super().on_key_down_event(event)`
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the final whole-branch review of `feature/debug-overlay`
-- **Date Reported**: 2026-10-18
-- **Details**: `glitchygames/ui/dialogs.py:~305-317`. Identical on main. Base-class key-down handling never runs for that dialog, and key-up handling runs twice per key press.
-
 ### 45. Renaming an Animation in Bitmappy Drops Its Timing and Loop Flag
 - **Description**: `_rename_animation_in_sprite` moves the animation's frames but not its loop flag or frame interval, so a renamed one-shot animation stops honouring `loop = false` at runtime and saves as `loop = true` with the most common frame duration as its interval
 - **Status**: Active
@@ -123,6 +115,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Solution**: Names are written with `toml_basic_string` (the escaping added for BUGS.md #44) and descriptions with `toml_multiline_basic_string`, which keeps real line breaks but escapes backslashes, quotes, other control characters and a leading newline (which TOML would otherwise drop)
 - **Tests**: `test_names_and_descriptions_needing_escapes_round_trip` (both writers) in `tests/examples/test_examples_sprites.py`
 - **Files**: `glitchygames/sprites/animated.py`
+
+### 41. Input Confirmation Dialog Sends Key-Down Events to the Key-Up Handler
+- **Description**: `InputConfirmationDialogScene.on_key_down_event` passed unhandled key-down events to `super().on_key_up_event(event)` instead of `super().on_key_down_event(event)`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the final whole-branch review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: A copy-paste slip in `glitchygames/ui/dialogs.py` (identical on main): the inactive-input branch of `on_key_down_event` called the base key-up handler, so base key-down handling never ran for the dialog (and its subclasses: New Canvas, Load, Save) and key-up handling ran twice per key press. No other key-down/key-up mix-up exists in `dialogs.py` (the delete-animation and delete-frame dialogs route correctly)
+- **Solution**: The branch now calls `super().on_key_down_event(event)`
+- **Files Modified**: `glitchygames/ui/dialogs.py`
+- **Tests**: `test_input_confirmation_dialog_key_down_inactive_input` in `tests/ui/test_dialogs.py` checks an unhandled key-down reaches `Scene.on_key_down_event` and not `Scene.on_key_up_event`
 
 ### 40. Built-In Font Fallback Points at a Missing Path
 - **Description**: When no system font can be loaded (PyInstaller-packaged games), `FontManager` fell back to the bundled Vera.ttf via `Path(__file__).parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'`, which resolves to `glitchygames/fonts/fonts/bitstream_vera/Vera.ttf` (does not exist), so the fallback raised `FileNotFoundError` instead of loading the font

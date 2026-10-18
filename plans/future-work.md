@@ -8,7 +8,6 @@ One line per item, with where it is detailed. Review, then promote items into
 
 | Item | Where | Notes |
 |---|---|---|
-| `InputConfirmationDialogScene.on_key_down_event` passes key-down events to `super().on_key_up_event` | `glitchygames/ui/dialogs.py:~305-317` | BUGS.md #41 (active). Pre-existing (identical on main). |
 | After loading a multi-animation sprite, `is_looping` follows the first animation, not the last one loaded | `glitchygames/sprites/animated.py` | Side effect of the per-animation loop fix (BUGS.md #38); single-animation sprites unaffected. Confirm it's the intended default. |
 | Brave Adventurer and Clockwork Keep draw their poses in `update()`, after wall resolution, so after turning the hitbox can sit past a wall (up to 4 px) for one frame | `examples/brave_adventurer/player.py`, `examples/clockwork_keep/player.py` | Needs pose drawing earlier in the frame; fits engine world space (#6). |
 | `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |

@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 _RealLayeredDirty = pygame.sprite.LayeredDirty
 
 from glitchygames.events.base import HashableEvent  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.scenes import Scene  # ruff: ignore[module-import-not-at-top-of-file]
 from glitchygames.ui import ConfirmDialog, InputDialog  # ruff: ignore[module-import-not-at-top-of-file]
 from glitchygames.ui.dialogs import (  # ruff: ignore[module-import-not-at-top-of-file]
     InputConfirmationDialogScene,
@@ -579,13 +580,16 @@ class TestDialogSceneSetupCleanupDismiss:
 
         scene = InputConfirmationDialogScene(previous_scene=mock_previous, groups=mock_groups)
         scene.dialog.input_box.is_active = False
-        # The inactive branch calls super().on_key_up_event which may try to
-        # iterate all_sprites, so provide proper mock
         scene.all_sprites = _RealLayeredDirty()
+        # BUGS.md #41: an unhandled key-down must reach the base key-down
+        # handler, not the key-up one.
+        base_key_down_handler = mocker.patch.object(Scene, 'on_key_down_event', autospec=True)
+        base_key_up_handler = mocker.patch.object(Scene, 'on_key_up_event', autospec=True)
         event = mocker.Mock()
         event.key = pygame.K_a
-        # Should call super().on_key_up_event - just verify it doesn't raise
         scene.on_key_down_event(event)
+        base_key_down_handler.assert_called_once_with(scene, event)
+        base_key_up_handler.assert_not_called()
 
 
 class TestDeleteAnimationDialogScene:
