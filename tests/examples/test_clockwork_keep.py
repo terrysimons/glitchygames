@@ -15,6 +15,8 @@ from glitchygames.examples.clockwork_keep import sounds as clockwork_sounds
 from glitchygames.examples.clockwork_keep.constants import (
     CLOCK_START_SECONDS,
     ELEVATOR_ASCENT_RUMBLE_LOW,
+    PLAYFIELD_LEFT,
+    PLAYFIELD_RIGHT,
 )
 from glitchygames.examples.clockwork_keep.drawing import clock_hand_angles
 from glitchygames.examples.clockwork_keep.game import (
@@ -347,9 +349,10 @@ class TestPlatformSupportUsesHitbox:
         scene.elevator_sprites[:] = []
         player = scene.player
         player.update()  # draws the figure; collision rects trim to its visible pixels
-        offset_x, _ = collision_rect_offset(player)
+        offset_x, offset_y = collision_rect_offset(player)
         player.world_x = float(hitbox_left - offset_x)
-        player.world_y = self.PLATFORM_TOP - player.rect.height
+        # Hitbox bottom (the visible feet) level with the platform top
+        player.world_y = self.PLATFORM_TOP - (offset_y + get_sprite_collision_rect(player).height)
         player.velocity_y = 0.0
         scene._resolve_ground_collision()
         return player
@@ -369,3 +372,105 @@ class TestPlatformSupportUsesHitbox:
             clockwork_scene, hitbox_left=platform_right - 1
         )
         assert player.on_ground
+
+
+class TestHitboxLooseEnds:
+    """Side walls, standing height and cog pickups use collision rects (hitboxes)."""
+
+    @staticmethod
+    def _drawn_player(scene, *, facing_right=True):
+        """Draw the tinker so its collision rect trims to its visible pixels.
+
+        Returns:
+            The player.
+
+        """
+        player = scene.player
+        player.facing_right = facing_right
+        player.update()
+        return player
+
+    def test_left_wall_stops_the_hitbox_not_the_image(self, clockwork_scene):
+        """Facing right the figure has a 4 px transparent left margin; no gap at the wall."""
+        player = self._drawn_player(clockwork_scene, facing_right=True)
+        player.world_x = float(PLAYFIELD_LEFT - 20)
+        player.dt_tick(0.0)
+        assert get_sprite_collision_rect(player).left == PLAYFIELD_LEFT
+
+    def test_right_wall_stops_the_hitbox_not_the_image(self, clockwork_scene):
+        """Facing left the 4 px margin is on the right; no gap at the right wall."""
+        player = self._drawn_player(clockwork_scene, facing_right=False)
+        player.world_x = float(PLAYFIELD_RIGHT)
+        player.dt_tick(0.0)
+        assert get_sprite_collision_rect(player).right == PLAYFIELD_RIGHT
+
+    def test_landing_puts_the_visible_feet_on_the_platform(self, clockwork_scene):
+        """The hitbox bottom (the visible feet) rests on the platform top, no 2 px float."""
+        scene = clockwork_scene
+        platform_top = 300.0
+        scene.platform_sprites[:] = [
+            types.SimpleNamespace(
+                world_x=300.0, world_y=platform_top, rect=pygame.Rect(0, 0, 200, 12)
+            )
+        ]
+        scene.elevator_sprites[:] = []
+        player = self._drawn_player(scene)
+        _, offset_y = collision_rect_offset(player)
+        hitbox_height = get_sprite_collision_rect(player).height
+        player.world_x = 350.0
+        player.world_y = platform_top - (offset_y + hitbox_height) + 3  # 3 px into the top
+        player.velocity_y = 50.0
+
+        scene._resolve_ground_collision()
+
+        assert player.on_ground
+        assert get_sprite_collision_rect(player).bottom == round(platform_top)
+        visible = player.image.get_bounding_rect()
+        assert round(player.world_y) + visible.bottom == round(platform_top)
+
+    def test_cog_touching_only_the_transparent_margin_is_not_picked_up(
+        self, clockwork_scene, played
+    ):
+        """The cog overlaps the image's transparent left margin, not the hitbox."""
+        scene = clockwork_scene
+        player = self._drawn_player(scene, facing_right=True)
+        player.world_x = 400.0
+        player.world_y = 200.0
+        cog = scene.collectible_sprites[0]
+        cog.dt_tick(0.0)
+        hitbox = get_sprite_collision_rect(player)
+        cog.world_x = float(hitbox.left - cog.rect.width)  # right edge on the hitbox edge
+        cog.world_y = float(hitbox.top + 10)
+        cog._base_world_y = cog.world_y
+        assert round(player.world_x) < round(cog.world_x) + cog.rect.width  # image overlaps
+
+        scene._check_collectibles()
+
+        assert cog in scene.collectible_sprites
+        assert all(call.args[0] != 'cog_pickup' for call in played.call_args_list)
+
+    def test_cog_overlapping_the_hitbox_is_picked_up(self, clockwork_scene, played):
+        """One pixel of hitbox overlap collects the cog, through the collision layers."""
+        scene = clockwork_scene
+        player = self._drawn_player(scene, facing_right=True)
+        player.world_x = 400.0
+        player.world_y = 200.0
+        cog = scene.collectible_sprites[0]
+        cog.dt_tick(0.0)
+        hitbox = get_sprite_collision_rect(player)
+        cog.world_x = float(hitbox.left - cog.rect.width + 1)
+        cog.world_y = float(hitbox.top + 10)
+        cog._base_world_y = cog.world_y
+
+        scene._check_collectibles()
+
+        assert cog not in scene.collectible_sprites
+        assert cog not in scene.collisions.get_layer('cogs').sprites
+        played.assert_any_call('cog_pickup')
+
+    def test_player_and_cogs_are_collision_layers(self, clockwork_scene):
+        """The overlay shows the same rects the pickups use."""
+        assert clockwork_scene.collisions.get_layer('player').sprites == [clockwork_scene.player]
+        assert clockwork_scene.collisions.get_layer('cogs').sprites == (
+            clockwork_scene.collectible_sprites
+        )
