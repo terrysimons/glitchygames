@@ -26,6 +26,10 @@ type Color = tuple[int, int, int]
 # Debug text sits on a translucent dark backing so it stays readable over game art and HUDs.
 TEXT_BACKING_COLOR = (0, 0, 0, 170)
 TEXT_BACKING_PADDING = 2
+# Backings are reused by size (see _backing_surface); text widths vary, so the cache is
+# cleared when it reaches this many sizes rather than growing without limit
+BACKING_SURFACE_CACHE_LIMIT = 64
+_BACKING_SURFACES: dict[tuple[int, int], pygame.Surface] = {}
 
 PHYSICS_ARROW_SECONDS = 0.1
 PHYSICS_ARROW_MAXIMUM_PIXELS = 80
@@ -224,18 +228,31 @@ def draw_collision_panel(
     _draw_legend(surface=surface, layers=layers, font=font)
 
 
+def _backing_surface(size: tuple[int, int]) -> pygame.Surface:
+    """Return a translucent backing of the given size, reused instead of allocated per frame.
+
+    Returns:
+        pygame.Surface: An SRCALPHA surface filled with TEXT_BACKING_COLOR (do not draw on it).
+
+    """
+    backing = _BACKING_SURFACES.get(size)
+    if backing is None:
+        if len(_BACKING_SURFACES) >= BACKING_SURFACE_CACHE_LIMIT:
+            _BACKING_SURFACES.clear()
+        backing = pygame.Surface(size, pygame.SRCALPHA)
+        backing.fill(TEXT_BACKING_COLOR)
+        _BACKING_SURFACES[size] = backing
+    return backing
+
+
 def _blit_text(
     *, surface: pygame.Surface, text_surface: pygame.Surface, position: tuple[int, int]
 ) -> None:
     """Blit rendered debug text over a translucent backing slightly larger than the text."""
-    backing = pygame.Surface(
-        (
-            text_surface.get_width() + 2 * TEXT_BACKING_PADDING,
-            text_surface.get_height() + 2 * TEXT_BACKING_PADDING,
-        ),
-        pygame.SRCALPHA,
-    )
-    backing.fill(TEXT_BACKING_COLOR)
+    backing = _backing_surface((
+        text_surface.get_width() + 2 * TEXT_BACKING_PADDING,
+        text_surface.get_height() + 2 * TEXT_BACKING_PADDING,
+    ))
     surface.blit(backing, (position[0] - TEXT_BACKING_PADDING, position[1] - TEXT_BACKING_PADDING))
     surface.blit(text_surface, position)
 
@@ -482,9 +499,7 @@ def _draw_text_lines(
 
 def _blit_backing(*, surface: pygame.Surface, rect: pygame.Rect) -> None:
     """Dim a rect with the translucent debug backing so its extent is visible."""
-    backing = pygame.Surface(rect.size, pygame.SRCALPHA)
-    backing.fill(TEXT_BACKING_COLOR)
-    surface.blit(backing, rect.topleft)
+    surface.blit(_backing_surface(rect.size), rect.topleft)
 
 
 def _slowest_frame_per_column(*, overlay: DebugOverlay) -> list[float | None]:

@@ -640,3 +640,25 @@ class TestOverlayDraw:
         )
         assert after == before
         assert camera.has_been_applied is False
+
+
+class TestBackingSurfaceCache:
+    """Translucent backings are reused by size instead of allocated every frame."""
+
+    def test_same_size_returns_the_same_filled_surface(self):
+        """Two requests for a 200x60 backing share one surface, filled with the backing colour."""
+        from glitchygames.debug import panels
+
+        first = panels._backing_surface((200, 60))
+        second = panels._backing_surface((200, 60))
+        assert first is second
+        assert tuple(first.get_at((10, 10))) == panels.TEXT_BACKING_COLOR
+        assert panels._backing_surface((20, 6)) is not first
+
+    def test_cache_is_bounded(self):
+        """Many distinct text sizes cannot grow the cache without limit."""
+        from glitchygames.debug import panels
+
+        for width in range(1, 400):
+            panels._backing_surface((width, 16))
+        assert len(panels._BACKING_SURFACES) <= panels.BACKING_SURFACE_CACHE_LIMIT
