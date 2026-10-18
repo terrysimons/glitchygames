@@ -626,9 +626,7 @@ class TestPapyrusHitboxScale:
     @pytest.mark.parametrize(
         'sprite_name', ['player', 'cobra', 'scarab', 'scorpion', 'gold_scarab']
     )
-    def test_freshly_constructed_sprites_have_scaled_hitboxes_before_any_tick(
-        self, sprite_name
-    ):
+    def test_freshly_constructed_sprites_have_scaled_hitboxes_before_any_tick(self, sprite_name):
         """No frame ever uses native-size hitboxes: the scale is set when the sprite is built."""
         from glitchygames.examples.brave_adventurer_papyrus.constants import SPRITE_SCALE
         from glitchygames.examples.brave_adventurer_papyrus.enemies import (
