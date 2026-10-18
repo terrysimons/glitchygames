@@ -771,15 +771,16 @@ class Game(Scene):
         conserved), and exact physics can leave a ball almost stopped (a head-on hit on a
         slower ball hands over nearly all its speed), almost vertical (it bounces between
         the top and bottom walls and never reaches a paddle) or flat (vy = 0 slides along a
-        wall). PaddleSlap therefore applies a game rule, reusing the ball's own
-        ServeSettings, which already define a playable ball: the velocity's angle from
-        horizontal is moved into [minimum_angle_degrees, maximum_angle_degrees], keeping
-        the sign of each component, and its speed is raised to at least the serve speed.
-        A component that is exactly zero points away from the partner ball (down or right
-        when the centres are level). A ball already inside the band and at serve speed or
-        faster is unchanged. The rule adds energy only when it raises a slow ball's speed
-        and does not conserve momentum; it is deliberately not part of
-        _apply_elastic_collision, whose physics the collision sweep tests check.
+        wall). PaddleSlap therefore applies a deliberate game-design rule (not physics) to
+        prevent stalled, vertical and flat balls, reusing the ball's own ServeSettings,
+        which already define a playable ball: the velocity's angle from horizontal is
+        moved into [minimum_angle_degrees, maximum_angle_degrees], keeping the sign of each
+        component, and its speed is raised to at least the serve speed. A component that is
+        exactly zero points away from the partner ball (down or right when the centres are
+        level). A ball already inside the band and at serve speed or faster is unchanged.
+        The rule is not momentum-conserving and adds energy when it raises a slow ball's
+        speed; it is deliberately not part of _apply_elastic_collision, whose physics the
+        collision sweep tests check.
 
         Args:
             ball (BallSprite): The ball to adjust.
