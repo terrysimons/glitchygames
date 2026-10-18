@@ -12,14 +12,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-15
 - **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
 
-### 45. Renaming an Animation in Bitmappy Drops Its Timing and Loop Flag
-- **Description**: `_rename_animation_in_sprite` moves the animation's frames but not its loop flag or frame interval, so a renamed one-shot animation stops honouring `loop = false` at runtime and saves as `loop = true` with the most common frame duration as its interval
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the re-review of `feature/debug-overlay`
-- **Date Reported**: 2026-10-18
-- **Details**: `glitchygames/bitmappy/film_strip_coordinator.py:~1352` (`_loop_flags`, `_animation_frame_intervals`). Not a regression from main, which saved `loop = true` for everything.
-
 ### 46. scripts/legacy_sprite_loader.py Cannot Start
 - **Description**: The script raises `TypeError: Sprite.__init__() missing 'x' and 'y'` while building its scene
 - **Status**: Active
@@ -79,6 +71,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Verification**: Rebuilt with `nox -s build-binary` and ran `dist/bitmappy` headless (`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`). While it ran, the resource tracker (`-B -S -I -c …`) and the AI worker (`--multiprocessing-fork …`) were alive as child processes. The worker initialized its AI client (it logged `game.ai - WARNING - Client does not have _providers attribute`). After SIGINT, every process had exited within 5 s. There were no argparse usage errors, tracebacks or `ModuleNotFoundError`. A real AI request was not tried (it needs an API key or network access)
 - **Tests**: `test_entry_point_calls_freeze_support_before_starting_bitmappy` in `tests/tools/test_bitmappy_packaging.py`
 - **Files**: `scripts/bitmappy_entry.py`
+
+### 45. Renaming an Animation in Bitmappy Drops Its Timing and Loop Flag
+- **Description**: `_rename_animation_in_sprite` moved the animation's frames but not its loop flag or frame interval, so a renamed one-shot animation stopped honouring `loop = false` at runtime and saved as `loop = true` with the most common frame duration as its interval
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The coordinator renamed the sprite's per-animation data by hand (frames, `_animation_order`, and since #44 the transitions) and missed `_loop_flags` and `_animation_frame_intervals`. It also moved the frames to the end of `_animations` (the save order), left the sprite's `frame_manager.current_animation` on the old name when the renamed animation was the current one, and overwrote an existing animation when renamed onto its name. Renames had no undo command at all
+- **Solution**: New `AnimatedSprite.rename_animation(old_name=, new_name=)` moves everything stored under the name: frames (in place), `_animation_order`, loop flag, frame interval, transitions, cached surfaces for either name, and the current animation (keeping the current frame); it raises `ValueError` for a missing name or one already in use. `_rename_animation_in_sprite` calls it; `on_animation_rename` refuses (with a warning) a rename onto an existing animation and records an `AnimationRenameCommand` (`FilmStripOperationTracker.add_animation_renamed`, `OperationType.FILM_STRIP_ANIMATION_RENAME`), whose undo renames back through `on_animation_rename` and so restores the old name with its data, and whose redo renames again. The live `AnimationStateMachine` (built at load) is not renamed; Bitmappy does not run it, and saves use `transition_data`
+- **Files Modified**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/film_strip_coordinator.py`, `glitchygames/bitmappy/history/commands.py`, `glitchygames/bitmappy/history/operations.py`, `glitchygames/bitmappy/history/undo_redo.py`, `glitchygames/bitmappy/history/__init__.py`
+- **Tests**: `test_renaming_an_animation_moves_its_loop_flag_and_frame_interval` (flag and interval follow, the one-shot animation stops on its last frame, the save writes them under the new name), `test_renaming_the_current_animation_keeps_it_current`, `test_renaming_onto_an_existing_animation_is_refused` and `test_undoing_an_animation_rename_restores_the_old_name_and_its_data` in `TestFilmStripAnimationTransitions` (`tests/tools/test_bitmappy_film_strips.py`, real `AnimatedSprite`); `test_rename_animation_moves_transitions_and_keeps_the_order` and `test_rename_animation_rejects_a_missing_or_existing_name` in `tests/sprites/test_animated_sprite.py`
 
 ### 44. TOML Save Drops Animation State Machine Transitions
 - **Description**: The TOML writers never wrote `[[transition]]` sections, so loading and saving a sprite lost its animation state machine (cobra: 2 transitions → 0; Papyrus player: 6 → 0). Saving a sprite in Bitmappy silently broke the game's animation logic

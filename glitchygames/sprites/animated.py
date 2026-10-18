@@ -278,6 +278,7 @@ LOG = logging.getLogger('game.sprites.animated')
 
 # Error message templates
 ERR_ANIMATION_NOT_FOUND = "Animation '{}' not found"
+ERR_ANIMATION_NAME_EXISTS = "Animation '{}' already exists"
 ERR_ANIMATION_NOT_FOUND_AVAILABLE = "Animation '{}' not found. Available animations: {}"
 ERR_NO_ANIMATION_SET = 'No animation is currently set'
 ERR_FAILED_TO_SET_ANIMATION = "Failed to set animation '{}'"
@@ -950,6 +951,56 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 else:
                     self.frame_manager.current_animation = ''
                     self.frame_manager.current_frame = 0
+
+    def rename_animation(self: Self, *, old_name: str, new_name: str) -> None:
+        """Rename an animation and move everything stored under its name.
+
+        The frames keep their place in the animation order; the animation's loop flag and
+        frame interval, the transitions from or to it and, when it is the current animation,
+        the frame manager's current animation (keeping the current frame) follow the new
+        name. Cached surfaces for either name are dropped.
+
+        Args:
+            old_name (str): The animation's current name.
+            new_name (str): The name to give it.
+
+        Raises:
+            ValueError: If old_name is not an animation, or new_name already is one.
+
+        """
+        if old_name not in self._animations:
+            raise ValueError(ERR_ANIMATION_NOT_FOUND.format(old_name))
+        if new_name != old_name and new_name in self._animations:
+            raise ValueError(ERR_ANIMATION_NAME_EXISTS.format(new_name))
+
+        self._animations = {
+            (new_name if name == old_name else name): frames
+            for name, frames in self._animations.items()
+        }
+        if hasattr(self, '_animation_order'):
+            self._animation_order = [
+                (new_name if name == old_name else name) for name in self._animation_order
+            ]
+        if old_name in self._loop_flags:
+            self._loop_flags[new_name] = self._loop_flags.pop(old_name)
+        if old_name in self._animation_frame_intervals:
+            self._animation_frame_intervals[new_name] = self._animation_frame_intervals.pop(
+                old_name
+            )
+        self.rename_animation_in_transitions(old_name=old_name, new_name=new_name)
+
+        # Surfaces are cached as '<animation>_<frame>'; a stale entry for new_name would
+        # show another animation's frame. The prefix can also match another animation whose
+        # name starts with '<name>_'; dropping its entries only costs a re-render
+        for cache_key in list(self._surface_cache):
+            if cache_key.startswith((f'{old_name}_', f'{new_name}_')):
+                del self._surface_cache[cache_key]
+
+        if self.frame_manager.current_animation == old_name:
+            current_frame = self.frame_manager.current_frame
+            # Setting the animation resets the frame to 0, so restore it afterwards
+            self.frame_manager.current_animation = new_name
+            self.frame_manager.current_frame = current_frame
 
     def rename_animation_in_transitions(self: Self, *, old_name: str, new_name: str) -> None:
         """Rename an animation in transition_data, wherever it is a transition's from or to."""

@@ -964,6 +964,63 @@ class AnimationDeleteCommand:
         return inverse.execute()
 
 
+class AnimationRenameCommand:
+    """Command for renaming an animation.
+
+    The rename goes through the coordinator's on_animation_rename, which moves the
+    animation's frames, loop flag, frame interval and transitions and renames its film
+    strip, so undo (renaming back) restores all of them.
+    """
+
+    def __init__(self, editor: Any, old_name: str, new_name: str) -> None:
+        """Initialize an animation-rename command.
+
+        Args:
+            editor: The editor context.
+            old_name: The animation's name before the rename.
+            new_name: The animation's name after the rename.
+
+        """
+        from glitchygames.bitmappy.history.undo_redo import OperationType
+
+        self.editor = editor
+        self.old_name = old_name
+        self.new_name = new_name
+        self.operation_type = OperationType.FILM_STRIP_ANIMATION_RENAME
+        self.timestamp: float = time.time()
+        self.description = f"Renamed animation '{old_name}' to '{new_name}'"
+
+    def execute(self) -> bool:
+        """Rename the animation again (redo).
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        return self._rename(from_name=self.old_name, to_name=self.new_name)
+
+    def undo(self) -> bool:
+        """Give the animation its old name back.
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        return self._rename(from_name=self.new_name, to_name=self.old_name)
+
+    def _rename(self, *, from_name: str, to_name: str) -> bool:
+        animated_sprite = getattr(getattr(self.editor, 'canvas', None), 'animated_sprite', None)
+        if animated_sprite is None:
+            LOG.warning('Canvas or animated sprite not available for animation rename')
+            return False
+        animations = animated_sprite._animations
+        if from_name not in animations or to_name in animations:
+            LOG.warning(f"Cannot rename animation '{from_name}' to '{to_name}'")
+            return False
+        self.editor.film_strip_coordinator.on_animation_rename(from_name, to_name)
+        return to_name in animated_sprite._animations
+
+
 # ---------------------------------------------------------------------------
 # Controller commands
 # ---------------------------------------------------------------------------

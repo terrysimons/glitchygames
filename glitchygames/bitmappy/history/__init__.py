@@ -5,6 +5,7 @@ from __future__ import annotations
 from .commands import (
     AnimationAddCommand,
     AnimationDeleteCommand,
+    AnimationRenameCommand,
     BrushStrokeCommand,
     ControllerModeCommand,
     ControllerPositionCommand,
@@ -29,6 +30,7 @@ from .undo_redo import Operation, OperationType, UndoRedoManager
 __all__ = [
     'AnimationAddCommand',
     'AnimationDeleteCommand',
+    'AnimationRenameCommand',
     'BrushStrokeCommand',
     'CanvasOperationTracker',
     'ControllerModeCommand',

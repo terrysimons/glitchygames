@@ -3292,6 +3292,26 @@ class TestTransitionData:
             {'from': 'lunge', 'to': 'idle', 'when': 'timer > 0.3'},
         ]
 
+    def test_rename_animation_moves_transitions_and_keeps_the_order(self, tmp_path):
+        """rename_animation renames the frames in place and in the transitions."""
+        sprite = self._load(tmp_path)
+
+        sprite.rename_animation(old_name='idle', new_name='rest')
+
+        assert list(sprite._animations) == ['rest', 'strike']
+        assert sprite.animation_order == ['rest', 'strike']
+        assert sprite.transition_data[0] == {'from': 'rest', 'to': 'strike', 'when': 'timer > 2.0'}
+
+    def test_rename_animation_rejects_a_missing_or_existing_name(self, tmp_path):
+        """Renaming a missing animation, or onto an existing one, raises ValueError."""
+        sprite = self._load(tmp_path)
+
+        with pytest.raises(ValueError, match="'missing' not found"):
+            sprite.rename_animation(old_name='missing', new_name='other')
+        with pytest.raises(ValueError, match="'strike' already exists"):
+            sprite.rename_animation(old_name='idle', new_name='strike')
+        assert list(sprite._animations) == ['idle', 'strike']
+
     def test_removing_an_animation_drops_its_transitions_with_a_warning(self, tmp_path, caplog):
         """Transitions from or to a removed animation are dropped and logged."""
         sprite = self._load(tmp_path)

@@ -536,8 +536,10 @@ class TestFilmStripAnimationTransitions:
         '[sprite]\nname = "machine"\n\n'
         '[[animation]]\nnamespace = "idle"\n\n'
         '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\npixels = """\n#\n"""\n\n'
-        '[[animation]]\nnamespace = "run"\n\n'
+        # run is a one-shot animation with a non-default frame interval (BUGS.md #45)
+        '[[animation]]\nnamespace = "run"\nframe_interval = 0.25\nloop = false\n\n'
         '[[animation.frame]]\nnamespace = "run"\nframe_index = 0\npixels = """\n#\n"""\n\n'
+        '[[animation.frame]]\nnamespace = "run"\nframe_index = 1\npixels = """\n#\n"""\n\n'
         '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
         '[[transition]]\nfrom = "idle"\nto = "run"\nwhen = "velocity_x > 0.1"\n\n'
         '[[transition]]\nfrom = "run"\nto = "idle"\nwhen = "velocity_x <= 0.1"\n'
@@ -593,3 +595,87 @@ class TestFilmStripAnimationTransitions:
 
         assert 'run' not in scene.canvas.animated_sprite._animations
         assert scene.canvas.animated_sprite.transition_data == []
+
+    def test_renaming_an_animation_moves_its_loop_flag_and_frame_interval(self, mocker, tmp_path):
+        """The loop flag and frame interval follow a renamed animation (BUGS.md #45)."""
+        import tomllib
+
+        scene = self._scene_with_real_sprite(mocker, tmp_path)
+        sprite = scene.canvas.animated_sprite
+
+        scene.film_strip_coordinator._rename_animation_in_sprite(sprite, 'run', 'sprint')
+
+        assert sprite._loop_flags == {'idle': True, 'sprint': False}
+        assert sprite._animation_frame_intervals == {'idle': 0.5, 'sprint': 0.25}
+        # The renamed animation keeps its place in the animation order
+        assert list(sprite._animations) == ['idle', 'sprint']
+        assert sprite.animation_order == ['idle', 'sprint']
+
+        # The runtime honours the moved loop flag: a one-shot animation stops on its last frame
+        sprite.play(animation_name='sprint')
+        assert sprite.is_looping is False
+        sprite.update(dt=0.3)
+        sprite.update(dt=0.3)
+        assert sprite.current_frame == 1
+        assert sprite.is_playing is False
+
+        saved_file = tmp_path / 'renamed.toml'
+        sprite.save(str(saved_file), 'toml')
+        saved_animations = {
+            animation['namespace']: animation
+            for animation in tomllib.loads(saved_file.read_text(encoding='utf-8'))['animation']
+        }
+        assert list(saved_animations) == ['idle', 'sprint']
+        assert saved_animations['sprint']['loop'] is False
+        assert saved_animations['sprint']['frame_interval'] == pytest.approx(0.25)
+
+    def test_renaming_the_current_animation_keeps_it_current(self, mocker, tmp_path):
+        """Renaming the animation the sprite is showing points the sprite at the new name."""
+        scene = self._scene_with_real_sprite(mocker, tmp_path)
+        sprite = scene.canvas.animated_sprite
+        sprite.set_animation('run')
+        sprite.set_frame(1)
+
+        scene.film_strip_coordinator._rename_animation_in_sprite(sprite, 'run', 'sprint')
+
+        assert sprite.current_animation == 'sprint'
+        assert sprite.current_frame == 1
+
+    def test_renaming_onto_an_existing_animation_is_refused(self, mocker, tmp_path):
+        """Renaming to a name already in use keeps both animations (and records no undo)."""
+        scene = self._scene_with_real_sprite(mocker, tmp_path)
+        sprite = scene.canvas.animated_sprite
+        idle_frames = sprite._animations['idle']
+
+        scene.on_animation_rename('run', 'idle')
+
+        assert list(sprite._animations) == ['idle', 'run']
+        assert sprite._animations['idle'] is idle_frames
+        assert scene.undo_redo_manager.can_undo() is False
+
+    def test_undoing_an_animation_rename_restores_the_old_name_and_its_data(self, mocker, tmp_path):
+        """Undo restores the old name, loop flag, interval and transitions; redo renames again."""
+        scene = self._scene_with_real_sprite(mocker, tmp_path)
+        sprite = scene.canvas.animated_sprite
+
+        scene.on_animation_rename('run', 'sprint')
+        assert list(sprite._animations) == ['idle', 'sprint']
+
+        assert scene.undo_redo_manager.undo() is True
+        assert list(sprite._animations) == ['idle', 'run']
+        assert sprite._loop_flags == {'idle': True, 'run': False}
+        assert sprite._animation_frame_intervals == {'idle': 0.5, 'run': 0.25}
+        assert sprite.transition_data == [
+            {'from': 'idle', 'to': 'run', 'when': 'velocity_x > 0.1'},
+            {'from': 'run', 'to': 'idle', 'when': 'velocity_x <= 0.1'},
+        ]
+
+        assert scene.undo_redo_manager.redo() is True
+        assert list(sprite._animations) == ['idle', 'sprint']
+        assert sprite._loop_flags == {'idle': True, 'sprint': False}
+        assert sprite._animation_frame_intervals == {'idle': 0.5, 'sprint': 0.25}
+        assert sprite.transition_data[0] == {
+            'from': 'idle',
+            'to': 'sprint',
+            'when': 'velocity_x > 0.1',
+        }

@@ -39,6 +39,7 @@ class OperationType(Enum):
     FILM_STRIP_FRAME_REORDER = 'film_strip_frame_reorder'
     FILM_STRIP_ANIMATION_ADD = 'film_strip_animation_add'
     FILM_STRIP_ANIMATION_DELETE = 'film_strip_animation_delete'
+    FILM_STRIP_ANIMATION_RENAME = 'film_strip_animation_rename'
 
     # Cross-area operations
     FRAME_COPY = 'frame_copy'

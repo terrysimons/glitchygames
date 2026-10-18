@@ -1386,7 +1386,12 @@ class TestAnimationRename:
         )
         mock_editor.on_animation_rename('old_name', 'new_name')
 
-        assert 'new_name' in mock_editor.canvas.animated_sprite._animations
+        # The sprite moves its own per-animation data (real-sprite tests:
+        # TestFilmStripAnimationTransitions in tests/tools/test_bitmappy_film_strips.py)
+        mock_editor.canvas.animated_sprite.rename_animation.assert_called_once_with(
+            old_name='old_name', new_name='new_name'
+        )
+        assert 'new_name' in mock_editor.film_strips
         assert mock_editor.selected_animation == 'new_name'
 
     def test_rename_nonexistent_animation(self, mock_editor, mocker):
