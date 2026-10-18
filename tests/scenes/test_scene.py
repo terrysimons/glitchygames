@@ -1092,18 +1092,48 @@ class TestScenePauseAndResume:
         assert isinstance(scene.next_scene, PauseScene)
         scene.scene_manager.switch_to_scene.assert_not_called()
 
-    def test_activating_a_scene_clears_its_pending_switch(self, mock_pygame_patches, mocker):
-        """A scene that becomes active again (after a resume) has no pending switch left over.
+    def test_bootstrap_scene_reaches_the_scene_its_init_requests(self, mock_pygame_patches, mocker):
+        """A scene whose __init__ sets next_scene hands over at the end of its first frame.
 
-        Otherwise a game that paused by setting next_scene pauses again one frame after resuming.
+        Bootstrap scenes (joystick_demo, scripts/cached_fonts.py) request their real scene in
+        __init__; activating them must not wipe that request.
+        """
+        scene_manager = SceneManager()
+        first_real_scene = Scene()
+
+        class BootstrapScene(Scene):
+            def __init__(self) -> None:
+                super().__init__()
+                self.next_scene = first_real_scene
+
+        bootstrap_scene = BootstrapScene()
+
+        scene_manager.switch_to_scene(bootstrap_scene)
+        scene_manager._switch_to_requested_scene()
+
+        assert scene_manager.active_scene is first_real_scene
+
+    def test_resumed_scene_does_not_switch_back_to_the_old_pause_scene(
+        self, mock_pygame_patches, mocker
+    ):
+        """After pause -> resume, the game scene has no pending switch left over.
+
+        A game that paused by setting next_scene would otherwise pause again one frame after
+        resuming, because its next_scene still pointed at the old pause scene.
         """
         scene_manager = SceneManager()
         game_scene = Scene()
-        old_pause_scene = Scene()
-        game_scene.next_scene = old_pause_scene  # left over from the pause request
-
+        pause_scene = Scene()
         scene_manager.switch_to_scene(game_scene)
 
+        game_scene.next_scene = pause_scene  # the game requests a pause
+        scene_manager._switch_to_requested_scene()
+        assert scene_manager.active_scene is pause_scene
+
+        scene_manager.switch_to_scene(scene_manager.previous_scene)  # resume
+        scene_manager._switch_to_requested_scene()
+
+        assert scene_manager.active_scene is game_scene
         assert game_scene.next_scene is game_scene
 
     def test_resume_switches_to_previous_scene(self, mock_pygame_patches, mocker):

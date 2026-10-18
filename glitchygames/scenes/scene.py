@@ -441,6 +441,12 @@ class SceneManager(SceneInterface, events.EventManager):
             self.rumble.clear_sustained()  # ...nor leave a controller buzzing
             # Track the previous scene BEFORE any cleanup or setup
             self.previous_scene = self.active_scene
+            # The outgoing scene's pending switch has been honoured (or superseded): clear it,
+            # otherwise a game that paused via next_scene would pause again one frame after
+            # resuming. The incoming scene's next_scene is left alone, because bootstrap
+            # scenes request their real scene from __init__.
+            if self.active_scene is not None:
+                self.active_scene.next_scene = self.active_scene
             self._reset_scene_timers()
             self._log_scene_switch(scene)
             self._cleanup_current_scene()
@@ -457,6 +463,18 @@ class SceneManager(SceneInterface, events.EventManager):
                     performance_manager.set_current_scene(scene.NAME)
             except ImportError:
                 pass  # Performance module not available
+
+    def _switch_to_requested_scene(self: Self) -> None:
+        """Perform the plain scene switch the active scene requested via next_scene.
+
+        Runs at the end of a frame, after rendering. A next_scene of None or of the active
+        scene itself means no switch is pending.
+        """
+        if self.active_scene is None:
+            return
+        requested_scene = self.active_scene.next_scene
+        if requested_scene is not None and requested_scene != self.active_scene:
+            self.switch_to_scene(requested_scene)
 
     @override
     def play(self: Self) -> None:
@@ -629,11 +647,8 @@ class SceneManager(SceneInterface, events.EventManager):
                     self._start_transition(*self._pending_transition)
                     self._pending_transition = None
                 # Check for plain scene switch (no transition, backward compatible)
-                elif (
-                    self.active_scene.next_scene is not None
-                    and self.active_scene.next_scene != self.active_scene
-                ):
-                    self.switch_to_scene(self.active_scene.next_scene)
+                else:
+                    self._switch_to_requested_scene()
 
             self._handle_frame_pacing(
                 timer=timer,
@@ -881,9 +896,6 @@ class SceneManager(SceneInterface, events.EventManager):
         """Set up the new scene."""
         if next_scene:
             self.log.info('Setting up new scene %s.', next_scene)
-            # A scene becoming active (again, after a resume) starts with no pending switch;
-            # otherwise a game that paused via next_scene would pause again on the next frame
-            next_scene.next_scene = next_scene
             # Ensure the new scene has access to the game engine
             if hasattr(self, 'game_engine') and self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
