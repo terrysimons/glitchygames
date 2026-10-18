@@ -25,7 +25,7 @@ DEBUG_FONT_PATH = Path(__file__).parent.parent / 'fonts' / 'bitstream_vera' / 'V
 DEBUG_FONT_SIZE = 13
 
 PERFORMANCE_WINDOW_SECONDS = 5.0
-GRAPH_WINDOW_SECONDS = 2.0
+GRAPH_WINDOW_SECONDS = panels.GRAPH_WINDOW_SECONDS  # the graph's time axis
 FRAME_HISTORY_LENGTH = 5000  # 5 s at up to 1000 FPS
 ONE_PERCENT = 0.01
 # Summing frame times in floating point can land a hair above a window length that is

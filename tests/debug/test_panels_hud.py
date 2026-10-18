@@ -350,6 +350,57 @@ class TestPerformancePanel:
         assert len(rows) == 1
         assert graph_top <= rows[0] < graph_top + 60
 
+    def test_two_seconds_of_frames_fill_the_graph_width(self, surface, font):
+        """The x-axis is time: 2 s of 60 FPS frames reach both edges of the graph."""
+        overlay = DebugOverlay(visible=True)
+        for _ in range(120):
+            overlay.record_frame(frame_seconds=1 / 60)
+        draw_performance(surface=surface, overlay=overlay, font=font)
+        graph_left = SURFACE_SIZE[0] - 4 - 200
+        bottom_row = SURFACE_SIZE[1] - 4 - HUD_LINE_HEIGHT - 1
+        bar_colors = {GRAPH_BAR_COLOR, PURE_RED}
+        assert surface.get_at((graph_left, bottom_row))[:3] in bar_colors
+        assert surface.get_at((graph_left + 199, bottom_row))[:3] in bar_colors
+
+    def test_bar_width_is_proportional_to_frame_time(self, surface, font):
+        """A 50 ms hitch spans 50/2000 of the 200 px graph (5 columns) and is drawn red."""
+        overlay = DebugOverlay(visible=True)
+        for _ in range(60):
+            overlay.record_frame(frame_seconds=0.016)
+        overlay.record_frame(frame_seconds=0.050)
+        for _ in range(55):
+            overlay.record_frame(frame_seconds=0.016)
+        draw_performance(surface=surface, overlay=overlay, font=font)
+        graph_left = SURFACE_SIZE[0] - 4 - 200
+        bottom_row = SURFACE_SIZE[1] - 4 - HUD_LINE_HEIGHT - 1
+        red_columns = [
+            x
+            for x in range(graph_left, graph_left + 200)
+            if surface.get_at((x, bottom_row))[:3] == PURE_RED
+        ]
+        assert 5 <= len(red_columns) <= 6
+        assert red_columns == list(range(red_columns[0], red_columns[0] + len(red_columns)))
+
+    def test_short_history_is_drawn_against_the_right_edge(self, surface, font):
+        """With under 2 s recorded, bars end at the right edge (newest); the left is empty."""
+        overlay = DebugOverlay(visible=True)
+        for _ in range(30):
+            overlay.record_frame(frame_seconds=1 / 60)
+        draw_performance(surface=surface, overlay=overlay, font=font)
+        graph_left = SURFACE_SIZE[0] - 4 - 200
+        bottom_row = SURFACE_SIZE[1] - 4 - HUD_LINE_HEIGHT - 1
+        assert surface.get_at((graph_left + 199, bottom_row))[:3] == GRAPH_BAR_COLOR
+        assert surface.get_at((graph_left, bottom_row))[:3] != GRAPH_BAR_COLOR
+
+    def test_graph_has_a_translucent_backing(self, surface, font):
+        """The graph area is dimmed so its extent is visible even where no bar is drawn."""
+        surface.fill((200, 200, 200))
+        draw_performance(surface=surface, overlay=DebugOverlay(visible=True), font=font)
+        graph_left = SURFACE_SIZE[0] - 4 - 200
+        graph_top = SURFACE_SIZE[1] - 4 - 60 - HUD_LINE_HEIGHT
+        dimmed = surface.get_at((graph_left + 100, graph_top + 2))[:3]
+        assert all(0 < channel < 200 for channel in dimmed)
+
     def test_frame_time_readout_from_last_frame(self, surface, font):
         """The last recorded frame is shown with one decimal; none recorded shows no readout."""
         overlay = DebugOverlay(visible=True)

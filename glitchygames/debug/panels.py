@@ -64,6 +64,7 @@ BOUNDS_DASH_GAP = 4
 CROSSHAIR_COLOR: Color = (0, 255, 255)
 CROSSHAIR_ARM_LENGTH = 6
 GRAPH_WIDTH = 200
+GRAPH_WINDOW_SECONDS = 2.0  # the graph's x-axis spans this much time
 GRAPH_HEIGHT = 60
 GRAPH_CEILING_MILLISECONDS = 50.0
 GRAPH_BAR_COLOR: Color = (60, 200, 60)
@@ -478,6 +479,42 @@ def _draw_text_lines(
     return line_top
 
 
+def _blit_backing(*, surface: pygame.Surface, rect: pygame.Rect) -> None:
+    """Dim a rect with the translucent debug backing so its extent is visible."""
+    backing = pygame.Surface(rect.size, pygame.SRCALPHA)
+    backing.fill(TEXT_BACKING_COLOR)
+    surface.blit(backing, rect.topleft)
+
+
+def _slowest_frame_per_column(*, overlay: DebugOverlay) -> list[float | None]:
+    """Map the last GRAPH_WINDOW_SECONDS of frames onto GRAPH_WIDTH columns of time.
+
+    The x-axis is time, newest at the right edge: each frame covers a width proportional to its
+    duration, so a 50 ms hitch is three times as wide as a 16.7 ms frame and two seconds of
+    frames always span the whole graph. A column shows the slowest frame overlapping it, so a
+    hitch is never hidden by a faster neighbour sharing its column.
+
+    Returns:
+        list[float | None]: Per column (left to right), the slowest frame time in seconds, or
+            None where no recorded frame reaches (less than GRAPH_WINDOW_SECONDS of history).
+
+    """
+    columns: list[float | None] = [None] * GRAPH_WIDTH
+    pixels_per_second = GRAPH_WIDTH / GRAPH_WINDOW_SECONDS
+    seconds_before_newest = 0.0
+    for frame_seconds in reversed(overlay.graph_frame_times(window_seconds=GRAPH_WINDOW_SECONDS)):
+        right_edge = GRAPH_WIDTH - seconds_before_newest * pixels_per_second
+        left_edge = right_edge - frame_seconds * pixels_per_second
+        first_column = max(0, math.floor(left_edge))
+        last_column = min(GRAPH_WIDTH - 1, math.ceil(right_edge) - 1)
+        for column in range(first_column, last_column + 1):
+            slowest = columns[column]
+            if slowest is None or frame_seconds > slowest:
+                columns[column] = frame_seconds
+        seconds_before_newest += frame_seconds
+    return columns
+
+
 def _draw_frame_time_graph(
     *, surface: pygame.Surface, overlay: DebugOverlay, target_fps: float
 ) -> pygame.Rect:
@@ -500,13 +537,15 @@ def _draw_frame_time_graph(
         ceiling_milliseconds = max(ceiling_milliseconds, 2 * target_milliseconds)
     pixels_per_millisecond = GRAPH_HEIGHT / ceiling_milliseconds
 
-    visible_frame_times = overlay.graph_frame_times()[-GRAPH_WIDTH:]
-    for index, frame_seconds in enumerate(visible_frame_times):
+    _blit_backing(surface=surface, rect=graph_rect)
+    for column, frame_seconds in enumerate(_slowest_frame_per_column(overlay=overlay)):
+        if frame_seconds is None:
+            continue
         frame_milliseconds = frame_seconds * MILLISECONDS_PER_SECOND
         bar_height = min(GRAPH_HEIGHT, max(1, round(frame_milliseconds * pixels_per_millisecond)))
         is_slow = target_milliseconds is not None and frame_milliseconds > target_milliseconds
         bar_color = SLOW_BAR_COLOR if is_slow else GRAPH_BAR_COLOR
-        bar_x = graph_rect.left + index
+        bar_x = graph_rect.left + column
         pygame.draw.line(
             surface,
             bar_color,
