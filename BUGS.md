@@ -12,6 +12,30 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-15
 - **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
 
+### 40. Built-In Font Fallback Points at a Missing Path
+- **Description**: When no system font can be loaded (PyInstaller-packaged games), `FontManager` falls back to the bundled Vera.ttf via `Path(__file__).parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'`, which resolves to `glitchygames/fonts/fonts/bitstream_vera/Vera.ttf` (does not exist), so the fallback raises `FileNotFoundError` instead of loading the font
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found while choosing the debug overlay's font
+- **Date Reported**: 2026-10-17
+- **Details**: `glitchygames/fonts/font_manager.py:282`. `font_manager.py` already lives in `glitchygames/fonts/`; `bitmappy.spec`'s own comment gives the intended path `Path(__file__).parent / 'bitstream_vera'`. The debug overlay builds its own correct path (`glitchygames/debug/overlay.py` `DEBUG_FONT_PATH`). Fix: drop the extra `'fonts'` and add a test that the fallback path exists.
+
+### 41. Input Confirmation Dialog Sends Key-Down Events to the Key-Up Handler
+- **Description**: `InputConfirmationDialogScene.on_key_down_event` passes unhandled key-down events to `super().on_key_up_event(event)` instead of `super().on_key_down_event(event)`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the final whole-branch review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Details**: `glitchygames/ui/dialogs.py:~305-317`. Identical on main. Base-class key-down handling never runs for that dialog, and key-up handling runs twice per key press.
+
+### 42. TOML Writers Don't Escape Sprite Names and Descriptions
+- **Description**: Both TOML writers write `name = "{name}"` and `description = """{description}"""` without escaping, so a description containing `"""` or a name containing `"` or a backslash produces an invalid TOML file that cannot be loaded again
+- **Status**: Active
+- **Priority**: Medium (AI-generated descriptions in Bitmappy can contain quotes)
+- **Reporter**: Found while fixing the single-frame writer (BUGS.md #39)
+- **Date Reported**: 2026-10-18
+- **Details**: `glitchygames/sprites/animated.py:1633-1636` (single-frame writer) and `_write_toml_sprite_section` (`:2076-2081`, animated writer). Identical on main. Fix: escape per the TOML spec (or emit the values through a TOML writer) and round-trip-test names and descriptions with quotes, backslashes and triple quotes.
+
 ## Resolved Bugs
 
 ### 39. Single-Frame TOML Save Drops the Description
