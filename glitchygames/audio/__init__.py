@@ -12,12 +12,17 @@ Usage:
 """
 
 from glitchygames.audio.controller_audio import ControllerAudio
+from glitchygames.audio.exceptions import AudioUnavailableError
+from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.tts import MacOSTTS, get_tts_backend
 from glitchygames.audio.voice_assistant import VoiceAssistant
 
 __all__ = [
+    'AudioUnavailableError',
     'ControllerAudio',
+    'Envelope',
     'MacOSTTS',
     'VoiceAssistant',
+    'Waveform',
     'get_tts_backend',
 ]

@@ -1,10 +1,12 @@
 """Tests for the synth toolkit (numpy only unless marked)."""
 
 import numpy as np
+import pygame
 import pytest
 
 from glitchygames.audio import synth
-from glitchygames.audio.synth import Waveform
+from glitchygames.audio.exceptions import AudioUnavailableError
+from glitchygames.audio.synth import Envelope, Waveform
 
 RATE = 44100
 
@@ -118,3 +120,176 @@ class TestFrequencyCurve:
     def test_overshoot_outside_range_raises(self):
         with pytest.raises(ValueError, match='frequency'):
             synth.frequency_curve(10.0, 200.0, 0.1, easing='ease_in_back', sample_rate=RATE)
+
+
+class TestOscillatorEdgeCases:
+    """Tests for oscillator fixes carried from review."""
+
+    def test_sub_half_sample_duration_returns_empty(self):
+        samples, end_phase = synth.oscillator(
+            Waveform.SINE, 440.0, 1e-6, sample_rate=RATE, phase=0.25
+        )
+        assert len(samples) == 0
+        assert end_phase == pytest.approx(0.25)
+
+    def test_nan_frequency_raises(self):
+        with pytest.raises(ValueError, match='frequency'):
+            synth.oscillator(
+                Waveform.SINE, np.array([440.0, np.nan, 440.0]), 3 / RATE, sample_rate=RATE
+            )
+
+
+class TestEnvelope:
+    """Tests for amplitude envelopes."""
+
+    def test_stage_boundaries(self):
+        samples = np.ones(100)
+        envelope = Envelope(attack=10 / RATE, decay=10 / RATE, sustain_level=0.5, release=20 / RATE)
+        shaped = synth.apply_envelope(samples, envelope, sample_rate=RATE)
+        assert shaped[0] == 0.0
+        assert shaped[9] == pytest.approx(1.0)
+        assert shaped[19] == pytest.approx(0.5)
+        assert shaped[50] == pytest.approx(0.5)
+        assert shaped[-1] == 0.0
+
+    def test_release_keeps_priority_when_too_long(self):
+        samples = np.ones(30)
+        envelope = Envelope(attack=20 / RATE, decay=0.0, sustain_level=1.0, release=20 / RATE)
+        shaped = synth.apply_envelope(samples, envelope, sample_rate=RATE)
+        # Release keeps all 20 samples (ending at 0); attack is cut to the 10 left
+        assert shaped[-1] == 0.0
+        assert shaped[9] == pytest.approx(1.0)
+        assert np.all(np.diff(shaped[10:]) <= 0)
+
+    def test_matches_brave_adventurer_shape(self):
+        """Attack + release with sustain 1.0 equals the old attack/decay envelope."""
+        count = synth.sample_count(0.12, RATE)
+        envelope = Envelope(attack=0.005, decay=0.0, sustain_level=1.0, release=0.08)
+        shaped = synth.apply_envelope(np.ones(count), envelope, sample_rate=RATE)
+        attack = synth.sample_count(0.005, RATE)
+        release = synth.sample_count(0.08, RATE)
+        np.testing.assert_allclose(shaped[:attack], np.linspace(0, 1, attack))
+        np.testing.assert_allclose(shaped[-release:], np.linspace(1, 0, release))
+
+
+class TestFilters:
+    """Tests for FIR filters."""
+
+    def _tone(self, frequency):
+        return synth.oscillator(Waveform.SINE, frequency, 0.2, sample_rate=RATE)[0]
+
+    def test_low_pass_attenuates_above_cutoff(self):
+        low = synth.low_pass(self._tone(200.0), 1000.0, sample_rate=RATE)
+        high = synth.low_pass(self._tone(8000.0), 1000.0, sample_rate=RATE)
+        assert np.max(np.abs(low[500:])) > 0.9
+        assert np.max(np.abs(high[500:])) < 0.05
+
+    def test_high_pass_attenuates_below_cutoff(self):
+        low = synth.high_pass(self._tone(100.0), 2000.0, sample_rate=RATE)
+        high = synth.high_pass(self._tone(8000.0), 2000.0, sample_rate=RATE)
+        assert np.max(np.abs(low[500:])) < 0.1
+        assert np.max(np.abs(high[500:])) > 0.9
+
+    @pytest.mark.parametrize('length', [0, 10, 5000])
+    def test_output_length_equals_input(self, length):
+        assert len(synth.low_pass(np.ones(length), 1000.0, sample_rate=RATE)) == length
+
+    def test_no_onset_click(self):
+        """A sound starting at full level ramps through the filter instead of jumping."""
+        filtered = synth.low_pass(np.ones(500), 500.0, sample_rate=RATE)
+        assert abs(filtered[0]) < 0.05
+
+    def test_chunked_with_history_equals_whole(self):
+        signal = synth.oscillator(Waveform.SAWTOOTH, 300.0, 0.2, sample_rate=RATE)[0]
+        whole = synth.low_pass(signal, 900.0, sample_rate=RATE)
+        taps = synth.DEFAULT_FILTER_TAPS
+        history = np.zeros(taps - 1)
+        pieces = []
+        for chunk in np.array_split(signal, 7):
+            pieces.append(synth.low_pass(chunk, 900.0, sample_rate=RATE, history=history))
+            history = np.concatenate((history, chunk))[-(taps - 1) :]
+        np.testing.assert_allclose(np.concatenate(pieces), whole, atol=1e-12)
+
+    @pytest.mark.parametrize('cutoff', [0.0, RATE / 2])
+    def test_cutoff_bounds(self, cutoff):
+        with pytest.raises(ValueError, match='cutoff'):
+            synth.low_pass(np.ones(10), cutoff, sample_rate=RATE)
+
+    def test_taps_must_be_odd(self):
+        with pytest.raises(ValueError, match='taps'):
+            synth.low_pass(np.ones(10), 1000.0, sample_rate=RATE, taps=100)
+
+
+class TestEffectsAndMixing:
+    """Tests for effects, mixing and normalization."""
+
+    def test_distort_keeps_peak_at_one(self):
+        assert synth.distort(np.array([1.0, -1.0, 0.0]), 4.0) == pytest.approx([1.0, -1.0, 0.0])
+
+    def test_tremolo_depth_and_phase(self):
+        shaped, end_phase = synth.tremolo(np.ones(RATE), 1.0, 0.5, sample_rate=RATE)
+        assert shaped[0] == pytest.approx(1.0)
+        assert shaped[RATE // 2] == pytest.approx(0.5, abs=1e-3)
+        assert end_phase == pytest.approx(0.0, abs=1e-9)
+
+    def test_mix_offsets_and_overhang(self):
+        mixed = synth.mix(np.ones(4), (np.ones(4), 2 / RATE), sample_rate=RATE)
+        np.testing.assert_allclose(mixed, [1, 1, 2, 2, 1, 1])
+
+    def test_mix_negative_offset_raises(self):
+        with pytest.raises(ValueError, match='offset'):
+            synth.mix((np.ones(4), -0.1), sample_rate=RATE)
+
+    def test_normalize_silence_unchanged(self):
+        np.testing.assert_array_equal(synth.normalize(np.zeros(5)), np.zeros(5))
+
+    def test_normalize_peak(self):
+        assert np.max(np.abs(synth.normalize(np.array([0.1, -0.5]), peak=0.9))) == 0.9
+
+    def test_silence_zero_is_empty(self):
+        assert len(synth.silence(0.0, sample_rate=RATE)) == 0
+
+    def test_to_pcm16_clips_and_scales(self):
+        np.testing.assert_array_equal(
+            synth.to_pcm16(np.array([2.0, -2.0, 0.5])),
+            np.array([32767, -32767, 16384], dtype=np.int16),
+        )
+
+
+class TestToSound:
+    """Tests for Sound conversion with a mocked mixer."""
+
+    def test_raises_without_mixer(self, mocker):
+        mocker.patch('pygame.mixer.get_init', return_value=None)
+        with pytest.raises(AudioUnavailableError):
+            synth.to_sound(np.zeros(10))
+
+    def test_raises_on_other_format(self, mocker):
+        mocker.patch('pygame.mixer.get_init', return_value=(44100, 32784, 2))
+        with pytest.raises(AudioUnavailableError, match='format'):
+            synth.to_sound(np.zeros(10))
+
+    @pytest.mark.parametrize('channels', [1, 2])
+    def test_tiles_to_mixer_channels(self, mocker, channels):
+        mocker.patch('pygame.mixer.get_init', return_value=(44100, -16, channels))
+        make_sound = mocker.patch('pygame.sndarray.make_sound')
+        synth.to_sound(np.zeros(10), volume=0.3)
+        frames = make_sound.call_args.args[0]
+        assert frames.dtype == np.int16
+        assert frames.flags['C_CONTIGUOUS']
+        assert frames.shape == ((10,) if channels == 1 else (10, channels))
+        make_sound.return_value.set_volume.assert_called_once_with(0.3)
+
+
+class TestToSoundRealMixer:
+    """Tests for Sound conversion with a real dummy-driver mixer."""
+
+    def test_make_sound_accepts_frames(self, monkeypatch):
+        monkeypatch.setenv('SDL_AUDIODRIVER', 'dummy')
+        pygame.mixer.quit()
+        pygame.mixer.init(44100, -16, 2)
+        try:
+            sound = synth.to_sound(np.zeros(441))
+            assert sound.get_length() == pytest.approx(0.01, abs=1e-3)
+        finally:
+            pygame.mixer.quit()
