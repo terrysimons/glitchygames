@@ -462,28 +462,24 @@ class SceneManager(SceneInterface, events.EventManager):
         else:
             self.clock.tick()
 
-    def _track_performance(
-        self: Self,
-        timer: object | None,
-        period_ns: int,
-        processing_time: float,
-    ) -> None:
-        """Feed FPS data to the performance manager.
+    def _track_performance(self: Self, processing_time: float) -> None:
+        """Feed this frame's FPS to the performance manager.
 
         Args:
-            timer: The timer backend instance (or None)
-            period_ns: Frame period in nanoseconds (0 if no timer)
             processing_time: Actual processing time in seconds
 
         """
         try:
             from glitchygames.performance import performance_manager
 
-            # If timer pacing is enabled, compute FPS from dt; otherwise use pygame clock
-            if timer is not None and period_ns > 0:
-                current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
-            else:
-                current_fps = self.clock.get_fps()
+            # Deliberately NOT self.clock.get_fps(). pygame's Clock.get_fps():
+            #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
+            #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
+            #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
+            #   3. carries over from the previous scene (the clock is shared), so a new
+            #      scene's first samples are stale.
+            # self.dt is the measured frame time from time.perf_counter() in the main loop.
+            current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
             performance_manager.track_fps_from_event(current_fps, processing_time)
         except ImportError:
             pass  # Performance module not available
@@ -545,7 +541,7 @@ class SceneManager(SceneInterface, events.EventManager):
             processing_end = time.perf_counter()
             actual_processing_time = processing_end - processing_start
 
-            self._track_performance(timer, period_ns, actual_processing_time)
+            self._track_performance(processing_time=actual_processing_time)
 
             if self._should_post_fps_event(current_time, previous_fps_time):
                 self._post_fps_event()
@@ -721,28 +717,6 @@ class SceneManager(SceneInterface, events.EventManager):
         fps_value = 1.0 / self.dt if hasattr(self, 'dt') and self.dt > 0 else self.clock.get_fps()
 
         pygame.event.post(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
-
-    def _tick_clock(self) -> None:
-        """Tick the clock for FPS control."""
-        # If target_fps is 0, don't limit the frame rate (unlimited FPS)
-        if self.target_fps > 0:
-            self.clock.tick(self.target_fps)
-        else:
-            # For unlimited FPS, just tick without limiting
-            self.clock.tick()
-
-        # Feed FPS data directly to performance manager for accurate tracking
-        try:
-            from glitchygames.performance import performance_manager
-
-            current_fps = self.clock.get_fps()
-            # Calculate actual frame time for spare time calculation
-            frame_time = self.dt if hasattr(self, 'dt') else 0.0
-            if frame_time > 0:
-                LOG.debug('frame_time=%.1fms, fps=%.1f', frame_time * 1000, current_fps)
-            performance_manager.track_fps_from_event(current_fps, frame_time)
-        except ImportError:
-            pass  # Performance module not available
 
     def _update_scene(self) -> None:
         """Update the active scene."""

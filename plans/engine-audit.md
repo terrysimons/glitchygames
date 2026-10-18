@@ -40,6 +40,7 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 | 12 | Debug overlay (hitboxes, velocities, FPS) | Open | None exists |
 | 13 | Controller rebinding UI and settings persistence | Open | `ActionMap.to_dict`/`from_dict` exist; nothing saves or edits bindings |
 | 14 | Multiplayer input: player slots and targeted rumble | Open | All rumble is broadcast to every device; no engine player-to-device mapping (only Bitmappy's own controller manager). See below |
+| 15 | Frame loop: one _finish_frame() that paces with the timer backend and records that frame's measured time | Open | BUGS.md #25: pacing and FPS tracking measured frames differently; the deleted _tick_clock() was an early form of this |
 
 Nice to have, not needed by current games: sprite-sheet import, localization, pathfinding.
 
@@ -129,3 +130,13 @@ personal event (one player's death) must rumble only that player's controller, w
 how players join (press-to-join vs connection order), whether screen-shake rumble should ever be
 per player (split screen), keyboard players (no rumble).
 
+## #15 Frame loop: one end-of-frame call
+
+**Motivation:** BUGS.md #25. Frame pacing (timer backend or pygame clock) and FPS tracking measured
+frames differently: pacing used the timer, tracking used pygame's 10-frame `Clock.get_fps()`, so
+the statistics disagreed with what the loop actually did.
+
+**Idea:** a single `_finish_frame()` at the end of each main-loop iteration that paces with the
+timer backend and records that same frame's measured time, so pacing and measurement cannot
+disagree. `SceneManager._tick_clock()` was an early form of this idea; it was dead code and was
+removed in the BUGS.md #25 change (it is in git history).

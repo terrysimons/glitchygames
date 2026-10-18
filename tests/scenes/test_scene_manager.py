@@ -296,13 +296,6 @@ class TestSceneManagerInternals:
         # Test posting FPS event
         scene_manager._post_fps_event()
 
-    def test_scene_manager_tick_clock(self):
-        """Test SceneManager _tick_clock method."""
-        scene_manager = self.scene_manager
-
-        # Test clock ticking
-        scene_manager._tick_clock()
-
     def test_scene_manager_update_scene(self, mocker):
         """Test SceneManager _update_scene method."""
         scene_manager = self.scene_manager

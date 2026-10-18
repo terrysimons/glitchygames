@@ -14,6 +14,19 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 25. FPS Statistics Sampled pygame's 10-Frame Counter
+- **Description**: Per-frame FPS statistics held repeated, quantized and stale values. A PauseScene run had 10 frames, 9 at 243.9 (10000/41) and 1 stale 526.3, so the median equalled the minimum. The report also said `dropped top/bottom 5.0%` when no frames were dropped (fewer than 20 frames at 5% drops none)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: User
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-17
+- **Root Cause**: With unlimited FPS, `SceneManager._track_performance` recorded `clock.get_fps()` every frame. pygame-ce's `Clock.get_fps()` (1) recomputes only every 10 `tick()` calls, so each value repeats for 10 frames, (2) is `10000 / (milliseconds for the last 10 ticks)`, so values are quantized (357 = 10000/28, 385 = /26, 500 = /20), and (3) carries over from the previous scene because the clock is shared, so a new scene's first samples are stale. The trim label was printed whenever trim_percent > 0 regardless of the frames actually dropped
+- **Solution**: `_track_performance` records `1.0 / self.dt` (measured with `time.perf_counter()` in the main loop) on every path, and its unused `timer`/`period_ns` parameters were removed. The trim label is built from the actual `total_frames`/`trimmed_frames` (`no trimming`, `dropped 0 of N frames; the P% setting needs at least M`, or `dropped K frames from each end (P%)`). The dead `SceneManager._tick_clock()` (same `get_fps()` sampling, never called by the main loop) was removed; its idea is engine audit item #15
+- **Related changes**: (a) histogram buckets are ordered numerically instead of lexicographically by string key; (b) the median is the true median (mean of the two middle values for an even count) instead of the upper-middle element; (c) min/max come from all valid frames in both the global and per-scene stats (previously global used untrimmed and per-scene used trimmed data) and the printed lines are labelled `(all frames)` / `(analyzed frames)`; (d) new `one_percent_low_fps` (mean of the slowest 1% of all valid frames) printed after the minimum; (e) adaptive histogram bucketing: the smallest 1/2/5 x 10^k width that gives at most `MAX_HISTOGRAM_BUCKETS` (10) buckets, reported as `fps_bucket_width`, with range labels such as `450-469`; (f) the printed histogram lists buckets in ascending numeric order of their lower bound (the bell-curve rearrangement was removed); (g) FPS and frame-time histories use `deque(maxlen=...)` instead of `list.pop(0)` (12.5 us per frame per full 100k list)
+- **Tests**: `TestTrackPerformance` in `tests/scenes/test_scene.py`; `TestShutdownStatistics`, `TestHistogramBucketing` and `test_trim_label_*` in `tests/performance/test_adaptive_clamping.py`
+- **Files**: `glitchygames/scenes/scene.py`, `glitchygames/performance/adaptive_clamping.py`
+
 ### 24. Jumping on a Clockwork Keep Elevator Never Rides It
 - **Description**: `_check_elevator()` accepted `jump` as well as `interact`, but the jump handler clears `on_ground` during event processing and `_check_elevator()` requires `on_ground` on the next frame, so jump only ever jumped
 - **Status**: Resolved
