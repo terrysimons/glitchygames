@@ -1631,6 +1631,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         with Path(filename).open('w', encoding='utf-8') as f:
             f.write('[sprite]\n')
             f.write(f'name = "{self.name}"\n')
+            # The same [sprite] keys, in the same format, as _write_toml_sprite_section
+            if self.description:
+                f.write(f'description = """{self.description}"""\n')
             if self.frame_anchor is not FrameAnchor.NONE:
                 f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
             f.write('pixels = """\n')

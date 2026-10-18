@@ -14,6 +14,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 39. Single-Frame TOML Save Drops the Description
+- **Description**: Saving a single-frame (static) sprite lost its `[sprite] description`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found while fixing BUGS.md #36
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_save_toml_single_frame` writes its own `[sprite]` table (it needs `pixels` inside it) and wrote only `name`, `frame_anchor`, `pixels` and the hitbox, while the animated writer (`_write_toml_sprite_section`) also writes `description`. These are the only `[sprite]` keys the loader reads
+- **Solution**: The single-frame writer writes `description` in the same format as the animated writer
+- **Tests**: `test_static_sprite_metadata_survives_a_save_round_trip` and `test_bundled_sprite_metadata_survives_a_save_round_trip` (name, description, frame_anchor and effective hitbox for every bundled sprite) in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
 ### 38. Only One Loop Flag Per Sprite Honoured at Runtime
 - **Description**: An AnimatedSprite with a looping and a non-looping animation (cobra: idle loops, strike does not; Papyrus player: jumping/falling do not) used a single `is_looping` for all of them: after loading it was the last animation's `loop`, whichever animation played
 - **Status**: Resolved

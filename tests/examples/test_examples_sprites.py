@@ -495,3 +495,50 @@ def test_bundled_sprite_pixels_survive_a_save_round_trip(sprite_file, tmp_path):
         original_frames.items(), reloaded_frames, strict=True
     ):
         assert reloaded_frame == original_frame, frame_key
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+def test_bundled_sprite_metadata_survives_a_save_round_trip(sprite_file, tmp_path):
+    """Load -> save -> reload keeps the [sprite] name, description, frame_anchor and hitbox.
+
+    The single-frame (static) writer used to drop description.
+    """
+    from glitchygames.sprites import AnimatedSprite
+
+    original_sprite = AnimatedSprite(str(sprite_file))
+    saved_file = tmp_path / sprite_file.name
+    original_sprite.save(str(saved_file), 'toml')
+    reloaded_sprite = AnimatedSprite(str(saved_file))
+
+    def metadata(sprite):
+        return (sprite.name, sprite.description, sprite.frame_anchor, sprite.hitbox)
+
+    assert metadata(reloaded_sprite) == metadata(original_sprite)
+
+
+@pytest.mark.usefixtures('real_display')
+def test_static_sprite_metadata_survives_a_save_round_trip(tmp_path):
+    """A single-frame sprite keeps name, description, frame_anchor and hitbox when saved."""
+    from glitchygames.sprites import AnimatedSprite
+
+    sprite_file = tmp_path / 'static.toml'
+    sprite_file.write_text(
+        '[sprite]\nname = "rock"\ndescription = """A grey rock.\nIt does not move."""\n'
+        'frame_anchor = "bottom"\npixels = """\n#.\n##\n"""\n\n'
+        '[sprite.hitbox]\noffset_x = 0\noffset_y = 0\nwidth = 2\nheight = 2\n\n'
+        '[colors."#"]\nred = 90\ngreen = 90\nblue = 90\n\n'
+        '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n',
+        encoding='utf-8',
+    )
+    original_sprite = AnimatedSprite(str(sprite_file))
+    saved_file = tmp_path / 'resaved.toml'
+    original_sprite.save(str(saved_file), 'toml')
+    reloaded_sprite = AnimatedSprite(str(saved_file))
+
+    assert reloaded_sprite.description == 'A grey rock.\nIt does not move.'
+    assert (reloaded_sprite.name, reloaded_sprite.frame_anchor, reloaded_sprite.hitbox) == (
+        original_sprite.name,
+        original_sprite.frame_anchor,
+        original_sprite.hitbox,
+    )
