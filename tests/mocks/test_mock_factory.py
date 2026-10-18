@@ -1604,6 +1604,8 @@ class MockFactory:  # ruff: ignore[too-many-public-methods]
         mixer_mock = Mock()
         mixer_mock.Sound.return_value = Mock()
         mixer_mock.get_init.return_value = (22050, -16, 2)  # frequency, format, channels
+        mixer_mock.get_num_channels.return_value = 8  # pygame-ce's default channel count
+        mixer_mock.set_reserved.side_effect = lambda count: count  # Returns the count reserved
 
         # Keyboard mocking
         key_mock = Mock()

@@ -486,6 +486,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.registered_events: dict[int, Callable[..., Any]] = {}
         self.app_manager: AppEventManager
         self.audio_manager: AudioEventManager
+        self.live_voice_channels: tuple[int, ...] = ()
         self.drop_manager: DropEventManager
         self.controller_manager: ControllerEventManager | None = None
         self.touch_manager: TouchEventManager
@@ -816,6 +817,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         self.app_manager = AppEventManager(game=self.scene_manager)
         self.audio_manager = AudioEventManager(game=self.scene_manager)
+
+        # Reserve live synth voice channels now, before anything can play (see audio/live.py)
+        from glitchygames.audio.live import reserve_live_voice_pool
+
+        self.live_voice_channels = reserve_live_voice_pool(
+            int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL))
+        )
+
         self.drop_manager = DropEventManager(game=self.scene_manager)
 
         # Determine input mode for gamepads

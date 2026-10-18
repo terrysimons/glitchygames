@@ -441,6 +441,20 @@ class TestSceneManagerInternals:
         self.scene_manager._update_frame_services()
         device.rumble.assert_called_once()
 
+    def test_live_audio_is_lazy_and_updated_with_pending_transition(self, mocker):
+        manager = self.scene_manager
+        manager._live_audio = None
+        manager._update_frame_services()  # No LiveAudio created by merely running frames
+        assert manager._live_audio is None
+        live_audio = mocker.Mock()
+        manager._live_audio = live_audio
+        pending = mocker.Mock()
+        manager._pending_transition = (mocker.Mock(), pending)
+        manager._update_frame_services()
+        assert live_audio.update.call_args.kwargs['active_transitions'][1] is pending
+        manager._pending_transition = None
+        manager._live_audio = None
+
 
 class TestSceneShake:
     """Test Scene.shake targeting."""

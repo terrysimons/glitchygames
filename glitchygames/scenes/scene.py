@@ -21,6 +21,7 @@ from glitchygames.interfaces import SceneInterface, SpriteInterface
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
 
 LOG = logging.getLogger('game.scenes')
@@ -85,6 +86,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self.screen_shake: ScreenShake = ScreenShake()
         self._screen_shake_was_presented: bool = False
         self.rumble: RumbleController = RumbleController()
+        self._live_audio: LiveAudio | None = None
 
         # Jitter tracking attributes
         self._jitter_samples: list[int] = []
@@ -258,7 +260,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 sprite.dirty = max(sprite.dirty, 1)
 
     def _update_frame_services(self: Self) -> None:
-        """Advance services that outlive scenes: screen shake and rumble."""
+        """Advance services that outlive scenes: screen shake, rumble and live audio."""
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
@@ -271,6 +273,27 @@ class SceneManager(SceneInterface, events.EventManager):
             dt=self.dt,
             devices=lambda: connected_rumble_devices(controller_manager),
         )
+
+        # The pending transition counts: a ride creates its motor before transition_to starts it
+        if self._live_audio is not None:
+            pending_transition = (
+                self._pending_transition[1] if self._pending_transition is not None else None
+            )
+            self._live_audio.update(
+                active_scene=self.active_scene,
+                previous_scene=self.previous_scene,
+                active_transitions=(self._active_transition, pending_transition),
+            )
+
+    @property
+    def live_audio(self: Self) -> LiveAudio:
+        """Live synth voices, created on first use from the engine's reserved channels."""
+        if self._live_audio is None:
+            from glitchygames.audio.live import LiveAudio
+
+            channels = getattr(self.game_engine, 'live_voice_channels', ())
+            self._live_audio = LiveAudio(channel_indices=channels)
+        return self._live_audio
 
     def _present_frame(self: Self, *, full_update: bool) -> None:
         """Present the rendered frame, shifted by any active SCREEN shake.

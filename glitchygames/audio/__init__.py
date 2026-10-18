@@ -13,6 +13,7 @@ Usage:
 
 from glitchygames.audio.controller_audio import ControllerAudio
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundRecipeError
+from glitchygames.audio.live import LiveAudio, LiveVoice
 from glitchygames.audio.recipes import (
     SoundBank,
     SoundRecipe,
@@ -28,6 +29,8 @@ __all__ = [
     'AudioUnavailableError',
     'ControllerAudio',
     'Envelope',
+    'LiveAudio',
+    'LiveVoice',
     'MacOSTTS',
     'SoundBank',
     'SoundRecipe',
