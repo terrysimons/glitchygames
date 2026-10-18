@@ -279,7 +279,9 @@ class FontManager(ResourceManager):
             # BUG: pygame's documentation claims that passing None as the font name
             # will load the default font, but this raises TypeError ("not a file object")
             # in PyInstaller-packaged games. Load the bundled Vera.ttf instead.
-            font_path = Path(__file__).parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
+            # This module lives in glitchygames/fonts/, next to bitstream_vera/ (bitmappy.spec
+            # bundles it at glitchygames/fonts/bitstream_vera)
+            font_path = Path(__file__).parent / 'bitstream_vera' / 'Vera.ttf'
             loaded_font = cast(
                 'GameFont',
                 pygame.freetype.Font(file=font_path, size=12),

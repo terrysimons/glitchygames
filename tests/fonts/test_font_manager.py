@@ -223,6 +223,41 @@ class TestFontManagerFontMethodBranches:
         assert 'arial_14' in FontManager._font_cache
 
 
+class TestFontManagerBuiltInFallback:
+    """The built-in fallback (used by PyInstaller-packaged games) loads the bundled Vera.ttf."""
+
+    @pytest.fixture(autouse=True)
+    def clear_caches(self):
+        """Clear font caches before and after each test.
+
+        Yields:
+            None: Control to the test.
+
+        """
+        FontManager._font_cache.clear()
+        FontManager.OPTIONS.clear()
+        yield
+        FontManager._font_cache.clear()
+        FontManager.OPTIONS.clear()
+
+    @pytest.mark.parametrize('system_font_error', [TypeError, FileNotFoundError])
+    def test_fallback_loads_the_bundled_font(self, mocker, system_font_error):
+        """When SysFont fails, a real freetype font is loaded from a file that exists."""
+        import pygame.freetype
+
+        pygame.freetype.init()
+        real_font_class = pygame.freetype.Font
+        mocker.patch('pygame.freetype.SysFont', side_effect=system_font_error('no font'))
+        font_spy = mocker.spy(pygame.freetype, 'Font')
+
+        loaded_font = FontManager.font({'font_name': 'missing_font', 'font_size': 16})
+
+        font_path = Path(font_spy.call_args.kwargs['file'])
+        assert font_path.is_file()
+        assert font_path.name == 'Vera.ttf'
+        assert isinstance(loaded_font, real_font_class)
+
+
 class TestFontManagerArgs:
     """Test FontManager.args class method."""
 
