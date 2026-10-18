@@ -552,3 +552,10 @@ Kept here because the review ledger was a temporary workspace.
 - Task 13: never-started IDLE voices hold their channel until the owner is abandoned; abandoned owner cuts off a FADING voice
 - Task 14: respawn land test asserts <= 1, would not catch a spurious tween-triggered play
 - Task 14: jump allowed (now with sound) while respawning if the tween set on_ground
+- Deferred (2026-10-17): probe capture mode — record the real speaker output through a loopback
+  device (BlackHole) with `miniaudio`, report every gap/click with timestamps, and count live-voice
+  underruns in the shutdown report. Brief kept with the session notes; skipped because the GIL fix
+  removed the audible clicks.
+- Power idea (2026-10-17): the fast timer spins for the last ~1 ms of each frame (~6% of a core at
+  60 FPS); a configurable, shorter spin window could save power at some cost in pacing precision —
+  compare with the target-relative histogram before changing the default.
