@@ -34,9 +34,6 @@ from glitchygames.sprites import (
 )
 from tests.mocks import MockFactory
 
-# pytester runs a test sequence in a fresh interpreter (tests/world/test_mock_isolation.py)
-pytest_plugins = ['pytester']
-
 
 def _load_lazy_pygame_modules() -> None:
     """Run the imports pygame defers until first use, while pygame is still unpatched.

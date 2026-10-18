@@ -579,12 +579,12 @@ class EventInterface(abc.ABC):
         for attribute in sorted(interface_attributes):
             if hasattr(subclass, attribute) and attribute not in subclass_attributes:
                 if callable(getattr(subclass, attribute)):
-                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (callable)')
+                    cls.log.debug(f'{subclass.__name__}.{attribute} -> implemented (callable)')
                 else:
-                    cls.log.info(f'{subclass.__name__}.{attribute} -> ✅ (attribute))')
+                    cls.log.debug(f'{subclass.__name__}.{attribute} -> implemented (attribute)')
                 methods.append(True)
             else:
-                cls.log.info(f'{subclass.__name__}.{attribute} -> ❌ (unimplemented)')
+                cls.log.debug(f'{subclass.__name__}.{attribute} -> unimplemented')
                 methods.append(False)
 
         # all([]) returns True, so mask it

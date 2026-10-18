@@ -5,6 +5,7 @@ EventManager, ResourceManager, and utility functions.
 """
 
 import copy
+import logging
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -673,6 +674,24 @@ class TestEventInterface:
                 pass
 
         assert not issubclass(PartialKeyboardHandler, KeyboardEvents)
+
+    def test_subclasshook_logs_its_checks_at_debug_without_emoji(self, mock_pygame_patches, caplog):
+        """The per-attribute check log is DEBUG-level, plain text."""
+        from glitchygames.events import KeyboardEvents
+
+        class FreshKeyboardHandler:
+            def on_key_down_event(self, event):
+                pass
+
+        caplog.set_level(logging.DEBUG, logger=KeyboardEvents.log.name)
+        KeyboardEvents.__subclasshook__(FreshKeyboardHandler)
+
+        hook_records = [
+            record for record in caplog.records if 'FreshKeyboardHandler.' in record.getMessage()
+        ]
+        assert len(hook_records) == len(KeyboardEvents.__abstractmethods__)
+        assert all(record.levelno == logging.DEBUG for record in hook_records)
+        assert all(record.getMessage().isascii() for record in hook_records)
 
     def test_subclasshook_defers_to_inheritance_when_structure_does_not_match(
         self, mock_pygame_patches

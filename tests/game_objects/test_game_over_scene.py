@@ -80,10 +80,16 @@ class TestGameOverScene:
         space_event.key = pygame.K_SPACE
         scene.on_key_down_event(space_event)
 
+        # SPACE only arms the restart (it happens on release); it never quits
+        assert scene._space_pressed is True
+        scene.scene_manager.quit.assert_not_called()
+
         # Test ESC key (quit)
         esc_event = mocker.Mock()
         esc_event.key = pygame.K_ESCAPE
         scene.on_key_down_event(esc_event)
+
+        scene.scene_manager.quit.assert_called_once()
 
 
 class TestGameOverIntegration:
