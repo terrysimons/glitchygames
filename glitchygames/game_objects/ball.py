@@ -8,7 +8,7 @@ import math
 import secrets
 from dataclasses import dataclass
 from enum import Enum, Flag, auto
-from typing import TYPE_CHECKING, Self, override
+from typing import TYPE_CHECKING, NamedTuple, Self, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -41,6 +41,27 @@ CONTINUOUS_SPEED_UP_TIME_TOLERANCE = 1e-9
 
 # Steepest allowed serve angle from horizontal (straight up or down)
 MAXIMUM_SERVE_ANGLE_DEGREES = 90.0
+
+
+class VisibleRect(NamedTuple):
+    """A ball's visible collision rect and its offset from the drawn (snapped) position."""
+
+    left: int
+    top: int
+    width: int
+    height: int
+    offset_x: int  # visible left minus the snapped world x
+    offset_y: int  # visible top minus the snapped world y
+
+    @property
+    def right(self) -> int:
+        """The visible right edge (exclusive, like pygame.Rect.right)."""
+        return self.left + self.width
+
+    @property
+    def bottom(self) -> int:
+        """The visible bottom edge (exclusive, like pygame.Rect.bottom)."""
+        return self.top + self.height
 
 
 class BallSpawnMode:
@@ -263,8 +284,9 @@ class ServeSettings:
         horizontal: Horizontal direction of the serve.
         vertical: Vertical direction of the serve.
         speed: Serve speed in px/s.
-        spawn_margin: Minimum distance in px between a served ball and each screen
-            edge; on screens too small for it the ball is centered.
+        spawn_margin: Minimum distance in px between a served ball's visible circle
+            (its collision rect) and each screen edge; on screens too small for it the
+            ball is centered.
 
     """
 
@@ -452,18 +474,22 @@ class BallSprite(Sprite):
         self.speed_up_count = 0
         self._continuous_elapsed_time = 0.0
 
+        # The margin is measured from the visible circle (the collision rect) to each edge
         margin = self.serve_settings.spawn_margin
+        visible_rect = self._visible_rect()
         self.world_x = float(
-            self._random_spawn_coordinate(int(self.screen_width - self.width), margin)
+            self._random_spawn_coordinate(int(self.screen_width - visible_rect.width), margin)
+            - visible_rect.offset_x
         )
         self.world_y = float(
-            self._random_spawn_coordinate(int(self.screen_height - self.height), margin)
+            self._random_spawn_coordinate(int(self.screen_height - visible_rect.height), margin)
+            - visible_rect.offset_y
         )
         self.serve(serve_toward=serve_toward)
 
     @staticmethod
     def _random_spawn_coordinate(maximum_position: int, margin: int) -> int:
-        """Pick a coordinate in [margin, maximum_position - margin], or center if no room.
+        """Pick a visible-edge coordinate in [margin, maximum_position - margin], or center.
 
         Returns:
             int: The coordinate (never negative).
@@ -613,12 +639,13 @@ class BallSprite(Sprite):
 
         self._do_bounce()
 
-        # Only kill ball if it goes off screen and left/right bouncing is disabled
-        if not self.bounce_left_right and (
-            self.rect.x > self.screen_width or self.rect.x < -self.width
-        ):
-            # Mark ball for deletion instead of resetting
-            self.kill()
+        # Only kill ball once its visible circle is fully off screen and left/right
+        # bouncing is disabled
+        if not self.bounce_left_right:
+            visible_rect = self._visible_rect()
+            if visible_rect.left > self.screen_width or visible_rect.right < 0:
+                # Mark ball for deletion instead of resetting
+                self.kill()
 
         # Vertical boundaries are handled by bounce(), not reset.
 
@@ -665,19 +692,22 @@ class BallSprite(Sprite):
         hit_horizontal_wall = False  # top or bottom
         hit_vertical_wall = False  # left or right
 
+        # Contact is on the visible circle's box at the snapped (drawn) position
+        visible_rect = self._visible_rect()
+
         if self.bounce_top_bottom:
-            if self.rect.y <= 0 and self.speed.y < 0:
+            if visible_rect.top <= 0 and self.speed.y < 0:
                 self._handle_top_collision(log)
                 hit_horizontal_wall = True
-            elif self.rect.y + self.height >= self.screen_height and self.speed.y > 0:
+            elif visible_rect.bottom >= self.screen_height and self.speed.y > 0:
                 self._handle_bottom_collision(log)
                 hit_horizontal_wall = True
 
         if self.bounce_left_right:
-            if self.rect.x <= 0 and self.speed.x < 0:
+            if visible_rect.left <= 0 and self.speed.x < 0:
                 self._handle_left_collision(log)
                 hit_vertical_wall = True
-            elif self.rect.x + self.width >= self.screen_width and self.speed.x > 0:
+            elif visible_rect.right >= self.screen_width and self.speed.x > 0:
                 self._handle_right_collision(log)
                 hit_vertical_wall = True
 
@@ -695,30 +725,58 @@ class BallSprite(Sprite):
         """Mirror any overshoot past a bouncing wall back inside the playfield.
 
         Runs whether or not the ball bounced this frame, so a ball found past a wall
-        while moving away from it (or not moving) is still put back inside.
+        while moving away from it (or not moving) is still put back inside. The limits
+        are where the visible circle's edges meet the walls.
         """
+        visible_rect = self._visible_rect()
         if self.bounce_top_bottom:
             self.world_y = self._mirrored_inside(
-                self.world_y, float(self.screen_height - self.height)
+                self.world_y,
+                minimum=float(-visible_rect.offset_y),
+                maximum=float(self.screen_height - visible_rect.height - visible_rect.offset_y),
             )
         if self.bounce_left_right:
             self.world_x = self._mirrored_inside(
-                self.world_x, float(self.screen_width - self.width)
+                self.world_x,
+                minimum=float(-visible_rect.offset_x),
+                maximum=float(self.screen_width - visible_rect.width - visible_rect.offset_x),
             )
 
     @staticmethod
-    def _mirrored_inside(position: float, maximum: float) -> float:
-        """Mirror a position that overshot [0, maximum] back inside, clamping huge overshoots.
+    def _mirrored_inside(position: float, *, minimum: float, maximum: float) -> float:
+        """Mirror a position that overshot [minimum, maximum] back inside, clamping huge ones.
 
         Returns:
-            float: The position within [0, maximum].
+            float: The position within [minimum, maximum].
 
         """
-        if position < 0.0:
-            position = -position
+        if position < minimum:
+            position = 2.0 * minimum - position
         elif position > maximum:
             position = 2.0 * maximum - position
-        return min(max(position, 0.0), maximum)
+        return min(max(position, minimum), maximum)
+
+    def _visible_rect(self: Self) -> VisibleRect:
+        """Return the ball's visible collision rect and its offset from the drawn position.
+
+        The rect is the same one collision checks use (get_collision_rect: the visible
+        pixels of the image at the snapped world position), so walls, paddles and other
+        balls all meet the circle players see.
+
+        Returns:
+            VisibleRect: The rect plus its offset from the snapped world position.
+
+        """
+        collision_rect = get_collision_rect(self, self.world_x, self.world_y)
+        snapped_world_x, snapped_world_y = snapped_world_position(self, self.world_x, self.world_y)
+        return VisibleRect(
+            left=collision_rect.left,
+            top=collision_rect.top,
+            width=collision_rect.width,
+            height=collision_rect.height,
+            offset_x=collision_rect.x - snapped_world_x,
+            offset_y=collision_rect.y - snapped_world_y,
+        )
 
     def _handle_top_collision(self: Self, log: logging.Logger) -> None:
         """Reflect the velocity off the top wall.
@@ -836,21 +894,19 @@ class BallSprite(Sprite):
             otherwise.
 
         """
-        ball_rect = get_collision_rect(self, self.world_x, self.world_y)
+        ball_rect = self._visible_rect()
         paddle_rect = get_sprite_collision_rect(paddle)
 
         radius = ball_rect.width / 2
-        ball_center_x = ball_rect.x + ball_rect.width / 2
-        ball_center_y = ball_rect.y + ball_rect.height / 2
+        ball_center_x = ball_rect.left + ball_rect.width / 2
+        ball_center_y = ball_rect.top + ball_rect.height / 2
         closest_x = min(max(ball_center_x, paddle_rect.left), paddle_rect.right)
         closest_y = min(max(ball_center_y, paddle_rect.top), paddle_rect.bottom)
         distance_squared = (ball_center_x - closest_x) ** 2 + (ball_center_y - closest_y) ** 2
         if distance_squared > radius * radius:
             return False
 
-        # Offset of the visible pixels from the snapped position the ball is drawn at
-        snapped_world_x, _ = snapped_world_position(self, self.world_x, self.world_y)
-        visible_offset_x = ball_rect.x - snapped_world_x
+        visible_offset_x = ball_rect.offset_x
         paddle_center_x = paddle_rect.x + paddle_rect.width / 2
 
         if ball_center_x < paddle_center_x:
