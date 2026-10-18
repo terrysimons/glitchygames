@@ -529,6 +529,7 @@ class GoldenTraceSceneManager(SceneManager):
         # The transition branch mirrors SceneManager.start()
         if self._active_transition is not None:
             transition_done = self._active_transition.update(self.dt)
+            self._process_transition_events()
             self._update_frame_services()
             self._active_transition.render(self.screen)
             self._present_frame(full_update=True)

@@ -22,6 +22,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 55. Input Pressed During a Scene Transition Is Delivered When It Ends
+- **Description**: Keys, buttons and clicks pressed during a transition (about 4 s for Clockwork Keep's elevator ride) were all delivered at once to the new scene when it ended: a jump pressed mid-ride jumped on arrival. A key held before the ride and released during it still read as held on the arrival scene's first frame, and quit or a controller disconnect during a ride waited for it to end
+- **Status**: Resolved
+- **Priority**: Medium (stale input acted on arrival)
+- **Reporter**: Found while planning the engine world space (`plans/2026-10-18-engine-world-space.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `SceneManager.start()`'s transition branch never processed events, so they queued in SDL for the whole transition
+- **Solution**: Each transition frame calls the new `SceneManager._process_transition_events()`, which runs `GameEngine.process_events(discarded_event_types=TRANSITION_DISCARDED_EVENT_TYPES)`: presses and motion (`KEYDOWN`, `TEXTINPUT`, `MOUSEBUTTONDOWN`, `MOUSEMOTION`, `MOUSEWHEEL`, `JOYBUTTONDOWN`, `JOYAXISMOTION`, `JOYHATMOTION`, `JOYBALLMOTION`, `CONTROLLERBUTTONDOWN`, `CONTROLLERAXISMOTION`, `FINGERDOWN`, `FINGERMOTION`) are dropped; releases, quit, window, focus and device events go through the normal dispatch. They reach the incoming scene, which `_start_transition` has already made active (the outgoing scene is cleaned up). The golden-trace harness's copy of the transition branch (`GoldenTraceSceneManager.run_frame`) does the same
+- **Files Modified**: `glitchygames/scenes/scene.py`, `glitchygames/engine/game_engine.py`, `scripts/record_golden_traces.py`
+- **Tests**: `tests/world/test_transition_input.py` (real engine and scenes through the harness): a jump pressed and released mid-ride does not jump on arrival; a key held before a transition and released during it is not held after (shared `ActionMap`); a press during a transition is never delivered; quit during a transition quits; a joystick removal during a transition reaches the joystick manager; the discard set holds no release. The golden traces did not change: the only scripted input inside a transition is Clockwork Keep's interact release at frame 354 (ride: frames 352-592), which the arrival floor's fresh `ActionMap` ignores whether it arrives during or after the ride
+
 ### 54. GameEngine.process_events Drops Events
 - **Description**: Events queued in the same frame as an unhandled event were lost, scenes that take raw pygame events (`process_event`) only ever received the first event of each frame, and an event type missing from `EVENT_HANDLERS` was reported with the previous event's result
 - **Status**: Resolved

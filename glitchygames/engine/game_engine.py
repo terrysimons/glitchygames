@@ -1176,13 +1176,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Pass other events to the scene manager
         self.scene_manager.handle_event(event)
 
-    def process_events(self: Self) -> bool:
+    def process_events(self: Self, *, discarded_event_types: frozenset[int] = frozenset()) -> bool:
         """Process every event queued this frame.
 
         ``pygame.event.get()`` removes the whole batch from SDL's queue at once, so every event
         of the batch is handled here: none may be dropped. Each event is judged on its own; an
         event whose type has no entry in ``EVENT_HANDLERS``, or whose handler did not handle
         it, goes to ``process_unimplemented_event``.
+
+        Args:
+            discarded_event_types: Event types removed from the batch without being processed
+                (not counted as unhandled). SceneManager passes the input presses during a
+                transition (``TRANSITION_DISCARDED_EVENT_TYPES``).
 
         Returns:
             bool: True if every event of the batch was handled, False otherwise (including an
@@ -1206,6 +1211,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         every_event_was_handled = True
         for pygame_event in raw_events:
+            if pygame_event.type in discarded_event_types:
+                continue
+
             # Support scenes processing pygame raw events, bypassing
             # the glitchygames.engine event processing altogether
             if hasattr(self._active_scene, 'process_event'):

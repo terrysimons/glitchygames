@@ -32,6 +32,26 @@ LOG.addHandler(logging.NullHandler())
 JITTER_SAMPLE_BUFFER_MAX_SIZE = 512
 SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
 
+# Input dropped while a transition plays (SceneManager._process_transition_events): presses
+# and motion, so nothing pressed during a ride acts when it ends. Releases (KEYUP,
+# MOUSEBUTTONUP, JOYBUTTONUP, CONTROLLERBUTTONUP, FINGERUP), quit, window, focus and device
+# events are still delivered, so held-input state (ActionMap) is never left stuck.
+TRANSITION_DISCARDED_EVENT_TYPES: frozenset[int] = frozenset({
+    pygame.KEYDOWN,
+    pygame.TEXTINPUT,
+    pygame.MOUSEBUTTONDOWN,
+    pygame.MOUSEMOTION,
+    pygame.MOUSEWHEEL,
+    pygame.JOYBUTTONDOWN,
+    pygame.JOYAXISMOTION,
+    pygame.JOYHATMOTION,
+    pygame.JOYBALLMOTION,
+    pygame.CONTROLLERBUTTONDOWN,
+    pygame.CONTROLLERAXISMOTION,
+    pygame.FINGERDOWN,
+    pygame.FINGERMOTION,
+})
+
 
 class SceneManager(SceneInterface, events.EventManager):
     """Glitchy Games Scene Manager.
@@ -636,6 +656,7 @@ class SceneManager(SceneInterface, events.EventManager):
             # During a transition, render the transition effect instead of the scene
             if self._active_transition is not None:
                 transition_done = self._active_transition.update(self.dt)
+                self._process_transition_events()
                 self._update_frame_services()
                 self._active_transition.render(self.screen)
                 self._present_frame(full_update=True)
@@ -864,6 +885,19 @@ class SceneManager(SceneInterface, events.EventManager):
         """Process game engine events."""
         if self.game_engine is not None:
             self.game_engine.process_events()
+
+    def _process_transition_events(self) -> None:
+        """Drain the event queue during a transition frame.
+
+        Presses and motion (``TRANSITION_DISCARDED_EVENT_TYPES``) are discarded, so input
+        pressed during a ride never acts when it ends. Everything else goes through the normal
+        GameEngine dispatch: releases (so held keys, including ActionMap state, are never left
+        stuck), quit, window, focus and device events. ``_start_transition`` has already made
+        the incoming scene the active scene, so the delivered events reach the scene that will
+        be active after the transition; the outgoing scene has been cleaned up.
+        """
+        if self.game_engine is not None:
+            self.game_engine.process_events(discarded_event_types=TRANSITION_DISCARDED_EVENT_TYPES)
 
     def _render_scene(self) -> None:
         """Render the active scene."""
