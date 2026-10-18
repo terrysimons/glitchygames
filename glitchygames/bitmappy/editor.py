@@ -27,7 +27,7 @@ from glitchygames.ui.dialogs import (
     SaveDialogScene,
 )
 
-from .ai_manager import AIManager
+from .ai_manager import AIManager, shut_down_running_ai_workers
 from .animated_canvas import AnimatedCanvasSprite  # ruff: ignore[typing-only-first-party-import] - re-exported for test imports
 from .constants import (
     LOG,
@@ -1584,10 +1584,20 @@ def main() -> None:
     """
     LOG.setLevel(logging.INFO)
 
+    # Signals received, logged once the engine has stopped (see signal_handler)
+    received_signals: list[int] = []
+
     # Set up signal handling to prevent multiprocessing issues on macOS
     def signal_handler(signum: int, _frame: types.FrameType | None) -> None:
-        """Handle shutdown signals gracefully."""
-        LOG.info(f'Received signal {signum}, shutting down gracefully...')
+        """Handle shutdown signals gracefully.
+
+        Only records the signal and raises SystemExit. SystemExit unwinds the engine
+        (releasing whatever the main thread held) and the finally below then logs and shuts
+        the AI worker down. Doing either here could fail: logging while the interrupted code
+        is writing to stderr raises "reentrant call inside BufferedWriter" (which replaced
+        SystemExit and lost the signal), and a queue put could block on a lock it holds.
+        """
+        received_signals.append(signum)
         sys.exit(0)
 
     # Register signal handlers
@@ -1607,7 +1617,15 @@ def main() -> None:
     load_ai_training_data()
 
     # Start the engine
-    engine.start()
+    try:
+        engine.start()
+    finally:
+        for received_signal in received_signals:
+            LOG.info(f'Received signal {received_signal}, shutting down gracefully...')
+        # A signal ends the engine with SystemExit, which skips the scenes' cleanup, so shut
+        # the AI worker down here the way a normal quit does: send its shutdown message, join
+        # with a timeout, terminate only if it does not exit (a no-op after a normal quit)
+        shut_down_running_ai_workers()
 
 
 if __name__ == '__main__':

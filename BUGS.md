@@ -22,6 +22,19 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 52. Bitmappy's Signal Handler Skips the AI Worker's Graceful Shutdown (and Can Lose the Signal)
+- **Description**: On SIGINT/SIGTERM Bitmappy exited without the AI worker's shutdown (`AIManager.cleanup`), so the worker (a daemon `multiprocessing.Process`) was killed at exit instead of receiving its shutdown message. A terminal Ctrl-C also killed the worker directly with KeyboardInterrupt. Verifying the fix showed a worse problem: a signal arriving while the editor was writing a log line was lost and the editor kept running
+- **Status**: Resolved
+- **Priority**: Low (no leak or traceback observed in normal runs), but the lost signal meant `kill` sometimes needed sending twice
+- **Reporter**: Found while verifying BUGS.md #47 in the binary (`plans/future-work.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `editor.main`'s handler called `sys.exit(0)`; the SystemExit ends `GameEngine.start` without the scene manager's loop exit, so no scene `cleanup()` (and so no `AIManager.cleanup`) ran. The terminal sends SIGINT to the whole process group, and the spawned worker kept Python's default SIGINT handler. The handler also logged; when the signal interrupted a write to stderr, logging raised `RuntimeError: reentrant call inside <_io.BufferedWriter name='<stderr>'>`, which escaped the handler in place of SystemExit and was swallowed by the frame loop
+- **Solution**: The handler now only records the signal and raises SystemExit. `main` wraps `engine.start()` in `try/finally`; the finally logs the signal and calls `shut_down_running_ai_workers()`, which runs `AIManager.cleanup` (shutdown message, join for `AI_WORKER_JOIN_TIMEOUT_SECONDS` = 2 s, terminate and then kill only if still alive, close queues) for each manager whose worker is running (a `WeakSet` filled by `AIManager.setup`). It runs after SystemExit has unwound the engine, so it cannot block on a lock the interrupted code held, and it does nothing after a normal quit (cleanup unregisters the manager and clears its process and queues, so it is safe to call twice). The worker now starts through `run_ai_worker_process`, which ignores SIGINT so Ctrl-C leaves it to exit on its shutdown message (`terminate()` still stops it)
+- **Verification**: Ran `uv run bitmappy` headless (`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`), waited for the worker, then sent SIGTERM to the editor process and, in a second run, SIGINT to the whole process group (as Ctrl-C does). Both exited in under 0.3 s with code 0, logged the shutdown message being sent and `AI process cleanup completed` without terminating the worker, printed no traceback, and left no processes
+- **Files Modified**: `glitchygames/bitmappy/editor.py`, `glitchygames/bitmappy/ai_manager.py`, `glitchygames/bitmappy/ai_worker.py`
+- **Tests**: `TestAiWorkerShutdown` in `tests/tools/test_bitmappy.py`: a signal while the engine runs exits 0 through `shut_down_running_ai_workers` without logging inside the handler; cleanup sends the message then joins with the timeout and does not terminate a worker that exits; terminates one that does not; started managers are shut down once; the worker process ignores SIGINT
+
 ### 51. Undoing a Bitmappy Animation Delete Fails and Loses Its Transitions and Settings
 - **Description**: Deleting an animation drops the `[[transition]]` entries from or to it (BUGS.md #44), and undoing the delete did not bring them back. Fixing that showed the undo had never worked: it failed with `AttributeError: 'PixelArray' object has no attribute 'flat'` and restored nothing
 - **Status**: Resolved

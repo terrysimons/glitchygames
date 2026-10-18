@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import operator
+import signal
 import time
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
@@ -913,6 +914,25 @@ def _extract_response_content(response: object, log: logging.Logger) -> AIRespon
     content = message.content  # type: ignore[reportUnknownMemberType]
     log.info(f'Response content length: {len(content) if content else 0}')  # type: ignore[arg-type]
     return AIResponse(content=content)  # type: ignore[arg-type]
+
+
+def run_ai_worker_process(
+    request_queue: multiprocessing.Queue[AIRequest | None],
+    response_queue: multiprocessing.Queue[tuple[str, AIResponse]],
+) -> None:
+    """Run the AI worker as the editor's background process (AIManager's Process target).
+
+    Ctrl-C in a terminal sends SIGINT to the whole process group. The worker ignores it so it
+    is not killed by KeyboardInterrupt and instead exits on the shutdown message the editor
+    sends while it shuts down (AIManager.cleanup). terminate() (SIGTERM) still stops it.
+
+    Args:
+        request_queue: Queue to receive requests from (None asks the worker to exit).
+        response_queue: Queue to send responses to.
+
+    """
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    run_ai_worker(request_queue, response_queue)
 
 
 def run_ai_worker(

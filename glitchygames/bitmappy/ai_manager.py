@@ -11,6 +11,7 @@ import logging
 import multiprocessing
 import tempfile
 import time
+import weakref
 from pathlib import Path
 from queue import Empty
 from typing import TYPE_CHECKING, Any
@@ -34,7 +35,11 @@ from glitchygames.sprites import (
 )
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 
-from .ai_worker import build_retry_prompt, run_ai_worker, select_relevant_training_examples
+from .ai_worker import (
+    build_retry_prompt,
+    run_ai_worker_process,
+    select_relevant_training_examples,
+)
 from .constants import (
     AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT,
     AI_VALIDATION_MAX_RETRIES,
@@ -56,6 +61,26 @@ from .toml_processing import (
 
 if TYPE_CHECKING:
     from .protocols import EditorContext
+
+
+# How long cleanup waits for the worker to exit on its shutdown message before terminating it
+AI_WORKER_JOIN_TIMEOUT_SECONDS = 2.0
+
+# AIManagers whose worker process is running, so shut_down_running_ai_workers can reach them
+# after a signal; weak so a discarded editor's manager does not stay alive
+_RUNNING_AI_MANAGERS: weakref.WeakSet[AIManager] = weakref.WeakSet()
+
+
+def shut_down_running_ai_workers() -> None:
+    """Shut down every running AI worker the way a normal quit does (AIManager.cleanup).
+
+    Bitmappy's main() calls it when the engine stops, so a SIGINT/SIGTERM (which ends the
+    engine with SystemExit and skips the scenes' cleanup) still sends each worker its shutdown
+    message, joins it with a timeout and terminates it only if it does not exit. Workers
+    already shut down by a normal quit are no longer registered, so this then does nothing.
+    """
+    for manager in list(_RUNNING_AI_MANAGERS):
+        manager.cleanup()
 
 
 class AIManager:
@@ -95,13 +120,14 @@ class AIManager:
                 self.ai_response_queue = multiprocessing.Queue()
 
                 self.ai_process = multiprocessing.Process(
-                    target=run_ai_worker,
+                    target=run_ai_worker_process,
                     args=(self.ai_request_queue, self.ai_response_queue),
                     daemon=True,
                 )
 
                 self.ai_process.start()
                 self.log.info(f'AI worker process started with PID: {self.ai_process.pid}')
+                _RUNNING_AI_MANAGERS.add(self)
 
             except OSError, RuntimeError:
                 self.log.exception('Error initializing AI worker process')
@@ -127,10 +153,19 @@ class AIManager:
             self.log.exception('Error checking AI responses')
 
     def cleanup(self) -> None:
-        """Shut down AI worker and clean up resources."""
+        """Shut down AI worker and clean up resources.
+
+        Sends the worker its shutdown message, joins it for AI_WORKER_JOIN_TIMEOUT_SECONDS,
+        terminates (then kills) it only if it is still alive, and closes the queues. Safe to
+        call more than once: later calls find nothing to shut down.
+        """
+        _RUNNING_AI_MANAGERS.discard(self)
         self._shutdown_ai_worker()
         self._cleanup_ai_process()
         self._cleanup_queues()
+        self.ai_process = None
+        self.ai_request_queue = None
+        self.ai_response_queue = None
 
     def _on_debug_text_change(self, new_text: str) -> None:
         """Handle debug text change.
@@ -1249,7 +1284,7 @@ pixels = \"\"\"
 
         try:
             self.log.info('Waiting for AI process to finish...')
-            self.ai_process.join(timeout=2.0)  # Increased timeout
+            self.ai_process.join(timeout=AI_WORKER_JOIN_TIMEOUT_SECONDS)
             if self.ai_process.is_alive():
                 self.log.info('AI process still alive, terminating...')
                 self.ai_process.terminate()

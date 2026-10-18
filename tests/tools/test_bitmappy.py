@@ -1141,6 +1141,129 @@ class TestAiWorker:
 
 
 # ---------------------------------------------------------------------------
+# TestAiWorkerShutdown
+# ---------------------------------------------------------------------------
+
+
+class TestAiWorkerShutdown:
+    """A signal, like a normal quit, shuts the AI worker down gracefully."""
+
+    @staticmethod
+    def _manager_with_worker(mocker, *, worker_exits: bool):
+        from glitchygames.bitmappy.ai_manager import AIManager
+
+        manager = AIManager(editor=mocker.Mock())
+        shutdown_steps = mocker.Mock()
+        manager.ai_request_queue = shutdown_steps.request_queue
+        manager.ai_response_queue = shutdown_steps.response_queue
+        manager.ai_process = shutdown_steps.process
+        # is_alive after the join: False if the worker exited on its shutdown message
+        shutdown_steps.process.is_alive.side_effect = [not worker_exits, False, False]
+        return manager, shutdown_steps
+
+    def test_signal_ending_the_engine_shuts_down_the_ai_workers(self, mocker, caplog):
+        """SIGINT/SIGTERM exit through main's shutdown path, which shuts the AI workers down.
+
+        The handler itself does not log: logging while the interrupted code writes to stderr
+        raised a reentrant-call RuntimeError that replaced SystemExit. main logs afterwards.
+        """
+        import signal
+
+        installed_handlers = {}
+        mocker.patch.object(
+            bitmappy.signal,
+            'signal',
+            side_effect=lambda signal_number, handler: installed_handlers.update({
+                signal_number: handler
+            }),
+        )
+        mocker.patch.object(bitmappy.multiprocessing, 'set_start_method')
+        mocker.patch.object(bitmappy, 'load_ai_training_data')
+        engine_class = mocker.patch.object(bitmappy, 'GameEngine')
+        # The signal arrives while the engine runs
+        def deliver_signal_while_running():
+            logged_before_handler = len(caplog.records)
+            try:
+                installed_handlers[signal.SIGTERM](signal.SIGTERM, None)
+            finally:
+                assert len(caplog.records) == logged_before_handler
+
+        engine_class.return_value.start.side_effect = deliver_signal_while_running
+        shut_down_workers = mocker.patch.object(bitmappy, 'shut_down_running_ai_workers')
+
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
+            bitmappy.main()
+
+        assert exit_info.value.code == 0
+        assert f'Received signal {signal.SIGTERM}' in caplog.text
+        assert set(installed_handlers) == {signal.SIGINT, signal.SIGTERM}
+        shut_down_workers.assert_called_once_with()
+
+    def test_shutdown_sends_the_message_and_joins_without_terminating(self, mocker):
+        """A worker that exits on its shutdown message is joined, not terminated."""
+        from glitchygames.bitmappy.ai_manager import AI_WORKER_JOIN_TIMEOUT_SECONDS
+
+        manager, shutdown_steps = self._manager_with_worker(mocker, worker_exits=True)
+
+        manager.cleanup()
+
+        assert shutdown_steps.mock_calls[:2] == [
+            mocker.call.request_queue.put(None, timeout=1.0),
+            mocker.call.process.join(timeout=AI_WORKER_JOIN_TIMEOUT_SECONDS),
+        ]
+        shutdown_steps.process.terminate.assert_not_called()
+        shutdown_steps.process.kill.assert_not_called()
+        assert manager.ai_process is None
+        assert manager.ai_request_queue is None
+
+    def test_shutdown_terminates_a_worker_that_does_not_exit(self, mocker):
+        """A worker still alive after the join timeout is terminated."""
+        from glitchygames.bitmappy.ai_manager import AI_WORKER_JOIN_TIMEOUT_SECONDS
+
+        manager, shutdown_steps = self._manager_with_worker(mocker, worker_exits=False)
+
+        manager.cleanup()
+
+        shutdown_steps.request_queue.put.assert_called_once_with(None, timeout=1.0)
+        shutdown_steps.process.join.assert_any_call(timeout=AI_WORKER_JOIN_TIMEOUT_SECONDS)
+        shutdown_steps.process.terminate.assert_called_once_with()
+        shutdown_steps.process.kill.assert_not_called()
+
+    def test_shut_down_running_ai_workers_cleans_up_each_started_worker_once(self, mocker):
+        """Started managers are shut down by the signal path; a second call does nothing."""
+        from glitchygames.bitmappy import ai_manager
+
+        process_class = mocker.patch.object(ai_manager.multiprocessing, 'Process')
+        mocker.patch.object(ai_manager.multiprocessing, 'Queue')
+        manager = ai_manager.AIManager(editor=mocker.Mock())
+        manager.setup()
+        cleanup = mocker.spy(manager, 'cleanup')
+        process_class.return_value.is_alive.return_value = False
+
+        ai_manager.shut_down_running_ai_workers()
+        ai_manager.shut_down_running_ai_workers()
+
+        cleanup.assert_called_once_with()
+        process_class.return_value.join.assert_called_once()
+
+    def test_worker_process_ignores_sigint(self, mocker):
+        """The worker ignores a terminal's Ctrl-C so the editor can send its shutdown message."""
+        import signal
+
+        from glitchygames.bitmappy import ai_worker
+
+        set_handler = mocker.patch.object(ai_worker.signal, 'signal')
+        worker = mocker.patch.object(ai_worker, 'run_ai_worker')
+        request_queue = mocker.Mock()
+        response_queue = mocker.Mock()
+
+        ai_worker.run_ai_worker_process(request_queue, response_queue)
+
+        set_handler.assert_called_once_with(signal.SIGINT, signal.SIG_IGN)
+        worker.assert_called_once_with(request_queue, response_queue)
+
+
+# ---------------------------------------------------------------------------
 # TestScrollArrowSprite
 # ---------------------------------------------------------------------------
 
