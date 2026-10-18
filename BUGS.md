@@ -38,6 +38,17 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 50. Packaged Bitmappy AI Requests Fail With "Supported providers: set()"
+- **Description**: In the PyInstaller binary every AI sprite request failed with `ValueError: Invalid provider key 'anthropic'. Supported providers: set()`
+- **Status**: Resolved
+- **Priority**: High (AI generation unusable in the packaged app)
+- **Reporter**: User, testing the binary after BUGS.md #47
+- **Date Reported**: 2026-10-18
+- **Root Cause**: aisuite discovers providers by globbing `aisuite/providers/*_provider.py` on disk (`ProviderFactory.get_supported_providers`) and imports them by a constructed name. PyInstaller stores modules compiled inside its archive, so the glob found no files and the dynamic import was invisible to its analysis.
+- **Solution**: A project PyInstaller hook, `packaging/pyinstaller_hooks/hook-aisuite.py` (enabled via `hookspath` in `bitmappy.spec`), bundles the anthropic, openai and ollama provider modules as hidden imports and their source files as data, so both the glob and the import work. Only these providers are bundled, to keep vendor SDKs out of the binary; others fail with aisuite's clear "not supported" error.
+- **Files Modified**: `packaging/pyinstaller_hooks/hook-aisuite.py` (new), `bitmappy.spec`
+- **Tests**: `tests/tools/test_bitmappy_packaging.py` checks the spec uses the hook directory and that the hook bundles the default `AI_MODEL`'s provider and only real provider modules. Verified by rebuilding and listing the binary's archive (the three provider files are present); a real request in the binary still needs a manual run with an API key.
+
 ### 49. bitmappy.spec Lists a Hidden Import That No Longer Exists
 - **Description**: The PyInstaller build logged `ERROR: Hidden import 'glitchygames.events.voice_portaudio' not found`
 - **Status**: Resolved

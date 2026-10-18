@@ -60,7 +60,9 @@ a = Analysis(
         # listed so the binary cannot lose it (BUGS.md #48)
         'pygame._sdl2.audio',
     ],
-    hookspath=[],
+    # Project hooks: hook-aisuite.py bundles aisuite's providers, which it finds by globbing
+    # *_provider.py files on disk (otherwise AI requests fail with "Supported providers: set()")
+    hookspath=['packaging/pyinstaller_hooks'],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
