@@ -365,7 +365,8 @@ class BallSprite(Sprite):
 
         super().__init__(x=x, y=y, width=width, height=height, groups=groups)  # type: ignore[arg-type]
         self.use_gfxdraw = True
-        self.image.convert()
+        # Sprite.__init__ created the image after the display was set, so it already has the
+        # display's pixel format (convert() would return an equivalent copy)
         self.image.set_colorkey(0)
         self.direction = 0
         self.speed = Speed(250.0, 125.0)  # 250 pixels/second horizontal, 125 pixels/second vertical

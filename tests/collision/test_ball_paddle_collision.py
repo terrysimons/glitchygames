@@ -114,6 +114,24 @@ class TestCollisionGeometry:
         assert ball.handle_paddle_collision(paddle) is True
 
 
+class TestImageFormat:
+    """Ball and paddle images are created in the display's pixel format, colorkey intact."""
+
+    def test_ball_image_matches_display_format_with_colorkey(self):
+        """No convert() call is needed: the image already uses the display's pixel masks."""
+        ball = make_ball(world_x=40, world_y=90)
+        display = pygame.display.get_surface()
+        assert ball.image.get_masks() == display.get_masks()
+        assert ball.image.get_bitsize() == display.get_bitsize()
+        assert ball.image.get_colorkey() == (0, 0, 0, 255)
+
+    def test_paddle_image_matches_display_format(self, paddle):
+        """The paddle image is likewise in display format and fully drawn."""
+        display = pygame.display.get_surface()
+        assert paddle.image.get_masks() == display.get_masks()
+        assert paddle.image.get_at((0, 0))[:3] == (255, 255, 255)
+
+
 class TestBounceResponse:
     """Side choice, visible-edge flush placement, speed flip, sound, speed-up, clamp, callback."""
 
