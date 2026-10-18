@@ -22,6 +22,7 @@ class MockGame(Scene):
 
     NAME = 'MockGame'
     VERSION = '1.0'
+    TARGET_FPS = None
 
     def __init__(self, options=None, groups=None):
         """Initialize mock game scene."""

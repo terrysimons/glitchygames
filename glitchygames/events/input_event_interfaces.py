@@ -109,7 +109,7 @@ class KeyboardEventStubs(EventInterface):
 
 
 # Mixin
-class MouseEvents(EventInterface):  # noqa: PLR0904
+class MouseEvents(EventInterface):  # ruff: ignore[too-many-public-methods]
     """Mixin for mouse events."""
 
     @abc.abstractmethod
@@ -352,7 +352,7 @@ class MouseEvents(EventInterface):  # noqa: PLR0904
 
 
 # Mixin
-class MouseEventStubs(EventInterface):  # noqa: PLR0904
+class MouseEventStubs(EventInterface):  # ruff: ignore[too-many-public-methods]
     """Mixin for mouse events."""
 
     def on_mouse_motion_event(self: Self, event: HashableEvent) -> None:
@@ -838,6 +838,16 @@ class ControllerEvents(EventInterface):
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
 
+    @abc.abstractmethod
+    def on_controller_sensor_update_event(self: Self, event: HashableEvent) -> None:
+        """Handle controller sensor update events (gyroscope, accelerometer).
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # CONTROLLERSENSORUPDATE instance_id, sensor, data
+
 
 class ControllerEventStubs(ControllerEvents):
     """Mixin for controller events."""
@@ -930,6 +940,16 @@ class ControllerEventStubs(ControllerEvents):
 
         """
         # CONTROLLERTOUCHPADUP joy, touchpad
+        unhandled_event(self, event)
+
+    def on_controller_sensor_update_event(self: Self, event: HashableEvent) -> None:  # type: ignore[override]
+        """Handle controller sensor update events (gyroscope, accelerometer).
+
+        Args:
+            event (HashableEvent): The event to handle.
+
+        """
+        # CONTROLLERSENSORUPDATE instance_id, sensor, data
         unhandled_event(self, event)
 
 

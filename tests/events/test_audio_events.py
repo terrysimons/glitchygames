@@ -56,6 +56,21 @@ class TestAudioEventManager:
         manager = AudioEventManager(game=mock_game)
         assert len(manager.proxies) == 1
 
+    def test_init_does_not_call_pre_init(self, mocker):
+        """pre_init after pygame.init() never took effect, so it is not called (BUGS.md #22)."""
+        pre_init = mocker.patch('pygame.mixer.pre_init')
+        AudioEventManager(game=mocker.Mock())
+        pre_init.assert_not_called()
+
+    def test_init_survives_missing_audio_device(self, mocker):
+        """No audio device logs a warning and continues silently (BUGS.md #23)."""
+        mocker.patch('pygame.mixer.init', side_effect=pygame.error('no audio device'))
+        mocker.patch('pygame.mixer.get_init', return_value=None)
+        warning = mocker.patch('glitchygames.events.audio.log.warning')
+        manager = AudioEventManager(game=mocker.Mock())
+        assert len(manager.proxies) == 1
+        assert warning.called
+
     def test_args(self):
         parser = argparse.ArgumentParser()
         result = AudioEventManager.args(parser)

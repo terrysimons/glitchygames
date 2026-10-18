@@ -10,7 +10,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
 from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
@@ -296,13 +296,6 @@ class TestSceneManagerInternals:
         # Test posting FPS event
         scene_manager._post_fps_event()
 
-    def test_scene_manager_tick_clock(self):
-        """Test SceneManager _tick_clock method."""
-        scene_manager = self.scene_manager
-
-        # Test clock ticking
-        scene_manager._tick_clock()
-
     def test_scene_manager_update_scene(self, mocker):
         """Test SceneManager _update_scene method."""
         scene_manager = self.scene_manager
@@ -373,3 +366,166 @@ class TestSceneManagerInternals:
 
         # Test current scene cleanup
         scene_manager._cleanup_current_scene()
+
+    def test_switch_to_scene_clears_screen_shake(self, mocker):
+        """Review focus 3: pause and game over never inherit a running screen shake."""
+        from glitchygames.effects.shake import Shake, ShakeStyle
+
+        self.scene_manager.screen_shake.add(
+            Shake(style=ShakeStyle.NOISE, strength=5.0, duration=1.0, frequency=5.0)
+        )
+        self.scene_manager.switch_to_scene(mocker.Mock())
+        assert not self.scene_manager.screen_shake.is_active
+
+    def test_switch_to_scene_keeps_pulse_but_clears_sustained_rumble(self, mocker):
+        """Pause must never leave a controller buzzing, but a death pulse survives game over."""
+        device = mocker.Mock()
+        self.scene_manager.rumble.set_sustained(low_frequency=0.25, high_frequency=0.05)
+        self.scene_manager.rumble.pulse(low_frequency=1.0, high_frequency=0.6, duration=0.8)
+        self.scene_manager.switch_to_scene(mocker.Mock())
+        assert self.scene_manager.rumble.sustained_levels == (0.0, 0.0)
+        self.scene_manager.rumble.update(shakers=[], dt=0.0, devices=lambda: [device])
+        device.rumble.assert_called_once_with(1.0, 0.6, 800)
+
+    def test_frame_services_advance_screen_shake(self):
+        """Test the per-frame services advance the screen shake by the frame time."""
+        from glitchygames.effects.shake import Shake, ShakeStyle
+
+        self.scene_manager.screen_shake.add(
+            Shake(style=ShakeStyle.NOISE, strength=5.0, duration=0.5, frequency=5.0)
+        )
+        self.scene_manager.dt = 1.0
+        self.scene_manager._update_frame_services()
+        assert not self.scene_manager.screen_shake.is_active
+
+    def test_game_engine_options_set_shake_intensity(self, mocker):
+        """Test the game engine setter applies the screen shake intensity option."""
+        engine = mocker.Mock()
+        engine.OPTIONS = {
+            'update_type': 'update',
+            'fps_log_interval_ms': 1000,
+            'screen_shake_intensity': 0.25,
+            'rumble_intensity': 0.5,
+        }
+        self.scene_manager.game_engine = engine
+        assert self.scene_manager.screen_shake.intensity == 0.25
+        assert self.scene_manager.rumble.intensity == 0.5
+
+    def test_frame_services_drive_rumble(self, mocker):
+        """Test the per-frame services feed the screen shake to the rumble controller."""
+        update = mocker.patch.object(self.scene_manager.rumble, 'update')
+        scene = Scene()
+        self.scene_manager.active_scene = scene
+        self.scene_manager.dt = 0.0
+        self.scene_manager._update_frame_services()
+        assert update.call_args.kwargs['shakers'] == [
+            self.scene_manager.screen_shake,
+            scene.camera.shake_effect,
+        ]
+
+    def test_frame_services_rumble_active_scene_camera_shake(self, mocker):
+        """Test a camera shake's rumble reaches the engine's controllers."""
+        from glitchygames.camera import Camera2D
+        from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle
+
+        device = mocker.Mock()
+        engine = mocker.Mock()
+        engine.controller_manager.controllers = {0: device}
+        self.scene_manager._game_engine = engine
+        scene = Scene()
+        scene.camera = Camera2D(screen_width=100, screen_height=100)
+        scene.camera.shake_effect.add(
+            Shake(
+                style=ShakeStyle.NOISE,
+                strength=5.0,
+                duration=1.0,
+                frequency=5.0,
+                rumble=RumbleSettings(low_frequency=1.0, high_frequency=1.0),
+            )
+        )
+        self.scene_manager.active_scene = scene
+        self.scene_manager.dt = 0.0
+        self.scene_manager._update_frame_services()
+        device.rumble.assert_called_once()
+
+    def test_live_audio_is_lazy_and_updated_with_pending_transition(self, mocker):
+        manager = self.scene_manager
+        manager._live_audio = None
+        manager._update_frame_services()  # No LiveAudio created by merely running frames
+        assert manager._live_audio is None
+        live_audio = mocker.Mock()
+        manager._live_audio = live_audio
+        pending = mocker.Mock()
+        manager._pending_transition = (mocker.Mock(), pending)
+        manager._update_frame_services()
+        assert live_audio.update.call_args.kwargs['active_transitions'][1] is pending
+        manager._pending_transition = None
+        manager._live_audio = None
+
+
+class TestSceneShake:
+    """Test Scene.shake targeting."""
+
+    def setup_method(self):
+        """Reset the singleton so each test starts clean."""
+        SceneManager._reset()
+
+    def teardown_method(self):
+        """Reset the singleton so no shake leaks between tests."""
+        SceneManager._reset()
+
+    @staticmethod
+    def _shake():
+        from glitchygames.effects.shake import Shake, ShakeStyle
+
+        return Shake(style=ShakeStyle.NOISE, strength=5.0, duration=1.0, frequency=5.0)
+
+    def test_default_camera_is_identity(self):
+        scene = Scene()
+        assert scene.camera.apply(5.0, 7.0) == (5, 7)
+
+    def test_world_shake_on_unapplied_camera_warns_once(self, caplog):
+        scene = Scene()
+        scene.scene_manager.active_scene = scene
+        with caplog.at_level('WARNING', logger='game.scenes'):
+            scene.shake(self._shake())
+            scene.shake(self._shake())
+        warnings = [record for record in caplog.records if 'WORLD shake' in record.getMessage()]
+        assert len(warnings) == 1
+        assert 'use ShakeTarget.SCREEN' in warnings[0].getMessage()
+
+    def test_world_shake_on_applied_camera_does_not_warn(self, caplog):
+        scene = Scene()
+        scene.scene_manager.active_scene = scene
+        scene.camera.apply(0.0, 0.0)
+        with caplog.at_level('WARNING', logger='game.scenes'):
+            scene.shake(self._shake())
+        assert not [record for record in caplog.records if 'WORLD shake' in record.getMessage()]
+
+    def test_world_on_inactive_scene_raises(self):
+        """Cue callbacks run on a cleaned-up scene; WORLD must fail loudly there."""
+        from glitchygames.camera import Camera2D
+
+        scene = Scene()
+        scene.camera = Camera2D(screen_width=100, screen_height=100)
+        scene.scene_manager.active_scene = None
+        with pytest.raises(RuntimeError, match='active'):
+            scene.shake(self._shake())
+
+    def test_world_on_active_scene_shakes_camera(self):
+        from glitchygames.camera import Camera2D
+
+        scene = Scene()
+        scene.camera = Camera2D(screen_width=100, screen_height=100)
+        scene.scene_manager.active_scene = scene
+        scene.shake(self._shake())
+        assert scene.camera.shake_effect.is_active
+
+    def test_screen_works_from_any_scene(self):
+        from glitchygames.effects.shake import ShakeTarget
+
+        scene = Scene()
+        scene.scene_manager.active_scene = None
+        scene.shake(self._shake(), targets=ShakeTarget.SCREEN)
+        assert scene.scene_manager.screen_shake.is_active
+        scene.scene_manager.screen_shake.clear()

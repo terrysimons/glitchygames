@@ -3,6 +3,13 @@ name = "jumping_slime_with_tiara"
 description = """Add a new strip called "shudder" that has the slime sort of bearing
 down and jiggling  very strongly over 20 frames."""
 
+[sprite.hitbox]
+offset_x = 0
+offset_y = 0
+width = 16
+height = 16
+
+
 [[animation]]
 namespace = "jump"
 frame_interval = 0.5
@@ -30,6 +37,13 @@ pixels = """
 ....ddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 1
@@ -51,6 +65,13 @@ pixels = """
 ....ddddddDD....
 .....DDDDDD.....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 11
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -74,6 +95,13 @@ pixels = """
 ................
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 4
+width = 11
+height = 11
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 3
@@ -95,6 +123,13 @@ pixels = """
 ................
 ................
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 3
+width = 11
+height = 11
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -118,6 +153,13 @@ pixels = """
 ................
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 2
+width = 11
+height = 11
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 5
@@ -139,6 +181,13 @@ pixels = """
 ................
 ................
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 1
+width = 11
+height = 11
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -162,6 +211,13 @@ pixels = """
 ................
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 0
+width = 11
+height = 11
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 7
@@ -183,6 +239,13 @@ pixels = """
 ................
 ................
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 1
+width = 11
+height = 11
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -206,6 +269,13 @@ pixels = """
 ................
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 3
+width = 11
+height = 11
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 9
@@ -227,6 +297,13 @@ pixels = """
 ...dDDDDDdDDD...
 ....ddddddDD....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -250,6 +327,13 @@ pixels = """
 ..ddDDDDDDddDD..
 """
 
+[animation.frame.hitbox]
+offset_x = 1
+offset_y = 7
+width = 14
+height = 9
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 11
@@ -271,6 +355,13 @@ dDDDcCCcCCDDDdDD
 dDDDcCCcCCDDDdDD
 dDDDDDDDDDDDDdDD
 """
+
+[animation.frame.hitbox]
+offset_x = 0
+offset_y = 8
+width = 16
+height = 8
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -294,6 +385,13 @@ dDDDcCCcCCDDDdDD
 dDDDDDDDDDDDDdDD
 """
 
+[animation.frame.hitbox]
+offset_x = 0
+offset_y = 9
+width = 16
+height = 7
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 13
@@ -315,6 +413,13 @@ dDDDcCCcCCDDdDDD
 dDDDcCCcCCDDdDDD
 dDDDDDDDDDDDdDDD
 """
+
+[animation.frame.hitbox]
+offset_x = 0
+offset_y = 9
+width = 16
+height = 7
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -338,6 +443,13 @@ dDDDcCCcCCDDDdDD
 dDDDDDDDDDDDDdDD
 """
 
+[animation.frame.hitbox]
+offset_x = 0
+offset_y = 8
+width = 16
+height = 8
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 15
@@ -359,6 +471,13 @@ pixels = """
 .dDDDDDDDDDDdDD.
 ..ddDDDDDDddDD..
 """
+
+[animation.frame.hitbox]
+offset_x = 1
+offset_y = 7
+width = 14
+height = 9
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -382,6 +501,13 @@ pixels = """
 ....ddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 17
@@ -403,6 +529,13 @@ pixels = """
 ....ddddddDD....
 .....eDDDDe.....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 11
+
 
 [[animation.frame]]
 namespace = "jump"
@@ -426,6 +559,13 @@ pixels = """
 ....ddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "jump"
 frame_index = 19
@@ -447,6 +587,13 @@ pixels = """
 ...dDDDDDDdDD...
 ....ddddddDD....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
 
 [[animation]]
 namespace = "shudder"
@@ -475,6 +622,13 @@ pixels = """
 ....ddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 1
@@ -496,6 +650,13 @@ pixels = """
 ...dDDDDDDdDD...
 ....ddddddDD....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -519,6 +680,13 @@ pixels = """
 ................
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 3
@@ -540,6 +708,13 @@ pixels = """
 ....ddddddDD....
 ................
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -563,6 +738,13 @@ pixels = """
 ....ddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 5
@@ -584,6 +766,13 @@ pixels = """
 ...dDDDDDDdDD...
 ....ddddddDD....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -607,6 +796,13 @@ pixels = """
 ................
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 7
@@ -628,6 +824,13 @@ pixels = """
 ....ddddddDD....
 ................
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -651,6 +854,13 @@ pixels = """
 ....ddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 9
@@ -672,6 +882,13 @@ pixels = """
 ...dDDDDDDdDD...
 ....ddddddDD....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -695,6 +912,13 @@ pixels = """
 ................
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 11
@@ -716,6 +940,13 @@ pixels = """
 ....ddddddDD....
 ................
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -739,6 +970,13 @@ pixels = """
 ...dddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 13
@@ -760,6 +998,13 @@ pixels = """
 ...dDDDDDDdDD...
 ...dddddddD.....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -783,6 +1028,13 @@ pixels = """
 ................
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 15
@@ -804,6 +1056,13 @@ pixels = """
 ....ddddddDD....
 ................
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 5
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -827,6 +1086,13 @@ pixels = """
 ....ddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 17
@@ -848,6 +1114,13 @@ pixels = """
 ...dDDDDDDdDD...
 ....ddddddDD....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
 
 [[animation.frame]]
 namespace = "shudder"
@@ -871,6 +1144,13 @@ pixels = """
 ....ddddddDD....
 """
 
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
+
 [[animation.frame]]
 namespace = "shudder"
 frame_index = 19
@@ -892,6 +1172,13 @@ pixels = """
 ...dDDDDDDdDD...
 ....ddddddDD....
 """
+
+[animation.frame.hitbox]
+offset_x = 2
+offset_y = 6
+width = 11
+height = 10
+
 
 [colors]
 [colors."."]

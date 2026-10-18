@@ -2,6 +2,13 @@
 name = "save_point_glimmer"
 description = """A save point glimmer from Final Fantasy VI """
 
+[sprite.hitbox]
+offset_x = 0
+offset_y = 0
+width = 7
+height = 7
+
+
 [[animation]]
 namespace = "glimmer"
 frame_interval = 0.5

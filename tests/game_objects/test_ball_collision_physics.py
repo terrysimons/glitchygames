@@ -6,7 +6,9 @@ import math
 
 import pytest
 
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
+from glitchygames.collision.layers import CollisionManager
+from glitchygames.examples.paddleslap import Game
+from glitchygames.game_objects.ball import BallSprite, snap_to_pixel
 from glitchygames.movement import Speed
 
 LOG = logging.getLogger(__name__)
@@ -26,9 +28,6 @@ class TestBallCollisionPhysics:
             collision_sound=None,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
-            speed_up_multiplier=1.0,
-            speed_up_interval=1.0,
         )
         assert ball.rect is not None
         ball.rect.x = x
@@ -463,9 +462,6 @@ class TestBallCollisionEnergyTransfer:
             collision_sound=None,
             bounce_top_bottom=True,
             bounce_left_right=False,
-            speed_up_mode=SpeedUpMode.NONE,
-            speed_up_multiplier=1.0,
-            speed_up_interval=1.0,
         )
         assert ball.rect is not None
         ball.rect.x = x
@@ -526,4 +522,321 @@ class TestBallCollisionEnergyTransfer:
         assert ball1.speed.y == ball1_initial_y, (
             f'Horizontal collision should not change Y velocity:'
             f' {ball1.speed.y} = {ball1_initial_y}'
+        )
+
+
+# ---------------------------------------------------------------------------
+# Full-circle collision sweep against the real PaddleSlap collision pipeline.
+#
+# The tests above re-implement the collision math inside the test, so they
+# cannot catch bugs in the game's own code. These tests drive real BallSprites
+# through BallSprite.dt_tick() and Game._handle_ball_collisions() (collision
+# manager broad phase -> circle check -> elastic exchange -> separation ->
+# cooldown) exactly as the game loop does each frame.
+#
+# Expected behavior: for two equal-mass balls whose centers are aimed at the
+# same point at the same time, the contact normal is parallel to their relative
+# velocity, so a perfectly elastic collision swaps their velocities exactly.
+# A moving ball hitting a stationary ball is the special case where the mover
+# stops dead and the target leaves with the mover's original velocity.
+# ---------------------------------------------------------------------------
+
+SWEEP_ANGLES_DEGREES = tuple(range(0, 360, 15))
+STATIONARY_TARGET_MOVER_SPEEDS = (60.0, 180.0, 400.0)
+MOVING_PAIR_SPEEDS = ((100.0, 100.0), (100.0, 300.0), (300.0, 100.0), (300.0, 300.0))
+SWEEP_FRAME_DT = 1 / 60
+SWEEP_MEETING_POINT = (400.0, 240.0)
+SWEEP_MINIMUM_TIME_TO_MEET = 0.3  # seconds
+SWEEP_MINIMUM_STARTING_GAP = 40.0  # pixels between centers; collision distance is 20
+SWEEP_FRAMES_AFTER_COLLISION = 30
+SWEEP_BALL_SIZE = 20
+# Ball centers live on integer pixels, so the collision normal the game computes can
+# be a few degrees off the ideal one. Allow 10% of the relative speed (plus 1 px/s)
+# of velocity error for that rounding; real bugs produce errors far larger than this.
+SWEEP_VELOCITY_TOLERANCE_FRACTION = 0.1
+SWEEP_CONSERVATION_TOLERANCE = 1e-6
+
+
+def _velocity_from_angle(angle_degrees: float, speed: float) -> tuple[float, float]:
+    """Return the (x, y) velocity for a heading in degrees (0 = right, 90 = down)."""
+    angle_radians = math.radians(angle_degrees)
+    return (speed * math.cos(angle_radians), speed * math.sin(angle_radians))
+
+
+class _CollisionSweepHarness:
+    """Runs two real BallSprites through the real PaddleSlap per-frame collision path."""
+
+    def __init__(
+        self,
+        first_velocity: tuple[float, float],
+        second_velocity: tuple[float, float],
+    ) -> None:
+        relative_speed = math.dist(first_velocity, second_velocity)
+        time_to_meet = max(
+            SWEEP_MINIMUM_TIME_TO_MEET,
+            SWEEP_MINIMUM_STARTING_GAP / relative_speed,
+        )
+
+        self.game = Game.__new__(Game)
+        self.game.collisions = CollisionManager()
+        self.game.collisions.add_layer('balls')
+        self.game._ball_collision_cooldowns = {}
+
+        self.first_ball = self._create_ball_aimed_at_meeting_point(first_velocity, time_to_meet)
+        self.second_ball = self._create_ball_aimed_at_meeting_point(second_velocity, time_to_meet)
+        self.collision_distance = SWEEP_BALL_SIZE
+        self.maximum_frames_to_collision = round(time_to_meet / SWEEP_FRAME_DT) + 30
+
+    def _create_ball_aimed_at_meeting_point(
+        self,
+        velocity: tuple[float, float],
+        time_to_meet: float,
+    ) -> BallSprite:
+        """Place a ball so its center reaches SWEEP_MEETING_POINT after time_to_meet.
+
+        Returns:
+            BallSprite: The positioned ball, registered in the 'balls' collision layer.
+
+        """
+        center_x = SWEEP_MEETING_POINT[0] - velocity[0] * time_to_meet
+        center_y = SWEEP_MEETING_POINT[1] - velocity[1] * time_to_meet
+        ball = BallSprite(
+            width=SWEEP_BALL_SIZE,
+            height=SWEEP_BALL_SIZE,
+            collision_sound=None,
+            bounce_top_bottom=True,
+            bounce_left_right=True,
+        )
+        ball.world_x = center_x - SWEEP_BALL_SIZE / 2
+        ball.world_y = center_y - SWEEP_BALL_SIZE / 2
+        ball.speed = Speed(velocity[0], velocity[1])
+        self.game.collisions.get_layer('balls').add(ball)
+        return ball
+
+    def center_distance(self) -> float:
+        """Return the distance between ball centers, as the game measures it (integer rects)."""
+        _, _, distance, _ = Game._calculate_ball_distance(self.first_ball, self.second_ball)
+        return distance
+
+    def world_center_distance(self) -> float:
+        """Return the distance between ball centers using sub-pixel world positions."""
+        return math.dist(
+            (self.first_ball.world_x, self.first_ball.world_y),
+            (self.second_ball.world_x, self.second_ball.world_y),
+        )
+
+    def balls_with_rect_out_of_sync(self) -> list[str]:
+        """Describe any ball whose rect no longer matches its world position.
+
+        Every movement path in BallSprite (dt_tick, wall bounces, paddle hits, reset)
+        goes through the world_x/world_y setters, which snap rect to match, and dt_tick
+        rebuilds rect from world_x/world_y each frame. A rect that disagrees with the
+        world position is therefore silently overwritten on the next frame.
+
+        Returns:
+            list[str]: One description per out-of-sync ball (empty when all agree).
+
+        """
+        descriptions = []
+        for label, ball in (('first', self.first_ball), ('second', self.second_ball)):
+            expected_rect_position = (
+                snap_to_pixel(ball.world_x, ball.pixel_snap_mode),
+                snap_to_pixel(ball.world_y, ball.pixel_snap_mode),
+            )
+            if (ball.rect.x, ball.rect.y) != expected_rect_position:
+                descriptions.append(
+                    f'{label} ball rect=({ball.rect.x}, {ball.rect.y}) but '
+                    f'world=({ball.world_x:.1f}, {ball.world_y:.1f})'
+                )
+        return descriptions
+
+    def velocities(self) -> tuple[tuple[float, float], tuple[float, float]]:
+        """Return both balls' current velocities."""
+        return (
+            (self.first_ball.speed.x, self.first_ball.speed.y),
+            (self.second_ball.speed.x, self.second_ball.speed.y),
+        )
+
+    def step(self) -> bool:
+        """Advance one frame exactly as the game loop does.
+
+        Returns:
+            bool: True if a collision changed either ball's velocity this frame.
+
+        """
+        self.first_ball.dt_tick(SWEEP_FRAME_DT)
+        self.second_ball.dt_tick(SWEEP_FRAME_DT)
+        velocities_before = self.velocities()
+        self.game._handle_ball_collisions()
+        return self.velocities() != velocities_before
+
+
+def _assert_velocities_swapped(
+    harness: _CollisionSweepHarness,
+    first_velocity: tuple[float, float],
+    second_velocity: tuple[float, float],
+    case_description: str,
+) -> None:
+    """Assert an equal-mass, head-on elastic collision swapped the balls' velocities."""
+    (first_after, second_after) = harness.velocities()
+    tolerance = SWEEP_VELOCITY_TOLERANCE_FRACTION * math.dist(first_velocity, second_velocity) + 1.0
+    first_error = math.dist(first_after, second_velocity)
+    second_error = math.dist(second_after, first_velocity)
+    assert first_error <= tolerance and second_error <= tolerance, (
+        f'Velocities did not swap ({case_description}). '
+        f'Expected first=({second_velocity[0]:.1f}, {second_velocity[1]:.1f}) '
+        f'second=({first_velocity[0]:.1f}, {first_velocity[1]:.1f}); '
+        f'actual first=({first_after[0]:.1f}, {first_after[1]:.1f}) '
+        f'second=({second_after[0]:.1f}, {second_after[1]:.1f}); '
+        f'errors {first_error:.1f}, {second_error:.1f} (tolerance {tolerance:.1f})'
+    )
+
+
+def _assert_momentum_and_energy_conserved(
+    harness: _CollisionSweepHarness,
+    first_velocity: tuple[float, float],
+    second_velocity: tuple[float, float],
+    case_description: str,
+) -> None:
+    """Assert the collision conserved total momentum and kinetic energy."""
+    (first_after, second_after) = harness.velocities()
+    momentum_before = (
+        first_velocity[0] + second_velocity[0],
+        first_velocity[1] + second_velocity[1],
+    )
+    momentum_after = (first_after[0] + second_after[0], first_after[1] + second_after[1])
+    assert math.dist(momentum_before, momentum_after) <= SWEEP_CONSERVATION_TOLERANCE * max(
+        1.0, math.hypot(*momentum_before)
+    ), f'Momentum not conserved ({case_description}): {momentum_before} -> {momentum_after}'
+    energy_before = math.hypot(*first_velocity) ** 2 + math.hypot(*second_velocity) ** 2
+    energy_after = math.hypot(*first_after) ** 2 + math.hypot(*second_after) ** 2
+    assert energy_after == pytest.approx(energy_before, rel=SWEEP_CONSERVATION_TOLERANCE), (
+        f'Kinetic energy not conserved ({case_description}): '
+        f'{energy_before:.1f} -> {energy_after:.1f}'
+    )
+
+
+def _assert_rects_in_sync_after_collision(
+    harness: _CollisionSweepHarness,
+    case_description: str,
+) -> None:
+    """Assert collision handling left each ball's rect in sync with its world position.
+
+    Otherwise the next dt_tick rebuilds rect from world_x/world_y and silently undoes
+    the overlap separation.
+    """
+    out_of_sync_balls = harness.balls_with_rect_out_of_sync()
+    assert not out_of_sync_balls, (
+        f'Collision handling moved rect without moving world position '
+        f'({case_description}): {"; ".join(out_of_sync_balls)}. The next dt_tick resets '
+        f'rect from world_x/world_y, undoing the separation (distance '
+        f'{harness.center_distance():.1f} now, collision distance '
+        f'{harness.collision_distance})'
+    )
+
+
+def _assert_balls_separate_and_stay_apart(
+    harness: _CollisionSweepHarness,
+    case_description: str,
+) -> None:
+    """Assert no further collisions and a never-shrinking true (sub-pixel) gap."""
+    previous_world_distance = harness.world_center_distance()
+    for frames_since_collision in range(1, SWEEP_FRAMES_AFTER_COLLISION + 1):
+        collided_again = harness.step()
+        world_distance = harness.world_center_distance()
+        assert not collided_again, (
+            f'Balls collided again {frames_since_collision} frame(s) after the first '
+            f'collision ({case_description}); distance {harness.center_distance():.1f}'
+        )
+        assert world_distance >= previous_world_distance, (
+            f'Balls moved back toward each other {frames_since_collision} frame(s) after '
+            f'colliding ({case_description}): world distance '
+            f'{previous_world_distance:.2f} -> {world_distance:.2f}'
+        )
+        previous_world_distance = world_distance
+    final_distance = harness.center_distance()
+    assert final_distance > harness.collision_distance, (
+        f'Balls still overlapping {SWEEP_FRAMES_AFTER_COLLISION} frames after colliding '
+        f'({case_description}): distance {final_distance:.1f}'
+    )
+
+
+def _run_collision_sweep_case(
+    first_velocity: tuple[float, float],
+    second_velocity: tuple[float, float],
+) -> None:
+    """Collide two balls aimed at the same point and verify the result against physics."""
+    harness = _CollisionSweepHarness(first_velocity, second_velocity)
+    case_description = (
+        f'first ball velocity=({first_velocity[0]:.1f}, {first_velocity[1]:.1f}), '
+        f'second ball velocity=({second_velocity[0]:.1f}, {second_velocity[1]:.1f})'
+    )
+
+    collided = any(harness.step() for _ in range(harness.maximum_frames_to_collision))
+    assert collided, (
+        f'Balls aimed at the same point never collided ({case_description}); '
+        f'final distance {harness.center_distance():.1f}'
+    )
+
+    _assert_velocities_swapped(harness, first_velocity, second_velocity, case_description)
+    _assert_momentum_and_energy_conserved(
+        harness, first_velocity, second_velocity, case_description
+    )
+    _assert_rects_in_sync_after_collision(harness, case_description)
+    _assert_balls_separate_and_stay_apart(harness, case_description)
+
+
+class TestBallCollisionSweepStationaryTarget:
+    """A moving ball hits a stationary ball from every direction around the circle."""
+
+    @pytest.mark.parametrize('mover_speed', STATIONARY_TARGET_MOVER_SPEEDS, ids='{:.0f}px/s'.format)
+    @pytest.mark.parametrize('approach_angle', SWEEP_ANGLES_DEGREES, ids='from{:03d}deg'.format)
+    def test_mover_stops_and_target_takes_its_velocity(self, approach_angle, mover_speed):
+        """The mover stops dead and the target leaves with the mover's velocity."""
+        _run_collision_sweep_case(
+            first_velocity=_velocity_from_angle(approach_angle, mover_speed),
+            second_velocity=(0.0, 0.0),
+        )
+
+
+def _moving_pair_cases():
+    """Every pair of headings for both balls, at several speed combinations.
+
+    Returns:
+        list: pytest params of (first_angle, first_speed, second_angle, second_speed).
+
+    """
+    cases = []
+    for first_speed, second_speed in MOVING_PAIR_SPEEDS:
+        for first_angle in SWEEP_ANGLES_DEGREES:
+            for second_angle in SWEEP_ANGLES_DEGREES:
+                if first_angle == second_angle and first_speed == second_speed:
+                    continue  # identical velocities never approach each other
+                cases.append(
+                    pytest.param(
+                        first_angle,
+                        first_speed,
+                        second_angle,
+                        second_speed,
+                        id=(
+                            f'first{first_angle:03d}deg@{first_speed:.0f}'
+                            f'-second{second_angle:03d}deg@{second_speed:.0f}'
+                        ),
+                    ),
+                )
+    return cases
+
+
+class TestBallCollisionSweepMovingPair:
+    """Two moving balls collide at every combination of headings."""
+
+    @pytest.mark.parametrize(
+        ('first_angle', 'first_speed', 'second_angle', 'second_speed'),
+        _moving_pair_cases(),
+    )
+    def test_balls_swap_velocities(self, first_angle, first_speed, second_angle, second_speed):
+        """Two equal-mass balls aimed at the same point swap velocities."""
+        _run_collision_sweep_case(
+            first_velocity=_velocity_from_angle(first_angle, first_speed),
+            second_velocity=_velocity_from_angle(second_angle, second_speed),
         )

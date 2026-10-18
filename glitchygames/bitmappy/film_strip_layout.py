@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 LOG = logging.getLogger('game.tools.film_strip')
 
 
-class FilmStripLayout:  # noqa: PLR0904
+class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
     """Delegate providing layout calculation methods for FilmStripWidget."""
 
     def __init__(self, widget: FilmStripWidget) -> None:

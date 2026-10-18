@@ -151,7 +151,7 @@ class SliderSprite(BitmappySprite):
         # Store parent in a temporary variable
         self._temp_parent = parent
 
-        self.log = logging.getLogger('game')  # type: ignore[misc]
+        # self.log is the class-level SliderSprite.log (logging.getLogger('game')).
         self.log.info('Initializing slider %s with parent %s', name, parent)
 
         super().__init__(
@@ -221,7 +221,7 @@ class SliderSprite(BitmappySprite):
 
     @property
     def value(self) -> int:
-        """Get the slider value."""
+        """The slider value."""
         return self._value
 
     @value.setter
@@ -605,7 +605,7 @@ class ColorWellSprite(BitmappySprite):
 
     @property
     def active_color(self: Self) -> tuple[int, int, int, int]:
-        """Get the active color.
+        """The active color.
 
         Args:
             None
@@ -640,7 +640,7 @@ class ColorWellSprite(BitmappySprite):
 
     @property
     def hex_color(self: Self) -> str:
-        """Get the hex color.
+        """The hex color.
 
         Args:
             None
@@ -781,7 +781,7 @@ class TabControlSprite(BitmappySprite):
                 # Draw tab text
                 try:
                     font = pygame.font.Font(None, 16)
-                    text_surface = font.render(tab_text, True, self.text_color)  # noqa: FBT003
+                    text_surface = font.render(tab_text, True, self.text_color)  # ruff: ignore[boolean-positional-value-in-call]
                     text_rect = text_surface.get_rect(center=tab_rect.center)
                     self.image.blit(text_surface, text_rect)
                 except pygame.error, AttributeError:

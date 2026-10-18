@@ -8,7 +8,7 @@ import logging
 import struct
 from collections import OrderedDict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -27,7 +27,7 @@ LOG.setLevel(logging.INFO)
 class BitmappyLegacySprite(Sprite):
     """A sprite class for loading legacy bitmappy sprites."""
 
-    log: logging.Logger = LOG
+    log: ClassVar[logging.Logger] = LOG
 
     def __init__(self: Self, filename: str, *args: object, **kwargs: object) -> None:
         """Initialize a BitmappySprite.
@@ -39,8 +39,6 @@ class BitmappyLegacySprite(Sprite):
 
         """
         super().__init__(*args, width=0, height=0, **kwargs)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-        self.image: pygame.Surface | None = None
-        self.rect: pygame.Rect | None = None
         self.name: str | None = None
 
         (self.image, self.rect, self.name) = self.load(filename=filename, width=32, height=32)
@@ -147,19 +145,13 @@ class BitmappyLegacySprite(Sprite):
         pixels: list[str] = []
 
         # Handle empty surfaces
-        has_surface = (
-            self.rect is not None
-            and self.rect.width > 0
-            and self.rect.height > 0
-            and self.image is not None
-        )
+        has_surface = self.rect.width > 0 and self.rect.height > 0
 
         if not has_surface:
             raw_pixels: list[tuple[int, int, int]] = []
             colors: set[tuple[int, int, int]] = set()
         else:
             try:
-                assert self.image is not None  # narrowing for type checker
                 raw_pixels = list(
                     rgb_triplet_generator(
                         pygame.image.tobytes(self.image, 'RGB'),
@@ -205,7 +197,7 @@ class BitmappyLegacySprite(Sprite):
                 row.append(color_map[raw_pixels.pop(0)])
                 x += 1
 
-                if self.rect is not None and x % self.rect.width == 0:
+                if x % self.rect.width == 0:
                     self.log.debug('Row: %s', row)
                     pixels.append(''.join(row))
                     row = []
@@ -235,7 +227,7 @@ class BitmappyLegacySprite(Sprite):
 class GameScene(Scene):
     """The main game scene."""
 
-    log: logging.Logger = LOG
+    log: ClassVar[logging.Logger] = LOG
 
     def __init__(self: Self, filename: str) -> None:
         """Initialize the GameScene.

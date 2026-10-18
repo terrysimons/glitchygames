@@ -36,7 +36,7 @@ class PauseOverlay(Sprite):
 
         # Create the paused text
         font = pygame.font.Font(None, 72)
-        text_surface = font.render('PAUSED', True, WHITE)  # noqa: FBT003
+        text_surface = font.render('PAUSED', True, WHITE)  # ruff: ignore[boolean-positional-value-in-call]
 
         # Center the text on screen
         text_rect = text_surface.get_rect()
@@ -120,3 +120,22 @@ class PauseScene(Scene):
             self.resume()
         else:
             super().on_key_up_event(event)
+
+    @override
+    def on_window_focus_gained_event(self: Self, event: HashableEvent) -> None:
+        """Auto-resume when the window regains focus.
+
+        Waits a short time after setup to avoid the focus gained event
+        that fires immediately when the pause scene is first displayed.
+
+        Args:
+            event: The focus gained event.
+
+        """
+        super().on_window_focus_gained_event(event)
+        # Ignore focus events in the first 0.5s — the scene switch itself
+        # triggers a focus lost/gained pair that we don't want to act on
+        min_pause_duration = 0.5
+        if self.dt_timer > min_pause_duration:
+            self.log.info('Window focus regained — auto-resuming')
+            self.resume()

@@ -1353,7 +1353,7 @@ class TestHandleFramePacing:
             timer=mock_timer,
             period_ns=16_666_667,
             prev_deadline_ns=1_000_000,
-            frame_start_ns=1_000_000,
+            frame_start_seconds=0.0,
         )
 
         mock_timer.compute_deadline.assert_called_once()
@@ -1377,10 +1377,90 @@ class TestHandleFramePacing:
             timer=mock_timer,
             period_ns=16_666_667,
             prev_deadline_ns=1_000_000,
-            frame_start_ns=1_000_000,
+            frame_start_seconds=0.0,
         )
 
         mock_log_jitter.assert_called_once_with(mock_timer, 2_000_100, 2_000_000)
+
+    def test_handle_frame_pacing_measures_dt_with_perf_counter_not_timer_clock(
+        self, mock_pygame_patches, mocker
+    ):
+        """Paced dt comes from perf_counter, so a whole-millisecond timer cannot quantize it."""
+        manager = SceneManager()
+        type(manager).OPTIONS = {'log_timer_jitter': False}
+        frame_seconds = 1.0 / 60.0
+        mocker.patch(
+            'glitchygames.scenes.scene.time',
+            mocker.Mock(perf_counter=mocker.Mock(return_value=10.0 + frame_seconds)),
+        )
+
+        mock_timer = mocker.Mock()
+        mock_timer.compute_deadline.return_value = 2_000_000
+        # The timer reports a whole 17 ms wake, which would give dt = 1/0.017 = 58.8 FPS.
+        mock_timer.sleep_until_next.return_value = 17_000_000
+
+        manager._handle_frame_pacing(
+            timer=mock_timer,
+            period_ns=16_666_667,
+            prev_deadline_ns=None,
+            frame_start_seconds=10.0,
+        )
+
+        assert abs(1.0 / manager.dt - 60.0) < 0.01
+
+    def test_whole_millisecond_timer_steps_record_steady_fps(self, mock_pygame_patches, mocker):
+        """A 17/17/16 ms timer cadence over true 16.67 ms frames records ~60 FPS each frame."""
+        manager = SceneManager()
+        type(manager).OPTIONS = {'log_timer_jitter': False}
+        mock_performance_manager = mocker.Mock()
+        mocker.patch(
+            'glitchygames.performance.performance_manager', mock_performance_manager, create=True
+        )
+        frame_seconds = 1.0 / 60.0
+        whole_millisecond_wakes = [17_000_000, 34_000_000, 50_000_000]
+        mock_perf_counter = mocker.Mock()
+        mocker.patch('glitchygames.scenes.scene.time', mocker.Mock(perf_counter=mock_perf_counter))
+        mock_timer = mocker.Mock()
+        mock_timer.compute_deadline.return_value = 0
+
+        for frame_index, wake_ns in enumerate(whole_millisecond_wakes):
+            mock_timer.sleep_until_next.return_value = wake_ns
+            mock_perf_counter.return_value = (frame_index + 1) * frame_seconds
+            manager._handle_frame_pacing(
+                timer=mock_timer,
+                period_ns=16_666_667,
+                prev_deadline_ns=None,
+                frame_start_seconds=frame_index * frame_seconds,
+            )
+            manager._track_performance(processing_time=0.001)
+
+        recorded_values = [
+            call.args[0] for call in mock_performance_manager.track_fps_from_event.call_args_list
+        ]
+        assert len(recorded_values) == 3
+        for recorded_fps in recorded_values:
+            assert abs(recorded_fps - 60.0) < 0.01
+
+    def test_paced_frame_of_fractional_target_records_exact_fps(self, mock_pygame_patches, mocker):
+        """A paced frame lasting exactly 1/60.5 s records 60.5 FPS."""
+        manager = SceneManager()
+        type(manager).OPTIONS = {'log_timer_jitter': False}
+        mocker.patch(
+            'glitchygames.scenes.scene.time',
+            mocker.Mock(perf_counter=mocker.Mock(return_value=5.0 + 1.0 / 60.5)),
+        )
+        mock_timer = mocker.Mock()
+        mock_timer.compute_deadline.return_value = 0
+        mock_timer.sleep_until_next.return_value = 17_000_000
+
+        manager._handle_frame_pacing(
+            timer=mock_timer,
+            period_ns=16_528_926,
+            prev_deadline_ns=None,
+            frame_start_seconds=5.0,
+        )
+
+        assert abs(1.0 / manager.dt - 60.5) < 1e-6
 
     def test_handle_frame_pacing_fallback_with_target_fps(self, mock_pygame_patches, mocker):
         """Test frame pacing falls back to clock.tick when no timer but target_fps > 0."""
@@ -1393,7 +1473,7 @@ class TestHandleFramePacing:
             timer=None,
             period_ns=0,
             prev_deadline_ns=None,
-            frame_start_ns=0,
+            frame_start_seconds=0.0,
         )
 
         mock_clock_tick.assert_called_once_with(60)
@@ -1409,7 +1489,7 @@ class TestHandleFramePacing:
             timer=None,
             period_ns=0,
             prev_deadline_ns=None,
-            frame_start_ns=0,
+            frame_start_seconds=0.0,
         )
 
         mock_clock_tick.assert_called_once_with()
@@ -1442,95 +1522,74 @@ class TestPostFpsEvent:
         mock_post.assert_called_once()
 
 
-class TestTickClock:
-    """Test SceneManager._tick_clock() method."""
-
-    def test_tick_clock_with_target_fps(self, mock_pygame_patches, mocker):
-        """Test _tick_clock calls clock.tick with target_fps when > 0."""
-        manager = SceneManager()
-        manager.target_fps = 60
-        manager.dt = 0.016
-
-        mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
-        mocker.patch.object(manager.clock, 'get_fps', return_value=60.0)
-        # Mock performance_manager import to avoid ImportError
-        mocker.patch(
-            'glitchygames.scenes.scene.SceneManager._tick_clock.__module__',
-            create=True,
-        )
-
-        manager._tick_clock()
-
-        mock_clock_tick.assert_called_once_with(60)
-
-    def test_tick_clock_unlimited_fps(self, mock_pygame_patches, mocker):
-        """Test _tick_clock calls clock.tick without args when target_fps is 0."""
-        manager = SceneManager()
-        manager.target_fps = 0
-
-        mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
-
-        manager._tick_clock()
-
-        mock_clock_tick.assert_called_once_with()
-
-    def test_tick_clock_performance_manager_import_error(self, mock_pygame_patches, mocker):
-        """Test _tick_clock handles ImportError for performance module gracefully."""
-        manager = SceneManager()
-        manager.target_fps = 60
-        manager.dt = 0.016
-
-        mocker.patch.object(manager.clock, 'tick')
-        mocker.patch.object(manager.clock, 'get_fps', return_value=60.0)
-
-        # Mock the import to raise ImportError
-        original_import = (
-            __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
-        )
-
-        def mock_import(name, *args, **kwargs):
-            if name == 'glitchygames.performance':
-                msg = 'No module named glitchygames.performance'
-                raise ImportError(msg)
-            return original_import(name, *args, **kwargs)
-
-        mocker.patch('builtins.__import__', side_effect=mock_import)
-
-        # Should not raise
-        manager._tick_clock()
-
-
 class TestTrackPerformance:
     """Test SceneManager._track_performance() method."""
 
-    def test_track_performance_with_timer(self, mock_pygame_patches, mocker):
-        """Test _track_performance computes FPS from dt when timer is present."""
+    def _patch_performance_manager(self, mocker):
+        mock_performance_manager = mocker.Mock()
+        mocker.patch(
+            'glitchygames.performance.performance_manager',
+            mock_performance_manager,
+            create=True,
+        )
+        return mock_performance_manager
+
+    def test_track_performance_records_fps_from_measured_frame_time(
+        self, mock_pygame_patches, mocker
+    ):
+        """FPS is 1/dt exactly, not a quantized 10000/N value from pygame's clock."""
+        manager = SceneManager()
+        manager.dt = 1.0 / 437.3
+        mock_performance_manager = self._patch_performance_manager(mocker)
+
+        manager._track_performance(processing_time=0.008)
+
+        recorded_fps = mock_performance_manager.track_fps_from_event.call_args.args[0]
+        assert abs(recorded_fps - 437.3) < 1e-6
+
+    def test_track_performance_consecutive_frames_record_different_values(
+        self, mock_pygame_patches, mocker
+    ):
+        """Two frames with different dt are not repeated samples of one value."""
+        manager = SceneManager()
+        mock_performance_manager = self._patch_performance_manager(mocker)
+
+        manager.dt = 1.0 / 400.0
+        manager._track_performance(processing_time=0.001)
+        manager.dt = 1.0 / 412.5
+        manager._track_performance(processing_time=0.001)
+
+        recorded_values = [
+            call.args[0] for call in mock_performance_manager.track_fps_from_event.call_args_list
+        ]
+        assert len(recorded_values) == 2
+        assert recorded_values[0] != recorded_values[1]
+        assert abs(recorded_values[0] - 400.0) < 1e-6
+        assert abs(recorded_values[1] - 412.5) < 1e-6
+
+    def test_track_performance_does_not_call_clock_get_fps(self, mock_pygame_patches, mocker):
+        """Pygame's 10-frame clock counter is never consulted."""
         manager = SceneManager()
         manager.dt = 0.016
+        mock_get_fps = mocker.patch.object(manager.clock, 'get_fps', return_value=999.0)
+        mock_performance_manager = self._patch_performance_manager(mocker)
 
-        mock_perf_manager = mocker.Mock()
-        mocker.patch(
-            'glitchygames.performance.performance_manager',
-            mock_perf_manager,
-            create=True,
-        )
+        manager._track_performance(processing_time=0.008)
 
-        mock_timer = mocker.Mock()
-        manager._track_performance(timer=mock_timer, period_ns=16_666_667, processing_time=0.008)
+        mock_get_fps.assert_not_called()
+        recorded_fps = mock_performance_manager.track_fps_from_event.call_args.args[0]
+        assert abs(recorded_fps - 62.5) < 1e-6
 
-    def test_track_performance_without_timer(self, mock_pygame_patches, mocker):
-        """Test _track_performance uses clock when no timer."""
+    def test_track_performance_zero_dt_records_zero(self, mock_pygame_patches, mocker):
+        """A zero dt records 0.0 rather than dividing by zero."""
         manager = SceneManager()
-        mocker.patch.object(manager.clock, 'get_fps', return_value=60.0)
+        manager.dt = 0.0
+        mock_performance_manager = self._patch_performance_manager(mocker)
 
-        mock_perf_manager = mocker.Mock()
-        mocker.patch(
-            'glitchygames.performance.performance_manager',
-            mock_perf_manager,
-            create=True,
-        )
+        manager._track_performance(processing_time=0.008)
 
-        manager._track_performance(timer=None, period_ns=0, processing_time=0.008)
+        recorded_fps = mock_performance_manager.track_fps_from_event.call_args.args[0]
+        assert recorded_fps == 0.0
 
 
 class TestSceneManagerOnFpsEvent:
@@ -2410,26 +2469,6 @@ class TestSceneManagerUpdateScreen:
 
         manager.update_screen()
         assert manager.screen is original_screen
-
-
-class TestSceneManagerTickClock:
-    """Test SceneManager._tick_clock."""
-
-    def test_tick_clock_with_target_fps(self, mock_pygame_patches, mocker):
-        """Test _tick_clock limits to target FPS."""
-        manager = SceneManager()
-        manager.target_fps = 60
-        manager.dt = 0.016
-
-        manager._tick_clock()  # Should not raise
-
-    def test_tick_clock_unlimited_fps(self, mock_pygame_patches, mocker):
-        """Test _tick_clock without FPS limit."""
-        manager = SceneManager()
-        manager.target_fps = 0
-        manager.dt = 0.001
-
-        manager._tick_clock()  # Should not raise
 
 
 class TestSceneOnKeyDownWithFocusedSprites:

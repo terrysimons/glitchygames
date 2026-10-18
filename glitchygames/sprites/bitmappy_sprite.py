@@ -12,9 +12,12 @@ from __future__ import annotations
 import logging
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn, Self, cast, override
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, ClassVar, NoReturn, Self, cast, override
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from glitchygames.events.base import HashableEvent
 
 import pygame
@@ -49,7 +52,7 @@ class BitmappySprite(Sprite):
     # Use the universal character set from constants
     from .constants import SPRITE_GLYPHS
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self: Self,
         x: float = 0,
         y: float = 0,
@@ -968,9 +971,13 @@ class BitmappySprite(Sprite):
 class Singleton:
     """A generic singleton class."""
 
-    __instance__ = None
+    __instance__: ClassVar[Singleton | None] = None
+    # Per-instance values are assigned in __new__; these immutable class-level defaults only
+    # exist so the attributes are declared and initialized for type checkers.
+    args: tuple[object, ...] = ()
+    kwargs: Mapping[str, object] = MappingProxyType({})
 
-    def __new__(cls: Any, *args: object, **kwargs: object) -> Self:  # type: ignore[reportGeneralTypeIssues]
+    def __new__(cls, *args: object, **kwargs: object) -> Self:
         """Create a new instance of the Singleton.
 
         Args:
@@ -981,11 +988,16 @@ class Singleton:
             Singleton: The instance of the Singleton.
 
         """
-        if cls.__instance__ is None:
-            cls.__instance__ = object.__new__(cls)
-        cls.__instance__.args = args
-        cls.__instance__.kwargs = kwargs
-        return cast('Singleton', cls.__instance__)  # type: ignore[return-value] # ty: ignore[invalid-return-type]
+        # The isinstance check (rather than "is None") narrows the stored instance to Self
+        # and ensures a subclass never receives an instance of a different class that was
+        # found on a base class via attribute lookup.
+        instance = cls.__instance__
+        if not isinstance(instance, cls):
+            instance = object.__new__(cls)
+            cls.__instance__ = instance
+        instance.args = args
+        instance.kwargs = kwargs
+        return instance
 
 
 # This is a root class for sprites that should be singletons, like
@@ -993,20 +1005,23 @@ class Singleton:
 class SingletonBitmappySprite(BitmappySprite):
     """A singleton class for handling singleton sprites, like mouse pointers."""
 
-    __instance__ = None
+    __instance__: ClassVar[SingletonBitmappySprite | None] = None
 
-    def __new__(cls: Any, *_args: Any, **_kwargs: Any) -> Self:  # type: ignore[reportGeneralTypeIssues]
+    def __new__(cls, *_args: Any, **_kwargs: Any) -> Self:
         """Create a new instance of the SingletonBitmappySprite.
 
         Returns:
             SingletonBitmappySprite: The instance of the SingletonBitmappySprite.
 
         """
-        if cls.__instance__ is None:
-            cls.__instance__ = object.__new__(cls)
-        return cast('SingletonBitmappySprite', cls.__instance__)  # type: ignore[return-value] # ty: ignore[invalid-return-type]
+        # See Singleton.__new__ for why this is an isinstance check rather than "is None".
+        instance = cls.__instance__
+        if not isinstance(instance, cls):
+            instance = object.__new__(cls)
+            cls.__instance__ = instance
+        return instance
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self: Self,
         x: int = 0,
         y: int = 0,
@@ -1038,20 +1053,23 @@ class SingletonBitmappySprite(BitmappySprite):
 class FocusableSingletonBitmappySprite(BitmappySprite):
     """A singleton class for handling all of the focusable sprite behaviors."""
 
-    __instance__ = None
+    __instance__: ClassVar[FocusableSingletonBitmappySprite | None] = None
 
-    def __new__(cls: Any, *_args: Any, **_kwargs: Any) -> Self:  # type: ignore[reportGeneralTypeIssues]
+    def __new__(cls, *_args: Any, **_kwargs: Any) -> Self:
         """Create a new instance of the FocusableSingletonBitmappySprite.
 
         Returns:
             FocusableSingletonBitmappySprite: The instance.
 
         """
-        if cls.__instance__ is None:
-            cls.__instance__ = object.__new__(cls)
-        return cast('FocusableSingletonBitmappySprite', cls.__instance__)  # type: ignore[return-value] # ty: ignore[invalid-return-type]
+        # See Singleton.__new__ for why this is an isinstance check rather than "is None".
+        instance = cls.__instance__
+        if not isinstance(instance, cls):
+            instance = object.__new__(cls)
+            cls.__instance__ = instance
+        return instance
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self: Self,
         x: float = 0,
         y: float = 0,

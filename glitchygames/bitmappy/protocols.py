@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    import logging
+
     import pygame
 
     from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
@@ -110,9 +112,22 @@ class EditorContext(Protocol):
 
     options: dict[str, Any]
     name: Any  # Class attribute NAME on Scene, type varies
-    log: Any  # Logger
-    screenshot: Any  # Screenshot surface or method
     confirmation_dialog: Any  # Confirmation dialog or None
+
+    @property
+    def log(self) -> logging.Logger:
+        """The editor's logger.
+
+        Declared as a read-only property because Scene defines ``log`` as a
+        ``ClassVar[logging.Logger]``; a plain (mutable) protocol attribute would
+        require instance writes, which a ClassVar does not accept.
+        """
+        ...
+
+    @property
+    def screenshot(self) -> pygame.Surface:
+        """A screenshot of the scene (Scene defines this as a read-only property)."""
+        ...
 
     # ── Cross-class API methods ──────────────────────────────────────────
 

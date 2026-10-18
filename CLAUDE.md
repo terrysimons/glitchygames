@@ -101,11 +101,11 @@ nox -s build-wheel         # Build wheel (.whl) only
 # Run with default settings
 uv run bitmappy
 
-# High-precision timing backend
-uv run bitmappy --timer-backend=fast
+# Legacy pygame timing backend (the fast backend is the default)
+uv run bitmappy --timer-backend=pygame
 
 # Custom target FPS
-uv run bitmappy --target-fps=120
+uv run bitmappy --target-fps=120   # default is 60.44; --target-fps 0 for uncapped
 
 # Enable timer jitter logging
 uv run bitmappy --timer-backend=fast --log-timer-jitter
@@ -134,10 +134,39 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 
 **Frame Pacing** (`glitchygames/timing.py`)
 - Two timer backends:
-  - `PygameTimer`: Legacy pygame-based timing
-  - `FastTimer`: High-resolution `time.perf_counter_ns()` with sleep+spin hybrid
+  - `FastTimer` (default): High-resolution `time.perf_counter_ns()` with sleep+spin hybrid
+  - `PygameTimer`: Legacy pygame-based timing (whole milliseconds); select with `--timer-backend=pygame`
+- Paced frame time (`dt`, FPS tracking) is always measured with `time.perf_counter()`, and
+  `target_fps` may be fractional (the period is `round(1e9 / target_fps)` ns)
+- Default target 60.44 FPS (`DEFAULT_TARGET_FPS` in `glitchygames/timing.py`, re-exported by
+  `glitchygames.engine`); `--target-fps 0` is uncapped for every game
+- A game scene may set `TARGET_FPS` (class attribute, like `NAME`/`VERSION`; `0.0` = uncapped,
+  `None` = engine default). Resolution order: explicit `--target-fps` > scene `TARGET_FPS` > 60.44
 - Configurable sleep granularity for tight frame pacing
 - Windows timer resolution control via WinMM
+
+**Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
+- `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`
+- Styles: `NOISE` (trauma model), `JITTER`, `BOUNCE`; shakes stack and are capped
+- WORLD shakes `Camera2D` sprites (HUD stays still); SCREEN shifts the presented frame,
+  survives `transition_to`, and is cleared by `switch_to_scene`
+- Optional `RumbleSettings` per shake; `SceneManager` sends combined rumble in controller and
+  joystick modes
+- `--screen-shake-intensity`, `--rumble-intensity` (0.0-1.0)
+
+**Sound Synthesis** (`glitchygames/audio/synth.py`, `recipes.py`, `live.py`)
+- Toolkit: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR filters,
+  mixing, `to_sound()`
+- Recipes: `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank`
+- Live voices: `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on
+  a channel pool reserved at startup (`--live-voice-pool`, default 4)
+- Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer (started by `pygame.init()`)
+- GIL: the engine sets `sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)` (0.5 ms, `timing.py`) so the
+  mixer callback can queue the next chunk; check with `uv run python scripts/audio_glitch_probe.py`
+
+**Transitions** (`glitchygames/transitions/`): `on_update` callback, `add_cue(progress, callback)`,
+`eased_velocity_at(progress)`; cues run after the old scene's cleanup, so they may use only
+SceneManager services
 
 ### Event System
 
@@ -180,7 +209,7 @@ Dialogs: `LoadDialogScene`, `SaveDialogScene`, `NewCanvasDialogScene`
 
 **Focus Model**: Focusable sprites intercept keyboard input via `active` attribute
 
-### Bitmappy Pixel Art Editor (`glitchygames/tools/bitmappy.py`)
+### Bitmappy Pixel Art Editor (`glitchygames/bitmappy/`)
 
 Features:
 - Canvas-based pixel editing with undo/redo (`UndoRedoManager`)
@@ -230,18 +259,7 @@ Features:
 
 ## Known Bugs
 
-**Active Issues** (see BUGS.md for full details):
-
-1. **First Pasted Frame Alpha Loss** (Film Strip)
-   - Location: Film strip per-pixel alpha handling
-   - Issue: First frame pasted into new film strip loses transparency
-   - Workaround: Paste a second frame, transparency works correctly
-   - Files: `glitchygames/tools/film_strip.py`
-
-2. **Ball Collision Trajectory Bug** (Game Physics)
-   - Location: `glitchygames/game_objects/ball.py`
-   - Issue: Horizontal ball doesn't update trajectory after diagonal collision
-   - Priority: High
+**Active Issues**: see BUGS.md for the current list.
 
 ## File Formats and Sprite Loading
 

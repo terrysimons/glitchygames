@@ -10,8 +10,20 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.examples.paddleslap import Game
-from glitchygames.game_objects.ball import SpeedUpMode
+from glitchygames.examples.paddleslap import (
+    PADDLESLAP_SERVE,
+    PADDLESLAP_SPAWN_SERVE,
+    PADDLESLAP_SPEED_UP,
+    Game,
+)
+from glitchygames.game_objects.ball import (
+    BallSpawnMode,
+    BallSprite,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpTrigger,
+    speed_up_step_ratio,
+)
 from tests.mocks.test_mock_factory import MockFactory
 
 
@@ -62,26 +74,28 @@ class TestPaddleslapExample:
         assert hasattr(game, 'balls')
         assert len(game.balls) == 1
 
-        # Verify ball has correct speed-up mode (X-only)
+        # Verify ball has PaddleSlap's speed-up settings
         ball = game.balls[0]
-        expected_speed_up_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X
-        assert ball.speed_up_mode == expected_speed_up_mode
-        assert math.isclose(ball.speed_up_multiplier, 1.15)
+        assert ball.speed_up_settings == PADDLESLAP_SPEED_UP
+        assert math.isclose(ball.speed_up_settings.multiplier, 1.15)
         assert ball.bounce_top_bottom is True
         assert ball.bounce_left_right is False
 
     def test_paddleslap_ball_speed_up_mechanism(self):
-        """Test that the X-only speed-up mechanism works correctly."""
+        """Test that the ball speeds up logarithmically on paddle bounces only."""
         game = Game(options=self.mock_options)
         ball = game.balls[0]
+        settings = ball.speed_up_settings
 
-        # Test that the speed-up mode is X-only
-        expected_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X
-        assert ball.speed_up_mode == expected_mode
+        # Paddle bounces are the only trigger (no wall or continuous speed-ups)
+        assert settings.triggers == SpeedUpTrigger.PADDLE_BOUNCE
+        assert SpeedUpTrigger.WALL_BOUNCE not in settings.triggers
+        assert SpeedUpTrigger.CONTINUOUS not in settings.triggers
 
-        # Test that only X flag is set
-        assert ball.speed_up_mode & SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X
-        assert not (ball.speed_up_mode & SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y)
+        # Logarithmic curve on both axes, capped at 500 px/s
+        assert settings.curve is SpeedUpCurve.LOGARITHMIC
+        assert settings.axes is SpeedUpAxes.BOTH
+        assert settings.max_speed == pytest.approx(500.0)
 
     def test_paddleslap_ball_creation_with_multiple_balls(self):
         """Test creating multiple balls with the new speed-up mechanism."""
@@ -93,37 +107,86 @@ class TestPaddleslapExample:
         # Verify correct number of balls
         assert len(game.balls) == 3
 
-        # Verify all balls have the correct speed-up mode (X-only)
-        expected_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X
+        # Verify all balls share PaddleSlap's speed-up settings
         for ball in game.balls:
-            assert ball.speed_up_mode == expected_mode
-            assert math.isclose(ball.speed_up_multiplier, 1.15)
+            assert ball.speed_up_settings == PADDLESLAP_SPEED_UP
+            assert ball.speed_up_count == 0
             assert ball.bounce_top_bottom is True
             assert ball.bounce_left_right is False
 
     def test_paddleslap_speed_up_logic(self):
-        """Test that the speed-up logic correctly handles X-only speed-up."""
+        """Test that a paddle bounce speeds the ball up while preserving its angle.
+
+        PaddleSlap uses PADDLESLAP_SPEED_UP: the LOGARITHMIC curve on BOTH axes with
+        multiplier 1.15. The first step (n=0) scales both components by
+        1 + 0.15*ln(2) (about 1.104, not 1.15), so the trajectory angle is unchanged.
+        See TestBallSpeedUpSweep in tests/game_objects/test_ball_speed_up.py for every
+        curve, axis setting, and heading.
+        """
         game = Game(options=self.mock_options)
         ball = game.balls[0]
 
-        # Set initial speed
         from glitchygames.movement import Speed
 
         ball.speed = Speed(100.0, 200.0)
         initial_x = ball.speed.x
         initial_y = ball.speed.y
 
-        # Simulate paddle bounce (should trigger only X speed-up)
         ball.on_paddle_bounce()
 
-        # Only X should be affected by the speed-up, Y should remain unchanged
-        assert ball.speed.x != initial_x  # X speed changed
-        assert ball.speed.y == initial_y  # Y speed unchanged
+        # Both components scale by the first logarithmic step, preserving the angle
+        expected_ratio = speed_up_step_ratio(
+            curve=SpeedUpCurve.LOGARITHMIC, multiplier=1.15, completed_steps=0
+        )
+        assert math.isclose(expected_ratio, 1.0 + 0.15 * math.log(2.0))
+        assert math.isclose(ball.speed.x, initial_x * expected_ratio)
+        assert math.isclose(ball.speed.y, initial_y * expected_ratio)
+        assert ball.speed_up_count == 1
+        assert math.isclose(
+            math.atan2(ball.speed.y, ball.speed.x),
+            math.atan2(initial_y, initial_x),
+        )
 
-        # Verify the speed-up was applied correctly to X only
-        expected_x = initial_x * 1.15
-        assert abs(ball.speed.x - expected_x) < 0.01
-        assert ball.speed.y == initial_y  # Y should be exactly the same
+    @staticmethod
+    def _assert_served_with(ball: BallSprite, serve_settings) -> None:
+        """Assert the ball's velocity is a serve within the given settings' band and speed."""
+        assert math.hypot(ball.speed.x, ball.speed.y) == pytest.approx(serve_settings.speed)
+        angle_from_horizontal = math.degrees(math.atan2(abs(ball.speed.y), abs(ball.speed.x)))
+        assert (
+            serve_settings.minimum_angle_degrees - 1e-9
+            <= angle_from_horizontal
+            <= serve_settings.maximum_angle_degrees + 1e-9
+        )
+
+    def test_opening_balls_use_paddleslap_serve(self):
+        """Opening balls are served Pong-style rather than at one fixed velocity."""
+        self.mock_options['balls'] = 3
+        game = Game(options=self.mock_options)
+
+        for ball in game.balls:
+            assert ball.serve_settings == PADDLESLAP_SERVE
+            self._assert_served_with(ball, PADDLESLAP_SERVE)
+
+    def test_random_speed_spawns_use_spawn_serve(self):
+        """RANDOM_SPEED spawns are slower diagonal serves, never near-vertical or flat."""
+        game = Game(options=self.mock_options)
+        game.ball_spawn_mode = BallSpawnMode.ON_PADDLE_COLLISION | BallSpawnMode.RANDOM_SPEED
+
+        for _ in range(50):
+            game._spawn_new_ball()
+            new_ball = game.balls[-1]
+            assert new_ball.serve_settings == PADDLESLAP_SPAWN_SERVE
+            self._assert_served_with(new_ball, PADDLESLAP_SPAWN_SERVE)
+
+    def test_fixed_speed_spawns_keep_fixed_velocity(self):
+        """Without RANDOM_SPEED, spawned balls keep PaddleSlap's fixed (250, 125) speed."""
+        game = Game(options=self.mock_options)
+        game.ball_spawn_mode = BallSpawnMode.ON_PADDLE_COLLISION
+
+        game._spawn_new_ball()
+
+        new_ball = game.balls[-1]
+        assert (new_ball.speed.x, new_ball.speed.y) == (250.0, 125.0)
 
     def test_paddleslap_game_setup(self):
         """Test that the game setup method works correctly."""
@@ -134,7 +197,7 @@ class TestPaddleslapExample:
 
         # Verify setup completed without errors
         assert hasattr(game, 'target_fps')
-        assert game.target_fps == 60
+        assert math.isclose(game.target_fps, 0.0, abs_tol=1e-9)  # 0 stays uncapped
 
     def test_paddleslap_args_method(self):
         """Test that the args method works correctly."""

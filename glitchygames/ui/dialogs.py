@@ -540,7 +540,7 @@ class DeleteAnimationDialogScene(Scene):
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
+    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:  # ruff: ignore[unused-method-argument]
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -561,7 +561,7 @@ class DeleteAnimationDialogScene(Scene):
             # Clear the input box to let user try again
             self.dialog.input_box.text = ''
 
-    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
+    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:  # ruff: ignore[unused-method-argument]
         """Handle cancel button click."""
         LOG.info('DeleteAnimationDialog: User cancelled')
         # Call the cancel callback if provided
@@ -680,7 +680,7 @@ class DeleteFrameDialogScene(Scene):
         # Activate input box so user can start typing immediately
         self.dialog.input_box.activate()
 
-    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
+    def on_confirm_event(self, event: HashableEvent, trigger: object = None) -> None:  # ruff: ignore[unused-method-argument]
         """Handle confirm button click."""
         # Get the typed text
         typed_text = self.dialog.input_box.text.strip()
@@ -701,7 +701,7 @@ class DeleteFrameDialogScene(Scene):
             # Clear the input box to let user try again
             self.dialog.input_box.text = ''
 
-    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:  # noqa: ARG002
+    def on_cancel_event(self, event: HashableEvent, trigger: object = None) -> None:  # ruff: ignore[unused-method-argument]
         """Handle cancel button click."""
         LOG.info('DeleteFrameDialog: User cancelled')
         # Call the cancel callback if provided

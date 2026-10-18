@@ -30,7 +30,7 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     @property
     @override
     def image(self) -> pygame.Surface:
-        """Return the sprite image (always non-None for GlitchyGames sprites)."""
+        """The sprite image (always non-None for GlitchyGames sprites)."""
         return self._gg_image
 
     @image.setter
@@ -40,7 +40,7 @@ class RootSprite(MouseEvents, SpriteInterface, pygame.sprite.DirtySprite):
     @property
     @override
     def rect(self) -> pygame.FRect | pygame.Rect:
-        """Return the sprite rect (always non-None for GlitchyGames sprites)."""
+        """The sprite rect (always non-None for GlitchyGames sprites)."""
         return self._gg_rect
 
     @rect.setter

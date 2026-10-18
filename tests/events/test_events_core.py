@@ -15,7 +15,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.events import (  # noqa: I001
+from glitchygames.events import (  # ruff: ignore[unsorted-imports]
     EventInterface,
     EventManager,
     HashableEvent,
@@ -602,7 +602,7 @@ class TestEventInterface:
     def test_event_interface_subclasshook_empty_attributes(self, mock_pygame_patches):
         """Test EventInterface.__subclasshook__ with empty attributes."""
 
-        class EmptyEventClass(ABC):  # noqa: B024
+        class EmptyEventClass(ABC):  # ruff: ignore[abstract-base-class-without-abstract-method]
             pass
 
         # Test the subclasshook directly without log patching

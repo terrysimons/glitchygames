@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from .protocols import EditorContext
 
 
-class FilmStripCoordinator:  # noqa: PLR0904
+class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
     """Coordinates film strip operations for the Bitmappy editor.
 
     Manages film strip lifecycle, animation add/delete/rename,
@@ -144,7 +144,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
         preserved_selections = getattr(self, '_preserved_controller_selections', None)
         self.editor.controller_handler.reinitialize_multi_controller_system(preserved_selections)
 
-    def _create_single_film_strip(  # noqa: PLR0913
+    def _create_single_film_strip(  # ruff: ignore[too-many-arguments]
         self,
         *,
         strip_index: int,
@@ -321,7 +321,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
         frame_surface.fill((255, 0, 255))  # Magenta background
 
         default_frame = SpriteFrame(frame_surface)
-        default_frame.set_pixel_data([(255, 0, 255)] * (frame_width * frame_height))  # ty: ignore[invalid-argument-type]
+        default_frame.set_pixel_data([(255, 0, 255)] * (frame_width * frame_height))
 
         animated_sprite._animations = {'default': [default_frame]}  # type: ignore[reportPrivateUsage]
         animated_sprite._animation_order = ['default']  # type: ignore[reportPrivateUsage]
@@ -391,7 +391,7 @@ class FilmStripCoordinator:  # noqa: PLR0904
             frame.image = surface
 
             pixel_data = [(255, 0, 255, 255)] * (width * height)
-            frame.set_pixel_data(pixel_data)  # ty: ignore[invalid-argument-type]
+            frame.set_pixel_data(pixel_data)
 
             LOG.debug(f'DEBUG: Created default magenta frame for frame {frame_idx}')
 
@@ -1637,9 +1637,13 @@ class FilmStripCoordinator:  # noqa: PLR0904
         if hasattr(self.editor, 'film_strips') and self.editor.film_strips:
             for strip_name, strip_widget in self.editor.film_strips.items():
                 if strip_name == animation:
-                    # Update the selected_frame in the film strip widget
-                    strip_widget.selected_frame = (  # type: ignore[attr-defined]
-                        self.editor.selected_frame if hasattr(self.editor, 'selected_frame') else 0
+                    # Update the selected_frame in the film strip widget. The editor's
+                    # selected_frame is None when no animations remain (see
+                    # _handle_no_remaining_animations); the widget needs an int, so fall back
+                    # to frame 0 in that case.
+                    editor_selected_frame = self.editor.selected_frame
+                    strip_widget.selected_frame = (
+                        editor_selected_frame if editor_selected_frame is not None else 0
                     )
                     LOG.debug(
                         f'BitmapEditorScene: Updated film strip {strip_name} selected_frame to'

@@ -1,6 +1,13 @@
 [sprite]
 name = "timing_demo"
 
+[sprite.hitbox]
+offset_x = 0
+offset_y = 0
+width = 2
+height = 2
+
+
 [[animation]]
 namespace = "timing_demo"
 frame_interval = 0.1

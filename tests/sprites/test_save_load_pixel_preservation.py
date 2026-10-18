@@ -1,11 +1,29 @@
 """Test that save/load operations preserve pixel data correctly."""
 
+import re
 import tempfile
 from pathlib import Path
 
 import pygame
 
 from tests.mocks.test_mock_factory import MockFactory
+
+
+def _strip_hitbox_sections(content: str) -> str:
+    """Remove hitbox sections from TOML content for comparison.
+
+    Strips [sprite.hitbox] and [animation.frame.hitbox] sections
+    including their key-value pairs, so pixel preservation can be
+    compared independently of auto-computed hitbox data.
+    """
+    # Remove [sprite.hitbox] and [animation.frame.hitbox] sections
+    # Each section is a header followed by key=value lines until the next section or blank line
+    pattern = r'\n?\[(?:sprite|animation\.frame)\.hitbox\]\n(?:[\w_]+ = \d+\n)*\n?'
+    stripped = re.sub(pattern, '\n', content)
+    # Collapse multiple blank lines to single
+    stripped = re.sub(r'\n{3,}', '\n\n', stripped)
+    return stripped.rstrip('\n')
+
 
 # Candle sprite content from user
 CANDLE_SPRITE_CONTENT = """[sprite]
@@ -699,11 +717,14 @@ class TestSaveLoadPixelPreservation:
             # Read saved file content
             saved_content = Path(temp_output).read_text(encoding='utf-8')
 
-            # Files should be byte-for-byte identical (normalize trailing newlines)
-            original_normalized = original_content.rstrip('\n')
-            saved_normalized = saved_content.rstrip('\n')
+            # Compare content, stripping auto-computed hitbox sections
+            # (the save pipeline now auto-computes hitboxes for sprites
+            # that don't have them, so the saved output includes
+            # [sprite.hitbox] and [animation.frame.hitbox] sections)
+            original_normalized = _strip_hitbox_sections(original_content)
+            saved_normalized = _strip_hitbox_sections(saved_content)
             assert original_normalized == saved_normalized, (
-                'Saved file should match original file.\n'
+                'Saved file should match original file (ignoring hitbox sections).\n'
                 f'Original length: {len(original_content)} '
                 f'(normalized: {len(original_normalized)})\n'
                 f'Saved length: {len(saved_content)} '

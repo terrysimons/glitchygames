@@ -146,7 +146,7 @@ class CanvasModeStrategy:
         """Initialize with a reference to the controller event handler."""
         self.handler = handler
 
-    def handle_button_down(self, controller_id: int, button: int) -> None:  # noqa: C901
+    def handle_button_down(self, controller_id: int, button: int) -> None:  # ruff: ignore[complex-structure]
         """Handle a controller button press in canvas mode."""
         handler = self.handler
 

@@ -21,6 +21,7 @@ from glitchygames.bitmappy import editor_setup as bitmappy_setup
 from glitchygames.bitmappy.ai_manager import AIManager
 from glitchygames.bitmappy.controllers.event_handler import ControllerEventHandler
 from glitchygames.bitmappy.editor import BitmapEditorScene
+from glitchygames.bitmappy.models import AIRequestState, AIResponse
 from glitchygames.bitmappy.slider_manager import SliderManager
 from tests.mocks import MockFactory
 
@@ -2258,6 +2259,33 @@ class TestIsAiErrorMessage:
             'I apologize, I cannot generate that',
         )
         assert result is True
+
+
+class TestProcessAiResponseErrors:
+    """Tests for _process_ai_response when the worker reports an error."""
+
+    def test_worker_error_is_shown_to_user(self, mock_editor):
+        """Shows the worker's error text instead of a generic 'empty' message."""
+        mock_editor._ai_integration.pending_ai_requests['req_1'] = AIRequestState(
+            original_prompt='draw a cat',
+        )
+        response = AIResponse(
+            content=None,
+            error='BadRequestError: Your credit balance is too low to access the Anthropic API.',
+        )
+
+        mock_editor._ai_integration._process_ai_response('req_1', response)
+
+        assert 'credit balance is too low' in mock_editor.debug_text.text
+        assert 'req_1' not in mock_editor._ai_integration.pending_ai_requests
+
+    def test_empty_response_without_error_keeps_generic_message(self, mock_editor):
+        """Falls back to the generic message when no error detail is available."""
+        response = AIResponse(content=None)
+
+        mock_editor._ai_integration._process_ai_response('req_2', response)
+
+        assert mock_editor.debug_text.text == 'AI response was empty'
 
 
 # ===========================================================================

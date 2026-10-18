@@ -4,6 +4,13 @@ description = """Make an animation of exactly this 32x32 bomb frame and 3
 additional 32x32 frames of the fuse burning shorter each frame
 across 1.5 seconds."""
 
+[sprite.hitbox]
+offset_x = 5
+offset_y = 4
+width = 24
+height = 25
+
+
 [[animation]]
 namespace = "burn"
 frame_interval = 0.5
@@ -47,6 +54,13 @@ pixels = """
 ................................
 """
 
+[animation.frame.hitbox]
+offset_x = 5
+offset_y = 4
+width = 24
+height = 25
+
+
 [[animation.frame]]
 namespace = "burn"
 frame_index = 1
@@ -84,6 +98,13 @@ pixels = """
 ................................
 ................................
 """
+
+[animation.frame.hitbox]
+offset_x = 5
+offset_y = 5
+width = 23
+height = 24
+
 
 [[animation.frame]]
 namespace = "burn"
@@ -123,6 +144,13 @@ pixels = """
 ................................
 """
 
+[animation.frame.hitbox]
+offset_x = 5
+offset_y = 6
+width = 21
+height = 23
+
+
 [[animation.frame]]
 namespace = "burn"
 frame_index = 3
@@ -160,6 +188,13 @@ pixels = """
 ................................
 ................................
 """
+
+[animation.frame.hitbox]
+offset_x = 5
+offset_y = 7
+width = 21
+height = 22
+
 
 [colors]
 [colors."."]

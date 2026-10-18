@@ -26,16 +26,25 @@ from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.game_objects import BallSprite
-from glitchygames.game_objects.ball import BallSpawnMode, SpeedUpMode
+from glitchygames.game_objects.ball import (
+    BallSpawnMode,
+    ServeSettings,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+)
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
+from glitchygames.input import ActionMap
 from glitchygames.movement import Speed
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
+from glitchygames.state import SaveManager, SaveNotFoundError
 
 log = logging.getLogger('game')
-log.setLevel(logging.DEBUG)  # Enable debug logging to catch weird ball movement
+log.setLevel(logging.INFO)
 
 # Threshold below which speed changes are considered noise
 SPEED_CHANGE_NOISE_FLOOR = 0.001
@@ -51,6 +60,21 @@ MIN_TRAJECTORY_POSITIONS_FOR_CURVE = 5
 
 # Y trend threshold for detecting significant upward movement (negative = upward)
 UPWARD_CURVE_Y_TREND_THRESHOLD = -5
+
+# Paddle hits speed the ball up along a logarithmic curve: big early boosts that taper
+# off so long rallies stay playable, preserving the angle the paddle set, capped at 500.
+# Opening serves: Pong-style diagonals 15-60 degrees from horizontal, toward either side
+PADDLESLAP_SERVE = ServeSettings()
+# Randomly-launched extra balls (BallSpawnMode.RANDOM_SPEED) start slower
+PADDLESLAP_SPAWN_SERVE = ServeSettings(speed=150.0)
+
+PADDLESLAP_SPEED_UP = SpeedUpSettings(
+    triggers=SpeedUpTrigger.PADDLE_BOUNCE,
+    curve=SpeedUpCurve.LOGARITHMIC,
+    axes=SpeedUpAxes.BOTH,
+    multiplier=1.15,
+    max_speed=500.0,
+)
 
 
 class TextSprite(Sprite):
@@ -226,7 +250,6 @@ class Game(Scene):
 
         super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
         # FPS will be set by command line arguments or default to 60
-        self._space_pressed = False
 
         # Set random seed for reproducible randomness
         seed = int(time.perf_counter() * 1000000) % 2**32
@@ -250,13 +273,24 @@ class Game(Scene):
             400,  # 400 pixels per second
             collision_sound=SFX.SLAP,
         )
+        # Input action maps (separate per player for multi-controller)
+        self.p1_actions, self.p2_actions, self.pause_actions = self._create_action_maps(
+            input_mode=self.options.get('input_mode', 'joystick'),
+        )
+
         self.balls: list[BallSprite] = []
+        self.rally_count: int = 0  # Total paddle hits across all balls
+        self.saves = SaveManager(app_name='paddleslap')
         self.last_ball_spawn_time = 0.0  # Track when we last spawned a ball
         self.ball_spawn_cooldown = 2.0  # Minimum 2 seconds between ball spawns
         # Per-pair collision cooldown to prevent duplicate collision processing
         # when ball bounding boxes overlap across multiple consecutive frames.
         # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
         self._ball_collision_cooldowns: dict[tuple[int, int], int] = {}
+
+        # Collision layers
+        self.collisions.add_layer('balls')
+        self.collisions.add_layer('paddles')
         # Convert string argument to BallSpawnMode flag
         spawn_mode_str = self.options.get('ball_spawn_mode', 'paddle_only')
         if spawn_mode_str == 'paddle_only':
@@ -278,14 +312,9 @@ class Game(Scene):
                 collision_sound=SFX.BOUNCE,
                 bounce_top_bottom=True,  # Bounce off top and bottom walls
                 bounce_left_right=False,  # Don't bounce off side walls (scoring)
-                # Logarithmic speed up on X only for paddle hits
-                speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
-                speed_up_multiplier=1.15,  # 15% speed increase
-                speed_up_interval=1.0,  # Not used for paddle-only mode
+                speed_up_settings=PADDLESLAP_SPEED_UP,
+                serve_settings=PADDLESLAP_SERVE,
             )
-            # Set a more reasonable speed for the ball (pixels per second)
-            # 250 pixels/sec horizontal, 125 pixels/sec vertical
-            ball.speed = Speed(250.0, 125.0)
             # Add collision cooldown tracking
             ball.collision_cooldowns = {}
             # Set up paddle collision callback for ball spawn (with speed limit check)
@@ -297,6 +326,11 @@ class Game(Scene):
             green = secrets.randbelow(256)
             blue = secrets.randbelow(256)
             ball.color = (red, green, blue)
+            self.collisions.get_layer('balls').add(ball)
+
+        paddle_layer = self.collisions.get_layer('paddles')
+        paddle_layer.add(self.player1)
+        paddle_layer.add(self.player2)
 
         self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
 
@@ -342,9 +376,6 @@ class Game(Scene):
             None
 
         """
-        # Set default FPS to 60 if not specified by command line
-        if self.target_fps == 0:
-            self.target_fps = 60
         pygame.key.set_repeat(1)
 
     def _debug_log_ball_trajectory(self: Self, ball_index: int, ball: BallSprite) -> None:
@@ -398,6 +429,9 @@ class Game(Scene):
         """
         self.dt = dt
         self.dt_timer += self.dt
+
+        # Process held-state input actions (paddle movement)
+        self._process_paddle_input()
 
         # Debug log ball positions and speeds before update
         for i, ball in enumerate(self.balls):
@@ -453,6 +487,7 @@ class Game(Scene):
 
         for ball in balls_to_remove:
             self.balls.remove(ball)
+            self.collisions.get_layer('balls').remove(ball)
 
         # Check for Game Over condition
         if len(self.balls) == 0:
@@ -461,14 +496,36 @@ class Game(Scene):
         super().update()
 
     def _show_game_over(self: Self) -> None:
-        """Show the Game Over scene.
+        """Save high score and show the Game Over scene."""
+        high_scores = self._save_high_score()
+        self.next_scene = GameOverScene(
+            final_score=self.rally_count,
+            high_scores=high_scores,
+            options=self.options,
+        )
+        self.previous_scene = self
 
-        Args:
-            None
+    def _save_high_score(self: Self) -> list[dict[str, int]]:
+        """Save the current rally count to the high scores list.
+
+        Returns:
+            The updated high scores list, sorted descending by score.
 
         """
-        self.next_scene = GameOverScene(options=self.options)
-        self.previous_scene = self
+        max_high_scores = 10
+        try:
+            existing = self.saves.load('high_scores')
+            scores: list[dict[str, int]] = existing.get('scores', [])
+        except SaveNotFoundError:
+            scores = []
+
+        scores.append({'score': self.rally_count})
+        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
+        scores = scores[:max_high_scores]
+
+        self.saves.save('high_scores', {'scores': scores})
+        log.info('Saved rally score: %d (total entries: %d)', self.rally_count, len(scores))
+        return scores
 
     def _spawn_new_ball(self: Self, _ball: BallSprite | None = None) -> None:
         """Spawn a new ball at random location with random direction.
@@ -482,10 +539,7 @@ class Game(Scene):
             collision_sound=SFX.BOUNCE,
             bounce_top_bottom=True,  # Bounce off top and bottom walls
             bounce_left_right=False,  # Don't bounce off side walls (scoring)
-            # Logarithmic speed up on X only for paddle hits
-            speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
-            speed_up_multiplier=1.15,  # 15% speed increase
-            speed_up_interval=1.0,  # Not used for paddle-only mode
+            speed_up_settings=PADDLESLAP_SPEED_UP,
         )
 
         # Position the ball based on spawn mode
@@ -520,32 +574,18 @@ class Game(Scene):
                 if not too_close:
                     break
 
-            new_ball.rect.x = spawn_x
-            new_ball.rect.y = spawn_y
+            new_ball.world_x = float(spawn_x)
+            new_ball.world_y = float(spawn_y)
         else:
             # Fixed position (center of screen)
-            new_ball.rect.x = self.screen_width // 2
-            new_ball.rect.y = self.screen_height // 2
+            new_ball.world_x = float(self.screen_width // 2)
+            new_ball.world_y = float(self.screen_height // 2)
 
         # Set speed based on spawn mode
         if self.ball_spawn_mode & BallSpawnMode.RANDOM_SPEED:
-            # Random direction with lower base speed for new balls
-            # Ensure both X and Y speeds are non-zero by avoiding cardinal directions
-            angle = secrets.randbelow(360) * (2 * math.pi / 360)
-            base_speed = 150.0  # Lower speed for new balls
-
-            # Calculate initial speeds
-            speed_x = base_speed * math.cos(angle)
-            speed_y = base_speed * math.sin(angle)
-
-            # Ensure minimum speed in both directions (avoid zero speeds)
-            min_speed = 50.0  # Minimum 50 pixels per second in each direction
-            if abs(speed_x) < min_speed:
-                speed_x = min_speed if speed_x >= 0 else -min_speed
-            if abs(speed_y) < min_speed:
-                speed_y = min_speed if speed_y >= 0 else -min_speed
-
-            new_ball.speed = Speed(speed_x, speed_y)
+            # Random diagonal at a lower speed (serve() keeps the ball where we placed it)
+            new_ball.serve_settings = PADDLESLAP_SPAWN_SERVE
+            new_ball.serve()
         else:
             # Fixed speed (default ball speed)
             new_ball.speed = Speed(250.0, 125.0)
@@ -564,17 +604,19 @@ class Game(Scene):
         # Set up paddle collision callback for ball spawn (with speed limit check)
         new_ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
 
-        # Add to balls list and sprite group
+        # Add to balls list, sprite group, and collision layer
         self.balls.append(new_ball)
         self.all_sprites.add(new_ball)
+        self.collisions.get_layer('balls').add(new_ball)
 
     def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
-        """Spawn a new ball based on configurable spawn mode.
+        """Count the rally hit and conditionally spawn a new ball.
 
         Args:
             ball: The ball that triggered the collision
 
         """
+        self.rally_count += 1
         # Check if spawning is enabled
         if self.ball_spawn_mode == BallSpawnMode.NO_SPAWNING:
             return
@@ -621,66 +663,70 @@ class Game(Scene):
     def _handle_ball_collisions(self: Self) -> None:
         """Handle ball-to-ball collisions with proper physics.
 
-        Uses normal-decomposition for energy-conserving elastic collisions
-        and per-pair cooldown to prevent duplicate collision processing when
-        bounding boxes overlap across multiple consecutive frames.
-
-        Args:
-            None
-
+        Uses the collision manager for broad-phase AABB detection, then
+        circle-distance fine check for accuracy. Energy-conserving elastic
+        collisions with per-pair cooldown.
         """
         self._tick_collision_cooldowns()
 
-        # Number of frames to suppress re-detection after a collision
+        # Use collision manager for same-layer pair detection (AABB broad phase)
+        self.collisions.check_overlap(
+            'balls',
+            'balls',
+            callback=self._on_ball_ball_collision,
+        )
+
+    def _on_ball_ball_collision(self: Self, ball1: BallSprite, ball2: BallSprite) -> None:
+        """Handle a ball-ball collision candidate from the collision manager.
+
+        The collision manager found an AABB overlap. We do the precise
+        circle-distance check here, then apply elastic collision physics.
+        """
         cooldown_frames = 10
 
-        # Check all pairs of balls for collisions
-        for i in range(len(self.balls)):
-            for j in range(i + 1, len(self.balls)):
-                # Skip pairs still in cooldown
-                pair_key = (id(self.balls[i]), id(self.balls[j]))
-                if pair_key in self._ball_collision_cooldowns:
-                    continue
+        # Skip pairs still in cooldown
+        pair_key = (id(ball1), id(ball2))
+        reverse_key = (id(ball2), id(ball1))
+        if (
+            pair_key in self._ball_collision_cooldowns
+            or reverse_key in self._ball_collision_cooldowns
+        ):
+            return
 
-                ball1 = self.balls[i]
-                ball2 = self.balls[j]
+        dx, dy, distance, collision_distance = self._calculate_ball_distance(ball1, ball2)
 
-                dx, dy, distance, collision_distance = self._calculate_ball_distance(ball1, ball2)
+        # Fine check: circle distance (AABB is broad phase only)
+        if distance > collision_distance or distance < SPEED_CHANGE_NOISE_FLOOR:
+            return
 
-                # Skip if balls are too far apart or at exact same position
-                if distance > collision_distance or distance < SPEED_CHANGE_NOISE_FLOOR:
-                    continue
+        # Play collision sound
+        if hasattr(ball1, 'snd') and ball1.snd is not None:  # type: ignore[reportUnnecessaryComparison]
+            ball1.snd.play()
 
-                # Play collision sound
-                if hasattr(ball1, 'snd') and ball1.snd is not None:  # type: ignore[reportUnnecessaryComparison]
-                    ball1.snd.play()
+        # Collision normal (unit vector from ball1 center to ball2 center)
+        normal_x = dx / distance
+        normal_y = dy / distance
 
-                # Collision normal (unit vector from ball1 center to ball2 center)
-                normal_x = dx / distance
-                normal_y = dy / distance
+        # Only skip if balls are clearly separating AND not overlapping
+        dvn = (ball2.speed.x - ball1.speed.x) * normal_x + (
+            ball2.speed.y - ball1.speed.y
+        ) * normal_y
+        if dvn > 0 and distance >= collision_distance:
+            return
 
-                # Calculate relative velocity along collision normal
-                dvn = (ball2.speed.x - ball1.speed.x) * normal_x + (
-                    ball2.speed.y - ball1.speed.y
-                ) * normal_y
+        self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
+        self._cap_ball_speeds(ball1, ball2)
+        self._separate_overlapping_balls(
+            ball1,
+            ball2,
+            normal_x=normal_x,
+            normal_y=normal_y,
+            collision_distance=collision_distance,
+            distance=distance,
+        )
 
-                # Only skip if balls are clearly separating AND not overlapping
-                if dvn > 0 and distance >= collision_distance:
-                    continue
-
-                self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
-                self._cap_ball_speeds(ball1, ball2)
-                self._separate_overlapping_balls(
-                    ball1,
-                    ball2,
-                    normal_x=normal_x,
-                    normal_y=normal_y,
-                    collision_distance=collision_distance,
-                    distance=distance,
-                )
-
-                # Set cooldown for this pair to prevent duplicate processing
-                self._ball_collision_cooldowns[pair_key] = cooldown_frames
+        # Set cooldown for this pair
+        self._ball_collision_cooldowns[pair_key] = cooldown_frames
 
     def _tick_collision_cooldowns(self: Self) -> None:
         """Tick cooldowns: decrement all active cooldowns and remove expired ones."""
@@ -801,106 +847,179 @@ class Game(Scene):
         ):
             separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
 
-        ball1.rect.x -= round(separation_x)
-        ball1.rect.y -= round(separation_y)
-        ball2.rect.x += round(separation_x)
-        ball2.rect.y += round(separation_y)
+        # Move the sub-pixel world positions; their setters snap rect to match.
+        # Moving rect directly would be undone on the next frame, because
+        # BallSprite.dt_tick() rebuilds rect from world_x/world_y.
+        ball1.world_x -= separation_x
+        ball1.world_y -= separation_y
+        ball2.world_x += separation_x
+        ball2.world_y += separation_y
+
+    @staticmethod
+    def _create_action_maps(
+        input_mode: str = 'joystick',
+    ) -> tuple[ActionMap, ActionMap, ActionMap]:
+        """Create per-player and pause ActionMaps with default bindings.
+
+        Args:
+            input_mode: Gamepad event family ('joystick' or 'controller').
+
+        Returns:
+            Tuple of (player1_actions, player2_actions, pause_actions).
+
+        """
+        player1_actions = ActionMap(input_mode=input_mode)
+        player1_actions.bind(
+            'up',
+            keyboard=pygame.K_w,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
+            instance_id=0,
+        )
+        player1_actions.bind(
+            'down',
+            keyboard=pygame.K_s,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
+            instance_id=0,
+        )
+
+        player2_actions = ActionMap(input_mode=input_mode)
+        player2_actions.bind(
+            'up',
+            keyboard=pygame.K_UP,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
+            instance_id=1,
+        )
+        player2_actions.bind(
+            'down',
+            keyboard=pygame.K_DOWN,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
+            instance_id=1,
+        )
+
+        pause_actions = ActionMap(input_mode=input_mode)
+        pause_actions.bind('pause', keyboard=pygame.K_SPACE)
+
+        return player1_actions, player2_actions, pause_actions
+
+    def _process_paddle_input(self: Self) -> None:
+        """Apply held movement actions from ActionMaps each frame."""
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.begin_frame()
+
+        if self.p1_actions.is_held('up'):
+            self.player1.up()
+        elif self.p1_actions.is_held('down'):
+            self.player1.down()
+        else:
+            self.player1.stop()
+
+        if self.p2_actions.is_held('up'):
+            self.player2.up()
+        elif self.p2_actions.is_held('down'):
+            self.player2.down()
+        else:
+            self.player2.stop()
 
     @override
     def on_controller_button_down_event(self: Self, event: HashableEvent) -> None:
-        """Handle controller button down events.
+        """Feed controller button events to action maps.
+
+        Movement is handled frame-driven in dt_tick.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The controller button down event.
 
         """
-        if event.button in {pygame.CONTROLLER_BUTTON_DPAD_UP, pygame.CONTROLLER_BUTTON_DPAD_DOWN}:
-            player = self.player1 if event.instance_id == 0 else self.player2
-            player.stop()
-
-        self.log.info('GOT on_controller_button_down_event: %s', event)
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
 
     @override
     def on_controller_button_up_event(self: Self, event: HashableEvent) -> None:
-        """Handle controller button up events.
+        """Feed controller button releases to action maps.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The controller button up event.
 
         """
-        player = self.player1 if event.instance_id == 0 else self.player2
-        if event.button == pygame.CONTROLLER_BUTTON_DPAD_UP:
-            player.up()
-        if event.button == pygame.CONTROLLER_BUTTON_DPAD_DOWN:
-            player.down()
-
-        self.log.info('GOT on_controller_button_up_event: %s', event)
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
 
     @override
     def on_controller_axis_motion_event(self: Self, event: HashableEvent) -> None:
-        """Handle controller axis motion events.
+        """Feed controller axis motion to action maps.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The controller axis motion event.
 
         """
-        player = self.player1 if event.instance_id == 0 else self.player2
-        if event.axis == pygame.CONTROLLER_AXIS_LEFTY:
-            if event.value < 0:
-                player.up()
-            if event.value == 0:
-                player.stop()
-            if event.value > 0:
-                player.down()
-            self.log.info('GOT on_controller_axis_motion_event: %s', event)
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_button_down_event(self: Self, event: HashableEvent) -> None:
+        """Feed joystick button events to action maps (pygame-ce uses joystick API).
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_button_up_event(self: Self, event: HashableEvent) -> None:
+        """Feed joystick button releases to action maps.
+
+        Args:
+            event: The joystick button up event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_axis_motion_event(self: Self, event: HashableEvent) -> None:
+        """Feed joystick axis motion to action maps.
+
+        Args:
+            event: The joystick axis motion event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
 
     @override
     def on_key_down_event(self: Self, event: HashableEvent) -> None:
-        """Handle key down events.
+        """Feed key presses to action maps.
+
+        Movement is handled frame-driven in dt_tick.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The key down event.
 
         """
-        # Handle specific key presses instead of scanning all keys
-        if event.key == pygame.K_SPACE:
-            # Track that spacebar is pressed (but don't act on it yet)
-            self._space_pressed = True
-        elif event.key == pygame.K_w:
-            log.debug(
-                f'PADDLE: Player1 (left) UP - current_speed: {self.player1._move.current_speed}',  # type: ignore[reportPrivateUsage]
-            )
-            self.player1.up()
-        elif event.key == pygame.K_s:
-            log.debug(
-                f'PADDLE: Player1 (left) DOWN - current_speed: {self.player1._move.current_speed}',  # type: ignore[reportPrivateUsage]
-            )
-            self.player1.down()
-        elif event.key == pygame.K_UP:
-            log.debug(
-                f'PADDLE: Player2 (right) UP - current_speed: {self.player2._move.current_speed}',  # type: ignore[reportPrivateUsage]
-            )
-            self.player2.up()
-        elif event.key == pygame.K_DOWN:
-            log.debug(
-                f'PADDLE: Player2 (right) DOWN - current_speed: {self.player2._move.current_speed}',  # type: ignore[reportPrivateUsage]
-            )
-            self.player2.down()
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.handle_event(event)
 
     @override
     def on_key_up_event(self: Self, event: HashableEvent) -> None:
-        """Handle key up events.
+        """Feed key releases to action maps.
 
         Args:
-            event (HashableEvent): The event to handle.
+            event: The key up event.
 
         """
-        if event.key == pygame.K_SPACE and self._space_pressed:
-            # Spacebar was pressed and now released - pause the game
-            self._space_pressed = False
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.handle_event(event)
+
+        if self.pause_actions.just_released('pause'):
             self.pause()
-        else:
-            # Handle ESC/q to quit
+        elif self.pause_actions.get_action(event) is None:
+            # Let base Scene handle ESC/q to quit
             super().on_key_up_event(event)
 
 

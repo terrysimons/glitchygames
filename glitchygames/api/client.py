@@ -170,7 +170,7 @@ def extract_apng_frames(
         return response.json()
 
 
-def generate_sprite(  # noqa: PLR0913
+def generate_sprite(  # ruff: ignore[too-many-arguments]
     server_url: str,
     prompt: str,
     output_formats: list[str],
@@ -256,23 +256,23 @@ def display_sprite_ascii(toml_content: str) -> None:
                 anim_name = animation.get('namespace', f'animation-{anim_index}')
                 frames = animation.get('frame', [])
 
-                print(f'\n=== Animation: {anim_name} ({len(frames)} frames) ===')  # noqa: T201
+                print(f'\n=== Animation: {anim_name} ({len(frames)} frames) ===')  # ruff: ignore[print]
 
                 for frame_index, frame in enumerate(frames):
                     pixels = frame.get('pixels', '')
                     if pixels:
-                        print(f'\n--- Frame {frame_index} ---')  # noqa: T201
+                        print(f'\n--- Frame {frame_index} ---')  # ruff: ignore[print]
                         colorized = renderer.colorize_pixels(pixels, colors)
-                        print(colorized)  # noqa: T201
+                        print(colorized)  # ruff: ignore[print]
         else:
             # Static sprite
             pixels = renderer.extract_pixels_from_toml(sprite_data)
             if pixels:
-                print('\n=== Sprite Preview ===')  # noqa: T201
+                print('\n=== Sprite Preview ===')  # ruff: ignore[print]
                 colorized = renderer.colorize_pixels(pixels, colors)
-                print(colorized)  # noqa: T201
+                print(colorized)  # ruff: ignore[print]
 
-        print()  # noqa: T201  # Empty line after output
+        print()  # ruff: ignore[print]  # Empty line after output
 
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         LOG.warning('Could not render ASCII preview: %s', e)
@@ -372,7 +372,7 @@ def find_available_directory(base_dir: Path) -> Path:
     return parent / f'{name}-{timestamp}'
 
 
-def _save_extracted_frames(  # noqa: PLR0913
+def _save_extracted_frames(  # ruff: ignore[too-many-arguments]
     frame_entries: list[tuple[str, str, str, str]],
     extracted_dir: Path,
     *,
@@ -428,7 +428,7 @@ def _save_extracted_frames(  # noqa: PLR0913
     return saved_paths
 
 
-def save_files_locally(  # noqa: PLR0913
+def save_files_locally(  # ruff: ignore[too-many-arguments]
     response: dict[str, Any],
     output_path: str,
     output_formats: list[str],
@@ -622,7 +622,7 @@ def _process_extraction_response(
         if not parsed_args.verbose:
             for frame in output_data.get('frames', []):
                 frame['png_base64'] = f'<{len(frame.get("png_base64", ""))} chars>'
-        print(json.dumps(output_data, indent=2))  # noqa: T201
+        print(json.dumps(output_data, indent=2))  # ruff: ignore[print]
 
     return 0
 
@@ -646,17 +646,17 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
             apng_path=apng_path,
         )
     except FileNotFoundError:
-        LOG.error('APNG file not found: %s', apng_path)  # noqa: TRY400
+        LOG.error('APNG file not found: %s', apng_path)  # ruff: ignore[error-instead-of-exception]
         return 1
     except httpx.ConnectError:
-        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # noqa: TRY400
-        LOG.error('Is the server running? Start it with: glitchygames-server')  # noqa: TRY400
+        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # ruff: ignore[error-instead-of-exception]
+        LOG.error('Is the server running? Start it with: glitchygames-server')  # ruff: ignore[error-instead-of-exception]
         return 1
     except httpx.HTTPStatusError as e:
-        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # noqa: TRY400
+        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # ruff: ignore[error-instead-of-exception]
         return 1
     except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error('Error: %s', e)  # noqa: TRY400
+        LOG.error('Error: %s', e)  # ruff: ignore[error-instead-of-exception]
         if parsed_args.verbose:
             import traceback
 
@@ -736,8 +736,8 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
     # Output TOML to stdout if no output path specified
     if not parsed_args.output_path and 'toml' in output_formats and response.get('toml_content'):
         if not parsed_args.quiet:
-            print('\n--- TOML Content ---')  # noqa: T201
-        print(response['toml_content'])  # noqa: T201
+            print('\n--- TOML Content ---')  # ruff: ignore[print]
+        print(response['toml_content'])  # ruff: ignore[print]
 
     return 0
 
@@ -777,14 +777,14 @@ def main(args: list[str] | None = None) -> int:
     try:
         return _handle_generate_sprite(parsed_args, output_formats)
     except httpx.ConnectError:
-        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # noqa: TRY400
-        LOG.error('Is the server running? Start it with: glitchygames-server')  # noqa: TRY400
+        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # ruff: ignore[error-instead-of-exception]
+        LOG.error('Is the server running? Start it with: glitchygames-server')  # ruff: ignore[error-instead-of-exception]
         return 1
     except httpx.HTTPStatusError as e:
-        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # noqa: TRY400
+        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # ruff: ignore[error-instead-of-exception]
         return 1
     except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error('Error: %s', e)  # noqa: TRY400
+        LOG.error('Error: %s', e)  # ruff: ignore[error-instead-of-exception]
         if parsed_args.verbose:
             import traceback
 

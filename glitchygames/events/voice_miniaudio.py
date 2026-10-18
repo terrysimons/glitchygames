@@ -18,12 +18,14 @@ if TYPE_CHECKING:
 try:
     import miniaudio as mi
 except ImportError:  # pragma: no cover - optional dependency
-    mi = None  # ty: ignore[invalid-assignment]
+    mi = None
 
-try:
-    import speech_recognition as sr
-except ImportError:  # pragma: no cover - test environments may skip
-    sr = None  # ty: ignore[invalid-assignment]
+# speech_recognition is a hard requirement for this module: MiniaudioMicrophone
+# subclasses sr.AudioSource at class-definition time, so a None placeholder would
+# turn a missing dependency into an AttributeError at import. Letting the
+# ImportError propagate is what the backend registry (_try_import_miniaudio)
+# expects and handles.
+import speech_recognition as sr
 
 
 class _BlockingByteStream:
@@ -72,7 +74,7 @@ class _BlockingByteStream:
             self._cv.notify_all()
 
 
-class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[union-attr]
+class MiniaudioMicrophone(sr.AudioSource):
     """Miniaudio-based microphone compatible with speech_recognition.AudioSource."""
 
     def __init__(
@@ -107,7 +109,14 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[union-attr]
         Returns:
             MiniaudioMicrophone: The result.
 
+        Raises:
+            RuntimeError: If miniaudio is not installed.
+
         """
+        if mi is None:
+            message = 'miniaudio is not installed'
+            raise RuntimeError(message)
+
         self.stream = _BlockingByteStream()
 
         def _capture_generator() -> Generator[None, bytes | None]:
@@ -118,8 +127,8 @@ class MiniaudioMicrophone(sr.AudioSource):  # type: ignore[union-attr]
                     self.stream.write(bytes(data))
 
         # Configure capture device
-        self._device = mi.CaptureDevice(  # type: ignore[union-attr]
-            input_format=mi.SampleFormat.SIGNED16,  # type: ignore[union-attr]
+        self._device = mi.CaptureDevice(
+            input_format=mi.SampleFormat.SIGNED16,
             nchannels=self.CHANNELS,
             sample_rate=self.SAMPLE_RATE,
             device_id=self.device_index,

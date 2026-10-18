@@ -16,7 +16,6 @@ from glitchygames.color import (
     ALPHA_TRANSPARENCY_THRESHOLD,
     RGBA_COMPONENT_COUNT,
 )
-from glitchygames.sprites.animated import SpriteFrame
 
 from .models import MockEvent
 from .toml_processing import (

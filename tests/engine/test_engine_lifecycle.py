@@ -28,6 +28,7 @@ class TestEngineLifecycle:
         mock_game = mocker.Mock()
         mock_game.NAME = 'MockGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         # Create GameEngine instance with mock game
@@ -49,6 +50,7 @@ class TestEngineLifecycle:
         mock_game = mocker.Mock()
         mock_game.NAME = 'MockGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -76,6 +78,7 @@ class TestEngineLifecycle:
         mock_game = mocker.Mock()
         mock_game.NAME = 'MockGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -101,6 +104,7 @@ class TestEngineLifecycle:
         mock_game = mocker.Mock()
         mock_game.NAME = 'MockGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -123,6 +127,7 @@ class TestEngineLifecycle:
         class MockGame:
             NAME = 'MockGame'
             VERSION = '1.0'
+            TARGET_FPS = None
 
             @classmethod
             def args(cls, parser):
@@ -179,6 +184,7 @@ class TestEngineLifecycle:
         class MockGame:
             NAME = 'MockGame'
             VERSION = '1.0'
+            TARGET_FPS = None
 
             @classmethod
             def args(cls, parser):
@@ -247,6 +253,7 @@ class TestEngineLifecycle:
         class MockGame:
             NAME = 'MockGame'
             VERSION = '1.0'
+            TARGET_FPS = None
 
             @classmethod
             def args(cls, parser):
@@ -313,6 +320,7 @@ class TestEngineLifecycle:
         class MockGame:
             NAME = 'MockGame'
             VERSION = '1.0'
+            TARGET_FPS = None
 
             @classmethod
             def args(cls, parser):
@@ -380,6 +388,7 @@ class TestEngineLifecycle:
         class MockGame:
             NAME = 'MockGame'
             VERSION = '1.0'
+            TARGET_FPS = None
 
             @classmethod
             def args(cls, parser):
@@ -446,6 +455,7 @@ class TestEngineLifecycle:
         class MockGame:
             NAME = 'MockGame'
             VERSION = '1.0'
+            TARGET_FPS = None
 
             @classmethod
             def args(cls, parser):

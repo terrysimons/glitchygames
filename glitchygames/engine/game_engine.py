@@ -8,9 +8,11 @@ import contextlib
 import cProfile
 import importlib.metadata
 import logging
+import math
 import multiprocessing
 import os
 import platform
+import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, override
@@ -33,7 +35,7 @@ from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
-from glitchygames.timing import create_timer
+from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
 
 if TYPE_CHECKING:
     from collections import OrderedDict
@@ -54,8 +56,84 @@ UNKNOWN_SDL2_EVENT_TYPE_1543 = 1543
 GAME_NOT_INITIALIZED_MSG = 'Game not initialized.  Pass a game class to the GameEngine constructor.'
 MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 
+DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
+DEFAULT_RUMBLE_INTENSITY = 1.0
+DEFAULT_LIVE_VOICE_POOL = 4
 
-class GameEngine(events.EventManager):  # noqa: PLR0904
+
+def unit_interval(value: str) -> float:
+    """Argparse type: a float from 0.0 to 1.0 inclusive.
+
+    Args:
+        value: The command-line text.
+
+    Returns:
+        The parsed float.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not a number in 0.0-1.0.
+
+    """
+    try:
+        number = float(value)
+    except ValueError as error:
+        message = f'{value!r} is not a number'
+        raise argparse.ArgumentTypeError(message) from error
+    if not 0.0 <= number <= 1.0:  # Also rejects NaN, which fails every comparison
+        message = f'{value!r} must be between 0.0 and 1.0'
+        raise argparse.ArgumentTypeError(message)
+    return number
+
+
+def target_fps_value(value: str) -> float:
+    """Argparse type: a finite float >= 0 (0 means uncapped).
+
+    Args:
+        value: The command-line text.
+
+    Returns:
+        The parsed float.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not a finite number >= 0.
+
+    """
+    try:
+        number = float(value)
+    except ValueError as error:
+        message = f'{value!r} is not a number'
+        raise argparse.ArgumentTypeError(message) from error
+    if not math.isfinite(number) or number < 0.0:
+        message = f'{value!r} must be a finite number >= 0 (0 = uncapped)'
+        raise argparse.ArgumentTypeError(message)
+    return number
+
+
+def non_negative_int(value: str) -> int:
+    """Argparse type: an integer >= 0.
+
+    Args:
+        value: The command-line text.
+
+    Returns:
+        The parsed integer.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not an integer >= 0.
+
+    """
+    try:
+        number = int(value)
+    except ValueError as error:
+        message = f'{value!r} is not an integer'
+        raise argparse.ArgumentTypeError(message) from error
+    if number < 0:
+        message = f'{value!r} must be >= 0'
+        raise argparse.ArgumentTypeError(message)
+    return number
+
+
+class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     """Glitchy Games' Game engine.
 
     The game engine is responsible for initializing pygame and
@@ -121,8 +199,12 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         All Glitchy Games will inherit these arguments.
 
+        The effective target FPS is resolved in initialize_arguments: an explicit
+        --target-fps (including 0 = uncapped) wins, then the game scene class's
+        TARGET_FPS if it is not None, then DEFAULT_TARGET_FPS (60.44).
+
         Supported Arguments:
-            -f, --target-fps
+            -f, --target-fps (default: the game's TARGET_FPS, else 60.44; 0 = uncapped)
             --fps-log-interval-ms
             -w, --windowed
             -r, --resolution
@@ -142,9 +224,9 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
         group.add_argument(
             '-f',
             '--target-fps',
-            help='cap the framerate (default: infinite)',
-            type=float,
-            default=0.0,
+            help="cap the framerate (default: the game's TARGET_FPS, else 60.44; 0 = uncapped)",
+            type=target_fps_value,
+            default=None,
         )
         group.add_argument(
             '--fps-log-interval-ms',
@@ -174,9 +256,9 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
         )
         group.add_argument(
             '--timer-backend',
-            help='timer backend for draw loop pacing (pygame|fast)',
+            help='timer backend for draw loop pacing (default: fast; pygame is the legacy backend)',
             choices=['pygame', 'fast'],
-            default='pygame',
+            default='fast',
         )
         group.add_argument(
             '--sleep-granularity-ns',
@@ -201,6 +283,34 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
             type=float,
             help='percent of frames to trim from top and bottom in global FPS report',
             default=5.0,
+        )
+        group.add_argument(
+            '--fps-histogram',
+            choices=['equal-range', 'target-relative'],
+            help=(
+                'FPS histogram buckets in the shutdown report: equal-range (10 equal buckets '
+                'spanning the analyzed min to max, default) or target-relative (10%% steps of '
+                'the target FPS)'
+            ),
+            default='equal-range',
+        )
+        group.add_argument(
+            '--screen-shake-intensity',
+            type=unit_interval,
+            help='screen shake strength from 0.0 (off) to 1.0 (default: 1.0)',
+            default=DEFAULT_SCREEN_SHAKE_INTENSITY,
+        )
+        group.add_argument(
+            '--rumble-intensity',
+            type=unit_interval,
+            help='controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)',
+            default=DEFAULT_RUMBLE_INTENSITY,
+        )
+        group.add_argument(
+            '--live-voice-pool',
+            type=non_negative_int,
+            help='mixer channels reserved for real-time synth voices (default: 4)',
+            default=DEFAULT_LIVE_VOICE_POOL,
         )
 
         # See https://www.pygame.org/docs/ref/display.html#pygame.display.set_mode
@@ -255,6 +365,53 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return parser
 
+    @staticmethod
+    def resolve_target_fps(
+        *,
+        command_line_target_fps: float | None,
+        game: type[Scene] | Scene,
+    ) -> float:
+        """Resolve the effective target FPS.
+
+        Order: explicit command line value (0 = uncapped) > the game's TARGET_FPS
+        (when not None) > DEFAULT_TARGET_FPS.
+
+        Args:
+            command_line_target_fps: The --target-fps value, or None if it was not passed.
+            game: The game scene class or instance, which may declare TARGET_FPS.
+
+        Returns:
+            float: The effective target FPS (0 means uncapped).
+
+        Raises:
+            TypeError: If the game's TARGET_FPS is neither None nor a (non-bool) number.
+            ValueError: If the game's TARGET_FPS is negative, NaN or infinite.
+
+        """
+        if command_line_target_fps is not None:
+            return float(command_line_target_fps)
+
+        game_target_fps = getattr(game, 'TARGET_FPS', None)
+        if game_target_fps is None:
+            return DEFAULT_TARGET_FPS
+
+        scene_class = game if isinstance(game, type) else type(game)
+        # bool is a subclass of int, so it must be rejected explicitly.
+        if isinstance(game_target_fps, bool) or not isinstance(game_target_fps, (int, float)):
+            message = (
+                f'{scene_class.__name__}.TARGET_FPS must be a number or None, '
+                f'got {game_target_fps!r}'
+            )
+            raise TypeError(message)
+        if not math.isfinite(game_target_fps) or game_target_fps < 0:
+            message = (
+                f'{scene_class.__name__}.TARGET_FPS must be a finite number >= 0 '
+                f'(0 = uncapped), got {game_target_fps!r}'
+            )
+            raise ValueError(message)
+
+        return float(game_target_fps)
+
     @classmethod
     def initialize_arguments(cls, game: type[Scene] | Scene) -> dict[str, Any]:
         """Initialize the game arguments.
@@ -291,6 +448,13 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         GameEngine.OPTIONS = vars(args)  # type: ignore[reportConstantRedefinition]
 
+        # Resolve the effective target FPS; --target-fps defaults to None so that an explicit
+        # value (including 0 = uncapped) can be told apart from "not passed".
+        GameEngine.OPTIONS['target_fps'] = cls.resolve_target_fps(
+            command_line_target_fps=GameEngine.OPTIONS.get('target_fps'),
+            game=game,
+        )
+
         # Some optimizations to reduce the number of lookups
         if GameEngine.OPTIONS['log_level'] in {'DEBUG', 'CRITICAL', 'ERROR'}:
             GameEngine.OPTIONS['debug_events'] = True
@@ -304,7 +468,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return options
 
-    def __init__(  # noqa: PLR0915
+    def __init__(  # ruff: ignore[too-many-statements]
         self: Self,
         game: type[Scene] | Scene,
         icon: pygame.Surface | Path | str | None = None,
@@ -330,7 +494,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         # Pygame stuff.
         pygame.register_quit(self.quit_game)
-        self.fps: float = options.get('target_fps', 0.0)
+        self.fps: float = options.get('target_fps', DEFAULT_TARGET_FPS)
         self.update_type: str = options.get('update_type', 'update')
         self.use_gfxdraw = options.get('use_gfxdraw')
         self.windowed = options.get('windowed')
@@ -353,6 +517,11 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         # Ensure Linux/X11 sends DOWN on focus clicks
         os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')
+
+        # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
+        # callback needs the GIL to queue the next live-voice chunk (BUGS.md #27).
+        sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)
+        self.log.debug(f'GIL switch interval set to {GIL_SWITCH_INTERVAL_SECONDS} seconds')
 
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()
@@ -416,6 +585,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
         self.registered_events: dict[int, Callable[..., Any]] = {}
         self.app_manager: AppEventManager
         self.audio_manager: AudioEventManager
+        self.live_voice_channels: tuple[int, ...] = ()
         self.drop_manager: DropEventManager
         self.controller_manager: ControllerEventManager | None = None
         self.touch_manager: TouchEventManager
@@ -548,7 +718,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
     @property
     def screen_width(self: Self) -> int:
-        """Get the screen width.
+        """The screen width.
 
         Returns:
             int: The screen width.
@@ -558,7 +728,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
     @property
     def screen_height(self: Self) -> int:
-        """Get the screen height.
+        """The screen height.
 
         Returns:
             int: The screen height.
@@ -746,28 +916,43 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         self.app_manager = AppEventManager(game=self.scene_manager)
         self.audio_manager = AudioEventManager(game=self.scene_manager)
+
+        # Reserve live synth voice channels now, before anything can play (see audio/live.py)
+        from glitchygames.audio.live import reserve_live_voice_pool
+
+        self.live_voice_channels = reserve_live_voice_pool(
+            int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL))
+        )
+
         self.drop_manager = DropEventManager(game=self.scene_manager)
 
-        using_pygame_ce: bool = False
-        try:
-            using_pygame_ce = (
-                importlib.metadata.distribution('pygame').metadata['Name'] == 'pygame-ce'
-            )
-        except NameError, importlib.metadata.PackageNotFoundError:
-            using_pygame_ce = (
-                importlib.metadata.distribution('pygame-ce').metadata['Name'] == 'pygame-ce'
-            )
-            LOG.warning('Pygame CE detected, disabling controller manager.')
+        # Determine input mode for gamepads
+        input_mode = GameEngine.OPTIONS.get('input_mode', 'auto')
 
-        if using_pygame_ce:
+        if input_mode == 'auto':
+            # Detect pygame-ce and default to joystick API (controller API
+            # has compatibility issues with pygame-ce 2.5+)
+            using_pygame_ce: bool = False
+            try:
+                using_pygame_ce = (
+                    importlib.metadata.distribution('pygame').metadata['Name'] == 'pygame-ce'
+                )
+            except NameError, importlib.metadata.PackageNotFoundError:
+                with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+                    using_pygame_ce = (
+                        importlib.metadata.distribution('pygame-ce').metadata['Name'] == 'pygame-ce'
+                    )
+            input_mode = 'joystick' if using_pygame_ce else 'controller'
+            GameEngine.OPTIONS['input_mode'] = input_mode
+            LOG.info('Auto-detected input mode: %s', input_mode)
+
+        if input_mode == 'joystick':
             self.controller_manager = None
-            # Disable Controller Events
             pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+            LOG.info('Input mode: joystick (controller events blocked)')
         else:
             self.controller_manager = ControllerEventManager(game=self.scene_manager)
-            # Controller events are enabled by default when the controller module
-            # is initialized via pygame._sdl2.controller.init(). No need to call
-            # set_eventstate() — that function was removed in pygame-ce 2.5.x.
+            LOG.info('Input mode: controller (SDL Game Controller API)')
 
         self.touch_manager = TouchEventManager(game=self.scene_manager)
         # https://glitchy-games.atlassian.net/browse/GG-23
@@ -878,7 +1063,8 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
                     'Timer backend failed to initialize; using pygame clock only: %s',
                     timer_error,
                 )
-            # Configure performance trim percent if available
+            # Configure performance trim percent and histogram mode, each guarded on its own so
+            # a bad value for one cannot silently skip the other.
             try:
                 from glitchygames.performance import performance_manager
 
@@ -887,6 +1073,14 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
                     performance_manager.set_trim_percent(trim)
             except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
                 LOG.debug('Performance trim percent configuration failed: %s', perf_error)
+            try:
+                from glitchygames.performance import performance_manager
+
+                performance_manager.set_histogram_mode(
+                    GameEngine.OPTIONS.get('fps_histogram', 'equal-range')
+                )
+            except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
+                LOG.debug('Performance FPS histogram mode configuration failed: %s', perf_error)
             self.scene_manager.start()
         except Exception:
             scene_name = self._resolve_scene_name_for_error()
@@ -1017,7 +1211,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_app_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: PLR0911
+    def process_app_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
         """Process an app event.
 
         Args:
@@ -1053,7 +1247,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_controller_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: C901, PLR0911
+    def process_controller_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[complex-structure, too-many-return-statements]
         """Process a controller event.
 
         Args:
@@ -1088,6 +1282,10 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         if event.type == pygame.CONTROLLERTOUCHPADUP:
             self.controller_manager.on_controller_touchpad_up_event(event)
+            return True
+
+        if event.type == pygame.CONTROLLERSENSORUPDATE:
+            self.controller_manager.on_controller_sensor_update_event(event)
             return True
 
         if event.type == pygame.CONTROLLERDEVICEREMOVED:
@@ -1237,7 +1435,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_joystick_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: PLR0911
+    def process_joystick_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
         """Process a joystick event.
 
         Args:
@@ -1302,7 +1500,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_window_focus_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: PLR0911
+    def process_window_focus_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
         """Process a window focus event.
 
         Args:
@@ -1385,7 +1583,7 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
 
         return False
 
-    def process_game_event(self: Self, event: events.HashableEvent) -> bool:  # noqa: PLR0911
+    def process_game_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
         """Process a game event.
 
         Args:
@@ -1471,15 +1669,18 @@ class GameEngine(events.EventManager):  # noqa: PLR0904
             )
 
             # Check if this might be a controller event by looking at controller count
-            from pygame._sdl2 import controller as sdl2_controller  # noqa: PLC2701
+            try:
+                from pygame._sdl2 import controller as sdl2_controller  # ruff: ignore[import-private-name]
 
-            current_controller_count: int = int(
-                sdl2_controller.get_count(),
-            )
-            LOG.debug(
-                'Current controller count when event 1543 received: %s',
-                current_controller_count,
-            )
+                current_controller_count: int = int(
+                    sdl2_controller.get_count(),
+                )
+                LOG.debug(
+                    'Current controller count when event 1543 received: %s',
+                    current_controller_count,
+                )
+            except pygame.error:
+                LOG.debug('Controller system not initialized — skipping controller count check')
 
             # Check if this event has any controller-related attributes
             LOG.debug('Event has device_index: %s', hasattr(event, 'device_index'))

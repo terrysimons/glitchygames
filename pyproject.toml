@@ -43,6 +43,7 @@ dependencies = [
   "taplo>=0.9.3",
   "yamllint>=1.38.0",
   "wily>=1.25.0",
+  "hidapi>=0.15.0",
 ]
 
 [project.urls]
@@ -55,6 +56,10 @@ dependencies = [
 bitmappy = "glitchygames.bitmappy:main"
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
+brave-adventurer = "glitchygames.examples.brave_adventurer:main"
+brave-adventurer-papyrus = "glitchygames.examples.brave_adventurer_papyrus:main"
+paddleslap = "glitchygames.examples.paddleslap:main"
+clockwork-keep = "glitchygames.examples.clockwork_keep:main"
 
 [project.optional-dependencies]
 docs = [
@@ -95,9 +100,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-# Exclude examples directory from test collection
+# Directory *name* patterns pytest will not recurse into, matched at any depth. Do not
+# list "examples": it also matched tests/examples/ and silently skipped those tests.
+# (The top-level examples/ directory is already outside testpaths.)
 norecursedirs = [
-  "examples",
   "build",
   "dist",
   "*.egg-info",
@@ -183,6 +189,13 @@ ignore = [
   "G004",    # Logging statement uses f-string
   "EM101",   # Exception must not use a string literal, assign to variable first
   "EM102",   # Exception must not use an f-string literal, assign to variable first
+  # --- Added with ruff 0.17 ---
+  # Preview rule (name only, no code). The suite uses autouse fixtures deliberately,
+  # e.g. conftest's singleton reset and pygame mocks must apply to every test.
+  "pytest-fixture-autouse",
+  # TEMPORARY: 102 existing violations to refactor (narrow each try block to the
+  # statements that can raise). Tracked in BUGS.md bug #19; remove when done.
+  "PLW0717",
 ]
 fixable = ["ALL"]
 
@@ -211,6 +224,29 @@ fixable = ["ALL"]
 ]
 "scripts/**/*.py" = [
   "TC003", # Scripts use stdlib imports at runtime, not just for type checking
+]
+"glitchygames/effects/easing.py" = [
+  "DOC201",  # Easing functions are pure math; return type is obvious (float)
+  "PLR2004", # Mathematical constants (0.5 midpoint, Penner coefficients) are standard
+  "RUF069",  # Float equality (t == 0.0, t == 1.0) is intentional for Penner boundary conditions
+]
+"glitchygames/effects/tween.py" = [
+  "PLR0913", # Tween.__init__ needs many parameters (target, property, start, end, duration, easing, etc.)
+  "PLR0917", # Same as above -- many positional args are the natural API
+]
+"glitchygames/camera.py" = [
+  "PLR0913", # Camera2D and ParallaxLayer constructors need many configuration params
+]
+"glitchygames/physics/body.py" = [
+  "PLR0913", # PhysicsBody preset factory methods need many configuration params
+  "PLR0917", # Same -- many positional args are the natural preset API
+]
+"glitchygames/animation/expressions.py" = [
+  "DOC501",  # Expression parser raises ValueError by design; documenting every one is noise
+  "PLR2004", # Token count checks use literal numbers (standard parser code)
+  "S105",    # 'token' variable name triggers false positive for hardcoded password
+  "ERA001",  # Comment about Phase 2 grammar looks like commented-out code
+  "FBT001",  # LiteralExpr takes bool as positional (it's a value, not a flag)
 ]
 "glitchygames/ui/menus.py" = [
   "PLR0913", # Menu constructors need geometry + identity + container params
@@ -336,6 +372,11 @@ DEP002 = [
   "yamllint",
   "wily",
 ]
+
+[tool.uv]
+# aisuite pins docstring-parser<0.16, but 0.16+ is needed for Python 3.14
+# (ast.NameConstant removed). Override until aisuite loosens the pin.
+override-dependencies = ["docstring-parser>=0.16"]
 
 [build-system]
 requires = ["hatchling"]

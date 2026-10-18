@@ -35,6 +35,13 @@ pixels = """
 55555555555555555555555555555555
 """
 
+[sprite.hitbox]
+offset_x = 4
+offset_y = 5
+width = 20
+height = 24
+
+
 [colors]
 [colors.0]
 red = 113

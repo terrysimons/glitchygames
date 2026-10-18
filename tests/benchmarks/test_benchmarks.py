@@ -15,7 +15,13 @@ import pytest
 
 from glitchygames.bitmappy.controllers.selection import ControllerSelection
 from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
+from glitchygames.game_objects.ball import (
+    BallSprite,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+)
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from tests.mocks import MockFactory
 
@@ -81,15 +87,21 @@ class TestBallPhysicsBenchmarks:
     def test_ball_dt_tick_with_linear_speedup(self, benchmark):
         """Benchmark dt_tick with continuous linear speed-up enabled."""
         ball = self._create_ball_at_center()
-        ball.speed_up_mode = SpeedUpMode.CONTINUOUS_LINEAR
+        ball.speed_up_settings = SpeedUpSettings(
+            triggers=SpeedUpTrigger.CONTINUOUS,
+            curve=SpeedUpCurve.LINEAR,
+            axes=SpeedUpAxes.BOTH,
+        )
 
         benchmark(ball.dt_tick, DT_60FPS)
 
     def test_ball_dt_tick_with_logarithmic_speedup(self, benchmark):
         """Benchmark dt_tick with continuous logarithmic speed-up enabled."""
         ball = self._create_ball_at_center()
-        ball.speed_up_mode = (
-            SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y
+        ball.speed_up_settings = SpeedUpSettings(
+            triggers=SpeedUpTrigger.CONTINUOUS,
+            curve=SpeedUpCurve.LOGARITHMIC,
+            axes=SpeedUpAxes.BOTH,
         )
 
         benchmark(ball.dt_tick, DT_60FPS)

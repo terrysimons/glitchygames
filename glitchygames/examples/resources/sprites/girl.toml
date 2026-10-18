@@ -3,6 +3,13 @@ name = "girl_running"
 description = """A 4 frame per animation sprite with 4 animations of a 16x16 girl
 running left and right and up and down."""
 
+[sprite.hitbox]
+offset_x = 3
+offset_y = 1
+width = 11
+height = 15
+
+
 [[animation]]
 namespace = "run_down"
 frame_interval = 0.5
@@ -30,6 +37,13 @@ pixels = """
 9999499994999999
 """
 
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 9
+height = 15
+
+
 [[animation.frame]]
 namespace = "run_down"
 frame_index = 1
@@ -51,6 +65,13 @@ pixels = """
 9999449944999999
 9999949999499999
 """
+
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 9
+height = 15
+
 
 [[animation.frame]]
 namespace = "run_down"
@@ -74,6 +95,13 @@ pixels = """
 9999499994999999
 """
 
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 9
+height = 15
+
+
 [[animation.frame]]
 namespace = "run_down"
 frame_index = 3
@@ -95,6 +123,13 @@ pixels = """
 9999994499449999
 9999994999949999
 """
+
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 9
+height = 15
+
 
 [[animation]]
 namespace = "run_up"
@@ -123,6 +158,13 @@ pixels = """
 9999499994999999
 """
 
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 9
+height = 15
+
+
 [[animation.frame]]
 namespace = "run_up"
 frame_index = 1
@@ -144,6 +186,13 @@ pixels = """
 9999449944999999
 9999949999499999
 """
+
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 9
+height = 15
+
 
 [[animation.frame]]
 namespace = "run_up"
@@ -167,6 +216,13 @@ pixels = """
 9999499994999999
 """
 
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 9
+height = 15
+
+
 [[animation.frame]]
 namespace = "run_up"
 frame_index = 3
@@ -188,6 +244,13 @@ pixels = """
 9999994499449999
 9999994999949999
 """
+
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 9
+height = 15
+
 
 [[animation]]
 namespace = "run_left"
@@ -215,6 +278,13 @@ pixels = """
 9999944441449999
 9999949999949999
 """
+
+[animation.frame.hitbox]
+offset_x = 3
+offset_y = 1
+width = 10
+height = 15
+
 
 [[animation.frame]]
 namespace = "run_left"
@@ -238,6 +308,13 @@ pixels = """
 9999499999949999
 """
 
+[animation.frame.hitbox]
+offset_x = 3
+offset_y = 1
+width = 10
+height = 15
+
+
 [[animation.frame]]
 namespace = "run_left"
 frame_index = 2
@@ -260,6 +337,13 @@ pixels = """
 9999949999949999
 """
 
+[animation.frame.hitbox]
+offset_x = 3
+offset_y = 1
+width = 10
+height = 15
+
+
 [[animation.frame]]
 namespace = "run_left"
 frame_index = 3
@@ -281,6 +365,13 @@ pixels = """
 9999944499449999
 9999994999499999
 """
+
+[animation.frame.hitbox]
+offset_x = 3
+offset_y = 1
+width = 10
+height = 15
+
 
 [[animation]]
 namespace = "run_right"
@@ -309,6 +400,13 @@ pixels = """
 9999949999949999
 """
 
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 10
+height = 15
+
+
 [[animation.frame]]
 namespace = "run_right"
 frame_index = 1
@@ -330,6 +428,13 @@ pixels = """
 9999449944499999
 9999949999994999
 """
+
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 10
+height = 15
+
 
 [[animation.frame]]
 namespace = "run_right"
@@ -353,6 +458,13 @@ pixels = """
 9999949999949999
 """
 
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 10
+height = 15
+
+
 [[animation.frame]]
 namespace = "run_right"
 frame_index = 3
@@ -374,6 +486,13 @@ pixels = """
 9999944499449999
 9999994999499999
 """
+
+[animation.frame.hitbox]
+offset_x = 4
+offset_y = 1
+width = 10
+height = 15
+
 
 [colors]
 [colors."0"]

@@ -1,6 +1,7 @@
 """Tests for voice recognition and event handling functionality."""
 
 import contextlib
+import logging
 import threading
 
 import pytest
@@ -10,6 +11,21 @@ from glitchygames.bitmappy.editor_setup import EditorSetup
 from glitchygames.events.voice import SPEECH_RECOGNITION_AVAILABLE, VoiceEventManager
 
 pytestmark = pytest.mark.usefixtures('mock_pygame_patches')
+
+
+@pytest.fixture
+def voice_logger(mocker):
+    """Provide a mock logger to inject into VoiceEventManager.
+
+    Inject this rather than patching 'glitchygames.events.voice.logging.getLogger':
+    that path is the global logging.getLogger, and replacing it breaks pytest's own
+    logging for every later test.
+
+    Returns:
+        Mock: A mock constrained to the logging.Logger interface.
+
+    """
+    return mocker.Mock(spec=logging.Logger)
 
 
 TIMEOUT_2_SECONDS = 2
@@ -701,22 +717,18 @@ class TestProcessCommandEdgeCases:
 
         callback.assert_called_once()
 
-    def test_exact_match_callback_error_is_logged(self, mocker):
+    def test_exact_match_callback_error_is_logged(self, mocker, voice_logger):
         """Test _process_command logs exception when exact match callback raises."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
 
-        mock_get_logger = mocker.patch('glitchygames.events.voice.logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_get_logger.return_value = mock_log
-
-        manager = VoiceEventManager()
+        manager = VoiceEventManager(logger=voice_logger)
         callback = mocker.Mock(side_effect=RuntimeError('boom'))
 
         manager.register_command('crash', callback)
         manager._process_command('crash')
 
         callback.assert_called_once()
-        mock_log.exception.assert_called_once()
+        voice_logger.exception.assert_called_once()
 
     def test_partial_match_executes_callback(self, mocker):
         """Test _process_command executes partial match callback."""
@@ -731,15 +743,11 @@ class TestProcessCommandEdgeCases:
 
         callback.assert_called_once()
 
-    def test_partial_match_callback_error(self, mocker):
+    def test_partial_match_callback_error(self, mocker, voice_logger):
         """Test _process_command handles errors in partial-match callbacks."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
 
-        mock_get_logger = mocker.patch('glitchygames.events.voice.logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_get_logger.return_value = mock_log
-
-        manager = VoiceEventManager()
+        manager = VoiceEventManager(logger=voice_logger)
         callback = mocker.Mock(side_effect=RuntimeError('boom'))
 
         manager.register_command('save file', callback)
@@ -748,22 +756,18 @@ class TestProcessCommandEdgeCases:
         manager._process_command('please save file now')
 
         callback.assert_called_once()
-        mock_log.exception.assert_called_once()
+        voice_logger.exception.assert_called_once()
 
-    def test_no_match_logs_debug(self, mocker):
+    def test_no_match_logs_debug(self, mocker, voice_logger):
         """Test _process_command logs debug message when no match found."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=False)
 
-        mock_get_logger = mocker.patch('glitchygames.events.voice.logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_get_logger.return_value = mock_log
-
-        manager = VoiceEventManager()
+        manager = VoiceEventManager(logger=voice_logger)
         manager.register_command('save', mocker.Mock())
 
         manager._process_command('completely different text')
 
-        mock_log.debug.assert_called()
+        voice_logger.debug.assert_called()
 
     def test_exact_match_takes_priority_over_partial(self, mocker):
         """Test _process_command prefers exact match over partial match."""
@@ -921,7 +925,7 @@ class TestVoiceRecognitionManagerNegative:
 class TestVoiceRecognitionManagerWithMicrophoneFailure:
     """Test VoiceRecognitionManager when speech recognition is available but microphone fails."""
 
-    def test_initialization_with_microphone_failure(self, mocker):
+    def test_initialization_with_microphone_failure(self, mocker, voice_logger):
         """Test that VoiceRecognitionManager handles microphone initialization failure."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
         mock_sr = mocker.patch('glitchygames.events.voice.sr')
@@ -933,12 +937,7 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure:
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
 
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_get_logger = mocker.patch('glitchygames.events.voice.logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_get_logger.return_value = mock_log
-
-        manager = VoiceEventManager()
+        manager = VoiceEventManager(logger=voice_logger)
 
         # Should initialize without errors but without microphone
         assert manager is not None
@@ -948,12 +947,12 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure:
         assert not manager.is_listening
 
         # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
+        voice_logger.error.assert_called_once()
         # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
+        call_args = voice_logger.error.call_args[0][0]
         assert 'Failed to initialize microphone' in call_args
 
-    def test_start_listening_with_microphone_failure(self, mocker):
+    def test_start_listening_with_microphone_failure(self, mocker, voice_logger):
         """Test that start_listening fails when microphone is not available."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
         mock_sr = mocker.patch('glitchygames.events.voice.sr')
@@ -965,21 +964,16 @@ class TestVoiceRecognitionManagerWithMicrophoneFailure:
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
 
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_get_logger = mocker.patch('glitchygames.events.voice.logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_get_logger.return_value = mock_log
-
-        manager = VoiceEventManager()
+        manager = VoiceEventManager(logger=voice_logger)
 
         # Should not start listening without microphone
         manager.start_listening()
         assert not manager.is_listening
 
         # Verify the ERROR log messages were called (should be called twice)
-        assert mock_log.error.call_count == 2
+        assert voice_logger.error.call_count == 2
         # Check that both log messages contain the expected content
-        call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+        call_args_list = [call[0][0] for call in voice_logger.error.call_args_list]
         assert any('Failed to initialize microphone' in msg for msg in call_args_list)
         assert any(
             'Cannot start listening: microphone not available' in msg for msg in call_args_list
@@ -1093,7 +1087,7 @@ class TestVoiceRecognitionManagerPositive:
             'Recognizer should be None when speech recognition is not available'
         )
 
-    def test_voice_manager_without_microphone(self, mocker):
+    def test_voice_manager_without_microphone(self, mocker, voice_logger):
         """Test VoiceRecognitionManager when microphone is not available."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
         mock_sr = mocker.patch('glitchygames.events.voice.sr')
@@ -1105,12 +1099,7 @@ class TestVoiceRecognitionManagerPositive:
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
 
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_get_logger = mocker.patch('glitchygames.events.voice.logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_get_logger.return_value = mock_log
-
-        manager = VoiceEventManager()
+        manager = VoiceEventManager(logger=voice_logger)
 
         # Should handle missing microphone gracefully
         assert manager is not None
@@ -1118,9 +1107,9 @@ class TestVoiceRecognitionManagerPositive:
         assert not manager.is_available()
 
         # Verify the ERROR log message was called
-        mock_log.error.assert_called_once()
+        voice_logger.error.assert_called_once()
         # Check that the log message contains the expected content
-        call_args = mock_log.error.call_args[0][0]
+        call_args = voice_logger.error.call_args[0][0]
         assert 'Failed to initialize microphone' in call_args
 
     def test_voice_manager_without_speech_recognition(self, mocker):
@@ -1204,7 +1193,7 @@ class TestVoiceRecognitionManagerPositive:
         assert 'command one' in commands
         assert 'command two' in commands
 
-    def test_start_listening_without_microphone(self, mocker):
+    def test_start_listening_without_microphone(self, mocker, voice_logger):
         """Test starting listening when microphone is not available."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
         mock_sr = mocker.patch('glitchygames.events.voice.sr')
@@ -1216,21 +1205,16 @@ class TestVoiceRecognitionManagerPositive:
         # Mock get_microphone_backend so it doesn't try real device probing
         mocker.patch('glitchygames.events.voice.get_microphone_backend', return_value=None)
 
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_get_logger = mocker.patch('glitchygames.events.voice.logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_get_logger.return_value = mock_log
-
-        manager = VoiceEventManager()
+        manager = VoiceEventManager(logger=voice_logger)
 
         # Should not start listening without microphone
         manager.start_listening()
         assert not manager.is_listening
 
         # Verify the ERROR log messages were called (should be called twice)
-        assert mock_log.error.call_count == 2
+        assert voice_logger.error.call_count == 2
         # Check that both log messages contain the expected content
-        call_args_list = [call[0][0] for call in mock_log.error.call_args_list]
+        call_args_list = [call[0][0] for call in voice_logger.error.call_args_list]
         assert any('Failed to initialize microphone' in msg for msg in call_args_list)
         assert any(
             'Cannot start listening: microphone not available' in msg for msg in call_args_list
@@ -1318,7 +1302,7 @@ class TestVoiceRecognitionManagerPositive:
         # Verify callback was not called
         callback.assert_not_called()
 
-    def test_process_command_callback_error(self, mocker):
+    def test_process_command_callback_error(self, mocker, voice_logger):
         """Test handling errors in command callbacks."""
         mocker.patch('glitchygames.events.voice.SPEECH_RECOGNITION_AVAILABLE', new=True)
         mock_sr = mocker.patch('glitchygames.events.voice.sr')
@@ -1328,12 +1312,7 @@ class TestVoiceRecognitionManagerPositive:
         mock_sr.Microphone = mocker.Mock()
         mock_sr.Microphone.return_value = mocker.Mock()
 
-        # Use pytest logger wrapper to suppress logs during successful runs
-        mock_get_logger = mocker.patch('glitchygames.events.voice.logging.getLogger')
-        mock_log = mocker.Mock()
-        mock_get_logger.return_value = mock_log
-
-        manager = VoiceEventManager()
+        manager = VoiceEventManager(logger=voice_logger)
         callback = mocker.Mock(side_effect=Exception('Callback error'))
 
         # Register a command that will raise an error
@@ -1346,9 +1325,9 @@ class TestVoiceRecognitionManagerPositive:
         callback.assert_called_once()
 
         # Verify the exception was logged (voice.py uses LOG.exception for callback errors)
-        mock_log.exception.assert_called_once()
+        voice_logger.exception.assert_called_once()
         # Log uses %s format: ("Error executing voice command '%s'", command)
-        format_args = mock_log.exception.call_args[0]
+        format_args = voice_logger.exception.call_args[0]
         assert 'Error executing voice command' in format_args[0]
         assert format_args[1] == 'test command'
 

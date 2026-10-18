@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from http import HTTPStatus
 from typing import Any
 
 from glitchygames.sprites import BitmappySprite
@@ -75,6 +76,12 @@ AI_MAX_TRAINING_EXAMPLES = 1000  # Allow many more training examples for full co
 AI_MAX_RETRIES = 5  # Maximum number of retry attempts
 AI_BASE_DELAY = 1.0  # Base delay in seconds for exponential backoff
 AI_MAX_DELAY = 60.0  # Maximum delay between retries
+# 4xx statuses that are transient and worth retrying; all other 4xx errors give up immediately
+RETRYABLE_CLIENT_ERROR_STATUS_CODES = frozenset({
+    HTTPStatus.REQUEST_TIMEOUT,
+    HTTPStatus.CONFLICT,
+    HTTPStatus.TOO_MANY_REQUESTS,
+})
 
 # Model download timeout (much longer for initial model download)
 AI_MODEL_DOWNLOAD_TIMEOUT = 1800  # 30 minutes for model download

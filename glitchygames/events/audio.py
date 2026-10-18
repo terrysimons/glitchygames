@@ -71,20 +71,27 @@ class AudioEventManager(ResourceManager):
         except pygame.error:
             log.debug('Failed to set allowed audio events: pygame not fully initialized')
 
-        # Set the mixer pre-init settings
-        pygame.mixer.pre_init(22050, -16, 2, 1024)
-        pygame.mixer.init()
+        # pygame.init() has already started the mixer at its defaults (44100 Hz, signed
+        # 16-bit, stereo, 512-sample buffer); init() only matters if that failed.
+        try:
+            pygame.mixer.init()
+        except pygame.error as error:
+            log.warning('Audio unavailable, running silently: %s', error)
 
         # Sound Stuff
         # pygame.mixer.get_init() -> (frequency, format, channels)
-        (sound_frequency, sound_format, sound_channels) = pygame.mixer.get_init()
-        log.info('Mixer Settings:')
-        log.info(
-            'Frequency: %s, Format: %s, Channels: %s',
-            sound_frequency,
-            sound_format,
-            sound_channels,
-        )
+        mixer_settings = pygame.mixer.get_init()  # None if the mixer is not initialized
+        if mixer_settings is None:
+            log.warning('Mixer is not initialized; audio may be unavailable')
+        else:
+            (sound_frequency, sound_format, sound_channels) = mixer_settings
+            log.info('Mixer Settings:')
+            log.info(
+                'Frequency: %s, Format: %s, Channels: %s',
+                sound_frequency,
+                sound_format,
+                sound_channels,
+            )
 
         self.proxies = [AudioEventManager.AudioEventProxy(game=game)]
 

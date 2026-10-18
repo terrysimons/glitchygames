@@ -34,8 +34,6 @@ class BitmappySprite(Sprite):
 
         """
         super().__init__(x=0, y=0, width=0, height=0)
-        self.image: pygame.Surface | None = None
-        self.rect: pygame.Rect | None = None
         self.name: str | None = None
 
         (self.image, self.rect, self.name) = self.load(filename=filename)
@@ -172,12 +170,6 @@ class BitmappySprite(Sprite):
         color_map: dict[tuple[int, ...], str] = {}
         pixels: list[str] = []
 
-        if self.image is None:
-            config.add_section('sprite')
-            config.set('sprite', 'name', self.name or '')
-            config.set('sprite', 'pixels', '')
-            return config
-
         raw_pixels_iter = self.rgb_triplet_generator(
             list(pygame.image.tobytes(self.image, 'RGB')),
         )
@@ -220,7 +212,7 @@ class BitmappySprite(Sprite):
             row.append(color_map[raw_pixels.pop(0)])
             x += 1
 
-            if self.rect is not None and x % self.rect.width == 0:
+            if x % self.rect.width == 0:
                 log.debug('Row: %s', row)
                 pixels.append(''.join(row))
                 row = []

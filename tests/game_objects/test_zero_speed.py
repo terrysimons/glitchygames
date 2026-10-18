@@ -4,17 +4,38 @@
 import logging
 import math
 import sys
-import time
 from pathlib import Path
 
 # Add project root so direct imports work
 sys.path.insert(0, str(Path(__file__).parent))
 
-from glitchygames.game_objects.ball import BallSprite, SpeedUpMode
+from glitchygames.game_objects.ball import (
+    BallSprite,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+)
 from glitchygames.movement import Speed
 from tests.mocks.test_mock_factory import MockFactory
 
 LOG = logging.getLogger(__name__)
+SPEED_UP_MULTIPLIER = 1.15
+
+
+def _logarithmic_settings(triggers: SpeedUpTrigger, axes: SpeedUpAxes) -> SpeedUpSettings:
+    """Build logarithmic speed-up settings for the given triggers and axes.
+
+    Returns:
+        SpeedUpSettings: The settings.
+
+    """
+    return SpeedUpSettings(
+        triggers=triggers,
+        curve=SpeedUpCurve.LOGARITHMIC,
+        axes=axes,
+        multiplier=SPEED_UP_MULTIPLIER,
+    )
 
 
 def _run_basic_bounce_scenarios(ball):
@@ -41,7 +62,9 @@ def _run_basic_bounce_scenarios(ball):
     LOG.debug('   Result: X speed increases, Y remains 0\n')
 
     LOG.debug('4. Test with Y-only speedup mode:')
-    ball.speed_up_mode = SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y
+    ball.speed_up_settings = _logarithmic_settings(
+        triggers=SpeedUpTrigger.PADDLE_BOUNCE, axes=SpeedUpAxes.Y_ONLY
+    )
     ball.speed = Speed(100.0, 0.0)
     LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
     ball.on_paddle_bounce()
@@ -74,54 +97,66 @@ def _run_basic_bounce_scenarios(ball):
 def _run_continuous_speedup_scenarios(ball):
     """Run continuous speed-up scenarios (tests 8-10)."""
     LOG.debug('8. Test continuous speed-up with zero initial speed over many iterations:')
-    ball.speed_up_mode = SpeedUpMode.CONTINUOUS_LOGARITHMIC_X
+    ball.speed_up_settings = _logarithmic_settings(
+        triggers=SpeedUpTrigger.CONTINUOUS, axes=SpeedUpAxes.X_ONLY
+    )
     ball.speed = Speed(0.0, 0.0)
     LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
 
-    # Simulate many game ticks
-    current_time = time.time()
-    ball._last_speed_up_time = current_time - 1.0  # Force first speed-up
+    # Simulate many game ticks, each one speed-up interval of game time long, so every
+    # tick is due a speed-up (the timer counts game time, so no real waiting is needed)
+    interval = ball.speed_up_settings.interval
+    speed_up_count_before = ball.speed_up_count
 
     for iteration in range(10):
-        ball.dt_tick(0.016)  # 60 FPS
+        ball.dt_tick(interval)
         LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
-        time.sleep(0.1)  # Small delay to see progression
 
+    assert ball.speed_up_count == speed_up_count_before + 10
+    assert (ball.speed.x, ball.speed.y) == (0.0, 0.0)
     LOG.debug('   Result: X speed remains 0, Y speed remains 0 (no movement)\n')
 
     LOG.debug('9. Test with non-zero initial speed and continuous speed-up:')
+    # Start mid-screen: the ball travels ~50 px in this scenario, and a wall bounce from
+    # a spawn near an edge would flip Y and break the "Y unchanged" check
+    ball.world_x = float(ball.screen_width - ball.width) / 2
+    ball.world_y = float(ball.screen_height - ball.height) / 2
     ball.speed = Speed(10.0, 5.0)
     LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
 
     for iteration in range(10):
-        ball.dt_tick(0.016)  # 60 FPS
+        ball.dt_tick(interval)
         LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
-        time.sleep(0.1)  # Small delay to see progression
 
+    assert ball.speed.x > 10.0
+    assert ball.speed.y == 5.0
     LOG.debug('   Result: X speed increases over time, Y speed unchanged\n')
 
     LOG.debug('10. Test movement over many iterations with zero speed:')
     ball.speed = Speed(0.0, 0.0)
     assert ball.rect is not None
-    ball.rect.x = 100
-    ball.rect.y = 100
+    # Move via world_x/world_y; dt_tick re-snaps rect from them, so setting rect alone
+    # would be overwritten on the first tick
+    ball.world_x = 100.0
+    ball.world_y = 100.0
     LOG.debug(f'   Initial position: ({ball.rect.x}, {ball.rect.y})')
 
     for iteration in range(20):
-        ball.dt_tick(0.016)  # 60 FPS
+        ball.dt_tick(interval)
         LOG.debug(
             f'   Iteration {iteration + 1}:'
             f' position=({ball.rect.x}, {ball.rect.y}),'
             f' speed=({ball.speed.x}, {ball.speed.y})',
         )
-        time.sleep(0.05)  # Small delay
 
+    assert (ball.rect.x, ball.rect.y) == (100, 100)
+    assert (ball.speed.x, ball.speed.y) == (0.0, 0.0)
     LOG.debug('   Result: Position never changes (no movement with zero speed)\n')
 
 
-def _run_bounce_tests_for_mode(ball, speed_up_mode, test_speeds, label):
-    """Run paddle bounce tests for a given speed-up mode across all test speed combos."""
-    ball.speed_up_mode = speed_up_mode
+def _run_bounce_tests_for_mode(ball, speed_up_settings, test_speeds, label):
+    """Run paddle bounce tests for the given speed-up settings across all test speed combos."""
+    ball.speed_up_settings = speed_up_settings
 
     for index, (x_speed, y_speed, description) in enumerate(test_speeds, start=1):
         LOG.debug(f'{label}.{index} Testing {description}:')
@@ -133,6 +168,12 @@ def _run_bounce_tests_for_mode(ball, speed_up_mode, test_speeds, label):
 
         x_is_zero = math.isclose(x_speed, 0.0, abs_tol=1e-9)
         y_is_zero = math.isclose(y_speed, 0.0, abs_tol=1e-9)
+
+        # A speed-up only scales components, so a zero component must stay zero
+        if x_is_zero:
+            assert ball.speed.x == 0.0
+        if y_is_zero:
+            assert ball.speed.y == 0.0
 
         if x_is_zero and y_is_zero:
             LOG.debug('   Result: Both speeds remain 0 (stationary ball)\n')
@@ -150,14 +191,17 @@ def _run_continuous_speedup_test(ball, x_speed, y_speed, description, label_inde
     ball.speed = Speed(x_speed, y_speed)
     LOG.debug(f'   Initial speed: ({ball.speed.x}, {ball.speed.y})')
 
-    # Reset speed-up timer to force immediate speed-up
-    current_time = time.time()
-    ball._last_speed_up_time = current_time - 1.0
-
+    # Each tick is one speed-up interval of game time, so every tick is due a speed-up
     for iteration in range(5):
-        ball.dt_tick(0.016)  # 60 FPS
+        ball.dt_tick(ball.speed_up_settings.interval)
         LOG.debug(f'   Iteration {iteration + 1}: speed=({ball.speed.x:.6f}, {ball.speed.y:.6f})')
-        time.sleep(0.1)
+
+    # A speed-up only scales components: zero stays zero, non-zero grows in magnitude
+    for initial_component, final_component in ((x_speed, ball.speed.x), (y_speed, ball.speed.y)):
+        if math.isclose(initial_component, 0.0, abs_tol=1e-9):
+            assert final_component == 0.0
+        else:
+            assert abs(final_component) > abs(initial_component)
 
     both_nonzero = not math.isclose(x_speed, 0.0, abs_tol=1e-9) and not math.isclose(
         y_speed,
@@ -177,8 +221,9 @@ def test_zero_speed_scenarios(mocker):
 
     # Create a ball with X-only speedup
     ball = BallSprite(
-        speed_up_mode=SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X,
-        speed_up_multiplier=1.15,
+        speed_up_settings=_logarithmic_settings(
+            triggers=SpeedUpTrigger.PADDLE_BOUNCE, axes=SpeedUpAxes.X_ONLY
+        ),
     )
 
     _run_basic_bounce_scenarios(ball)
@@ -198,22 +243,34 @@ def test_zero_speed_scenarios(mocker):
     ]
 
     LOG.debug('=== COMPREHENSIVE DIRECTIONAL ZERO SPEED TESTS ===\n')
-    _run_bounce_tests_for_mode(ball, SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X, test_speeds, label='11')
+    _run_bounce_tests_for_mode(
+        ball,
+        _logarithmic_settings(triggers=SpeedUpTrigger.PADDLE_BOUNCE, axes=SpeedUpAxes.X_ONLY),
+        test_speeds,
+        label='11',
+    )
 
     LOG.debug('=== TESTING Y-ONLY SPEEDUP ===\n')
-    _run_bounce_tests_for_mode(ball, SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y, test_speeds, label='12')
+    _run_bounce_tests_for_mode(
+        ball,
+        _logarithmic_settings(triggers=SpeedUpTrigger.PADDLE_BOUNCE, axes=SpeedUpAxes.Y_ONLY),
+        test_speeds,
+        label='12',
+    )
 
     LOG.debug('=== TESTING BOTH X AND Y SPEEDUP ===\n')
     _run_bounce_tests_for_mode(
         ball,
-        SpeedUpMode.ON_BOUNCE_LOGARITHMIC_X | SpeedUpMode.ON_BOUNCE_LOGARITHMIC_Y,
+        _logarithmic_settings(triggers=SpeedUpTrigger.PADDLE_BOUNCE, axes=SpeedUpAxes.BOTH),
         test_speeds,
         label='13',
     )
 
     # Test continuous speed-up with various zero combinations
     LOG.debug('=== TESTING CONTINUOUS SPEEDUP WITH ZERO COMBINATIONS ===\n')
-    ball.speed_up_mode = SpeedUpMode.CONTINUOUS_LOGARITHMIC_X | SpeedUpMode.CONTINUOUS_LOGARITHMIC_Y
+    ball.speed_up_settings = _logarithmic_settings(
+        triggers=SpeedUpTrigger.CONTINUOUS, axes=SpeedUpAxes.BOTH
+    )
 
     continuous_test_speeds = [
         (0.0, 0.0, 'Both zero'),

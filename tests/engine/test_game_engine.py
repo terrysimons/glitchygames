@@ -35,6 +35,7 @@ Covers:
 - quit_game class method
 """
 
+import argparse
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -47,6 +48,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames import events
 from glitchygames.engine import GameEngine
+from glitchygames.engine.game_engine import non_negative_int, unit_interval
 from tests.mocks import MockFactory
 
 
@@ -63,6 +65,7 @@ def _make_engine(mocker, mock_pygame_patches, mock_game_args):
     mock_game = mocker.Mock()
     mock_game.NAME = 'TestGame'
     mock_game.VERSION = '1.0'
+    mock_game.TARGET_FPS = None
     mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
     return GameEngine(game=mock_game)
@@ -81,6 +84,7 @@ class TestGameEngineInitializeArguments:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '2.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -104,6 +108,7 @@ class TestGameEngineInitializeArguments:
         mock_game = mocker.Mock(spec=[])  # No methods at all
         mock_game.NAME = 'NoArgsGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
 
         mock_args = mocker.Mock()
         mock_args.log_level = 'INFO'
@@ -119,6 +124,7 @@ class TestGameEngineInitializeArguments:
         mock_game = mocker.Mock()
         mock_game.NAME = 'DebugGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -134,6 +140,7 @@ class TestGameEngineInitializeArguments:
         mock_game = mocker.Mock()
         mock_game.NAME = 'InfoGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -156,6 +163,7 @@ class TestGameEngineSuggestedResolution:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -172,6 +180,7 @@ class TestGameEngineSuggestedResolution:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -194,6 +203,7 @@ class TestGameEngineResolveSceneName:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -212,6 +222,7 @@ class TestGameEngineResolveSceneName:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -231,6 +242,7 @@ class TestGameEngineResolveSceneName:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -250,6 +262,7 @@ class TestGameEngineResolveSceneName:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -272,6 +285,7 @@ class TestGameEngineDisplayMethods:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -287,6 +301,7 @@ class TestGameEngineDisplayMethods:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -302,6 +317,7 @@ class TestGameEngineDisplayMethods:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -316,6 +332,7 @@ class TestGameEngineDisplayMethods:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -333,6 +350,7 @@ class TestGameEngineHandleEvent:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -350,6 +368,7 @@ class TestGameEngineHandleEvent:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -380,6 +399,7 @@ class TestGameEngineShutdown:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -405,6 +425,7 @@ class TestGameEngineInitializeEventHandlers:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -424,6 +445,7 @@ class TestGameEngineInitializeEventHandlers:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -449,6 +471,7 @@ class TestGameEngineSystemInfo:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -463,6 +486,7 @@ class TestGameEngineSystemInfo:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -477,6 +501,7 @@ class TestGameEngineSystemInfo:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
         mock_game.icon = None  # Force fallback to default icon
 
@@ -1212,6 +1237,14 @@ class TestInitializeEventManagers:
             'font_dpi': 72,
         }
         engine.scene_manager = mock_scene_manager
+
+        # Patch joystick/controller subsystems to avoid deprecated API calls
+        mocker.patch('pygame.joystick.get_count', return_value=0)
+        mocker.patch('pygame.joystick.init')
+        mocker.patch('pygame.joystick.get_init', return_value=True)
+        mocker.patch('pygame._sdl2.controller.init')
+        mocker.patch('pygame._sdl2.controller.get_init', return_value=True)
+        mocker.patch('pygame._sdl2.controller.get_count', return_value=0)
 
         engine._initialize_event_managers()
 
@@ -1978,6 +2011,7 @@ class TestGameEngineInitializeArgumentsLogLevels:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -1992,6 +2026,7 @@ class TestGameEngineInitializeArgumentsLogLevels:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -2010,7 +2045,7 @@ class TestGetAttrAttributeError:
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
 
         with pytest.raises(AttributeError, match="has no attribute 'some_random_attr'"):
-            engine.some_random_attr  # noqa: B018
+            engine.some_random_attr  # ruff: ignore[useless-expression]
 
 
 class TestGameEngineLinuxVideoDriverArgs:
@@ -2163,3 +2198,136 @@ class TestGameEnginePerformanceImportError:
 
         # _shutdown should handle the ImportError gracefully
         engine._shutdown()
+
+
+class TestShakeAndAudioArguments:
+    """Test the screen shake, rumble and live voice pool arguments."""
+
+    @pytest.mark.parametrize(('text', 'expected'), [('0', 0.0), ('0.5', 0.5), ('1', 1.0)])
+    def test_unit_interval_accepts_range(self, text, expected):
+        """Test unit_interval accepts values from 0.0 to 1.0 inclusive."""
+        assert unit_interval(text) == expected
+
+    @pytest.mark.parametrize('text', ['-0.01', '1.01', 'abc', 'nan'])
+    def test_unit_interval_rejects(self, text):
+        """Test unit_interval rejects out-of-range, non-numeric and NaN text."""
+        with pytest.raises(argparse.ArgumentTypeError):
+            unit_interval(text)
+
+    @pytest.mark.parametrize('text', ['-1', '1.5', 'x'])
+    def test_non_negative_int_rejects(self, text):
+        """Test non_negative_int rejects negatives, floats and non-numeric text."""
+        with pytest.raises(argparse.ArgumentTypeError):
+            non_negative_int(text)
+
+    def test_non_negative_int_accepts_zero(self):
+        """Test non_negative_int accepts zero (a zero-size voice pool is valid)."""
+        assert non_negative_int('0') == 0
+
+    def test_defaults(self):
+        """Test the new arguments default to full shake, full rumble and four voices."""
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        options = vars(parser.parse_args([]))
+        assert options['screen_shake_intensity'] == 1.0
+        assert options['rumble_intensity'] == 1.0
+        assert options['live_voice_pool'] == 4
+
+    def test_values_are_parsed(self):
+        """Test explicit command-line values reach the parsed options."""
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        options = vars(
+            parser.parse_args([
+                '--screen-shake-intensity',
+                '0.25',
+                '--rumble-intensity',
+                '0',
+                '--live-voice-pool',
+                '0',
+            ])
+        )
+        assert options['screen_shake_intensity'] == 0.25
+        assert options['rumble_intensity'] == 0.0
+        assert options['live_voice_pool'] == 0
+
+
+class TestFpsHistogramArgument:
+    """Test the --fps-histogram argument and its plumbing to the performance manager."""
+
+    @staticmethod
+    def _parse(arguments):
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        return vars(parser.parse_args(arguments))
+
+    def test_defaults_to_equal_range(self):
+        """Test the default histogram mode is equal-range."""
+        assert self._parse([])['fps_histogram'] == 'equal-range'
+
+    @pytest.mark.parametrize('choice', ['equal-range', 'target-relative'])
+    def test_both_choices_parse(self, choice):
+        """Test both documented choices parse."""
+        assert self._parse(['--fps-histogram', choice])['fps_histogram'] == choice
+
+    def test_invalid_choice_is_rejected(self, capsys):
+        """Test an unknown choice makes argparse exit with a usage error."""
+        with pytest.raises(SystemExit):
+            self._parse(['--fps-histogram', 'logarithmic'])
+        assert 'invalid choice' in capsys.readouterr().err
+
+    def test_choices_match_the_performance_modes(self):
+        """Test the CLI choices are exactly the FpsHistogramMode values."""
+        from glitchygames.performance.adaptive_clamping import FpsHistogramMode
+
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        action = next(
+            action for action in parser._actions if '--fps-histogram' in action.option_strings
+        )
+        assert list(action.choices) == [mode.value for mode in FpsHistogramMode]
+
+    def test_start_passes_the_mode_to_the_performance_manager(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """Test start() calls set_histogram_mode with the parsed option."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        mocker.patch('glitchygames.engine.game_engine.create_timer')
+        mock_manager = mocker.patch('glitchygames.performance.performance_manager')
+        GameEngine.game = mocker.Mock()
+        GameEngine.OPTIONS = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 5.0,
+            'fps_histogram': 'target-relative',
+        }
+        engine.scene_manager = mocker.Mock()
+        engine._initialize_event_managers = mocker.Mock()
+        engine._shutdown = mocker.Mock()
+
+        engine.start()
+
+        mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
+
+    def test_start_sets_the_mode_even_when_set_trim_percent_raises(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """Test a bad trim value cannot skip setting the histogram mode."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        mocker.patch('glitchygames.engine.game_engine.create_timer')
+        mock_manager = mocker.patch('glitchygames.performance.performance_manager')
+        mock_manager.set_trim_percent.side_effect = ValueError('bad trim')
+        GameEngine.game = mocker.Mock()
+        GameEngine.OPTIONS = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 5.0,
+            'fps_histogram': 'target-relative',
+        }
+        engine.scene_manager = mocker.Mock()
+        engine._initialize_event_managers = mocker.Mock()
+        engine._shutdown = mocker.Mock()
+
+        engine.start()
+
+        mock_manager.set_histogram_mode.assert_called_once_with('target-relative')

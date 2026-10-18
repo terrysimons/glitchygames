@@ -44,7 +44,7 @@ LOG = logging.getLogger('glitchygames.api')
 
 
 @asynccontextmanager
-async def lifespan(application: Any) -> AsyncGenerator[None]:  # noqa: ARG001
+async def lifespan(application: Any) -> AsyncGenerator[None]:  # ruff: ignore[unused-function-argument]
     """Manage application startup and shutdown lifecycle."""
     LOG.info('Starting GlitchyGames Sprite Generation API')
 
@@ -54,9 +54,11 @@ async def lifespan(application: Any) -> AsyncGenerator[None]:  # noqa: ARG001
     RendererService()
     LOG.info('Renderer service initialized')
 
-    yield
-
-    LOG.info('Shutting down GlitchyGames Sprite Generation API')
+    try:
+        yield
+    finally:
+        # Runs even if the app stops because of an error
+        LOG.info('Shutting down GlitchyGames Sprite Generation API')
 
 
 def create_app() -> Any:
@@ -90,7 +92,7 @@ def create_app() -> Any:
 
     # Add CORS middleware
     application.add_middleware(
-        CORSMiddleware,  # ty: ignore[invalid-argument-type]
+        CORSMiddleware,
         allow_origins=['*'],  # Configure appropriately for production
         allow_credentials=False,
         allow_methods=['*'],

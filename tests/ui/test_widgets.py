@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Save REAL LayeredDirty before mock_pygame_patches replaces it with a Mock.
 _RealLayeredDirty = pygame.sprite.LayeredDirty
 
-from glitchygames.events.base import HashableEvent  # noqa: E402
-from glitchygames.ui import (  # noqa: E402
+from glitchygames.events.base import HashableEvent  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.ui import (  # ruff: ignore[module-import-not-at-top-of-file]
     ButtonSprite,
     CheckboxSprite,
     ColorWellSprite,
@@ -38,9 +38,9 @@ from glitchygames.ui import (  # noqa: E402
     TextBoxSprite,
     TextSprite,
 )
-from glitchygames.ui.inputs import InputBox  # noqa: E402
-from glitchygames.ui.sliders import TabControlSprite  # noqa: E402
-from tests.mocks import MockFactory  # noqa: E402
+from glitchygames.ui.inputs import InputBox  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.ui.sliders import TabControlSprite  # ruff: ignore[module-import-not-at-top-of-file]
+from tests.mocks import MockFactory  # ruff: ignore[module-import-not-at-top-of-file]
 
 # Test constants from test_ui_buttons.py
 BUTTON_X = 10

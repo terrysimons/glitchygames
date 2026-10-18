@@ -887,7 +887,7 @@ class TestEventInterfaceSubclassHook:
             def test_method(self):
                 pass
 
-        class ConcreteClass(abc.ABC):  # noqa: B024
+        class ConcreteClass(abc.ABC):  # ruff: ignore[abstract-base-class-without-abstract-method]
             test_method = 42  # Non-callable attribute
 
         # __subclasshook__ is called internally by issubclass

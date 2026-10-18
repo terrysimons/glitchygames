@@ -637,12 +637,17 @@ class TestJoystickEventManagerRouting:
     def _create_manager_with_mock_joystick(self, mocker):
         """Create a JoystickEventManager with a mock joystick at instance_id=0.
 
+        Patches joystick.get_count to 0 so no real Joystick objects are
+        created (avoids deprecated Joystick.init() call). Mock proxy is
+        inserted manually.
+
         Returns:
             Tuple of (manager, mock_game, mock_proxy).
         """
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         mock_proxy = mocker.Mock()
@@ -745,6 +750,7 @@ class TestJoystickEventManagerRouting:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         # Mock the joystick so JoystickEventProxy init works
@@ -776,6 +782,7 @@ class TestJoystickEventManagerRouting:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         # Pre-add a joystick at instance_id=42
@@ -812,6 +819,7 @@ class TestJoystickEventManagerRouting:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         event = HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=999)
@@ -823,6 +831,7 @@ class TestJoystickEventManagerRouting:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         # First Joystick call for debug info raises pygame.error
@@ -969,6 +978,7 @@ class TestJoystickEventManagerDeviceAddedFallbackIndex:
     def test_device_added_with_instance_id(self, mock_pygame_patches, mocker):
         """Test device added uses instance_id from get_instance_id."""
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         mock_joystick = mocker.Mock()
@@ -1003,11 +1013,15 @@ class TestJoystickEventManagerRoutingFallbacks:
     def _create_manager(self, mocker):
         """Create a JoystickEventManager with mock joystick at id 0.
 
+        Patches joystick.get_count to 0 so no real Joystick objects are
+        created (avoids deprecated Joystick.init() call).
+
         Returns:
             tuple: A (manager, mock_proxy) pair for the joystick at id 0.
 
         """
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
         mock_proxy = mocker.Mock()
         manager.joysticks[0] = mock_proxy
@@ -1041,6 +1055,7 @@ class TestJoystickEventManagerDeviceRemovedEdge:
     def test_device_removed_clears_proxy(self, mock_pygame_patches, mocker):
         """Test device removed properly clears the proxy from joysticks dict."""
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
         mock_proxy = mocker.Mock()
         manager.joysticks[42] = mock_proxy
@@ -1054,6 +1069,7 @@ class TestJoystickEventManagerDeviceRemovedEdge:
     def test_device_removed_nonexistent_is_safe(self, mock_pygame_patches, mocker):
         """Test device removed for nonexistent instance_id does not crash."""
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         event = HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=12345)
@@ -1370,6 +1386,7 @@ class TestJoystickManager:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         assert manager.game == mock_game
@@ -1381,6 +1398,7 @@ class TestJoystickManager:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_game = mocker.Mock()
+        _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
         # Test axis motion

@@ -61,7 +61,7 @@ class SpriteStackInterface(abc.ABC):
     @property
     @abc.abstractmethod
     def image(self: Self) -> pygame.Surface:
-        """Return a pygame.Surface."""
+        """A pygame.Surface."""
         raise NotImplementedError
 
     @image.setter
@@ -73,7 +73,7 @@ class SpriteStackInterface(abc.ABC):
     @property
     @abc.abstractmethod
     def rect(self: Self) -> pygame.Rect:
-        """Return a pygame.Rect."""
+        """A pygame.Rect."""
         raise NotImplementedError
 
     @rect.setter
@@ -124,7 +124,7 @@ class SpriteStack(SpriteStackInterface):
     @property
     @override
     def image(self: Self) -> pygame.Surface:
-        """Return the flattened sprite stack image."""
+        """The flattened sprite stack image."""
         return self.stack[self.frame_index].image
 
     @image.setter
@@ -135,7 +135,7 @@ class SpriteStack(SpriteStackInterface):
     @property
     @override
     def rect(self: Self) -> pygame.Rect:
-        """Return the sprite stack pygame.Rect."""
+        """The sprite stack pygame.Rect."""
         return self.stack[self.frame_index].rect
 
     @rect.setter

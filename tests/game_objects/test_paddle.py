@@ -530,54 +530,51 @@ class TestHorizontalPaddleUpdate:
         mock_screen = MockFactory.create_pygame_surface_mock(width=width, height=SCREEN_HEIGHT)
         return mock_screen
 
-    def test_update_at_left_boundary_stops_paddle(self, mock_pygame_patches):
-        """Test update() when paddle is at left boundary (lines 186-188)."""
+    def test_update_clamps_at_left_boundary(self, mock_pygame_patches):
+        """Test update() clamps paddle at left boundary after dt_tick overshoot."""
         paddle = self._create_horizontal_paddle()
         paddle.screen = self._create_mock_screen(left=0)
 
-        # Position paddle so is_at_left_of_screen returns True
+        # Simulate paddle that overshot left boundary via dt_tick
         assert paddle.rect is not None
-        paddle.rect.x = 0
-        paddle._move.current_speed = -5  # Moving left
+        paddle.rect.x = -5
+        paddle._move.current_speed = -5
 
         paddle.update()
 
         assert paddle.rect.x == 0
         assert paddle._move.current_speed == 0  # stop() was called
 
-    def test_update_at_right_boundary_stops_paddle(self, mock_pygame_patches):
-        """Test update() when paddle is at right boundary (lines 189-191)."""
+    def test_update_clamps_at_right_boundary(self, mock_pygame_patches):
+        """Test update() clamps paddle at right boundary after dt_tick overshoot."""
         paddle = self._create_horizontal_paddle()
         paddle.screen = self._create_mock_screen(right=SCREEN_WIDTH)
 
-        # Position paddle so is_at_right_of_screen returns True
+        # Simulate paddle that overshot right boundary via dt_tick
         assert paddle.rect is not None
-        paddle.rect.x = SCREEN_WIDTH - SIZE_100
-        paddle.rect.right = SCREEN_WIDTH
-        paddle._move.current_speed = 5  # Moving right
+        paddle.rect.x = SCREEN_WIDTH - SIZE_100 + 5
+        paddle._move.current_speed = 5
 
         paddle.update()
 
         assert paddle.rect.x == SCREEN_WIDTH - paddle.rect.width
         assert paddle._move.current_speed == 0  # stop() was called
 
-    def test_update_normal_movement(self, mock_pygame_patches):
-        """Test update() when paddle is not at any boundary (lines 192-193)."""
+    def test_update_no_clamp_when_in_bounds(self, mock_pygame_patches):
+        """Test update() does not modify position when paddle is within bounds."""
         paddle = self._create_horizontal_paddle()
         paddle.screen = self._create_mock_screen(left=0, right=SCREEN_WIDTH)
 
         # Position paddle in middle of screen
         assert paddle.rect is not None
         paddle.rect.x = POS_200
-        paddle.rect.left = POS_200
-        paddle.rect.right = POS_200 + SIZE_100
         paddle._move.current_speed = 3
 
         original_x = paddle.rect.x
         paddle.update()
 
-        # move_horizontal adds current_speed to rect.x
-        assert paddle.rect.x == original_x + 3
+        # update() only clamps -- movement happens in dt_tick()
+        assert paddle.rect.x == original_x
 
 
 class TestHorizontalPaddleDirectionMethods:

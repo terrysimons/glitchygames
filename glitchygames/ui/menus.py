@@ -489,7 +489,7 @@ class MenuItem(BitmappySprite):
         # There's something funky with MRO and pygame
         # doing things this way avoids dirtier tricks.
         try:
-            text = getattr(self, 'text')  # noqa: B009
+            text = getattr(self, 'text')  # ruff: ignore[get-attr-with-constant]
             text.add(*groups)
         except AttributeError:
             pass

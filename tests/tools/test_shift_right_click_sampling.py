@@ -12,9 +12,9 @@ LOG = logging.getLogger(__name__)
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from glitchygames.bitmappy import film_strip  # noqa: E402
-from glitchygames.bitmappy import film_strip_sprite as film_strip_sprite_module  # noqa: E402
-from tests.mocks.test_mock_factory import MockFactory  # noqa: E402
+from glitchygames.bitmappy import film_strip  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.bitmappy import film_strip_sprite as film_strip_sprite_module  # ruff: ignore[module-import-not-at-top-of-file]
+from tests.mocks.test_mock_factory import MockFactory  # ruff: ignore[module-import-not-at-top-of-file]
 
 
 class TestShiftRightClickSampling:

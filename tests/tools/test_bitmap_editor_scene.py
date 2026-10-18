@@ -47,7 +47,7 @@ def pygame_mocks(mocker):
 
 
 @pytest.fixture
-def mock_editor(mocker, pygame_mocks):  # noqa: PLR0915
+def mock_editor(mocker, pygame_mocks):  # ruff: ignore[too-many-statements]
     """Create a minimal BitmapEditorScene with heavy dependencies mocked out.
 
     Returns:

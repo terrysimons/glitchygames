@@ -4,41 +4,41 @@ repos:
     - id: format
       name: format (code, toml, markdown)
       language: system
-      entry: nox -s format
+      entry: uv run --extra dev nox -s format
       pass_filenames: false
       stages: [pre-push]
 
     - id: lint
       name: lint (code, docs, yaml, toml, deps, dead code, cves)
       language: system
-      entry: nox -s lint
+      entry: uv run --extra dev nox -s lint
       pass_filenames: false
       stages: [pre-push]
 
     - id: lint-ci-config
       name: lint-ci-config (circleci)
       language: system
-      entry: nox -s lint-ci-config
+      entry: uv run --extra dev nox -s lint-ci-config
       pass_filenames: false
       stages: [pre-push]
 
     - id: static-analysis
       name: static-analysis (basedpyright, ty)
       language: system
-      entry: nox -s static-analysis
+      entry: uv run --extra dev nox -s static-analysis
       pass_filenames: false
       stages: [pre-push]
 
     - id: security-scan
       name: security-scan (bandit, safety)
       language: system
-      entry: nox -s security-scan
+      entry: uv run --extra dev nox -s security-scan
       pass_filenames: false
       stages: [pre-push]
 
     - id: code-complexity
       name: code-complexity (wily diff)
       language: system
-      entry: nox -s code-complexity
+      entry: uv run --extra dev nox -s code-complexity
       pass_filenames: false
       stages: [pre-push]

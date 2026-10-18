@@ -4,10 +4,20 @@ Tests cover: create_app factory, run() entry point, and lifespan context manager
 """
 # pyright: reportMissingImports=false
 
+from http import HTTPStatus
+
 import pytest
 
 # Skip tests if FastAPI is not installed
 pytest.importorskip('fastapi')
+
+EXPECTED_API_PATHS = {
+    '/',
+    '/health',
+    '/sprites/extract-frames',
+    '/sprites/generate',
+    '/sprites/refine',
+}
 
 
 class TestCreateApp:
@@ -31,14 +41,35 @@ class TestCreateApp:
         assert app is not None
         assert app.title == 'GlitchyGames Sprite Generation API'
 
-    def test_app_has_routes(self):
-        """Test that the app has the expected routes registered."""
+    def test_app_documents_exactly_the_expected_paths(self):
+        """Test the public OpenAPI schema lists exactly the expected endpoints.
+
+        Uses the schema rather than app.routes: FastAPI>=0.143 stores included routers
+        as _IncludedRouter entries without a .path, and the schema is the contract
+        clients actually depend on.
+        """
         from glitchygames.api.main import app
 
-        route_paths = [route.path for route in app.routes]
+        assert set(app.openapi()['paths']) == EXPECTED_API_PATHS
 
-        assert '/' in route_paths
-        assert '/health' in route_paths
+    def test_every_documented_endpoint_is_routable(self):
+        """Test every documented path/method pair reaches a handler (no 404/405).
+
+        Requests carry no body, so endpoints that need one fail validation (422)
+        before their handler runs; nothing is generated or extracted.
+        """
+        from fastapi.testclient import TestClient
+
+        from glitchygames.api.main import app
+
+        client = TestClient(app)
+        unroutable = []
+        for path, operations in app.openapi()['paths'].items():
+            for method in operations:
+                status_code = client.request(method.upper(), path).status_code
+                if status_code in {HTTPStatus.NOT_FOUND, HTTPStatus.METHOD_NOT_ALLOWED}:
+                    unroutable.append(f'{method.upper()} {path} -> {status_code}')
+        assert not unroutable, f'Documented endpoints not routable: {unroutable}'
 
 
 class TestRunEntryPoint:
@@ -69,7 +100,7 @@ class TestRunEntryPoint:
 
     def test_run_uses_custom_env_vars(self, mocker):
         """Test run() reads custom host, port, reload from environment."""
-        all_interfaces_host = '0.0.0.0'  # noqa: S104
+        all_interfaces_host = '0.0.0.0'  # ruff: ignore[hardcoded-bind-all-interfaces]
         mock_uvicorn_run = mocker.patch('uvicorn.run')
         mocker.patch.dict(
             'os.environ',

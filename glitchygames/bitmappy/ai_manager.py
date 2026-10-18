@@ -356,18 +356,32 @@ class AIManager:
             last_sprite_content,
         )
 
+    def _handle_empty_ai_response(self, request_id: str, error: str | None) -> None:
+        """Report an AI response that has no content and clean up its request.
+
+        Args:
+            request_id: The AI request identifier.
+            error: The worker's error description, if it reported one.
+
+        """
+        self.log.error('AI response content is None, cannot save sprite')
+        if error:
+            self.log.error(f'AI worker reported error: {error}')
+        if hasattr(self.editor, 'debug_text'):
+            self.editor.debug_text.text = (
+                f'AI request failed: {error}' if error else 'AI response was empty'
+            )
+        # Clean up
+        if request_id in self.pending_ai_requests:
+            del self.pending_ai_requests[request_id]
+
     def _process_ai_response(self, request_id: str, response: AIResponse) -> None:
         """Process an AI response with automatic validation-driven retry."""
         self.log.info(f'Got AI response for request {request_id}')
 
         # Handle empty response
         if response.content is None:
-            self.log.error('AI response content is None, cannot save sprite')
-            if hasattr(self.editor, 'debug_text'):
-                self.editor.debug_text.text = 'AI response was empty'
-            # Clean up
-            if request_id in self.pending_ai_requests:
-                del self.pending_ai_requests[request_id]
+            self._handle_empty_ai_response(request_id, response.error)
             return
 
         # Get request state

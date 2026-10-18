@@ -15,6 +15,17 @@ from typing import Any
 
 LOG = logging.getLogger(__name__)
 
+# 60.44 rather than 60 so frames land just above 60 FPS (16.55 ms vs the 16.67 ms limit),
+# absorbing timer wake-up jitter (BUGS.md #26: 99.2% of frames reached the target when
+# measured at 60.5).
+DEFAULT_TARGET_FPS = 60.44
+
+# pygame's mixer callback takes the GIL to start the next live-voice chunk. With Python's
+# default 5 ms switch interval a busy main thread delayed it up to ~6.8 ms, an audible click
+# at every chunk boundary; 0.5 ms measured p99 1.16 ms against an 11.6 ms mixer buffer
+# (BUGS.md #27; scripts/audio_glitch_probe.py reproduces the measurement).
+GIL_SWITCH_INTERVAL_SECONDS = 0.0005
+
 
 def ms_to_ns(ms: float) -> int:
     """Convert milliseconds to nanoseconds.
@@ -54,15 +65,18 @@ class PygameTimer:
         """
         return self._pg.time.get_ticks() * 1_000_000
 
-    def start_frame(self, target_fps: int) -> int:
+    def start_frame(self, target_fps: float) -> int:
         """Return the frame period in nanoseconds for the given target FPS.
 
+        The target may be fractional (60.5 FPS); the period is rounded to the nearest
+        nanosecond rather than floored, so 60 FPS is 16_666_667 ns.
+
         Returns:
-            int: The frame period in nanoseconds.
+            int: The frame period in nanoseconds (0 when the target is not positive).
 
         """
-        if target_fps and target_fps > 0:
-            return 1_000_000_000 // target_fps
+        if target_fps > 0:
+            return round(1_000_000_000 / target_fps)
         return 0
 
     def compute_deadline(self, prev_deadline_ns: int | None, period_ns: int) -> int:
@@ -130,15 +144,18 @@ class FastTimer:
         """
         return time.perf_counter_ns()
 
-    def start_frame(self, target_fps: int) -> int:
+    def start_frame(self, target_fps: float) -> int:
         """Return the frame period in nanoseconds for the given target FPS.
 
+        The target may be fractional (60.5 FPS); the period is rounded to the nearest
+        nanosecond rather than floored, so 60 FPS is 16_666_667 ns.
+
         Returns:
-            int: The frame period in nanoseconds.
+            int: The frame period in nanoseconds (0 when the target is not positive).
 
         """
-        if target_fps and target_fps > 0:
-            return 1_000_000_000 // target_fps
+        if target_fps > 0:
+            return round(1_000_000_000 / target_fps)
         return 0
 
     def compute_deadline(self, prev_deadline_ns: int | None, period_ns: int) -> int:
@@ -177,6 +194,8 @@ class FastTimer:
             now = self.ns_now()
             if now >= deadline_ns:
                 return now
+            # Yield the GIL so audio callbacks (live-voice chunk handovers) can run mid-spin
+            time.sleep(0)
 
 
 def create_timer(
@@ -190,7 +209,7 @@ def create_timer(
 
     """
     opts: dict[str, Any] = options or {}
-    tt: str = (timer_type or opts.get('timer_backend', 'pygame')).lower()
+    tt: str = (timer_type or opts.get('timer_backend', 'fast')).lower()
     if tt == 'fast':
         sleep_gran_ns: int = int(opts.get('sleep_granularity_ns', 1_000_000))
         windows_1ms: bool = bool(opts.get('windows_timer_1ms'))

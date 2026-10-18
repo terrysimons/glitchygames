@@ -5,14 +5,26 @@ and class variables.
 """
 
 import argparse
+import math
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames import engine as engine_package
+from glitchygames import timing
+from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.engine import GameEngine
+from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
+from glitchygames.scenes import Scene
+from glitchygames.timing import GIL_SWITCH_INTERVAL_SECONDS, FastTimer
 from tests.mocks import MockFactory
+
+EXPECTED_DEFAULT_TARGET_FPS = 60.44
+EXPECTED_DEFAULT_PERIOD_NS = 16_545_334  # round(1e9 / 60.44)
 
 
 class TestEngineInitialization:
@@ -266,3 +278,167 @@ class TestEngineInitialization:
         # Test that they are properly initialized
         assert isinstance(GameEngine.MISSING_EVENTS, list)
         assert isinstance(GameEngine.UNIMPLEMENTED_EVENTS, list)
+
+
+class TestTargetFpsArguments:
+    """Tests for the --target-fps argument and DEFAULT_TARGET_FPS."""
+
+    def test_target_fps_defaults_to_engine_default(self):
+        """Test that --target-fps is None when not passed (resolved later to 60.44)."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args([])
+
+        assert DEFAULT_TARGET_FPS == EXPECTED_DEFAULT_TARGET_FPS
+        assert args.target_fps is None
+
+    def test_engine_and_timing_share_the_same_default_target_fps(self):
+        """Test that the engine re-exports the timing module's DEFAULT_TARGET_FPS."""
+        assert engine_package.DEFAULT_TARGET_FPS is timing.DEFAULT_TARGET_FPS
+        assert DEFAULT_TARGET_FPS is timing.DEFAULT_TARGET_FPS
+
+    def test_target_fps_zero_means_uncapped(self):
+        """Test that an explicit --target-fps 0 parses to 0.0 (uncapped)."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args(['--target-fps', '0'])
+
+        assert math.isclose(args.target_fps, 0.0, abs_tol=1e-9)
+
+    def test_target_fps_accepts_custom_value(self):
+        """Test that a custom --target-fps value parses as a float."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args(['--target-fps', '144.5'])
+
+        assert math.isclose(args.target_fps, 144.5, abs_tol=1e-9)
+
+    def test_default_target_fps_period_in_nanoseconds(self):
+        """Test that the default target yields a 16.55 ms frame period."""
+        assert FastTimer().start_frame(DEFAULT_TARGET_FPS) == EXPECTED_DEFAULT_PERIOD_NS
+
+
+class TestResolveTargetFps:
+    """Tests for the target FPS resolution order (command line > TARGET_FPS > default)."""
+
+    @staticmethod
+    def _scene_class(target_fps):
+        class _GameScene(Scene):
+            TARGET_FPS = target_fps
+
+        return _GameScene
+
+    def test_no_command_line_and_no_game_target_uses_engine_default(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=None, game=self._scene_class(None)
+        )
+        assert math.isclose(result, DEFAULT_TARGET_FPS, abs_tol=1e-9)
+
+    def test_game_target_of_zero_is_uncapped(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=None, game=self._scene_class(0.0)
+        )
+        assert math.isclose(result, 0.0, abs_tol=1e-9)
+
+    def test_game_target_is_used_without_command_line(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=None, game=self._scene_class(120.0)
+        )
+        assert math.isclose(result, 120.0, abs_tol=1e-9)
+
+    def test_command_line_overrides_game_target(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=30.0, game=self._scene_class(120.0)
+        )
+        assert math.isclose(result, 30.0, abs_tol=1e-9)
+
+    def test_command_line_zero_overrides_game_target(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=0.0, game=self._scene_class(120.0)
+        )
+        assert math.isclose(result, 0.0, abs_tol=1e-9)
+
+    def test_scene_without_target_declaration_gets_engine_default(self):
+        assert Scene.TARGET_FPS is None
+        result = GameEngine.resolve_target_fps(command_line_target_fps=None, game=Scene)
+        assert math.isclose(result, DEFAULT_TARGET_FPS, abs_tol=1e-9)
+
+    def test_initialize_arguments_stores_resolved_float(self, mocker):
+        mocker.patch(
+            'argparse.ArgumentParser.parse_args',
+            return_value=argparse.Namespace(log_level='INFO', target_fps=None),
+        )
+        options = GameEngine.initialize_arguments(self._scene_class(120.0))
+        assert math.isclose(options['target_fps'], 120.0, abs_tol=1e-9)
+
+    def test_bitmappy_gets_engine_default(self, mocker):
+        mocker.patch(
+            'argparse.ArgumentParser.parse_args',
+            return_value=argparse.Namespace(log_level='INFO', target_fps=None),
+        )
+        options = GameEngine.initialize_arguments(BitmapEditorScene)
+        assert math.isclose(options['target_fps'], DEFAULT_TARGET_FPS, abs_tol=1e-9)
+
+    @pytest.mark.parametrize('invalid_target_fps', ['120', True, False, b'60'])
+    def test_non_numeric_game_target_raises_type_error(self, invalid_target_fps):
+        with pytest.raises(TypeError, match='TARGET_FPS'):
+            GameEngine.resolve_target_fps(
+                command_line_target_fps=None, game=self._scene_class(invalid_target_fps)
+            )
+
+    @pytest.mark.parametrize('invalid_target_fps', [-1, -0.5, float('nan'), float('inf')])
+    def test_out_of_range_game_target_raises_value_error(self, invalid_target_fps):
+        with pytest.raises(ValueError, match='TARGET_FPS'):
+            GameEngine.resolve_target_fps(
+                command_line_target_fps=None, game=self._scene_class(invalid_target_fps)
+            )
+
+    @pytest.mark.parametrize('valid_target_fps', [0, 120])
+    def test_valid_game_target_is_accepted(self, valid_target_fps):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=None, game=self._scene_class(valid_target_fps)
+        )
+        assert math.isclose(result, float(valid_target_fps), abs_tol=1e-9)
+
+    def test_error_names_the_scene_class(self):
+        with pytest.raises(TypeError, match='_GameScene'):
+            GameEngine.resolve_target_fps(
+                command_line_target_fps=None, game=self._scene_class('120')
+            )
+
+
+class TestTargetFpsArgumentValidation:
+    """Tests for the --target-fps argparse type."""
+
+    @pytest.mark.parametrize('invalid_text', ['-5', 'nan', 'inf', '-inf', 'fast'])
+    def test_invalid_values_are_rejected(self, invalid_text, capsys):
+        parser = GameEngine.args(argparse.ArgumentParser())
+        with pytest.raises(SystemExit):
+            parser.parse_args(['--target-fps', invalid_text])
+        assert '--target-fps' in capsys.readouterr().err
+
+    @pytest.mark.parametrize(('text', 'expected'), [('0', 0.0), ('60.5', 60.5)])
+    def test_valid_values_are_accepted(self, text, expected):
+        parser = GameEngine.args(argparse.ArgumentParser())
+        args = parser.parse_args(['--target-fps', text])
+        assert math.isclose(args.target_fps, expected, abs_tol=1e-9)
+
+
+class TestGilSwitchInterval:
+    """Tests for the GIL switch interval set during engine initialization (BUGS.md #27)."""
+
+    def test_gil_switch_interval_is_half_a_millisecond(self):
+        """Test the constant: 0.5 ms keeps audio callbacks within the 11.6 ms mixer buffer."""
+        assert math.isclose(GIL_SWITCH_INTERVAL_SECONDS, 0.0005, abs_tol=1e-12)
+
+    def test_engine_initialization_sets_switch_interval(
+        self, mocker, mock_pygame_patches, mock_game_args
+    ):
+        """Test that GameEngine sets the interval once, before pygame.init() starts audio."""
+        mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_game_args)
+        set_switch_interval = mocker.patch('sys.setswitchinterval')
+        mock_game = MockFactory.create_game_mock()
+
+        GameEngine(game=mock_game)
+
+        set_switch_interval.assert_called_once_with(GIL_SWITCH_INTERVAL_SECONDS)

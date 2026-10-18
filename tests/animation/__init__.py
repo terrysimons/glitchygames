@@ -1,1 +1,1 @@
-"""Animation test module."""
+"""Tests for the animation state machine module."""

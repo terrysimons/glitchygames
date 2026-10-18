@@ -54,8 +54,8 @@ class TestPygameTimer:
     def test_start_frame_with_fps(self):
         timer = PygameTimer()
         period = timer.start_frame(60)
-        # 1_000_000_000 // 60 = 16666666
-        assert period == 1_000_000_000 // 60
+        # round(1_000_000_000 / 60) = 16666667
+        assert period == 16_666_667
 
     def test_start_frame_zero_fps(self):
         timer = PygameTimer()
@@ -118,7 +118,7 @@ class TestFastTimer:
     def test_start_frame_with_fps(self):
         timer = FastTimer()
         period = timer.start_frame(60)
-        assert period == 1_000_000_000 // 60
+        assert period == 16_666_667
 
     def test_start_frame_zero_fps(self):
         timer = FastTimer()
@@ -154,6 +154,23 @@ class TestFastTimer:
         result = timer.sleep_until_next(near_deadline)
         assert result >= near_deadline
 
+    def test_final_spin_yields_the_gil_each_iteration(self, mocker):
+        """Test the final spin calls time.sleep(0) so audio callbacks can take the GIL."""
+        timer = FastTimer()
+        deadline_ns = 10_000_000
+        # Calls: coarse loop reads 9_999_000 (inside the spin window, so no coarse sleep),
+        # then the spin reads 9_999_100, 9_999_500 (both short) and 10_000_001 (past).
+        mocker.patch(
+            'glitchygames.timing.time.perf_counter_ns',
+            side_effect=[9_999_000, 9_999_100, 9_999_500, 10_000_001],
+        )
+        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
+
+        result = timer.sleep_until_next(deadline_ns)
+
+        assert result >= deadline_ns
+        assert mock_sleep.call_args_list == [mocker.call(0), mocker.call(0)]
+
     def test_sleep_until_next_with_zero_granularity(self):
         timer = FastTimer(sleep_granularity_ns=0)
         near_deadline = timer.ns_now() + 100_000
@@ -177,9 +194,13 @@ class TestCreateTimer:
         timer = create_timer('fast')
         assert isinstance(timer, FastTimer)
 
-    def test_create_timer_none_defaults_to_pygame(self):
+    def test_create_timer_none_defaults_to_fast(self):
         timer = create_timer(None)
-        assert isinstance(timer, PygameTimer)
+        assert isinstance(timer, FastTimer)
+
+    def test_create_timer_empty_options_defaults_to_fast(self):
+        timer = create_timer(None, {})
+        assert isinstance(timer, FastTimer)
 
     def test_create_timer_case_insensitive(self):
         timer = create_timer('FAST')
@@ -203,8 +224,8 @@ ONE_MS_IN_NS = 1_000_000
 ONE_S_IN_NS = 1_000_000_000
 TARGET_FPS_60 = 60
 TARGET_FPS_120 = 120
-EXPECTED_PERIOD_60 = ONE_S_IN_NS // TARGET_FPS_60
-EXPECTED_PERIOD_120 = ONE_S_IN_NS // TARGET_FPS_120
+EXPECTED_PERIOD_60 = 16_666_667  # round(1e9 / 60)
+EXPECTED_PERIOD_120 = 8_333_333  # round(1e9 / 120)
 
 
 class TestMsToNs:
@@ -482,18 +503,35 @@ class TestCreateTimerExtended:
         timer = create_timer('pygame')
         assert isinstance(timer, PygameTimer)
 
-    def test_create_timer_none_defaults_to_pygame(self, mocker):
-        """Test create_timer with None type defaults to PygameTimer."""
-        mock_pygame = mocker.MagicMock()
-        mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
-
-        from glitchygames.timing import PygameTimer
-
+    def test_create_timer_none_defaults_to_fast(self):
+        """Test create_timer with None type defaults to FastTimer."""
         timer = create_timer(None)
-        assert isinstance(timer, PygameTimer)
+        assert isinstance(timer, FastTimer)
 
     def test_create_timer_from_options_dict(self):
         """Test create_timer reads timer_backend from options dict."""
         options = {'timer_backend': 'fast'}
         timer = create_timer(None, options=options)
         assert isinstance(timer, FastTimer)
+
+
+class TestFractionalTargetFps:
+    """Fractional target FPS is rounded to a nanosecond period, not truncated."""
+
+    def test_fast_timer_fractional_target(self):
+        assert FastTimer().start_frame(60.5) == 16_528_926
+
+    def test_fast_timer_integer_target_rounds_up(self):
+        assert FastTimer().start_frame(60) == 16_666_667
+
+    def test_fast_timer_zero_target(self):
+        assert FastTimer().start_frame(0) == 0
+
+    def test_pygame_timer_fractional_target(self):
+        assert PygameTimer().start_frame(60.5) == 16_528_926
+
+    def test_pygame_timer_integer_target_rounds_up(self):
+        assert PygameTimer().start_frame(60) == 16_666_667
+
+    def test_pygame_timer_zero_target(self):
+        assert PygameTimer().start_frame(0) == 0

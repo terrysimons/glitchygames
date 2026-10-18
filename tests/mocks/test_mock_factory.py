@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 import pygame
 
+from glitchygames.camera import Camera2D
 from glitchygames.events import unhandled_event
 from glitchygames.sprites import AnimatedSprite
 
@@ -211,7 +212,7 @@ class MockSurface(pygame.Surface):
         return self._mock_path
 
 
-class MockFactory:  # noqa: PLR0904
+class MockFactory:  # ruff: ignore[too-many-public-methods]
     """Factory class for creating properly configured mock objects."""
 
     # Cache for expensive mock objects to improve test performance
@@ -736,7 +737,7 @@ class MockFactory:  # noqa: PLR0904
         pixels_tall: int = 32,
         pixel_size: int = 16,
         *,
-        use_cache: bool = True,  # noqa: ARG004
+        use_cache: bool = True,  # ruff: ignore[unused-static-method-argument]
     ) -> Mock:
         """Create an optimized scene mock with caching for performance.
 
@@ -774,7 +775,7 @@ class MockFactory:  # noqa: PLR0904
         options: dict | None = None,
         event_handlers: dict | None = None,
         *,
-        use_cache: bool = True,  # noqa: ARG004
+        use_cache: bool = True,  # ruff: ignore[unused-static-method-argument]
     ) -> Mock:
         """Create a scene mock for event testing.
 
@@ -796,6 +797,9 @@ class MockFactory:  # noqa: PLR0904
         # Create scene mock
         scene_mock = Mock()
         scene_mock.options = options
+        scene_mock.TARGET_FPS = None  # A real Scene's TARGET_FPS is None unless a game opts in
+        # Every real Scene has a camera (never None); the scene manager reads its shake effect
+        scene_mock.camera = Camera2D(screen_width=800, screen_height=600)
         scene_mock.audio_events_received = []
         scene_mock.controller_events_received = []
         scene_mock.mouse_events_received = []
@@ -987,6 +991,10 @@ class MockFactory:  # noqa: PLR0904
         # Add duration attribute for animation timing
         mock_frame.duration = 1.0  # 1 second duration
 
+        # Add hitbox attributes (no hitbox by default)
+        mock_frame.has_explicit_hitbox = False
+        mock_frame._hitbox = None
+
         # Add pixels attribute for surface creation
         mock_frame.pixels = [pixel_color] * pixel_count
 
@@ -1152,6 +1160,7 @@ class MockFactory:  # noqa: PLR0904
         mock_game = Mock()
         mock_game.NAME = 'MockGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None  # A real Scene's TARGET_FPS is None unless a game opts in
         mock_game.args = Mock(return_value=Mock())
         return mock_game
 
@@ -1263,7 +1272,7 @@ class MockFactory:  # noqa: PLR0904
         return screen
 
     @staticmethod
-    def _mock_sprite_init(self, *args, **kwargs):  # noqa: PLW0211, ARG004  # pyright: ignore[reportSelfClsParameterName]
+    def _mock_sprite_init(self, *args, **kwargs):  # ruff: ignore[bad-staticmethod-argument, unused-static-method-argument]  # pyright: ignore[reportSelfClsParameterName]
         """Mock Sprite.__init__ that handles pygame.display.get_surface() properly."""
         # Avoid referencing self in debug output to prevent __str__ access before attributes are set
         # Extract arguments from kwargs since that's how they're being passed
@@ -1471,7 +1480,7 @@ class MockFactory:  # noqa: PLR0904
         mock_group.remove = mock_remove
 
     @staticmethod
-    def _create_mock_layered_dirty(*args, **kwargs):  # noqa: ARG004
+    def _create_mock_layered_dirty(*args, **kwargs):  # ruff: ignore[unused-static-method-argument]
         """Mock pygame.sprite.LayeredDirty constructor that returns a working mock.
 
         Returns:
@@ -1493,7 +1502,7 @@ class MockFactory:  # noqa: PLR0904
         return mock_group
 
     @staticmethod
-    def _mock_sprite_factory_load_sprite(*, filename: str | None = None):  # noqa: ARG004
+    def _mock_sprite_factory_load_sprite(*, filename: str | None = None):  # ruff: ignore[unused-static-method-argument]
         """Mock SpriteFactory.load_sprite to return a mocked animated sprite.
 
         Returns:
@@ -1600,6 +1609,8 @@ class MockFactory:  # noqa: PLR0904
         mixer_mock = Mock()
         mixer_mock.Sound.return_value = Mock()
         mixer_mock.get_init.return_value = (22050, -16, 2)  # frequency, format, channels
+        mixer_mock.get_num_channels.return_value = 8  # pygame-ce's default channel count
+        mixer_mock.set_reserved.side_effect = lambda count: count  # Returns the count reserved
 
         # Keyboard mocking
         key_mock = Mock()

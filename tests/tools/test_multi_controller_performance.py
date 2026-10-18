@@ -180,19 +180,19 @@ class TestCachedPositionManager:
         assert stats['max_cache_size'] == 5
         assert stats['cache_utilization'] == pytest.approx(0.2)
 
-    def test_access_time_updated_on_get(self):
-        """Test that access time is updated when position is retrieved."""
+    def test_access_order_updated_on_get(self):
+        """Test that access order is updated when position is retrieved."""
         self.cache.set_position(0, 'walk', 0, (10, 20))
-        initial_time = self.cache.access_times.copy()
+        key = (0, hash('walk'), 0)
+        initial_order = self.cache.access_order[key]
 
-        # Small delay to ensure time difference
-        time.sleep(0.01)
+        # Set another position to advance the counter
+        self.cache.set_position(1, 'walk', 0, (30, 40))
 
         self.cache.get_position(0, 'walk', 0)
 
-        # Access time should be updated for the accessed key
-        key = (0, hash('walk'), 0)
-        assert self.cache.access_times[key] >= initial_time[key]
+        # Access order should be higher after the get
+        assert self.cache.access_order[key] > initial_order
 
     def test_evict_oldest_empty_cache(self):
         """Test evicting from an empty cache does not raise."""

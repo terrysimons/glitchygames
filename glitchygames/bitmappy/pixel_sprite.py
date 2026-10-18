@@ -21,7 +21,7 @@ class BitmapPixelSprite(BitmappySprite):
     log = LOG
     PIXEL_CACHE: ClassVar[dict[tuple[tuple[int, ...], int], pygame.Surface]] = {}
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # ruff: ignore[too-many-arguments]
         self: Self,
         *,
         x: int = 0,
@@ -54,7 +54,7 @@ class BitmapPixelSprite(BitmappySprite):
 
     @property
     def pixel_color(self: Self) -> tuple[int, int, int, int]:
-        """Get the pixel color.
+        """The pixel color.
 
         Args:
             None

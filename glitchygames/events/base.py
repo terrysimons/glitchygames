@@ -271,7 +271,7 @@ class ResourceManager:
 
         return cls.__instances__[cls]
 
-    def __init__(self: Self, game: object) -> None:  # noqa: ARG002
+    def __init__(self: Self, game: object) -> None:  # ruff: ignore[unused-method-argument]
         """Initialize the resource manager.
 
         Args:
@@ -301,14 +301,14 @@ class ResourceManager:
             for proxy in self.proxies:
                 return getattr(proxy, attr)
         except AttributeError:
-            self.log.error(f'No proxies for {type(self)}.{attr}')  # noqa: TRY400
+            self.log.error(f'No proxies for {type(self)}.{attr}')  # ruff: ignore[error-instead-of-exception]
             raise
 
         raise AttributeError(NO_PROXIES_MSG.format(cls=type(self), attr=attr))
 
 
 # Note, we can't subclass HashableEvent because it's a C type.
-class HashableEvent(collections.UserDict[str, Any]):  # noqa: PLR0904
+class HashableEvent(collections.UserDict[str, Any]):  # ruff: ignore[too-many-public-methods]
     """Hashable event class.
 
     Hashable events are cacheable, so we can mitigate some of the
@@ -323,7 +323,7 @@ class HashableEvent(collections.UserDict[str, Any]):  # noqa: PLR0904
     which allows us to extend them with additional information.
     """
 
-    def __init__(self: Self, type: int, *_args: Any, **attributes: Any) -> None:  # noqa: A002
+    def __init__(self: Self, type: int, *_args: Any, **attributes: Any) -> None:  # ruff: ignore[builtin-argument-shadowing]
         """Create a hashable event.
 
         Pygames events are not hashable by default.
@@ -340,7 +340,7 @@ class HashableEvent(collections.UserDict[str, Any]):  # noqa: PLR0904
 
     @property
     def dict(self: Self) -> dict[str, Any]:  # ty: ignore[invalid-type-form]
-        """Return the dictionary representation of the object."""
+        """The dictionary representation of the object."""
         return self.__dict__
 
     @override

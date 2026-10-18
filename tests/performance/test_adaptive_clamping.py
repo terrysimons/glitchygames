@@ -1,10 +1,17 @@
 """Tests for the adaptive clamping system."""
 
 import math
+import re
 
 import pytest
 
-from glitchygames.performance.adaptive_clamping import AdaptiveClamping
+from glitchygames.performance.adaptive_clamping import (
+    FPS_HISTORY_MAX_SIZE,
+    HISTOGRAM_BUCKET_COUNT,
+    MAX_SCENE_FRAME_TIME_HISTORY,
+    AdaptiveClamping,
+    FpsHistogramMode,
+)
 
 
 class TestAdaptiveClampingSingleton:
@@ -71,9 +78,9 @@ class TestSceneManagement:
 
         assert self.instance._current_scene == 'TestScene'
         assert 'TestScene' in self.instance._scene_data
-        assert self.instance._scene_data['TestScene']['fps_history'] == []
+        assert list(self.instance._scene_data['TestScene']['fps_history']) == []
         assert self.instance._scene_data['TestScene']['fps_histogram'] == {}
-        assert self.instance._scene_data['TestScene']['frame_times'] == []
+        assert list(self.instance._scene_data['TestScene']['frame_times']) == []
 
     def test_set_current_scene_doesnt_reinitialize(self):
         """Test that setting the same scene doesn't reinitialize data."""
@@ -90,9 +97,9 @@ class TestSceneManagement:
 
         # Data should be preserved
         assert self.instance._scene_data['TestScene'] is initial_data
-        assert self.instance._scene_data['TestScene']['fps_history'] == [60.0]
+        assert list(self.instance._scene_data['TestScene']['fps_history']) == [60.0]
         assert self.instance._scene_data['TestScene']['fps_histogram'][60] == 1
-        assert self.instance._scene_data['TestScene']['frame_times'] == [0.016]
+        assert list(self.instance._scene_data['TestScene']['frame_times']) == [0.016]
 
     def test_switch_scenes_preserves_data(self):
         """Test that switching scenes preserves data for each scene."""
@@ -108,8 +115,8 @@ class TestSceneManagement:
         self.instance.set_current_scene('Scene1')
 
         # Both scenes should have their data preserved
-        assert self.instance._scene_data['Scene1']['fps_history'] == [60.0]
-        assert self.instance._scene_data['Scene2']['fps_history'] == [30.0]
+        assert list(self.instance._scene_data['Scene1']['fps_history']) == [60.0]
+        assert list(self.instance._scene_data['Scene2']['fps_history']) == [30.0]
 
 
 class TestFPSTracking:
@@ -127,7 +134,7 @@ class TestFPSTracking:
         self.instance.track_fps_from_event(60.0)
 
         scene_data = self.instance._scene_data['TestScene']
-        assert scene_data['fps_history'] == [60.0]
+        assert list(scene_data['fps_history']) == [60.0]
         assert scene_data['fps_histogram'][60] == 1
 
     def test_track_fps_from_event_with_frame_time(self):
@@ -136,8 +143,8 @@ class TestFPSTracking:
         self.instance.track_fps_from_event(60.0, 0.016)  # 16ms frame time
 
         scene_data = self.instance._scene_data['TestScene']
-        assert scene_data['fps_history'] == [60.0]
-        assert scene_data['frame_times'] == [0.016]
+        assert list(scene_data['fps_history']) == [60.0]
+        assert list(scene_data['frame_times']) == [0.016]
         assert scene_data['fps_histogram'][60] == 1
 
     def test_track_fps_from_event_histogram_accumulation(self):
@@ -198,7 +205,9 @@ class TestFPSTracking:
         self.instance.track_fps_from_event(60.0, 0.016)
 
         scene_data = self.instance._scene_data['TestScene']
-        assert scene_data['frame_times'] == []  # Should not track frame times for unlimited FPS
+        assert (
+            list(scene_data['frame_times']) == []
+        )  # Should not track frame times for unlimited FPS
 
 
 class TestSpareTimeCalculation:
@@ -378,7 +387,7 @@ class TestShutdownReporting:
         assert result['avg_fps'] == pytest.approx(45.5, rel=1e-2)  # (60+61+30+31)/4
         assert math.isclose(result['min_fps'], 30.0)
         assert math.isclose(result['max_fps'], 61.0)
-        assert math.isclose(result['median_fps'], 60.0)  # Median of trimmed data [31, 60] is 60
+        assert math.isclose(result['median_fps'], 45.5)  # True median of [30, 31, 60, 61]
         assert 'performance_grade' in result
         assert 'fps_histogram' in result
 
@@ -416,6 +425,615 @@ class TestShutdownReporting:
         # Should not include Unknown scene
         assert 'Unknown' not in result
         assert result == {}
+
+    def _feed_distinct_frames(self, frame_count):
+        """Feed frame_count distinct FPS values so trimming is observable."""
+        self.instance.set_current_scene('TrimScene')
+        for frame_index in range(frame_count):
+            self.instance.track_fps_from_event(100.0 + frame_index)
+
+    def test_trim_label_pluralizes_single_frame(self):
+        """A single recorded frame reads 'dropped 0 of 1 frame'."""
+        self.instance.set_trim_percent(5.0)
+        self._feed_distinct_frames(1)
+        stats = self.instance.get_shutdown_stats()
+        assert self.instance._build_trim_label(stats=stats) == (
+            'dropped 0 of 1 frame; the 5.0% setting needs at least 20'
+        )
+
+    def test_trim_label_pluralizes_multiple_frames_per_end(self):
+        """Two frames dropped from each end reads 'dropped 2 frames from each end'."""
+        self.instance.set_trim_percent(5.0)
+        self._feed_distinct_frames(40)
+        stats = self.instance.get_shutdown_stats()
+        assert self.instance._build_trim_label(stats=stats) == (
+            'dropped 2 frames from each end (5.0%)'
+        )
+
+    def test_trim_label_zero_percent_says_no_trimming(self):
+        """A trim percent of 0 is labelled as no trimming."""
+        self.instance.set_trim_percent(0.0)
+        self._feed_distinct_frames(10)
+        stats = self.instance.get_shutdown_stats()
+        assert self.instance._build_trim_label(stats=stats) == 'no trimming'
+
+    def test_trim_label_ten_frames_at_five_percent_explains_nothing_dropped(self):
+        """10 frames at 5% drops nothing and the label says why."""
+        self.instance.set_trim_percent(5.0)
+        self._feed_distinct_frames(10)
+        stats = self.instance.get_shutdown_stats()
+        assert stats['trimmed_frames'] == 10
+        assert self.instance._build_trim_label(stats=stats) == (
+            'dropped 0 of 10 frames; the 5.0% setting needs at least 20'
+        )
+
+    def test_trim_label_boundary_at_minimum_frames(self):
+        """19 frames drop nothing at 5%, 20 frames drop one from each end."""
+        self.instance.set_trim_percent(5.0)
+        self._feed_distinct_frames(19)
+        stats = self.instance.get_shutdown_stats()
+        assert stats['trimmed_frames'] == 19
+        assert self.instance._build_trim_label(stats=stats) == (
+            'dropped 0 of 19 frames; the 5.0% setting needs at least 20'
+        )
+
+        AdaptiveClamping._instance = None
+        AdaptiveClamping._initialized = False
+        self.instance = AdaptiveClamping()
+        self.instance.set_trim_percent(5.0)
+        self._feed_distinct_frames(20)
+        stats = self.instance.get_shutdown_stats()
+        assert stats['trimmed_frames'] == 18
+        assert self.instance._build_trim_label(stats=stats) == (
+            'dropped 1 frame from each end (5.0%)'
+        )
+
+    def test_trim_label_reported_in_log_output(self, caplog):
+        """The shutdown log prints the honest label, not a claim of dropped frames."""
+        self.instance.set_trim_percent(5.0)
+        self._feed_distinct_frames(10)
+        stats = self.instance.get_shutdown_stats()
+        with caplog.at_level('INFO'):
+            self.instance._log_fps_stats(stats=stats, spare_stats={'message': 'none'})
+        assert 'dropped 0 of 10 frames; the 5.0% setting needs at least 20' in caplog.text
+        assert 'dropped top/bottom' not in caplog.text
+
+
+class TestShutdownStatistics:
+    """Test shutdown statistics, trimming, medians and 1% lows."""
+
+    def setup_method(self):
+        """Reset singleton before each test."""
+        AdaptiveClamping._instance = None
+        AdaptiveClamping._initialized = False
+        self.instance = AdaptiveClamping()
+        self.instance.set_trim_percent(0.0)
+
+    def _feed(self, scene_name, fps_values):
+        """Record fps_values for scene_name."""
+        self.instance.set_current_scene(scene_name)
+        for fps in fps_values:
+            self.instance.track_fps_from_event(fps)
+
+    # 1. The user's report
+    def test_user_report_nine_repeated_samples_and_one_stale(self):
+        """9 x 10000/41 and 1 x 10000/19 gives median == minimum, which is correct for that data."""
+        self.instance.set_trim_percent(5.0)
+        self._feed('PauseScene', [10000 / 41] * 9 + [10000 / 19])
+
+        stats = self.instance.get_shutdown_stats()
+
+        assert stats['total_frames'] == 10
+        assert stats['trimmed_frames'] == 10
+        assert stats['median_fps'] == pytest.approx(243.9, abs=0.05)
+        assert stats['min_fps'] == pytest.approx(243.9, abs=0.05)
+        assert stats['avg_fps'] == pytest.approx(272.1, abs=0.05)
+        assert stats['fps_bucket_width'] == pytest.approx((10000 / 19 - 10000 / 41) / 10)
+        assert stats['fps_histogram'] == {
+            '244-271': 9,
+            '272-299': 0,
+            '300-328': 0,
+            '329-356': 0,
+            '357-384': 0,
+            '385-412': 0,
+            '413-441': 0,
+            '442-469': 0,
+            '470-497': 0,
+            '498-526': 1,
+        }
+
+    # 4. Trimming
+    def test_trim_boundaries_at_five_percent(self):
+        """19 frames drop 0; 20 frames drop 1 from each end."""
+        self.instance.set_trim_percent(5.0)
+        self._feed('Scene', [100.0 + index for index in range(19)])
+        assert self.instance.get_shutdown_stats()['trimmed_frames'] == 19
+
+        AdaptiveClamping._instance = None
+        AdaptiveClamping._initialized = False
+        self.instance = AdaptiveClamping()
+        self.instance.set_trim_percent(5.0)
+        self._feed('Scene', [100.0 + index for index in range(20)])
+        stats = self.instance.get_shutdown_stats()
+        assert stats['trimmed_frames'] == 18
+        assert stats['avg_fps'] == pytest.approx(109.5)
+
+    def test_trim_zero_keeps_all_frames(self):
+        """Trim 0 keeps every frame."""
+        self._feed('Scene', [100.0 + index for index in range(50)])
+        assert self.instance.get_shutdown_stats()['trimmed_frames'] == 50
+
+    def test_trim_percent_clamped_below_fifty(self):
+        """Percentages of 50 or more clamp to 49.9 so some data always remains."""
+        self.instance.set_trim_percent(75.0)
+        assert self.instance._trim_percent == pytest.approx(49.9)
+        self.instance.set_trim_percent(-5.0)
+        assert self.instance._trim_percent == 0.0
+
+    def test_extreme_trim_percent_with_three_frames_keeps_the_middle_one(self):
+        """At 49.9% three frames drop one from each end and keep the median frame."""
+        self.instance.set_trim_percent(75.0)
+        self._feed('Scene', [100.0, 200.0, 300.0])
+
+        stats = self.instance.get_shutdown_stats()
+
+        assert stats['trimmed_frames'] == 1
+        assert stats['median_fps'] == 200.0
+
+    # 5. Degenerate data
+    def test_empty_history(self):
+        """No samples at all reports 'Not enough data'."""
+        assert self.instance.get_shutdown_stats() == {'message': 'Not enough data'}
+
+    def test_only_non_positive_fps(self):
+        """Only fps <= 0 reports no valid data, globally and per scene."""
+        self._feed('Scene', [0.0, -5.0])
+
+        assert self.instance.get_shutdown_stats() == {'message': 'No valid FPS data collected'}
+        assert self.instance.get_per_scene_shutdown_stats()['Scene'] == {
+            'message': 'No valid FPS data collected',
+        }
+
+    def test_single_frame(self):
+        """A single frame is its own minimum, median, maximum and 1% low."""
+        self._feed('Scene', [123.5])
+
+        stats = self.instance.get_shutdown_stats()
+
+        assert stats['min_fps'] == stats['median_fps'] == stats['max_fps'] == 123.5
+        assert stats['one_percent_low_fps'] == 123.5
+        assert stats['fps_histogram'] == {'124': 1}
+        assert stats['fps_bucket_width'] == 0.0
+
+    def test_unknown_scene_excluded_from_per_scene_stats(self):
+        """The 'Unknown' scene never appears in per-scene stats."""
+        self._feed('Unknown', [60.0])
+        self._feed('Real', [61.0])
+
+        assert list(self.instance.get_per_scene_shutdown_stats()) == ['Real']
+
+    # Discrepancy fixes: median, min/max, 1% low
+    @pytest.mark.parametrize(
+        ('values', 'expected_median'),
+        [([300.0, 100.0, 200.0], 200.0), ([100.0, 200.0, 300.0, 400.0], 250.0), ([77.0], 77.0)],
+    )
+    def test_median_is_true_median(self, values, expected_median):
+        """Odd count: middle value; even count: mean of the two middle values."""
+        self._feed('Scene', values)
+
+        assert self.instance.get_shutdown_stats()['median_fps'] == expected_median
+        assert self.instance.get_per_scene_shutdown_stats()['Scene']['median_fps'] == (
+            expected_median
+        )
+
+    def test_min_and_max_come_from_all_frames_and_agree_globally_and_per_scene(self):
+        """The worst frame inside the trimmed tail is still the minimum, in both reports."""
+        self.instance.set_trim_percent(5.0)
+        self._feed('Scene', [5.0] * 2 + [100.0 + index for index in range(36)] + [900.0] * 2)
+
+        global_stats = self.instance.get_shutdown_stats()
+        scene_stats = self.instance.get_per_scene_shutdown_stats()['Scene']
+
+        assert global_stats['trimmed_frames'] == 36
+        assert global_stats['min_fps'] == scene_stats['min_fps'] == 5.0
+        assert global_stats['max_fps'] == scene_stats['max_fps'] == 900.0
+        assert global_stats == scene_stats
+
+    @pytest.mark.parametrize(
+        ('frame_count', 'slowest_count'),
+        [(1, 1), (100, 1), (101, 2), (250, 3)],
+    )
+    def test_one_percent_low_is_mean_of_slowest_frames(self, frame_count, slowest_count):
+        """1% low is the mean of the slowest max(1, ceil(1%)) of all valid frames."""
+        values = [float(100 + index) for index in range(frame_count)]
+        self._feed('Scene', values)
+
+        stats = self.instance.get_shutdown_stats()
+
+        expected = sum(sorted(values)[:slowest_count]) / slowest_count
+        assert stats['one_percent_low_fps'] == pytest.approx(expected)
+        assert stats['min_fps'] <= stats['one_percent_low_fps'] <= stats['median_fps']
+        assert self.instance.get_per_scene_shutdown_stats()['Scene']['one_percent_low_fps'] == (
+            pytest.approx(expected)
+        )
+
+    # Deque-backed histories
+    def test_histories_are_bounded_and_keep_newest_samples(self):
+        """History never exceeds maxlen and keeps the newest samples."""
+        self.instance._target_fps = 60.0
+        self.instance.set_current_scene('Scene')
+        for index in range(100_005):
+            self.instance.track_fps_from_event(float(index + 1), 0.001 * (index % 7 + 1))
+            self.instance._track_fps(float(index + 1))
+
+        scene_data = self.instance._scene_data['Scene']
+        assert len(scene_data['fps_history']) == 100_000
+        assert scene_data['fps_history'][0] == 6.0
+        assert scene_data['fps_history'][-1] == 100_005.0
+        assert len(scene_data['frame_times']) == MAX_SCENE_FRAME_TIME_HISTORY
+        assert len(scene_data['statistical_aggregates']['sampled_fps_history']) == 10_000
+        assert len(self.instance._fps_history) == FPS_HISTORY_MAX_SIZE
+        assert self.instance._fps_history[0] == 100_005.0 - FPS_HISTORY_MAX_SIZE + 1
+
+
+class TestHistogramBucketing:
+    """Test histogram bucketing, printing and bounded histories."""
+
+    def setup_method(self):
+        """Reset singleton before each test."""
+        AdaptiveClamping._instance = None
+        AdaptiveClamping._initialized = False
+        self.instance = AdaptiveClamping()
+        self.instance.set_trim_percent(0.0)
+
+    def _feed(self, scene_name, fps_values):
+        """Record fps_values for scene_name."""
+        self.instance.set_current_scene(scene_name)
+        for fps in fps_values:
+            self.instance.track_fps_from_event(fps)
+
+    # 2. pygame-counter shape versus 1/dt sampling
+    def test_pygame_counter_shape_gives_counts_in_multiples_of_ten(self):
+        """Values repeated in runs of 10 (pygame's counter) make every bucket a multiple of 10."""
+        counter_values = [10000 / 28, 10000 / 26, 10000 / 20]
+        repeated = [value for value in counter_values for _ in range(10)]
+        self._feed('Scene', repeated)
+
+        stats = self.instance.get_shutdown_stats()
+
+        assert stats['trimmed_frames'] == 30
+        assert len(set(repeated)) == 3
+        assert all(count % 10 == 0 for count in stats['fps_histogram'].values())
+        assert all(
+            math.isclose(value * round(10000 / value), 10000, rel_tol=1e-9)
+            for value in counter_values
+        )
+
+    def test_distinct_dt_samples_give_distinct_values(self, mock_pygame_patches, mocker):
+        """With 1/dt sampling distinct dts give distinct FPS and get_fps is never called."""
+        from glitchygames.scenes.scene import SceneManager
+
+        self.instance.set_current_scene('Scene')
+        mocker.patch('glitchygames.performance.performance_manager', self.instance)
+        manager = SceneManager()
+        mock_get_fps = mocker.patch.object(manager.clock, 'get_fps', return_value=500.0)
+
+        for frame_index in range(20):
+            manager.dt = 1.0 / (400.0 + frame_index * 2.5)
+            manager._track_performance(processing_time=0.001)
+
+        recorded = list(self.instance._scene_data['Scene']['fps_history'])
+        mock_get_fps.assert_not_called()
+        assert len(set(recorded)) == 20
+        stats = self.instance.get_shutdown_stats()
+        assert sum(stats['fps_histogram'].values()) == 20
+        assert not all(count % 10 == 0 for count in stats['fps_histogram'].values())
+
+    # 3. Equal-range bucketing
+    def test_histogram_counts_sum_to_trimmed_frames_and_use_trimmed_data(self):
+        """Histogram counts sum to trimmed_frames and exclude the trimmed tails."""
+        self.instance.set_trim_percent(5.0)
+        self._feed(
+            'Scene', [1000.0] * 2 + [200.0 + index * 0.1 for index in range(36)] + [10.0] * 2
+        )
+
+        stats = self.instance.get_shutdown_stats()
+
+        assert stats['total_frames'] == 40
+        assert stats['trimmed_frames'] == 36
+        assert sum(stats['fps_histogram'].values()) == 36
+        assert stats['fps_bucket_width'] == pytest.approx(0.35)  # 200.0 to 203.5
+
+    def test_spread_data_gets_exactly_ten_buckets(self):
+        """Spread data fills ten buckets; min is in the first, max in the last."""
+        self._feed('Scene', [100.0 + index * 100 for index in range(11)])  # 100 to 1100
+
+        stats = self.instance.get_shutdown_stats()
+
+        assert stats['fps_histogram_mode'] == 'equal-range'
+        assert stats['fps_bucket_width'] == pytest.approx(100.0)
+        assert len(stats['fps_histogram']) == HISTOGRAM_BUCKET_COUNT == 10
+        counts = list(stats['fps_histogram'].values())
+        assert counts[0] == 1
+        assert counts[-1] == 2  # 1000.0 is on the last boundary, and the maximum 1100.0 joins it
+        assert sum(counts) == 11
+        assert list(stats['fps_histogram']) == [
+            '100-199',
+            '200-299',
+            '300-399',
+            '400-499',
+            '500-599',
+            '600-699',
+            '700-799',
+            '800-899',
+            '900-999',
+            '1000-1100',
+        ]
+
+    def test_value_on_internal_boundary_goes_to_upper_bucket(self):
+        """500.0 is the boundary between 400-499 and 500-599 and lands in the upper one."""
+        self._feed('Scene', [100.0, 500.0, 1100.0])
+
+        histogram = self.instance.get_shutdown_stats()['fps_histogram']
+
+        assert histogram['100-199'] == 1
+        assert histogram['400-499'] == 0
+        assert histogram['500-599'] == 1
+        assert histogram['1000-1100'] == 1
+
+    @pytest.mark.parametrize(('lowest', 'highest'), [(100.0, 137.0), (0.0, 7.0)])
+    def test_every_constructed_boundary_value_lands_in_its_upper_bucket(self, lowest, highest):
+        """With non-dyadic widths (3.7, 0.7) boundary values must not fall into the lower bucket."""
+        width = (highest - lowest) / HISTOGRAM_BUCKET_COUNT
+        boundary_values = [lowest + index * width for index in range(HISTOGRAM_BUCKET_COUNT)]
+        counts_by_index, _ = AdaptiveClamping._count_equal_range_buckets(
+            sorted([*boundary_values, highest])
+        )
+
+        # One value per boundary; the maximum joins the last bucket.
+        assert counts_by_index == [1] * (HISTOGRAM_BUCKET_COUNT - 1) + [2]
+
+    def test_identical_values_give_a_single_bucket(self):
+        """Equal minimum and maximum collapse to one bucket of width 0."""
+        self._feed('Scene', [250.0] * 4)
+
+        stats = self.instance.get_shutdown_stats()
+
+        assert stats['fps_histogram'] == {'250': 4}
+        assert stats['fps_bucket_width'] == 0.0
+
+    def test_narrow_spread_merges_buckets_so_labels_stay_unique_and_ascending(self):
+        """A 3 FPS spread has sub-1 FPS buckets; colliding rounded labels merge."""
+        self._feed('Scene', [244.0, 244.5, 245.0, 245.5, 246.0, 246.5, 247.0, 247.2, 244.1, 246.9])
+
+        stats = self.instance.get_shutdown_stats()
+        labels = list(stats['fps_histogram'])
+
+        assert len(labels) == len(set(labels))
+        lower_bounds = [int(label.split('-')[0]) for label in labels]
+        assert lower_bounds == sorted(set(lower_bounds))
+        assert sum(stats['fps_histogram'].values()) == 10
+        assert stats['fps_bucket_width'] == pytest.approx(0.32)
+        assert len(labels) < HISTOGRAM_BUCKET_COUNT
+
+    def test_buckets_ordered_numerically_across_digit_counts(self):
+        """Buckets with 2 and 4 digit bounds are ordered by value, not as strings."""
+        self._feed('Scene', [90.0, 345.0, 1000.0])
+
+        labels = list(self.instance.get_shutdown_stats()['fps_histogram'])
+
+        assert labels[0] == '90-180'
+        assert labels[-1].endswith('-1000')
+        assert labels == sorted(labels, key=lambda label: int(label.split('-')[0]))
+        assert sorted(labels) != labels  # string order differs
+
+    def test_fps_bucket_width_reported_per_scene(self):
+        """Per-scene stats carry the mode, bucket width and ordered labels."""
+        self._feed('Scene', [345.0, 625.0])
+
+        scene_stats = self.instance.get_per_scene_shutdown_stats()['Scene']
+
+        assert scene_stats['fps_histogram_mode'] == 'equal-range'
+        assert scene_stats['fps_bucket_width'] == pytest.approx(28.0)
+        assert next(iter(scene_stats['fps_histogram'])) == '345-372'
+        assert scene_stats == self.instance.get_shutdown_stats()
+
+    def test_reset_recreates_bounded_history(self):
+        """reset() keeps the global history bounded."""
+        self.instance.reset()
+
+        assert self.instance._fps_history.maxlen == FPS_HISTORY_MAX_SIZE
+
+
+class TestHistogramModes:
+    """Test the target-relative histogram mode, mode switching and the printed histogram."""
+
+    def setup_method(self):
+        """Reset singleton before each test."""
+        AdaptiveClamping._instance = None
+        AdaptiveClamping._initialized = False
+        self.instance = AdaptiveClamping()
+        self.instance.set_trim_percent(0.0)
+
+    def _feed(self, scene_name, fps_values):
+        """Record fps_values for scene_name."""
+        self.instance.set_current_scene(scene_name)
+        for fps in fps_values:
+            self.instance.track_fps_from_event(fps)
+
+    # 3b. Target-relative bucketing
+    def _target_relative_histogram(self, fps_values, target_fps=60.0):
+        """Return the target-relative stats histogram for fps_values."""
+        self.instance.set_histogram_mode('target-relative')
+        self.instance.set_target_fps(target_fps)
+        self._feed('Scene', fps_values)
+        return self.instance.get_shutdown_stats()
+
+    @pytest.mark.parametrize(
+        ('fps', 'expected_label'),
+        [
+            (60.0, '>=100% (60+ FPS)'),
+            (75.0, '>=100% (60+ FPS)'),
+            (59.9, '90-99% (54-59)'),
+            (54.0, '90-99% (54-59)'),
+            (53.99, '80-89% (48-53)'),
+            (6.0, '10-19% (6-11)'),
+            (5.9, '<10% (<6)'),
+        ],
+    )
+    def test_target_relative_assigns_frames_by_percentage_of_target(self, fps, expected_label):
+        """Frames land in floor(percent / 10) * 10 steps; 100% and above share the top."""
+        stats = self._target_relative_histogram([fps])
+
+        assert stats['fps_histogram_mode'] == 'target-relative'
+        assert stats['fps_histogram'] == {expected_label: 1}
+        assert 'fps_bucket_width' not in stats
+
+    def test_target_relative_lists_only_non_empty_buckets_lowest_fps_first(self):
+        """Empty steps are omitted; counts sum to the analyzed frames; top bucket is last."""
+        stats = self._target_relative_histogram([75.0, 5.9, 59.9, 60.0, 30.0, 59.0])
+
+        assert list(stats['fps_histogram']) == [
+            '<10% (<6)',
+            '50-59% (30-35)',
+            '90-99% (54-59)',
+            '>=100% (60+ FPS)',
+        ]
+        assert list(stats['fps_histogram'].values()) == [1, 1, 2, 2]
+        assert sum(stats['fps_histogram'].values()) == stats['trimmed_frames']
+
+    def test_target_relative_with_no_target_falls_back_to_equal_range(self):
+        """An uncapped target (0) reports the equal-range mode actually used."""
+        stats = self._target_relative_histogram([100.0, 200.0], target_fps=0.0)
+
+        assert stats['fps_histogram_mode'] == 'equal-range'
+        assert stats['fps_bucket_width'] == pytest.approx(10.0)
+
+    def test_set_histogram_mode_accepts_both_modes(self):
+        """Both documented values are accepted."""
+        self.instance.set_histogram_mode('target-relative')
+        assert self.instance._histogram_mode is FpsHistogramMode.TARGET_RELATIVE
+        self.instance.set_histogram_mode('equal-range')
+        assert self.instance._histogram_mode is FpsHistogramMode.EQUAL_RANGE
+
+    def test_set_histogram_mode_rejects_unknown_values(self):
+        """An unknown mode raises ValueError naming the allowed values."""
+        with pytest.raises(ValueError, match=r"'equal-range', 'target-relative'"):
+            self.instance.set_histogram_mode('logarithmic')
+
+    # 6. Printed histogram
+    def _printed_lines(self, mocker):
+        """Print the global shutdown histogram with a mocked logger and return its lines."""
+        mock_log = mocker.patch('glitchygames.performance.adaptive_clamping.LOG')
+        self.instance._log_fps_histogram(self.instance.get_shutdown_stats())
+        return [call.args[0] for call in mock_log.info.call_args_list]
+
+    def test_equal_range_header_and_rows_ascend(self, mocker):
+        """The header states the width; rows run from the lowest FPS to the highest."""
+        self._feed('Scene', [100.0, 300.0, 1100.0, 1100.0])
+
+        lines = self._printed_lines(mocker)
+
+        assert lines[0] == '\n📊 FPS Distribution (10 equal buckets, 100.0 FPS wide):'
+        rows = [line for line in lines if ' frames (' in line]
+        assert len(rows) == 10
+        assert '100-199 FPS' in rows[0]
+        assert '1000-1100 FPS' in rows[-1]
+        assert [int(re.search(r'FPS\s+(\d+) frames', row).group(1)) for row in rows] == [
+            1,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+        ]
+
+    def test_target_relative_header_and_rows(self, mocker):
+        """The header names the target; rows run from <10% up to >=100%."""
+        self.instance.set_histogram_mode('target-relative')
+        self.instance.set_target_fps(60.0)
+        self._feed('Scene', [5.0, 60.0, 61.0])
+
+        lines = self._printed_lines(mocker)
+
+        assert lines[0] == '\n📊 FPS Distribution (relative to target 60 FPS):'
+        rows = [line for line in lines if ' frames (' in line]
+        assert '<10% (<6)' in rows[0]
+        assert '>=100% (60+ FPS)' in rows[-1]
+        assert 'FPS FPS' not in rows[-1]
+
+    def test_fallback_header_says_no_target_fps_set(self, mocker):
+        """Target-relative with no target prints the equal-range header plus the reason."""
+        self.instance.set_histogram_mode('target-relative')
+        self._feed('Scene', [100.0, 900.0])
+
+        lines = self._printed_lines(mocker)
+
+        assert lines[0] == (
+            '\n📊 FPS Distribution (10 equal buckets, 80.0 FPS wide; '
+            'no target FPS set for target-relative):'
+        )
+
+    def test_header_reports_real_bucket_count_after_merging(self, mocker):
+        """A narrow spread merges buckets, so the header must not claim 10 equal buckets."""
+        self._feed('Scene', [1.0 + 0.7 * index for index in range(11)])  # 1.0 to 8.0
+
+        lines = self._printed_lines(mocker)
+
+        assert lines[0] == (
+            '\n📊 FPS Distribution (7 buckets after merging equal labels, 0.7 FPS wide):'
+        )
+
+    def test_target_relative_small_target_uses_one_decimal_bounds(self):
+        """Target 5 gives distinct tenths-of-an-FPS ranges instead of colliding '1-1' labels."""
+        stats = self._target_relative_histogram([0.4, 0.5, 0.9, 1.0, 1.4, 2.0, 5.0], target_fps=5.0)
+
+        assert stats['fps_histogram'] == {
+            '<10% (<0.5)': 1,
+            '10-19% (0.5-0.9)': 2,
+            '20-29% (1.0-1.4)': 2,
+            '40-49% (2.0-2.4)': 1,
+            '>=100% (5+ FPS)': 1,
+        }
+
+    def test_target_relative_fractional_target_uses_exact_target_for_top_bucket(self):
+        """Target 59.94 labels the top bucket '59.94+' and uses one-decimal bounds."""
+        stats = self._target_relative_histogram([5.0, 53.9, 53.95, 59.94], target_fps=59.94)
+
+        assert stats['fps_histogram'] == {
+            '<10% (<6.0)': 1,
+            '80-89% (48.0-53.9)': 1,
+            '90-99% (54.0-59.9)': 1,
+            '>=100% (59.94+ FPS)': 1,
+        }
+
+    def test_histogram_percentages_use_trimmed_frames(self, mocker):
+        """Percentages are count / trimmed_frames."""
+        self._feed('Scene', [100.0] * 9 + [200.0] * 12)
+
+        lines = self._printed_lines(mocker)
+
+        percentages = [
+            float(re.search(r'\(\s*([\d.]+)%\)', line).group(1))
+            for line in lines
+            if ' frames (' in line
+        ]
+        assert percentages[0] == pytest.approx(42.9, abs=0.05)
+        assert percentages[-1] == pytest.approx(57.1, abs=0.05)
+
+    def test_histogram_label_column_fits_widest_label(self, mocker):
+        """Labels are never truncated and the label column is aligned."""
+        self._feed('Scene', [90.0, 345.0, 1000.0])
+
+        rows = [line for line in self._printed_lines(mocker) if ' frames (' in line]
+
+        assert '90-180 FPS' in rows[0]
+        assert '909-1000 FPS' in rows[-1]
+        assert len({row.index(' FPS') for row in rows}) == 1
 
 
 class TestAdaptiveDeltaTime:
@@ -495,7 +1113,7 @@ class TestEdgeCases:
 
         # Should still track the value
         scene_data = self.instance._scene_data['TestScene']
-        assert scene_data['fps_history'] == [-1.0]
+        assert list(scene_data['fps_history']) == [-1.0]
         assert scene_data['fps_histogram'][-1] == 1
 
     def test_zero_fps_values(self):
@@ -505,7 +1123,7 @@ class TestEdgeCases:
 
         # Should still track the value
         scene_data = self.instance._scene_data['TestScene']
-        assert scene_data['fps_history'] == [0.0]
+        assert list(scene_data['fps_history']) == [0.0]
         assert scene_data['fps_histogram'][0] == 1
 
     def test_very_large_fps_values(self):
@@ -515,7 +1133,7 @@ class TestEdgeCases:
 
         # Should still track the value
         scene_data = self.instance._scene_data['TestScene']
-        assert scene_data['fps_history'] == [10000.0]
+        assert list(scene_data['fps_history']) == [10000.0]
         assert scene_data['fps_histogram'][10000] == 1
 
     def test_negative_frame_times(self):
@@ -526,7 +1144,7 @@ class TestEdgeCases:
 
         # Should still track the value
         scene_data = self.instance._scene_data['TestScene']
-        assert scene_data['frame_times'] == [-0.016]
+        assert list(scene_data['frame_times']) == [-0.016]
 
     def test_zero_frame_times(self):
         """Test handling of zero frame times."""
@@ -536,7 +1154,7 @@ class TestEdgeCases:
 
         # Should still track the value
         scene_data = self.instance._scene_data['TestScene']
-        assert scene_data['frame_times'] == [0.0]
+        assert list(scene_data['frame_times']) == [0.0]
 
 
 class TestPerformanceManagerGlobal:

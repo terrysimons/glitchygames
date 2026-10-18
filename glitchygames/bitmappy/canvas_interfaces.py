@@ -1139,7 +1139,7 @@ class AnimatedCanvasRenderer(CanvasRenderer):
                 return controller_info.color
         return None
 
-    def _draw_plus_indicator(  # noqa: PLR0913
+    def _draw_plus_indicator(  # ruff: ignore[too-many-arguments]
         self,
         surface: pygame.Surface,
         color: tuple[int, int, int],

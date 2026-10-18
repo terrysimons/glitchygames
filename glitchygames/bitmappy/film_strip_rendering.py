@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 LOG = logging.getLogger('game.tools.film_strip')
 
 
-class FilmStripRendering:  # noqa: PLR0904
+class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
     """Delegate providing rendering/drawing methods for FilmStripWidget."""
 
     def __init__(self, widget: FilmStripWidget) -> None:
@@ -197,7 +197,7 @@ class FilmStripRendering:  # noqa: PLR0904
         self,
         frame: SpriteFrame,
         *,
-        is_selected: bool,  # noqa: ARG002
+        is_selected: bool,  # ruff: ignore[unused-method-argument]
     ) -> pygame.Surface | None:
         """Get the appropriate frame image for rendering.
 

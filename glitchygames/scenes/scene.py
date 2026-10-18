@@ -9,19 +9,27 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 import pygame
 
 from glitchygames import events
+from glitchygames.camera import Camera2D
+from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
+from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
+from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
+from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
+from glitchygames.timing import DEFAULT_TARGET_FPS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
 JITTER_SAMPLE_BUFFER_MAX_SIZE = 512
+SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
 
 
 class SceneManager(SceneInterface, events.EventManager):
@@ -60,7 +68,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.screen = None
         self.update_type: str = 'update'
         self.fps_log_interval_ms: int = 1000
-        self.target_fps: int = 0
+        self.target_fps: float = 0.0
         self.dt: float = 0.0
         self.timer: Any = 0
         self._game_engine: GameEngine | None = None
@@ -69,7 +77,17 @@ class SceneManager(SceneInterface, events.EventManager):
         self.previous_scene: Scene | None = self.active_scene
         self.quit_requested: bool = False
 
+        # Scene transition support
+        self._active_transition: Any = None  # Transition object during effect
+        self._pending_transition: tuple[Any, Any] | None = None  # (next_scene, transition)
+
         self.clock: pygame.time.Clock = pygame.time.Clock()
+
+        # SCREEN shake lives here (not on a scene) so it outlives scene switches
+        self.screen_shake: ScreenShake = ScreenShake()
+        self._screen_shake_was_presented: bool = False
+        self.rumble: RumbleController = RumbleController()
+        self._live_audio: LiveAudio | None = None
 
         # Jitter tracking attributes
         self._jitter_samples: list[int] = []
@@ -101,7 +119,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
     @property
     def game_engine(self: Self) -> GameEngine | None:
-        """Return the game engine.
+        """The game engine.
 
         Returns:
             GameEngine | None: The game engine.
@@ -116,7 +134,9 @@ class SceneManager(SceneInterface, events.EventManager):
             SceneManager.OPTIONS = self._game_engine.OPTIONS  # pyright: ignore[reportConstantRedefinition]
             self.update_type = self.OPTIONS['update_type']
             self.fps_log_interval_ms = self.OPTIONS['fps_log_interval_ms']
-            self.target_fps = self.OPTIONS.get('target_fps', 60)
+            self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
+            self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
+            self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
         self.log.info(f'Screen update type: {self.update_type}')
         self.log.info(f'FPS Log Interval: {self.fps_log_interval_ms}ms')
         self.log.info(f'Target FPS: {self.target_fps}')
@@ -134,7 +154,7 @@ class SceneManager(SceneInterface, events.EventManager):
     # not a scene, but is the entry point for event proxies.
     @property
     def all_sprites(self: Self) -> pygame.sprite.LayeredDirty[Any] | None:
-        """Return the active scene's sprite group.
+        """The active scene's sprite group.
 
         Returns:
             pygame.sprite.LayeredDirty[Any] | None: The active scene's sprite group.
@@ -144,6 +164,168 @@ class SceneManager(SceneInterface, events.EventManager):
             return self.active_scene.all_sprites
 
         return None
+
+    def request_transition(
+        self: Self,
+        next_scene: SceneInterface | None,
+        transition: Any,
+    ) -> None:
+        """Request a scene switch with a visual transition effect.
+
+        The transition starts on the next frame. During the transition,
+        normal scene updates and rendering are paused.
+
+        Args:
+            next_scene: The scene to transition to.
+            transition: A Transition object (FadeTransition, SlideTransition, etc.).
+
+        """
+        self._pending_transition = (next_scene, transition)
+
+    def _start_transition(self: Self, next_scene: Any, transition: Any) -> None:
+        """Capture screenshots and begin a transition effect.
+
+        Args:
+            next_scene: The scene to transition to.
+            transition: The Transition object.
+
+        """
+        # Capture screenshot of the current (old) scene.
+        # Hide the player first so the transition can draw its own
+        # player overlay without doubling.
+        old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
+
+        # Clear a WORLD shake so the old-floor screenshot is unshaken.
+        camera_was_shaking = False
+        if self.active_scene is not None and self.active_scene.camera.shake_effect.is_active:
+            camera_was_shaking = True
+            self.active_scene.camera.shake_effect.clear()
+            self.active_scene.apply_camera_to_sprites()
+
+        if old_player is not None:
+            old_player.visible = False
+            old_player.dirty = 0
+        if (old_player is not None or camera_was_shaking) and self.active_scene and self.screen:
+            self.active_scene.update()
+            self.active_scene.render(self.screen)
+        old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
+        if old_player is not None:
+            old_player.visible = True
+            old_player.dirty = 2
+
+        # Set up the new scene (off-screen) so we can capture it
+        self.previous_scene = self.active_scene
+        self._cleanup_current_scene()
+        scene = cast('Scene | None', next_scene)
+        self._setup_new_scene(scene)
+        self.active_scene = scene
+        self._configure_active_scene()
+
+        # Snap the camera to the player position (no lerp) and render
+        # so the screenshot shows the correct view for the transition.
+        # Hide the player sprite during capture so it doesn't appear in
+        # the screenshot (the transition draws its own player overlay).
+        if self.active_scene and self.screen:
+            camera = self.active_scene.camera
+            player = getattr(self.active_scene, 'player', None)
+            player_was_visible = True
+            if player is not None:
+                player_was_visible = getattr(player, 'visible', True)
+                player.visible = False
+                player.dirty = 0
+            if player is not None:
+                camera.snap_to(
+                    target_x=getattr(player, 'world_x', 0.0),
+                    target_y=getattr(player, 'world_y', 0.0),
+                )
+            self.active_scene.dt_tick(0.001)
+            self.active_scene.update()
+            self.active_scene.render(self.screen)
+            # Restore player visibility for when gameplay resumes
+            if player is not None:
+                player.visible = player_was_visible
+                player.dirty = 2
+        new_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
+
+        # Start the transition effect with both screenshots
+        transition.start(old_surface, new_surface)
+        self._active_transition = transition
+
+    def _finalize_transition(self: Self) -> None:
+        """Complete a transition and resume normal scene rendering."""
+        self._active_transition = None
+        # Force a full redraw of the active scene
+        if self.active_scene:
+            for sprite in self.active_scene.all_sprites:
+                sprite.dirty = max(sprite.dirty, 1)
+
+    def _update_frame_services(self: Self) -> None:
+        """Advance services that outlive scenes: screen shake, rumble and live audio."""
+        self.screen_shake.update(self.dt)
+
+        shakers = [self.screen_shake]
+        if self.active_scene is not None:
+            shakers.append(self.active_scene.camera.shake_effect)
+        controller_manager = getattr(self.game_engine, 'controller_manager', None)
+        self.rumble.update(
+            shakers=shakers,
+            dt=self.dt,
+            devices=lambda: connected_rumble_devices(controller_manager),
+        )
+
+        # The pending transition counts: a ride creates its motor before transition_to starts it
+        if self._live_audio is not None:
+            pending_transition = (
+                self._pending_transition[1] if self._pending_transition is not None else None
+            )
+            self._live_audio.update(
+                active_scene=self.active_scene,
+                previous_scene=self.previous_scene,
+                active_transitions=(self._active_transition, pending_transition),
+            )
+
+    @property
+    def live_audio(self: Self) -> LiveAudio:
+        """Live synth voices, created on first use from the engine's reserved channels."""
+        if self._live_audio is None:
+            from glitchygames.audio.live import LiveAudio
+
+            channels = getattr(self.game_engine, 'live_voice_channels', ())
+            self._live_audio = LiveAudio(channel_indices=channels)
+        return self._live_audio
+
+    def _present_frame(self: Self, *, full_update: bool) -> None:
+        """Present the rendered frame, shifted by any active SCREEN shake.
+
+        The display surface always holds the unshifted frame between presents: a shaken frame
+        is copied, shifted for the flip, then restored. Dirty-rect rendering, screenshots and
+        transition captures therefore never see the shift or the black strips.
+
+        Args:
+            full_update: True to flip the whole display (transitions); False to use the
+                configured update type.
+
+        """
+        offset_x, offset_y = self.screen_shake.offset
+        pixel_offset = (round(offset_x), round(offset_y))
+        if self.screen is not None and pixel_offset != (0, 0):
+            unshifted = self.screen.copy()
+            self.screen.fill(SHAKE_BORDER_COLOR)
+            self.screen.blit(unshifted, pixel_offset)
+            pygame.display.flip()
+            self.screen.blit(unshifted, (0, 0))
+            self._screen_shake_was_presented = True
+            return
+        if self._screen_shake_was_presented:
+            # The display still shows the last shifted frame; the surface holds the correct
+            # unshifted one, so one full flip replaces it (a dirty-rect update would not).
+            self._screen_shake_was_presented = False
+            pygame.display.flip()
+            return
+        if full_update:
+            pygame.display.flip()
+        else:
+            self._update_display()
 
     @override
     def switch_to_scene(self: Self, next_scene: SceneInterface | None) -> None:
@@ -157,6 +339,8 @@ class SceneManager(SceneInterface, events.EventManager):
         # are Scene instances or mocks that satisfy the Scene interface.
         scene = cast('Scene | None', next_scene)
         if scene != self.active_scene:
+            self.screen_shake.clear()  # Pause, game over and direct switches never inherit a shake
+            self.rumble.clear_sustained()  # ...nor leave a controller buzzing
             # Track the previous scene BEFORE any cleanup or setup
             self.previous_scene = self.active_scene
             self._reset_scene_timers()
@@ -251,7 +435,7 @@ class SceneManager(SceneInterface, events.EventManager):
         timer: object | None,
         period_ns: int,
         prev_deadline_ns: int | None,
-        frame_start_ns: int,
+        frame_start_seconds: float,
     ) -> None:
         """Handle frame pacing via timer or fallback to pygame clock.
 
@@ -259,7 +443,7 @@ class SceneManager(SceneInterface, events.EventManager):
             timer: The timer backend instance (or None)
             period_ns: Frame period in nanoseconds (0 if no timer)
             prev_deadline_ns: Previous frame deadline in nanoseconds (or None)
-            frame_start_ns: Frame start time in nanoseconds
+            frame_start_seconds: Frame start time from time.perf_counter() in seconds
 
         """
         if timer is not None and period_ns > 0:
@@ -268,8 +452,11 @@ class SceneManager(SceneInterface, events.EventManager):
             deadline_ns: int = timer_any.compute_deadline(prev_deadline_ns, period_ns)  # ty: ignore[unresolved-attribute]
             wake_ns: int = timer_any.sleep_until_next(deadline_ns)  # ty: ignore[unresolved-attribute]
             self._timer_prev_deadline_ns = deadline_ns
-            # Update dt based on actual pacing wake time for next iteration
-            self.dt = (wake_ns - frame_start_ns) / 1e9
+            # Measure dt with time.perf_counter(), NOT the timer backend's clock. The pygame
+            # backend's ns_now() is whole milliseconds (get_ticks() * 1_000_000), so a true
+            # 16.67 ms cadence would be measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS).
+            # Deadlines above still use the timer's own clock; only the measurement changes.
+            self.dt = time.perf_counter() - frame_start_seconds
             # Optional jitter logging
             if self.OPTIONS.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
@@ -279,28 +466,24 @@ class SceneManager(SceneInterface, events.EventManager):
         else:
             self.clock.tick()
 
-    def _track_performance(
-        self: Self,
-        timer: object | None,
-        period_ns: int,
-        processing_time: float,
-    ) -> None:
-        """Feed FPS data to the performance manager.
+    def _track_performance(self: Self, processing_time: float) -> None:
+        """Feed this frame's FPS to the performance manager.
 
         Args:
-            timer: The timer backend instance (or None)
-            period_ns: Frame period in nanoseconds (0 if no timer)
             processing_time: Actual processing time in seconds
 
         """
         try:
             from glitchygames.performance import performance_manager
 
-            # If timer pacing is enabled, compute FPS from dt; otherwise use pygame clock
-            if timer is not None and period_ns > 0:
-                current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
-            else:
-                current_fps = self.clock.get_fps()
+            # Deliberately NOT self.clock.get_fps(). pygame's Clock.get_fps():
+            #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
+            #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
+            #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
+            #   3. carries over from the previous scene (the clock is shared), so a new
+            #      scene's first samples are stale.
+            # self.dt is the measured frame time from time.perf_counter() in the main loop.
+            current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
             performance_manager.track_fps_from_event(current_fps, processing_time)
         except ImportError:
             pass  # Performance module not available
@@ -316,11 +499,9 @@ class SceneManager(SceneInterface, events.EventManager):
             timer = getattr(self.game_engine, 'timer', None)
             period_ns = 0
             if timer is not None:
-                period_ns = timer.start_frame(int(self.target_fps))
+                period_ns = timer.start_frame(self.target_fps)
 
             prev_deadline_ns = getattr(self, '_timer_prev_deadline_ns', None)
-            frame_start_ns = timer.ns_now() if timer is not None else 0
-
             now: float = time.perf_counter()
             self.dt = now - previous_time
             previous_time = now
@@ -328,29 +509,50 @@ class SceneManager(SceneInterface, events.EventManager):
             # Start timing ONLY the actual processing (after tick_clock)
             processing_start = time.perf_counter()
 
-            self._update_scene()
-            self._process_events()
-            self._render_scene()
-            self._update_display()
+            # During a transition, render the transition effect instead of the scene
+            if self._active_transition is not None:
+                transition_done = self._active_transition.update(self.dt)
+                self._update_frame_services()
+                self._active_transition.render(self.screen)
+                self._present_frame(full_update=True)
+                if transition_done:
+                    self._finalize_transition()
+            else:
+                # Order matters: Scene.dt_tick runs first, then frame services (shake and
+                # rumble). Scene.update() runs inside _render_scene, after frame services.
+                self._update_scene()
+                self._process_events()
+                self._update_frame_services()
+                self._render_scene()
+                self._present_frame(full_update=False)
 
-            self._handle_frame_pacing(timer, period_ns, prev_deadline_ns, frame_start_ns)
+                # Check for pending transition (set by Scene.transition_to)
+                if self._pending_transition is not None:
+                    self._start_transition(*self._pending_transition)
+                    self._pending_transition = None
+                # Check for plain scene switch (no transition, backward compatible)
+                elif (
+                    self.active_scene.next_scene is not None
+                    and self.active_scene.next_scene != self.active_scene
+                ):
+                    self.switch_to_scene(self.active_scene.next_scene)
+
+            self._handle_frame_pacing(
+                timer=timer,
+                period_ns=period_ns,
+                prev_deadline_ns=prev_deadline_ns,
+                frame_start_seconds=now,
+            )
 
             # End timing the actual processing
             processing_end = time.perf_counter()
             actual_processing_time = processing_end - processing_start
 
-            self._track_performance(timer, period_ns, actual_processing_time)
+            self._track_performance(processing_time=actual_processing_time)
 
             if self._should_post_fps_event(current_time, previous_fps_time):
                 self._post_fps_event()
                 previous_fps_time = current_time
-
-            # Only switch scenes if the current scene has a different next_scene
-            if (
-                self.active_scene.next_scene is not None
-                and self.active_scene.next_scene != self.active_scene
-            ):
-                self.switch_to_scene(self.active_scene.next_scene)
             current_time = time.perf_counter()
 
         self._log_quit_info()
@@ -390,11 +592,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self.log.info('POSTING QUIT EVENT')
         pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
 
-    def on_quit_event(self: Self, _event: events.HashableEvent) -> None:
+    def on_quit_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle quit events.
 
         Args:
-            _event (pygame.event.Event): The event to handle (unused).
+            event (pygame.event.Event): The quit event.
 
         """
         # QUIT             none
@@ -425,7 +627,7 @@ class SceneManager(SceneInterface, events.EventManager):
             event_subtype: int = getattr(event, 'subtype', 0)
             self.game_engine.registered_events[event_subtype](event)
         except KeyError:
-            self.log.error(  # noqa: TRY400
+            self.log.error(  # ruff: ignore[error-instead-of-exception]
                 'Unregistered Event: %s '
                 '(call self.register_game_event(<event subtype>, <event data>))',
                 event,
@@ -522,28 +724,6 @@ class SceneManager(SceneInterface, events.EventManager):
         fps_value = 1.0 / self.dt if hasattr(self, 'dt') and self.dt > 0 else self.clock.get_fps()
 
         pygame.event.post(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
-
-    def _tick_clock(self) -> None:
-        """Tick the clock for FPS control."""
-        # If target_fps is 0, don't limit the frame rate (unlimited FPS)
-        if self.target_fps > 0:
-            self.clock.tick(self.target_fps)
-        else:
-            # For unlimited FPS, just tick without limiting
-            self.clock.tick()
-
-        # Feed FPS data directly to performance manager for accurate tracking
-        try:
-            from glitchygames.performance import performance_manager
-
-            current_fps = self.clock.get_fps()
-            # Calculate actual frame time for spare time calculation
-            frame_time = self.dt if hasattr(self, 'dt') else 0.0
-            if frame_time > 0:
-                LOG.debug('frame_time=%.1fms, fps=%.1f', frame_time * 1000, current_fps)
-            performance_manager.track_fps_from_event(current_fps, frame_time)
-        except ImportError:
-            pass  # Performance module not available
 
     def _update_scene(self) -> None:
         """Update the active scene."""
@@ -710,6 +890,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     FPS = 0
     NAME = 'Unnamed Scene'
     VERSION = '0.0'
+    # A game's preferred default target FPS (0.0 = uncapped); None uses the engine default.
+    # An explicit --target-fps on the command line always wins.
+    TARGET_FPS: ClassVar[float | None] = None
 
     def __init__(
         self: Self,
@@ -742,10 +925,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # This helps us keep the upper layers clean by not requiring
         # new scenes to care about the SceneManager when being
         # instantiated.
-        self.target_fps: int = 0
+        self.target_fps: float = 0.0
         self.fps: float = 0.0
         self.dt: float = 0.0
         self.dt_timer: float = 0.0
+        self.tweens: TweenManager = TweenManager()
+        self.collisions: CollisionManager = CollisionManager()
         self.dirty = 1
         self.options = options
         self.scene_manager = SceneManager()
@@ -754,12 +939,18 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
         self.quit_requested: bool = False
+        self._world_shake_warning_logged: bool = False
         self.next_scene: Scene | Self | None = self
         self.rects = None
         self.screen = pygame.display.get_surface()
         assert self.screen is not None
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
+        # Identity camera for scenes that do not scroll (apply(x, y) returns (x, y)); scrolling
+        # games replace it with their own. Never None, so callers need no guards.
+        self.camera: Camera2D = Camera2D(
+            screen_width=self.screen_width, screen_height=self.screen_height
+        )
 
         # http://n0nick.github.io/blog/2012/06/03/quick-dirty-using-pygames-dirtysprite-layered/
         self.all_sprites = groups
@@ -780,7 +971,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     @property
     def screenshot(self: Self) -> pygame.Surface:
-        """Return a screenshot of the scene.
+        """A screenshot of the scene.
 
         Returns:
             pygame.Surface: The scene screenshot.
@@ -794,7 +985,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     @property
     def background_color(self: Self) -> tuple[int, ...] | None:
-        """Return the background color.
+        """The background color.
 
         Returns:
             tuple[int, ...] | None: The background color.
@@ -820,14 +1011,61 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.background.fill(self._background_color)
         self.all_sprites.clear(self.screen, self.background)
 
+    def transition_to(self: Self, next_scene: Any, transition: Any) -> None:
+        """Switch to another scene with a visual transition effect.
+
+        Args:
+            next_scene: The scene to transition to.
+            transition: A Transition object (FadeTransition, SlideTransition, etc.).
+
+        """
+        self.scene_manager.request_transition(next_scene, transition)
+
     def setup(self: Self) -> None:
         """Set up the scene."""
 
     def cleanup(self: Self) -> None:
         """Cleanup the scene."""
 
+    def shake(self: Self, shake: Shake, *, targets: ShakeTarget = ShakeTarget.WORLD) -> None:
+        """Start a shake on the world (camera), the whole screen, or both.
+
+        Rumble, if the shake has it, is sent automatically by the scene manager.
+
+        Args:
+            shake: The shake to start.
+            targets: ShakeTarget.WORLD, ShakeTarget.SCREEN, or both combined with |.
+
+        Raises:
+            RuntimeError: If WORLD is requested on a scene that is not active (for example
+                from a transition cue, which runs after the scene was cleaned up).
+
+        """
+        if ShakeTarget.WORLD in targets:
+            if self.scene_manager.active_scene is not self:
+                message = f'{self.NAME} is not the active scene; use ShakeTarget.SCREEN'
+                raise RuntimeError(message)
+            self.camera.shake_effect.add(shake)
+            if not self.camera.has_been_applied and not self._world_shake_warning_logged:
+                LOG.warning(
+                    'WORLD shake on %s has no effect: no sprites are positioned through its '
+                    'camera; use ShakeTarget.SCREEN',
+                    self.NAME,
+                )
+                self._world_shake_warning_logged = True
+        if ShakeTarget.SCREEN in targets:
+            self.scene_manager.screen_shake.add(shake)
+
+    def apply_camera_to_sprites(self: Self) -> None:
+        """Reposition camera-relative sprites from the current camera.
+
+        Default: nothing. Games that place sprites through Camera2D.apply() override this so
+        the scene manager can refresh positions (for example, after clearing a WORLD shake
+        before a transition screenshot).
+        """
+
     def dt_tick(self: Self, dt: float) -> None:
-        """Update the scene's delta time.
+        """Update the scene's delta time and active tweens.
 
         Args:
             dt (float): The delta time to update.
@@ -835,6 +1073,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.dt = dt
         self.dt_timer += self.dt
+        self.tweens.update(dt)
 
     @override
     def update(self: Self) -> None:

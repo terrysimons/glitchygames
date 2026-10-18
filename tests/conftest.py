@@ -5,6 +5,7 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 """
 
 import contextlib
+import logging
 import os
 import sys
 from pathlib import Path
@@ -28,6 +29,58 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
 )
 from tests.mocks import MockFactory
+
+# Real logging entry points, captured at import time before any test can patch them.
+_REAL_LOGGING_GET_LOGGER = logging.getLogger
+_REAL_LOGGER_MANAGER = logging.Logger.manager
+
+
+def _restore_patched_logging_globals() -> list[str]:
+    """Restore any process-wide logging globals a test replaced, and name them.
+
+    Returns:
+        list[str]: Descriptions of each global that had been replaced.
+
+    """
+    replaced_globals = []
+    if logging.getLogger is not _REAL_LOGGING_GET_LOGGER:
+        replaced_globals.append(f'logging.getLogger (replaced with {logging.getLogger!r})')
+        logging.getLogger = _REAL_LOGGING_GET_LOGGER
+    if logging.Logger.manager is not _REAL_LOGGER_MANAGER:
+        replaced_globals.append(
+            f'logging.Logger.manager (replaced with {logging.Logger.manager!r})',
+        )
+        logging.Logger.manager = _REAL_LOGGER_MANAGER
+    return replaced_globals
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """Fail any test that replaces process-wide logging globals.
+
+    Patching e.g. 'some.module.logging.getLogger' replaces logging.getLogger for the
+    whole process, not just that module. pytest's own logging plugin calls
+    logging.getLogger() at the start of teardown, before mocker undoes the patch, and
+    crashes on the mock; the patch is then never undone and every later test errors.
+
+    This check runs at the end of the test call, before teardown, so the offending test
+    fails with an explanation. The real globals are restored first so the failure
+    cannot cascade into other tests.
+
+    Returns:
+        object: The wrapped hook's result.
+
+    """
+    result = yield
+    replaced_globals = _restore_patched_logging_globals()
+    if replaced_globals:
+        pytest.fail(
+            f'{item.nodeid} replaced process-wide logging globals: '
+            f'{"; ".join(replaced_globals)}. Inject a mock logger instead (e.g. a '
+            "constructor 'logger' argument) or patch the module's own logger object.",
+            pytrace=False,
+        )
+    return result
 
 
 def pytest_configure(config):
@@ -91,6 +144,18 @@ def _reset_all_singleton_instances():
         for subclass in singleton_base.__subclasses__():
             if hasattr(subclass, '__instance__'):
                 subclass.__instance__ = None
+
+
+@pytest.fixture(autouse=True)
+def restore_gil_switch_interval():
+    """Restore the GIL switch interval after each test.
+
+    GameEngine.__init__ calls sys.setswitchinterval(); tests that construct a real GameEngine
+    would otherwise leave the whole process at 0.5 ms.
+    """
+    previous_interval = sys.getswitchinterval()
+    yield
+    sys.setswitchinterval(previous_interval)
 
 
 @pytest.fixture(autouse=True)

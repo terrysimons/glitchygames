@@ -28,7 +28,7 @@ from glitchygames.ui.dialogs import (
 )
 
 from .ai_manager import AIManager
-from .animated_canvas import AnimatedCanvasSprite  # noqa: TC001 - re-exported for test imports
+from .animated_canvas import AnimatedCanvasSprite  # ruff: ignore[typing-only-first-party-import] - re-exported for test imports
 from .constants import (
     LOG,
     MIN_FILM_STRIPS_FOR_PANEL_POSITIONING,
@@ -72,7 +72,7 @@ if TYPE_CHECKING:
     from .scroll_arrow import ScrollArrowSprite
 
 
-class BitmapEditorScene(Scene):  # noqa: PLR0904
+class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     """Bitmap Editor Scene.
 
     The scene expects a 'size' option in the format "WIDTHxHEIGHT" (e.g., "800x600")
@@ -372,7 +372,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         fresh_sprite.description = 'New canvas sprite'
 
         fresh_frame = SpriteFrame(surface=pygame.Surface((width, height)))
-        fresh_frame.set_pixel_data([(255, 0, 255)] * (width * height))  # ty: ignore[invalid-argument-type]
+        fresh_frame.set_pixel_data([(255, 0, 255)] * (width * height))
 
         fresh_sprite._animations['default'] = [fresh_frame]  # type: ignore[reportPrivateUsage]
         fresh_sprite.frame_manager.current_animation = 'default'
@@ -430,7 +430,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
 
         self.dirty = 1
 
-    def on_new_canvas_dialog_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
+    def on_new_canvas_dialog_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle the new canvas dialog event."""
         # Create a fresh dialog scene each time
         new_canvas_dialog_scene = NewCanvasDialogScene(options=self.options, previous_scene=self)
@@ -439,7 +439,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self.next_scene = new_canvas_dialog_scene
         self.dirty = 1
 
-    def on_load_dialog_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
+    def on_load_dialog_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle the load dialog event."""
         # Create a fresh dialog scene each time
         load_dialog_scene = LoadDialogScene(options=self.options, previous_scene=self)
@@ -448,7 +448,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
         self.next_scene = load_dialog_scene
         self.dirty = 1
 
-    def on_save_dialog_event(self: Self, event: events.HashableEvent) -> None:  # noqa: ARG002
+    def on_save_dialog_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle the save dialog event."""
         # Create a fresh dialog scene each time
         save_dialog_scene = SaveDialogScene(options=self.options, previous_scene=self)
@@ -999,7 +999,7 @@ class BitmapEditorScene(Scene):  # noqa: PLR0904
                 return None
         return False
 
-    def _handle_ctrl_key_shortcuts(self, event: events.HashableEvent, mod: int) -> bool:  # noqa: PLR0911
+    def _handle_ctrl_key_shortcuts(self, event: events.HashableEvent, mod: int) -> bool:  # ruff: ignore[too-many-return-statements]
         """Handle Ctrl-based keyboard shortcuts (undo, redo, copy, paste, panning).
 
         Args:

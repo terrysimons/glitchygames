@@ -10,6 +10,7 @@ import pygame
 import pytest
 
 from glitchygames.bitmappy import editor as bitmappy
+from glitchygames.bitmappy.controllers.visual_indicators import VisualIndicators
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.bitmappy.slider_manager import SliderManager
 from tests.mocks import MockFactory
@@ -51,7 +52,7 @@ def pygame_mocks(mocker):
 
 
 @pytest.fixture
-def mock_editor(mocker, pygame_mocks):  # noqa: PLR0915
+def mock_editor(mocker, pygame_mocks):  # ruff: ignore[too-many-statements]
     """Create a minimal BitmapEditorScene with heavy dependencies mocked out.
 
     Returns:
@@ -2294,3 +2295,66 @@ class TestGetControllerIdFromEvent:
         # No instance_id attribute
         result = mock_editor.controller_handler._get_controller_id_from_event(event)
         assert result == 3
+
+
+class TestUpdateCanvasIndicators:
+    """_update_canvas_indicators redraws the canvas while a controller is in canvas mode.
+
+    The canvas draws controller "+" markers from live controller state on each redraw
+    (CanvasRenderer._draw_controller_indicators_only), so the only job here is to
+    trigger that redraw.
+    """
+
+    @staticmethod
+    def _make_indicators(
+        mocker, *, active=True, mode='canvas', position_valid=True, has_canvas=True
+    ):
+        """Build VisualIndicators over a stand-in handler with one controller.
+
+        Returns:
+            tuple: (VisualIndicators, the stand-in canvas).
+
+        """
+        controller_selection = mocker.Mock()
+        controller_selection.is_active.return_value = active
+        controller_mode = mocker.Mock()
+        controller_mode.value = mode
+        position = mocker.Mock(is_valid=position_valid, position=(3, 4))
+
+        editor = mocker.Mock(spec=['controller_selections', 'mode_switcher', 'canvas'])
+        editor.controller_selections = {0: controller_selection}
+        editor.mode_switcher.get_controller_mode.return_value = controller_mode
+        editor.mode_switcher.get_controller_position.return_value = position
+        if not has_canvas:
+            del editor.canvas
+
+        handler = mocker.Mock()
+        handler.editor = editor
+        handler.find_controller_info.return_value = mocker.Mock(color=(255, 0, 0))
+        return VisualIndicators(handler), getattr(editor, 'canvas', None)
+
+    def test_controller_in_canvas_mode_forces_redraw(self, mocker):
+        """An active controller at a valid canvas position triggers a canvas redraw."""
+        indicators, canvas = self._make_indicators(mocker)
+        indicators._update_canvas_indicators()
+        canvas.force_redraw.assert_called_once()
+
+    @pytest.mark.parametrize(
+        'controller_state',
+        [
+            {'active': False},
+            {'mode': 'film_strip'},
+            {'position_valid': False},
+        ],
+        ids=['inactive', 'other_mode', 'invalid_position'],
+    )
+    def test_no_canvas_controller_means_no_redraw(self, mocker, controller_state):
+        """No controller in canvas mode at a valid position: nothing to redraw."""
+        indicators, canvas = self._make_indicators(mocker, **controller_state)
+        indicators._update_canvas_indicators()
+        canvas.force_redraw.assert_not_called()
+
+    def test_editor_without_canvas_is_ignored(self, mocker):
+        """Before the canvas exists the update is a no-op instead of an error."""
+        indicators, _ = self._make_indicators(mocker, has_canvas=False)
+        indicators._update_canvas_indicators()

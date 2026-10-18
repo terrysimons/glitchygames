@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 import typing
-from typing import Any, Literal, Self, override
+from typing import Any, ClassVar, Literal, Self, override
 
 if typing.TYPE_CHECKING:
     import argparse
@@ -27,7 +27,7 @@ class Game(Scene):
     # Set your game name/version here.
     NAME: Literal['Basic App'] = 'Basic App'
     VERSION: Literal['1.0'] = '1.0'
-    log: logging.Logger = LOG
+    log: ClassVar[logging.Logger] = LOG
 
     def __init__(
         self: Self,

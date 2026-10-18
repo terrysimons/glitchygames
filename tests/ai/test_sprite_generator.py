@@ -378,8 +378,8 @@ class TestSizeHintDetection:
         assert get_sprite_size_hint('32  x  32') == (32, 32)
 
     def test_multiplication_sign(self):
-        """Test detection with × (multiplication sign)."""  # noqa: RUF002
-        assert get_sprite_size_hint('Create 16×16 sprite') == (16, 16)  # noqa: RUF001
+        """Test detection with × (multiplication sign)."""  # ruff: ignore[ambiguous-unicode-character-docstring]
+        assert get_sprite_size_hint('Create 16×16 sprite') == (16, 16)  # ruff: ignore[ambiguous-unicode-character-string]
 
     def test_invalid_sizes(self):
         """Test rejection of invalid sizes."""

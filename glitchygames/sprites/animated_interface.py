@@ -22,51 +22,51 @@ class AnimatedSpriteInterface(abc.ABC):
     @property
     @abc.abstractmethod
     def current_animation(self: Self) -> str:
-        """Return the current animation name."""
+        """The current animation name."""
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def current_frame(self: Self) -> int:
-        """Return the current frame index."""
+        """The current frame index."""
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def is_playing(self: Self) -> bool:
-        """Return whether animation is currently playing."""
+        """Whether animation is currently playing."""
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def is_looping(self: Self) -> bool:
-        """Return whether current animation loops."""
+        """Whether current animation loops."""
         raise NotImplementedError
 
     # Animation information properties
     @property
     @abc.abstractmethod
     def frames(self: Self) -> dict[str, list[SpriteFrame]]:
-        """Return all frames for all animations (including interpolated)."""
+        """All frames for all animations (including interpolated)."""
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
-    def animations(self: Self) -> dict[str, dict[str, object]]:
-        """Return animation metadata for all animations."""
+    def animations(self: Self) -> dict[str, list[SpriteFrame]]:
+        """Animation frames for all animations, keyed by animation name."""
         raise NotImplementedError
 
     # Direct animation metadata access (current animation)
     @property
     @abc.abstractmethod
     def frame_interval(self: Self) -> float:
-        """Return the frame interval for the current animation."""
+        """The frame interval for the current animation."""
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def loop(self: Self) -> bool:
-        """Return whether the current animation loops."""
+        """Whether the current animation loops."""
         raise NotImplementedError
 
     # Animation control methods

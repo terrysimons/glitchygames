@@ -1,0 +1,110 @@
+[sprite]
+name = "scorpion"
+description = "Patrolling scorpion enemy"
+
+[sprite.hitbox]
+offset_x = 0
+offset_y = 0
+width = 14
+height = 10
+
+
+[colors]
+"█" = { red = 255, green = 0, blue = 255 }
+"R" = { red = 100, green = 60, blue = 30 }
+"r" = { red = 120, green = 70, blue = 35 }
+"T" = { red = 140, green = 80, blue = 40 }
+"P" = { red = 180, green = 50, blue = 50 }
+
+# Walk animation - legs cycle
+[[animation]]
+namespace = "walk"
+frame_interval = 0.15
+loop = true
+
+[[animation.frame]]
+namespace = "walk"
+pixels = """
+████████████rr
+███████████rr█
+██████████rr██
+█████████Pr███
+██RRRRRRRR████
+█RRRRRRRRRR███
+██RRRRRRRR████
+█R██R██R██R███
+R████████████R
+██████████████
+"""
+
+[animation.frame.hitbox]
+offset_x = 0
+offset_y = 0
+width = 14
+height = 9
+
+
+[[animation.frame]]
+namespace = "walk"
+pixels = """
+████████████rr
+███████████rr█
+██████████rr██
+█████████Pr███
+██RRRRRRRR████
+█RRRRRRRRRR███
+██RRRRRRRR████
+██R██R██R██R██
+██████████████
+██████████████
+"""
+
+[animation.frame.hitbox]
+offset_x = 1
+offset_y = 0
+width = 13
+height = 8
+
+
+[[animation.frame]]
+namespace = "walk"
+pixels = """
+████████████rr
+███████████rr█
+██████████rr██
+█████████Pr███
+██RRRRRRRR████
+█RRRRRRRRRR███
+██RRRRRRRR████
+█R██R██R██R███
+██████████████
+R████████████R
+"""
+
+[animation.frame.hitbox]
+offset_x = 0
+offset_y = 0
+width = 14
+height = 10
+
+
+[[animation.frame]]
+namespace = "walk"
+pixels = """
+████████████rr
+███████████rr█
+██████████rr██
+█████████Pr███
+██RRRRRRRR████
+█RRRRRRRRRR███
+██RRRRRRRR████
+██R██R██R██R██
+██████████████
+██████████████
+"""
+
+[animation.frame.hitbox]
+offset_x = 1
+offset_y = 0
+width = 13
+height = 8
