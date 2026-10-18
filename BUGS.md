@@ -14,6 +14,78 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 33. PaddleSlap Balls Collided as Their 20x20 Image; Half-Pixel Collision Rects 1 px Off
+- **Description**: PaddleSlap balls bounced off paddles and walls, and were killed off-screen, by their full 20x20 image instead of the radius-5 circle players see (turning around 5 px before a wall, killed 5 px late). A ball at x = 10.5 was drawn at 11 but collided at 10
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: (1) Collision rects were the sprite's whole image rect, transparent margin included, and `BallSprite.dt_tick` found paddles by scanning its groups with an image-rect test. (2) `get_collision_rect` placed rects at `round(world_x)` (Python's round-half-even: 10.5 -> 10) while the ball draws at its `pixel_snap_mode` (NEAREST_HALF_UP: 10.5 -> 11)
+- **Solution**: Hitboxes default to the image's visible pixels (`glitchygames/collision/bounds.py`; `TRIM_TRANSPARENT_HITBOX = False` opts out) and collision rects start at the sprite's own snapped position (`glitchygames/pixel_snap.py`). PaddleSlap pairs balls with paddles through `CollisionManager.check_overlap('balls', 'paddles')`, and `BallSprite.handle_paddle_collision` does an exact circle-vs-rect check, placing the visible edge flush on the face the ball came in through. Wall bounces, overshoot mirroring, the off-screen kill and the serve margin use the visible rect (`BallSprite._visible_rect`)
+- **Tests**: `tests/collision/test_ball_paddle_collision.py`; `tests/collision/test_ball_visible_walls.py`; `TestOpaqueBounds`, `TestVisiblePixelCollisionRect` and `test_snap_mode_sprite_rounds_half_up` in `tests/collision/test_collision.py`; `tests/examples/test_paddleslap.py`
+- **Files**: `glitchygames/collision/bounds.py`, `glitchygames/collision/detection.py`, `glitchygames/collision/layers.py`, `glitchygames/pixel_snap.py`, `glitchygames/game_objects/ball.py`, `glitchygames/examples/paddleslap.py`
+
+### 32. Gold Scarab Frame Drawn With a Notch
+- **Description**: The gold scarab's third frame had a notch in its right edge
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Frame 2, row 2 of `gold_scarab.toml` was 9 characters wide instead of 10; the loader pads short rows with their last (transparent) character
+- **Solution**: Restored the missing pixel; a test checks that every bundled sprite's rows are equal width
+- **Tests**: `test_bundled_sprite_rows_have_equal_lengths` in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/examples/brave_adventurer_papyrus/sprites/gold_scarab.toml`
+
+### 31. Two Simultaneous Enemy Contacts Cost Two Lives
+- **Description**: In Brave Adventurer and Papyrus, touching two enemies in the same frame lost two lives and respawned twice
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The collision manager calls the player-enemy callback once per overlapping pair, and each call ran `_player_die`
+- **Solution**: The enemy callback kills the player at most once per collision pass and never while the player is respawning
+- **Tests**: `TestOneDeathPerHit` in `tests/examples/test_brave_adventurer_game.py`
+- **Files**: `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
+
+### 30. Ledge Land/Fall Oscillation; Feet Off the Ground
+- **Description**: A player standing at a ledge or wall-top edge landed, fell and landed again forever (20 landings in 40 frames). Brave Adventurer's figure floated 1 px above the ground; Papyrus feet sank into or floated above the ground as the animation changed frames; players stopped short of walls (Papyrus about 12 px) and of the world's left edge, and a dt hitch could push a fast player through a wall
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: (1) Ground support used the current frame's hitbox, and falling frames and poses are wider than idle ones (Papyrus idle 6..28 vs falling 0..40), so an idle player off an edge fell, was caught by the wider falling hitbox and landed again. (2) Terrain used the drawn image size (Brave's feet end 1 px above its 48 px image; `PAPYRUS_PLAYER_WIDTH` was the full 40 px drawn width while the hitbox is 22 px at offset 6; the world-edge constraint stopped the image, not the hitbox). (3) Papyrus frames are top-aligned with visible bottoms from 24 to 27 rows, so a fixed foot line could not match every frame. (4) Walls pushed out on the side of the hitbox centre, which a long frame can carry past the wall's centre
+- **Solution**: Support uses a stable x-span shared by every frame and pose (`AnimatedSprite.common_hitbox_x_range()`, Brave's per-facing pose intersection, `_player_support_span`). Terrain, walls, world edges, scarab ground and Clockwork Keep platforms work from `get_sprite_collision_rect` and `collision_rect_offset`. Opt-in `AnimatedSprite.frame_anchor` (`FrameAnchor`) moves each frame so its hitbox bottom lands on the reference hitbox's; the Papyrus player uses BOTTOM on the 27-row foot line. Walls push out on the side the hitbox was on before this frame's move (`_entered_wall_from_left`)
+- **Tests**: `TestTerrainUsesHitbox`, `TestHitboxLooseEnds`, `TestStableSupportAtEdges`, `TestPapyrusFeetAnchoring` and `test_fast_player_*` in `tests/examples/test_brave_adventurer_game.py`; `TestPlatformSupportUsesHitbox` in `tests/examples/test_clockwork_keep.py`; `TestAnimatedSpriteFrameAnchor` and `test_common_hitbox_x_range_is_the_intersection_of_all_frames` in `tests/sprites/test_animated_sprite.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/collision/layers.py`, `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer/player.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`, `glitchygames/examples/brave_adventurer_papyrus/player.py`, `glitchygames/examples/brave_adventurer_papyrus/constants.py`, `glitchygames/examples/clockwork_keep/game.py`, `glitchygames/debug/panels.py`
+
+### 29. Papyrus Hitboxes Not Scaled 2x Nor Mirrored When Facing Left
+- **Description**: Papyrus player and enemy hitboxes covered only the top-left quarter of the drawn sprite, and facing left they kept the unflipped offset (an 8 px gap walking left into a wall, and wrong world-edge, ledge and enemy contact)
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: TOML hitboxes are in native pixels, but Papyrus draws every sprite at `SPRITE_SCALE = 2` and flips the image when facing left; `AnimatedSprite.hitbox` applied neither
+- **Solution**: `AnimatedSprite.hitbox_scale` multiplies explicit, default and trimmed hitboxes (set by `prepare_papyrus_sprite` right after loading, so hitboxes are scaled before the first tick), and `AnimatedSprite.hitbox_flip_x` mirrors them within the drawn frame width; Papyrus sets it wherever it flips the image
+- **Tests**: `TestPapyrusHitboxScale` and `test_freshly_constructed_sprites_have_scaled_hitboxes_before_any_tick` in `tests/collision/test_collision.py`; `TestPapyrusFacingLeftHitbox` in `tests/examples/test_brave_adventurer_game.py`; `test_hitbox_scale_*` and `test_hitbox_flip_x_*` in `tests/sprites/test_animated_sprite.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py`, `glitchygames/examples/brave_adventurer_papyrus/player.py`, `glitchygames/examples/brave_adventurer_papyrus/enemies.py`, `glitchygames/examples/brave_adventurer_papyrus/constants.py`
+
+### 28. Resume Paused Again Immediately; Pause Screenshot One Frame Behind
+- **Description**: Clockwork Keep and Brave Adventurer paused again one frame after resuming. PaddleSlap's pause screenshot showed the previous frame while the game state was one frame ahead (the ball sat off its hitbox and jumped a frame on resume)
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: (1) Games that paused by setting `next_scene` never cleared it, so after resuming, the loop's end-of-frame check switched to the old pause scene again. (2) `Scene.pause()` switched mid-frame, during event processing, after sprites had already moved but before they were rendered. The first fix for (1) reset `next_scene` on the scene becoming active, which wiped the `next_scene` that bootstrap scenes (`joystick_demo`, `scripts/cached_fonts.py`) set in `__init__`, so they never left their first scene
+- **Solution**: `Scene.pause()` requests the switch via `next_scene`, which the loop performs after rendering. `SceneManager.switch_to_scene` clears the outgoing scene's pending switch (`outgoing.next_scene = outgoing`) and leaves the incoming scene's alone; the end-of-frame check is `SceneManager._switch_to_requested_scene`
+- **Tests**: `test_pause_requests_a_pause_scene_after_this_frame`, `test_bootstrap_scene_reaches_the_scene_its_init_requests` and `test_resumed_scene_does_not_switch_back_to_the_old_pause_scene` in `tests/scenes/test_scene.py`; `tests/scenes/builtin_scenes/test_pause_screen.py`
+- **Files**: `glitchygames/scenes/scene.py`
+
 ### 27. Live Voice Clicks at Chunk Boundaries
 - **Description**: A steady "click click click" was audible at the 100 ms live-voice chunk boundaries during the Clockwork Keep elevator ascent (the cut at arrival is accepted)
 - **Status**: Resolved
