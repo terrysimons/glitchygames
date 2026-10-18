@@ -180,7 +180,8 @@ class TestFrameHistory:
         # window keeps the newest frames totalling <= 5 s: the 1.0 s frame is excluded
         assert overlay.one_percent_low_fps() == pytest.approx(100.0)
         overlay.record_frame(frame_seconds=0.05)  # one slow 20 FPS frame inside the window
-        # n = 500 frames in window (newest 5 s) -> ceil(5) = 5 slowest: one 20 FPS + four 100 FPS
+        # window = the 0.05 s frame + 495 frames of 0.01 s (4.95 s) -> n = 496, ceil(4.96) = 5
+        # slowest: one 20 FPS + four 100 FPS
         assert overlay.one_percent_low_fps() == pytest.approx((20 + 4 * 100) / 5)
 
     def test_graph_window(self):
