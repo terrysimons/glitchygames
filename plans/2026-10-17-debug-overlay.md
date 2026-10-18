@@ -100,6 +100,9 @@ with a comment explaining why. Prefer making it public.
 ### Collision (world annotations)
 - 1 px hitbox outline per sprite in each collision layer, coloured from a fixed palette in layer
   creation order (`CollisionManager.layer_names()` order), so colours are stable between runs.
+- Outlines sit where each sprite is drawn: `sprite.rect` (set from the camera by the game) plus the
+  hitbox's offset from the snapped world position, so the box is never rounded a second time
+  through the camera (which put it 1 px off sprites under fractional smooth-follow cameras).
 - Legend (top-left): layer name, colour swatch, sprite count.
 - Sprites in `scene.all_sprites` that are in no collision layer: faint grey outline of `sprite.rect`.
 - Overlaps: when two sprites from different layers have overlapping collision rects, both outlines

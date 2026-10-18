@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
+from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.debug.protocols import HasPhysicsBody
 
@@ -94,27 +95,34 @@ class DebugFrameInfo:
     inspected_scene_label: str | None = None
 
 
-def screen_rect_for(
-    *, sprite: Any, camera: Camera2D, screen_offset: tuple[int, int]
-) -> pygame.Rect:
+def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Rect:
     """Compute where a sprite's collision rect appears on the presented frame.
 
-    Sprites with world_x and world_y have a world-space collision rect, whose top-left is
-    converted through the camera. Other sprites already have screen-space rects.
+    Sprites with world_x and world_y have a world-space collision rect. Its box is placed
+    where the sprite is actually drawn: the sprite's rect (which games set from the camera
+    every frame, WORLD shake included) plus the hitbox's offset from the snapped world
+    position the collision rect was built from. Converting the already-rounded world rect
+    through the camera would round twice and put the box a pixel off the sprite whenever the
+    camera position is fractional. Other sprites already have screen-space rects.
 
     Args:
         sprite (Any): The sprite to locate.
-        camera (Camera2D): The active camera.
         screen_offset (tuple[int, int]): Extra offset applied to the whole frame (screen shake).
 
     Returns:
         pygame.Rect: A new rect in presented-frame coordinates.
 
     """
-    world_rect = get_sprite_collision_rect(sprite)
-    screen_rect = world_rect.copy()
+    collision_rect = get_sprite_collision_rect(sprite)
+    screen_rect = collision_rect.copy()
     if hasattr(sprite, 'world_x') and hasattr(sprite, 'world_y'):
-        screen_rect.topleft = camera.world_to_screen(world_rect.x, world_rect.y)
+        snapped_world_x, snapped_world_y = snapped_world_position(
+            sprite, sprite.world_x, sprite.world_y
+        )
+        screen_rect.topleft = (
+            sprite.rect.x + collision_rect.x - snapped_world_x,
+            sprite.rect.y + collision_rect.y - snapped_world_y,
+        )
     screen_rect.move_ip(screen_offset)
     return screen_rect
 
@@ -162,7 +170,6 @@ def draw_collision_panel(
     *,
     surface: pygame.Surface,
     scene: Any,
-    camera: Camera2D,
     screen_offset: tuple[int, int],
     font: Any,
 ) -> None:
@@ -175,7 +182,6 @@ def draw_collision_panel(
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
         scene (Any): The active scene.
-        camera (Camera2D): The active camera.
         screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
         font (Any): Font used for the legend.
 
@@ -194,15 +200,13 @@ def draw_collision_panel(
                 continue
             layered_ids.add(id(sprite))
             outline_color = OVERLAP_COLOR if id(sprite) in overlapping_ids else layer_color
-            outline_rect = screen_rect_for(
-                sprite=sprite, camera=camera, screen_offset=screen_offset
-            )
+            outline_rect = screen_rect_for(sprite=sprite, screen_offset=screen_offset)
             pygame.draw.rect(surface, outline_color, outline_rect, width=1)
 
     for sprite in getattr(scene, 'all_sprites', ()):
         if id(sprite) in layered_ids:
             continue
-        outline_rect = screen_rect_for(sprite=sprite, camera=camera, screen_offset=screen_offset)
+        outline_rect = screen_rect_for(sprite=sprite, screen_offset=screen_offset)
         pygame.draw.rect(surface, UNLAYERED_COLOR, outline_rect, width=1)
 
     _draw_legend(surface=surface, layers=layers, font=font)
@@ -268,7 +272,6 @@ def draw_physics_panel(
     *,
     surface: pygame.Surface,
     scene: Any,
-    camera: Camera2D,
     screen_offset: tuple[int, int],
     font: Any,
 ) -> None:
@@ -281,7 +284,6 @@ def draw_physics_panel(
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
         scene (Any): The active scene.
-        camera (Camera2D): The active camera.
         screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
         font (Any): Font used for the velocity text.
 
@@ -290,7 +292,7 @@ def draw_physics_panel(
         if not isinstance(sprite, HasPhysicsBody):
             continue
         body = sprite.physics
-        sprite_rect = screen_rect_for(sprite=sprite, camera=camera, screen_offset=screen_offset)
+        sprite_rect = screen_rect_for(sprite=sprite, screen_offset=screen_offset)
 
         vector_x = body.velocity_x * PHYSICS_ARROW_SECONDS
         vector_y = body.velocity_y * PHYSICS_ARROW_SECONDS

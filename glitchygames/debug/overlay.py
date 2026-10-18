@@ -220,7 +220,6 @@ class DebugOverlay:
             panels.draw_collision_panel(
                 surface=surface,
                 scene=scene,
-                camera=camera,
                 screen_offset=screen_offset,
                 font=font,
             )
@@ -228,7 +227,6 @@ class DebugOverlay:
             panels.draw_physics_panel(
                 surface=surface,
                 scene=scene,
-                camera=camera,
                 screen_offset=screen_offset,
                 font=font,
             )

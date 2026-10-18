@@ -6,7 +6,7 @@ import pygame
 import pytest
 
 from glitchygames.camera import Camera2D
-from glitchygames.collision.layers import CollisionManager
+from glitchygames.collision.layers import CollisionManager, get_sprite_collision_rect
 from glitchygames.debug.panels import (
     AIRBORNE_COLOR,
     ARROW_COLOR,
@@ -18,18 +18,24 @@ from glitchygames.debug.panels import (
     draw_physics_panel,
     screen_rect_for,
 )
+from glitchygames.game_objects.ball import BallSprite
 
 SURFACE_SIZE = (400, 300)
 
 
 class WorldSprite:
-    """A tiny sprite positioned in world space."""
+    """A tiny sprite positioned in world space, drawn as if the camera were unscrolled."""
 
     def __init__(self, *, world_x, world_y, width=20, height=20):
         """Initialize the test double."""
         self.world_x = world_x
         self.world_y = world_y
-        self.rect = pygame.Rect(0, 0, width, height)
+        self.rect = pygame.Rect(round(world_x), round(world_y), width, height)
+
+
+def place_through_camera(sprite, camera):
+    """Position a world sprite's drawn rect through the camera, as games do every frame."""
+    sprite.rect.topleft = camera.world_to_screen(sprite.world_x, sprite.world_y)
 
 
 class ScreenSprite:
@@ -84,6 +90,20 @@ def camera():
 
 
 @pytest.fixture
+def ball():
+    """A real BallSprite (needs a display for its image and screen size).
+
+    Returns:
+        A BallSprite.
+
+    """
+    pygame.init()
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode(SURFACE_SIZE)
+    return BallSprite()
+
+
+@pytest.fixture
 def font(mocker):
     """A font whose render returns a small real surface.
 
@@ -120,9 +140,7 @@ def build_scene(*, camera, layers=None, extra_sprites=()):
 
 def draw_collision(*, surface, scene, camera, font, screen_offset=(0, 0)):
     """Call draw_collision_panel with keyword arguments."""
-    draw_collision_panel(
-        surface=surface, scene=scene, camera=camera, screen_offset=screen_offset, font=font
-    )
+    draw_collision_panel(surface=surface, scene=scene, screen_offset=screen_offset, font=font)
 
 
 class TestScreenRectFor:
@@ -132,21 +150,56 @@ class TestScreenRectFor:
         """A sprite at world x=100 with the camera at 50 sits at screen x=50."""
         camera.world_x = 50
         sprite = WorldSprite(world_x=100, world_y=30)
-        rect = screen_rect_for(sprite=sprite, camera=camera, screen_offset=(0, 0))
+        place_through_camera(sprite, camera)
+        rect = screen_rect_for(sprite=sprite, screen_offset=(0, 0))
         assert (rect.x, rect.y) == (50, 30)
         assert (rect.width, rect.height) == (20, 20)
+
+    def test_fractional_camera_outline_matches_drawn_sprite(self):
+        """World x=100.6 with camera x=0.4 is drawn at 100; the outline must be at 100 too.
+
+        Rounding the world position (101) and then converting it through the camera rounds
+        twice and lands one pixel right of the sprite.
+        """
+        camera = Camera2D(SURFACE_SIZE[0], SURFACE_SIZE[1])
+        camera.world_x = 0.4
+        sprite = WorldSprite(world_x=100.6, world_y=30.0)
+        sprite.rect.topleft = camera.apply(sprite.world_x, sprite.world_y)
+        assert sprite.rect.x == 100
+
+        rect = screen_rect_for(sprite=sprite, screen_offset=(0, 0))
+        assert rect.left == sprite.rect.x
+        assert rect.top == sprite.rect.y
+
+    def test_ball_outline_uses_its_snap_mode_and_visible_pixels(self, ball):
+        """A NEAREST_HALF_UP ball at x=10.5 is drawn at 11; its circle box starts at 11 + 5."""
+        ball.world_x = 10.5
+        ball.world_y = 20.0
+        assert ball.rect.x == 11
+
+        collision_rect = get_sprite_collision_rect(ball)
+        assert collision_rect == pygame.Rect(16, 25, 10, 10)
+        outline_rect = screen_rect_for(sprite=ball, screen_offset=(0, 0))
+        assert outline_rect == pygame.Rect(16, 25, 10, 10)
+
+    def test_outline_follows_world_shaken_sprite_rect(self):
+        """The outline follows the drawn rect, so a WORLD shake moves it with the sprite."""
+        sprite = WorldSprite(world_x=100, world_y=30)
+        sprite.rect.topleft = (97, 32)  # drawn through a shaken camera
+        rect = screen_rect_for(sprite=sprite, screen_offset=(0, 0))
+        assert rect.topleft == (97, 32)
 
     def test_screen_sprite_used_as_is_plus_offset(self, camera):
         """A screen-space sprite ignores the camera; the offset still applies."""
         camera.world_x = 50
         sprite = ScreenSprite(x=10, y=20)
-        rect = screen_rect_for(sprite=sprite, camera=camera, screen_offset=(5, 3))
+        rect = screen_rect_for(sprite=sprite, screen_offset=(5, 3))
         assert (rect.x, rect.y) == (15, 23)
 
     def test_does_not_mutate_sprite_rect(self, camera):
         """The sprite's own rect is never modified."""
         sprite = ScreenSprite(x=10, y=20)
-        screen_rect_for(sprite=sprite, camera=camera, screen_offset=(5, 3))
+        screen_rect_for(sprite=sprite, screen_offset=(5, 3))
         assert (sprite.rect.x, sprite.rect.y) == (10, 20)
 
 
@@ -157,6 +210,7 @@ class TestCollisionPanel:
         """Review focus 1: with the camera scrolled, the outline is at the screen position."""
         camera.world_x = 50
         sprite = WorldSprite(world_x=100, world_y=40)
+        place_through_camera(sprite, camera)
         scene = build_scene(camera=camera, layers={'player': [sprite]})
         draw_collision(surface=surface, scene=scene, camera=camera, font=font)
         assert surface.get_at((50, 40))[:3] == LAYER_PALETTE[0]
@@ -248,6 +302,8 @@ class TestCollisionPanel:
         camera.world_x = 50
         loose = WorldSprite(world_x=100, world_y=40)
         far_sprite = WorldSprite(world_x=300, world_y=200)
+        place_through_camera(loose, camera)
+        place_through_camera(far_sprite, camera)
         scene = build_scene(camera=camera, layers={'a': [far_sprite]}, extra_sprites=[loose])
         draw_collision(surface=surface, scene=scene, camera=camera, font=font)
         assert surface.get_at((50, 40))[:3] == UNLAYERED_COLOR
@@ -265,9 +321,7 @@ class TestPhysicsPanel:
 
     def draw_physics(self, *, surface, scene, camera, font, screen_offset=(0, 0)):
         """Call draw_physics_panel with keyword arguments."""
-        draw_physics_panel(
-            surface=surface, scene=scene, camera=camera, screen_offset=screen_offset, font=font
-        )
+        draw_physics_panel(surface=surface, scene=scene, screen_offset=screen_offset, font=font)
 
     def test_arrow_length_is_velocity_times_arrow_seconds(self, surface, camera, font):
         """Velocity (300, 0) gives a 30 px arrow from the rect centre."""
@@ -308,6 +362,7 @@ class TestPhysicsPanel:
         """The arrow starts at the sprite's screen centre, not its world centre."""
         camera.world_x = 50
         sprite = PhysicsSprite(body=Body(velocity_x=300), world_x=100, world_y=100)
+        place_through_camera(sprite, camera)
         scene = build_scene(camera=camera, layers={'a': [sprite]})
         self.draw_physics(surface=surface, scene=scene, camera=camera, font=font)
         assert surface.get_at((60 + 30, 110))[:3] == ARROW_COLOR
@@ -354,9 +409,7 @@ class TestRealFont:
         sprite = PhysicsSprite(body=Body(velocity_x=300), world_x=100, world_y=100)
         scene = build_scene(camera=camera, layers={'a': [sprite]})
         draw_collision(surface=surface, scene=scene, camera=camera, font=real_font)
-        draw_physics_panel(
-            surface=surface, scene=scene, camera=camera, screen_offset=(0, 0), font=real_font
-        )
+        draw_physics_panel(surface=surface, scene=scene, screen_offset=(0, 0), font=real_font)
         assert surface.get_at((100, 100))[:3] == LAYER_PALETTE[0]
 
 
@@ -368,7 +421,5 @@ class TestReadOnlyCamera:
         sprite = PhysicsSprite(body=Body(velocity_x=300), world_x=100, world_y=100)
         scene = build_scene(camera=camera, layers={'a': [sprite]})
         draw_collision(surface=surface, scene=scene, camera=camera, font=font)
-        draw_physics_panel(
-            surface=surface, scene=scene, camera=camera, screen_offset=(0, 0), font=font
-        )
+        draw_physics_panel(surface=surface, scene=scene, screen_offset=(0, 0), font=font)
         assert camera.has_been_applied is False
