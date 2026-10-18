@@ -67,7 +67,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.screen = None
         self.update_type: str = 'update'
         self.fps_log_interval_ms: int = 1000
-        self.target_fps: float = 0
+        self.target_fps: float = 0.0
         self.dt: float = 0.0
         self.timer: Any = 0
         self._game_engine: GameEngine | None = None
@@ -921,7 +921,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # This helps us keep the upper layers clean by not requiring
         # new scenes to care about the SceneManager when being
         # instantiated.
-        self.target_fps: float = 0
+        self.target_fps: float = 0.0
         self.fps: float = 0.0
         self.dt: float = 0.0
         self.dt_timer: float = 0.0

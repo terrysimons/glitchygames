@@ -177,9 +177,13 @@ class TestCreateTimer:
         timer = create_timer('fast')
         assert isinstance(timer, FastTimer)
 
-    def test_create_timer_none_defaults_to_pygame(self):
+    def test_create_timer_none_defaults_to_fast(self):
         timer = create_timer(None)
-        assert isinstance(timer, PygameTimer)
+        assert isinstance(timer, FastTimer)
+
+    def test_create_timer_empty_options_defaults_to_fast(self):
+        timer = create_timer(None, {})
+        assert isinstance(timer, FastTimer)
 
     def test_create_timer_case_insensitive(self):
         timer = create_timer('FAST')
@@ -482,15 +486,10 @@ class TestCreateTimerExtended:
         timer = create_timer('pygame')
         assert isinstance(timer, PygameTimer)
 
-    def test_create_timer_none_defaults_to_pygame(self, mocker):
-        """Test create_timer with None type defaults to PygameTimer."""
-        mock_pygame = mocker.MagicMock()
-        mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
-
-        from glitchygames.timing import PygameTimer
-
+    def test_create_timer_none_defaults_to_fast(self):
+        """Test create_timer with None type defaults to FastTimer."""
         timer = create_timer(None)
-        assert isinstance(timer, PygameTimer)
+        assert isinstance(timer, FastTimer)
 
     def test_create_timer_from_options_dict(self):
         """Test create_timer reads timer_backend from options dict."""

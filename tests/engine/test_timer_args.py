@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Tests for timer-related command-line argument parsing."""
 
+import argparse
 from types import SimpleNamespace
+
+import pytest
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
@@ -83,8 +86,6 @@ def _parse_graphics_arguments(argument_list):
         The parsed argparse namespace.
 
     """
-    import argparse
-
     parser = argparse.ArgumentParser()
     GameEngine.args(parser)
     return parser.parse_args(argument_list)
@@ -102,7 +103,5 @@ def test_timer_backend_accepts_pygame():
 
 def test_timer_backend_rejects_invalid_choice():
     """An unknown timer backend is rejected by argparse."""
-    import pytest
-
     with pytest.raises(SystemExit):
         _parse_graphics_arguments(['--timer-backend=bogus'])

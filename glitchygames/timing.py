@@ -196,7 +196,7 @@ def create_timer(
 
     """
     opts: dict[str, Any] = options or {}
-    tt: str = (timer_type or opts.get('timer_backend', 'pygame')).lower()
+    tt: str = (timer_type or opts.get('timer_backend', 'fast')).lower()
     if tt == 'fast':
         sleep_gran_ns: int = int(opts.get('sleep_granularity_ns', 1_000_000))
         windows_1ms: bool = bool(opts.get('windows_timer_1ms'))
