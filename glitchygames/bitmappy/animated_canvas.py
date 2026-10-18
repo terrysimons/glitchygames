@@ -2162,22 +2162,50 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         viewport_sprite.copy_animation_timing_from(self.animated_sprite)
         # ...and the animation state machine ([[transition]] sections)
         viewport_sprite.copy_transitions_from(self.animated_sprite)
+        # Hitboxes are moved into the viewport and clipped to it. One entirely outside it is
+        # removed rather than written as zero-size or invented: a frame then falls back to the
+        # sprite-level hitbox, else its visible pixels; the sprite-level one leaves frames on
+        # their visible pixels. Each removal is reported after the save. The open sprite keeps
+        # its hitboxes.
+        removed_hitboxes: list[str] = []
         if self.animated_sprite.default_hitbox is not None:
             viewport_sprite.default_hitbox = self._viewport_hitbox(
                 self.animated_sprite.default_hitbox
             )
+            if viewport_sprite.default_hitbox is None:
+                removed_hitboxes.append('sprite-level hitbox')
 
         # Copy viewport data for each animation
         for anim_name, frames in self.animated_sprite._animations.items():  # type: ignore[reportPrivateUsage]
             viewport_frames: list[SpriteFrame] = []
-            for frame in frames:
+            for frame_index, frame in enumerate(frames):
                 viewport_frame = self._create_viewport_frame(frame)
+                if frame.has_explicit_hitbox and not viewport_frame.has_explicit_hitbox:
+                    removed_hitboxes.append(f'{anim_name} frame {frame_index}')
                 viewport_frames.append(viewport_frame)
             viewport_sprite.add_animation(anim_name, viewport_frames)
 
         # Save the newly created viewport sprite
         self.sprite_serializer.save(viewport_sprite, filename, DEFAULT_FILE_FORMAT)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
         self.log.info('Viewport sprite saved to %s', filename)
+        if removed_hitboxes:
+            self._report_removed_viewport_hitboxes(removed_hitboxes)
+
+    def _report_removed_viewport_hitboxes(self, removed_hitboxes: list[str]) -> None:
+        """Log and show which hitboxes a viewport save removed for lying outside the viewport.
+
+        Shown in the editor's debug text box, where Bitmappy shows load errors and AI messages.
+
+        Args:
+            removed_hitboxes: Descriptions such as 'sprite-level hitbox' or 'walk frame 0'.
+
+        """
+        message = 'Viewport save removed hitboxes outside the viewport: ' + ', '.join(
+            removed_hitboxes
+        )
+        self.log.warning(message)
+        if hasattr(self, 'parent') and hasattr(self.parent, 'debug_text'):
+            self.parent.debug_text.text = message
 
     def _create_viewport_frame(self, original_frame: SpriteFrame) -> SpriteFrame:
         """Create a frame containing only the viewport data.

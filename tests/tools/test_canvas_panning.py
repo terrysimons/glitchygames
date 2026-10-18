@@ -510,6 +510,109 @@ class TestViewportSaveKeepsHitboxesAndAnchor:
         )
         assert not viewport_frames[1].has_explicit_hitbox
 
+    # Hitboxes against a 4 px pan to the right: the 8x8 viewport then shows sprite x 4..11
+    PAN_X = 4
+    MAGENTA = (255, 0, 255, 255)
+    BLACK = (0, 0, 0, 255)
+
+    def _sprite_with_hitboxes(self, *, sprite_hitbox):
+        """Two 8x8 frames whose visible pixels are x 5..7, y 2..5 (viewport x 1..3).
+
+        Frame 0's hitbox lies entirely left of the viewport; frame 1's straddles its edge.
+        """
+        from glitchygames.sprites import AnimatedSprite, FrameAnchor
+
+        pixels = [
+            self.BLACK if 5 <= x <= 7 and 2 <= y <= 5 else self.MAGENTA
+            for y in range(8)
+            for x in range(8)
+        ]
+        frames = []
+        for hitbox in (pygame.Rect(0, 0, 3, 3), pygame.Rect(3, 1, 3, 3)):
+            frame = SpriteFrame(pygame.Surface((8, 8), pygame.SRCALPHA), hitbox=hitbox)
+            frame.set_pixel_data(pixels)
+            frames.append(frame)
+        sprite = AnimatedSprite()
+        sprite.name = 'boxes'
+        sprite.add_animation('walk', frames)
+        sprite.set_animation('walk')
+        sprite.default_hitbox = sprite_hitbox
+        sprite.frame_anchor = FrameAnchor.BOTTOM
+        return sprite
+
+    def _save_panned_viewport(self, mocker, tmp_path, sprite):
+        from glitchygames.sprites import AnimatedSprite
+
+        self.canvas.animated_sprite = sprite
+        self.canvas.parent = mocker.Mock()
+        self.canvas.pan_canvas(self.PAN_X, 0)
+        saved_file = tmp_path / 'viewport.toml'
+        self.canvas._save_viewport_sprite(str(saved_file))
+        return saved_file, AnimatedSprite(str(saved_file))
+
+    def test_hitboxes_outside_the_viewport_are_removed_and_reported(self, mocker, tmp_path, caplog):
+        """Fully-outside hitboxes are removed (frames fall back), partly-outside ones clipped."""
+        import tomllib
+
+        from glitchygames.sprites import FrameAnchor
+
+        sprite = self._sprite_with_hitboxes(sprite_hitbox=pygame.Rect(0, 6, 2, 2))
+
+        with caplog.at_level('WARNING'):
+            saved_file, reloaded = self._save_panned_viewport(mocker, tmp_path, sprite)
+
+        saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+        assert 'hitbox' not in saved['sprite']
+        saved_frames = saved['animation'][0]['frame']
+        assert 'hitbox' not in saved_frames[0]
+        assert saved_frames[1]['hitbox'] == {'offset_x': 0, 'offset_y': 1, 'width': 2, 'height': 3}
+        assert reloaded.frame_anchor is FrameAnchor.BOTTOM
+        assert reloaded.default_hitbox is None
+        walk_frames = reloaded.animation_data['walk']
+        # No sprite-level hitbox either, so frame 0 falls back to its visible pixels
+        assert not walk_frames[0].has_explicit_hitbox
+        assert reloaded._native_frame_hitbox(walk_frames[0]) == walk_frames[0].opaque_bounds()
+        assert walk_frames[1].hitbox == pygame.Rect(0, 1, 2, 3)
+
+        expected_message = (
+            'Viewport save removed hitboxes outside the viewport: sprite-level hitbox, walk frame 0'
+        )
+        assert self.canvas.parent.debug_text.text == expected_message
+        assert expected_message in caplog.text
+        # Only the saved file changes; the open sprite keeps its hitboxes
+        assert sprite.default_hitbox == pygame.Rect(0, 6, 2, 2)
+        assert sprite.animation_data['walk'][0].hitbox == pygame.Rect(0, 0, 3, 3)
+
+    def test_frame_hitbox_outside_the_viewport_falls_back_to_the_sprite_hitbox(
+        self, mocker, tmp_path
+    ):
+        """A removed frame hitbox falls back to the (clipped) sprite-level hitbox."""
+        sprite = self._sprite_with_hitboxes(sprite_hitbox=pygame.Rect(2, 0, 4, 8))
+
+        _saved_file, reloaded = self._save_panned_viewport(mocker, tmp_path, sprite)
+
+        assert reloaded.default_hitbox == pygame.Rect(0, 0, 2, 8)
+        frame_zero = reloaded.animation_data['walk'][0]
+        assert not frame_zero.has_explicit_hitbox
+        assert reloaded._native_frame_hitbox(frame_zero) == pygame.Rect(0, 0, 2, 8)
+        assert self.canvas.parent.debug_text.text == (
+            'Viewport save removed hitboxes outside the viewport: walk frame 0'
+        )
+
+    def test_viewport_save_without_removed_hitboxes_shows_no_warning(self, mocker, tmp_path):
+        """When every hitbox overlaps the viewport no warning is shown."""
+        sprite = self._sprite_with_hitboxes(sprite_hitbox=None)
+        sprite.animation_data['walk'][0].hitbox = pygame.Rect(4, 4, 2, 2)
+        debug_text_before = mocker.sentinel.unchanged
+
+        self.canvas.parent = mocker.Mock()
+        self.canvas.parent.debug_text.text = debug_text_before
+        self.canvas.animated_sprite = sprite
+        self.canvas.pan_canvas(self.PAN_X, 0)
+        self.canvas._save_viewport_sprite(str(tmp_path / 'viewport.toml'))
+
+        assert self.canvas.parent.debug_text.text is debug_text_before
+
     def test_viewport_save_keeps_animation_timing(self, tmp_path):
         """A panned viewport save writes the loaded frame_interval, loop and overrides back."""
         import tomllib
