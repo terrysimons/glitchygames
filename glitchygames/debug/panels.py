@@ -314,13 +314,15 @@ def _draw_bounds(
     """Draw dashed lines at each camera-bound world edge that is on the surface."""
     min_x, min_y, max_x, max_y = camera.bounds
     surface_width, surface_height = surface.get_size()
+    # Right and bottom edges are exclusive (max + screen size), so with the camera clamped at its
+    # maximum that coordinate lands one pixel off the surface. Draw the last world pixel instead.
     world_edges_x = (
         min_x,
-        None if max_x is None else max_x + camera.screen_width,
+        None if max_x is None else max_x + camera.screen_width - 1,
     )
     world_edges_y = (
         min_y,
-        None if max_y is None else max_y + camera.screen_height,
+        None if max_y is None else max_y + camera.screen_height - 1,
     )
     for world_edge_x in world_edges_x:
         if world_edge_x is None:
@@ -367,7 +369,9 @@ def draw_camera_panel(
     """Draw camera bounds, the lead crosshair and camera text readouts.
 
     `Camera2D.set_bounds` clamps the camera's top-left position, so the world's edges are
-    left = min_x, top = min_y, right = max_x + screen_width and bottom = max_y + screen_height.
+    left = min_x, top = min_y, right = max_x + screen_width - 1 and
+    bottom = max_y + screen_height - 1 (the last world pixel, since the exclusive edge would
+    land one pixel off the surface at the clamp).
     Those edges are drawn as dashed lines, and only when they fall on the surface. The camera
     is read through `world_to_screen`, which has no side effects (`apply` would mark the
     camera as used).

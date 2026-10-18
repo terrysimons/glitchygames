@@ -140,19 +140,23 @@ class TestCameraPanel:
         assert any(column)
         assert not all(column)  # dashed, not solid
 
-    def test_right_edge_is_max_x_plus_screen_width(self, font):
-        """With max_x=100 on a 200 px screen the right world edge is at world 300."""
+    def test_right_edge_is_last_world_pixel_at_the_clamp(self, font):
+        """With the camera clamped at max_x=100 on a 200 px screen the line is at x=199."""
         small_surface = pygame.Surface((200, 100))
         small_camera = Camera2D(200, 100)
         small_camera.set_bounds(max_x=100)
-        small_camera.world_x = 100  # the right edge (world 300) is at screen x=200: off screen
+        small_camera.world_x = 100
+        draw_camera(surface=small_surface, camera=small_camera, font=font)
+        assert small_surface.get_at((199, 0))[:3] == BOUNDS_COLOR
+
+    def test_right_edge_off_surface_one_pixel_before_the_clamp(self, font):
+        """At world_x=99 the last world pixel (299) is at screen x=200, so nothing is drawn."""
+        small_surface = pygame.Surface((200, 100))
+        small_camera = Camera2D(200, 100)
+        small_camera.set_bounds(max_x=100)
+        small_camera.world_x = 99
         draw_camera(surface=small_surface, camera=small_camera, font=font)
         assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
-
-        small_camera.world_x = 101  # not reachable through update, but puts the edge at x=199
-        draw_camera(surface=small_surface, camera=small_camera, font=font)
-        assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) > 0
-        assert small_surface.get_at((199, 0))[:3] == BOUNDS_COLOR
 
     def test_far_bound_draws_nothing(self, font):
         """A bound far to the right of the visible world draws no line."""
@@ -162,14 +166,23 @@ class TestCameraPanel:
         draw_camera(surface=small_surface, camera=small_camera, font=font)
         assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
 
-    def test_bottom_edge_is_max_y_plus_screen_height(self, font):
-        """With max_y=50 on a 100 px screen the bottom world edge is at world 150."""
+    def test_bottom_edge_is_last_world_pixel_at_the_clamp(self, font):
+        """With the camera clamped at max_y=50 on a 100 px screen the line is at y=99."""
         small_surface = pygame.Surface((200, 100))
         small_camera = Camera2D(200, 100)
         small_camera.set_bounds(max_y=50)
-        small_camera.world_y = 51
+        small_camera.world_y = 50
         draw_camera(surface=small_surface, camera=small_camera, font=font)
         assert small_surface.get_at((0, 99))[:3] == BOUNDS_COLOR
+
+    def test_bottom_edge_off_surface_one_pixel_before_the_clamp(self, font):
+        """At world_y=49 the last world pixel (149) is at screen y=100, so nothing is drawn."""
+        small_surface = pygame.Surface((200, 100))
+        small_camera = Camera2D(200, 100)
+        small_camera.set_bounds(max_y=50)
+        small_camera.world_y = 49
+        draw_camera(surface=small_surface, camera=small_camera, font=font)
+        assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
 
     def test_lead_crosshair_drawn_at_lead_plus_offset(self, surface, font):
         """The crosshair centre sits at (lead_x, lead_y) plus the screen offset."""
