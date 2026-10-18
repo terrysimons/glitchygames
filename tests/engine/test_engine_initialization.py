@@ -12,8 +12,12 @@ from pathlib import Path
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames import engine as engine_package
+from glitchygames import timing
+from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
+from glitchygames.scenes import Scene
 from glitchygames.timing import FastTimer
 from tests.mocks import MockFactory
 
@@ -140,35 +144,6 @@ class TestEngineInitialization:
         args = result_parser.parse_args(['--log-level', 'debug', '--profile'])
         assert args.log_level == 'debug'
         assert args.profile
-
-    def test_target_fps_defaults_to_engine_default(self):
-        """Test that --target-fps defaults to DEFAULT_TARGET_FPS (60.5)."""
-        parser = GameEngine.args(argparse.ArgumentParser())
-
-        args = parser.parse_args([])
-
-        assert DEFAULT_TARGET_FPS == EXPECTED_DEFAULT_TARGET_FPS
-        assert args.target_fps == DEFAULT_TARGET_FPS
-
-    def test_target_fps_zero_means_uncapped(self):
-        """Test that an explicit --target-fps 0 parses to 0.0 (uncapped)."""
-        parser = GameEngine.args(argparse.ArgumentParser())
-
-        args = parser.parse_args(['--target-fps', '0'])
-
-        assert math.isclose(args.target_fps, 0.0, abs_tol=1e-9)
-
-    def test_target_fps_accepts_custom_value(self):
-        """Test that a custom --target-fps value parses as a float."""
-        parser = GameEngine.args(argparse.ArgumentParser())
-
-        args = parser.parse_args(['--target-fps', '144.5'])
-
-        assert math.isclose(args.target_fps, 144.5, abs_tol=1e-9)
-
-    def test_default_target_fps_period_in_nanoseconds(self):
-        """Test that the default target yields a 16.53 ms frame period."""
-        assert FastTimer().start_frame(DEFAULT_TARGET_FPS) == EXPECTED_DEFAULT_PERIOD_NS
 
     def test_game_engine_class_variables(self):
         """Test GameEngine class variables."""
@@ -301,3 +276,103 @@ class TestEngineInitialization:
         # Test that they are properly initialized
         assert isinstance(GameEngine.MISSING_EVENTS, list)
         assert isinstance(GameEngine.UNIMPLEMENTED_EVENTS, list)
+
+
+class TestTargetFpsArguments:
+    """Tests for the --target-fps argument and DEFAULT_TARGET_FPS."""
+
+    def test_target_fps_defaults_to_engine_default(self):
+        """Test that --target-fps is None when not passed (resolved later to 60.5)."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args([])
+
+        assert DEFAULT_TARGET_FPS == EXPECTED_DEFAULT_TARGET_FPS
+        assert args.target_fps is None
+
+    def test_engine_and_timing_share_the_same_default_target_fps(self):
+        """Test that the engine re-exports the timing module's DEFAULT_TARGET_FPS."""
+        assert engine_package.DEFAULT_TARGET_FPS is timing.DEFAULT_TARGET_FPS
+        assert DEFAULT_TARGET_FPS is timing.DEFAULT_TARGET_FPS
+
+    def test_target_fps_zero_means_uncapped(self):
+        """Test that an explicit --target-fps 0 parses to 0.0 (uncapped)."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args(['--target-fps', '0'])
+
+        assert math.isclose(args.target_fps, 0.0, abs_tol=1e-9)
+
+    def test_target_fps_accepts_custom_value(self):
+        """Test that a custom --target-fps value parses as a float."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args(['--target-fps', '144.5'])
+
+        assert math.isclose(args.target_fps, 144.5, abs_tol=1e-9)
+
+    def test_default_target_fps_period_in_nanoseconds(self):
+        """Test that the default target yields a 16.53 ms frame period."""
+        assert FastTimer().start_frame(DEFAULT_TARGET_FPS) == EXPECTED_DEFAULT_PERIOD_NS
+
+
+class TestResolveTargetFps:
+    """Tests for the target FPS resolution order (command line > TARGET_FPS > default)."""
+
+    @staticmethod
+    def _scene_class(target_fps):
+        class _GameScene(Scene):
+            TARGET_FPS = target_fps
+
+        return _GameScene
+
+    def test_no_command_line_and_no_game_target_uses_engine_default(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=None, game=self._scene_class(None)
+        )
+        assert math.isclose(result, DEFAULT_TARGET_FPS, abs_tol=1e-9)
+
+    def test_game_target_of_zero_is_uncapped(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=None, game=self._scene_class(0.0)
+        )
+        assert math.isclose(result, 0.0, abs_tol=1e-9)
+
+    def test_game_target_is_used_without_command_line(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=None, game=self._scene_class(120.0)
+        )
+        assert math.isclose(result, 120.0, abs_tol=1e-9)
+
+    def test_command_line_overrides_game_target(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=30.0, game=self._scene_class(120.0)
+        )
+        assert math.isclose(result, 30.0, abs_tol=1e-9)
+
+    def test_command_line_zero_overrides_game_target(self):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=0.0, game=self._scene_class(120.0)
+        )
+        assert math.isclose(result, 0.0, abs_tol=1e-9)
+
+    def test_scene_without_target_declaration_gets_engine_default(self):
+        assert Scene.TARGET_FPS is None
+        result = GameEngine.resolve_target_fps(command_line_target_fps=None, game=Scene)
+        assert math.isclose(result, DEFAULT_TARGET_FPS, abs_tol=1e-9)
+
+    def test_initialize_arguments_stores_resolved_float(self, mocker):
+        mocker.patch(
+            'argparse.ArgumentParser.parse_args',
+            return_value=argparse.Namespace(log_level='INFO', target_fps=None),
+        )
+        options = GameEngine.initialize_arguments(self._scene_class(120.0))
+        assert math.isclose(options['target_fps'], 120.0, abs_tol=1e-9)
+
+    def test_bitmappy_gets_engine_default(self, mocker):
+        mocker.patch(
+            'argparse.ArgumentParser.parse_args',
+            return_value=argparse.Namespace(log_level='INFO', target_fps=None),
+        )
+        options = GameEngine.initialize_arguments(BitmapEditorScene)
+        assert math.isclose(options['target_fps'], DEFAULT_TARGET_FPS, abs_tol=1e-9)

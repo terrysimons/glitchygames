@@ -17,6 +17,7 @@ from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
+from glitchygames.timing import DEFAULT_TARGET_FPS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -133,9 +134,6 @@ class SceneManager(SceneInterface, events.EventManager):
             SceneManager.OPTIONS = self._game_engine.OPTIONS  # pyright: ignore[reportConstantRedefinition]
             self.update_type = self.OPTIONS['update_type']
             self.fps_log_interval_ms = self.OPTIONS['fps_log_interval_ms']
-            # Imported here because glitchygames.engine imports this module at load time.
-            from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
-
             self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
@@ -892,6 +890,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     FPS = 0
     NAME = 'Unnamed Scene'
     VERSION = '0.0'
+    # A game's preferred default target FPS (0.0 = uncapped); None uses the engine default.
+    # An explicit --target-fps on the command line always wins.
+    TARGET_FPS: ClassVar[float | None] = None
 
     def __init__(
         self: Self,

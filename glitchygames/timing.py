@@ -15,6 +15,11 @@ from typing import Any
 
 LOG = logging.getLogger(__name__)
 
+# 60.5 rather than 60 so frames land just above 60 FPS (16.53 ms vs the 16.67 ms limit),
+# absorbing timer wake-up jitter; measured 99.2% of frames >= 60.5 with the fast timer
+# (BUGS.md #26).
+DEFAULT_TARGET_FPS = 60.5
+
 
 def ms_to_ns(ms: float) -> int:
     """Convert milliseconds to nanoseconds.

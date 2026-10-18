@@ -5,7 +5,6 @@ import math
 import pygame
 import pytest
 
-from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.examples.brave_adventurer.constants import (
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
@@ -34,12 +33,12 @@ def adventurer_scene(request, mocker):
 
 
 class TestDefaultTargetFps:
-    """A scene left uncapped is paced at the engine's default target."""
+    """An explicit --target-fps 0 stays uncapped; the engine default supplies 60.5."""
 
-    def test_setup_replaces_uncapped_target_fps_with_engine_default(self, adventurer_scene):
+    def test_setup_keeps_explicit_zero_target_fps_uncapped(self, adventurer_scene):
         adventurer_scene.target_fps = 0
         adventurer_scene.setup()
-        assert math.isclose(adventurer_scene.target_fps, DEFAULT_TARGET_FPS, abs_tol=1e-9)
+        assert math.isclose(adventurer_scene.target_fps, 0.0, abs_tol=1e-9)
 
 
 class TestDeathRumble:

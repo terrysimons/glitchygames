@@ -33,7 +33,7 @@ from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
-from glitchygames.timing import create_timer
+from glitchygames.timing import DEFAULT_TARGET_FPS, create_timer
 
 if TYPE_CHECKING:
     from collections import OrderedDict
@@ -57,10 +57,6 @@ MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
 DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
-# 60.5 rather than 60 so frames land just above 60 FPS (16.53 ms vs the 16.67 ms limit),
-# absorbing timer wake-up jitter; measured 99.2% of frames >= 60.5 with the fast timer
-# (BUGS.md #26).
-DEFAULT_TARGET_FPS = 60.5
 
 
 def unit_interval(value: str) -> float:
@@ -177,8 +173,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         All Glitchy Games will inherit these arguments.
 
+        The effective target FPS is resolved in initialize_arguments: an explicit
+        --target-fps (including 0 = uncapped) wins, then the game scene class's
+        TARGET_FPS if it is not None, then DEFAULT_TARGET_FPS (60.5).
+
         Supported Arguments:
-            -f, --target-fps
+            -f, --target-fps (default: the game's TARGET_FPS, else 60.5; 0 = uncapped)
             --fps-log-interval-ms
             -w, --windowed
             -r, --resolution
@@ -198,9 +198,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         group.add_argument(
             '-f',
             '--target-fps',
-            help='cap the framerate (default: 60.5; 0 = uncapped)',
+            help="cap the framerate (default: the game's TARGET_FPS, else 60.5; 0 = uncapped)",
             type=float,
-            default=DEFAULT_TARGET_FPS,
+            default=None,
         )
         group.add_argument(
             '--fps-log-interval-ms',
@@ -339,6 +339,34 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return parser
 
+    @staticmethod
+    def resolve_target_fps(
+        *,
+        command_line_target_fps: float | None,
+        game: type[Scene] | Scene,
+    ) -> float:
+        """Resolve the effective target FPS.
+
+        Order: explicit command line value (0 = uncapped) > the game's TARGET_FPS
+        (when not None) > DEFAULT_TARGET_FPS.
+
+        Args:
+            command_line_target_fps: The --target-fps value, or None if it was not passed.
+            game: The game scene class or instance, which may declare TARGET_FPS.
+
+        Returns:
+            float: The effective target FPS (0 means uncapped).
+
+        """
+        if command_line_target_fps is not None:
+            return float(command_line_target_fps)
+
+        game_target_fps = getattr(game, 'TARGET_FPS', None)
+        if isinstance(game_target_fps, (int, float)):
+            return float(game_target_fps)
+
+        return DEFAULT_TARGET_FPS
+
     @classmethod
     def initialize_arguments(cls, game: type[Scene] | Scene) -> dict[str, Any]:
         """Initialize the game arguments.
@@ -374,6 +402,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
 
         GameEngine.OPTIONS = vars(args)  # type: ignore[reportConstantRedefinition]
+
+        # Resolve the effective target FPS; --target-fps defaults to None so that an explicit
+        # value (including 0 = uncapped) can be told apart from "not passed".
+        GameEngine.OPTIONS['target_fps'] = cls.resolve_target_fps(
+            command_line_target_fps=GameEngine.OPTIONS.get('target_fps'),
+            game=game,
+        )
 
         # Some optimizations to reduce the number of lookups
         if GameEngine.OPTIONS['log_level'] in {'DEBUG', 'CRITICAL', 'ERROR'}:

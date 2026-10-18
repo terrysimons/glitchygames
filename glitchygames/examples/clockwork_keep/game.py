@@ -13,7 +13,7 @@ from glitchygames.audio.recipes import SoundBank, Tremolo
 from glitchygames.audio.synth import Waveform
 from glitchygames.camera import Camera2D
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
-from glitchygames.engine import DEFAULT_TARGET_FPS, GameEngine
+from glitchygames.engine import GameEngine
 from glitchygames.examples.clockwork_keep.constants import (
     BOILER_LED,
     BOILER_PLATFORM,
@@ -373,8 +373,6 @@ class ClockworkKeepScene(Scene):
     def setup(self: Self) -> None:
         """Set up the floor scene."""
         super().setup()
-        if self.target_fps == 0:
-            self.target_fps = DEFAULT_TARGET_FPS
         self.hud_font = pygame.font.Font(None, 28)
         # Render every sound now so the elevator clank does not render on the slam frame
         self.sounds.prerender()

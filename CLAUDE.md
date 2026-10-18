@@ -138,7 +138,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   - `PygameTimer`: Legacy pygame-based timing (whole milliseconds); select with `--timer-backend=pygame`
 - Paced frame time (`dt`, FPS tracking) is always measured with `time.perf_counter()`, and
   `target_fps` may be fractional (the period is `round(1e9 / target_fps)` ns)
-- Default target 60.5 FPS (`DEFAULT_TARGET_FPS` in `glitchygames/engine/game_engine.py`); `--target-fps 0` for uncapped
+- Default target 60.5 FPS (`DEFAULT_TARGET_FPS` in `glitchygames/timing.py`, re-exported by
+  `glitchygames.engine`); `--target-fps 0` is uncapped for every game
+- A game scene may set `TARGET_FPS` (class attribute, like `NAME`/`VERSION`; `0.0` = uncapped,
+  `None` = engine default). Resolution order: explicit `--target-fps` > scene `TARGET_FPS` > 60.5
 - Configurable sleep granularity for tight frame pacing
 - Windows timer resolution control via WinMM
 

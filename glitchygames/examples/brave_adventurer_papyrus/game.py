@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.camera import Camera2D
-from glitchygames.engine import DEFAULT_TARGET_FPS, GameEngine
+from glitchygames.engine import GameEngine
 from glitchygames.examples.brave_adventurer.constants import (
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
@@ -220,8 +220,6 @@ class PapyrusBraveAdventurerScene(Scene):
     def setup(self: Self) -> None:
         """Set up the game scene."""
         super().setup()
-        if self.target_fps == 0:
-            self.target_fps = DEFAULT_TARGET_FPS
         self.hud_font = pygame.font.Font(None, 28)
         self.sounds.initialize()
         log.info('Brave Adventurer: Papyrus Edition setup complete')
