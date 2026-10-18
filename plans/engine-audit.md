@@ -36,7 +36,7 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 | 8 | Sprite transparency/scaling helpers; masks instead of alpha trimming | Open (visible-pixel trimming is now the default hitbox, feature/debug-overlay; masks still open) | Papyrus `sprite_utils.py` |
 | 9 | Particles | Open | None exist |
 | 10 | Timers and cooldowns on game time | Open | Ad-hoc cooldown dicts in `ball.py` and PaddleSlap |
-| 11 | Level/room data format (and tilemaps) | Open | Each game defines its own `ScreenData`/`FloorData`/`LevelManager` |
+| 11 | Level/room data format (and tilemaps) | Open — design briefs written | Each game defines its own `ScreenData`/`FloorData`/`LevelManager`. Plan: `plans/2026-10-18-level-tools.md` (Glitchy Studio: tilemap format, Mapsmith, Tilesmith, Bitmappy updates, Galimore import) |
 | 12 | Debug overlay (hitboxes, velocities, FPS) | **Done** (feature/debug-overlay) | `plans/2026-10-17-debug-overlay.md` |
 | 13 | Controller rebinding UI and settings persistence | Open | `ActionMap.to_dict`/`from_dict` exist; nothing saves or edits bindings |
 | 14 | Multiplayer input: player slots and targeted rumble | Open | All rumble is broadcast to every device; no engine player-to-device mapping (only Bitmappy's own controller manager). See below |
