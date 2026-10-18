@@ -195,10 +195,10 @@ class SceneManager(SceneInterface, events.EventManager):
         old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
 
         # Clear a WORLD shake so the old-floor screenshot is unshaken.
-        old_camera = getattr(self.active_scene, 'camera', None) if self.active_scene else None
-        camera_was_shaking = isinstance(old_camera, Camera2D) and old_camera.shake_effect.is_active
-        if camera_was_shaking and old_camera is not None and self.active_scene is not None:
-            old_camera.shake_effect.clear()
+        camera_was_shaking = False
+        if self.active_scene is not None and self.active_scene.camera.shake_effect.is_active:
+            camera_was_shaking = True
+            self.active_scene.camera.shake_effect.clear()
             self.active_scene.apply_camera_to_sprites()
 
         if old_player is not None:
@@ -225,19 +225,18 @@ class SceneManager(SceneInterface, events.EventManager):
         # Hide the player sprite during capture so it doesn't appear in
         # the screenshot (the transition draws its own player overlay).
         if self.active_scene and self.screen:
-            camera = getattr(self.active_scene, 'camera', None)
+            camera = self.active_scene.camera
             player = getattr(self.active_scene, 'player', None)
             player_was_visible = True
             if player is not None:
                 player_was_visible = getattr(player, 'visible', True)
                 player.visible = False
                 player.dirty = 0
-            if camera is not None and player is not None:
-                snap_to = getattr(camera, 'snap_to', None)
-                if callable(snap_to):
-                    world_x = getattr(player, 'world_x', 0.0)
-                    world_y = getattr(player, 'world_y', 0.0)
-                    snap_to(world_x, world_y)
+            if player is not None:
+                camera.snap_to(
+                    target_x=getattr(player, 'world_x', 0.0),
+                    target_y=getattr(player, 'world_y', 0.0),
+                )
             self.active_scene.dt_tick(0.001)
             self.active_scene.update()
             self.active_scene.render(self.screen)
@@ -264,9 +263,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
-        camera = getattr(self.active_scene, 'camera', None)
-        if isinstance(camera, Camera2D):
-            shakers.append(camera.shake_effect)
+        if self.active_scene is not None:
+            shakers.append(self.active_scene.camera.shake_effect)
         controller_manager = getattr(self.game_engine, 'controller_manager', None)
         self.rumble.update(
             shakers=shakers,
@@ -521,6 +519,8 @@ class SceneManager(SceneInterface, events.EventManager):
                 if transition_done:
                     self._finalize_transition()
             else:
+                # Order matters: Scene.dt_tick runs first, then frame services (shake and
+                # rumble). Scene.update() runs inside _render_scene, after frame services.
                 self._update_scene()
                 self._process_events()
                 self._update_frame_services()
@@ -954,13 +954,18 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
         self.quit_requested: bool = False
-        self.camera: Camera2D | None = None  # Assigned by games that scroll
+        self._world_shake_warning_logged: bool = False
         self.next_scene: Scene | Self | None = self
         self.rects = None
         self.screen = pygame.display.get_surface()
         assert self.screen is not None
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
+        # Identity camera for scenes that do not scroll (apply(x, y) returns (x, y)); scrolling
+        # games replace it with their own. Never None, so callers need no guards.
+        self.camera: Camera2D = Camera2D(
+            screen_width=self.screen_width, screen_height=self.screen_height
+        )
 
         # http://n0nick.github.io/blog/2012/06/03/quick-dirty-using-pygames-dirtysprite-layered/
         self.all_sprites = groups
@@ -1047,19 +1052,22 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             targets: ShakeTarget.WORLD, ShakeTarget.SCREEN, or both combined with |.
 
         Raises:
-            ValueError: If WORLD is requested and the scene has no camera.
             RuntimeError: If WORLD is requested on a scene that is not active (for example
                 from a transition cue, which runs after the scene was cleaned up).
 
         """
         if ShakeTarget.WORLD in targets:
-            if self.camera is None:
-                message = f'{self.NAME} has no camera; WORLD shake needs Scene.camera'
-                raise ValueError(message)
             if self.scene_manager.active_scene is not self:
                 message = f'{self.NAME} is not the active scene; use ShakeTarget.SCREEN'
                 raise RuntimeError(message)
             self.camera.shake_effect.add(shake)
+            if not self.camera.has_been_applied and not self._world_shake_warning_logged:
+                LOG.warning(
+                    'WORLD shake on %s has no effect: no sprites are positioned through its '
+                    'camera; use ShakeTarget.SCREEN',
+                    self.NAME,
+                )
+                self._world_shake_warning_logged = True
         if ShakeTarget.SCREEN in targets:
             self.scene_manager.screen_shake.add(shake)
 

@@ -290,7 +290,31 @@ class SoundBank:
         if recipe is None:
             message = f'no sound recipe named {name!r}'
             raise KeyError(message)
-        cache_key = (name, mixer_sample_rate())
+        sound = self._render_cached(recipe)
+        if sound is None:
+            return
+        # The pygame stub types Sound.play() as returning a Channel, but at runtime it returns
+        # None when no unreserved channel is free. A Channel is always truthy, so test truthiness.
+        if not sound.play():
+            log.debug('No free mixer channel for sound %r', name)
+
+    def prerender(self) -> None:
+        """Render and cache every recipe at the mixer rate, so no sound renders mid-frame.
+
+        A no-op (logged once, like play) when audio is unavailable.
+        """
+        for recipe in self._recipes.values():
+            if self._render_cached(recipe) is None:
+                return
+
+    def _render_cached(self, recipe: SoundRecipe) -> pygame.mixer.Sound | None:
+        """Return the recipe's Sound for the current mixer rate, rendering it on first use.
+
+        Returns:
+            The cached Sound, or None when audio is unavailable (logged once).
+
+        """
+        cache_key = (recipe.name, mixer_sample_rate())
         if cache_key not in self._sounds:
             try:
                 self._sounds[cache_key] = to_sound(recipe.render(), volume=recipe.volume)
@@ -298,8 +322,5 @@ class SoundBank:
                 if not self._unavailable_logged:
                     log.warning('Audio unavailable; sound effects are silent')
                     self._unavailable_logged = True
-                return
-        # The pygame stub types Sound.play() as returning a Channel, but at runtime it returns
-        # None when no unreserved channel is free. A Channel is always truthy, so test truthiness.
-        if not self._sounds[cache_key].play():
-            log.debug('No free mixer channel for sound %r', name)
+                return None
+        return self._sounds[cache_key]

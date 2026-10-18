@@ -30,6 +30,16 @@ class TestCamera2DApply:
         assert camera.apply(10.0, 0.0) == (10, 0)
 
 
+class TestCamera2DHasBeenApplied:
+    """Tracking whether any sprite is positioned through the camera."""
+
+    def test_flips_on_first_apply(self):
+        camera = Camera2D(screen_width=800, screen_height=600)
+        assert camera.has_been_applied is False
+        camera.apply(1.0, 2.0)
+        assert camera.has_been_applied is True
+
+
 class TestCamera2DUpdate:
     """Smooth follow behavior."""
 

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.recipes import SoundBank, Tremolo
 from glitchygames.audio.synth import Waveform
 from glitchygames.camera import Camera2D
@@ -366,6 +367,8 @@ class ClockworkKeepScene(Scene):
         if self.target_fps == 0:
             self.target_fps = 60
         self.hud_font = pygame.font.Font(None, 28)
+        # Render every sound now so the elevator clank does not render on the slam frame
+        self.sounds.prerender()
         log.info(
             'Clockwork Keep: Floor %d (%s) — %dx%d',
             self.floor_index,
@@ -415,12 +418,11 @@ class ClockworkKeepScene(Scene):
         self._check_collectibles()
 
         # Camera follows player (both axes)
-        if self.camera is not None:
-            self.camera.update(
-                target_x=self.player.world_x,
-                target_y=self.player.world_y,
-                dt=dt,
-            )
+        self.camera.update(
+            target_x=self.player.world_x,
+            target_y=self.player.world_y,
+            dt=dt,
+        )
 
         # Apply camera to all world-space sprites
         self.apply_camera_to_sprites()
@@ -429,8 +431,6 @@ class ClockworkKeepScene(Scene):
     def apply_camera_to_sprites(self: Self) -> None:
         """Position every world-space sprite from the camera."""
         camera = self.camera
-        if camera is None:
-            return
         self.player.apply_camera(camera)
         for platform in self.platform_sprites:
             platform.apply_camera(camera)
@@ -616,10 +616,10 @@ class ClockworkKeepScene(Scene):
                     rate_hz=ELEVATOR_MOTOR_TREMOLO_RATE, depth=ELEVATOR_MOTOR_TREMOLO_DEPTH
                 ),
             )
-        except ValueError:
-            log.warning('No live voice channel free; the elevator rides without its motor')
+            motor.start()
+        except ValueError, AudioUnavailableError:
+            log.warning('No live voice or audio available; the elevator rides without its motor')
             return None
-        motor.start()
         return motor
 
     def _update_elevator_motor(self: Self, transition: Transition) -> None:
@@ -673,6 +673,8 @@ class ClockworkKeepScene(Scene):
             self.game_over_triggered = True
             self.sounds.play('game_over')
             self._save_high_score()
+            # Spec revision 3: a shake still running would carry into the fade; end it first.
+            self.scene_manager.screen_shake.clear()
             high_scores = self._load_high_scores()
             game_over = GameOverScene(
                 final_score=self.player.score,

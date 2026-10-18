@@ -326,3 +326,90 @@ class TestScreenShakePresentation:
         manager._present_frame(full_update=False)
         update_display.assert_called_once()
         flip.assert_not_called()
+
+
+class TestRumbleIndependentOfScreenShakeIntensity:
+    """Players can turn off on-screen motion and keep rumble (spec revision 3)."""
+
+    def test_zero_intensity_gives_no_offset_but_keeps_rumble(self):
+        shaker = _shaker(intensity=0.0)
+        shaker.add(
+            Shake(
+                style=ShakeStyle.JITTER,
+                strength=10.0,
+                duration=1.0,
+                frequency=5.0,
+                rumble=RumbleSettings(low_frequency=1.0, high_frequency=0.5),
+            )
+        )
+        shaker.update(0.1)
+        assert shaker.offset == (0, 0)
+        assert max(shaker.rumble_levels) > 0.0
+
+
+class TestTransitionScreenshotIsUnshaken:
+    """The old-scene screenshot of a transition is taken with the WORLD shake cleared."""
+
+    def test_world_shake_cleared_and_sprites_repositioned_before_capture(
+        self, scene_manager_with_screen, mocker
+    ):
+        from glitchygames.scenes import Scene
+
+        manager, _flip, _update = scene_manager_with_screen
+        manager.screen = pygame.display.get_surface()
+        assert manager.screen is not None
+
+        class CameraScene(Scene):
+            """A scene whose single marker is positioned through its camera."""
+
+            def __init__(self):
+                super().__init__()
+                self.marker_world_x = 20.0
+
+            def apply_camera_to_sprites(self):
+                self.marker_screen_x, _ = self.camera.apply(self.marker_world_x, 0.0)
+
+            def render(self, screen):
+                screen.fill((0, 0, 0))
+                screen.set_at((self.marker_screen_x, 10), (255, 0, 0))
+
+        old_scene = CameraScene()
+        manager.active_scene = old_scene
+        old_scene.apply_camera_to_sprites()
+        old_scene.camera.shake_effect.add(
+            Shake(
+                style=ShakeStyle.BOUNCE,
+                strength=8.0,
+                duration=1.0,
+                frequency=1.0,
+                axis=ShakeAxis.HORIZONTAL,
+            )
+        )
+        old_scene.camera.shake_effect.update(0.1)
+        old_scene.apply_camera_to_sprites()
+        assert old_scene.marker_screen_x != 20  # Shaken before the transition starts
+
+        order = []
+        real_apply = old_scene.apply_camera_to_sprites
+
+        def spy_apply():
+            order.append('apply_camera_to_sprites')
+            real_apply()
+
+        mocker.patch.object(old_scene, 'apply_camera_to_sprites', side_effect=spy_apply)
+        transition = mocker.Mock()
+        transition.start.side_effect = lambda old, new: order.append('transition.start')
+        captured = {}
+        transition.start.side_effect = lambda old, new: (
+            order.append('transition.start'),
+            captured.update(old=old),
+        )
+        mocker.patch.object(manager, '_cleanup_current_scene')
+        mocker.patch.object(manager, '_setup_new_scene')
+        mocker.patch.object(manager, '_configure_active_scene')
+
+        manager._start_transition(Scene(), transition)
+
+        assert not old_scene.camera.shake_effect.is_active
+        assert order.index('apply_camera_to_sprites') < order.index('transition.start')
+        assert captured['old'].get_at((20, 10))[:3] == (255, 0, 0)

@@ -3,8 +3,9 @@
 import pygame
 import pytest
 
+from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.live import VoiceState
-from glitchygames.effects.shake import ShakeStyle
+from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples.clockwork_keep import sounds as clockwork_sounds
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
@@ -132,6 +133,24 @@ class TestGameplaySounds:
         clockwork_scene._player_die()
         played.assert_any_call('game_over')
 
+    def test_game_over_clears_screen_shake(self, clockwork_scene, played, mocker):
+        """Spec revision 3: the game-over fade starts with no shake running."""
+        mocker.patch.object(clockwork_scene, '_save_high_score')
+        mocker.patch.object(clockwork_scene, '_load_high_scores', return_value=[])
+        clockwork_scene.shake(
+            Shake(style=ShakeStyle.NOISE, strength=5.0, duration=5.0, frequency=5.0),
+            targets=ShakeTarget.SCREEN,
+        )
+        assert clockwork_scene.scene_manager.screen_shake.is_active
+        clockwork_scene.player.lives = 1
+        clockwork_scene._player_die()
+        assert not clockwork_scene.scene_manager.screen_shake.is_active
+
+    def test_setup_prerenders_sounds(self, clockwork_scene, mocker):
+        prerender = mocker.patch.object(clockwork_scene.sounds, 'prerender')
+        clockwork_scene.setup()
+        prerender.assert_called_once()
+
 
 class TestElevatorRide:
     """The elevator motor, arrival shake and camera hook."""
@@ -174,6 +193,17 @@ class TestElevatorRide:
             clockwork_scene.scene_manager.live_audio,
             'create_voice',
             side_effect=ValueError('All 0 live voice channels are in use'),
+        )
+        transition = self._ride(clockwork_scene)
+        transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))
+        assert transition.update(5.0) is True
+        played.assert_any_call('elevator_clank')
+
+    def test_ride_with_unavailable_audio_is_silent_not_fatal(self, clockwork_scene, played, mocker):
+        voice = mocker.Mock(state=VoiceState.PLAYING)
+        voice.start.side_effect = AudioUnavailableError('no mixer')
+        mocker.patch.object(
+            clockwork_scene.scene_manager.live_audio, 'create_voice', return_value=voice
         )
         transition = self._ride(clockwork_scene)
         transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))

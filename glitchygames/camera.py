@@ -164,6 +164,19 @@ class Camera2D:
         # Parallax layers
         self._parallax_layers: list[ParallaxLayer] = []
 
+        # Set by apply(); WORLD shake only moves sprites positioned through apply()
+        self._has_been_applied: bool = False
+
+    @property
+    def has_been_applied(self: Self) -> bool:
+        """Whether apply() has ever been called (some sprite is positioned through this camera).
+
+        Returns:
+            True once apply() has been called at least once.
+
+        """
+        return self._has_been_applied
+
     def set_bounds(
         self,
         *,
@@ -271,6 +284,7 @@ class Camera2D:
             A tuple of (screen_x, screen_y) pixel coordinates.
 
         """
+        self._has_been_applied = True
         shake_x, shake_y = self.shake_effect.offset
         return (
             round(world_x - self.world_x - shake_x),

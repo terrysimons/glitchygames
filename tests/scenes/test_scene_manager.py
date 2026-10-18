@@ -411,10 +411,14 @@ class TestSceneManagerInternals:
     def test_frame_services_drive_rumble(self, mocker):
         """Test the per-frame services feed the screen shake to the rumble controller."""
         update = mocker.patch.object(self.scene_manager.rumble, 'update')
-        self.scene_manager.active_scene = Scene()
+        scene = Scene()
+        self.scene_manager.active_scene = scene
         self.scene_manager.dt = 0.0
         self.scene_manager._update_frame_services()
-        assert update.call_args.kwargs['shakers'] == [self.scene_manager.screen_shake]
+        assert update.call_args.kwargs['shakers'] == [
+            self.scene_manager.screen_shake,
+            scene.camera.shake_effect,
+        ]
 
     def test_frame_services_rumble_active_scene_camera_shake(self, mocker):
         """Test a camera shake's rumble reaches the engine's controllers."""
@@ -473,10 +477,27 @@ class TestSceneShake:
 
         return Shake(style=ShakeStyle.NOISE, strength=5.0, duration=1.0, frequency=5.0)
 
-    def test_world_requires_camera(self):
+    def test_default_camera_is_identity(self):
         scene = Scene()
-        with pytest.raises(ValueError, match='camera'):
+        assert scene.camera.apply(5.0, 7.0) == (5, 7)
+
+    def test_world_shake_on_unapplied_camera_warns_once(self, caplog):
+        scene = Scene()
+        scene.scene_manager.active_scene = scene
+        with caplog.at_level('WARNING', logger='game.scenes'):
             scene.shake(self._shake())
+            scene.shake(self._shake())
+        warnings = [record for record in caplog.records if 'WORLD shake' in record.getMessage()]
+        assert len(warnings) == 1
+        assert 'use ShakeTarget.SCREEN' in warnings[0].getMessage()
+
+    def test_world_shake_on_applied_camera_does_not_warn(self, caplog):
+        scene = Scene()
+        scene.scene_manager.active_scene = scene
+        scene.camera.apply(0.0, 0.0)
+        with caplog.at_level('WARNING', logger='game.scenes'):
+            scene.shake(self._shake())
+        assert not [record for record in caplog.records if 'WORLD shake' in record.getMessage()]
 
     def test_world_on_inactive_scene_raises(self):
         """Cue callbacks run on a cleaned-up scene; WORLD must fail loudly there."""

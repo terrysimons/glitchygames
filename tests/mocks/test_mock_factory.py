@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 import pygame
 
+from glitchygames.camera import Camera2D
 from glitchygames.events import unhandled_event
 from glitchygames.sprites import AnimatedSprite
 
@@ -796,6 +797,8 @@ class MockFactory:  # ruff: ignore[too-many-public-methods]
         # Create scene mock
         scene_mock = Mock()
         scene_mock.options = options
+        # Every real Scene has a camera (never None); the scene manager reads its shake effect
+        scene_mock.camera = Camera2D(screen_width=800, screen_height=600)
         scene_mock.audio_events_received = []
         scene_mock.controller_events_received = []
         scene_mock.mouse_events_received = []

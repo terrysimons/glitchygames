@@ -103,6 +103,7 @@ class BraveAdventurerScene(Scene):
             screen_width=self.screen_width,
             screen_height=self.screen_height,
             lead_x=CAMERA_LEAD,
+            shake_intensity=self.options.get('screen_shake_intensity', 1.0),
         )
         self.camera.set_bounds(min_x=0.0)
 
@@ -281,27 +282,31 @@ class BraveAdventurerScene(Scene):
         # 6. Collectible pickup
         self._check_collectible_collisions()
 
-        # 7. Update camera to follow player
-        self.camera.update(
+        # 7-8. Follow the player and place every world-space sprite
+        self._follow_player_with_camera()
+
+        # 9. Update distance score (parallax updated automatically by Camera2D)
+        self.player.max_distance = max(self.player.max_distance, self.player.world_x)
+        self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
+
+    def _follow_player_with_camera(self: Self) -> None:
+        """Move the camera toward the player and apply it to all world-space sprites."""
+        camera = self.camera
+        camera.update(
             target_x=self.player.world_x,
             target_y=0.0,
             dt=self.dt,
         )
 
-        # 8. Apply camera transform to all world-space sprites
-        self.player.apply_camera(self.camera)
+        self.player.apply_camera(camera)
         for ground_segment in self.ground_sprites:
-            ground_segment.apply_camera(self.camera)
+            ground_segment.apply_camera(camera)
         for wall in self.wall_sprites:
-            wall.apply_camera(self.camera)
+            wall.apply_camera(camera)
         for enemy in self.enemy_sprites:
-            enemy.apply_camera(self.camera)
+            enemy.apply_camera(camera)
         for collectible in self.collectible_sprites:
-            collectible.apply_camera(self.camera)
-
-        # 9. Update distance score (parallax updated automatically by Camera2D)
-        self.player.max_distance = max(self.player.max_distance, self.player.world_x)
-        self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
+            collectible.apply_camera(camera)
 
     def _get_trailing_foot_x(self: Self, body_x: float, body_width: int, velocity_x: float) -> int:
         """Get the X coordinate of the trailing foot for ground checks.

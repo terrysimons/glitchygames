@@ -1,5 +1,6 @@
 """Tests for sound recipes and the sound bank."""
 
+import dataclasses
 from typing import Any
 
 import numpy as np
@@ -194,6 +195,29 @@ class TestSoundBank:
         debug = mocker.patch('glitchygames.audio.recipes.log.debug')
         SoundBank([_two_tone_recipe()]).play('ting')
         assert debug.called
+
+    def test_prerender_caches_every_recipe_so_play_does_not_render(self, mocker):
+        mocker.patch('glitchygames.audio.recipes.mixer_sample_rate', return_value=RATE)
+        to_sound = mocker.patch('glitchygames.audio.recipes.to_sound')
+        other_recipe = dataclasses.replace(_two_tone_recipe(), name='other')
+        bank = SoundBank([_two_tone_recipe(), other_recipe])
+        bank.prerender()
+        assert to_sound.call_count == 2
+        bank.play('ting')
+        bank.play('other')
+        assert to_sound.call_count == 2
+
+    def test_prerender_without_audio_warns_once_and_does_not_raise(self, mocker):
+        mocker.patch(
+            'glitchygames.audio.recipes.to_sound',
+            side_effect=AudioUnavailableError('x'),
+        )
+        warning = mocker.patch('glitchygames.audio.recipes.log.warning')
+        bank = SoundBank([_two_tone_recipe()])
+        bank.prerender()
+        bank.prerender()
+        bank.play('ting')
+        assert warning.call_count == 1
 
     def test_duplicate_names_rejected(self):
         with pytest.raises(ValueError, match='ting'):
