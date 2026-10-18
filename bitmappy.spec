@@ -52,7 +52,7 @@ a = Analysis(
         'miniaudio',
         'glitchygames.events.voice',
         'glitchygames.events.voice_miniaudio',
-        'glitchygames.events.voice_portaudio',
+        'glitchygames.events.voice_backends.voice_portaudio',
         # numpy is required by pygame.surfarray (array3d/array4d)
         'numpy',
     ],
