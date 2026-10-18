@@ -26,14 +26,14 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 
 | # | Item | Status | Evidence / notes |
 |---|---|---|---|
-| 1 | Solid/terrain collision resolution (ground, walls, one-way platforms) | Open | 7 `_resolve_*_collision` methods across the games; `CollisionManager` detects but does not resolve |
+| 1 | Solid/terrain collision resolution (ground, walls, one-way platforms) | Open | 7 `_resolve_*_collision` methods across the games; `CollisionManager` detects but does not resolve. `_player_support_span` and `_entered_wall_from_left` are duplicated between Brave Adventurer and Papyrus (candidates for the solid-collision design) |
 | 2 | Expressions phase 2: `and` / `or` / `not` / parentheses | Open | Promised in `animation/expressions.py:17`; `_FallingCondition` copied into all three platformer players |
 | 3 | Screen shake | **Done** (this branch) | `plans/2026-10-17-screen-shake-and-synth.md` |
 | 4 | High-score table | Open | `_save_high_score` copied into 4 games |
 | 5 | Sound effect synthesis | **Done** (this branch) | Same spec: toolkit, recipes, live voices |
 | 6 | Engine world space (absorbs pixel snapping and camera follow) | Open — next design | See below |
-| 7 | Balls on `CollisionManager` | Partly done (feature/debug-overlay): ball–paddle and ball–ball detection on CollisionManager; resolution waits for #1 | Commit `fa5750f`: "except balls which we'll do later" |
-| 8 | Sprite transparency/scaling helpers; masks instead of alpha trimming | Open | Papyrus `sprite_utils.py` |
+| 7 | Balls on `CollisionManager` | Partly done (feature/debug-overlay): ball–paddle detection moved onto CollisionManager (ball–ball already used it), with an exact circle check in `BallSprite.handle_paddle_collision`; generic resolution waits for #1 | Commit `fa5750f`: "except balls which we'll do later" |
+| 8 | Sprite transparency/scaling helpers; masks instead of alpha trimming | Open (visible-pixel trimming is now the default hitbox, feature/debug-overlay; masks still open) | Papyrus `sprite_utils.py` |
 | 9 | Particles | Open | None exist |
 | 10 | Timers and cooldowns on game time | Open | Ad-hoc cooldown dicts in `ball.py` and PaddleSlap |
 | 11 | Level/room data format (and tilemaps) | Open | Each game defines its own `ScreenData`/`FloorData`/`LevelManager` |
