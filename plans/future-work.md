@@ -8,6 +8,7 @@ One line per item, with where it is detailed. Review, then promote items into
 
 | Item | Where | Notes |
 |---|---|---|
+| Undoing an animation delete loses its per-frame hitboxes and rebuilds frames on surfaces without SRCALPHA (alpha lost); frame-add and animation-create undo captures still copy `frame.pixels`, which is fragile | `glitchygames/bitmappy/history/commands.py` | Found while fixing BUGS.md #53; same family as #51/#53. |
 | Brave Adventurer and Clockwork Keep draw their poses in `update()`, after wall resolution, so after turning the hitbox can sit past a wall (up to 4 px) for one frame | `examples/brave_adventurer/player.py`, `examples/clockwork_keep/player.py` | Needs pose drawing earlier in the frame; fits engine world space (#6). |
 | `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |
 | Frame-anchor reference cache doesn't notice a frame hitbox edited in place (only frame add/remove/replace) | `glitchygames/sprites/animated.py` (documented) | Nothing edits in place today. |
