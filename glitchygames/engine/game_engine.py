@@ -1192,8 +1192,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 ``is_discarded_during_transition`` during a transition.
 
         Returns:
-            bool: True if every event of the batch was handled, False otherwise (including an
-            empty batch).
+            bool: True if at least one event was dispatched and every dispatched event was
+            handled (a raw-event scene's ``process_event`` counts as handled). False if any
+            dispatched event was unhandled, or if nothing was dispatched: an empty batch, or
+            one whose events were all discarded.
 
         """
         # To use events in a different thread, use the fastevent package from pygame.
@@ -1208,13 +1210,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         raw_events: list[pygame.event.Event] = cast(  # ty: ignore[redundant-cast]
             'list[pygame.event.Event]', pump_events()
         )
-        if not raw_events:
-            return False
-
+        dispatched_event_count = 0
         every_event_was_handled = True
         for pygame_event in raw_events:
             if should_discard is not None and should_discard(pygame_event):
                 continue
+            dispatched_event_count += 1
 
             # Support scenes processing pygame raw events, bypassing
             # the glitchygames.engine event processing altogether
@@ -1237,7 +1238,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 self.process_unimplemented_event(event)
                 every_event_was_handled = False
 
-        return every_event_was_handled
+        return dispatched_event_count > 0 and every_event_was_handled
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.

@@ -1361,6 +1361,48 @@ class TestProcessEvents:
         assert engine.process_events() is False
         mock_unimplemented.assert_called_once()
 
+    def test_process_events_returns_false_when_every_event_is_discarded(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """No event dispatched (all discarded) is reported as False, like an empty batch."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        raw_events = [_raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a)]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        key_down_handler = mocker.Mock(return_value=True)
+        mocker.patch.dict(GameEngine.EVENT_HANDLERS, {pygame.KEYDOWN: key_down_handler})
+        mock_unimplemented = mocker.patch.object(engine, 'process_unimplemented_event')
+
+        result = engine.process_events(should_discard=lambda _event: True)
+
+        assert result is False
+        key_down_handler.assert_not_called()
+        mock_unimplemented.assert_not_called()
+
+    def test_process_events_discards_only_matching_events(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """Kept events are dispatched and decide the result; discarded ones do not count."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        engine._active_scene = mocker.Mock(spec=[])  # No process_event
+        raw_events = [
+            _raw_event(mocker, pygame.KEYDOWN, key=pygame.K_a),
+            _raw_event(mocker, pygame.KEYUP, key=pygame.K_a),
+        ]
+        mocker.patch('pygame.event.get', return_value=raw_events)
+        key_down_handler = mocker.Mock(return_value=True)
+        key_up_handler = mocker.Mock(return_value=True)
+        mocker.patch.dict(
+            GameEngine.EVENT_HANDLERS,
+            {pygame.KEYDOWN: key_down_handler, pygame.KEYUP: key_up_handler},
+        )
+
+        result = engine.process_events(should_discard=lambda event: event.type == pygame.KEYDOWN)
+
+        assert result is True
+        key_down_handler.assert_not_called()
+        key_up_handler.assert_called_once()
+
 
 class TestHandleEventAdditionalPaths:
     """Test GameEngine.handle_event additional code paths."""

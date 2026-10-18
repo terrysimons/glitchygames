@@ -21,20 +21,12 @@ from scripts.record_golden_traces import (
     FakeClock,
     GoldenTraceEngine,
     GoldenTraceSceneManager,
+    command_line,
+    deterministic_environment,
+    discard_environment_events,
     press,
     release,
-)
-from scripts.record_golden_traces import (
-    _command_line as command_line,
-)
-from scripts.record_golden_traces import (
-    _deterministic_environment as deterministic_environment,
-)
-from scripts.record_golden_traces import (
-    _discard_environment_events as discard_environment_events,
-)
-from scripts.record_golden_traces import (
-    _stand_on_first_elevator as stand_on_first_elevator,
+    stand_on_first_elevator,
 )
 
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene

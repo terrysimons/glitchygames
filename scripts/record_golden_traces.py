@@ -243,7 +243,7 @@ def _pause_and_resume(script: InputScript, *, pause_frame: int, resume_frame: in
     script.at(resume_frame + 2, release(pygame.K_SPACE))
 
 
-def _stand_on_first_elevator(scene: Scene) -> None:
+def stand_on_first_elevator(scene: Scene) -> None:
     """Put the Clockwork Keep player on the floor's first elevator, at rest.
 
     The elevator is at the top of the floor; reaching it takes more platforming than a
@@ -281,7 +281,7 @@ def clockwork_keep_script() -> InputScript:
     script.tap(230, pygame.K_UP, held_frames=12)
     script.at(300, release(pygame.K_LEFT))
     # Ride the elevator to the next floor with the interact key (the ride lasts ~240 frames)
-    script.place(330, _stand_on_first_elevator)
+    script.place(330, stand_on_first_elevator)
     script.tap(350, pygame.K_w, held_frames=4)
     # On the next floor: walk right, then pause and resume, then walk left
     script.at(640, press(pygame.K_RIGHT))
@@ -440,7 +440,7 @@ SCRIPT_BUILDERS: dict[str, Callable[[], InputScript]] = {
 
 
 @contextlib.contextmanager
-def _deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator[None]:
+def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator[None]:
     """Replace every randomness and clock source the games read, then restore them.
 
     Args:
@@ -480,7 +480,7 @@ def _deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generato
 
 
 @contextlib.contextmanager
-def _command_line(arguments: list[str]) -> Generator[None]:
+def command_line(arguments: list[str]) -> Generator[None]:
     """Temporarily replace sys.argv (GameEngine parses it at construction).
 
     Args:
@@ -582,7 +582,7 @@ def _start_game(game_key: str) -> GoldenTraceSceneManager:
     """
     scene_class = GAME_SCENES[game_key]
     manager = GoldenTraceSceneManager.install()
-    with _command_line([
+    with command_line([
         '--windowed',
         '--resolution',
         SCREEN_RESOLUTION,
@@ -597,7 +597,7 @@ def _start_game(game_key: str) -> GoldenTraceSceneManager:
     return manager
 
 
-def _discard_environment_events() -> None:
+def discard_environment_events() -> None:
     """Drop events the host environment posted; keep the rest in order.
 
     ``pygame.event.get(eventtype=...)`` does not return pygame-ce's window events (they are
@@ -628,14 +628,14 @@ def record_trace(game_key: str, *, frame_count: int) -> dict[str, Any]:
     sprite_ids = StableSpriteIds()
     with (
         tempfile.TemporaryDirectory(prefix='golden-trace-saves-') as save_directory,
-        _deterministic_environment(clock=clock, save_root=Path(save_directory)),
+        deterministic_environment(clock=clock, save_root=Path(save_directory)),
     ):
         manager = _start_game(game_key)
         try:
             for frame_number in range(frame_count):
                 clock.advance(seconds=FRAME_SECONDS)
                 manager.dt = FRAME_SECONDS
-                _discard_environment_events()
+                discard_environment_events()
                 assert manager.active_scene is not None
                 for placement in script.placements.get(frame_number, []):
                     placement(manager.active_scene)
