@@ -177,6 +177,11 @@ class Camera2D:
         """
         return self._has_been_applied
 
+    @property
+    def bounds(self) -> tuple[float | None, float | None, float | None, float | None]:
+        """World bounds as (min_x, min_y, max_x, max_y); None means unbounded on that edge."""
+        return (self._min_x, self._min_y, self._max_x, self._max_y)
+
     def set_bounds(
         self,
         *,

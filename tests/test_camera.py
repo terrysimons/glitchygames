@@ -110,6 +110,13 @@ class TestCamera2DBounds:
         assert camera.world_x < 0.0
         assert camera.world_y < 0.0
 
+    def test_bounds_property_reports_configured_edges(self):
+        """Bounds returns (min_x, min_y, max_x, max_y), with None for unbounded edges."""
+        camera = Camera2D(screen_width=200, screen_height=100)
+        assert camera.bounds == (None, None, None, None)
+        camera.set_bounds(min_x=0.0, max_x=400.0)
+        assert camera.bounds == (0.0, None, 400.0, None)
+
 
 class TestCamera2DVisibility:
     """Viewport visibility culling."""

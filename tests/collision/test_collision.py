@@ -12,6 +12,7 @@ from glitchygames.collision import (
     get_collision_rect,
     get_collision_rect_with_margin,
 )
+from glitchygames.collision.layers import get_sprite_collision_rect
 
 
 def _default_rect(world_x: float, world_y: float, size: int = 32) -> pygame.Rect:
@@ -61,6 +62,30 @@ class HitboxSprite:
 
 
 # --- Detection ---
+
+
+class TestGetSpriteCollisionRect:
+    """Public sprite-to-collision-rect lookup shared by layers and the debug overlay."""
+
+    def test_is_public_and_uses_world_position(self, mocker):
+        """Sprites with world_x/world_y get their rect at the world position."""
+        sprite = mocker.Mock(spec=['world_x', 'world_y', 'rect'])
+        sprite.world_x, sprite.world_y = 100.0, 50.0
+        sprite.rect = pygame.Rect(0, 0, 10, 20)
+        rect = get_sprite_collision_rect(sprite)
+        assert (rect.x, rect.y) == (100, 50)
+
+    def test_sprite_without_world_position_uses_its_rect(self, mocker):
+        """UI sprites without world_x/world_y fall back to their screen rect."""
+        sprite = mocker.Mock(spec=['rect'])
+        sprite.rect = pygame.Rect(7, 8, 9, 10)
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(7, 8, 9, 10)
+
+    def test_sprite_without_any_rect_gets_empty_rect(self, mocker):
+        """Sprites with neither world position nor rect get an empty rect."""
+        sprite = mocker.Mock(spec=['rect'])
+        sprite.rect = None
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(0, 0, 0, 0)
 
 
 class TestGetCollisionRect:

@@ -110,6 +110,11 @@ class RumbleController:
         """The sustained (low frequency, high frequency) motor levels, (0.0, 0.0) if none."""
         return self._sustained_levels
 
+    @property
+    def sent_levels(self) -> tuple[float, float]:
+        """The (low frequency, high frequency) levels last sent to devices, before device errors."""
+        return self._sent_levels
+
     def set_sustained(self, *, low_frequency: float, high_frequency: float) -> None:
         """Hold a rumble level until changed or cleared (e.g. an elevator's hum).
 

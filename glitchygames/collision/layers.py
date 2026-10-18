@@ -164,13 +164,13 @@ class CollisionManager:
         same_layer = layer_a_name == layer_b_name
 
         for index_a, sprite_a in enumerate(layer_a.sprites):
-            rect_a = _get_sprite_collision_rect(sprite_a)
+            rect_a = get_sprite_collision_rect(sprite_a)
 
             start_b = index_a + 1 if same_layer else 0
             sprites_b = layer_b.sprites[start_b:] if same_layer else layer_b.sprites
 
             for sprite_b in sprites_b:
-                rect_b = _get_sprite_collision_rect(sprite_b)
+                rect_b = get_sprite_collision_rect(sprite_b)
                 if check_aabb_overlap(rect_a, rect_b):
                     callback(sprite_a, sprite_b)
 
@@ -189,12 +189,12 @@ class CollisionManager:
 
         """
         layer = self.get_layer(layer_name)
-        rect = _get_sprite_collision_rect(sprite)
+        rect = get_sprite_collision_rect(sprite)
 
         for other in layer.sprites:
             if other is sprite:
                 continue
-            other_rect = _get_sprite_collision_rect(other)
+            other_rect = get_sprite_collision_rect(other)
             if check_aabb_overlap(rect, other_rect):
                 callback(sprite, other)
 
@@ -204,14 +204,16 @@ class CollisionManager:
         return list(self._layers.keys())
 
 
-def _get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
+def get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
     """Extract a collision rect from a sprite.
 
     Handles sprites with world_x/world_y (game objects) and
     sprites with only rect (UI elements).
 
     Returns:
-        A pygame.Rect for collision detection.
+        A pygame.Rect for collision detection. Sprites with world_x/world_y
+        get a rect in world coordinates; sprites with only rect get that rect
+        unchanged, in screen coordinates; sprites with neither get an empty rect.
 
     """
     import pygame
