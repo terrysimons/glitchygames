@@ -205,7 +205,10 @@ annotations with `debug_draw(surface, camera)`.
 
 **Hitboxes** (`glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
 trimmed, `collision/bounds.py`, measured every query so redrawn images are fine);
-`TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win (native pixels times `AnimatedSprite.hitbox_scale`).
+`TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win (native pixels times
+`AnimatedSprite.hitbox_scale`). Caveat: TOML `AnimatedSprite`s that are not converted to alpha
+keep magenta as opaque pixels, so the visible-pixel default trims nothing for them; give them a
+`[sprite.hitbox]` (e.g. the union of their frames' non-magenta bounds, as `ghosty.toml` does).
 Frames of different shapes: draw walkers bottom-aligned, or set `AnimatedSprite.frame_anchor`
 (`FrameAnchor`: edge names align one axis, CENTER/corners both; `[sprite] frame_anchor =
 "bottom"`) and add `draw_offset` to `rect`.

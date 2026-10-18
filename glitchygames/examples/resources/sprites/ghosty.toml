@@ -5,6 +5,14 @@ Frame 0 is exact (editor canvas); frames 1-7 come from the film strip, where the
 outline is indistinguishable from the background, so their outer outline is inferred.
 Animations: front (facing forward), back (facing away), left and right (mirror images)."""
 
+# The union of every frame's visible (non-magenta) pixels. TOML animated sprites keep magenta
+# as opaque pixels, so the visible-pixel default hitbox would be the full 32x32 frame.
+[sprite.hitbox]
+offset_x = 0
+offset_y = 1
+width = 32
+height = 31
+
 [[animation]]
 namespace = "front"
 frame_interval = 0.15
