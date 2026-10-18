@@ -1,12 +1,14 @@
 """Tests for the Clockwork Keep example game."""
 
 import math
+import types
 
 import pygame
 import pytest
 
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.live import VoiceState
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples.clockwork_keep import sounds as clockwork_sounds
@@ -320,3 +322,50 @@ class TestFloorThreeClock:
         surface = pygame.Surface((800, 480))
         scene.all_sprites.draw(surface)
         assert scene.floor_elapsed_time == pytest.approx(FRAME_TIME)
+
+
+class TestPlatformSupportUsesHitbox:
+    """Platforms support the player by its collision rect (hitbox), not its drawn width.
+
+    The tinker figure leaves a 4 px transparent margin on the left of its 28 px image, so
+    the difference shows at a platform's right edge.
+    """
+
+    PLATFORM_LEFT = 300.0
+    PLATFORM_WIDTH = 200
+    PLATFORM_TOP = 300.0
+
+    def _stand_past_platform_right_edge(self, scene, *, hitbox_left):
+        """Put the drawn player level with a platform, hitbox left edge at hitbox_left."""
+        scene.platform_sprites[:] = [
+            types.SimpleNamespace(
+                world_x=self.PLATFORM_LEFT,
+                world_y=self.PLATFORM_TOP,
+                rect=pygame.Rect(0, 0, self.PLATFORM_WIDTH, 12),
+            )
+        ]
+        scene.elevator_sprites[:] = []
+        player = scene.player
+        player.update()  # draws the figure; collision rects trim to its visible pixels
+        offset_x, _ = collision_rect_offset(player)
+        player.world_x = float(hitbox_left - offset_x)
+        player.world_y = self.PLATFORM_TOP - player.rect.height
+        player.velocity_y = 0.0
+        scene._resolve_ground_collision()
+        return player
+
+    def test_only_the_transparent_margin_over_the_platform_does_not_support(self, clockwork_scene):
+        """Hitbox left edge exactly at the platform's right edge: standing on nothing."""
+        platform_right = round(self.PLATFORM_LEFT) + self.PLATFORM_WIDTH
+        player = self._stand_past_platform_right_edge(clockwork_scene, hitbox_left=platform_right)
+        assert get_sprite_collision_rect(player).left == platform_right
+        assert player.world_x < platform_right  # the image's transparent margin still overlaps
+        assert not player.on_ground
+
+    def test_one_hitbox_pixel_over_the_platform_supports(self, clockwork_scene):
+        """Hitbox one pixel over the platform: on the ground."""
+        platform_right = round(self.PLATFORM_LEFT) + self.PLATFORM_WIDTH
+        player = self._stand_past_platform_right_edge(
+            clockwork_scene, hitbox_left=platform_right - 1
+        )
+        assert player.on_ground

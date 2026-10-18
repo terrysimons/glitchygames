@@ -12,6 +12,7 @@ from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.recipes import SoundBank, Tremolo
 from glitchygames.audio.synth import Waveform
 from glitchygames.camera import Camera2D
+from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
 from glitchygames.examples.clockwork_keep.constants import (
@@ -468,6 +469,8 @@ class ClockworkKeepScene(Scene):
     def _resolve_ground_collision(self: Self) -> None:
         """Check player against all platforms and snap to ground."""
         player_bottom = self.player.world_y + self.player.rect.height
+        # Horizontal support comes from the collision rect (hitbox), not the drawn width
+        player_rect = get_sprite_collision_rect(self.player)
 
         self.player.on_ground = False
 
@@ -481,8 +484,8 @@ class ClockworkKeepScene(Scene):
                 self.player.velocity_y >= 0
                 and player_bottom >= plat_top
                 and player_bottom <= plat_top + 20
-                and self.player.world_x + self.player.rect.width > plat_left
-                and self.player.world_x < plat_right
+                and player_rect.right > plat_left
+                and player_rect.left < plat_right
             ):
                 self.player.world_y = plat_top - self.player.rect.height
                 self.player.velocity_y = 0.0
@@ -499,8 +502,8 @@ class ClockworkKeepScene(Scene):
                 self.player.velocity_y >= 0
                 and player_bottom >= elev_top
                 and player_bottom <= elev_top + 20
-                and self.player.world_x + self.player.rect.width > elev_left
-                and self.player.world_x < elev_right
+                and player_rect.right > elev_left
+                and player_rect.left < elev_right
             ):
                 self.player.world_y = elev_top - self.player.rect.height
                 self.player.velocity_y = 0.0
@@ -566,11 +569,12 @@ class ClockworkKeepScene(Scene):
 
             # Player must be standing on the elevator
             player_bottom = self.player.world_y + self.player.rect.height
+            player_rect = get_sprite_collision_rect(self.player)
             on_elevator = (
                 self.player.on_ground
                 and abs(player_bottom - elev_top) < ELEVATOR_SNAP_TOLERANCE
-                and self.player.world_x + self.player.rect.width > elev_left
-                and self.player.world_x < elev_right
+                and player_rect.right > elev_left
+                and player_rect.left < elev_right
             )
 
             if on_elevator and self.floor_index < len(ALL_FLOORS) - 1:

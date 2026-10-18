@@ -20,6 +20,7 @@ from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbo
 from glitchygames.collision.detection import (
     check_aabb_overlap,
     get_collision_rect,
+    snapped_world_position,
 )
 
 if TYPE_CHECKING:
@@ -242,3 +243,25 @@ def get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
         return sprite.rect
 
     return pygame.Rect(0, 0, 0, 0)
+
+
+def collision_rect_offset(sprite: Any) -> tuple[int, int]:
+    """Return the offset of a world sprite's collision rect from its snapped world position.
+
+    Terrain code uses it to place a sprite so its collision rect (not its whole image) is
+    flush against a surface: ``world_x = wall_left - (offset_x + rect.width)`` puts the rect's
+    right edge on ``wall_left``, and ``world_x = wall_right - offset_x`` puts its left edge on
+    ``wall_right``.
+
+    Args:
+        sprite (Any): A sprite with world_x and world_y.
+
+    Returns:
+        tuple[int, int]: (offset_x, offset_y) of the collision rect's top-left.
+
+    """
+    collision_rect = get_collision_rect(sprite, sprite.world_x, sprite.world_y)
+    snapped_world_x, snapped_world_y = snapped_world_position(
+        sprite, sprite.world_x, sprite.world_y
+    )
+    return (collision_rect.x - snapped_world_x, collision_rect.y - snapped_world_y)

@@ -1,10 +1,12 @@
-"""Tests for the Brave Adventurer games' death and game-over rumble."""
+"""Tests for the Brave Adventurer games: death and game-over rumble, terrain hitboxes."""
 
 import math
+import types
 
 import pygame
 import pytest
 
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.examples.brave_adventurer.constants import (
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
@@ -12,9 +14,11 @@ from glitchygames.examples.brave_adventurer.constants import (
     GAME_OVER_RUMBLE_DURATION,
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
+    GROUND_Y,
 )
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from glitchygames.sprites import AnimatedSprite
 
 
 @pytest.fixture(params=[BraveAdventurerScene, PapyrusBraveAdventurerScene])
@@ -61,3 +65,112 @@ class TestDeathRumble:
             high_frequency=GAME_OVER_RUMBLE_HIGH,
             duration=GAME_OVER_RUMBLE_DURATION,
         )
+
+
+# --- Terrain resolution uses the player's collision rect (hitbox), not the drawn width ---
+
+
+def _drawn_player(scene):
+    """Tick and draw the player once, as a game frame does, and return it.
+
+    dt_tick sets Papyrus's hitbox_scale; update() draws Brave Adventurer's figure.
+    """
+    scene.player.dt_tick(0.0)
+    scene.player.update()
+    return scene.player
+
+
+def _player_hitbox(scene):
+    return get_sprite_collision_rect(scene.player)
+
+
+def _widen_player_hitbox(scene, extra_pixels):
+    """Simulate an animation frame or pose whose hitbox is wider on the right."""
+    player = scene.player
+    if isinstance(player, AnimatedSprite):
+        frame = player.get_current_frame()
+        native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
+        frame.hitbox = pygame.Rect(
+            native_hitbox.x,
+            native_hitbox.y,
+            native_hitbox.width + extra_pixels // player.hitbox_scale,
+            native_hitbox.height,
+        )
+    else:
+        visible = player.image.get_bounding_rect()
+        player.image.fill(
+            (200, 200, 200, 255),
+            pygame.Rect(visible.right, visible.centery, extra_pixels, 2),
+        )
+
+
+class TestTerrainUsesHitbox:
+    """Walls, ledges and pits are resolved against the collision rect, so no visible gap."""
+
+    WALL_X = 400.0
+
+    def _set_up_wall(self, scene):
+        scene.wall_sprites[:] = [
+            types.SimpleNamespace(world_x=self.WALL_X, world_y=GROUND_Y - 64.0, wall_height=64)
+        ]
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
+
+    def _place_player_on_ground(self, scene, *, hitbox_left):
+        """Put the player on the ground with its hitbox's left edge at hitbox_left."""
+        player = _drawn_player(scene)
+        offset_x, _ = collision_rect_offset(player)
+        player.world_x = float(hitbox_left - offset_x)
+        scene._resolve_player_ground_collision()
+        return player
+
+    def test_walking_into_a_wall_stops_with_the_hitbox_flush(self, adventurer_scene):
+        """Hitbox right edge ends exactly on the wall's left face (no transparent-margin gap)."""
+        scene = adventurer_scene
+        self._set_up_wall(scene)
+        player = self._place_player_on_ground(scene, hitbox_left=0)
+        hitbox_width = _player_hitbox(scene).width
+        offset_x, _ = collision_rect_offset(player)
+        player.world_x = self.WALL_X - hitbox_width - offset_x + 3  # 3 px into the wall
+        player.velocity_x = 200.0
+
+        scene._resolve_player_wall_collision()
+
+        assert _player_hitbox(scene).right == round(self.WALL_X)
+
+    def test_wider_frame_while_flush_is_pushed_back_out(self, adventurer_scene):
+        """Standing flush, a frame with a wider hitbox must not leave the player in the wall."""
+        scene = adventurer_scene
+        self._set_up_wall(scene)
+        player = self._place_player_on_ground(scene, hitbox_left=0)
+        offset_x, _ = collision_rect_offset(player)
+        player.world_x = self.WALL_X - _player_hitbox(scene).width - offset_x
+        player.velocity_x = 0.0
+        scene._resolve_player_wall_collision()
+        assert _player_hitbox(scene).right == round(self.WALL_X)
+
+        _widen_player_hitbox(scene, extra_pixels=6)
+        assert _player_hitbox(scene).right > round(self.WALL_X)
+
+        scene._resolve_player_wall_collision()
+
+        assert _player_hitbox(scene).right == round(self.WALL_X)
+
+    def test_ledge_falls_only_when_the_hitbox_leaves_the_segment(self, adventurer_scene):
+        """Walking right off a ledge: still supported until the hitbox's back edge passes it."""
+        scene = adventurer_scene
+        self._set_up_wall(scene)
+        segment_right = 300
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=segment_right)]
+        scene.wall_sprites[:] = []
+        player = self._place_player_on_ground(scene, hitbox_left=100)
+        assert player.on_ground
+        player.velocity_x = 200.0
+        offset_x, _ = collision_rect_offset(player)
+
+        player.world_x = float(segment_right - 1 - offset_x)
+        scene._resolve_player_ground_collision()
+        assert player.on_ground
+
+        player.world_x = float(segment_right - offset_x)
+        scene._resolve_player_ground_collision()
+        assert not player.on_ground

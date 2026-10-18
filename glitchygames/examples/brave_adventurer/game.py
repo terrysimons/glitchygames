@@ -9,6 +9,7 @@ import pygame
 
 from glitchygames.audio import VoiceAssistant
 from glitchygames.camera import Camera2D
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.engine import GameEngine
 from glitchygames.examples.brave_adventurer.constants import (
     CAMERA_LEAD,
@@ -37,10 +38,8 @@ from glitchygames.examples.brave_adventurer.constants import (
     PIT_WALL_COLOR,
     PIT_WALL_SHADOW,
     PLAYER_HEIGHT,
-    PLAYER_WIDTH,
     RESPAWN_OFFSET,
     SCARAB_HEIGHT,
-    SCARAB_WIDTH,
     SCREEN_HEIGHT,
     SKY_COLOR,
     STONE_WALL_WIDTH,
@@ -333,9 +332,11 @@ class BraveAdventurerScene(Scene):
         """Check if the player lands on ground and snap to the surface."""
         self.player.on_ground = False
 
+        # Horizontal support comes from the collision rect (hitbox), not the drawn width
+        player_rect = get_sprite_collision_rect(self.player)
         trailing_foot_x = self._get_trailing_foot_x(
-            body_x=self.player.world_x,
-            body_width=PLAYER_WIDTH,
+            body_x=player_rect.left,
+            body_width=player_rect.width,
             velocity_x=self.player.velocity_x,
         )
         player_bottom = round(self.player.world_y) + PLAYER_HEIGHT
@@ -365,8 +366,10 @@ class BraveAdventurerScene(Scene):
         # If the player is in a pit (below ground, not on ground), the edges
         # of adjacent ground segments act as walls to prevent climbing out.
         if not self.player.on_ground and round(self.player.world_y) + PLAYER_HEIGHT > GROUND_Y:
-            player_left = round(self.player.world_x)
-            player_right = player_left + PLAYER_WIDTH
+            player_rect = get_sprite_collision_rect(self.player)
+            player_offset_x, _ = collision_rect_offset(self.player)
+            player_left = player_rect.left
+            player_right = player_rect.right
 
             for ground_segment in self.ground_sprites:
                 segment_left = round(ground_segment.world_x)
@@ -378,7 +381,10 @@ class BraveAdventurerScene(Scene):
                     and player_right > segment_left
                     and player_left < segment_left
                 ):
-                    self.player.world_x = segment_left - PLAYER_WIDTH
+                    # Hitbox right edge flush with the segment's left edge
+                    self.player.world_x = float(
+                        segment_left - (player_offset_x + player_rect.width)
+                    )
                     break
 
                 # Moving left into the right edge of a segment
@@ -387,7 +393,8 @@ class BraveAdventurerScene(Scene):
                     and player_left < segment_right
                     and player_right > segment_right
                 ):
-                    self.player.world_x = float(segment_right)
+                    # Hitbox left edge flush with the segment's right edge
+                    self.player.world_x = float(segment_right - player_offset_x)
                     break
 
     def _resolve_player_wall_collision(self: Self) -> None:
@@ -400,8 +407,9 @@ class BraveAdventurerScene(Scene):
         The "on top" check must run first, otherwise a player standing
         on a wall gets pushed sideways when they try to walk.
         """
-        player_left = round(self.player.world_x)
-        player_right = player_left + PLAYER_WIDTH
+        # Left/right edges come from the collision rect (hitbox), not the drawn width
+        player_rect = get_sprite_collision_rect(self.player)
+        player_offset_x, _ = collision_rect_offset(self.player)
         player_top = round(self.player.world_y)
         player_bottom = player_top + PLAYER_HEIGHT
 
@@ -412,7 +420,9 @@ class BraveAdventurerScene(Scene):
             wall_bottom = wall_top + wall.wall_height
 
             # Check horizontal overlap (needed for both top and side collisions)
-            horizontally_overlapping = player_right > wall_left and player_left < wall_right
+            horizontally_overlapping = (
+                player_rect.right > wall_left and player_rect.left < wall_right
+            )
 
             if not horizontally_overlapping:
                 continue
@@ -440,10 +450,14 @@ class BraveAdventurerScene(Scene):
             vertically_overlapping = player_bottom > wall_top and player_top < wall_bottom
 
             if vertically_overlapping:
-                if self.player.velocity_x > 0:
-                    self.player.world_x = wall.world_x - PLAYER_WIDTH
-                elif self.player.velocity_x < 0:
-                    self.player.world_x = wall.world_x + STONE_WALL_WIDTH
+                # Push out on the side the hitbox's centre is on, whatever the velocity, so
+                # a standing player whose hitbox widened (a new animation frame or pose)
+                # while flush against the wall is pushed back out instead of left inside.
+                wall_center_x = wall_left + STONE_WALL_WIDTH / 2
+                if player_rect.centerx < wall_center_x:
+                    self.player.world_x = float(wall_left - (player_offset_x + player_rect.width))
+                else:
+                    self.player.world_x = float(wall_right - player_offset_x)
 
     def _resolve_enemy_terrain_collisions(self: Self) -> None:
         """Resolve enemy-terrain collisions so scarabs follow the ground.
@@ -462,7 +476,7 @@ class BraveAdventurerScene(Scene):
             # Ground collision: land on the nearest ground segment
             landed = False
             if self.ground_sprites:
-                scarab_center_x = round(enemy.world_x) + SCARAB_WIDTH // 2
+                scarab_center_x = get_sprite_collision_rect(enemy).centerx
                 for ground_segment in self.ground_sprites:
                     segment_left = round(ground_segment.world_x)
                     segment_right = segment_left + ground_segment.segment_width
@@ -488,15 +502,15 @@ class BraveAdventurerScene(Scene):
             for wall in self.wall_sprites:
                 wall_left = round(wall.world_x)
                 wall_right = wall_left + STONE_WALL_WIDTH
-                scarab_left = round(enemy.world_x)
-                scarab_right = scarab_left + SCARAB_WIDTH
+                scarab_rect = get_sprite_collision_rect(enemy)
+                scarab_offset_x, _ = collision_rect_offset(enemy)
 
-                if scarab_right > wall_left and scarab_left < wall_right:
+                if scarab_rect.right > wall_left and scarab_rect.left < wall_right:
                     # Scarab is overlapping wall -- reverse direction
                     if enemy.roll_speed < 0:
-                        enemy.world_x = float(wall_right)
+                        enemy.world_x = float(wall_right - scarab_offset_x)
                     else:
-                        enemy.world_x = float(wall_left - SCARAB_WIDTH)
+                        enemy.world_x = float(wall_left - (scarab_offset_x + scarab_rect.width))
                     enemy.roll_speed = -enemy.roll_speed
 
     def _check_enemy_collisions(self: Self) -> None:

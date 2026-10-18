@@ -87,7 +87,6 @@ __all__ = [
     'PAPYRUS_COBRA_WIDTH',
     'PAPYRUS_GOLD_SCARAB_SIZE',
     'PAPYRUS_PLAYER_HEIGHT',
-    'PAPYRUS_PLAYER_WIDTH',
     'PAPYRUS_SCARAB_HEIGHT',
     'PAPYRUS_SCARAB_WIDTH',
     'PAPYRUS_SCORPION_HEIGHT',
@@ -124,12 +123,12 @@ SPRITE_SCALE = 2
 # Magenta transparency key
 MAGENTA_KEY = (255, 0, 255)
 
-# Papyrus sprite dimensions (native TOML size * SPRITE_SCALE): drawn body sizes used for
-# terrain, wall and pit resolution and camera visibility in game.py/enemies.py. Sprite-vs-
-# sprite hitboxes come from the TOML [hitbox] sections, scaled by AnimatedSprite.hitbox_scale.
+# Papyrus sprite dimensions (native TOML size * SPRITE_SCALE): heights place feet on the
+# ground and walls (game.py), widths are camera-visibility extents (enemies.py, terrain.py).
+# Horizontal terrain contact and sprite-vs-sprite hits use each sprite's collision rect: the
+# TOML [hitbox] sections, scaled by AnimatedSprite.hitbox_scale.
 # Player native image: 20x28. Visible feet end at row 25 in the tallest
 # frames. Collision height uses feet position so the player stands on ground.
-PAPYRUS_PLAYER_WIDTH = 20 * SPRITE_SCALE
 PAPYRUS_PLAYER_HEIGHT = 25 * SPRITE_SCALE
 PAPYRUS_COBRA_WIDTH = 12 * SPRITE_SCALE
 PAPYRUS_COBRA_HEIGHT = 16 * SPRITE_SCALE
