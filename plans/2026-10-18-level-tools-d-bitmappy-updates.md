@@ -29,6 +29,7 @@ detection by size, grey placeholder frames.
 | D8 | **Frame alignment command** (from this branch's frame-anchoring work; recorded as item 38 in `plans/future-features.md`) | Permanently re-align an animation's frames to one of the nine `FrameAnchor` points, rewriting pixels and per-frame hitboxes in a fixed canvas; refuse shifts that would push pixels off the canvas; preview; one undo step; clear `frame_anchor` afterwards. | Fixes top-aligned art (like the Papyrus player) once instead of at runtime. |
 | D9 | **Sprite metadata panel** (Galibmap's object attributes, narrowed) | Edit art-intrinsic data only: name, description, frame timing per animation and per frame, `frame_anchor`, hitboxes (D1). Game-use data (solid, item, damage) belongs in tilesets (sub-plan C), not in the sprite. | Keeps one source of truth per kind of data. |
 | D10 | **Transparent key handling** | TOML sprites keep magenta as an *opaque* pixel unless a game converts it (Papyrus does), so the engine's visible-pixel hitbox default does nothing for them (final-review finding M2 on `feature/debug-overlay`). Decide whether the loader should convert the magenta key to alpha for all TOML sprites; Bitmappy then previews exactly what games draw. | Engine-level decision with a Bitmappy-visible effect. GEDIT allowed any colour as the key; keep magenta. |
+| D11 | **Fit canvas to sprite / trim canvas to content** (new, 2026-10-18; replaces the unreachable panned-viewport save, which cropped content) | **Grow:** measure the union of every frame's visible pixels across all animations, plus explicit hitboxes; grow each axis independently, never below the current size, rounded by a setting: **power of two** (default; content 10×10 on an 8×8 canvas → 16×16), **multiple of 8 / tile size** (keeps 32×48 characters at 32×48), or exact. Move **all frames by one shared offset**, never each frame separately (separate centring would make the animation jitter): centred by default, or placed by `frame_anchor` (a `BOTTOM` walker keeps its feet on the bottom row and grows upward). Shift per-frame and sprite-level hitboxes by the same offset; the anchor reference updates itself. One undoable command. **Trim:** the same in reverse — shrink to the union of all frames with the same rounding and shared offset (e.g. after AI generation leaves wide margins). **Triggers:** an explicit "Fit canvas to sprite" / "Trim canvas to content" command, plus an offer on save when content extends past the canvas (instead of losing it). Live growing while panning is deferred until the explicit version has been used. **Refused in tile mode (D7)** with a message, since tiles are locked to the tileset size. | Makes panning safe: content moved past the edge is never lost. A game that assumes a fixed sprite size in code is a reason to confirm a grow rather than do it silently. |
 
 ## Fixed on `feature/debug-overlay` (not part of this plan)
 
@@ -41,8 +42,9 @@ single-frame save, the name, frame anchor and sprite hitbox (#43). Still open an
 ## Suggested order
 
 D1 (hitbox editor) → D2 + D3 (mirror and rotate, sharing transform code) → D4 + D5 (colour tools)
-→ D10 (decide the key) → D6 (templates, uses D2) → D8 (alignment) → D9 (metadata panel) → D7 (tile
-mode, after sub-plans A and C).
+→ D10 (decide the key) → D11 (fit/trim canvas; shares the shared-offset code with D8) → D6
+(templates, uses D2) → D8 (alignment) → D9 (metadata panel) → D7 (tile mode, after sub-plans A
+and C).
 
 ## Testing
 
