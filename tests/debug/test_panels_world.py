@@ -196,7 +196,8 @@ class TestCollisionPanel:
     def test_unlayered_sprite_gets_unlayered_color(self, surface, camera, font):
         """A sprite in all_sprites but in no layer is outlined at its rect."""
         loose = ScreenSprite(x=60, y=70)
-        scene = build_scene(camera=camera, extra_sprites=[loose])
+        layered = WorldSprite(world_x=300, world_y=200)
+        scene = build_scene(camera=camera, layers={'a': [layered]}, extra_sprites=[loose])
         draw_collision(surface=surface, scene=scene, camera=camera, font=font)
         assert surface.get_at((60, 70))[:3] == UNLAYERED_COLOR
 
@@ -233,6 +234,30 @@ class TestCollisionPanel:
             SURFACE_SIZE[0] * SURFACE_SIZE[1]
         )
         font.render.assert_not_called()
+
+    def test_scene_with_no_layers_draws_nothing(self, surface, camera, font):
+        """A collision manager with no layers draws no outlines and no legend."""
+        loose = ScreenSprite(x=60, y=70)
+        scene = build_scene(camera=camera, extra_sprites=[loose])
+        draw_collision(surface=surface, scene=scene, camera=camera, font=font)
+        assert surface.get_at((60, 70))[:3] == (0, 0, 0)
+        font.render.assert_not_called()
+
+    def test_unlayered_world_sprite_outlined_at_converted_position(self, surface, camera, font):
+        """An unlayered world sprite follows the scrolled camera too."""
+        camera.world_x = 50
+        loose = WorldSprite(world_x=100, world_y=40)
+        far_sprite = WorldSprite(world_x=300, world_y=200)
+        scene = build_scene(camera=camera, layers={'a': [far_sprite]}, extra_sprites=[loose])
+        draw_collision(surface=surface, scene=scene, camera=camera, font=font)
+        assert surface.get_at((50, 40))[:3] == UNLAYERED_COLOR
+
+    def test_sprite_in_two_layers_uses_first_layer_color(self, surface, camera, font):
+        """A sprite in two layers is outlined once, in the first layer's colour."""
+        shared = WorldSprite(world_x=10, world_y=10)
+        scene = build_scene(camera=camera, layers={'a': [shared], 'b': [shared]})
+        draw_collision(surface=surface, scene=scene, camera=camera, font=font)
+        assert surface.get_at((10, 10))[:3] == LAYER_PALETTE[0]
 
 
 class TestPhysicsPanel:
@@ -287,6 +312,25 @@ class TestPhysicsPanel:
         self.draw_physics(surface=surface, scene=scene, camera=camera, font=font)
         assert surface.get_at((60 + 30, 110))[:3] == ARROW_COLOR
 
+    def test_arrow_shifted_by_screen_offset(self, surface, camera, font):
+        """screen_offset=(5, 3) moves the arrow start by (5, 3)."""
+        sprite = PhysicsSprite(body=Body(velocity_x=300), world_x=100, world_y=100)
+        scene = build_scene(camera=camera, layers={'a': [sprite]})
+        self.draw_physics(
+            surface=surface, scene=scene, camera=camera, font=font, screen_offset=(5, 3)
+        )
+        assert surface.get_at((115, 113))[:3] == ARROW_COLOR
+        assert surface.get_at((145, 113))[:3] == ARROW_COLOR
+        assert surface.get_at((110, 110))[:3] != ARROW_COLOR
+
+    def test_ground_bar_is_two_pixels_tall(self, surface, camera, font):
+        """The ground bar spans exactly two rows under the sprite."""
+        sprite = PhysicsSprite(body=Body(on_ground=True), world_x=10, world_y=10)
+        scene = build_scene(camera=camera, layers={'a': [sprite]})
+        self.draw_physics(surface=surface, scene=scene, camera=camera, font=font)
+        assert surface.get_at((20, 31))[:3] == GROUNDED_COLOR
+        assert surface.get_at((20, 32))[:3] != GROUNDED_COLOR
+
     def test_sprites_without_physics_are_skipped(self, surface, camera, font):
         """Sprites lacking a physics body draw nothing and raise nothing."""
         scene = build_scene(camera=camera, layers={'a': [WorldSprite(world_x=10, world_y=10)]})
@@ -298,6 +342,22 @@ class TestPhysicsPanel:
         scene = types.SimpleNamespace(camera=camera)
         self.draw_physics(surface=surface, scene=scene, camera=camera, font=font)
         font.render.assert_not_called()
+
+
+class TestRealFont:
+    """Both panels work with a real pygame font, not just a mock."""
+
+    def test_both_panels_draw_with_real_font(self, surface, camera):
+        """A render() signature mismatch cannot hide behind a mock."""
+        pygame.font.init()
+        real_font = pygame.font.Font(None, 16)
+        sprite = PhysicsSprite(body=Body(velocity_x=300), world_x=100, world_y=100)
+        scene = build_scene(camera=camera, layers={'a': [sprite]})
+        draw_collision(surface=surface, scene=scene, camera=camera, font=real_font)
+        draw_physics_panel(
+            surface=surface, scene=scene, camera=camera, screen_offset=(0, 0), font=real_font
+        )
+        assert surface.get_at((100, 100))[:3] == LAYER_PALETTE[0]
 
 
 class TestReadOnlyCamera:

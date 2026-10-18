@@ -41,7 +41,7 @@ ARROW_COLOR: Color = (255, 220, 0)
 
 LEGEND_MARGIN = 4
 LEGEND_SWATCH_SIZE = 8
-GROUND_BAR_HEIGHT = 3
+GROUND_BAR_HEIGHT = 2
 ARROWHEAD_LENGTH = 6
 ARROWHEAD_SPREAD_RADIANS = math.radians(30)
 
@@ -85,23 +85,28 @@ def _layer_membership(*, collisions: Any) -> list[tuple[str, Color, list[Any]]]:
 
 
 def _overlapping_sprite_ids(*, layers: list[tuple[str, Color, list[Any]]]) -> set[int]:
-    """Find sprites that overlap a sprite from a different layer (in world space).
+    """Find sprites that overlap a sprite from a different layer.
+
+    Overlap uses the same rects the collision manager uses (world rects for world sprites,
+    screen rects for UI sprites), so it matches what collision checks would see. Each
+    sprite's rect is computed once per layer, up front.
 
     Returns:
         set[int]: The id() of every sprite with a cross-layer overlap.
 
     """
+    rects_per_layer = [
+        {id(sprite): get_sprite_collision_rect(sprite) for sprite in layer_sprites}
+        for _, _, layer_sprites in layers
+    ]
     overlapping: set[int] = set()
-    for first_index, (_, _, first_sprites) in enumerate(layers):
-        for _, _, second_sprites in layers[first_index + 1 :]:
-            for first_sprite in first_sprites:
-                first_rect = get_sprite_collision_rect(first_sprite)
-                for second_sprite in second_sprites:
-                    if first_sprite is second_sprite:
-                        continue
-                    if first_rect.colliderect(get_sprite_collision_rect(second_sprite)):
-                        overlapping.add(id(first_sprite))
-                        overlapping.add(id(second_sprite))
+    for first_index, first_rects in enumerate(rects_per_layer):
+        for second_rects in rects_per_layer[first_index + 1 :]:
+            for first_id, first_rect in first_rects.items():
+                for second_id, second_rect in second_rects.items():
+                    if first_id != second_id and first_rect.colliderect(second_rect):
+                        overlapping.add(first_id)
+                        overlapping.add(second_id)
     return overlapping
 
 
@@ -117,7 +122,7 @@ def draw_collision_panel(
 
     Sprites in different layers that overlap are outlined in OVERLAP_COLOR. Sprites in the
     scene's all_sprites that belong to no layer are outlined in UNLAYERED_COLOR. A scene
-    without a collision manager draws nothing.
+    without a collision manager, or whose manager has no layers, draws nothing.
 
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
@@ -128,7 +133,7 @@ def draw_collision_panel(
 
     """
     collisions = getattr(scene, 'collisions', None)
-    if collisions is None:
+    if collisions is None or not collisions.layer_names:
         return
 
     layers = _layer_membership(collisions=collisions)
