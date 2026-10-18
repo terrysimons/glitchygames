@@ -2658,13 +2658,15 @@ class TestAnimatedSpriteFrameAnchor:
         return sprite
 
     @staticmethod
-    def _anchor_point(rect, frame_anchor):
+    def _anchor_point(rect, frame_anchor, *, mirrored=False):
         """Return the anchor's point of a rect, doubled to keep half pixels exact.
 
         Edge anchors (TOP, BOTTOM, LEFT, RIGHT) anchor only their own axis; the other
-        coordinate is None.
+        coordinate is None. When mirrored, an authored left edge is the drawn right edge.
         """
         name = frame_anchor.name
+        if mirrored:
+            name = name.replace('LEFT', 'SWAP').replace('RIGHT', 'LEFT').replace('SWAP', 'RIGHT')
         if name in {'TOP', 'BOTTOM'}:
             point_x = None
         elif name.endswith('LEFT'):
@@ -2690,7 +2692,11 @@ class TestAnimatedSpriteFrameAnchor:
         for frame_index in range(len(self.FRAME_HITBOXES)):
             sprite.set_frame(frame_index)
             frame = sprite.get_current_frame()
-            hitbox_points.append(self._anchor_point(sprite.hitbox, sprite.frame_anchor))
+            hitbox_points.append(
+                self._anchor_point(
+                    sprite.hitbox, sprite.frame_anchor, mirrored=sprite.hitbox_flip_x
+                )
+            )
             # Where the frame's visible pixels land when drawn at rect = position + draw_offset
             visible = frame.image.get_bounding_rect()
             scale = sprite.hitbox_scale
@@ -2701,7 +2707,9 @@ class TestAnimatedSpriteFrameAnchor:
                 drawn_x, visible.y * scale, visible.width * scale, visible.height * scale
             )
             drawn.move_ip(sprite.draw_offset)
-            drawn_points.append(self._anchor_point(drawn, sprite.frame_anchor))
+            drawn_points.append(
+                self._anchor_point(drawn, sprite.frame_anchor, mirrored=sprite.hitbox_flip_x)
+            )
         return hitbox_points, drawn_points
 
     @pytest.mark.parametrize(
@@ -2762,6 +2770,38 @@ class TestAnimatedSpriteFrameAnchor:
         # Reference left edge 0 in authored space -> right edge 20 in the 20 px mirrored frame
         assert right_edges == {20}
         assert drawn_right_edges == {20}
+
+    @pytest.mark.parametrize(
+        'frame_anchor',
+        [
+            FrameAnchor.LEFT,
+            FrameAnchor.RIGHT,
+            FrameAnchor.CENTER,
+            FrameAnchor.TOP_LEFT,
+            FrameAnchor.TOP_RIGHT,
+            FrameAnchor.BOTTOM_LEFT,
+            FrameAnchor.BOTTOM_RIGHT,
+        ],
+        ids=lambda anchor: anchor.name,
+    )
+    def test_flipped_anchor_is_exact_for_frames_of_differing_widths(self, frame_anchor):
+        """Mirrored frames 20, 16 and 24 px wide still put the anchor point in one place."""
+        sprite = AnimatedSprite()
+        frames = []
+        for frame_width, frame_hitbox in zip((20, 16, 24), self.FRAME_HITBOXES, strict=True):
+            surface = pygame.Surface((frame_width, 28), pygame.SRCALPHA)
+            surface.fill((10, 200, 30, 255), frame_hitbox)
+            frames.append(SpriteFrame(surface, duration=FRAME_DURATION, hitbox=frame_hitbox))
+        sprite.add_animation('cycle', frames)
+        sprite.set_animation('cycle')
+        sprite.frame_anchor = frame_anchor
+        sprite.hitbox_scale = 2
+        sprite.hitbox_flip_x = True
+
+        hitbox_points, drawn_points = self._points_per_frame(sprite)
+
+        assert len(set(hitbox_points)) == 1
+        assert set(drawn_points) == set(hitbox_points)
 
     def test_reference_prefers_the_default_hitbox(self):
         """With a sprite-level default hitbox, frames align to it, not the union."""

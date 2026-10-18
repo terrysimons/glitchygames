@@ -305,9 +305,17 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         )
         drawn_offset_x = doubled_offset_x * self.hitbox_scale // 2
         drawn_offset_y = doubled_offset_y * self.hitbox_scale // 2
-        if self.hitbox_flip_x:
-            # Mirrored with the image: the anchored point is mirrored too
-            drawn_offset_x = -drawn_offset_x
+        if self.hitbox_flip_x and horizontal_edge is not None:
+            # Mirrored with the image. Each frame flips within its own width, so mirror the
+            # anchored point against one common axis (the widest frame): frames narrower than
+            # it are moved right by the difference, which is exact for differing widths
+            widest_frame_width = max(
+                (other.rect.width for frames in self._animations.values() for other in frames),
+                default=frame.rect.width,
+            )
+            drawn_offset_x = -drawn_offset_x + (widest_frame_width - frame.rect.width) * (
+                self.hitbox_scale
+            )
         return (drawn_offset_x, drawn_offset_y)
 
     @property
@@ -316,9 +324,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         With a frame_anchor other than NONE, each frame is moved so the anchor point of its
         hitbox (see FrameAnchor) lands on the same point of the reference hitbox, in drawn
-        pixels (times hitbox_scale; computed in authored space and mirrored with the image
-        when hitbox_flip_x). Games add it when placing rect (e.g. after camera.apply), and
-        hitbox includes it, so collisions match the drawing. NONE (the default) is (0, 0).
+        pixels (times hitbox_scale; computed in authored space and, when hitbox_flip_x,
+        mirrored with the image about the widest frame's width, so frames of differing widths
+        stay exact). Games add it when placing rect (e.g. after camera.apply), and hitbox
+        includes it, so collisions match the drawing. NONE (the default) is (0, 0).
 
         Returns:
             tuple[int, int]: (x, y) offset in drawn pixels.
