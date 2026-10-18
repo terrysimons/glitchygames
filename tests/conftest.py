@@ -147,6 +147,18 @@ def _reset_all_singleton_instances():
 
 
 @pytest.fixture(autouse=True)
+def restore_gil_switch_interval():
+    """Restore the GIL switch interval after each test.
+
+    GameEngine.__init__ calls sys.setswitchinterval(); tests that construct a real GameEngine
+    would otherwise leave the whole process at 0.5 ms.
+    """
+    previous_interval = sys.getswitchinterval()
+    yield
+    sys.setswitchinterval(previous_interval)
+
+
+@pytest.fixture(autouse=True)
 def reset_singletons():
     """Reset all singletons before each test to prevent contamination."""
     _reset_all_singleton_instances()

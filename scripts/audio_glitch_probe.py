@@ -15,6 +15,9 @@ Two independent checks, because they find different problems:
             44100 Hz = 11.6 ms) is an audible click. Exits with status 1 when the p99 wait
             reaches half the buffer (the max is shown but includes OS scheduling noise).
 
+Note: the 5 ms comparison is indicative; on a quiet machine the old setting can land just
+under the 5.8 ms threshold.
+
 Usage:
     uv run python scripts/audio_glitch_probe.py
     uv run python scripts/audio_glitch_probe.py --mode realtime --switch-interval-ms 5
@@ -78,7 +81,10 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
         '--switch-interval-ms',
         type=float,
         default=GIL_SWITCH_INTERVAL_SECONDS * 1000.0,
-        help='GIL switch interval; 5 shows the old Python default',
+        help=(
+            'GIL switch interval; 5 shows the old Python default (indicative only: on a quiet '
+            'machine the old setting can land just under the 5.8 ms risk threshold)'
+        ),
     )
     parser.add_argument(DSP_WORKER_FLAG, help=argparse.SUPPRESS)  # Internal: recording subprocess
     return parser.parse_args(argv)

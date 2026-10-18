@@ -16,9 +16,8 @@ from typing import Any
 LOG = logging.getLogger(__name__)
 
 # 60.44 rather than 60 so frames land just above 60 FPS (16.55 ms vs the 16.67 ms limit),
-# absorbing timer wake-up jitter; 99.2% of frames were >= 60.5 with the fast timer (that
-# measurement was taken at a 60.5 target)
-# (BUGS.md #26).
+# absorbing timer wake-up jitter (BUGS.md #26: 99.2% of frames reached the target when
+# measured at 60.5).
 DEFAULT_TARGET_FPS = 60.44
 
 # pygame's mixer callback takes the GIL to start the next live-voice chunk. With Python's

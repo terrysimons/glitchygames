@@ -2,9 +2,12 @@
 
 import math
 import sys
+import threading
 
 import numpy as np
+import pytest
 
+from glitchygames.audio import diagnostics
 from glitchygames.audio.diagnostics import (
     EdgeReport,
     LockWaitReport,
@@ -126,3 +129,31 @@ class TestMeasureLockWait:
         assert math.isclose(sys.getswitchinterval(), previous_interval, rel_tol=1e-6)
         assert report.sample_count > 0
         assert report.maximum_milliseconds >= report.median_milliseconds >= 0.0
+
+    def test_without_spin_yield_still_measures(self):
+        previous_interval = sys.getswitchinterval()
+
+        report = measure_lock_wait(
+            frames=5,
+            target_fps=200.0,
+            game_logic_seconds=0.001,
+            yield_in_spin=False,
+        )
+
+        assert report.sample_count > 0
+        assert math.isclose(sys.getswitchinterval(), previous_interval, rel_tol=1e-6)
+
+    def test_restores_interval_and_stops_thread_when_frame_loop_raises(self, mocker):
+        previous_interval = sys.getswitchinterval()
+        mocker.patch.object(diagnostics, 'busy_python_work', side_effect=RuntimeError('boom'))
+
+        with pytest.raises(RuntimeError, match='boom'):
+            measure_lock_wait(
+                frames=3,
+                target_fps=200.0,
+                game_logic_seconds=0.001,
+                switch_interval_seconds=0.0005,
+            )
+
+        assert math.isclose(sys.getswitchinterval(), previous_interval, rel_tol=1e-6)
+        assert not any(thread.name == 'lock-wait-listener' for thread in threading.enumerate())

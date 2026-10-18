@@ -52,19 +52,15 @@ def find_silent_gaps(
     non_zero_indices = np.flatnonzero(samples)
     if non_zero_indices.size == 0:
         return []
-    first_index = int(non_zero_indices[0])
-    last_index = int(non_zero_indices[-1])
-    gaps: list[tuple[int, int]] = []
-    run_start: int | None = None
-    for index in range(first_index, last_index + 1):
-        if samples[index] == 0:
-            if run_start is None:
-                run_start = index
-        elif run_start is not None:
-            if index - run_start >= minimum_samples:
-                gaps.append((run_start, index - run_start))
-            run_start = None
-    return gaps
+    # Zero runs strictly inside the sound are exactly the spaces between consecutive non-zero
+    # samples: a space of (next - previous - 1) zeros starting at previous + 1.
+    run_lengths = np.diff(non_zero_indices) - 1
+    run_starts = non_zero_indices[:-1] + 1
+    long_enough = run_lengths >= minimum_samples
+    return [
+        (int(start), int(length))
+        for start, length in zip(run_starts[long_enough], run_lengths[long_enough], strict=True)
+    ]
 
 
 def find_discontinuities(
