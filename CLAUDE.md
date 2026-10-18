@@ -168,6 +168,13 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 `eased_velocity_at(progress)`; cues run after the old scene's cleanup, so they may use only
 SceneManager services
 
+**Debug Overlay** (`glitchygames/debug/`): `--debug-overlay` or F3 shows it, F4 cycles panels
+(collision hitboxes by layer, physics velocities and ground state, camera panel with world edges
+and mouse world position (bounds clamp the camera's top-left, so right/bottom edges are max +
+screen size), performance HUD with FPS, frame time, 1% low and a frame-time graph with a target
+line). Drawn in `SceneManager._present_frame`, never in screenshots. Scenes or sprites can add
+annotations with `debug_draw(surface, camera)`.
+
 ### Event System
 
 **Event Flow**: `pygame.event.get()` → `GameEngine.process_events()` → `EVENT_HANDLERS[type]()` → `SceneManager.on_*_event()` → `Scene.on_*_event()` → `Sprite.on_*_event()`

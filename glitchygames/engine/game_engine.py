@@ -295,6 +295,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             default='equal-range',
         )
         group.add_argument(
+            '--debug-overlay',
+            help='show the debug overlay at startup (F3 toggles, F4 cycles panels)',
+            action='store_true',
+            default=False,
+        )
+        group.add_argument(
             '--screen-shake-intensity',
             type=unit_interval,
             help='screen shake strength from 0.0 (off) to 1.0 (default: 1.0)',

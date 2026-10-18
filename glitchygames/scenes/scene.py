@@ -12,6 +12,7 @@ from glitchygames import events
 from glitchygames.camera import Camera2D
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
+from glitchygames.debug import DebugFrameInfo, DebugOverlay
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
@@ -85,7 +86,9 @@ class SceneManager(SceneInterface, events.EventManager):
 
         # SCREEN shake lives here (not on a scene) so it outlives scene switches
         self.screen_shake: ScreenShake = ScreenShake()
-        self._screen_shake_was_presented: bool = False
+        # A shaken or overlaid frame was presented, so the display no longer matches the surface
+        self._altered_frame_was_presented: bool = False
+        self.debug_overlay: DebugOverlay = DebugOverlay()
         self.rumble: RumbleController = RumbleController()
         self._live_audio: LiveAudio | None = None
 
@@ -137,6 +140,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
+            self.debug_overlay.is_visible = bool(self.OPTIONS.get('debug_overlay', False))
         self.log.info(f'Screen update type: {self.update_type}')
         self.log.info(f'FPS Log Interval: {self.fps_log_interval_ms}ms')
         self.log.info(f'Target FPS: {self.target_fps}')
@@ -261,6 +265,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _update_frame_services(self: Self) -> None:
         """Advance services that outlive scenes: screen shake, rumble and live audio."""
+        self.debug_overlay.record_frame(frame_seconds=self.dt)
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
@@ -294,12 +299,73 @@ class SceneManager(SceneInterface, events.EventManager):
             self._live_audio = LiveAudio(channel_indices=channels)
         return self._live_audio
 
-    def _present_frame(self: Self, *, full_update: bool) -> None:
-        """Present the rendered frame, shifted by any active SCREEN shake.
+    def _debug_frame_info(self: Self, *, shake_offset: tuple[float, float]) -> DebugFrameInfo:
+        """Gather the per-frame engine readings the debug overlay displays.
 
-        The display surface always holds the unshifted frame between presents: a shaken frame
-        is copied, shifted for the flip, then restored. Dirty-rect rendering, screenshots and
-        transition captures therefore never see the shift or the black strips.
+        Args:
+            shake_offset (tuple[float, float]): The current SCREEN shake offset.
+
+        Returns:
+            DebugFrameInfo: The readings for this frame.
+
+        """
+        live_voice_count = (
+            self._live_audio.playing_voice_count if self._live_audio is not None else None
+        )
+        mouse_position = pygame.mouse.get_pos() if pygame.mouse.get_focused() else None
+        return DebugFrameInfo(
+            target_fps=float(self.target_fps),
+            live_voice_count=live_voice_count,
+            rumble_levels=self.rumble.sent_levels,
+            screen_shake_offset=shake_offset,
+            mouse_position=mouse_position,
+        )
+
+    def _active_scene_has_focused_sprite(self: Self) -> bool:
+        """Report whether a sprite in the active scene has keyboard focus.
+
+        Returns:
+            bool: True when any sprite's is_active is True; False with no active scene.
+
+        """
+        if self.active_scene is None:
+            return False
+        return any(
+            getattr(sprite, 'is_active', False) is True for sprite in self.active_scene.all_sprites
+        )
+
+    def on_key_down_event(self: Self, event: events.HashableEvent) -> None:
+        """Handle the debug overlay keys, then forward key-down events as the proxy would.
+
+        F3 toggles the overlay and F4 cycles its panels, unless a sprite in the active scene has
+        keyboard focus (is_active), so typing into text fields is never intercepted. Every other
+        key is routed exactly as `__getattr__` routes on_*_event calls: to the active scene, or
+        to the game engine when the scene is missing or lacks the handler.
+
+        Args:
+            event (events.HashableEvent): The key-down event.
+
+        """
+        overlay_keys = {pygame.K_F3, pygame.K_F4}
+        if event.key in overlay_keys and not self._active_scene_has_focused_sprite():
+            if event.key == pygame.K_F3:
+                self.debug_overlay.toggle()
+            else:
+                self.debug_overlay.cycle_panel()
+            return
+        if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
+            self.active_scene.on_key_down_event(event)
+        else:
+            assert self.game_engine is not None
+            self.game_engine.on_key_down_event(event)
+
+    def _present_frame(self: Self, *, full_update: bool) -> None:
+        """Present the rendered frame, shifted by any active SCREEN shake and overlaid if shown.
+
+        The display surface always holds the clean frame between presents: a shaken or overlaid
+        frame is copied, shifted and drawn on for the flip, then restored. Dirty-rect rendering,
+        screenshots and transition captures therefore never see the shift, the black strips or
+        the debug overlay.
 
         Args:
             full_update: True to flip the whole display (transitions); False to use the
@@ -308,18 +374,27 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         offset_x, offset_y = self.screen_shake.offset
         pixel_offset = (round(offset_x), round(offset_y))
-        if self.screen is not None and pixel_offset != (0, 0):
-            unshifted = self.screen.copy()
-            self.screen.fill(SHAKE_BORDER_COLOR)
-            self.screen.blit(unshifted, pixel_offset)
+        overlay_visible = self.debug_overlay.is_visible
+        if self.screen is not None and (pixel_offset != (0, 0) or overlay_visible):
+            clean_frame = self.screen.copy()
+            if pixel_offset != (0, 0):
+                self.screen.fill(SHAKE_BORDER_COLOR)
+                self.screen.blit(clean_frame, pixel_offset)
+            if overlay_visible and self.active_scene is not None:
+                self.debug_overlay.draw(
+                    self.screen,
+                    scene=self.active_scene,
+                    screen_offset=pixel_offset,
+                    frame_info=self._debug_frame_info(shake_offset=(offset_x, offset_y)),
+                )
             pygame.display.flip()
-            self.screen.blit(unshifted, (0, 0))
-            self._screen_shake_was_presented = True
+            self.screen.blit(clean_frame, (0, 0))
+            self._altered_frame_was_presented = True
             return
-        if self._screen_shake_was_presented:
-            # The display still shows the last shifted frame; the surface holds the correct
-            # unshifted one, so one full flip replaces it (a dirty-rect update would not).
-            self._screen_shake_was_presented = False
+        if self._altered_frame_was_presented:
+            # The display still shows the last shifted or overlaid frame; the surface holds the
+            # clean one, so one full flip replaces it (a dirty-rect update would not).
+            self._altered_frame_was_presented = False
             pygame.display.flip()
             return
         if full_update:
