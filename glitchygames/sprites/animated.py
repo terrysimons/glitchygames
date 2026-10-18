@@ -496,6 +496,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self.name = 'animated_sprite'  # Default name
         self.description = ''  # Description field for metadata
         self._animations: dict[str, list[SpriteFrame]] = {}
+        # Each animation's [[animation]] frame_interval and loop as loaded, so a save writes
+        # them back (frames without a per-frame override use the animation's frame_interval)
+        self._animation_frame_intervals: dict[str, float] = {}
+        self._animation_loops: dict[str, bool] = {}
         self._is_playing: bool = False
         self._is_looping: bool = False
         self._frame_timer: float = 0.0
@@ -1224,6 +1228,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         frame_interval = anim_data.get('frame_interval', 0.5)
         self._frame_interval = frame_interval
 
+        # Remember both per animation so save() writes them back
+        self._animation_frame_intervals[anim_name] = frame_interval
+        self._animation_loops[anim_name] = loop_setting
+
         self.log.debug(f"Processing animation '{anim_name}' with {len(frames_data)} frame(s)")
         self._log_animation_metadata(anim_data, anim_name)
 
@@ -1948,17 +1956,68 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         # Add animations
         for anim_name, frames in self._animations.items():
-            animation_frames = AnimatedSprite._create_toml_animation_frames(frames, color_map)
-            animation_entry = {
-                'namespace': anim_name,
-                'frame_interval': 0.5,
-                'loop': True,
-                'frame': animation_frames,
-            }
-            data['animation'].append(animation_entry)
+            data['animation'].append(self._build_toml_animation_entry(anim_name, frames, color_map))
             self.log.debug(f"Serializing animation '{anim_name}' with {len(frames)} frames")
 
         return data
+
+    def _build_toml_animation_entry(
+        self: Self,
+        animation_name: str,
+        frames: list[SpriteFrame],
+        color_map: dict[tuple[int, ...], str],
+    ) -> dict[str, Any]:
+        """Build one [[animation]] entry with its timing and frames.
+
+        Returns:
+            dict: The animation's namespace, frame_interval, loop and frame list. Only frames
+            whose duration differs from the animation's frame_interval carry their own.
+
+        """
+        animation_frame_interval = self._animation_frame_interval_for_save(animation_name)
+        animation_frames = AnimatedSprite._create_toml_animation_frames(frames, color_map)
+        for frame, frame_data in zip(frames, animation_frames, strict=True):
+            if frame.duration != animation_frame_interval:
+                frame_data['frame_interval'] = frame.duration
+        return {
+            'namespace': animation_name,
+            'frame_interval': animation_frame_interval,
+            'loop': self._animation_loops.get(animation_name, True),
+            'frame': animation_frames,
+        }
+
+    def _animation_frame_interval_for_save(self: Self, animation_name: str) -> float:
+        """Return the [[animation]] frame_interval to write for an animation.
+
+        The value loaded from TOML when there is one. Otherwise (an animation built in code
+        or in Bitmappy) the most common frame duration, the first frame's on a tie, so as few
+        frames as possible need a per-frame override; 0.5 (the loader's default) with no
+        frames.
+
+        Returns:
+            float: The animation's frame_interval in seconds.
+
+        """
+        loaded_frame_interval = self._animation_frame_intervals.get(animation_name)
+        if loaded_frame_interval is not None:
+            return loaded_frame_interval
+        durations = [frame.duration for frame in self._animations.get(animation_name, [])]
+        if not durations:
+            return 0.5
+        return max(durations, key=durations.count)
+
+    def copy_animation_timing_from(self: Self, source: AnimatedSprite) -> None:
+        """Copy another sprite's loaded per-animation frame_interval and loop settings.
+
+        Used when building a derived sprite from frames of a loaded one (Bitmappy's viewport
+        save), so saving it writes the same animation timing.
+
+        Args:
+            source (AnimatedSprite): The sprite whose animation settings to copy.
+
+        """
+        self._animation_frame_intervals = dict(source._animation_frame_intervals)
+        self._animation_loops = dict(source._animation_loops)
 
     @staticmethod
     def _create_toml_animation_frames(
@@ -2078,6 +2137,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 f.write('[[animation.frame]]\n')
                 f.write(f'namespace = "{animation["namespace"]}"\n')
                 f.write(f'frame_index = {frame["frame_index"]}\n')
+                if 'frame_interval' in frame:
+                    f.write(f'frame_interval = {frame["frame_interval"]}\n')
                 f.write('pixels = """\n')
                 f.write(frame['pixels'])
                 f.write('\n"""\n\n')

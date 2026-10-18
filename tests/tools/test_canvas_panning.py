@@ -508,3 +508,31 @@ class TestViewportSaveKeepsHitboxesAndAnchor:
             viewport_rect
         )
         assert not viewport_frames[1].has_explicit_hitbox
+
+    def test_viewport_save_keeps_animation_timing(self, tmp_path):
+        """A panned viewport save writes the loaded frame_interval, loop and overrides back."""
+        import tomllib
+
+        from glitchygames.sprites import AnimatedSprite
+
+        sprite_file = tmp_path / 'timed.toml'
+        sprite_file.write_text(
+            '[sprite]\nname = "timed"\n\n'
+            '[[animation]]\nnamespace = "blink"\nframe_interval = 0.15\nloop = false\n\n'
+            '[[animation.frame]]\nnamespace = "blink"\nframe_index = 0\n'
+            'pixels = """\n##\n##\n"""\n\n'
+            '[[animation.frame]]\nnamespace = "blink"\nframe_index = 1\nframe_interval = 0.4\n'
+            'pixels = """\n#.\n.#\n"""\n\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
+            '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n',
+            encoding='utf-8',
+        )
+        self.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
+        self.canvas.pan_canvas(1, 0)
+        saved_file = tmp_path / 'viewport.toml'
+
+        self.canvas._save_viewport_sprite(str(saved_file))
+
+        animation = tomllib.loads(saved_file.read_text(encoding='utf-8'))['animation'][0]
+        assert (animation['frame_interval'], animation['loop']) == (0.15, False)
+        assert [frame.get('frame_interval') for frame in animation['frame']] == [None, 0.4]

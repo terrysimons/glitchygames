@@ -352,3 +352,69 @@ def test_bundled_sprite_rows_have_equal_lengths(sprite_file):
         rows = AnimatedSprite.parse_toml_pixel_lines(pixels)
         row_lengths = {len(row) for row in rows}
         assert len(row_lengths) <= 1, f'{sprite_file} {label}: row lengths {sorted(row_lengths)}'
+
+
+ANIMATED_SPRITE_FILES = [
+    sprite_file
+    for sprite_file in BUNDLED_SPRITE_FILES
+    if '[[animation]]' in sprite_file.read_text(encoding='utf-8')
+]
+DEFAULT_TOML_FRAME_INTERVAL = 0.5
+
+
+def _animation_timings(sprite_data: dict) -> list[tuple[str, float, bool, list[float | None]]]:
+    """Return each animation's timing as written in a sprite file.
+
+    Returns:
+        list[tuple[str, float, bool, list[float | None]]]: (namespace, frame_interval, loop,
+        per-frame frame_interval overrides in frame_index order, None where absent).
+
+    """
+    timings: list[tuple[str, float, bool, list[float | None]]] = []
+    for animation in sprite_data.get('animation', []):
+        frames = sorted(animation.get('frame', []), key=lambda frame: frame.get('frame_index', 0))
+        timings.append((
+            animation.get('namespace', 'default'),
+            animation.get('frame_interval', DEFAULT_TOML_FRAME_INTERVAL),
+            animation.get('loop', True),
+            [frame.get('frame_interval') for frame in frames],
+        ))
+    return timings
+
+
+@pytest.fixture
+def real_display():
+    """Give AnimatedSprite a real display for loading and saving."""
+    pygame.init()
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode((64, 64))
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize('sprite_file', ANIMATED_SPRITE_FILES, ids=str)
+def test_bundled_animation_timings_survive_a_save_round_trip(sprite_file, tmp_path):
+    """Load -> save writes each animation's frame_interval, loop and per-frame overrides back.
+
+    The writer used to hard-code frame_interval = 0.5 and loop = true, so saving (Bitmappy
+    saves this way) lost every animation's timing.
+    """
+    import tomllib
+
+    from glitchygames.sprites import AnimatedSprite
+
+    original_sprite = AnimatedSprite(str(sprite_file))
+    if original_sprite.get_total_frame_count() == 1:
+        pytest.skip('single-frame sprites are saved in the static format, without timing')
+    saved_file = tmp_path / sprite_file.name
+    original_sprite.save(str(saved_file), 'toml')
+
+    original_data = tomllib.loads(sprite_file.read_text(encoding='utf-8'))
+    saved_data = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+    assert _animation_timings(saved_data) == _animation_timings(original_data)
+
+    reloaded_sprite = AnimatedSprite(str(saved_file))
+    for animation_name, frames in original_sprite._animations.items():
+        reloaded_durations = [
+            frame.duration for frame in reloaded_sprite._animations[animation_name]
+        ]
+        assert reloaded_durations == [frame.duration for frame in frames], animation_name

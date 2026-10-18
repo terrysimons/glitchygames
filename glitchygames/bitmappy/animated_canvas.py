@@ -2159,6 +2159,8 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         viewport_sprite.description = f'Viewport of {self.animated_sprite.name} (panned)'
         # Keep how frames are anchored and the sprite-level hitbox (moved into the viewport)
         viewport_sprite.frame_anchor = self.animated_sprite.frame_anchor
+        # ...and each animation's loaded frame_interval and loop
+        viewport_sprite.copy_animation_timing_from(self.animated_sprite)
         if self.animated_sprite.default_hitbox is not None:
             viewport_sprite.default_hitbox = self._viewport_hitbox(
                 self.animated_sprite.default_hitbox

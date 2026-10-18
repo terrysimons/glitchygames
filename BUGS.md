@@ -14,6 +14,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 34. TOML Save Loses Animation Timings and Loop Settings
+- **Description**: Loading an animated sprite and saving it (as Bitmappy does) wrote `frame_interval = 0.5` and `loop = true` for every animation and dropped per-frame `frame_interval` overrides, so every bundled animation (cobra, gold_scarab, the Papyrus player, scarab, scorpion, colors, slime-jump, ghosty) came back at 0.5 s per frame and the cobra's strike and the player's jump/fall animations started looping
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `AnimatedSprite._build_toml_data_structure` hard-coded `'frame_interval': 0.5` and `'loop': True` in every `[[animation]]` entry, and `_write_toml_animations` never wrote a per-frame `frame_interval`. The loader kept the timing only as each `SpriteFrame.duration` (and the last animation's loop in `_is_looping`)
+- **Solution**: The loader records each animation's `frame_interval` and `loop` (`_animation_frame_intervals`, `_animation_loops`). Save writes them back (`_build_toml_animation_entry`); animations without a loaded value (built in code or Bitmappy) use their most common frame duration. A frame gets a per-frame `frame_interval` only when its duration differs from its animation's, so the file's structure is reproduced. Bitmappy's viewport save copies the settings with `AnimatedSprite.copy_animation_timing_from`; the full save already saves the loaded sprite
+- **Tests**: `test_bundled_animation_timings_survive_a_save_round_trip` (parametrized over every bundled animated sprite) in `tests/examples/test_examples_sprites.py`; `test_viewport_save_keeps_animation_timing` in `tests/tools/test_canvas_panning.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/animated_canvas.py`
+
 ### 33. PaddleSlap Balls Collided as Their 20x20 Image; Half-Pixel Collision Rects 1 px Off
 - **Description**: PaddleSlap balls bounced off paddles and walls, and were killed off-screen, by their full 20x20 image instead of the radius-5 circle players see (turning around 5 px before a wall, killed 5 px late). A ball at x = 10.5 was drawn at 11 but collided at 10
 - **Status**: Resolved
