@@ -2286,19 +2286,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             return 0.5
         return max(durations, key=durations.count)
 
-    def copy_animation_timing_from(self: Self, source: AnimatedSprite) -> None:
-        """Copy another sprite's loaded per-animation frame_interval and loop settings.
-
-        Used when building a derived sprite from frames of a loaded one (Bitmappy's viewport
-        save), so saving it writes the same animation timing.
-
-        Args:
-            source (AnimatedSprite): The sprite whose animation settings to copy.
-
-        """
-        self._animation_frame_intervals = dict(source._animation_frame_intervals)
-        self._loop_flags = dict(source._loop_flags)
-
     @staticmethod
     def _create_toml_animation_frames(
         frames: list[SpriteFrame],

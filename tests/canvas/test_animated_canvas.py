@@ -5,7 +5,6 @@ to work with animated sprites, including frame selection, editing, and film stri
 """
 
 import sys
-import tempfile
 from pathlib import Path
 from typing import cast
 
@@ -246,43 +245,6 @@ class TestAnimatedCanvasSprite:
         # Verify the pixel was pasted
         pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
         assert pixel_color == (255, 255, 255, 255)
-
-    def test_save_load_animated_sprite(self):
-        """Test saving and loading animated sprites."""
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.toml',
-            delete=False,
-            encoding='utf-8',
-        ) as f:
-            temp_filename = f.name
-
-        try:
-            # Save the animated sprite
-            self.canvas.save_animated_sprite(temp_filename)
-
-            # Load it back
-            loaded_canvas = AnimatedCanvasSprite.from_file(
-                filename=temp_filename,
-                x=0,
-                y=0,
-                pixels_across=8,
-                pixels_tall=8,
-                pixel_width=16,
-                pixel_height=16,
-            )
-
-            # Verify it loaded correctly
-            assert loaded_canvas.current_animation == 'idle'
-            assert loaded_canvas.current_frame == 0
-            assert len(loaded_canvas.animated_sprite.frames) == self.EXPECTED_FRAME_COUNT
-
-        finally:
-            # Clean up
-            temp_path = Path(temp_filename)
-            if temp_path.exists():
-                temp_path.unlink()
 
     def test_visual_display(self):
         """Test that the canvas displays the current frame correctly."""

@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """Tests for canvas panning functionality."""
 
-import math
 from pathlib import Path
 
 import pygame
 import pytest
 
 from glitchygames.bitmappy.editor import AnimatedCanvasSprite, BitmapEditorScene
-from glitchygames.sprites.animated import SpriteFrame
 from tests.mocks.test_mock_factory import MockFactory, MockSpriteConfig
 
 
@@ -133,88 +131,6 @@ class TestCanvasPanning:
         assert self.canvas._frame_panning[frame_key]['original_pixels'] is not None
         assert len(self.canvas.pixels) == 64  # 8x8 viewport
         assert self.canvas.dirty_pixels == [True] * 64
-
-    def test_save_with_panning(self, mocker):
-        """Test saving when panning is active."""
-        # Mock the viewport saving method
-        mock_save = mocker.patch.object(self.canvas, '_save_viewport_sprite')
-        # Activate panning
-        self.canvas.pan_canvas(1, 0)
-
-        # Save the sprite
-        self.canvas.save_animated_sprite('test.toml')
-
-        # Check that viewport saving was called
-        mock_save.assert_called_once_with('test.toml')
-
-    def test_save_without_panning(self, mocker):
-        """Test saving when panning is not active."""
-        # Mock the sprite serializer
-        mock_save = mocker.patch.object(self.canvas.sprite_serializer, 'save')
-        # Save without panning
-        self.canvas.save_animated_sprite('test.toml')
-
-        # Check that normal saving was called
-        mock_save.assert_called_once_with(self.canvas.animated_sprite, 'test.toml', 'toml')
-
-    def test_viewport_frame_creation(self, mocker):
-        """Test creating viewport frames from original frames."""
-        # Create a mock frame
-        mock_frame = mocker.Mock(spec=SpriteFrame)
-        mock_frame.get_pixel_data.return_value = [(255, 0, 0) for _ in range(64)]
-        mock_frame.get_size.return_value = (8, 8)
-        mock_frame.duration = 0.5
-
-        # Set up panning
-        self.canvas.pan_canvas(2, 1)
-
-        # Create viewport frame
-        viewport_frame = self.canvas._create_viewport_frame(mock_frame)
-
-        # Check that viewport frame was created
-        assert viewport_frame is not None
-        assert hasattr(viewport_frame, 'duration')
-        assert math.isclose(viewport_frame.duration, 0.5)
-
-    def test_get_viewport_pixels_from_frame(self, mocker):
-        """Test extracting viewport pixels from a frame."""
-        # Create test frame data
-        frame_pixels = []
-        for y in range(8):
-            for x in range(8):
-                # Create a pattern: red pixels in top-left, blue in bottom-right
-                if x < 4 and y < 4:
-                    frame_pixels.append((255, 0, 0))  # Red
-                else:
-                    frame_pixels.append((0, 0, 255))  # Blue
-
-        # Mock frame
-        mock_frame = mocker.Mock()
-        mock_frame.get_pixel_data.return_value = frame_pixels
-        mock_frame.get_size.return_value = (8, 8)
-
-        # Set up panning to show top-left area
-        self.canvas.pan_canvas(0, 0)
-
-        # Get viewport pixels
-        viewport_pixels = self.canvas._get_viewport_pixels_from_frame(mock_frame)
-
-        # Check that we got the correct viewport
-        assert len(viewport_pixels) == 64  # 8x8 viewport
-
-        # Check the pattern: first 2 rows should be red-blue-red-blue pattern
-        # Viewport pixels are returned in RGBA format (alpha=255 for opaque RGB input)
-        # Row 0: 4 red + 4 blue
-        for i in range(4):
-            assert viewport_pixels[i] == (255, 0, 0, 255)  # First 4 pixels should be red
-        for i in range(4, 8):
-            assert viewport_pixels[i] == (0, 0, 255, 255)  # Next 4 pixels should be blue
-
-        # Row 1: 4 red + 4 blue
-        for i in range(8, 12):
-            assert viewport_pixels[i] == (255, 0, 0, 255)  # Next 4 pixels should be red
-        for i in range(12, 16):
-            assert viewport_pixels[i] == (0, 0, 255, 255)  # Next 4 pixels should be blue
 
     def test_panning_with_different_canvas_sizes(self):
         """Test panning with different canvas sizes."""
@@ -449,8 +365,8 @@ if __name__ == '__main__':
     pytest.main([__file__])
 
 
-class TestViewportSaveKeepsHitboxesAndAnchor:
-    """Saving a panned viewport keeps hitboxes (moved into the viewport) and frame_anchor."""
+class TestStaticSaveKeepsSpriteMetadata:
+    """The canvas single-frame save keeps transitions, name, frame_anchor and hitbox."""
 
     def setup_method(self):
         """Create a canvas around a mock sprite (as TestCanvasPanning does)."""
@@ -474,207 +390,6 @@ class TestViewportSaveKeepsHitboxesAndAnchor:
     def teardown_method(self):
         """Clean up after tests."""
         pygame.quit()
-
-    def test_viewport_save_preserves_hitboxes_and_frame_anchor(self, mocker):
-        """Hitboxes are moved by the pan offset and clipped to the viewport; anchor kept."""
-        from glitchygames.sprites import AnimatedSprite, FrameAnchor
-
-        self.canvas.pan_canvas(2, 1)
-        frame_key = self.canvas._get_current_frame_key()
-        pan_x = self.canvas._frame_panning[frame_key]['pan_x']
-        pan_y = self.canvas._frame_panning[frame_key]['pan_y']
-
-        real_sprite = AnimatedSprite()
-        frames = [
-            SpriteFrame(pygame.Surface((8, 8), pygame.SRCALPHA), hitbox=pygame.Rect(3, 2, 4, 5)),
-            SpriteFrame(pygame.Surface((8, 8), pygame.SRCALPHA)),
-        ]
-        real_sprite.add_animation('test_animation', frames)
-        real_sprite.set_animation('test_animation')
-        real_sprite.default_hitbox = pygame.Rect(1, 1, 6, 7)
-        real_sprite.frame_anchor = FrameAnchor.BOTTOM
-        self.canvas.animated_sprite = real_sprite
-        save_mock = mocker.patch.object(self.canvas.sprite_serializer, 'save')
-
-        self.canvas._save_viewport_sprite('viewport.toml')
-
-        viewport_sprite = save_mock.call_args.args[0]
-        viewport_rect = pygame.Rect(0, 0, 8, 8)
-        assert viewport_sprite.frame_anchor is FrameAnchor.BOTTOM
-        assert viewport_sprite.default_hitbox == pygame.Rect(1, 1, 6, 7).move(-pan_x, -pan_y).clip(
-            viewport_rect
-        )
-        viewport_frames = viewport_sprite.animation_data['test_animation']
-        assert viewport_frames[0].hitbox == pygame.Rect(3, 2, 4, 5).move(-pan_x, -pan_y).clip(
-            viewport_rect
-        )
-        assert not viewport_frames[1].has_explicit_hitbox
-
-    # Hitboxes against a 4 px pan to the right: the 8x8 viewport then shows sprite x 4..11
-    PAN_X = 4
-    MAGENTA = (255, 0, 255, 255)
-    BLACK = (0, 0, 0, 255)
-
-    def _sprite_with_hitboxes(self, *, sprite_hitbox):
-        """Two 8x8 frames whose visible pixels are x 5..7, y 2..5 (viewport x 1..3).
-
-        Frame 0's hitbox lies entirely left of the viewport; frame 1's straddles its edge.
-        """
-        from glitchygames.sprites import AnimatedSprite, FrameAnchor
-
-        pixels = [
-            self.BLACK if 5 <= x <= 7 and 2 <= y <= 5 else self.MAGENTA
-            for y in range(8)
-            for x in range(8)
-        ]
-        frames = []
-        for hitbox in (pygame.Rect(0, 0, 3, 3), pygame.Rect(3, 1, 3, 3)):
-            frame = SpriteFrame(pygame.Surface((8, 8), pygame.SRCALPHA), hitbox=hitbox)
-            frame.set_pixel_data(pixels)
-            frames.append(frame)
-        sprite = AnimatedSprite()
-        sprite.name = 'boxes'
-        sprite.add_animation('walk', frames)
-        sprite.set_animation('walk')
-        sprite.default_hitbox = sprite_hitbox
-        sprite.frame_anchor = FrameAnchor.BOTTOM
-        return sprite
-
-    def _save_panned_viewport(self, mocker, tmp_path, sprite):
-        from glitchygames.sprites import AnimatedSprite
-
-        self.canvas.animated_sprite = sprite
-        self.canvas.parent = mocker.Mock()
-        self.canvas.pan_canvas(self.PAN_X, 0)
-        saved_file = tmp_path / 'viewport.toml'
-        self.canvas._save_viewport_sprite(str(saved_file))
-        return saved_file, AnimatedSprite(str(saved_file))
-
-    def test_hitboxes_outside_the_viewport_are_removed_and_reported(self, mocker, tmp_path, caplog):
-        """Fully-outside hitboxes are removed (frames fall back), partly-outside ones clipped."""
-        import tomllib
-
-        from glitchygames.sprites import FrameAnchor
-
-        sprite = self._sprite_with_hitboxes(sprite_hitbox=pygame.Rect(0, 6, 2, 2))
-
-        with caplog.at_level('WARNING'):
-            saved_file, reloaded = self._save_panned_viewport(mocker, tmp_path, sprite)
-
-        saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
-        assert 'hitbox' not in saved['sprite']
-        saved_frames = saved['animation'][0]['frame']
-        assert 'hitbox' not in saved_frames[0]
-        assert saved_frames[1]['hitbox'] == {'offset_x': 0, 'offset_y': 1, 'width': 2, 'height': 3}
-        assert reloaded.frame_anchor is FrameAnchor.BOTTOM
-        assert reloaded.default_hitbox is None
-        walk_frames = reloaded.animation_data['walk']
-        # No sprite-level hitbox either, so frame 0 falls back to its visible pixels
-        assert not walk_frames[0].has_explicit_hitbox
-        assert reloaded._native_frame_hitbox(walk_frames[0]) == walk_frames[0].opaque_bounds()
-        assert walk_frames[1].hitbox == pygame.Rect(0, 1, 2, 3)
-
-        expected_message = (
-            'Viewport save removed hitboxes outside the viewport: sprite-level hitbox, walk frame 0'
-        )
-        assert self.canvas.parent.debug_text.text == expected_message
-        assert expected_message in caplog.text
-        # Only the saved file changes; the open sprite keeps its hitboxes
-        assert sprite.default_hitbox == pygame.Rect(0, 6, 2, 2)
-        assert sprite.animation_data['walk'][0].hitbox == pygame.Rect(0, 0, 3, 3)
-
-    def test_frame_hitbox_outside_the_viewport_falls_back_to_the_sprite_hitbox(
-        self, mocker, tmp_path
-    ):
-        """A removed frame hitbox falls back to the (clipped) sprite-level hitbox."""
-        sprite = self._sprite_with_hitboxes(sprite_hitbox=pygame.Rect(2, 0, 4, 8))
-
-        _saved_file, reloaded = self._save_panned_viewport(mocker, tmp_path, sprite)
-
-        assert reloaded.default_hitbox == pygame.Rect(0, 0, 2, 8)
-        frame_zero = reloaded.animation_data['walk'][0]
-        assert not frame_zero.has_explicit_hitbox
-        assert reloaded._native_frame_hitbox(frame_zero) == pygame.Rect(0, 0, 2, 8)
-        assert self.canvas.parent.debug_text.text == (
-            'Viewport save removed hitboxes outside the viewport: walk frame 0'
-        )
-
-    def test_viewport_save_without_removed_hitboxes_shows_no_warning(self, mocker, tmp_path):
-        """When every hitbox overlaps the viewport no warning is shown."""
-        sprite = self._sprite_with_hitboxes(sprite_hitbox=None)
-        sprite.animation_data['walk'][0].hitbox = pygame.Rect(4, 4, 2, 2)
-        debug_text_before = mocker.sentinel.unchanged
-
-        self.canvas.parent = mocker.Mock()
-        self.canvas.parent.debug_text.text = debug_text_before
-        self.canvas.animated_sprite = sprite
-        self.canvas.pan_canvas(self.PAN_X, 0)
-        self.canvas._save_viewport_sprite(str(tmp_path / 'viewport.toml'))
-
-        assert self.canvas.parent.debug_text.text is debug_text_before
-
-    def test_viewport_save_keeps_animation_timing(self, tmp_path):
-        """A panned viewport save writes the loaded frame_interval, loop and overrides back."""
-        import tomllib
-
-        from glitchygames.sprites import AnimatedSprite
-
-        sprite_file = tmp_path / 'timed.toml'
-        sprite_file.write_text(
-            '[sprite]\nname = "timed"\n\n'
-            '[[animation]]\nnamespace = "blink"\nframe_interval = 0.15\nloop = false\n\n'
-            '[[animation.frame]]\nnamespace = "blink"\nframe_index = 0\n'
-            'pixels = """\n##\n##\n"""\n\n'
-            '[[animation.frame]]\nnamespace = "blink"\nframe_index = 1\nframe_interval = 0.4\n'
-            'pixels = """\n#.\n.#\n"""\n\n'
-            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
-            '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n',
-            encoding='utf-8',
-        )
-        self.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
-        self.canvas.pan_canvas(1, 0)
-        saved_file = tmp_path / 'viewport.toml'
-
-        self.canvas._save_viewport_sprite(str(saved_file))
-
-        animation = tomllib.loads(saved_file.read_text(encoding='utf-8'))['animation'][0]
-        assert (animation['frame_interval'], animation['loop']) == (0.15, False)
-        assert [frame.get('frame_interval') for frame in animation['frame']] == [None, 0.4]
-
-    def test_viewport_save_keeps_transitions(self, tmp_path):
-        """A panned viewport save writes the sprite's [[transition]] sections back in order."""
-        import tomllib
-
-        from glitchygames.sprites import AnimatedSprite
-
-        sprite_file = tmp_path / 'machine.toml'
-        sprite_file.write_text(
-            '[sprite]\nname = "machine"\n\n'
-            '[[animation]]\nnamespace = "idle"\nframe_interval = 0.15\n\n'
-            '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\n'
-            'pixels = """\n##\n##\n"""\n\n'
-            '[[animation.frame]]\nnamespace = "idle"\nframe_index = 1\n'
-            'pixels = """\n#.\n.#\n"""\n\n'
-            '[[animation]]\nnamespace = "run"\nframe_interval = 0.15\n\n'
-            '[[animation.frame]]\nnamespace = "run"\nframe_index = 0\n'
-            'pixels = """\n.#\n#.\n"""\n\n'
-            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n\n'
-            '[colors."."]\nred = 255\ngreen = 0\nblue = 255\n\n'
-            '[[transition]]\nfrom = "idle"\nto = "run"\nwhen = "abs(velocity_x) > 0.1"\n\n'
-            '[[transition]]\nfrom = "run"\nto = "idle"\nwhen = "abs(velocity_x) <= 0.1"\n',
-            encoding='utf-8',
-        )
-        self.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
-        self.canvas.pan_canvas(1, 0)
-        saved_file = tmp_path / 'viewport.toml'
-
-        self.canvas._save_viewport_sprite(str(saved_file))
-
-        saved_transitions = tomllib.loads(saved_file.read_text(encoding='utf-8'))['transition']
-        assert saved_transitions == [
-            {'from': 'idle', 'to': 'run', 'when': 'abs(velocity_x) > 0.1'},
-            {'from': 'run', 'to': 'idle', 'when': 'abs(velocity_x) <= 0.1'},
-        ]
 
     def test_static_save_keeps_transitions(self, tmp_path):
         """The canvas's single-frame save path keeps the sprite's transitions."""
