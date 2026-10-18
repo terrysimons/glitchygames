@@ -475,6 +475,25 @@ the user:
 
 ---
 
+## Iteration 1 (2026-10-17): ascent rumble, stronger stop, floor-3 clock
+
+Requested after playtesting ("better, definitely better"):
+
+- **Sustained rumble source:** `RumbleController.set_sustained(low_frequency=, high_frequency=)` /
+  `clear_sustained()`, combined per motor (maximum) with shake rumble and sent in 0.25 s slices
+  refreshed by the time-left margin; `switch_to_scene` clears it. The slice sets only the send
+  duration, not the "shakes outlast the sent rumble" check (otherwise it re-sends every frame).
+- **Absolute rumble:** `RumbleSettings(scale_with_strength=False)` makes motor values independent of
+  the shake's strength (still fading with its decay). The elevator stop uses it: bounce 1.0 / 0.5,
+  rattle 0.4 / 0.8, on-screen shake unchanged. Previously the 14 px bounce scaled 0.9 down to ~0.39.
+- **Clockwork Keep ascent:** sustained rumble follows the car's speed up to 0.25 low / 0.05 high,
+  even without a free motor voice; the arrival cue clears it. `_update_elevator_motor` ignores the
+  arrival frame (progress >= 1.0) because `on_update` runs after the 1.0 cue and would re-arm it.
+- **Floor-3 clock:** hands driven by game time from 11:58:00 (two minutes to midnight), smooth
+  sweep; seconds hand 100 px with tail and cap, minute 85 px, hour 55 px; freezes while paused.
+
+---
+
 ## Known follow-ups (deferred review minors)
 
 Minor findings from the per-task reviews, triaged by the final review as not blocking merge.
