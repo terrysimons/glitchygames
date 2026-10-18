@@ -22,7 +22,7 @@ import pygame
 import pygame.freetype
 
 from glitchygames.color import BLACKLUCENT, WHITE
-from glitchygames.engine import GameEngine
+from glitchygames.engine import DEFAULT_TARGET_FPS, GameEngine
 from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.game_objects import BallSprite
@@ -378,7 +378,7 @@ class Game(Scene):
         """
         # Set default FPS to 60 if not specified by command line
         if self.target_fps == 0:
-            self.target_fps = 60
+            self.target_fps = DEFAULT_TARGET_FPS
         pygame.key.set_repeat(1)
 
     def _debug_log_ball_trajectory(self: Self, ball_index: int, ball: BallSprite) -> None:

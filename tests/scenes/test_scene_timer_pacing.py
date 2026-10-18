@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.scenes import SceneManager
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -104,6 +105,16 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
     assert fake_timer.start_calls >= 1
     assert fake_timer.compute_calls >= 1
     assert fake_timer.sleep_calls >= 1
+
+
+def test_scene_manager_falls_back_to_default_target_fps_when_option_missing(mocker):
+    """Test that a missing target_fps option falls back to DEFAULT_TARGET_FPS."""
+    sm = SceneManager()
+    engine_mock = mocker.Mock()
+    engine_mock.OPTIONS = {'update_type': 'update', 'fps_log_interval_ms': 1000}
+    sm.game_engine = engine_mock
+
+    assert sm.target_fps == DEFAULT_TARGET_FPS
 
 
 def test_scene_manager_passes_fractional_target_fps_to_timer(monkeypatch, mocker):

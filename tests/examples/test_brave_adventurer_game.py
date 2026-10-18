@@ -1,8 +1,11 @@
 """Tests for the Brave Adventurer games' death and game-over rumble."""
 
+import math
+
 import pygame
 import pytest
 
+from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.examples.brave_adventurer.constants import (
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
@@ -28,6 +31,15 @@ def adventurer_scene(request, mocker):
     mocker.patch.object(scene, '_respawn_player')
     mocker.patch.object(scene, '_save_high_score', return_value=[])
     return scene
+
+
+class TestDefaultTargetFps:
+    """A scene left uncapped is paced at the engine's default target."""
+
+    def test_setup_replaces_uncapped_target_fps_with_engine_default(self, adventurer_scene):
+        adventurer_scene.target_fps = 0
+        adventurer_scene.setup()
+        assert math.isclose(adventurer_scene.target_fps, DEFAULT_TARGET_FPS, abs_tol=1e-9)
 
 
 class TestDeathRumble:

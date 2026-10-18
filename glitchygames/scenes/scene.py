@@ -133,7 +133,10 @@ class SceneManager(SceneInterface, events.EventManager):
             SceneManager.OPTIONS = self._game_engine.OPTIONS  # pyright: ignore[reportConstantRedefinition]
             self.update_type = self.OPTIONS['update_type']
             self.fps_log_interval_ms = self.OPTIONS['fps_log_interval_ms']
-            self.target_fps = self.OPTIONS.get('target_fps', 60)
+            # Imported here because glitchygames.engine imports this module at load time.
+            from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
+
+            self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
         self.log.info(f'Screen update type: {self.update_type}')

@@ -8,6 +8,7 @@ import pytest
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.live import VoiceState
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
+from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples.clockwork_keep import sounds as clockwork_sounds
 from glitchygames.examples.clockwork_keep.constants import (
@@ -156,6 +157,11 @@ class TestGameplaySounds:
         clockwork_scene.player.lives = 1
         clockwork_scene._player_die()
         assert not clockwork_scene.scene_manager.screen_shake.is_active
+
+    def test_setup_replaces_uncapped_target_fps_with_engine_default(self, clockwork_scene):
+        clockwork_scene.target_fps = 0
+        clockwork_scene.setup()
+        assert math.isclose(clockwork_scene.target_fps, DEFAULT_TARGET_FPS, abs_tol=1e-9)
 
     def test_setup_prerenders_sounds(self, clockwork_scene, mocker):
         prerender = mocker.patch.object(clockwork_scene.sounds, 'prerender')

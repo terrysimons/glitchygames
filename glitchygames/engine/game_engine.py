@@ -57,6 +57,10 @@ MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
 DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
+# 60.5 rather than 60 so frames land just above 60 FPS (16.53 ms vs the 16.67 ms limit),
+# absorbing timer wake-up jitter; measured 99.2% of frames >= 60.5 with the fast timer
+# (BUGS.md #26).
+DEFAULT_TARGET_FPS = 60.5
 
 
 def unit_interval(value: str) -> float:
@@ -194,9 +198,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         group.add_argument(
             '-f',
             '--target-fps',
-            help='cap the framerate (default: infinite)',
+            help='cap the framerate (default: 60.5; 0 = uncapped)',
             type=float,
-            default=0.0,
+            default=DEFAULT_TARGET_FPS,
         )
         group.add_argument(
             '--fps-log-interval-ms',
@@ -410,7 +414,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Pygame stuff.
         pygame.register_quit(self.quit_game)
-        self.fps: float = options.get('target_fps', 0.0)
+        self.fps: float = options.get('target_fps', DEFAULT_TARGET_FPS)
         self.update_type: str = options.get('update_type', 'update')
         self.use_gfxdraw = options.get('use_gfxdraw')
         self.windowed = options.get('windowed')

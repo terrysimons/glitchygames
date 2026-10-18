@@ -5,6 +5,7 @@ and class variables.
 """
 
 import argparse
+import math
 import sys
 from pathlib import Path
 
@@ -12,7 +13,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
+from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
+from glitchygames.timing import FastTimer
 from tests.mocks import MockFactory
+
+EXPECTED_DEFAULT_TARGET_FPS = 60.5
+EXPECTED_DEFAULT_PERIOD_NS = 16_528_926  # round(1e9 / 60.5)
 
 
 class TestEngineInitialization:
@@ -134,6 +140,35 @@ class TestEngineInitialization:
         args = result_parser.parse_args(['--log-level', 'debug', '--profile'])
         assert args.log_level == 'debug'
         assert args.profile
+
+    def test_target_fps_defaults_to_engine_default(self):
+        """Test that --target-fps defaults to DEFAULT_TARGET_FPS (60.5)."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args([])
+
+        assert DEFAULT_TARGET_FPS == EXPECTED_DEFAULT_TARGET_FPS
+        assert args.target_fps == DEFAULT_TARGET_FPS
+
+    def test_target_fps_zero_means_uncapped(self):
+        """Test that an explicit --target-fps 0 parses to 0.0 (uncapped)."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args(['--target-fps', '0'])
+
+        assert math.isclose(args.target_fps, 0.0, abs_tol=1e-9)
+
+    def test_target_fps_accepts_custom_value(self):
+        """Test that a custom --target-fps value parses as a float."""
+        parser = GameEngine.args(argparse.ArgumentParser())
+
+        args = parser.parse_args(['--target-fps', '144.5'])
+
+        assert math.isclose(args.target_fps, 144.5, abs_tol=1e-9)
+
+    def test_default_target_fps_period_in_nanoseconds(self):
+        """Test that the default target yields a 16.53 ms frame period."""
+        assert FastTimer().start_frame(DEFAULT_TARGET_FPS) == EXPECTED_DEFAULT_PERIOD_NS
 
     def test_game_engine_class_variables(self):
         """Test GameEngine class variables."""

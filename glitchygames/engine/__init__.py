@@ -2,6 +2,7 @@
 
 from glitchygames.engine.game_engine import (
     ASSET_PATH,
+    DEFAULT_TARGET_FPS,
     LOG,
     PACKAGE_PATH,
     PYGAME_MIN_MAJOR_VERSION,
@@ -16,6 +17,7 @@ from glitchygames.events.game import GameEventManager
 
 __all__ = [
     'ASSET_PATH',
+    'DEFAULT_TARGET_FPS',
     'LOG',
     'PACKAGE_PATH',
     'PYGAME_MIN_MAJOR_VERSION',

@@ -10,6 +10,7 @@ import pytest
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.examples.paddleslap import (
     PADDLESLAP_SERVE,
     PADDLESLAP_SPAWN_SERVE,
@@ -197,7 +198,7 @@ class TestPaddleslapExample:
 
         # Verify setup completed without errors
         assert hasattr(game, 'target_fps')
-        assert game.target_fps == 60
+        assert math.isclose(game.target_fps, DEFAULT_TARGET_FPS, abs_tol=1e-9)
 
     def test_paddleslap_args_method(self):
         """Test that the args method works correctly."""
