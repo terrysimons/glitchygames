@@ -127,8 +127,9 @@ MAGENTA_KEY = (255, 0, 255)
 # ground and walls (game.py), widths are camera-visibility extents (enemies.py, terrain.py).
 # Horizontal terrain contact and sprite-vs-sprite hits use each sprite's collision rect: the
 # TOML [hitbox] sections, scaled by AnimatedSprite.hitbox_scale.
-# Player native image: 20x28. Visible feet end at row 25 in the tallest
-# frames. Collision height uses feet position so the player stands on ground.
+# Player native image: 20x28. Visible feet end at row 27 in the tallest frames (idle),
+# row 25 in falling and rows 24-25 in running and jumping. This fixed foot line (25 rows)
+# is what the player stands on; idle frames therefore draw 2 native rows below it.
 PAPYRUS_PLAYER_HEIGHT = 25 * SPRITE_SCALE
 PAPYRUS_COBRA_WIDTH = 12 * SPRITE_SCALE
 PAPYRUS_COBRA_HEIGHT = 16 * SPRITE_SCALE
