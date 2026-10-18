@@ -20,7 +20,7 @@ from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.scenes import Scene
-from glitchygames.timing import FastTimer
+from glitchygames.timing import GIL_SWITCH_INTERVAL_SECONDS, FastTimer
 from tests.mocks import MockFactory
 
 EXPECTED_DEFAULT_TARGET_FPS = 60.5
@@ -422,3 +422,23 @@ class TestTargetFpsArgumentValidation:
         parser = GameEngine.args(argparse.ArgumentParser())
         args = parser.parse_args(['--target-fps', text])
         assert math.isclose(args.target_fps, expected, abs_tol=1e-9)
+
+
+class TestGilSwitchInterval:
+    """Tests for the GIL switch interval set during engine initialization (BUGS.md #27)."""
+
+    def test_gil_switch_interval_is_half_a_millisecond(self):
+        """Test the constant: 0.5 ms keeps audio callbacks within the 11.6 ms mixer buffer."""
+        assert math.isclose(GIL_SWITCH_INTERVAL_SECONDS, 0.0005, abs_tol=1e-12)
+
+    def test_engine_initialization_sets_switch_interval(
+        self, mocker, mock_pygame_patches, mock_game_args
+    ):
+        """Test that GameEngine sets the interval once, before pygame.init() starts audio."""
+        mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_game_args)
+        set_switch_interval = mocker.patch('sys.setswitchinterval')
+        mock_game = MockFactory.create_game_mock()
+
+        GameEngine(game=mock_game)
+
+        set_switch_interval.assert_called_once_with(GIL_SWITCH_INTERVAL_SECONDS)

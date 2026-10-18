@@ -20,6 +20,12 @@ LOG = logging.getLogger(__name__)
 # (BUGS.md #26).
 DEFAULT_TARGET_FPS = 60.5
 
+# pygame's mixer callback takes the GIL to start the next live-voice chunk. With Python's
+# default 5 ms switch interval a busy main thread delayed it up to ~6.8 ms, an audible click
+# at every chunk boundary; 0.5 ms measured p99 1.16 ms against an 11.6 ms mixer buffer
+# (BUGS.md #27; scripts/audio_glitch_probe.py reproduces the measurement).
+GIL_SWITCH_INTERVAL_SECONDS = 0.0005
+
 
 def ms_to_ns(ms: float) -> int:
     """Convert milliseconds to nanoseconds.
@@ -188,6 +194,8 @@ class FastTimer:
             now = self.ns_now()
             if now >= deadline_ns:
                 return now
+            # Yield the GIL so audio callbacks (live-voice chunk handovers) can run mid-spin
+            time.sleep(0)
 
 
 def create_timer(

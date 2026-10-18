@@ -12,6 +12,7 @@ import math
 import multiprocessing
 import os
 import platform
+import sys
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, override
@@ -34,7 +35,7 @@ from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
-from glitchygames.timing import DEFAULT_TARGET_FPS, create_timer
+from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
 
 if TYPE_CHECKING:
     from collections import OrderedDict
@@ -516,6 +517,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Ensure Linux/X11 sends DOWN on focus clicks
         os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')
+
+        # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
+        # callback needs the GIL to queue the next live-voice chunk (BUGS.md #27).
+        sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)
+        self.log.debug(f'GIL switch interval set to {GIL_SWITCH_INTERVAL_SECONDS} seconds')
 
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()

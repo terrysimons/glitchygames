@@ -14,6 +14,19 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 27. Live Voice Clicks at Chunk Boundaries
+- **Description**: A steady "click click click" was audible at the 100 ms live-voice chunk boundaries during the Clockwork Keep elevator ascent (the cut at arrival is accepted)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: User
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-17
+- **Root Cause**: The synthesized samples are clean (an SDL disk-driver capture of the motor, 3.9 s, had no gaps, no discontinuities and a smooth onset). pygame-ce's mixer imports `PyGILState_Ensure`, `Mix_ChannelFinished` and `Mix_PlayChannelTimed`: its channel-finished callback takes the GIL to start the queued Sound. While the main thread holds the GIL (Python's default switch interval is 5 ms) the next chunk starts late, leaving a short silence, heard as a click at every boundary. The mixer buffer is 512 samples at 44100 Hz = 11.6 ms. The first probe missed this because it slept between frames (GIL free) and the disk driver is not real-time
+- **Measurements**: 2 ms-period thread under game-like load (6 ms of Python work per frame at 60.5 FPS, FastTimer coarse sleep and pure-Python spin). Before: default 5 ms interval, pure spin: median 0.51 ms, p99 6.44 ms, max 6.81 ms; spin yielding with `time.sleep(0)`: p99 6.09 ms, max 6.46 ms. After: 0.5 ms interval and yielding spin: p99 1.16 ms, max 1.18 ms (on a quiet machine; on a heavily loaded one OS scheduling noise dominates the maximum, see `scripts/audio_glitch_probe.py`)
+- **Solution**: (1) `GIL_SWITCH_INTERVAL_SECONDS = 0.0005` in `glitchygames/timing.py`; `GameEngine` calls `sys.setswitchinterval()` with it before `pygame.init()`. (2) `FastTimer.sleep_until_next`'s final spin calls `time.sleep(0)` each iteration so audio callbacks can take the GIL mid-spin. (3) New `glitchygames/audio/diagnostics.py` (gap, discontinuity and edge analysis; `measure_lock_wait`; `dropout_risk`) and `scripts/audio_glitch_probe.py` (`--mode dsp|realtime|both`), which records and measures under game-like main-thread load
+- **Tests**: `TestGilSwitchInterval` in `tests/engine/test_engine_initialization.py`; `test_final_spin_yields_the_gil_each_iteration` in `tests/timing/test_timing.py`; `tests/audio/test_diagnostics.py`
+- **Files**: `glitchygames/timing.py`, `glitchygames/engine/game_engine.py`, `glitchygames/audio/diagnostics.py`, `scripts/audio_glitch_probe.py`, `CLAUDE.md`
+
 ### 26. Paced Frames Measured in Whole Milliseconds; Fractional Target FPS Truncated
 - **Description**: In Clockwork Keep (target 60, default pygame timer) the target-relative FPS histogram showed 68.5% of frames in "90-99% (54-59)" and 31.5% in ">=100%", although the game ran at a steady 60 FPS
 - **Status**: Resolved

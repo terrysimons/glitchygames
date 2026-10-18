@@ -154,6 +154,23 @@ class TestFastTimer:
         result = timer.sleep_until_next(near_deadline)
         assert result >= near_deadline
 
+    def test_final_spin_yields_the_gil_each_iteration(self, mocker):
+        """Test the final spin calls time.sleep(0) so audio callbacks can take the GIL."""
+        timer = FastTimer()
+        deadline_ns = 10_000_000
+        # Calls: coarse loop reads 9_999_000 (inside the spin window, so no coarse sleep),
+        # then the spin reads 9_999_100, 9_999_500 (both short) and 10_000_001 (past).
+        mocker.patch(
+            'glitchygames.timing.time.perf_counter_ns',
+            side_effect=[9_999_000, 9_999_100, 9_999_500, 10_000_001],
+        )
+        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
+
+        result = timer.sleep_until_next(deadline_ns)
+
+        assert result >= deadline_ns
+        assert mock_sleep.call_args_list == [mocker.call(0), mocker.call(0)]
+
     def test_sleep_until_next_with_zero_granularity(self):
         timer = FastTimer(sleep_granularity_ns=0)
         near_deadline = timer.ns_now() + 100_000

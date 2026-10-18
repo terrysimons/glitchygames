@@ -161,6 +161,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 - Live voices: `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on
   a channel pool reserved at startup (`--live-voice-pool`, default 4)
 - Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer (started by `pygame.init()`)
+- GIL: the engine sets `sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)` (0.5 ms, `timing.py`) so the
+  mixer callback can queue the next chunk; check with `uv run python scripts/audio_glitch_probe.py`
 
 **Transitions** (`glitchygames/transitions/`): `on_update` callback, `add_cue(progress, callback)`,
 `eased_velocity_at(progress)`; cues run after the old scene's cleanup, so they may use only
