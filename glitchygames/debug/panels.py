@@ -7,13 +7,13 @@ sprite dirty flags.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import TYPE_CHECKING, Any
 
 import pygame
 
 from glitchygames.collision.layers import get_sprite_collision_rect
-from glitchygames.debug.overlay import PHYSICS_ARROW_MAXIMUM_PIXELS, PHYSICS_ARROW_SECONDS
 from glitchygames.debug.protocols import HasPhysicsBody
 
 if TYPE_CHECKING:
@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from glitchygames.debug.overlay import DebugOverlay, DebugPanel
 
 type Color = tuple[int, int, int]
+
+PHYSICS_ARROW_SECONDS = 0.1
+PHYSICS_ARROW_MAXIMUM_PIXELS = 80
 
 LAYER_PALETTE: tuple[Color, ...] = (
     (0, 200, 255),
@@ -60,9 +63,27 @@ GRAPH_CEILING_MILLISECONDS = 50.0
 GRAPH_BAR_COLOR: Color = (60, 200, 60)
 SLOW_BAR_COLOR: Color = (255, 0, 0)
 TARGET_LINE_COLOR: Color = (255, 255, 0)
-SLOW_FRAME_FACTOR = 1.5  # a frame this many times the target period counts as slow
-UNCAPPED_SLOW_FRAME_MILLISECONDS = 25.0  # slow-frame threshold when there is no target FPS
 MILLISECONDS_PER_SECOND = 1000.0
+
+
+@dataclasses.dataclass(frozen=True)
+class DebugFrameInfo:
+    """Per-frame engine readings handed to the overlay.
+
+    Attributes:
+        target_fps (float): The engine's target FPS; 0 means uncapped.
+        live_voice_count (int | None): Playing live voices, or None when unavailable.
+        rumble_levels (tuple[float, float]): Last (low, high) rumble levels sent.
+        screen_shake_offset (tuple[float, float]): Current SCREEN shake offset.
+        mouse_position (tuple[int, int] | None): Mouse position, or None.
+
+    """
+
+    target_fps: float
+    live_voice_count: int | None
+    rumble_levels: tuple[float, float]
+    screen_shake_offset: tuple[float, float]
+    mouse_position: tuple[int, int] | None
 
 
 def screen_rect_for(
@@ -287,45 +308,38 @@ def _draw_dashed_line(
         )
 
 
-def draw_camera_panel(  # ruff: ignore[too-many-arguments] - signature fixed by the overlay
-    *,
-    surface: pygame.Surface,
-    camera: Camera2D,
-    screen_offset: tuple[int, int],
-    font: Any,
-    mouse_position: tuple[int, int] | None,
-    screen_shake_offset: tuple[float, float],
+def _draw_bounds(
+    *, surface: pygame.Surface, camera: Camera2D, screen_offset: tuple[int, int]
 ) -> None:
-    """Draw camera bounds, the lead crosshair and camera text readouts.
-
-    Bounds are drawn as dashed lines at the world coordinate of each bound, and only for
-    edges that fall on the surface. The camera is read through `world_to_screen`, which has
-    no side effects (`apply` would mark the camera as used).
-
-    Args:
-        surface (pygame.Surface): The presented frame to draw onto.
-        camera (Camera2D): The active camera.
-        screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
-        font (Any): Font used for the text readouts.
-        mouse_position (tuple[int, int] | None): Mouse position in screen coordinates, or None.
-        screen_shake_offset (tuple[float, float]): Current SCREEN shake offset.
-
-    """
+    """Draw dashed lines at each camera-bound world edge that is on the surface."""
     min_x, min_y, max_x, max_y = camera.bounds
     surface_width, surface_height = surface.get_size()
-    for bound_x in (min_x, max_x):
-        if bound_x is None:
+    world_edges_x = (
+        min_x,
+        None if max_x is None else max_x + camera.screen_width,
+    )
+    world_edges_y = (
+        min_y,
+        None if max_y is None else max_y + camera.screen_height,
+    )
+    for world_edge_x in world_edges_x:
+        if world_edge_x is None:
             continue
-        line_x = camera.world_to_screen(bound_x, 0)[0] + screen_offset[0]
+        line_x = camera.world_to_screen(world_edge_x, 0)[0] + screen_offset[0]
         if 0 <= line_x < surface_width:
             _draw_dashed_line(surface=surface, start=(line_x, 0), end=(line_x, surface_height))
-    for bound_y in (min_y, max_y):
-        if bound_y is None:
+    for world_edge_y in world_edges_y:
+        if world_edge_y is None:
             continue
-        line_y = camera.world_to_screen(0, bound_y)[1] + screen_offset[1]
+        line_y = camera.world_to_screen(0, world_edge_y)[1] + screen_offset[1]
         if 0 <= line_y < surface_height:
             _draw_dashed_line(surface=surface, start=(0, line_y), end=(surface_width, line_y))
 
+
+def _draw_crosshair(
+    *, surface: pygame.Surface, camera: Camera2D, screen_offset: tuple[int, int]
+) -> None:
+    """Draw the lead crosshair at (lead_x, lead_y) plus the screen offset."""
     center_x = round(camera.lead_x) + screen_offset[0]
     center_y = round(camera.lead_y) + screen_offset[1]
     pygame.draw.line(
@@ -341,7 +355,37 @@ def draw_camera_panel(  # ruff: ignore[too-many-arguments] - signature fixed by 
         (center_x, center_y + CROSSHAIR_ARM_LENGTH),
     )
 
+
+def draw_camera_panel(
+    *,
+    surface: pygame.Surface,
+    camera: Camera2D,
+    screen_offset: tuple[int, int],
+    font: Any,
+    frame_info: DebugFrameInfo,
+) -> None:
+    """Draw camera bounds, the lead crosshair and camera text readouts.
+
+    `Camera2D.set_bounds` clamps the camera's top-left position, so the world's edges are
+    left = min_x, top = min_y, right = max_x + screen_width and bottom = max_y + screen_height.
+    Those edges are drawn as dashed lines, and only when they fall on the surface. The camera
+    is read through `world_to_screen`, which has no side effects (`apply` would mark the
+    camera as used).
+
+    Args:
+        surface (pygame.Surface): The presented frame to draw onto.
+        camera (Camera2D): The active camera.
+        screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
+        font (Any): Font used for the text readouts.
+        frame_info (DebugFrameInfo): Supplies the mouse position and SCREEN shake offset.
+
+    """
+    _draw_bounds(surface=surface, camera=camera, screen_offset=screen_offset)
+    _draw_crosshair(surface=surface, camera=camera, screen_offset=screen_offset)
+
     lines = [f'camera: ({round(camera.world_x)}, {round(camera.world_y)})']
+    mouse_position = frame_info.mouse_position
+    screen_shake_offset = frame_info.screen_shake_offset
     if mouse_position is not None:
         mouse_world_x = round(camera.world_x) + mouse_position[0]
         mouse_world_y = round(camera.world_y) + mouse_position[1]
@@ -373,30 +417,68 @@ def _draw_text_lines(
     return line_top
 
 
-def draw_performance_panel(  # ruff: ignore[too-many-arguments] - signature fixed by the overlay
+def _draw_frame_time_graph(
+    *, surface: pygame.Surface, overlay: DebugOverlay, target_fps: float
+) -> pygame.Rect:
+    """Draw the frame-time bars and target line in the bottom-right corner.
+
+    Returns:
+        pygame.Rect: The graph's rect.
+
+    """
+    graph_rect = pygame.Rect(
+        surface.get_width() - HUD_MARGIN - GRAPH_WIDTH,
+        surface.get_height() - HUD_MARGIN - GRAPH_HEIGHT - HUD_LINE_HEIGHT,
+        GRAPH_WIDTH,
+        GRAPH_HEIGHT,
+    )
+    pixels_per_millisecond = GRAPH_HEIGHT / GRAPH_CEILING_MILLISECONDS
+    target_milliseconds = MILLISECONDS_PER_SECOND / target_fps if target_fps > 0 else None
+
+    visible_frame_times = overlay.graph_frame_times()[-GRAPH_WIDTH:]
+    for index, frame_seconds in enumerate(visible_frame_times):
+        frame_milliseconds = frame_seconds * MILLISECONDS_PER_SECOND
+        bar_height = min(GRAPH_HEIGHT, max(1, round(frame_milliseconds * pixels_per_millisecond)))
+        is_slow = target_milliseconds is not None and frame_milliseconds > target_milliseconds
+        bar_color = SLOW_BAR_COLOR if is_slow else GRAPH_BAR_COLOR
+        bar_x = graph_rect.left + index
+        pygame.draw.line(
+            surface,
+            bar_color,
+            (bar_x, graph_rect.bottom - 1),
+            (bar_x, graph_rect.bottom - bar_height),
+        )
+    if target_milliseconds is not None:
+        line_y = graph_rect.bottom - 1 - round(target_milliseconds * pixels_per_millisecond)
+        pygame.draw.line(
+            surface, TARGET_LINE_COLOR, (graph_rect.left, line_y), (graph_rect.right - 1, line_y)
+        )
+    return graph_rect
+
+
+def draw_performance_panel(
     *,
     surface: pygame.Surface,
     overlay: DebugOverlay,
     font: Any,
-    target_fps: float,
-    live_voice_count: int | None,
-    rumble_levels: tuple[float, float],
+    frame_info: DebugFrameInfo,
 ) -> None:
     """Draw FPS text, the 1% low, optional audio/rumble lines and a frame-time graph.
 
     The panel sits in the top-right corner, with the graph in the bottom-right corner. Bars
-    are red when the frame is slow (over SLOW_FRAME_FACTOR times the target period, or over
-    UNCAPPED_SLOW_FRAME_MILLISECONDS when there is no target).
+    are red when the frame time exceeds the target frame time (1 / target FPS). With no
+    target (uncapped) there is no target line and no red bars.
 
     Args:
         surface (pygame.Surface): The presented frame to draw onto.
         overlay (DebugOverlay): The overlay holding the frame history.
         font (Any): Font used for the text.
-        target_fps (float): The engine's target FPS; 0 means uncapped.
-        live_voice_count (int | None): Playing live voices, or None when unavailable.
-        rumble_levels (tuple[float, float]): Last (low, high) rumble levels sent.
+        frame_info (DebugFrameInfo): Supplies the target FPS, voice count and rumble levels.
 
     """
+    target_fps = frame_info.target_fps
+    live_voice_count = frame_info.live_voice_count
+    rumble_levels = frame_info.rumble_levels
     current_fps = overlay.current_fps()
     one_percent_low = overlay.one_percent_low_fps()
     lines = [
@@ -416,38 +498,7 @@ def draw_performance_panel(  # ruff: ignore[too-many-arguments] - signature fixe
         right_aligned=True,
     )
 
-    graph_rect = pygame.Rect(
-        surface.get_width() - HUD_MARGIN - GRAPH_WIDTH,
-        surface.get_height() - HUD_MARGIN - GRAPH_HEIGHT - HUD_LINE_HEIGHT,
-        GRAPH_WIDTH,
-        GRAPH_HEIGHT,
-    )
-    pixels_per_millisecond = GRAPH_HEIGHT / GRAPH_CEILING_MILLISECONDS
-    if target_fps > 0:
-        target_milliseconds = MILLISECONDS_PER_SECOND / target_fps
-        slow_milliseconds = target_milliseconds * SLOW_FRAME_FACTOR
-    else:
-        target_milliseconds = None
-        slow_milliseconds = UNCAPPED_SLOW_FRAME_MILLISECONDS
-
-    visible_frame_times = overlay.graph_frame_times()[-GRAPH_WIDTH:]
-    for index, frame_seconds in enumerate(visible_frame_times):
-        frame_milliseconds = frame_seconds * MILLISECONDS_PER_SECOND
-        bar_height = min(GRAPH_HEIGHT, max(1, round(frame_milliseconds * pixels_per_millisecond)))
-        bar_color = SLOW_BAR_COLOR if frame_milliseconds > slow_milliseconds else GRAPH_BAR_COLOR
-        bar_x = graph_rect.left + index
-        pygame.draw.line(
-            surface,
-            bar_color,
-            (bar_x, graph_rect.bottom - 1),
-            (bar_x, graph_rect.bottom - bar_height),
-        )
-    if target_milliseconds is not None:
-        line_y = graph_rect.bottom - 1 - round(target_milliseconds * pixels_per_millisecond)
-        pygame.draw.line(
-            surface, TARGET_LINE_COLOR, (graph_rect.left, line_y), (graph_rect.right - 1, line_y)
-        )
-
+    graph_rect = _draw_frame_time_graph(surface=surface, overlay=overlay, target_fps=target_fps)
     footnote = font.render('overlay drawing included', antialias=False, color=HUD_TEXT_COLOR)
     surface.blit(footnote, (graph_rect.right - footnote.get_width(), graph_rect.bottom + 2))
 

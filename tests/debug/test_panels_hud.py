@@ -11,6 +11,8 @@ from glitchygames.debug import overlay as overlay_module
 from glitchygames.debug.overlay import DebugOverlay, DebugPanel
 from glitchygames.debug.panels import (
     BOUNDS_COLOR,
+    GRAPH_BAR_COLOR,
+    DebugFrameInfo,
     draw_camera_panel,
     draw_mode_line,
     draw_performance_panel,
@@ -87,22 +89,43 @@ def non_black_pixel_count(surface, *, area):
     )
 
 
-def draw_camera(**overrides):
-    """Call draw_camera_panel with keyword arguments (defaults: no mouse, shake or offset)."""
+def build_frame_info(**overrides):
+    """Build a DebugFrameInfo (defaults: 60 FPS target, no voices, rumble, shake or mouse).
+
+    Returns:
+        A DebugFrameInfo.
+
+    """
     arguments = {
-        'mouse_position': None,
+        'target_fps': 60.0,
+        'live_voice_count': None,
+        'rumble_levels': (0.0, 0.0),
         'screen_shake_offset': (0.0, 0.0),
-        'screen_offset': (0, 0),
+        'mouse_position': None,
     }
     arguments.update(overrides)
-    draw_camera_panel(**arguments)
+    return DebugFrameInfo(**arguments)
 
 
-def draw_performance(**overrides):
-    """Call draw_performance_panel with keyword arguments (defaults: 60 FPS, no extras)."""
-    arguments = {'target_fps': 60.0, 'live_voice_count': None, 'rumble_levels': (0.0, 0.0)}
-    arguments.update(overrides)
-    draw_performance_panel(**arguments)
+def draw_camera(*, surface, camera, font, screen_offset=(0, 0), **frame_overrides):
+    """Call draw_camera_panel with keyword arguments."""
+    draw_camera_panel(
+        surface=surface,
+        camera=camera,
+        screen_offset=screen_offset,
+        font=font,
+        frame_info=build_frame_info(**frame_overrides),
+    )
+
+
+def draw_performance(*, surface, overlay, font, **frame_overrides):
+    """Call draw_performance_panel with keyword arguments."""
+    draw_performance_panel(
+        surface=surface,
+        overlay=overlay,
+        font=font,
+        frame_info=build_frame_info(**frame_overrides),
+    )
 
 
 class TestCameraPanel:
@@ -117,13 +140,36 @@ class TestCameraPanel:
         assert any(column)
         assert not all(column)  # dashed, not solid
 
-    def test_bound_off_screen_draws_nothing(self, surface, font):
-        """max_x=1000 on a 200 px wide screen draws no line."""
+    def test_right_edge_is_max_x_plus_screen_width(self, font):
+        """With max_x=100 on a 200 px screen the right world edge is at world 300."""
+        small_surface = pygame.Surface((200, 100))
+        small_camera = Camera2D(200, 100)
+        small_camera.set_bounds(max_x=100)
+        small_camera.world_x = 100  # the right edge (world 300) is at screen x=200: off screen
+        draw_camera(surface=small_surface, camera=small_camera, font=font)
+        assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
+
+        small_camera.world_x = 101  # not reachable through update, but puts the edge at x=199
+        draw_camera(surface=small_surface, camera=small_camera, font=font)
+        assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) > 0
+        assert small_surface.get_at((199, 0))[:3] == BOUNDS_COLOR
+
+    def test_far_bound_draws_nothing(self, font):
+        """A bound far to the right of the visible world draws no line."""
         small_surface = pygame.Surface((200, 100))
         small_camera = Camera2D(200, 100)
         small_camera.set_bounds(max_x=1000)
         draw_camera(surface=small_surface, camera=small_camera, font=font)
         assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
+
+    def test_bottom_edge_is_max_y_plus_screen_height(self, font):
+        """With max_y=50 on a 100 px screen the bottom world edge is at world 150."""
+        small_surface = pygame.Surface((200, 100))
+        small_camera = Camera2D(200, 100)
+        small_camera.set_bounds(max_y=50)
+        small_camera.world_y = 51
+        draw_camera(surface=small_surface, camera=small_camera, font=font)
+        assert small_surface.get_at((0, 99))[:3] == BOUNDS_COLOR
 
     def test_lead_crosshair_drawn_at_lead_plus_offset(self, surface, font):
         """The crosshair centre sits at (lead_x, lead_y) plus the screen offset."""
@@ -170,18 +216,26 @@ def graph_pixels_of_color(surface, *, color):
 class TestPerformancePanel:
     """FPS text, the frame-time graph and the optional lines."""
 
-    def test_slow_frame_bar_is_red_and_fast_is_not(self, surface, font):
-        """A 30 ms frame draws red; a 10 ms frame does not."""
+    def test_bar_over_target_frame_time_is_red(self, surface, font):
+        """At 60 FPS (16.67 ms) a 17 ms frame draws red and a 16 ms frame does not."""
         slow = DebugOverlay(visible=True)
-        slow.record_frame(frame_seconds=0.030)
+        slow.record_frame(frame_seconds=0.017)
         draw_performance(surface=surface, overlay=slow, font=font)
         assert graph_pixels_of_color(surface, color=PURE_RED) > 0
 
         fast_surface = pygame.Surface(SURFACE_SIZE)
         fast = DebugOverlay(visible=True)
-        fast.record_frame(frame_seconds=0.010)
+        fast.record_frame(frame_seconds=0.016)
         draw_performance(surface=fast_surface, overlay=fast, font=font)
         assert graph_pixels_of_color(fast_surface, color=PURE_RED) == 0
+
+    def test_uncapped_has_no_red_bars(self, surface, font):
+        """With no target FPS even a 40 ms frame is not red."""
+        overlay = DebugOverlay(visible=True)
+        overlay.record_frame(frame_seconds=0.040)
+        draw_performance(surface=surface, overlay=overlay, font=font, target_fps=0.0)
+        assert graph_pixels_of_color(surface, color=PURE_RED) == 0
+        assert graph_pixels_of_color(surface, color=GRAPH_BAR_COLOR) > 0
 
     def test_target_line_drawn_for_sixty_and_not_when_uncapped(self, surface, font):
         """The target line exists for 60 FPS and "uncapped" replaces it for 0."""
@@ -312,11 +366,7 @@ def draw_overlay(*, overlay, surface, scene, mouse_position=(1, 1)):
         surface,
         scene=scene,
         screen_offset=(0, 0),
-        target_fps=60.0,
-        live_voice_count=None,
-        rumble_levels=(0.0, 0.0),
-        screen_shake_offset=(0.0, 0.0),
-        mouse_position=mouse_position,
+        frame_info=build_frame_info(mouse_position=mouse_position),
     )
 
 

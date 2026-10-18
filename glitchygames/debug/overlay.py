@@ -10,13 +10,14 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
+from glitchygames.debug import panels
+
 if TYPE_CHECKING:
+    from glitchygames.debug.panels import DebugFrameInfo
     from glitchygames.debug.protocols import DebugDrawable
 
 log: logging.Logger = logging.getLogger('game.debug.overlay')
 
-PHYSICS_ARROW_SECONDS = 0.1
-PHYSICS_ARROW_MAXIMUM_PIXELS = 80
 PERFORMANCE_WINDOW_SECONDS = 5.0
 GRAPH_WINDOW_SECONDS = 2.0
 FRAME_HISTORY_LENGTH = 5000  # 5 s at up to 1000 FPS
@@ -182,17 +183,13 @@ class DebugOverlay:
         """
         return self._window(window_seconds)
 
-    def draw(  # ruff: ignore[too-many-arguments] - signature fixed by the scene manager call
+    def draw(
         self,
         surface: pygame.Surface,
         *,
         scene: Any,
         screen_offset: tuple[int, int],
-        target_fps: float,
-        live_voice_count: int | None,
-        rumble_levels: tuple[float, float],
-        screen_shake_offset: tuple[float, float],
-        mouse_position: tuple[int, int] | None,
+        frame_info: DebugFrameInfo,
     ) -> None:
         """Draw the selected panels, the mode line and game hooks onto the presented frame.
 
@@ -203,16 +200,10 @@ class DebugOverlay:
             surface (pygame.Surface): The presented frame to draw onto.
             scene (Any): The active scene (needs `camera`; may have `all_sprites`, `collisions`).
             screen_offset (tuple[int, int]): Extra offset applied to the whole frame.
-            target_fps (float): The engine's target FPS; 0 means uncapped.
-            live_voice_count (int | None): Playing live voices, or None when unavailable.
-            rumble_levels (tuple[float, float]): Last (low, high) rumble levels sent.
-            screen_shake_offset (tuple[float, float]): Current SCREEN shake offset.
-            mouse_position (tuple[int, int] | None): Mouse position, or None.
+            frame_info (DebugFrameInfo): Per-frame engine readings (FPS target, audio, rumble,
+                shake, mouse).
 
         """
-        # panels imports this module's constants, so it is imported here to avoid a cycle.
-        from glitchygames.debug import panels
-
         if self._font is None:
             self._font = pygame.font.Font(None, 16)
         font = self._font
@@ -240,17 +231,14 @@ class DebugOverlay:
                 camera=camera,
                 screen_offset=screen_offset,
                 font=font,
-                mouse_position=mouse_position,
-                screen_shake_offset=screen_shake_offset,
+                frame_info=frame_info,
             )
         if self.shows(DebugPanel.PERFORMANCE):
             panels.draw_performance_panel(
                 surface=surface,
                 overlay=self,
                 font=font,
-                target_fps=target_fps,
-                live_voice_count=live_voice_count,
-                rumble_levels=rumble_levels,
+                frame_info=frame_info,
             )
         panels.draw_mode_line(surface=surface, font=font, panel=self.panel)
 
