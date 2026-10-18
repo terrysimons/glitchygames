@@ -495,9 +495,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self.description = ''  # Description field for metadata
         self._animations: dict[str, list[SpriteFrame]] = {}
         # Each animation's [[animation]] frame_interval and loop as loaded, so a save writes
-        # them back (frames without a per-frame override use the animation's frame_interval)
+        # them back (frames without a per-frame override use the animation's frame_interval).
+        # set_animation applies the animation's loop flag to is_looping; the animation state
+        # machine reads _loop_flags too
         self._animation_frame_intervals: dict[str, float] = {}
-        self._animation_loops: dict[str, bool] = {}
+        self._loop_flags: dict[str, bool] = {}
         self._is_playing: bool = False
         self._is_looping: bool = False
         self._frame_timer: float = 0.0
@@ -805,6 +807,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if not self.frame_manager.set_animation(animation_name):
             raise ValueError(ERR_FAILED_TO_SET_ANIMATION.format(animation_name))
 
+        self._apply_animation_loop_flag(animation_name)
         self._frame_timer = 0.0
         self._update_surface_and_mark_dirty()
 
@@ -928,7 +931,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         return {
             'frame_count': len(frames),
             'total_duration': sum(f.duration for f in frames),
-            'is_looping': self._is_looping,
+            # The animation's own loop flag; the runtime flag for one without a loaded flag
+            'is_looping': self._loop_flags.get(animation_name, self._is_looping),
         }
 
     def set_animation_metadata(
@@ -945,9 +949,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if animation_name not in self._animations:
             raise ValueError(ERR_ANIMATION_NOT_FOUND.format(animation_name))
 
-        # Update looping state if provided
+        # Update this animation's loop flag (and is_looping if it is the current animation)
         if 'is_looping' in metadata:
-            self._is_looping = bool(metadata['is_looping'])
+            self._loop_flags[animation_name] = bool(metadata['is_looping'])
+            if self.frame_manager.current_animation == animation_name:
+                self._apply_animation_loop_flag(animation_name)
 
     # File I/O methods
     @override
@@ -972,6 +978,16 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         else:
             raise ValueError(ERR_UNSUPPORTED_FORMAT.format(file_format))
 
+    def _apply_animation_loop_flag(self: Self, animation_name: str) -> None:
+        """Make is_looping follow the animation's own [[animation]] loop flag, when it has one.
+
+        Animations without a loaded flag (built in code or in Bitmappy) leave is_looping as
+        it is. Setting is_looping afterwards still overrides it until the next animation is set.
+        """
+        loop_flag = self._loop_flags.get(animation_name)
+        if loop_flag is not None:
+            self._is_looping = loop_flag
+
     def _set_initial_animation(self: Self) -> None:
         """Set the initial animation and frame."""
         if self._animations:
@@ -982,6 +998,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 else next(iter(self._animations.keys()))
             )
             self.frame_manager.current_animation = initial_animation
+            self._apply_animation_loop_flag(initial_animation)
             self.log.debug(
                 'Set initial animation to first animation in file: '
                 f"'{initial_animation}' with {len(self._animations[initial_animation])} frames",
@@ -1022,6 +1039,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         self._animations = {}
         self._animation_order: list[str] = []
+        self._animation_frame_intervals = {}
+        self._loop_flags = {}
 
         color_map, color_order, colors_with_per_pixel_alpha = self.build_color_map(data)
         self._color_map = color_map  # Store color map for later use
@@ -1045,12 +1064,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 if frames:
                     self._animations[anim_name] = frames
                     self._animation_order.append(anim_name)  # Track order
-
-        # Store per-animation loop flags for state machine auto-loop-mode
-        self._loop_flags: dict[str, bool] = {}
-        for anim_data in animations:
-            anim_name = anim_data.get('namespace', 'default')
-            self._loop_flags[anim_name] = anim_data.get('loop', True)
 
         # Auto-create animation state machine if [[transition]] sections exist
         self.state_machine: AnimationStateMachine | None = None
@@ -1218,9 +1231,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         anim_name = anim_data.get('namespace', 'default')
         frames_data = anim_data.get('frame', [])
 
-        # Set loop property from TOML data
+        # Loop property from TOML data (applied when the animation is set, see set_animation)
         loop_setting = anim_data.get('loop', True)
-        self._is_looping = loop_setting
 
         # Set frame interval from TOML data
         frame_interval = anim_data.get('frame_interval', 0.5)
@@ -1228,7 +1240,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         # Remember both per animation so save() writes them back
         self._animation_frame_intervals[anim_name] = frame_interval
-        self._animation_loops[anim_name] = loop_setting
+        self._loop_flags[anim_name] = loop_setting
 
         self.log.debug(f"Processing animation '{anim_name}' with {len(frames_data)} frame(s)")
         self._log_animation_metadata(anim_data, anim_name)
@@ -1938,7 +1950,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         return {
             'namespace': animation_name,
             'frame_interval': animation_frame_interval,
-            'loop': self._animation_loops.get(animation_name, True),
+            'loop': self._loop_flags.get(animation_name, True),
             'frame': animation_frames,
         }
 
@@ -1973,7 +1985,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         """
         self._animation_frame_intervals = dict(source._animation_frame_intervals)
-        self._animation_loops = dict(source._animation_loops)
+        self._loop_flags = dict(source._loop_flags)
 
     @staticmethod
     def _create_toml_animation_frames(

@@ -14,6 +14,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 38. Only One Loop Flag Per Sprite Honoured at Runtime
+- **Description**: An AnimatedSprite with a looping and a non-looping animation (cobra: idle loops, strike does not; Papyrus player: jumping/falling do not) used a single `is_looping` for all of them: after loading it was the last animation's `loop`, whichever animation played
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found while fixing BUGS.md #34
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_process_toml_animation` assigned each animation's `loop` to the one sprite-wide `_is_looping`, so the last one won, and `set_animation` never changed it. Only `AnimationStateMachine` applied per-animation flags (from `_loop_flags`), so sprites without a state machine, and direct `play()`/`set_animation()` calls, ignored them. `get_animation_metadata`/`set_animation_metadata` likewise read and wrote the sprite-wide flag whatever animation was named
+- **Solution**: `_loop_flags` (filled at load, reset on each load) is the single per-animation store, also used by save (it replaces `_animation_loops` from #34). `set_animation` and the initial animation apply the animation's own flag through `_apply_animation_loop_flag`; setting `is_looping` still overrides it until the next animation is set, and animations without a loaded flag leave `is_looping` unchanged. The metadata methods read and write that animation's flag
+- **Tests**: `TestPerAnimationLoop` in `tests/sprites/test_animated_sprite.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
 ### 37. PaddleSlap Ball-Ball Collisions Leave Stalled, Vertical or Flat Balls
 - **Description**: After ball-ball collisions PaddleSlap balls could end up nearly stopped (e.g. (13, 1) px/s), nearly vertical (e.g. (14, 218) px/s, bouncing between the top and bottom walls for 1000+ frames without reaching a paddle in a headless paddle-AI run), or flat (vy = 0, sliding along a wall)
 - **Status**: Resolved

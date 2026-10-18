@@ -3113,3 +3113,121 @@ blue = 0
         assert loaded_frame is not None
         assert loaded_frame.has_explicit_hitbox
         assert loaded_frame.hitbox == pygame.Rect(1, 2, 3, 4)
+
+
+LOOPING_AND_ONE_SHOT_TOML = """[sprite]
+name = "loops"
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.1
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 0
+pixels = \"\"\"
+#
+\"\"\"
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 1
+pixels = \"\"\"
+.
+\"\"\"
+
+[[animation]]
+namespace = "strike"
+frame_interval = 0.1
+loop = false
+
+[[animation.frame]]
+namespace = "strike"
+frame_index = 0
+pixels = \"\"\"
+#
+\"\"\"
+
+[[animation.frame]]
+namespace = "strike"
+frame_index = 1
+pixels = \"\"\"
+.
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."."]
+red = 255
+green = 0
+blue = 255
+"""
+
+
+class TestPerAnimationLoop:
+    """Each animation's own [[animation]] loop flag applies while it plays."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @staticmethod
+    def _play_past_the_end(sprite: AnimatedSprite, animation_name: str) -> None:
+        """Play an animation for longer than its two 0.1 s frames."""
+        sprite.play(animation_name)
+        for _ in range(5):
+            sprite.update(dt=0.1)
+
+    def test_each_animation_keeps_its_own_loop_flag(self, tmp_path):
+        """The looping animation wraps, the one-shot stops on its last frame, either order."""
+        toml_file = tmp_path / 'loops.toml'
+        toml_file.write_text(LOOPING_AND_ONE_SHOT_TOML, encoding='utf-8')
+        sprite = AnimatedSprite(str(toml_file))
+
+        assert sprite.is_looping  # the first (initial) animation, idle, loops
+        self._play_past_the_end(sprite, 'strike')
+        assert not sprite.is_looping
+        assert not sprite.is_playing
+        assert sprite.current_frame == 1
+
+        self._play_past_the_end(sprite, 'idle')
+        assert sprite.is_looping
+        assert sprite.is_playing
+
+        self._play_past_the_end(sprite, 'strike')
+        assert not sprite.is_playing
+        assert sprite.current_frame == 1
+
+    def test_loop_flags_survive_a_save_round_trip(self, tmp_path):
+        """Both animations' loop flags are written back and apply after reloading."""
+        toml_file = tmp_path / 'loops.toml'
+        toml_file.write_text(LOOPING_AND_ONE_SHOT_TOML, encoding='utf-8')
+        saved_file = tmp_path / 'resaved.toml'
+        AnimatedSprite(str(toml_file)).save(str(saved_file), 'toml')
+
+        reloaded = AnimatedSprite(str(saved_file))
+        reloaded.set_animation('strike')
+        assert not reloaded.is_looping
+        reloaded.set_animation('idle')
+        assert reloaded.is_looping
+
+    def test_animation_metadata_loop_flag_is_per_animation(self, tmp_path):
+        """get/set_animation_metadata read and change one animation's loop flag."""
+        toml_file = tmp_path / 'loops.toml'
+        toml_file.write_text(LOOPING_AND_ONE_SHOT_TOML, encoding='utf-8')
+        sprite = AnimatedSprite(str(toml_file))
+
+        assert sprite.get_animation_metadata('idle')['is_looping'] is True
+        assert sprite.get_animation_metadata('strike')['is_looping'] is False
+
+        sprite.set_animation_metadata('strike', {'is_looping': True})
+
+        assert sprite.get_animation_metadata('strike')['is_looping'] is True
+        assert sprite.is_looping  # idle (current) is unaffected and still loops
+        sprite.set_animation('strike')
+        assert sprite.is_looping
