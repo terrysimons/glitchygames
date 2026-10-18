@@ -12,7 +12,14 @@ Usage:
 """
 
 from glitchygames.audio.controller_audio import ControllerAudio
-from glitchygames.audio.exceptions import AudioUnavailableError
+from glitchygames.audio.exceptions import AudioUnavailableError, SoundRecipeError
+from glitchygames.audio.recipes import (
+    SoundBank,
+    SoundRecipe,
+    Tone,
+    Tremolo,
+    load_sound_recipes,
+)
 from glitchygames.audio.synth import Envelope, Waveform
 from glitchygames.audio.tts import MacOSTTS, get_tts_backend
 from glitchygames.audio.voice_assistant import VoiceAssistant
@@ -22,7 +29,13 @@ __all__ = [
     'ControllerAudio',
     'Envelope',
     'MacOSTTS',
+    'SoundBank',
+    'SoundRecipe',
+    'SoundRecipeError',
+    'Tone',
+    'Tremolo',
     'VoiceAssistant',
     'Waveform',
     'get_tts_backend',
+    'load_sound_recipes',
 ]
