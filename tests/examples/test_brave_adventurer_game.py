@@ -33,7 +33,7 @@ def adventurer_scene(request, mocker):
 
 
 class TestDefaultTargetFps:
-    """An explicit --target-fps 0 stays uncapped; the engine default supplies 60.44."""
+    """An explicit --target-fps 0 stays uncapped; the engine default supplies 60.01."""
 
     def test_setup_keeps_explicit_zero_target_fps_uncapped(self, adventurer_scene):
         adventurer_scene.target_fps = 0
