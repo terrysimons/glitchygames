@@ -308,6 +308,24 @@ class TestCollisionPanel:
         draw_collision(surface=surface, scene=scene, camera=camera, font=font)
         assert surface.get_at((50, 40))[:3] == UNLAYERED_COLOR
 
+    def test_unlayered_sprite_outlines_its_full_rect_not_trimmed_pixels(
+        self, surface, camera, font
+    ):
+        """Unlayered sprites get their full sprite.rect, as games test them (Clockwork Keep).
+
+        Their image's visible pixels are only a 6x6 box in the middle, but the game never
+        collides them through the collision manager, so the trimmed box would mislead.
+        """
+        loose = WorldSprite(world_x=100, world_y=40)
+        loose.image = pygame.Surface((20, 20), pygame.SRCALPHA)
+        loose.image.fill((255, 255, 255, 255), pygame.Rect(7, 7, 6, 6))
+        far_sprite = WorldSprite(world_x=300, world_y=200)
+        scene = build_scene(camera=camera, layers={'a': [far_sprite]}, extra_sprites=[loose])
+        draw_collision(surface=surface, scene=scene, camera=camera, font=font)
+        assert surface.get_at((100, 40))[:3] == UNLAYERED_COLOR
+        assert surface.get_at((119, 59))[:3] == UNLAYERED_COLOR
+        assert surface.get_at((107, 47))[:3] != UNLAYERED_COLOR
+
     def test_sprite_in_two_layers_uses_first_layer_color(self, surface, camera, font):
         """A sprite in two layers is outlined once, in the first layer's colour."""
         shared = WorldSprite(world_x=10, world_y=10)

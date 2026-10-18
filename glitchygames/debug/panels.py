@@ -176,7 +176,8 @@ def draw_collision_panel(
     """Draw hitbox outlines coloured by collision layer, plus a legend.
 
     Sprites in different layers that overlap are outlined in OVERLAP_COLOR. Sprites in the
-    scene's all_sprites that belong to no layer are outlined in UNLAYERED_COLOR. A scene
+    scene's all_sprites that belong to no layer have their full sprite.rect (not a trimmed
+    collision rect) outlined in UNLAYERED_COLOR. A scene
     without a collision manager, or whose manager has no layers, draws nothing.
 
     Args:
@@ -206,7 +207,12 @@ def draw_collision_panel(
     for sprite in getattr(scene, 'all_sprites', ()):
         if id(sprite) in layered_ids:
             continue
-        outline_rect = screen_rect_for(sprite=sprite, screen_offset=screen_offset)
+        sprite_rect = getattr(sprite, 'rect', None)
+        if sprite_rect is None:
+            continue
+        # Unlayered sprites never go through the collision manager, so their trimmed collision
+        # rect means nothing; games that test them do so with the full rect (Clockwork Keep).
+        outline_rect = pygame.Rect(sprite_rect).move(screen_offset)
         pygame.draw.rect(surface, UNLAYERED_COLOR, outline_rect, width=1)
 
     _draw_legend(surface=surface, layers=layers, font=font)
