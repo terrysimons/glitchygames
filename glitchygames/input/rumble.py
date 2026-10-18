@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 import pygame
@@ -67,6 +68,26 @@ def connected_rumble_devices(controller_manager: object | None) -> list[RumbleDe
     return joysticks
 
 
+@dataclass
+class _RumblePulse:
+    """One running pulse: starting motor levels fading linearly over its duration."""
+
+    low_frequency: float
+    high_frequency: float
+    duration: float
+    elapsed: float = 0.0
+
+    @property
+    def finished(self) -> bool:
+        """Whether the pulse has faded to nothing (true at exactly its duration)."""
+        return self.elapsed >= self.duration
+
+    @property
+    def fade(self) -> float:
+        """Fraction of the starting levels still left, 1.0 at the start and 0.0 at the end."""
+        return max(0.0, 1.0 - self.elapsed / self.duration)
+
+
 class RumbleController:
     """Sends the combined rumble of all shakers to every connected device."""
 
@@ -82,8 +103,7 @@ class RumbleController:
         self._sent_levels = (0.0, 0.0)
         self._sent_time_left = 0.0
         self._sustained_levels = (0.0, 0.0)
-        # Each pulse is [low_frequency, high_frequency, duration, elapsed] in seconds
-        self._pulses: list[list[float]] = []
+        self._pulses: list[_RumblePulse] = []
 
     @property
     def sustained_levels(self) -> tuple[float, float]:
@@ -148,7 +168,13 @@ class RumbleController:
         if duration <= 0.0:
             message = f'duration must be greater than 0.0, got {duration}'
             raise ValueError(message)
-        self._pulses.append([low_frequency, high_frequency, duration, 0.0])
+        self._pulses.append(
+            _RumblePulse(
+                low_frequency=low_frequency,
+                high_frequency=high_frequency,
+                duration=duration,
+            )
+        )
 
     def clear_pulses(self) -> None:
         """Drop every running pulse (not called by scene switches; see pulse())."""
@@ -234,17 +260,15 @@ class RumbleController:
         low = 0.0
         high = 0.0
         longest_remaining = 0.0
-        running_pulses: list[list[float]] = []
+        running_pulses: list[_RumblePulse] = []
         for pulse in self._pulses:
-            pulse[3] += dt
-            start_low, start_high, duration, elapsed = pulse
-            if elapsed >= duration:
+            pulse.elapsed += dt
+            if pulse.finished:
                 continue
             running_pulses.append(pulse)
-            fade = 1.0 - elapsed / duration
-            low = max(low, start_low * fade)
-            high = max(high, start_high * fade)
-            longest_remaining = max(longest_remaining, duration - elapsed)
+            low = max(low, pulse.low_frequency * pulse.fade)
+            high = max(high, pulse.high_frequency * pulse.fade)
+            longest_remaining = max(longest_remaining, pulse.duration - pulse.elapsed)
         self._pulses = running_pulses
         return low, high, longest_remaining
 
