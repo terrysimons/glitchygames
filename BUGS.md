@@ -14,6 +14,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 36. Saving a Static Sprite With an RGBA Color Blanks Its Pixels
+- **Description**: `toadstool.toml` came back from load -> save -> reload as a blank 16x18 grid: every pixel was written as `.`
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The file is valid; the static (single-frame) writer was wrong. toadstool declares one color with an `alpha` field (the unused magenta `"█" = { ..., alpha = 255 }`), so the loader gives the frame RGBA pixel tuples such as `(0, 0, 0, 255)`. `_build_toml_color_map` keys opaque colors as RGB (`(0, 0, 0)`) when no pixel has partial alpha, and `_save_toml_single_frame` looked pixels up by exact tuple equality, found nothing and silently wrote its default character `.` (which toadstool maps to black). The animated writer was unaffected because it uses `lookup_pixel_char`, which matches RGBA pixels against RGB keys
+- **Solution**: `_save_toml_single_frame` converts pixels with the same `_convert_pixels_to_toml_chars` as animated saves (which raises `KeyError` for a color missing from the map instead of writing a default character). Note: colors that no pixel uses are not written back, so toadstool's reloaded pixels are RGB tuples rather than RGBA; the colors are identical
+- **Tests**: `test_bundled_sprite_pixels_survive_a_save_round_trip` (every bundled sprite TOML, static and animated, compared as RGBA) in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
 ### 35. TOML Save Turns the Visible-Pixel Fallback Into Explicit Hitboxes
 - **Description**: Saving a sprite without hitboxes wrote a `[sprite.hitbox]` (the union of all frames' visible bounds) and an `[animation.frame.hitbox]` for every frame, so a load -> save added hitboxes the author never defined (colors, glimmer, scarab, gold_scarab) and froze them: later edits to the art no longer changed the collision shape, and the sprite-level default no longer reached frames
 - **Status**: Resolved

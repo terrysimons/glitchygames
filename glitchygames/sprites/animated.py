@@ -1610,26 +1610,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         width, height = frame.get_size()
         pixels = frame.get_pixel_data()
 
-        # Convert pixels to character representation
-        pixel_rows: list[str] = []
-        for y in range(height):
-            row = ''
-            for x in range(width):
-                pixel_index = y * width + x
-                if pixel_index < len(pixels):
-                    pixel = pixels[pixel_index]
-                    # Find the character for this color
-                    char = None
-                    for color, char_val in color_map.items():
-                        if color == pixel:
-                            char = char_val
-                            break
-                    if char is None:
-                        char = '.'  # Default character
-                    row += char
-                else:
-                    row += '.'  # Default character
-            pixel_rows.append(row)
+        # Convert pixels to characters with the same lookup as animated saves, which matches
+        # RGBA pixels against RGB color-map keys (and raises for a missing color) instead of
+        # requiring identical tuples and silently writing '.'
+        pixel_rows = AnimatedSprite._convert_pixels_to_toml_chars(pixels, width, height, color_map)
 
         # Write TOML file with proper block string format
         with Path(filename).open('w', encoding='utf-8') as f:

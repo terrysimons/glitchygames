@@ -457,3 +457,41 @@ def test_bundled_hitboxes_survive_a_save_round_trip_unchanged(sprite_file, tmp_p
 
     saved_data = tomllib.loads(saved_file.read_text(encoding='utf-8'))
     assert _hitbox_sections(saved_data) == _hitbox_sections(original_data)
+
+
+def _rgba_frames(sprite) -> dict[tuple[str, int], tuple[tuple[int, int], list[tuple[int, ...]]]]:
+    """Return every frame's size and pixels as RGBA tuples (RGB pixels get alpha 255).
+
+    Returns:
+        dict: (animation name, frame position) -> (size, RGBA pixels).
+
+    """
+    frames = {}
+    for animation_name, animation_frames in sprite._animations.items():
+        for frame_position, frame in enumerate(animation_frames):
+            rgba_pixels = [
+                pixel if len(pixel) == 4 else (*pixel, 255) for pixel in frame.get_pixel_data()
+            ]
+            frames[animation_name, frame_position] = (frame.get_size(), rgba_pixels)
+    return frames
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+def test_bundled_sprite_pixels_survive_a_save_round_trip(sprite_file, tmp_path):
+    """Load -> save -> reload gives every frame (static and animated) the same pixels."""
+    from glitchygames.sprites import AnimatedSprite
+
+    original_sprite = AnimatedSprite(str(sprite_file))
+    saved_file = tmp_path / sprite_file.name
+    original_sprite.save(str(saved_file), 'toml')
+    reloaded_sprite = AnimatedSprite(str(saved_file))
+
+    original_frames = _rgba_frames(original_sprite)
+    reloaded_frames = list(_rgba_frames(reloaded_sprite).values())
+    # A one-frame sprite is saved in the static format, which may rename its animation
+    assert len(reloaded_frames) == len(original_frames)
+    for (frame_key, original_frame), reloaded_frame in zip(
+        original_frames.items(), reloaded_frames, strict=True
+    ):
+        assert reloaded_frame == original_frame, frame_key
