@@ -288,6 +288,8 @@ class Game(Scene):
         # when ball bounding boxes overlap across multiple consecutive frames.
         # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
         self._ball_collision_cooldowns: dict[tuple[int, int], int] = {}
+        # (ball, ball) pairs that collided this frame, for _keep_collided_balls_playable
+        self._ball_collision_pairs: list[tuple[BallSprite, BallSprite]] = []
 
         # Collision layers
         self.collisions.add_layer('balls')
@@ -487,8 +489,10 @@ class Game(Scene):
             callback=self._on_ball_paddle_collision,
         )
 
-        # Check for ball-to-ball collisions
+        # Check for ball-to-ball collisions (exact elastic physics), then keep every ball that
+        # collided moving like a serve (a game rule, separate from the physics)
         self._handle_ball_collisions()
+        self._keep_collided_balls_playable()
 
         # Remove dead balls from our list
         balls_to_remove = [ball for ball in self.balls if not ball.alive()]
@@ -687,6 +691,7 @@ class Game(Scene):
         collisions with per-pair cooldown.
         """
         self._tick_collision_cooldowns()
+        self._ball_collision_pairs = []
 
         # Use collision manager for same-layer pair detection (AABB broad phase)
         self.collisions.check_overlap(
@@ -746,6 +751,79 @@ class Game(Scene):
 
         # Set cooldown for this pair
         self._ball_collision_cooldowns[pair_key] = cooldown_frames
+        self._ball_collision_pairs.append((ball1, ball2))
+
+    def _keep_collided_balls_playable(self: Self) -> None:
+        """Keep every ball that collided with another this frame moving like a serve.
+
+        Runs after _handle_ball_collisions. See _keep_ball_playable for the rule and why it
+        is separate from the collision physics.
+        """
+        for ball1, ball2 in self._ball_collision_pairs:
+            self._keep_ball_playable(ball1, partner=ball2)
+            self._keep_ball_playable(ball2, partner=ball1)
+
+    @staticmethod
+    def _keep_ball_playable(ball: BallSprite, *, partner: BallSprite) -> None:
+        """Turn and speed up a ball that left a ball-ball collision unplayable.
+
+        The equal-mass elastic exchange is exact (momentum and kinetic energy are
+        conserved), and exact physics can leave a ball almost stopped (a head-on hit on a
+        slower ball hands over nearly all its speed), almost vertical (it bounces between
+        the top and bottom walls and never reaches a paddle) or flat (vy = 0 slides along a
+        wall). PaddleSlap therefore applies a game rule, reusing the ball's own
+        ServeSettings, which already define a playable ball: the velocity's angle from
+        horizontal is moved into [minimum_angle_degrees, maximum_angle_degrees], keeping
+        the sign of each component, and its speed is raised to at least the serve speed.
+        A component that is exactly zero points away from the partner ball (down or right
+        when the centres are level). A ball already inside the band and at serve speed or
+        faster is unchanged. The rule adds energy only when it raises a slow ball's speed
+        and does not conserve momentum; it is deliberately not part of
+        _apply_elastic_collision, whose physics the collision sweep tests check.
+
+        Args:
+            ball (BallSprite): The ball to adjust.
+            partner (BallSprite): The ball it collided with.
+
+        """
+        serve_settings = ball.serve_settings
+        speed = math.hypot(ball.speed.x, ball.speed.y)
+        angle_degrees = math.degrees(math.atan2(abs(ball.speed.y), abs(ball.speed.x)))
+        playable_angle_degrees = min(
+            max(angle_degrees, serve_settings.minimum_angle_degrees),
+            serve_settings.maximum_angle_degrees,
+        )
+        if speed >= serve_settings.speed and playable_angle_degrees == angle_degrees:
+            return
+
+        ball_rect = get_sprite_collision_rect(ball)
+        partner_rect = get_sprite_collision_rect(partner)
+        horizontal_sign = Game._component_sign(
+            component=ball.speed.x, away_from_partner=ball_rect.centerx - partner_rect.centerx
+        )
+        vertical_sign = Game._component_sign(
+            component=ball.speed.y, away_from_partner=ball_rect.centery - partner_rect.centery
+        )
+        playable_speed = max(speed, serve_settings.speed)
+        playable_angle_radians = math.radians(playable_angle_degrees)
+        ball.speed.x = horizontal_sign * playable_speed * math.cos(playable_angle_radians)
+        ball.speed.y = vertical_sign * playable_speed * math.sin(playable_angle_radians)
+
+    @staticmethod
+    def _component_sign(*, component: float, away_from_partner: float) -> float:
+        """Return the direction (+1 or -1) a velocity component should keep or take.
+
+        Returns:
+            float: The component's own sign; for a zero component (within
+            SPEED_CHANGE_NOISE_FLOOR), the sign of the offset
+            away from the partner ball; +1 when both are zero.
+
+        """
+        if not math.isclose(component, 0.0, abs_tol=SPEED_CHANGE_NOISE_FLOOR):
+            return math.copysign(1.0, component)
+        if away_from_partner != 0:
+            return math.copysign(1.0, away_from_partner)
+        return 1.0
 
     def _tick_collision_cooldowns(self: Self) -> None:
         """Tick cooldowns: decrement all active cooldowns and remove expired ones."""

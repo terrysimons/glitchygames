@@ -229,6 +229,17 @@ class TestPaddleslapExample:
         paddle.snd.play.assert_called_once()
         assert ball.alive()
 
+    def test_update_keeps_collided_balls_playable_after_ball_collisions(self, mocker):
+        """update() applies the serve-like playability rule after the ball-ball physics."""
+        game = Game(options=self.mock_options)
+        call_order = mocker.Mock()
+        mocker.patch.object(game, '_handle_ball_collisions', call_order.physics)
+        mocker.patch.object(game, '_keep_collided_balls_playable', call_order.playability)
+
+        game.update()
+
+        assert [call[0] for call in call_order.mock_calls] == ['physics', 'playability']
+
     def test_dead_ball_still_in_layer_is_not_bounced(self, mocker):
         """A ball killed this frame (still in the 'balls' layer until cleanup) is skipped."""
         game = Game(options=self.mock_options)

@@ -564,7 +564,13 @@ def _velocity_from_angle(angle_degrees: float, speed: float) -> tuple[float, flo
 
 
 class _CollisionSweepHarness:
-    """Runs two real BallSprites through the real PaddleSlap per-frame collision path."""
+    """Runs two real BallSprites through the real PaddleSlap per-frame collision path.
+
+    It runs the ball-ball physics step (_handle_ball_collisions) only, not the playability
+    rule PaddleSlap's update() applies afterwards (_keep_collided_balls_playable), so the
+    sweeps check exact equal-mass elastic physics: swapped velocities, a mover that stops
+    dead, and conserved momentum and energy.
+    """
 
     def __init__(
         self,

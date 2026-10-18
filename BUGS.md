@@ -14,6 +14,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 37. PaddleSlap Ball-Ball Collisions Leave Stalled, Vertical or Flat Balls
+- **Description**: After ball-ball collisions PaddleSlap balls could end up nearly stopped (e.g. (13, 1) px/s), nearly vertical (e.g. (14, 218) px/s, bouncing between the top and bottom walls for 1000+ frames without reaching a paddle in a headless paddle-AI run), or flat (vy = 0, sliding along a wall)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Not an error in the physics: `_apply_elastic_collision` is an exact equal-mass elastic exchange (the recorded (96, 136) + (-160, 43) -> (-78, -38) + (14, 218) collision conserves momentum and kinetic energy to rounding, with the contact normal from the balls' centres). Exact physics legitimately produces these outcomes: a head-on hit on a slower ball hands over nearly all its speed, and the exchange can leave any heading. PaddleSlap had no rule keeping a ball playable after a ball-ball collision, unlike its serves, which `ServeSettings` keeps between 15 and 60 degrees from horizontal
+- **Solution**: The physics step is unchanged (the 2328-case collision sweeps still check swapped velocities, a mover that stops dead and conserved momentum and energy). `Game.update()` then runs `_keep_collided_balls_playable()`: each ball that collided this frame gets its velocity's angle from horizontal moved into its own `ServeSettings` band (keeping each component's sign; a zero component points away from the partner) and its speed raised to at least its serve speed (`_keep_ball_playable`). The rule conserves each ball's speed when it only turns it, adds energy only when it raises a slow ball's speed, and does not conserve momentum; balls already serve-like are untouched. A 3000-frame paddle-AI harness run had no stalled, vertical or flat balls afterwards (the same check found 1052 samples before)
+- **Tests**: `TestBallPairPlayability` in `tests/collision/test_ball_paddle_collision.py`; `test_update_keeps_collided_balls_playable_after_ball_collisions` in `tests/examples/test_paddleslap.py`; the existing sweeps in `tests/game_objects/test_ball_collision_physics.py`
+- **Files**: `glitchygames/examples/paddleslap.py`
+
 ### 36. Saving a Static Sprite With an RGBA Color Blanks Its Pixels
 - **Description**: `toadstool.toml` came back from load -> save -> reload as a blank 16x18 grid: every pixel was written as `.`
 - **Status**: Resolved
