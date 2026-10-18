@@ -472,3 +472,45 @@ the user:
 8. **Test added:** transition screenshots are unshaken (WORLD shake cleared and sprites
    re-positioned before the old-scene capture).
 
+
+---
+
+## Known follow-ups (deferred review minors)
+
+Minor findings from the per-task reviews, triaged by the final review as not blocking merge.
+Kept here because the review ledger was a temporary workspace.
+
+- Task 1: test_update_scrolls_parallax_layers compares against post-call world_x/y; add an explicit expected value
+- Task 1: _add_recording_layer helper lacks a docstring
+- Task 2: missing-device test asserts warning.called, not the new message text
+- Task 2: missing device logs two warnings (new + existing get_init None)
+- Task 3: test_jump_while_held_never_rides docstring says "Even if on_ground is restored" but restores nothing (brief wording)
+- Task 3: controller Y (interact) riding untested
+- Task 4: noise envelope test only asserts an upper bound
+- Task 4: jitter hold test uses sign checks; could pin the decay ratio
+- Task 4: update() does not guard negative dt (cap still clamps)
+- Task 4: no test for maximum_offset <= 0 raising
+- Task 5: new camera shake tests/helper lack docstrings
+- Task 5: Camera2D has no random_source seam for NOISE/JITTER tests (set camera.shake_effect directly if needed)
+- Task 6: no loop-level test pins main-loop order (update → frame services → render → present) in both branches
+- Task 6: camera-only re-render runs one extra old-scene update() before the screenshot (same as existing player path)
+- Task 6: redundant type-narrowing guards scene.py:236; unused mocker param in presentation test
+- Task 7: getattr(controller_manager, 'controllers', {}) silently means no devices
+- Task 7: _sent_levels recorded even with no devices; newly connected controller waits for a level change
+- Task 7: devices() still outside the per-device try (only get_count() can raise now)
+- Task 8: add_cue during a running transition can misfire (insert before _next_cue_index); document "add before start()" or guard
+- Task 8: no test that start() resets the cue index; new tests lack type annotations; on_update docstring wording ("including the completing frame")
+- Task 9: frequency_curve count==1 returns start_hz only; NOISE validates an ignored frequency; tests don't cover sample_rate=None resolution through oscillator/frequency_curve, duty validation, frequency_curve duration validation
+- Task 10: one-sample envelope stages (linspace(a,b,1) == [a]) break the endpoint invariant; matches the old Brave behavior
+- Task 10: Envelope values not validated (negative durations, sustain outside 0-1)
+- Task 10: apply_kernel empty-input return precedes the history-length check
+- Task 10: real-mixer smoke test quits the mixer without restoring prior state; test gaps (tremolo continuity, high_pass history, validation errors)
+- Task 11: no-mixer test asserts only jump is None (docstring says every sound)
+- Task 12: SoundBank.play uses `not play()` (Channel truthy, verified) — explicit `is None` preferred
+- Task 12: loader does not coerce/validate optional numeric fields, malformed shapes, empty tones, volume/peak ranges; play docstring omits render ValueError
+- Task 13: stop() fade starts after the already-queued chunk (up to ~200 ms late); document
+- Task 13: continuity tests are heuristics; could compare to an uninterrupted render (atol 1e-9)
+- Task 13: `random_source or default_rng()` truthiness; integration test cleanup not exception-safe; underrun test assertion loose
+- Task 13: never-started IDLE voices hold their channel until the owner is abandoned; abandoned owner cuts off a FADING voice
+- Task 14: respawn land test asserts <= 1, would not catch a spurious tween-triggered play
+- Task 14: jump allowed (now with sound) while respawning if the tween set on_ground
