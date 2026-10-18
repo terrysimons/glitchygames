@@ -16,9 +16,6 @@ One line per item, with where it is detailed. Review, then promote items into
 | Bitmappy's panned-viewport save drops a hitbox that lies entirely outside the viewport | `glitchygames/bitmappy/animated_canvas.py` | Decide: drop, clamp, or warn. |
 | Undoing an animation delete in Bitmappy restores its frames but not the `[[transition]]` entries dropped with it | `glitchygames/bitmappy/` (delete-animation command and its undo) | Found while fixing BUGS.md #44; the transitions should be captured by the delete command. |
 | Renaming an animation in Bitmappy drops its timing and loop flag | `glitchygames/bitmappy/film_strip_coordinator.py:~1352` | BUGS.md #45 (active). |
-| Packaged Bitmappy re-launches itself for background processes (no `multiprocessing.freeze_support()`), so the AI worker likely can't run in the binary | Bitmappy entry point, `bitmappy.spec` | BUGS.md #47 (active, high for the packaged build). |
-| Packaged Bitmappy is missing `pygame._sdl2.audio` | `bitmappy.spec` | BUGS.md #48 (active). |
-| `bitmappy.spec` hidden import `glitchygames.events.voice_portaudio` no longer exists (moved to `events.voice_backends`) | `bitmappy.spec:55` | BUGS.md #49 (active). |
 | `scripts/legacy_sprite_loader.py` cannot start (`Sprite.__init__()` missing x and y) | `scripts/legacy_sprite_loader.py:~50` | BUGS.md #46 (active); fix or delete. |
 | Bitmappy's editor canvas now honours `loop = false` (a one-shot animation plays once on SPACE and stays stopped) | `glitchygames/bitmappy/animated_canvas.py:~589` (`show_frame`) | Side effect of BUGS.md #38. Decide: keep, or force looping in the editor canvas as `film_strip.py:218` does for previews. |
 | PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `glitchygames/examples/paddleslap.py` | Pre-existing, self-correcting next frame. |

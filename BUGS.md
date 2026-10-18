@@ -36,31 +36,46 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-18
 - **Details**: `scripts/legacy_sprite_loader.py:~50`. Unchanged on the branch. Fix the call, or delete the script if it is obsolete.
 
-### 47. Packaged Bitmappy Re-Launches Itself for Background Processes (No freeze_support)
-- **Description**: In the PyInstaller build (`dist/bitmappy`), background processes (the AI worker and multiprocessing's resource tracker) start the bundled app again with multiprocessing's own arguments (`--multiprocessing-fork …`, `-B -S -I -c …`), which the app's argument parser rejects, so those processes fail
-- **Status**: Active
-- **Priority**: High for the packaged build (AI sprite generation likely cannot run there); no effect when running from source
-- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary` (2026-10-18)
+## Resolved Bugs
+
+### 49. bitmappy.spec Lists a Hidden Import That No Longer Exists
+- **Description**: The PyInstaller build logged `ERROR: Hidden import 'glitchygames.events.voice_portaudio' not found`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary`
 - **Date Reported**: 2026-10-18
-- **Details**: No `multiprocessing.freeze_support()` call exists in the repo. Frozen executables must call it first thing in the entry point (before argument parsing) so child processes run their task instead of the app. Fix: call it in Bitmappy's entry point (and any other packaged entry point), then rebuild and confirm an AI request completes in the binary.
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The PortAudio voice backend moved to `glitchygames.events.voice_backends.voice_portaudio`, and the spec was not updated. The spec had also never been committed: the PyInstaller section of `.gitignore` ignores `*.spec`, so a fresh clone could not run `nox -s build-binary` at all
+- **Solution**: The hidden import now names `glitchygames.events.voice_backends.voice_portaudio`. `.gitignore` makes an exception for `bitmappy.spec`, and the spec is now tracked
+- **Verification**: The rebuild logs no hidden-import errors for `glitchygames` modules. Its remaining `Hidden import … not found` warnings (`pycparser.lextab`, `pycparser.yacctab`, `scipy.special._cdflib`) come from third-party PyInstaller hooks, not from the spec
+- **Tests**: `test_every_spec_hidden_import_exists` (each hidden import must exist) and `test_spec_script_and_data_sources_exist` (the Analysis script and every `datas` source must exist) in `tests/tools/test_bitmappy_packaging.py`
+- **Files**: `bitmappy.spec`, `.gitignore`
 
 ### 48. Packaged Bitmappy Is Missing `pygame._sdl2.audio`
-- **Description**: A background process in the PyInstaller build crashes with `ModuleNotFoundError: No module named 'pygame._sdl2.audio'`
-- **Status**: Active
+- **Description**: A background process in the PyInstaller build crashed with `ModuleNotFoundError: No module named 'pygame._sdl2.audio'`
+- **Status**: Resolved
 - **Priority**: Medium
 - **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary`
 - **Date Reported**: 2026-10-18
-- **Details**: `bitmappy.spec` does not collect `pygame._sdl2.audio` (used for audio device listing). Fix: add it to `hiddenimports` and confirm the process starts in the rebuilt binary. May disappear once #47 stops the re-launch, but the module should be bundled either way if any code imports it.
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The module was not missing: both builds contain `pygame/_sdl2/audio.cpython-314-darwin.so` (checked with `pyi-archive_viewer --list`), and the main process imported it. The crashing process was one of the children that, without `freeze_support()` (#47), re-ran the whole entry point and imported Bitmappy. It crashed while the parent was being stopped, most likely because the one-file build's extracted files were already being removed
+- **Solution**: Fixed by #47 (children no longer import Bitmappy). `pygame._sdl2.audio` is now also listed in `bitmappy.spec`'s `hiddenimports`, so the binary cannot lose it if PyInstaller's analysis changes
+- **Verification**: Rebuilt binary ran headless and was stopped with SIGTERM and with SIGINT; neither run printed a `ModuleNotFoundError` or traceback
+- **Tests**: `test_spec_lists_the_audio_module_pygame_sdl2_imports` in `tests/tools/test_bitmappy_packaging.py`
+- **Files**: `bitmappy.spec`
 
-### 49. bitmappy.spec Lists a Hidden Import That No Longer Exists
-- **Description**: The PyInstaller build logs `ERROR: Hidden import 'glitchygames.events.voice_portaudio' not found`
-- **Status**: Active
-- **Priority**: Low (the build still succeeds, but the PortAudio voice backend may be missing from the binary)
-- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary`
+### 47. Packaged Bitmappy Re-Launches Itself for Background Processes (No freeze_support)
+- **Description**: In the PyInstaller build (`dist/bitmappy`), background processes (the AI worker and multiprocessing's resource tracker) started the bundled app again with multiprocessing's own arguments (`--multiprocessing-fork …`, `-B -S -I -c …`), which the app's argument parser rejected, so those processes failed
+- **Status**: Resolved
+- **Priority**: High for the packaged build; no effect when running from source
+- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary` (2026-10-18)
 - **Date Reported**: 2026-10-18
-- **Details**: `bitmappy.spec:55` lists `glitchygames.events.voice_portaudio`; the module moved to `glitchygames.events.voice_backends.voice_portaudio`. Fix: update the hidden import (and check the spec's other module names against the package), rebuild, and confirm the log is clean.
-
-## Resolved Bugs
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Bitmappy uses the `spawn` start method (`editor.main` calls `multiprocessing.set_start_method('spawn', force=True)`; `AIManager.setup` starts the worker with `multiprocessing.Process`), and a frozen app spawns children by re-running its own executable. No `multiprocessing.freeze_support()` call existed, so each child ran the app's entry point instead of its task
+- **Solution**: `scripts/bitmappy_entry.py` (the script `bitmappy.spec` builds) calls `multiprocessing.freeze_support()` first, and imports and starts Bitmappy only afterwards, so a child never imports Bitmappy or reaches its argument parser
+- **Verification**: Rebuilt with `nox -s build-binary` and ran `dist/bitmappy` headless (`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`). While it ran, the resource tracker (`-B -S -I -c …`) and the AI worker (`--multiprocessing-fork …`) were alive as child processes. The worker initialized its AI client (it logged `game.ai - WARNING - Client does not have _providers attribute`). After SIGINT, every process had exited within 5 s. There were no argparse usage errors, tracebacks or `ModuleNotFoundError`. A real AI request was not tried (it needs an API key or network access)
+- **Tests**: `test_entry_point_calls_freeze_support_before_starting_bitmappy` in `tests/tools/test_bitmappy_packaging.py`
+- **Files**: `scripts/bitmappy_entry.py`
 
 ### 44. TOML Save Drops Animation State Machine Transitions
 - **Description**: The TOML writers never wrote `[[transition]]` sections, so loading and saving a sprite lost its animation state machine (cobra: 2 transitions → 0; Papyrus player: 6 → 0). Saving a sprite in Bitmappy silently broke the game's animation logic
