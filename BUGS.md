@@ -14,6 +14,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 35. TOML Save Turns the Visible-Pixel Fallback Into Explicit Hitboxes
+- **Description**: Saving a sprite without hitboxes wrote a `[sprite.hitbox]` (the union of all frames' visible bounds) and an `[animation.frame.hitbox]` for every frame, so a load -> save added hitboxes the author never defined (colors, glimmer, scarab, gold_scarab) and froze them: later edits to the art no longer changed the collision shape, and the sprite-level default no longer reached frames
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_build_toml_data_structure` fell back to `_auto_compute_envelope_hitbox()` when `default_hitbox` was None, and `_create_toml_frame_data` fell back to `compute_bounding_box_from_pixels()` when a frame had no explicit hitbox. Both date from before the visible-pixel default existed, when a written hitbox was the only way to get a tight one
+- **Solution**: Save writes `[sprite.hitbox]` only when `default_hitbox` is set (loaded or set in code/Bitmappy) and a per-frame hitbox only when `SpriteFrame.has_explicit_hitbox`; `_auto_compute_envelope_hitbox` was removed. Nothing in Bitmappy or the tests relied on the synthesised sections (Bitmappy only carries explicit hitboxes, in its viewport save). Note: a magenta-keyed (non-alpha) `AnimatedSprite` saved without a hitbox now collides as its full frame, like one loaded without a hitbox (see the CLAUDE.md caveat)
+- **Tests**: `test_bundled_hitboxes_survive_a_save_round_trip_unchanged` (every bundled sprite, with and without hitboxes) in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
 ### 34. TOML Save Loses Animation Timings and Loop Settings
 - **Description**: Loading an animated sprite and saving it (as Bitmappy does) wrote `frame_interval = 0.5` and `loop = true` for every animation and dropped per-frame `frame_interval` overrides, so every bundled animation (cobra, gold_scarab, the Papyrus player, scarab, scorpion, colors, slime-jump, ghosty) came back at 0.5 s per frame and the cobra's strike and the player's jump/fall animations started looping
 - **Status**: Resolved

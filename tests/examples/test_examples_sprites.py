@@ -418,3 +418,42 @@ def test_bundled_animation_timings_survive_a_save_round_trip(sprite_file, tmp_pa
             frame.duration for frame in reloaded_sprite._animations[animation_name]
         ]
         assert reloaded_durations == [frame.duration for frame in frames], animation_name
+
+
+def _hitbox_sections(sprite_data: dict) -> tuple[dict | None, list[dict | None]]:
+    """Return the hitboxes a sprite file defines explicitly.
+
+    Returns:
+        tuple[dict | None, list[dict | None]]: The [sprite.hitbox] table (or None) and each
+        animation frame's [animation.frame.hitbox] (None where absent), in file order with
+        frames in frame_index order.
+
+    """
+    frame_hitboxes: list[dict | None] = []
+    for animation in sprite_data.get('animation', []):
+        frames = sorted(animation.get('frame', []), key=lambda frame: frame.get('frame_index', 0))
+        frame_hitboxes.extend(frame.get('hitbox') for frame in frames)
+    return sprite_data.get('sprite', {}).get('hitbox'), frame_hitboxes
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize('sprite_file', BUNDLED_SPRITE_FILES, ids=str)
+def test_bundled_hitboxes_survive_a_save_round_trip_unchanged(sprite_file, tmp_path):
+    """Save writes exactly the hitboxes the file defined: none are synthesised.
+
+    The writer used to turn the visible-pixel fallback into explicit [sprite.hitbox] and
+    [animation.frame.hitbox] sections, so saving a sprite without hitboxes froze them.
+    """
+    import tomllib
+
+    from glitchygames.sprites import AnimatedSprite
+
+    original_sprite = AnimatedSprite(str(sprite_file))
+    original_data = tomllib.loads(sprite_file.read_text(encoding='utf-8'))
+    if original_sprite.get_total_frame_count() == 1 and 'animation' in original_data:
+        pytest.skip('a one-frame animation is saved in the static format')
+    saved_file = tmp_path / sprite_file.name
+    original_sprite.save(str(saved_file), 'toml')
+
+    saved_data = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+    assert _hitbox_sections(saved_data) == _hitbox_sections(original_data)

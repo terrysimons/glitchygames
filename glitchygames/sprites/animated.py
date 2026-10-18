@@ -34,8 +34,6 @@ from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .frame import FrameManager, SpriteFrame
 from .pixel_utils import (
     PIXEL_ARRAY_SHAPE_DIMENSIONS,
-    compute_bounding_box_from_pixels,
-    compute_envelope_bounding_box,
     convert_pixels_to_rgb_if_possible,
     convert_pixels_to_rgba_if_needed,
     create_alpha_surface,
@@ -1877,28 +1875,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         return colors
 
-    def _auto_compute_envelope_hitbox(self: Self) -> dict[str, int] | None:
-        """Auto-compute a sprite-level envelope hitbox from all animation frames.
-
-        Computes per-frame bounding boxes from pixel data and returns
-        their union envelope. Used during save when no explicit hitbox
-        is set.
-
-        Returns:
-            Hitbox dict with offset_x, offset_y, width, height keys,
-            or None if all frames are fully transparent.
-
-        """
-        per_frame_boxes: list[dict[str, int]] = []
-        for frames in self._animations.values():
-            for frame in frames:
-                pixels = frame.get_pixel_data()
-                width, height = frame.get_size()
-                bounding_box = compute_bounding_box_from_pixels(pixels, width, height)
-                if bounding_box is not None:
-                    per_frame_boxes.append(bounding_box)
-        return compute_envelope_bounding_box(per_frame_boxes)
-
     def _build_toml_data_structure(
         self: Self,
         color_map: dict[tuple[int, ...], str],
@@ -1916,7 +1892,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if self.frame_anchor is not FrameAnchor.NONE:
             sprite_section['frame_anchor'] = self.frame_anchor.value
 
-        # Include sprite-level hitbox: use explicit if set, otherwise auto-compute
+        # Write the sprite-level hitbox only when one was defined (loaded or set); without
+        # one, collision uses the visible pixels, which a written hitbox would freeze
         if self._default_hitbox is not None:
             sprite_section['hitbox'] = {
                 'offset_x': self._default_hitbox.x,
@@ -1924,11 +1901,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 'width': self._default_hitbox.width,
                 'height': self._default_hitbox.height,
             }
-        else:
-            # Auto-compute envelope hitbox from all animation frames
-            auto_hitbox = self._auto_compute_envelope_hitbox()
-            if auto_hitbox is not None:
-                sprite_section['hitbox'] = auto_hitbox
 
         data: dict[str, Any] = {
             'sprite': sprite_section,
@@ -2056,7 +2028,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             'pixels': '\n'.join(pixel_chars),
         }
 
-        # Include per-frame hitbox: use explicit if set, otherwise auto-compute
+        # Write a per-frame hitbox only when the frame has an explicit one (never the
+        # visible-pixel fallback)
         if frame.has_explicit_hitbox:
             hitbox = frame.hitbox
             frame_data['hitbox'] = {
@@ -2065,11 +2038,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 'width': hitbox.width,
                 'height': hitbox.height,
             }
-        else:
-            # Auto-compute tight bounding box from pixel data
-            auto_hitbox = compute_bounding_box_from_pixels(pixels, width, height)
-            if auto_hitbox is not None:
-                frame_data['hitbox'] = auto_hitbox
 
         return frame_data
 
