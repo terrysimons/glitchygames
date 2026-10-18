@@ -48,6 +48,6 @@ and every old mask bit became a property or is listed as unmapped.
 
 ## Open questions
 
-Whether to also convert the design documents (story, regions, spells) into readable Markdown for a
+Whether to also convert the design documents (regions, races, spells) into readable Markdown for a
 future Galimore remake; licensing of third-party reference material in the archives (the FF3 tile
 rips and the sound samples should not be redistributed).
