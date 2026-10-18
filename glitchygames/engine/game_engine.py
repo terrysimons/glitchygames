@@ -14,6 +14,7 @@ import os
 import platform
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, override
 
@@ -131,6 +132,22 @@ def non_negative_int(value: str) -> int:
         message = f'{value!r} must be >= 0'
         raise argparse.ArgumentTypeError(message)
     return number
+
+
+@dataclass
+class UnhandledEventRecord:
+    """Statistics for one unhandled event type over a whole run.
+
+    Attributes:
+        count: How many events of this type went unhandled.
+        first_seen_seconds: When the first one arrived, in seconds since the engine started.
+        attribute_names: The first event's attribute names, sorted (never their values).
+
+    """
+
+    count: int
+    first_seen_seconds: float
+    attribute_names: tuple[str, ...]
 
 
 class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
@@ -497,6 +514,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         super().__init__()
 
         self._active_scene: Scene | None = None
+
+        # Unhandled events by type, reported at teardown (see unhandled_event_report)
+        self._started_at_seconds: float = time.perf_counter()
+        self.unhandled_events: dict[int, UnhandledEventRecord] = {}
 
         # Pygame stuff.
         pygame.register_quit(self.quit_game)
@@ -1022,6 +1043,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             performance_manager.print_per_scene_shutdown_report()
         except ImportError:
             pass  # Performance module not available
+
+        self._log_unhandled_event_report()
 
         pygame.display.quit()
         pygame.quit()
@@ -1670,6 +1693,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             event (events.HashableEvent): The event.
 
         """
+        self._record_unhandled_event(event)
+
         # Debug: Special handling for event type 1543
         if event.type == UNKNOWN_SDL2_EVENT_TYPE_1543:
             event_name = pygame.event.event_name(event.type)
@@ -1717,6 +1742,67 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 f'(UNIMPLEMENTED) {pygame.event.event_name(event.type).upper()}: {event}',
             )
             self.UNIMPLEMENTED_EVENTS.append(event.type)
+
+    def _record_unhandled_event(self: Self, event: events.HashableEvent) -> None:
+        """Count an unhandled event under its type, keeping the first one's time and names.
+
+        Args:
+            event (events.HashableEvent): The event.
+
+        """
+        record = self.unhandled_events.get(event.type)
+        if record is not None:
+            record.count += 1
+            return
+        # Names only: values can be large or private. 'type' is the key itself, and names
+        # starting with '_' are internals (HashableEvent's cached hash)
+        attribute_names = tuple(
+            sorted(
+                name
+                for name in getattr(event, '__dict__', {})
+                if name != 'type' and not name.startswith('_')
+            )
+        )
+        self.unhandled_events[event.type] = UnhandledEventRecord(
+            count=1,
+            first_seen_seconds=time.perf_counter() - self._started_at_seconds,
+            attribute_names=attribute_names,
+        )
+
+    def unhandled_event_report(self: Self) -> list[str]:
+        """Describe every unhandled event type, most frequent first.
+
+        Each line names the type (pygame's event name and its number, so custom and unknown
+        types still show), its count, when it was first seen and the first event's attribute
+        names, e.g. ``JOYDEVICEADDED (1541) x1, first at 0.3 s, attributes: device_index, guid``.
+
+        Returns:
+            One line per type; empty when every event was handled.
+
+        """
+        records = sorted(
+            self.unhandled_events.items(),
+            key=lambda item: item[1].count,
+            reverse=True,
+        )
+        return [
+            f'{pygame.event.event_name(event_type).upper()} ({event_type}) x{record.count}, '
+            f'first at {record.first_seen_seconds:.1f} s, '
+            f'attributes: {", ".join(record.attribute_names) or "none"}'
+            for event_type, record in records
+        ]
+
+    def _log_unhandled_event_report(self: Self) -> None:
+        """Log the unhandled event table at teardown; log nothing if there were none."""
+        report_lines = self.unhandled_event_report()
+        if not report_lines:
+            return
+        # Framed like the performance shutdown reports logged just before it
+        self.log.info(f'\n{"=" * 80}')
+        self.log.info('Unhandled events:')
+        for report_line in report_lines:
+            self.log.info(f'  {report_line}')
+        self.log.info('=' * 80)
 
     def post_game_event(self: Self, event_subtype: int, event_data: dict[str, Any]) -> None:
         """Post a game event.

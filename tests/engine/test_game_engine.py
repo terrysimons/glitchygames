@@ -969,6 +969,149 @@ class TestProcessUnimplementedEvent:
         assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
 
 
+class TestUnhandledEventTracking:
+    """GameEngine keeps per-type statistics of unhandled events and reports them at teardown."""
+
+    @staticmethod
+    def _make_engine_at(mocker, mock_pygame_patches, mock_game_args, *, start_seconds):
+        """Create an engine whose clock (time.perf_counter) reads start_seconds at startup.
+
+        Returns:
+            tuple: The engine and the perf_counter mock (set its return_value to move time).
+
+        """
+        fake_perf_counter = mocker.patch(
+            'glitchygames.engine.game_engine.time.perf_counter', return_value=start_seconds
+        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        return engine, fake_perf_counter
+
+    def test_counts_and_first_seen_time_per_type(self, mock_pygame_patches, mock_game_args, mocker):
+        """Each type is counted; its first-seen time is seconds since the engine started."""
+        engine, fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=100.0
+        )
+
+        fake_perf_counter.return_value = 100.25
+        engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
+        fake_perf_counter.return_value = 102.0
+        engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
+        engine.process_unimplemented_event(events.HashableEvent(pygame.DROPBEGIN))
+
+        joystick_record = engine.unhandled_events[pygame.JOYDEVICEADDED]
+        assert joystick_record.count == 2
+        assert joystick_record.first_seen_seconds == pytest.approx(0.25)
+        drop_record = engine.unhandled_events[pygame.DROPBEGIN]
+        assert drop_record.count == 1
+        assert drop_record.first_seen_seconds == pytest.approx(2.0)
+
+    def test_records_attribute_names_of_first_event_only(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """The first event's attribute names are kept, sorted; values never appear."""
+        engine, _fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
+        )
+
+        engine.process_unimplemented_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, guid='secret-guid', device_index=3)
+        )
+        engine.process_unimplemented_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, instance_id=9)
+        )
+
+        assert engine.unhandled_events[pygame.JOYDEVICEADDED].attribute_names == (
+            'device_index',
+            'guid',
+        )
+        (report_line,) = engine.unhandled_event_report()
+        assert 'secret-guid' not in report_line
+        assert 'attributes: device_index, guid' in report_line
+
+    def test_report_is_sorted_by_count_descending(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """The most frequent type comes first."""
+        engine, fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=10.0
+        )
+        fake_perf_counter.return_value = 10.3
+        engine.process_unimplemented_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='a')
+        )
+        for _ in range(3):
+            engine.process_unimplemented_event(events.HashableEvent(pygame.DROPBEGIN))
+
+        report = engine.unhandled_event_report()
+
+        drop_name = pygame.event.event_name(pygame.DROPBEGIN).upper()
+        assert report == [
+            f'{drop_name} ({pygame.DROPBEGIN}) x3, first at 0.3 s, attributes: none',
+            (
+                f'JOYDEVICEADDED ({pygame.JOYDEVICEADDED}) x1, first at 0.3 s, '
+                'attributes: device_index, guid'
+            ),
+        ]
+
+    def test_custom_event_type_appears_with_its_number(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """An unknown or custom type is reported with its numeric type."""
+        engine, _fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
+        )
+        custom_event_type = 88886
+
+        engine.process_unimplemented_event(events.HashableEvent(custom_event_type, payload=1))
+
+        (report_line,) = engine.unhandled_event_report()
+        assert f'({custom_event_type}) x1' in report_line
+
+    def test_teardown_logs_the_unhandled_event_table(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog
+    ):
+        """_shutdown logs every unhandled event type with the shutdown statistics."""
+        engine, _fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
+        )
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+        engine.process_unimplemented_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='a')
+        )
+
+        with caplog.at_level('INFO', logger='game.engine'):
+            engine._shutdown()
+
+        engine_messages = [
+            record.getMessage() for record in caplog.records if record.name == 'game.engine'
+        ]
+        assert 'Unhandled events:' in engine_messages
+        assert (
+            f'  JOYDEVICEADDED ({pygame.JOYDEVICEADDED}) x1, first at 0.0 s, '
+            'attributes: device_index, guid'
+        ) in engine_messages
+
+    def test_teardown_logs_nothing_when_every_event_was_handled(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog
+    ):
+        """No unhandled events means no report line at all."""
+        engine, _fake_perf_counter = self._make_engine_at(
+            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
+        )
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
+
+        with caplog.at_level('INFO', logger='game.engine'):
+            engine._shutdown()
+
+        assert not [
+            record
+            for record in caplog.records
+            if record.name == 'game.engine' and 'Unhandled events' in record.getMessage()
+        ]
+
+
 class TestPostGameEvent:
     """Test GameEngine.post_game_event method."""
 

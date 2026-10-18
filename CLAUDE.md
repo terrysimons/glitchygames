@@ -194,6 +194,7 @@ for retro/platformer games), shared by sprites, collision and the debug overlay.
 - Specialized classes: `MouseEventManager`, `KeyboardEventManager`, `ControllerEventManager`
 - Scenes override `on_*_event()` methods to handle specific events
 - `HashableEvent`: Custom wrapper allowing arbitrary attributes
+- Unhandled events: `GameEngine.unhandled_events` keeps per-type count, first-seen time and attribute names; logged as a table at teardown (`_shutdown`)
 
 ### Sprite and Animation System
 
