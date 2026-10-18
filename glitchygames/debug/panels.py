@@ -100,8 +100,9 @@ def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Re
 
     Sprites with world_x and world_y have a world-space collision rect. Its box is placed
     where the sprite is actually drawn: the sprite's rect (which games set from the camera
-    every frame, WORLD shake included) plus the hitbox's offset from the snapped world
-    position the collision rect was built from. Converting the already-rounded world rect
+    every frame, WORLD shake included, plus an anchored AnimatedSprite's draw_offset) less
+    that draw_offset, plus the hitbox's offset from the snapped world position the collision
+    rect was built from (which includes the draw_offset). Converting the already-rounded world rect
     through the camera would round twice and put the box a pixel off the sprite whenever the
     camera position is fractional. Other sprites already have screen-space rects.
 
@@ -119,9 +120,12 @@ def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Re
         snapped_world_x, snapped_world_y = snapped_world_position(
             sprite, sprite.world_x, sprite.world_y
         )
+        # An anchored AnimatedSprite's rect already includes its draw_offset, and so does its
+        # collision rect, so take the offset out once (sprites without one have (0, 0))
+        draw_offset_x, draw_offset_y = getattr(sprite, 'draw_offset', (0, 0))
         screen_rect.topleft = (
-            sprite.rect.x + collision_rect.x - snapped_world_x,
-            sprite.rect.y + collision_rect.y - snapped_world_y,
+            sprite.rect.x - draw_offset_x + collision_rect.x - snapped_world_x,
+            sprite.rect.y - draw_offset_y + collision_rect.y - snapped_world_y,
         )
     screen_rect.move_ip(screen_offset)
     return screen_rect

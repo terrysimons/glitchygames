@@ -18,8 +18,10 @@ from glitchygames.examples.brave_adventurer.constants import (
     STONE_WALL_WIDTH,
 )
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
+from glitchygames.examples.brave_adventurer_papyrus.constants import PAPYRUS_PLAYER_HEIGHT
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
-from glitchygames.sprites import AnimatedSprite
+from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import apply_transparency_and_scale
+from glitchygames.sprites import AnimatedSprite, FrameAnchor
 
 
 @pytest.fixture(params=[BraveAdventurerScene, PapyrusBraveAdventurerScene])
@@ -349,7 +351,8 @@ class TestPapyrusFacingLeftHitbox:
         player = self._face_left(papyrus_scene)
         visible = player.image.get_bounding_rect()
         hitbox = get_sprite_collision_rect(player)
-        assert hitbox.x - round(player.world_x) == visible.x
+        # The image is drawn at rect = position + draw_offset (BOTTOM frame anchoring)
+        assert hitbox.x - round(player.world_x) == visible.x + player.draw_offset[0]
         assert hitbox.width == visible.width
 
     def test_facing_right_is_unchanged(self, papyrus_scene):
@@ -358,7 +361,8 @@ class TestPapyrusFacingLeftHitbox:
         player.dt_tick(0.0)
         assert player.hitbox_flip_x is False
         visible = player.image.get_bounding_rect()
-        assert get_sprite_collision_rect(player).x - round(player.world_x) == visible.x
+        drawn_left = visible.x + player.draw_offset[0]
+        assert get_sprite_collision_rect(player).x - round(player.world_x) == drawn_left
 
     def test_walking_left_into_a_wall_touches_it(self, papyrus_scene):
         """Hitbox left edge and the flipped figure's visible left edge both meet the wall."""
@@ -377,7 +381,8 @@ class TestPapyrusFacingLeftHitbox:
         scene._resolve_player_wall_collision()
 
         assert get_sprite_collision_rect(player).left == wall_right
-        assert round(player.world_x) + player.image.get_bounding_rect().left == wall_right
+        drawn_left = round(player.world_x) + player.draw_offset[0]
+        assert drawn_left + player.image.get_bounding_rect().left == wall_right
 
     def test_world_left_edge_facing_left(self, papyrus_scene):
         """Facing left, the mirrored hitbox stops at the world's left edge."""
@@ -477,3 +482,104 @@ class TestStableSupportAtEdges:
             if landings > 1:
                 oscillating.append((start_x, landings))
         assert oscillating == []
+
+
+class TestPapyrusFeetAnchoring:
+    """Papyrus frames stand their visible feet on one fixed foot line.
+
+    The frames are top-aligned with different visible bottoms; each is drawn lower by its
+    anchor offset, and its hitbox moves with it.
+    """
+
+    @pytest.fixture
+    def standing_player(self, mocker):
+        """A Papyrus player standing on a long flat floor, facing right.
+
+        Returns:
+            The (scene, player) pair.
+
+        """
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 480))
+        scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
+        mocker.patch.object(scene, 'sounds')
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=4000)]
+        scene.wall_sprites[:] = []
+        player = scene.player
+        player.world_x = 200.0
+        player.world_y = float(GROUND_Y - PAPYRUS_PLAYER_HEIGHT)
+        return scene, player
+
+    @staticmethod
+    def _all_frames(player):
+        return [
+            (animation_name, frame_index)
+            for animation_name, frames in player.animation_data.items()
+            for frame_index in range(len(frames))
+        ]
+
+    def test_foot_row_is_the_sprite_hitbox_bottom_and_the_tallest_frame(self, standing_player):
+        """The [sprite.hitbox] bottom and the tallest frame's hitbox bottom agree: 27 rows."""
+        _, player = standing_player
+        tallest_bottom = max(
+            frame.hitbox.bottom
+            for frames in player.animation_data.values()
+            for frame in frames
+            if frame.has_explicit_hitbox
+        )
+        assert player.default_hitbox is not None
+        assert player.default_hitbox.bottom == tallest_bottom == 27
+        assert player.frame_anchor is FrameAnchor.BOTTOM
+        assert player.hitbox_scale * 27 == PAPYRUS_PLAYER_HEIGHT
+
+    def test_every_frame_stands_its_visible_feet_on_the_ground(self, standing_player):
+        """Lowest visible row on screen == ground line - 1 and hitbox bottom == ground line."""
+        scene, player = standing_player
+        misplaced = []
+        for animation_name, frame_index in self._all_frames(player):
+            player.set_animation(animation_name)
+            player.set_frame(frame_index)
+            apply_transparency_and_scale(player)
+            player.apply_camera(scene.camera)
+            screen_ground = GROUND_Y - round(scene.camera.world_y)
+            lowest_visible_row = (
+                player.rect.y
+                + player.image.get_bounding_rect().bottom
+                - 1
+                + GROUND_Y
+                - screen_ground
+            )
+            hitbox_bottom = get_sprite_collision_rect(player).bottom
+            if (lowest_visible_row, hitbox_bottom) != (GROUND_Y - 1, GROUND_Y):
+                misplaced.append((animation_name, frame_index, lowest_visible_row, hitbox_bottom))
+        assert misplaced == []
+
+    def test_head_bob_is_the_frame_anchor_offset(self, standing_player):
+        """Each frame is drawn (27 - its hitbox bottom) * 2 px lower: idle 0, running 4-6.
+
+        BOTTOM also centres each frame's hitbox horizontally on the sprite hitbox's centre.
+        """
+        _, player = standing_player
+        offsets = {}
+        for animation_name, frame_index in self._all_frames(player):
+            player.set_animation(animation_name)
+            player.set_frame(frame_index)
+            frame = player.get_current_frame()
+            offsets[animation_name, frame_index] = player.draw_offset
+            assert player.draw_offset[1] == (27 - frame.hitbox.bottom) * 2
+        assert offsets['idle', 0][1] == 0
+
+    def test_running_cycle_never_leaves_the_ground(self, standing_player):
+        """Running across flat ground through every run frame: on_ground stays True."""
+        scene, player = standing_player
+        scene._resolve_player_ground_collision()
+        grounded_frames = []
+        for _ in range(120):
+            player.velocity_x = 220.0
+            player.dt_tick(1 / 60)
+            scene._resolve_player_ground_collision()
+            scene._resolve_player_wall_collision()
+            grounded_frames.append(player.on_ground)
+        assert all(grounded_frames)

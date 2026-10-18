@@ -616,9 +616,10 @@ class TestPapyrusHitboxScale:
         assert frame is not None
         native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
         assert native_hitbox is not None
+        draw_offset_x, draw_offset_y = player.draw_offset  # BOTTOM frame anchoring
         assert get_sprite_collision_rect(player) == pygame.Rect(
-            round(player.world_x) + native_hitbox.x * 2,
-            round(player.world_y) + native_hitbox.y * 2,
+            round(player.world_x) + native_hitbox.x * 2 + draw_offset_x,
+            round(player.world_y) + native_hitbox.y * 2 + draw_offset_y,
             native_hitbox.width * 2,
             native_hitbox.height * 2,
         )
@@ -675,7 +676,8 @@ class TestPapyrusHitboxScale:
         frame = player.get_current_frame()
         assert frame is not None
         native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
-        assert player.hitbox == native_hitbox
+        assert native_hitbox is not None
+        assert player.hitbox == native_hitbox.move(player.draw_offset)
 
 
 class TestCallbacksThatRemoveSprites:

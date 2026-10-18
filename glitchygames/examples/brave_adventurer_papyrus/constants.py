@@ -128,9 +128,10 @@ MAGENTA_KEY = (255, 0, 255)
 # Horizontal terrain contact and sprite-vs-sprite hits use each sprite's collision rect: the
 # TOML [hitbox] sections, scaled by AnimatedSprite.hitbox_scale.
 # Player native image: 20x28. Visible feet end at row 27 in the tallest frames (idle),
-# row 25 in falling and rows 24-25 in running and jumping. This fixed foot line (25 rows)
-# is what the player stands on; idle frames therefore draw 2 native rows below it.
-PAPYRUS_PLAYER_HEIGHT = 25 * SPRITE_SCALE
+# row 25 in falling and rows 24-25 in running and jumping. The player sets
+# frame_anchor = FrameAnchor.BOTTOM: each frame is drawn lower so its feet sit on the
+# 27-row foot line, which is what the player stands on.
+PAPYRUS_PLAYER_HEIGHT = 27 * SPRITE_SCALE
 PAPYRUS_COBRA_WIDTH = 12 * SPRITE_SCALE
 PAPYRUS_COBRA_HEIGHT = 16 * SPRITE_SCALE
 PAPYRUS_SCARAB_WIDTH = 10 * SPRITE_SCALE

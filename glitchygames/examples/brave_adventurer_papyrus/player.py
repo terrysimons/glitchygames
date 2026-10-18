@@ -31,7 +31,7 @@ from glitchygames.physics import (
     GravityBehavior,
     PhysicsBody,
 )
-from glitchygames.sprites import AnimatedSprite
+from glitchygames.sprites import AnimatedSprite, FrameAnchor
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
@@ -92,6 +92,10 @@ class PapyrusPlayer(AnimatedSprite):
 
         # Scale up TOML pixel art and set magenta transparency
         prepare_papyrus_sprite(self)
+        # Frames are top-aligned with visible bottoms from 24 to 27 rows; anchor them at the
+        # hitbox bottom so the feet always sit on the 27-row foot line PAPYRUS_PLAYER_HEIGHT
+        # stands on (apply_camera adds the per-frame draw_offset to rect)
+        self.frame_anchor = FrameAnchor.BOTTOM
 
         # Physics body handles position, velocity, gravity, acceleration, bounds.
         # Ground collision is handled by game.py (terrain-based), not by a
@@ -294,8 +298,10 @@ class PapyrusPlayer(AnimatedSprite):
 
         """
         screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
+        # Anchored frames are drawn at their draw_offset (the hitbox includes it too)
+        draw_offset_x, draw_offset_y = self.draw_offset
+        self.rect.x = screen_x + draw_offset_x
+        self.rect.y = screen_y + draw_offset_y
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

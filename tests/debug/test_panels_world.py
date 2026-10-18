@@ -19,6 +19,8 @@ from glitchygames.debug.panels import (
     screen_rect_for,
 )
 from glitchygames.game_objects.ball import BallSprite
+from glitchygames.sprites import AnimatedSprite, FrameAnchor
+from glitchygames.sprites.frame import SpriteFrame
 
 SURFACE_SIZE = (400, 300)
 
@@ -188,6 +190,28 @@ class TestScreenRectFor:
         sprite.rect.topleft = (97, 32)  # drawn through a shaken camera
         rect = screen_rect_for(sprite=sprite, screen_offset=(0, 0))
         assert rect.topleft == (97, 32)
+
+    def test_anchored_animated_sprite_outline_is_its_drawn_hitbox(self):
+        """A FrameAnchor sprite's rect includes draw_offset; the outline counts it once."""
+        sprite = AnimatedSprite()
+        frames = []
+        for frame_hitbox in (pygame.Rect(0, 0, 10, 20), pygame.Rect(2, 0, 6, 14)):
+            surface = pygame.Surface((10, 20), pygame.SRCALPHA)
+            surface.fill((255, 255, 255, 255), frame_hitbox)
+            frames.append(SpriteFrame(surface, hitbox=frame_hitbox))
+        sprite.add_animation('cycle', frames)
+        sprite.set_animation('cycle')
+        sprite.set_frame(1)
+        sprite.frame_anchor = FrameAnchor.BOTTOM
+        sprite.world_x = 100.0
+        sprite.world_y = 40.0
+        draw_offset_x, draw_offset_y = sprite.draw_offset
+        assert (draw_offset_x, draw_offset_y) == (0, 6)
+        sprite.rect.topleft = (100 + draw_offset_x, 40 + draw_offset_y)  # as a game places it
+
+        outline = screen_rect_for(sprite=sprite, screen_offset=(0, 0))
+
+        assert outline == pygame.Rect(102, 46, 6, 14)
 
     def test_screen_sprite_used_as_is_plus_offset(self, camera):
         """A screen-space sprite ignores the camera; the offset still applies."""

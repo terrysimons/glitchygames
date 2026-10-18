@@ -22,7 +22,7 @@ from glitchygames.sprites import (
     BitmappySprite,
     SpriteFactory,
 )
-from glitchygames.sprites.animated import AnimatedSprite
+from glitchygames.sprites.animated import AnimatedSprite, FrameAnchor
 from glitchygames.sprites.frame import SpriteFrame
 from glitchygames.sprites.pixel_utils import (
     convert_pixels_to_rgb_if_possible,
@@ -2625,6 +2625,134 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         sprite.default_hitbox = pygame.Rect(4, 0, 12, 20)
 
         assert sprite.hitbox == pygame.Rect(4, 0, 12, 20)
+
+
+class TestAnimatedSpriteFrameAnchor:
+    """FrameAnchor keeps one point of every frame's hitbox in place (real surfaces)."""
+
+    # Three frames with different hitboxes, each frame's visible pixels == its hitbox
+    FRAME_HITBOXES = (
+        pygame.Rect(3, 0, 11, 27),
+        pygame.Rect(1, 2, 14, 22),
+        pygame.Rect(0, 5, 19, 19),
+    )
+
+    def _sprite(self, frame_anchor, *, hitbox_scale=1, hitbox_flip_x=False):
+        """A three-frame sprite in one animation, anchored as given.
+
+        Returns:
+            AnimatedSprite: The sprite.
+
+        """
+        sprite = AnimatedSprite()
+        frames = []
+        for frame_hitbox in self.FRAME_HITBOXES:
+            surface = pygame.Surface((20, 28), pygame.SRCALPHA)
+            surface.fill((10, 200, 30, 255), frame_hitbox)
+            frames.append(SpriteFrame(surface, duration=FRAME_DURATION, hitbox=frame_hitbox))
+        sprite.add_animation('cycle', frames)
+        sprite.set_animation('cycle')
+        sprite.frame_anchor = frame_anchor
+        sprite.hitbox_scale = hitbox_scale
+        sprite.hitbox_flip_x = hitbox_flip_x
+        return sprite
+
+    @staticmethod
+    def _anchor_point(rect, frame_anchor):
+        """Return the anchor's point of a rect, doubled to keep half pixels exact."""
+        horizontal = {
+            'LEFT': 2 * rect.left,
+            'RIGHT': 2 * rect.right,
+        }
+        vertical = {'TOP': 2 * rect.top, 'BOTTOM': 2 * rect.bottom}
+        name = frame_anchor.name
+        horizontal_key = (
+            'LEFT' if name.endswith('LEFT') else 'RIGHT' if name.endswith('RIGHT') else None
+        )
+        vertical_key = (
+            'TOP' if name.startswith('TOP') else 'BOTTOM' if name.startswith('BOTTOM') else None
+        )
+        point_x = horizontal[horizontal_key] if horizontal_key else 2 * rect.left + rect.width
+        point_y = vertical[vertical_key] if vertical_key else 2 * rect.top + rect.height
+        return (point_x, point_y)
+
+    def _points_per_frame(self, sprite):
+        """For every frame: the hitbox's anchor point and the drawn pixels' anchor point."""
+        hitbox_points = []
+        drawn_points = []
+        for frame_index in range(len(self.FRAME_HITBOXES)):
+            sprite.set_frame(frame_index)
+            frame = sprite.get_current_frame()
+            hitbox_points.append(self._anchor_point(sprite.hitbox, sprite.frame_anchor))
+            # Where the frame's visible pixels land when drawn at rect = position + draw_offset
+            visible = frame.image.get_bounding_rect()
+            scale = sprite.hitbox_scale
+            drawn_x = visible.x * scale
+            if sprite.hitbox_flip_x:
+                drawn_x = frame.rect.width * scale - (drawn_x + visible.width * scale)
+            drawn = pygame.Rect(
+                drawn_x, visible.y * scale, visible.width * scale, visible.height * scale
+            )
+            drawn.move_ip(sprite.draw_offset)
+            drawn_points.append(self._anchor_point(drawn, sprite.frame_anchor))
+        return hitbox_points, drawn_points
+
+    @pytest.mark.parametrize(
+        'frame_anchor',
+        [anchor for anchor in FrameAnchor if anchor is not FrameAnchor.NONE],
+        ids=lambda anchor: anchor.name,
+    )
+    def test_anchor_point_is_identical_for_every_frame(self, frame_anchor):
+        """The anchor point of every frame's hitbox and drawing lands on the reference's."""
+        sprite = self._sprite(frame_anchor, hitbox_scale=2)
+        reference = self.FRAME_HITBOXES[0].unionall(self.FRAME_HITBOXES[1:])
+        scaled_reference = pygame.Rect(
+            reference.x * 2, reference.y * 2, reference.width * 2, reference.height * 2
+        )
+        hitbox_points, drawn_points = self._points_per_frame(sprite)
+        expected = self._anchor_point(scaled_reference, frame_anchor)
+        assert set(hitbox_points) == {expected}
+        assert set(drawn_points) == {expected}
+
+    def test_none_is_a_strict_no_op(self):
+        """The default NONE draws frames as authored: no offset, hitboxes unchanged."""
+        sprite = self._sprite(FrameAnchor.NONE)
+        assert AnimatedSprite().frame_anchor is FrameAnchor.NONE
+        for frame_index, frame_hitbox in enumerate(self.FRAME_HITBOXES):
+            sprite.set_frame(frame_index)
+            assert sprite.draw_offset == (0, 0)
+            assert sprite.hitbox == frame_hitbox
+
+    def test_left_anchor_on_a_flipped_sprite_keeps_the_visual_right_edge(self):
+        """Mirrored drawing: LEFT (computed in authored space) pins the on-screen right edge."""
+        sprite = self._sprite(FrameAnchor.LEFT, hitbox_flip_x=True)
+        right_edges = set()
+        drawn_right_edges = set()
+        for frame_index in range(len(self.FRAME_HITBOXES)):
+            sprite.set_frame(frame_index)
+            right_edges.add(sprite.hitbox.right)
+            frame = sprite.get_current_frame()
+            visible = frame.image.get_bounding_rect()
+            drawn_right = frame.rect.width - visible.x + sprite.draw_offset[0]
+            drawn_right_edges.add(drawn_right)
+        # Reference left edge 0 in authored space -> right edge 20 in the 20 px mirrored frame
+        assert right_edges == {20}
+        assert drawn_right_edges == {20}
+
+    def test_reference_prefers_the_default_hitbox(self):
+        """With a sprite-level default hitbox, frames align to it, not the union."""
+        sprite = self._sprite(FrameAnchor.BOTTOM)
+        sprite.default_hitbox = pygame.Rect(0, 0, 20, 28)
+        sprite.set_frame(1)
+        assert sprite.hitbox.bottom == 28
+        assert 2 * sprite.hitbox.left + sprite.hitbox.width == 20
+
+    def test_toml_frame_anchor_is_parsed(self):
+        """[sprite] frame_anchor takes the lowercase names; absent is NONE; unknown raises."""
+        assert AnimatedSprite._parse_frame_anchor(None) is FrameAnchor.NONE
+        assert AnimatedSprite._parse_frame_anchor('bottom_left') is FrameAnchor.BOTTOM_LEFT
+        with pytest.raises(ValueError, match='frame_anchor'):
+            AnimatedSprite._parse_frame_anchor('sideways')
 
 
 class TestHitboxTomlRoundTrip:

@@ -11,6 +11,7 @@ import hashlib
 import logging
 import tomllib
 from collections import Counter
+from enum import Enum
 from pathlib import Path
 from typing import IO, Any, Self, cast, override
 
@@ -44,6 +45,62 @@ from .pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
 )
+
+
+class FrameAnchor(Enum):
+    """Which point of every animation frame's hitbox is kept in place when drawn.
+
+    Frames are authored top-left aligned. When their hitboxes differ (a short running frame
+    next to a tall idle frame), anchoring moves each frame so the chosen point of its hitbox
+    lands on the same point of the reference hitbox: the sprite-level default hitbox, else the
+    union of all frames' hitboxes. The vertical part is the hitbox top (TOP_*), vertical centre
+    (LEFT, CENTER, RIGHT) or bottom (BOTTOM_*); the horizontal part is the left edge (*_LEFT,
+    LEFT), horizontal centre (TOP, CENTER, BOTTOM) or right edge (*_RIGHT, RIGHT). Walkers
+    use BOTTOM, spinners and floaters CENTER, hanging things TOP. Alternatively, author the
+    art already aligned and keep NONE.
+    """
+
+    NONE = 'none'  # Draw frames as authored (default)
+    TOP_LEFT = 'top_left'
+    TOP = 'top'
+    TOP_RIGHT = 'top_right'
+    LEFT = 'left'
+    CENTER = 'center'
+    RIGHT = 'right'
+    BOTTOM_LEFT = 'bottom_left'
+    BOTTOM = 'bottom'
+    BOTTOM_RIGHT = 'bottom_right'
+
+
+# (horizontal edge, vertical edge) each anchor aligns: 'start', 'center' or 'end'
+_FRAME_ANCHOR_EDGES: dict[FrameAnchor, tuple[str, str]] = {
+    FrameAnchor.TOP_LEFT: ('start', 'start'),
+    FrameAnchor.TOP: ('center', 'start'),
+    FrameAnchor.TOP_RIGHT: ('end', 'start'),
+    FrameAnchor.LEFT: ('start', 'center'),
+    FrameAnchor.CENTER: ('center', 'center'),
+    FrameAnchor.RIGHT: ('end', 'center'),
+    FrameAnchor.BOTTOM_LEFT: ('start', 'end'),
+    FrameAnchor.BOTTOM: ('center', 'end'),
+    FrameAnchor.BOTTOM_RIGHT: ('end', 'end'),
+}
+
+
+def _doubled_edge(start: int, size: int, edge: str) -> int:
+    """Return twice the coordinate of a span's start, centre or end (exact for half pixels).
+
+    Returns:
+        int: 2 * start, 2 * start + size, or 2 * (start + size).
+
+    """
+    match edge:
+        case 'start':
+            return 2 * start
+        case 'center':
+            return 2 * start + size
+        case _:
+            return 2 * (start + size)
+
 
 # Import detect_file_format function
 try:
@@ -152,9 +209,101 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if current_frame is None:
             # No frame: the sprite's own rect is already in drawn pixels, so it is not scaled
             return pygame.Rect(0, 0, self._gg_rect.width, self._gg_rect.height)
-        return self._drawn_hitbox(
+        drawn_hitbox = self._drawn_hitbox(
             self._native_frame_hitbox(current_frame), native_frame_width=current_frame.rect.width
         )
+        # Anchored frames are drawn at an offset (see draw_offset); the hitbox moves with them
+        draw_offset_x, draw_offset_y = self.draw_offset
+        drawn_hitbox.move_ip(draw_offset_x, draw_offset_y)
+        return drawn_hitbox
+
+    def _frame_anchor_reference(self: Self) -> pygame.Rect | None:
+        """Return the native hitbox every anchored frame is aligned to.
+
+        The sprite-level default hitbox if there is one, else the union of all frames'
+        hitboxes (so every anchor point has a well-defined reference).
+
+        Returns:
+            pygame.Rect | None: The reference hitbox, or None without frames.
+
+        """
+        if self._default_hitbox is not None:
+            return self._default_hitbox
+        frame_hitboxes = [
+            self._native_frame_hitbox(frame)
+            for frames in self._animations.values()
+            for frame in frames
+        ]
+        if not frame_hitboxes:
+            return None
+        return frame_hitboxes[0].unionall(frame_hitboxes[1:])
+
+    def _frame_draw_offset(self: Self, frame: SpriteFrame) -> tuple[int, int]:
+        """Return where a frame is drawn relative to its authored position (see draw_offset).
+
+        Returns:
+            tuple[int, int]: (x, y) offset in drawn pixels; (0, 0) for FrameAnchor.NONE.
+
+        """
+        if self.frame_anchor is FrameAnchor.NONE:
+            return (0, 0)
+        reference = self._frame_anchor_reference()
+        if reference is None:
+            return (0, 0)
+        frame_hitbox = self._native_frame_hitbox(frame)
+        horizontal_edge, vertical_edge = _FRAME_ANCHOR_EDGES[self.frame_anchor]
+        # Computed in authored (unflipped) native pixels, doubled so centres stay exact
+        doubled_offset_x = _doubled_edge(
+            reference.x, reference.width, horizontal_edge
+        ) - _doubled_edge(frame_hitbox.x, frame_hitbox.width, horizontal_edge)
+        doubled_offset_y = _doubled_edge(
+            reference.y, reference.height, vertical_edge
+        ) - _doubled_edge(frame_hitbox.y, frame_hitbox.height, vertical_edge)
+        drawn_offset_x = doubled_offset_x * self.hitbox_scale // 2
+        drawn_offset_y = doubled_offset_y * self.hitbox_scale // 2
+        if self.hitbox_flip_x:
+            # Mirrored with the image: the anchored point is mirrored too
+            drawn_offset_x = -drawn_offset_x
+        return (drawn_offset_x, drawn_offset_y)
+
+    @property
+    def draw_offset(self: Self) -> tuple[int, int]:
+        """Where the current frame is drawn relative to its authored (top-left) position.
+
+        With a frame_anchor other than NONE, each frame is moved so the anchor point of its
+        hitbox (see FrameAnchor) lands on the same point of the reference hitbox, in drawn
+        pixels (times hitbox_scale; computed in authored space and mirrored with the image
+        when hitbox_flip_x). Games add it when placing rect (e.g. after camera.apply), and
+        hitbox includes it, so collisions match the drawing. NONE (the default) is (0, 0).
+
+        Returns:
+            tuple[int, int]: (x, y) offset in drawn pixels.
+
+        """
+        current_frame = self.get_current_frame()
+        if current_frame is None:
+            return (0, 0)
+        return self._frame_draw_offset(current_frame)
+
+    @staticmethod
+    def _parse_frame_anchor(frame_anchor_name: str | None) -> FrameAnchor:
+        """Parse the optional [sprite] frame_anchor TOML value.
+
+        Returns:
+            FrameAnchor: The anchor; NONE when the key is absent.
+
+        Raises:
+            ValueError: If the value names no FrameAnchor.
+
+        """
+        if frame_anchor_name is None:
+            return FrameAnchor.NONE
+        try:
+            return FrameAnchor(frame_anchor_name)
+        except ValueError:
+            valid_names = ', '.join(repr(anchor.value) for anchor in FrameAnchor)
+            msg = f'[sprite] frame_anchor must be one of {valid_names}, got {frame_anchor_name!r}'
+            raise ValueError(msg) from None
 
     def common_hitbox_x_range(self: Self) -> tuple[int, int]:
         """Return the horizontal hitbox span shared by every animation frame.
@@ -177,6 +326,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 frame_hitbox = self._drawn_hitbox(
                     self._native_frame_hitbox(frame), native_frame_width=frame.rect.width
                 )
+                frame_hitbox.move_ip(self._frame_draw_offset(frame))
                 common_left = (
                     frame_hitbox.left
                     if common_left is None
@@ -298,6 +448,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self.hitbox_scale: int = 1
         # True while the game draws this sprite mirrored horizontally (see hitbox)
         self.hitbox_flip_x: bool = False
+        # How frames of different shapes line up when drawn (see draw_offset); NONE draws
+        # each frame as authored
+        self.frame_anchor: FrameAnchor = FrameAnchor.NONE
 
         if filename:
             self.load(filename)
@@ -781,6 +934,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Parse sprite-level default hitbox from [sprite.hitbox]
         self._default_hitbox = AnimatedSprite._parse_hitbox_data(
             data.get('sprite', {}).get('hitbox'),
+        )
+        # Optional [sprite] frame_anchor = "none", "bottom", "top_left", ... (FrameAnchor values)
+        self.frame_anchor = AnimatedSprite._parse_frame_anchor(
+            data.get('sprite', {}).get('frame_anchor')
         )
 
         self._animations = {}
