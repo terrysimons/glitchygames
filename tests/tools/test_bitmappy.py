@@ -1180,6 +1180,7 @@ class TestAiWorkerShutdown:
         mocker.patch.object(bitmappy.multiprocessing, 'set_start_method')
         mocker.patch.object(bitmappy, 'load_ai_training_data')
         engine_class = mocker.patch.object(bitmappy, 'GameEngine')
+
         # The signal arrives while the engine runs
         def deliver_signal_while_running():
             logged_before_handler = len(caplog.records)
