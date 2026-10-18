@@ -194,8 +194,12 @@ class SpriteFrame:
     def hitbox(self) -> pygame.Rect:
         """The collision hitbox for this frame.
 
-        Returns the explicit hitbox if one was set, otherwise falls back
-        to the full frame rect. Always returns a valid pygame.Rect.
+        Returns the explicit hitbox if one was set, otherwise the full frame rect. That
+        fallback is only SpriteFrame's own value: AnimatedSprite.hitbox, which is what
+        collision uses, resolves an explicit frame hitbox first, then the sprite-level
+        default hitbox, then the frame's visible pixels (see its resolution order), and
+        checks has_explicit_hitbox rather than relying on this fallback. Always returns a
+        valid pygame.Rect.
         """
         if self._hitbox is not None:
             return self._hitbox
@@ -203,7 +207,7 @@ class SpriteFrame:
 
     @hitbox.setter
     def hitbox(self, value: pygame.Rect | None) -> None:
-        """Set the collision hitbox, or None to revert to full-frame fallback."""
+        """Set the collision hitbox, or None to clear the explicit hitbox."""
         self._hitbox = value
 
     def opaque_bounds(self) -> pygame.Rect:

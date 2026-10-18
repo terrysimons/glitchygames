@@ -324,7 +324,12 @@ class ServeSettings:
 
 
 class BallSprite(Sprite):
-    """Ball Sprite."""
+    """Ball Sprite.
+
+    The ball moves and bounces off walls itself; paddle hits are resolved by the caller:
+    a CollisionManager overlap check pairs balls with paddles and calls
+    handle_paddle_collision (PaddleSlap does this).
+    """
 
     def __init__(
         self: Self,

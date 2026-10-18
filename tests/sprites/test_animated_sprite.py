@@ -2346,7 +2346,10 @@ class TestSpriteFrameHitbox:
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_default_hitbox_is_full_frame(self):
-        """SpriteFrame without explicit hitbox falls back to full frame rect."""
+        """SpriteFrame's own hitbox without an explicit one is its full frame rect.
+
+        AnimatedSprite.hitbox does not use this fallback; it trims to visible pixels.
+        """
         surface = pygame.Surface((16, 24))
         frame = SpriteFrame(surface)
         assert frame.hitbox == frame.rect
@@ -2372,7 +2375,7 @@ class TestSpriteFrameHitbox:
         assert frame.has_explicit_hitbox
 
     def test_hitbox_reset_to_none(self):
-        """Setting hitbox to None reverts to full-frame fallback."""
+        """Setting hitbox to None clears the explicit hitbox (SpriteFrame's rect again)."""
         surface = pygame.Surface((16, 24))
         frame = SpriteFrame(surface, hitbox=pygame.Rect(4, 0, 12, 20))
         assert frame.has_explicit_hitbox
@@ -2391,7 +2394,7 @@ class TestAnimatedSpriteHitbox:
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_sprite_hitbox_fallback(self):
-        """Sprite with no hitbox set anywhere falls back to full frame rect."""
+        """With no hitbox set anywhere, a fully opaque frame's visible bounds are its rect."""
         sprite = AnimatedSprite()
         surface = pygame.Surface((16, 24))
         frame = SpriteFrame(surface, duration=FRAME_DURATION)
@@ -2477,7 +2480,7 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         assert sprite.hitbox == pygame.Rect(0, 10, 16, 14)
 
     def test_opt_out_keeps_the_full_frame_rect(self):
-        """TRIM_TRANSPARENT_HITBOX = False restores the full-frame fallback."""
+        """TRIM_TRANSPARENT_HITBOX = False uses the full frame rect, not the visible pixels."""
         sprite = AnimatedSprite()
         sprite.TRIM_TRANSPARENT_HITBOX = False  # type: ignore[attr-defined]
         frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
@@ -2922,7 +2925,7 @@ blue = 0
         assert current_frame.hitbox == pygame.Rect(3, 2, 14, 20)
 
     def test_load_without_hitbox_backward_compatible(self, tmp_path):
-        """Loading TOML without hitbox sections still works (fallback to full frame)."""
+        """Loading TOML without hitbox sections still works (visible-pixel fallback)."""
         toml_content = """[sprite]
 name = "no_hitbox"
 
@@ -2953,7 +2956,7 @@ blue = 0
         current_frame = sprite.get_current_frame()
         assert current_frame is not None
         assert not current_frame.has_explicit_hitbox
-        # hitbox should fall back to full frame dimensions
+        # Every pixel is opaque, so the visible-pixel fallback is the full frame
         assert sprite.hitbox == current_frame.rect
 
     def test_save_sprite_level_hitbox(self, tmp_path):
