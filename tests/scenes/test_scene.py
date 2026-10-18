@@ -763,6 +763,7 @@ class TestSceneKeyUpEvent:
         scene = Scene()
         mock_post = mocker.patch('pygame.event.post')
 
+        scene.record_key_press(key=pygame.K_q)
         event = mocker.Mock()
         event.key = pygame.K_q
 
@@ -775,9 +776,40 @@ class TestSceneKeyUpEvent:
         scene = Scene()
         mock_post = mocker.patch('pygame.event.post')
 
+        scene.record_key_press(key=pygame.K_ESCAPE)
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
 
+        scene.on_key_up_event(event)
+
+        mock_post.assert_called_once()
+
+    def test_key_up_q_does_not_quit_without_a_press_in_this_scene(
+        self, mock_pygame_patches, mocker
+    ):
+        """A Q release whose press this scene never received does not quit.
+
+        For example, a Q pressed during a transition or in the previous scene.
+        """
+        scene = Scene()
+        mock_post = mocker.patch('pygame.event.post')
+
+        event = mocker.Mock()
+        event.key = pygame.K_q
+
+        scene.on_key_up_event(event)
+
+        mock_post.assert_not_called()
+
+    def test_each_quit_key_press_allows_one_quit_release(self, mock_pygame_patches, mocker):
+        """A recorded press is consumed by its release."""
+        scene = Scene()
+        mock_post = mocker.patch('pygame.event.post')
+        scene.record_key_press(key=pygame.K_ESCAPE)
+        event = mocker.Mock()
+        event.key = pygame.K_ESCAPE
+
+        scene.on_key_up_event(event)
         scene.on_key_up_event(event)
 
         mock_post.assert_called_once()

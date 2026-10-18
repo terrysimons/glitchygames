@@ -96,13 +96,15 @@ class ArrivalScene(Scene):
 
     @override
     def on_key_down_event(self: Self, event: Any) -> None:
-        """Feed key presses to the shared ActionMap."""
+        """Feed key presses to the shared ActionMap, then to the base Scene."""
         ArrivalScene.shared_actions.handle_event(event)
+        super().on_key_down_event(event)
 
     @override
     def on_key_up_event(self: Self, event: Any) -> None:
-        """Feed key releases to the shared ActionMap."""
+        """Feed key releases to the shared ActionMap, then to the base Scene (quit keys)."""
         ArrivalScene.shared_actions.handle_event(event)
+        super().on_key_up_event(event)
 
     @override
     def on_joy_axis_motion_event(self: Self, event: Any) -> None:
@@ -440,3 +442,43 @@ def test_hat_centred_during_transition_is_delivered_and_pushed_hat_discarded():
 def test_neutral_motion_is_delivered_and_other_presses_discarded(event, is_discarded):
     """Axis motion inside DEFAULT_DEADZONE and a centred hat are releases, not presses."""
     assert is_discarded_during_transition(event) is is_discarded
+
+
+def test_quit_key_pressed_and_released_during_transition_does_not_quit():
+    """Q pressed mid-transition is discarded, so its release must not quit."""
+    with running_game(DepartureScene) as manager:
+        start_departure(manager)
+        step(manager, press(pygame.K_q))
+        step(manager, release(pygame.K_q))
+        step_until_transition_ends(manager)
+        step(manager)
+        step(manager)
+
+        assert manager.quit_requested is False
+
+
+def test_quit_key_pressed_before_transition_and_released_during_it_does_not_quit():
+    """The arriving scene never saw the Q press, so the release reaching it does not quit.
+
+    The departing scene saw the press but was cleaned up before the release; quitting from a
+    scene that only sees half a key stroke would act on input meant for a scene that is gone.
+    """
+    with running_game(DepartureScene) as manager:
+        step(manager, press(pygame.K_q))
+        start_departure(manager)
+        step(manager, release(pygame.K_q))
+        step_until_transition_ends(manager)
+        step(manager)
+        step(manager)
+
+        assert manager.quit_requested is False
+
+
+def test_quit_key_pressed_and_released_in_a_scene_quits():
+    """Outside transitions, Q pressed and released in the same scene quits as before."""
+    with running_game(DepartureScene) as manager:
+        step(manager, press(pygame.K_q))
+        step(manager, release(pygame.K_q))
+        step(manager)
+
+        assert manager.quit_requested is True

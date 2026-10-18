@@ -418,6 +418,12 @@ class SceneManager(SceneInterface, events.EventManager):
                 self.debug_overlay.cycle_panel()
             return
         if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
+            # Recorded before dispatch, so a quit-key release knows this scene saw the press.
+            # Looked up by name, not isinstance: an active scene may be any SceneInterface (and
+            # EventInterface.__subclasshook__ makes isinstance(subclass_instance, Scene) False)
+            record_key_press = getattr(self.active_scene, 'record_key_press', None)
+            if record_key_press is not None:
+                record_key_press(key=event.key)
             self.active_scene.on_key_down_event(event)
         elif self.game_engine is not None and hasattr(self.game_engine, 'on_key_down_event'):
             self.game_engine.on_key_down_event(event)
@@ -1138,6 +1144,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
         self.quit_requested: bool = False
+        # Keys whose key-down reached this scene and are not yet released (record_key_press)
+        self._keys_pressed_in_scene: set[int] = set()
         self._world_shake_warning_logged: bool = False
         self.next_scene: Scene | Self | None = self
         self.rects = None
@@ -1404,6 +1412,19 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             self.log.debug('Click outside focusable sprites - unfocusing')
             self._unfocus_sprites(focused_sprites)
 
+    def record_key_press(self: Self, *, key: int) -> None:
+        """Note that a key-down reached this scene.
+
+        SceneManager calls this for every key-down it routes to the active scene, before the
+        scene's own on_key_down_event, so subclasses that override that handler are covered.
+        on_key_up_event quits only on the release of a key recorded here.
+
+        Args:
+            key: The pygame key code.
+
+        """
+        self._keys_pressed_in_scene.add(key)
+
     def _handle_quit_key_press(self) -> None:
         """Handle quit key press when no sprites are focused."""
         self.log.info('Quit requested')
@@ -1489,9 +1510,20 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Check for focused sprites first
         focused_sprites = self._get_focused_sprites()
 
-        # Only process quit keys if no sprites are focused
+        # Only a release whose press this scene received can quit (record_key_press): a key
+        # pressed during a transition (the press is discarded) or in a scene that has since
+        # been left must not quit from here. Each release consumes its press.
         event_key: int | None = getattr(event, 'key', None)
-        if not focused_sprites and event_key in {pygame.K_q, pygame.K_ESCAPE}:
+        was_pressed_in_scene = event_key is not None and event_key in self._keys_pressed_in_scene
+        if event_key is not None:
+            self._keys_pressed_in_scene.discard(event_key)
+
+        # Only process quit keys if no sprites are focused
+        if (
+            not focused_sprites
+            and was_pressed_in_scene
+            and event_key in {pygame.K_q, pygame.K_ESCAPE}
+        ):
             self._handle_quit_key_press()
 
     @override
