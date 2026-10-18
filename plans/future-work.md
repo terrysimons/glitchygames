@@ -38,8 +38,8 @@ One line per item, with where it is detailed. Review, then promote items into
 - All Galibmap/GEDIT-derived features (hitbox editor, mirror/rotate, replace colour, colour wells,
   directional templates, tile mode, frame alignment, metadata panel, magenta-key decision):
   `plans/2026-10-18-level-tools-d-bitmappy-updates.md` (D1–D10).
-- `FUTURE_FEATURES.md` item 38 (frame alignment command) duplicates D8. `FUTURE_FEATURES.md` is not
-  tracked in git: decide whether to track it or fold its open items into `plans/`.
+- `plans/future-features.md` (the older feature roadmap, moved from the repo root on 2026-10-18):
+  its item 38 (frame alignment command) duplicates plan D's D8.
 
 ## Performance and pacing
 
@@ -60,8 +60,7 @@ One line per item, with where it is detailed. Review, then promote items into
 
 ## Galimore
 
-- Summary of the 1998–2001 Galimore code and tools: session scratchpad `galimore/SUMMARY.md` (not in
-  the repo; copy it into `plans/` or docs if it should be kept).
+- Summary of the 1998–2001 Galimore code and tools: `docs/galimore.md`.
 - Review the survey's read-only decoder (`galimore/tools/galimore_decode.py`) before reusing it in
   sub-plan E.
 - Not extracted: the Mac sound resource forks, three nested 2000-04-17 editor zips, and a few files

@@ -354,7 +354,7 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 
 ## Recent Feature Completions
 
-**Recently Completed** (see FUTURE_FEATURES.md for roadmap):
+**Recently Completed** (see `plans/future-features.md` and `plans/engine-audit.md` for the roadmap):
 - ✅ Multi-controller navigation and editing (4 controllers, 57+ tests)
 - ✅ Controller position undo/redo system
 - ✅ Onion skinning for animation
