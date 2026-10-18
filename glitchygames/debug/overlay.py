@@ -67,8 +67,9 @@ class DebugOverlay:
             maxlen=FRAME_HISTORY_LENGTH,
         )
         self._font: pygame.font.Font | None = None
-        # id() of every debug_draw hook that raised; those hooks are never called again.
-        self._disabled_hook_ids: set[int] = set()
+        # Every debug_draw hook owner that raised, keyed by id(). Holding the owner keeps it
+        # alive, so a freed object's id can never be reused by a new object and wrongly disable it.
+        self._disabled_hook_owners: dict[int, object] = {}
 
     def toggle(self) -> None:
         """Show the overlay if it is hidden, hide it if it is shown."""
@@ -76,8 +77,8 @@ class DebugOverlay:
 
     def cycle_panel(self) -> None:
         """Advance to the next panel in declaration order, wrapping after the last one."""
-        panels = list(DebugPanel)
-        self.panel = panels[(panels.index(self.panel) + 1) % len(panels)]
+        all_panels = list(DebugPanel)
+        self.panel = all_panels[(all_panels.index(self.panel) + 1) % len(all_panels)]
 
     def shows(self, panel: DebugPanel) -> bool:
         """Report whether a panel should be drawn.
@@ -249,7 +250,7 @@ class DebugOverlay:
         """Call `debug_draw` on the scene and on every sprite that has one."""
         hook_owners: list[Any] = [scene, *getattr(scene, 'all_sprites', ())]
         for hook_owner in hook_owners:
-            if id(hook_owner) in self._disabled_hook_ids:
+            if id(hook_owner) in self._disabled_hook_owners:
                 continue
             hook: DebugDrawable | None = (
                 hook_owner if callable(getattr(hook_owner, 'debug_draw', None)) else None
@@ -260,4 +261,4 @@ class DebugOverlay:
                 hook.debug_draw(surface, camera)
             except Exception:
                 log.exception('Debug hook %r failed; disabling it', hook_owner)
-                self._disabled_hook_ids.add(id(hook_owner))
+                self._disabled_hook_owners[id(hook_owner)] = hook_owner

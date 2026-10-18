@@ -51,6 +51,7 @@ ARROWHEAD_SPREAD_RADIANS = math.radians(30)
 
 HUD_MARGIN = 4
 HUD_LINE_HEIGHT = 12
+MOUSE_TEXT_OFFSET = 12
 HUD_TEXT_COLOR: Color = (230, 230, 230)
 BOUNDS_COLOR: Color = (255, 160, 0)
 BOUNDS_DASH_LENGTH = 6
@@ -388,15 +389,31 @@ def draw_camera_panel(
     _draw_crosshair(surface=surface, camera=camera, screen_offset=screen_offset)
 
     lines = [f'camera: ({round(camera.world_x)}, {round(camera.world_y)})']
-    mouse_position = frame_info.mouse_position
+    world_shake_offset = camera.shake_effect.offset
+    if world_shake_offset != (0.0, 0.0):
+        lines.append(f'world shake: ({world_shake_offset[0]:.1f}, {world_shake_offset[1]:.1f})')
     screen_shake_offset = frame_info.screen_shake_offset
-    if mouse_position is not None:
-        mouse_world_x = round(camera.world_x) + mouse_position[0]
-        mouse_world_y = round(camera.world_y) + mouse_position[1]
-        lines.append(f'mouse world: ({mouse_world_x}, {mouse_world_y})')
     if screen_shake_offset != (0.0, 0.0):
         lines.append(f'screen shake: ({screen_shake_offset[0]:.1f}, {screen_shake_offset[1]:.1f})')
     _draw_text_lines(surface=surface, font=font, lines=lines, top=HUD_MARGIN + HUD_LINE_HEIGHT)
+
+    mouse_position = frame_info.mouse_position
+    if mouse_position is not None:
+        # Unshaken camera position plus the raw mouse position, drawn next to the cursor.
+        mouse_world_x = round(camera.world_x) + mouse_position[0]
+        mouse_world_y = round(camera.world_y) + mouse_position[1]
+        mouse_text = font.render(
+            f'mouse world: ({mouse_world_x}, {mouse_world_y})',
+            antialias=False,
+            color=HUD_TEXT_COLOR,
+        )
+        text_left = min(
+            mouse_position[0] + MOUSE_TEXT_OFFSET, surface.get_width() - mouse_text.get_width()
+        )
+        text_top = min(
+            mouse_position[1] + MOUSE_TEXT_OFFSET, surface.get_height() - mouse_text.get_height()
+        )
+        surface.blit(mouse_text, (text_left, text_top))
 
 
 def _draw_text_lines(
@@ -436,8 +453,12 @@ def _draw_frame_time_graph(
         GRAPH_WIDTH,
         GRAPH_HEIGHT,
     )
-    pixels_per_millisecond = GRAPH_HEIGHT / GRAPH_CEILING_MILLISECONDS
     target_milliseconds = MILLISECONDS_PER_SECOND / target_fps if target_fps > 0 else None
+    # Low targets (under 20 FPS) would put the line above the default ceiling, so grow it.
+    ceiling_milliseconds = GRAPH_CEILING_MILLISECONDS
+    if target_milliseconds is not None:
+        ceiling_milliseconds = max(ceiling_milliseconds, 2 * target_milliseconds)
+    pixels_per_millisecond = GRAPH_HEIGHT / ceiling_milliseconds
 
     visible_frame_times = overlay.graph_frame_times()[-GRAPH_WIDTH:]
     for index, frame_seconds in enumerate(visible_frame_times):
@@ -485,11 +506,14 @@ def draw_performance_panel(
     rumble_levels = frame_info.rumble_levels
     current_fps = overlay.current_fps()
     one_percent_low = overlay.one_percent_low_fps()
+    frame_times = overlay.frame_times()
     lines = [
         'FPS: n/a' if current_fps is None else f'FPS: {current_fps:.1f}',
         '1% low: n/a' if one_percent_low is None else f'1% low: {one_percent_low:.1f}',
         f'target: {target_fps:g}' if target_fps > 0 else 'target: uncapped',
     ]
+    if frame_times:
+        lines.insert(1, f'frame: {frame_times[-1] * MILLISECONDS_PER_SECOND:.1f} ms')
     if live_voice_count is not None:
         lines.append(f'voices: {live_voice_count}')
     if rumble_levels[0] > 0 or rumble_levels[1] > 0:

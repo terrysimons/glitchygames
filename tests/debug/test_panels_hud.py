@@ -12,6 +12,8 @@ from glitchygames.debug.overlay import DebugOverlay, DebugPanel
 from glitchygames.debug.panels import (
     BOUNDS_COLOR,
     GRAPH_BAR_COLOR,
+    HUD_LINE_HEIGHT,
+    TARGET_LINE_COLOR,
     DebugFrameInfo,
     draw_camera_panel,
     draw_mode_line,
@@ -20,6 +22,7 @@ from glitchygames.debug.panels import (
 
 SURFACE_SIZE = (400, 300)
 BLACK = (0, 0, 0, 255)
+MARKER_COLOR = (255, 0, 255)
 PURE_RED = (255, 0, 0)
 
 
@@ -62,6 +65,18 @@ def font(mocker):
     mock_font = mocker.Mock()
     mock_font.render.side_effect = lambda *args, **kwargs: pygame.Surface((4, 4))
     return mock_font
+
+
+def marker_surface():
+    """Build a 4x4 surface filled with MARKER_COLOR (stands in for rendered text).
+
+    Returns:
+        A pygame.Surface.
+
+    """
+    text_surface = pygame.Surface((4, 4))
+    text_surface.fill(MARKER_COLOR)
+    return text_surface
 
 
 def rendered_texts(font):
@@ -107,6 +122,21 @@ def build_frame_info(**overrides):
     return DebugFrameInfo(**arguments)
 
 
+def pixels_of_color(surface, *, color):
+    """Count pixels of an exact RGB colour on the surface.
+
+    Returns:
+        The number of matching pixels.
+
+    """
+    return sum(
+        1
+        for x in range(surface.get_width())
+        for y in range(surface.get_height())
+        if surface.get_at((x, y))[:3] == color
+    )
+
+
 def draw_camera(*, surface, camera, font, screen_offset=(0, 0), **frame_overrides):
     """Call draw_camera_panel with keyword arguments."""
     draw_camera_panel(
@@ -136,7 +166,7 @@ class TestCameraPanel:
         camera.set_bounds(min_x=0)
         draw_camera(surface=surface, camera=camera, font=font)
         column = [surface.get_at((0, y)) != BLACK for y in range(20, SURFACE_SIZE[1])]
-        assert graph_pixels_of_color(surface, color=BOUNDS_COLOR) > 0
+        assert pixels_of_color(surface, color=BOUNDS_COLOR) > 0
         assert any(column)
         assert not all(column)  # dashed, not solid
 
@@ -156,7 +186,7 @@ class TestCameraPanel:
         small_camera.set_bounds(max_x=100)
         small_camera.world_x = 99
         draw_camera(surface=small_surface, camera=small_camera, font=font)
-        assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
+        assert pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
 
     def test_far_bound_draws_nothing(self, font):
         """A bound far to the right of the visible world draws no line."""
@@ -164,7 +194,7 @@ class TestCameraPanel:
         small_camera = Camera2D(200, 100)
         small_camera.set_bounds(max_x=1000)
         draw_camera(surface=small_surface, camera=small_camera, font=font)
-        assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
+        assert pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
 
     def test_bottom_edge_is_last_world_pixel_at_the_clamp(self, font):
         """With the camera clamped at max_y=50 on a 100 px screen the line is at y=99."""
@@ -182,7 +212,7 @@ class TestCameraPanel:
         small_camera.set_bounds(max_y=50)
         small_camera.world_y = 49
         draw_camera(surface=small_surface, camera=small_camera, font=font)
-        assert graph_pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
+        assert pixels_of_color(small_surface, color=BOUNDS_COLOR) == 0
 
     def test_lead_crosshair_drawn_at_lead_plus_offset(self, surface, font):
         """The crosshair centre sits at (lead_x, lead_y) plus the screen offset."""
@@ -202,28 +232,64 @@ class TestCameraPanel:
         draw_camera(surface=surface, camera=camera, font=font, mouse_position=None)
         assert not any('mouse' in text.lower() for text in rendered_texts(font))
 
-    def test_shake_text_only_when_nonzero(self, surface, camera, font):
-        """Shake text appears only when either offset is non-zero."""
-        draw_camera(surface=surface, camera=camera, font=font, screen_shake_offset=(0.0, 0.0))
+    def test_no_shake_text_when_neither_offset_is_set(self, surface, camera, font):
+        """No shake text appears with both offsets zero."""
+        draw_camera(surface=surface, camera=camera, font=font)
         assert not any('shake' in text.lower() for text in rendered_texts(font))
-        font.render.reset_mock()
+
+    def test_world_shake_text_alone(self, surface, camera, font):
+        """A non-zero WORLD shake offset shows a world line and no screen line."""
+        camera.shake_effect = types.SimpleNamespace(offset=(1.0, -2.0))
+        draw_camera(surface=surface, camera=camera, font=font)
+        texts = rendered_texts(font)
+        assert any('world shake' in text and '1.0' in text and '-2.0' in text for text in texts)
+        assert not any('screen shake' in text for text in texts)
+
+    def test_screen_shake_text_alone(self, surface, camera, font):
+        """A non-zero SCREEN shake offset shows a screen line and no world line."""
         draw_camera(surface=surface, camera=camera, font=font, screen_shake_offset=(0.0, 2.0))
-        assert any('shake' in text.lower() for text in rendered_texts(font))
+        texts = rendered_texts(font)
+        assert any('screen shake' in text and '2.0' in text for text in texts)
+        assert not any('world shake' in text for text in texts)
 
+    def test_both_shake_texts(self, surface, camera, font):
+        """Both offsets non-zero show both lines."""
+        camera.shake_effect = types.SimpleNamespace(offset=(3.0, 0.0))
+        draw_camera(surface=surface, camera=camera, font=font, screen_shake_offset=(0.0, 2.0))
+        texts = rendered_texts(font)
+        assert any('world shake' in text for text in texts)
+        assert any('screen shake' in text for text in texts)
 
-def graph_pixels_of_color(surface, *, color):
-    """Count pixels of an exact RGB colour on the surface.
+    def test_mouse_text_drawn_next_to_cursor(self, surface, camera):
+        """The mouse world text is blitted at the cursor plus (12, 12), not in the top-left."""
+        marker_font = types.SimpleNamespace(render=lambda *args, **kwargs: marker_surface())
+        camera.world_x = 50
+        draw_camera(surface=surface, camera=camera, font=marker_font, mouse_position=(100, 100))
+        assert surface.get_at((112, 112))[:3] == MARKER_COLOR
+        assert surface.get_at((4, 4 + 2 * HUD_LINE_HEIGHT))[:3] != MARKER_COLOR
 
-    Returns:
-        The number of matching pixels.
+    def test_mouse_text_kept_inside_surface(self, surface, camera):
+        """A cursor in the bottom-right corner keeps the text on the surface."""
+        marker_font = types.SimpleNamespace(render=lambda *args, **kwargs: marker_surface())
+        draw_camera(
+            surface=surface,
+            camera=camera,
+            font=marker_font,
+            mouse_position=(SURFACE_SIZE[0] - 1, SURFACE_SIZE[1] - 1),
+        )
+        assert surface.get_at((SURFACE_SIZE[0] - 2, SURFACE_SIZE[1] - 2))[:3] == MARKER_COLOR
 
-    """
-    return sum(
-        1
-        for x in range(surface.get_width())
-        for y in range(surface.get_height())
-        if surface.get_at((x, y))[:3] == color
-    )
+    def test_screen_shake_does_not_change_mouse_world_value(self, surface, camera, font):
+        """The mouse world value is camera.world + mouse, unshaken."""
+        camera.world_x = 50
+        draw_camera(
+            surface=surface,
+            camera=camera,
+            font=font,
+            mouse_position=(10, 5),
+            screen_shake_offset=(7.0, 7.0),
+        )
+        assert any('(60, 5)' in text for text in rendered_texts(font))
 
 
 class TestPerformancePanel:
@@ -234,37 +300,63 @@ class TestPerformancePanel:
         slow = DebugOverlay(visible=True)
         slow.record_frame(frame_seconds=0.017)
         draw_performance(surface=surface, overlay=slow, font=font)
-        assert graph_pixels_of_color(surface, color=PURE_RED) > 0
+        assert pixels_of_color(surface, color=PURE_RED) > 0
 
         fast_surface = pygame.Surface(SURFACE_SIZE)
         fast = DebugOverlay(visible=True)
         fast.record_frame(frame_seconds=0.016)
         draw_performance(surface=fast_surface, overlay=fast, font=font)
-        assert graph_pixels_of_color(fast_surface, color=PURE_RED) == 0
+        assert pixels_of_color(fast_surface, color=PURE_RED) == 0
 
     def test_uncapped_has_no_red_bars(self, surface, font):
         """With no target FPS even a 40 ms frame is not red."""
         overlay = DebugOverlay(visible=True)
         overlay.record_frame(frame_seconds=0.040)
         draw_performance(surface=surface, overlay=overlay, font=font, target_fps=0.0)
-        assert graph_pixels_of_color(surface, color=PURE_RED) == 0
-        assert graph_pixels_of_color(surface, color=GRAPH_BAR_COLOR) > 0
+        assert pixels_of_color(surface, color=PURE_RED) == 0
+        assert pixels_of_color(surface, color=GRAPH_BAR_COLOR) > 0
 
-    def test_target_line_drawn_for_sixty_and_not_when_uncapped(self, surface, font):
-        """The target line exists for 60 FPS and "uncapped" replaces it for 0."""
+    def test_target_line_row_for_sixty_and_none_when_uncapped(self, surface, font):
+        """At 60 FPS the target line fills one row of the graph; uncapped has no line."""
         overlay = DebugOverlay(visible=True)
         draw_performance(surface=surface, overlay=overlay, font=font, target_fps=60.0)
-        capped_pixels = non_black_pixel_count(surface, area=surface.get_rect())
-        assert capped_pixels > 0
+        graph_left = SURFACE_SIZE[0] - 4 - 200
+        graph_bottom = SURFACE_SIZE[1] - 4 - 60 - HUD_LINE_HEIGHT + 60
+        line_y = graph_bottom - 1 - round(1000.0 / 60.0 * 60 / 50)
+        assert all(
+            surface.get_at((x, line_y))[:3] == TARGET_LINE_COLOR
+            for x in range(graph_left, graph_left + 200)
+        )
         assert not any('uncapped' in text for text in rendered_texts(font))
 
         font.render.reset_mock()
         uncapped_surface = pygame.Surface(SURFACE_SIZE)
         draw_performance(surface=uncapped_surface, overlay=overlay, font=font, target_fps=0.0)
         assert any('uncapped' in text for text in rendered_texts(font))
-        assert non_black_pixel_count(uncapped_surface, area=uncapped_surface.get_rect()) < (
-            capped_pixels
+        assert pixels_of_color(uncapped_surface, color=TARGET_LINE_COLOR) == 0
+
+    def test_target_line_stays_inside_graph_for_low_targets(self, surface, font):
+        """At 10 FPS (100 ms) the graph ceiling grows so the line is still inside the graph."""
+        draw_performance(
+            surface=surface, overlay=DebugOverlay(visible=True), font=font, target_fps=10.0
         )
+        graph_top = SURFACE_SIZE[1] - 4 - 60 - HUD_LINE_HEIGHT
+        rows = [
+            y
+            for y in range(SURFACE_SIZE[1])
+            if surface.get_at((SURFACE_SIZE[0] - 10, y))[:3] == TARGET_LINE_COLOR
+        ]
+        assert len(rows) == 1
+        assert graph_top <= rows[0] < graph_top + 60
+
+    def test_frame_time_readout_from_last_frame(self, surface, font):
+        """The last recorded frame is shown with one decimal; none recorded shows no readout."""
+        overlay = DebugOverlay(visible=True)
+        draw_performance(surface=surface, overlay=overlay, font=font)
+        assert not any(text.startswith('frame:') for text in rendered_texts(font))
+        overlay.record_frame(frame_seconds=0.0165)
+        draw_performance(surface=surface, overlay=overlay, font=font)
+        assert 'frame: 16.5 ms' in rendered_texts(font)
 
     def test_voice_line_only_when_count_given(self, surface, font):
         """The live voices line appears only when a count is supplied."""
@@ -415,6 +507,23 @@ class TestOverlayDraw:
         assert len(raising.debug_calls) == 1
         assert mock_log.exception.call_count == 1
         assert len(scene.debug_calls) == 2  # the healthy hook is unaffected
+
+    def test_raising_scene_hook_is_disabled_too(self, surface, camera, mocker):
+        """A scene whose own hook raises is logged once and not called again."""
+        mock_log = mocker.patch.object(overlay_module, 'log')
+        scene = HookScene(camera=camera)
+
+        def raising_hook(hook_surface, hook_camera):
+            scene.debug_calls.append((hook_surface, hook_camera))
+            message = 'scene hook failure'
+            raise RuntimeError(message)
+
+        scene.debug_draw = raising_hook
+        overlay = DebugOverlay(visible=True)
+        draw_overlay(overlay=overlay, surface=surface, scene=scene)
+        draw_overlay(overlay=overlay, surface=surface, scene=scene)
+        assert len(scene.debug_calls) == 1
+        assert mock_log.exception.call_count == 1
 
     def test_font_created_once_across_draws(self, surface, camera, mocker):
         """The font is created lazily, on the first draw only."""
