@@ -160,23 +160,48 @@ class TestBounceResponse:
         assert math.isclose(ball.speed.y, 50.0)
 
     def test_fast_ball_past_the_paddle_centre_moving_right_hits_the_left_face(self, paddle):
-        """A ball moving right hits the left face even with its centre past the paddle's.
+        """A ball that was clear left of the paddle hits the left face, centre past or not.
 
         One long frame (30 fps, a hitch) can carry a fast ball's centre past the paddle's
         centre; it must not be ejected out the back.
         """
-        # Visible box (61, 95)-(71, 105): centre 66 > paddle centre 60, moving right.
-        ball = make_ball(world_x=56, world_y=90, speed_x=600.0)
+        # Before the move: visible box (40, 95)-(50, 105), clear of the left face at x=50.
+        # 600 px/s for 1/30 s moves it 20 px to (60, 95)-(70, 105): centre 65 > paddle centre 60.
+        ball = make_ball(world_x=35, world_y=90, speed_x=600.0, speed_y=0.0)
+        ball.dt_tick(1 / 30)
+        assert get_sprite_collision_rect(ball).centerx > PADDLE_POSITION[0] + PADDLE_SIZE[0] / 2
+
         assert ball.handle_paddle_collision(paddle) is True
         assert ball.speed.x == -600.0
         assert get_sprite_collision_rect(ball).right == paddle.rect.left
 
-    def test_ball_moving_left_hits_the_right_face(self, paddle):
-        """A ball moving left hits the right face even with its centre left of the paddle's."""
-        # Visible box (54, 95)-(64, 105): centre 59 < paddle centre 60, moving left.
-        ball = make_ball(world_x=49, world_y=90, speed_x=-100.0)
+    def test_fast_ball_past_the_paddle_centre_moving_left_hits_the_right_face(self, paddle):
+        """A ball that was clear right of the paddle hits the right face, centre past or not."""
+        # Before the move: visible box (70, 95)-(80, 105), clear of the right face at x=70.
+        # -600 px/s for 1/30 s moves it to (50, 95)-(60, 105): centre 55 < paddle centre 60.
+        ball = make_ball(world_x=65, world_y=90, speed_x=-600.0, speed_y=0.0)
+        ball.dt_tick(1 / 30)
+        assert get_sprite_collision_rect(ball).centerx < PADDLE_POSITION[0] + PADDLE_SIZE[0] / 2
+
         assert ball.handle_paddle_collision(paddle) is True
-        assert ball.speed.x == 100.0
+        assert ball.speed.x == 600.0
+        assert get_sprite_collision_rect(ball).left == paddle.rect.right
+
+    def test_ball_on_the_top_edge_right_of_centre_moving_right_goes_right(self, paddle):
+        """A ball already overlapping the paddle before its move is pushed out on its own side.
+
+        Resting on the paddle's top edge right of centre and moving right, it was never clear
+        of either face, so the side of the paddle's centre decides; choosing by direction of
+        travel would throw it out the far (left) side, behind the paddle.
+        """
+        dt = 1 / 60
+        # After the move: visible box (63, 42)-(73, 52), overlapping the top edge at y=50.
+        ball = make_ball(world_x=58 - 200.0 * dt, world_y=37, speed_x=200.0, speed_y=0.0)
+        ball.dt_tick(dt)
+        assert get_sprite_collision_rect(ball) == pygame.Rect(63, 42, 10, 10)
+
+        assert ball.handle_paddle_collision(paddle) is True
+        assert ball.speed.x == 200.0
         assert get_sprite_collision_rect(ball).left == paddle.rect.right
 
     def test_horizontally_still_ball_uses_collision_rect_centres(self, paddle):

@@ -390,6 +390,9 @@ class BallSprite(Sprite):
         self.speed_up_settings = speed_up_settings or SpeedUpSettings()
         self.speed_up_count = 0  # Speed-ups applied since the last reset (curve step n)
         self._continuous_elapsed_time = 0.0  # Game seconds toward the next CONTINUOUS step
+        # The dt of the last dt_tick, so handle_paddle_collision can tell where the ball was
+        # before this frame's move (0.0 until the first tick: no move to undo)
+        self._last_tick_dt = 0.0
 
         # Collision tracking (set by callers like PaddleSlap)
         self.collision_cooldowns: dict[str, float] = {}
@@ -625,6 +628,8 @@ class BallSprite(Sprite):
             dt (float): The delta time.
 
         """
+        self._last_tick_dt = dt
+
         # Check for continuous speed-up
         self._advance_continuous_speed_up(dt)
 
@@ -876,17 +881,48 @@ class BallSprite(Sprite):
         # Mark ball as needing visual update
         self.dirty = 2  # Force full redraw for visual effects
 
+    def _entered_paddle_from_left(
+        self: Self, *, ball_rect: VisibleRect, paddle_rect: pygame.Rect
+    ) -> bool:
+        """Decide which face of a paddle the touching ball is pushed out of.
+
+        The same rule as the platformers' _entered_wall_from_left: look at where the visible
+        rect was before this frame's move (speed.x * the last tick's dt back). If it was clear
+        of the paddle on one side, the ball came in from that side, even when a long frame
+        (30 fps, a hitch) carried its centre past the paddle's centre. If it already
+        overlapped (e.g. resting on the paddle's top or bottom edge, or not moving), the side
+        of the paddle's centre the ball's centre is on decides, so it is pushed out on its own
+        side rather than through the paddle.
+
+        Args:
+            ball_rect (VisibleRect): The ball's visible rect at its current position.
+            paddle_rect (pygame.Rect): The paddle's collision rect.
+
+        Returns:
+            bool: True to push the ball out of the paddle's left face, False its right face.
+
+        """
+        displacement_x = self.speed.x * self._last_tick_dt
+        previous_left = ball_rect.left - displacement_x
+        previous_right = ball_rect.right - displacement_x
+        if previous_right <= paddle_rect.left:
+            return True
+        if previous_left >= paddle_rect.right:
+            return False
+        ball_center_x = ball_rect.left + ball_rect.width / 2
+        paddle_center_x = paddle_rect.x + paddle_rect.width / 2
+        return ball_center_x < paddle_center_x
+
     def handle_paddle_collision(self: Self, paddle: Sprite) -> bool:
         """Bounce off a paddle if the ball's visible circle touches it.
 
         Meant as the fine check after a CollisionManager broad-phase overlap. The ball is
         the circle inscribed in its collision rect (its visible pixels); the paddle is its
         collision rect. Touching counts. On a hit the ball is placed with its visible edge
-        flush against the face it is moving toward (moving right hits the left face, moving
-        left the right face; with no horizontal speed, the side of the paddle's centre its
-        collision-rect centre is on), its horizontal speed points away from the paddle, the
-        paddle's sound plays, a PADDLE_BOUNCE speed-up and the max_speed clamp are applied,
-        and on_paddle_collision is called.
+        flush against the face it came in through (see _entered_paddle_from_left), its
+        horizontal speed points away from the paddle, the paddle's sound plays, a
+        PADDLE_BOUNCE speed-up and the max_speed clamp are applied, and on_paddle_collision
+        is called.
 
         Args:
             paddle (Sprite): The paddle the broad phase paired with this ball.
@@ -909,19 +945,8 @@ class BallSprite(Sprite):
             return False
 
         visible_offset_x = ball_rect.offset_x
-        paddle_center_x = paddle_rect.x + paddle_rect.width / 2
 
-        # The face comes from the direction of travel, not position: after a long frame
-        # (30 fps, a hitch) a fast ball's centre may already be past the paddle's centre,
-        # and a position test would eject it out the back of the paddle.
-        if self.speed.x > 0:
-            hits_left_face = True
-        elif self.speed.x < 0:
-            hits_left_face = False
-        else:
-            hits_left_face = ball_center_x < paddle_center_x
-
-        if hits_left_face:
+        if self._entered_paddle_from_left(ball_rect=ball_rect, paddle_rect=paddle_rect):
             # Ball hits the paddle's left face - visible right edge on the left face
             self.world_x = float(paddle_rect.left - (visible_offset_x + ball_rect.width))
             self.speed.x = -abs(self.speed.x)
