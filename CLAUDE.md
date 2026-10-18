@@ -171,9 +171,16 @@ SceneManager services
 **Debug Overlay** (`glitchygames/debug/`): `--debug-overlay` or F3 shows it, F4 cycles panels
 (collision hitboxes by layer, physics velocities and ground state, camera panel with world edges
 and mouse world position (bounds clamp the camera's top-left, so right/bottom edges are max +
-screen size), performance HUD with FPS, frame time, 1% low and a frame-time graph with a target
-line). Drawn in `SceneManager._present_frame`, never in screenshots. Scenes or sprites can add
-annotations with `debug_draw(surface, camera)`.
+screen size - 1), performance HUD with FPS, frame time, 1% low and a frame-time graph with a target
+line). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
+Vera Sans font on translucent cached backings. Scenes or sprites can add annotations with
+`debug_draw(surface, camera)`. `Scene.debug_subject` names the scene to inspect (normally the scene
+itself; `PauseScene` returns the paused game, so its hitboxes line up with the frozen picture and
+the HUD shows `| paused: <name>`).
+
+**Pixel snapping** (`glitchygames/pixel_snap.py`): `PixelSnapMode` and `snap_to_pixel` convert
+sub-pixel world positions to drawn whole pixels (NEAREST_HALF_UP for smooth-motion games, FLOOR
+for retro/platformer games), shared by sprites, collision and the debug overlay.
 
 ### Event System
 
@@ -206,9 +213,13 @@ annotations with `debug_draw(surface, camera)`.
 **Hitboxes** (`glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
 trimmed, `collision/bounds.py`, measured every query so redrawn images are fine);
 `TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win (native pixels times
-`AnimatedSprite.hitbox_scale`). Caveat: TOML `AnimatedSprite`s that are not converted to alpha
-keep magenta as opaque pixels, so the visible-pixel default trims nothing for them; give them a
-`[sprite.hitbox]` (e.g. the union of their frames' non-magenta bounds, as `ghosty.toml` does).
+`AnimatedSprite.hitbox_scale`; `hitbox_flip_x = True` mirrors them for a sprite drawn facing
+left). `AnimatedSprite.common_hitbox_x_range()` is the x-span every frame shares (use it for
+standing support so a wider frame cannot catch a ledge), and
+`collision.layers.collision_rect_offset(sprite)` places a sprite so its collision rect is flush
+against a wall. Caveat: TOML `AnimatedSprite`s that are not converted to alpha keep magenta as
+opaque pixels, so the visible-pixel default trims nothing for them; give them a `[sprite.hitbox]`
+(e.g. the union of their frames' non-magenta bounds, as `ghosty.toml` does).
 Frames of different shapes: draw walkers bottom-aligned, or set `AnimatedSprite.frame_anchor`
 (`FrameAnchor`: edge names align one axis, CENTER/corners both; `[sprite] frame_anchor =
 "bottom"`) and add `draw_offset` to `rect`.
