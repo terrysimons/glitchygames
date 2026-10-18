@@ -219,7 +219,7 @@ class _FilmStripMockScene:
         Ensures the animated sprite's frame list has enough entries so
         that ``frame_index`` is valid for both insertion and undo.
         """
-        # Use empty pixels to avoid PixelArray.flat issues during redo
+        # Empty pixels: redo rebuilds a blank frame of this size
         frame_data = {
             'width': 32,
             'height': 32,
@@ -245,7 +245,7 @@ class _FilmStripMockScene:
 
     def create_animation(self, animation_name):
         """Create a new animation and track it."""
-        # Use empty pixels to avoid PixelArray.flat issues during redo
+        # Empty pixels: redo rebuilds a blank frame of this size
         animation_data = {
             'frames': [
                 {

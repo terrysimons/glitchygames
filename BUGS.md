@@ -22,6 +22,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 53. Undoing a Bitmappy Frame Delete Fails
+- **Description**: Deleting a frame from an animation in the film strip and then undoing the delete restored nothing: the undo failed with `AttributeError: 'PixelArray' object has no attribute 'flat'` and the frame stayed deleted. A frame known only by its surface came back black, and a restored frame lost its explicit hitbox and per-pixel alpha
+- **Status**: Resolved
+- **Priority**: Medium (undo of a frame delete was broken)
+- **Reporter**: Found while fixing BUGS.md #51 (`plans/future-work.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `FrameAddCommand._add_frame` (which `FrameDeleteCommand.undo` uses) copied pixels through `PixelArray.flat`, which pygame-ce's `PixelArray` does not have, so the undo raised, logged and returned False (the same bug as #51 in `AnimationAddCommand`). The delete capture (`FilmStripEventHandler.track_frame_deletion_for_undo`) recorded `frame.pixels`, which is empty for a frame that has only a surface, and did not record the frame's hitbox; the restore built a surface without `SRCALPHA`
+- **Solution**: The delete capture reads pixels with `SpriteFrame.get_pixel_data()` and records an explicit frame hitbox as an `(x, y, width, height)` tuple (None when the frame uses the hitbox fallback). `FrameAddCommand._add_frame` builds an `SRCALPHA` surface like the editor's own frames, passes the hitbox to `SpriteFrame` and copies pixels with `SpriteFrame.set_pixel_data` (which also keeps `frame.pixels`, which saves read). A grep of the package found no other `.flat` or `PixelArray` use
+- **Files Modified**: `glitchygames/bitmappy/history/commands.py`, `glitchygames/bitmappy/film_strip_events.py`
+- **Tests**: `TestFilmStripFrameDeleteUndo` in `tests/tools/test_bitmappy_film_strips.py` (real `AnimatedSprite` and `FilmStripWidget`): delete the middle frame, undo (pixels, alpha, duration and hitbox back at index 1, and saved), redo deletes it again, undo again; a frame with no pixel list is restored from its surface; the editor's `handle_undo`/`handle_redo` undo and redo the delete
+
 ### 52. Bitmappy's Signal Handler Skips the AI Worker's Graceful Shutdown (and Can Lose the Signal)
 - **Description**: On SIGINT/SIGTERM Bitmappy exited without the AI worker's shutdown (`AIManager.cleanup`), so the worker (a daemon `multiprocessing.Process`) was killed at exit instead of receiving its shutdown message. A terminal Ctrl-C also killed the worker directly with KeyboardInterrupt. Verifying the fix showed a worse problem: a signal arriving while the editor was writing a log line was lost and the editor kept running
 - **Status**: Resolved

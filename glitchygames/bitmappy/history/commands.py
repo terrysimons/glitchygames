@@ -457,7 +457,8 @@ class FrameAddCommand:
             editor: The editor context.
             frame_index: Index where the frame was/will be added.
             animation_name: Name of the animation.
-            frame_data: Serialised frame data (pixels, width, height, duration).
+            frame_data: Serialised frame data (pixels, width, height, duration, and an
+                optional explicit hitbox as an (x, y, width, height) tuple).
 
         """
         from glitchygames.bitmappy.history.undo_redo import OperationType
@@ -508,15 +509,24 @@ class FrameAddCommand:
                 LOG.warning('Canvas or animated sprite not available for frame addition')
                 return False
 
-            surface = pygame.Surface((self.frame_data['width'], self.frame_data['height']))
+            # SRCALPHA like the editor's own frames (FilmStripCoordinator._create_blank_frame),
+            # so restored pixels keep their alpha
+            surface = pygame.Surface(
+                (self.frame_data['width'], self.frame_data['height']),
+                pygame.SRCALPHA,
+            )
+            # Only an explicit frame hitbox is recorded; None keeps the hitbox fallback
+            hitbox_data = self.frame_data.get('hitbox')
+            new_frame = SpriteFrame(
+                surface=surface,
+                duration=self.frame_data.get('duration', 1.0),
+                hitbox=None if hitbox_data is None else pygame.Rect(hitbox_data),
+            )
             if self.frame_data.get('pixels'):
-                pixel_array = pygame.PixelArray(surface)
-                for i, pixel in enumerate(self.frame_data['pixels']):
-                    if i < len(pixel_array.flat):  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-                        pixel_array.flat[i] = pixel  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-                del pixel_array
-
-            new_frame = SpriteFrame(surface=surface, duration=self.frame_data.get('duration', 1.0))
+                # Row-major pixels; also keeps frame.pixels, which saves read. (PixelArray
+                # has no .flat, so the previous copy raised and every restore failed; see
+                # BUGS.md #51 for the same fix in AnimationAddCommand.)
+                new_frame.set_pixel_data(self.frame_data['pixels'])
 
             self.editor.canvas.animated_sprite.add_frame(
                 self.animation_name,

@@ -747,3 +747,135 @@ class TestFilmStripAnimationTransitions:
             'to': 'sprint',
             'when': 'velocity_x > 0.1',
         }
+
+
+class TestFilmStripFrameDeleteUndo:
+    """Undoing a Bitmappy frame delete puts the frame back; redoing deletes it again."""
+
+    # Three frames in run with different colors; the middle one has its own interval, an
+    # explicit hitbox and a half-transparent pixel, so the restore must keep all of them
+    TOML = (
+        '[sprite]\nname = "runner"\n\n'
+        '[[animation]]\nnamespace = "run"\n\n'
+        '[[animation.frame]]\nnamespace = "run"\nframe_index = 0\npixels = """\n##\n"""\n\n'
+        '[[animation.frame]]\nnamespace = "run"\nframe_index = 1\nframe_interval = 0.3\n'
+        'pixels = """\n%@\n"""\n\n'
+        '[animation.frame.hitbox]\noffset_x = 1\noffset_y = 0\nwidth = 1\nheight = 1\n\n'
+        '[[animation.frame]]\nnamespace = "run"\nframe_index = 2\npixels = """\n&&\n"""\n\n'
+        '[colors."#"]\nred = 10\ngreen = 0\nblue = 0\n\n'
+        '[colors."%"]\nred = 0\ngreen = 200\nblue = 0\n\n'
+        '[colors."@"]\nred = 0\ngreen = 0\nblue = 200\nalpha = 128\n\n'
+        '[colors."&"]\nred = 30\ngreen = 30\nblue = 30\n'
+    )
+
+    @pytest.fixture(autouse=True)
+    def real_display(self):
+        """Use a real display for the real AnimatedSprite and film strip widget.
+
+        Yields:
+            None: Control to the test.
+
+        """
+        pygame.init()
+        pygame.display.set_mode((800, 600))
+        yield
+        pygame.quit()
+
+    def _scene_with_film_strip(self, mocker, tmp_path):
+        """Return an editor scene and a film strip widget showing a real three-frame sprite.
+
+        Returns:
+            tuple: The scene and the film strip widget.
+
+        """
+        from glitchygames.sprites import AnimatedSprite
+
+        mocker.patch('glitchygames.bitmappy.editor_setup.EditorSetup.setup_canvas')
+        scene = BitmapEditorScene({})
+        sprite_file = tmp_path / 'runner.toml'
+        sprite_file.write_text(self.TOML, encoding='utf-8')
+        scene.canvas = mocker.Mock()
+        scene.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
+        scene.canvas.current_animation = 'run'
+        scene.canvas.current_frame = 0
+        widget = FilmStripWidget(x=0, y=0, width=400, height=100)
+        widget.parent_scene = scene
+        widget.set_animated_sprite(scene.canvas.animated_sprite)
+        return scene, widget
+
+    @staticmethod
+    def _assert_middle_frame_restored(frames):
+        """Assert the deleted middle frame is back at index 1 with all its data."""
+        assert len(frames) == TEST_SIZE_3
+        restored_frame = frames[1]
+        assert restored_frame.pixels == [(0, 200, 0, 255), (0, 0, 200, 128)]
+        assert tuple(restored_frame.image.get_at((0, 0))) == (0, 200, 0, 255)
+        assert tuple(restored_frame.image.get_at((1, 0))) == (0, 0, 200, 128)
+        assert restored_frame.duration == pytest.approx(0.3)
+        assert restored_frame.has_explicit_hitbox is True
+        assert restored_frame.hitbox == pygame.Rect(1, 0, 1, 1)
+        assert tuple(frames[0].image.get_at((0, 0)))[:3] == (10, 0, 0)
+        assert tuple(frames[2].image.get_at((0, 0)))[:3] == (30, 30, 30)
+
+    def test_undoing_a_frame_delete_restores_the_frame_in_place(self, mocker, tmp_path):
+        """Undo puts the frame's pixels, duration and hitbox back at its index; redo deletes."""
+        import tomllib
+
+        scene, widget = self._scene_with_film_strip(mocker, tmp_path)
+        sprite = scene.canvas.animated_sprite
+        frames = sprite._animations['run']
+        third_frame = frames[2]
+
+        widget.event_handler.remove_frame(animation_name='run', frame_index=1)
+        assert len(frames) == TEST_SIZE_2
+        assert frames[1] is third_frame
+
+        assert scene.undo_redo_manager.undo() is True
+        self._assert_middle_frame_restored(frames)
+        saved_file = tmp_path / 'restored.toml'
+        sprite.save(str(saved_file), 'toml')
+        saved_frames = tomllib.loads(saved_file.read_text(encoding='utf-8'))['animation'][0][
+            'frame'
+        ]
+        assert len(saved_frames) == TEST_SIZE_3
+        assert saved_frames[1]['hitbox'] == {'offset_x': 1, 'offset_y': 0, 'width': 1, 'height': 1}
+
+        assert scene.undo_redo_manager.redo() is True
+        assert len(frames) == TEST_SIZE_2
+        assert frames[1] is third_frame
+
+        assert scene.undo_redo_manager.undo() is True
+        self._assert_middle_frame_restored(frames)
+
+    def test_undoing_a_frame_delete_restores_a_frame_without_a_pixel_list(self, mocker, tmp_path):
+        """A frame known only by its surface (empty pixels list) is restored from that surface."""
+        from glitchygames.sprites.animated import SpriteFrame
+
+        scene, widget = self._scene_with_film_strip(mocker, tmp_path)
+        frames = scene.canvas.animated_sprite._animations['run']
+        surface = pygame.Surface((2, 1), pygame.SRCALPHA)
+        surface.fill((90, 80, 70, 255))
+        frames.insert(1, SpriteFrame(surface, duration=0.7))
+
+        widget.event_handler.remove_frame(animation_name='run', frame_index=1)
+        assert len(frames) == TEST_SIZE_3
+
+        assert scene.undo_redo_manager.undo() is True
+        assert len(frames) == TEST_SIZE_3 + 1
+        assert tuple(frames[1].image.get_at((1, 0))) == (90, 80, 70, 255)
+        assert frames[1].duration == pytest.approx(0.7)
+        assert frames[1].has_explicit_hitbox is False
+
+    def test_editor_undo_and_redo_restore_and_delete_the_frame(self, mocker, tmp_path):
+        """The editor's undo and redo actions (Ctrl+Z / Ctrl+Y) undo and redo a frame delete."""
+        scene, widget = self._scene_with_film_strip(mocker, tmp_path)
+        frames = scene.canvas.animated_sprite._animations['run']
+        third_frame = frames[2]
+
+        widget.event_handler.remove_frame(animation_name='run', frame_index=1)
+        scene.handle_undo()
+        self._assert_middle_frame_restored(frames)
+
+        scene.handle_redo()
+        assert len(frames) == TEST_SIZE_2
+        assert frames[1] is third_frame
