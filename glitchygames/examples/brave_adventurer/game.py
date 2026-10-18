@@ -463,14 +463,37 @@ class BraveAdventurerScene(Scene):
             vertically_overlapping = player_bottom > wall_top and player_top < wall_bottom
 
             if vertically_overlapping:
-                # Push out on the side the hitbox's centre is on, whatever the velocity, so
-                # a standing player whose hitbox widened (a new animation frame or pose)
-                # while flush against the wall is pushed back out instead of left inside.
-                wall_center_x = wall_left + STONE_WALL_WIDTH / 2
-                if player_rect.centerx < wall_center_x:
+                if self._entered_wall_from_left(
+                    player_rect=player_rect, wall_left=wall_left, wall_right=wall_right
+                ):
                     self.player.world_x = float(wall_left - (player_offset_x + player_rect.width))
                 else:
                     self.player.world_x = float(wall_right - player_offset_x)
+
+    def _entered_wall_from_left(
+        self: Self, *, player_rect: pygame.Rect, wall_left: int, wall_right: int
+    ) -> bool:
+        """Decide which side of a wall an overlapping player is pushed out of.
+
+        Uses where the hitbox was before this frame's movement (velocity_x * dt back): if
+        it was clear of the wall on one side, the player came in from that side, even when
+        a dt hitch carried its centre past the wall's centre. If it already overlapped (the
+        hitbox widened with a new animation frame or pose, or the player is not moving),
+        the side of the wall's centre the hitbox's centre is on decides, so a widened hitbox
+        is pushed back out on its own side, never through the wall.
+
+        Returns:
+            bool: True to push the player out to the left of the wall, False to the right.
+
+        """
+        displacement_x = self.player.velocity_x * self.dt
+        previous_left = player_rect.left - displacement_x
+        previous_right = player_rect.right - displacement_x
+        if previous_right <= wall_left:
+            return True
+        if previous_left >= wall_right:
+            return False
+        return player_rect.centerx < (wall_left + wall_right) / 2
 
     def _resolve_enemy_terrain_collisions(self: Self) -> None:
         """Resolve enemy-terrain collisions so scarabs follow the ground.

@@ -159,6 +159,63 @@ class TestTerrainUsesHitbox:
 
         assert _player_hitbox(scene).right == round(self.WALL_X)
 
+    def test_fast_player_past_the_wall_centre_is_pushed_back_the_way_it_came(
+        self, adventurer_scene
+    ):
+        """Moving right, a player whose hitbox centre passed the wall's centre goes back left.
+
+        A dt hitch can carry it that far; it must not be pushed through to the far side.
+        """
+        scene = adventurer_scene
+        self._set_up_wall(scene)
+        player = self._place_player_on_ground(scene, hitbox_left=0)
+        offset_x, _ = collision_rect_offset(player)
+        hitbox_width = _player_hitbox(scene).width
+        # Hitbox centre 4 px right of the wall's centre
+        wall_center = round(self.WALL_X) + STONE_WALL_WIDTH // 2
+        player.world_x = float(wall_center + 4 - hitbox_width // 2 - offset_x)
+        player.velocity_x = 900.0
+        scene.dt = 0.1  # a hitch: 90 px this frame, from clear of the wall on its left
+
+        scene._resolve_player_wall_collision()
+
+        assert _player_hitbox(scene).right == round(self.WALL_X)
+
+    def test_fast_player_moving_left_is_pushed_out_on_the_right(self, adventurer_scene):
+        """Moving left with the hitbox centre left of the wall's centre: pushed out right."""
+        scene = adventurer_scene
+        self._set_up_wall(scene)
+        player = self._place_player_on_ground(scene, hitbox_left=0)
+        offset_x, _ = collision_rect_offset(player)
+        hitbox_width = _player_hitbox(scene).width
+        wall_center = round(self.WALL_X) + STONE_WALL_WIDTH // 2
+        player.world_x = float(wall_center - 4 - hitbox_width // 2 - offset_x)
+        player.velocity_x = -900.0
+        scene.dt = 0.1  # a hitch: 90 px this frame, from clear of the wall on its right
+
+        scene._resolve_player_wall_collision()
+
+        assert _player_hitbox(scene).left == round(self.WALL_X) + STONE_WALL_WIDTH
+
+    def test_wider_frame_while_moving_away_is_not_pushed_through_the_wall(self, adventurer_scene):
+        """A hitbox that widens into the wall while moving away is pushed back, not through.
+
+        Flush on the wall's left, jumping away left: the wider frame overlaps the wall, and the
+        player must end on the left side again, never on the wall's right side.
+        """
+        scene = adventurer_scene
+        self._set_up_wall(scene)
+        player = self._place_player_on_ground(scene, hitbox_left=0)
+        offset_x, _ = collision_rect_offset(player)
+        player.world_x = self.WALL_X - _player_hitbox(scene).width - offset_x
+        _widen_player_hitbox(scene, extra_pixels=6)
+        player.velocity_x = -200.0
+        scene.dt = 1 / 60
+
+        scene._resolve_player_wall_collision()
+
+        assert _player_hitbox(scene).right == round(self.WALL_X)
+
     def test_ledge_falls_only_when_the_hitbox_leaves_the_segment(self, adventurer_scene):
         """Walking right off a ledge: still supported until the hitbox's back edge passes it."""
         scene = adventurer_scene
