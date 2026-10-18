@@ -8,7 +8,6 @@ One line per item, with where it is detailed. Review, then promote items into
 
 | Item | Where | Notes |
 |---|---|---|
-| `EventInterface.__subclasshook__` returns a bool instead of `NotImplemented`, so `issubclass`/`isinstance` against `Scene` are False for every real subclass | `glitchygames/events/base.py:~557` | Found on feature/engine-world-space (Task 1b); confirmed. Any isinstance check against these interfaces is wrong today. |
 | Docs tell scenes to implement `process_events`, but the engine checks for `process_event` | `docs/glitchygames/index.md:128` | Found on feature/engine-world-space (Task 1b). |
 | `test_game_over_scene.py` reassigns the global `pygame.K_SPACE`/`K_ESCAPE` | `tests/scenes/` | Harmless today (same values); a test-isolation hazard. |
 | PaddleSlap reseeds Python's global `random` module at startup under a misleading comment | `glitchygames/examples/paddleslap.py:~257` | Found on feature/engine-world-space (Task 1). Replay will move games to `engine_random()`. |

@@ -910,6 +910,7 @@ class TestEventInterfaceSubclassHook:
             def required_method(self):
                 pass
 
-        # IncompleteClass still has required_method as abstract
+        # IncompleteClass still has required_method as abstract, so the hook defers to
+        # inheritance (NotImplemented) rather than answering False
         result = TestInterface.__subclasshook__(IncompleteClass)
-        assert result is False
+        assert result is NotImplemented

@@ -577,12 +577,13 @@ class TestEventInterface:
         # SimpleClass has no abstract methods, so __subclasshook__ uses
         # getattr(subclass, '__abstractmethods__', frozenset[str]()) which
         # returns an empty frozenset — no AttributeError is raised.
-        # It should return False because SimpleClass doesn't implement the interface.
+        # It should return NotImplemented (defer to inheritance) because SimpleClass
+        # doesn't implement the interface.
         class SimpleClass:
             pass
 
         result = EventInterface.__subclasshook__(SimpleClass)
-        assert result is False
+        assert result is NotImplemented
 
     def test_event_interface_subclasshook_invalid_implementation(self, mock_pygame_patches):
         """Test EventInterface.__subclasshook__ with invalid implementation."""
@@ -596,8 +597,8 @@ class TestEventInterface:
 
         # Test the subclasshook directly without log patching
         result = EventInterface.__subclasshook__(InvalidEventClass)
-        # Should return False for invalid implementation
-        assert result is False
+        # Should return NotImplemented (defer to inheritance) for an invalid implementation
+        assert result is NotImplemented
 
     def test_event_interface_subclasshook_empty_attributes(self, mock_pygame_patches):
         """Test EventInterface.__subclasshook__ with empty attributes."""
@@ -607,8 +608,82 @@ class TestEventInterface:
 
         # Test the subclasshook directly without log patching
         result = EventInterface.__subclasshook__(EmptyEventClass)
-        # Should return False for empty implementation
-        assert result is False
+        # Should return NotImplemented (defer to inheritance) for an empty implementation
+        assert result is NotImplemented
+
+    def test_scene_subclass_is_a_scene(self, mock_pygame_patches):
+        """A real Scene subclass passes issubclass and isinstance against Scene."""
+        from glitchygames.scenes import Scene
+
+        class RealScene(Scene):
+            NAME = 'RealScene'
+
+        scene = RealScene(options={})
+
+        assert issubclass(RealScene, Scene)
+        assert isinstance(scene, Scene)
+
+    def test_unrelated_class_is_not_a_scene(self, mock_pygame_patches):
+        """A class that neither inherits from Scene nor implements anything is not a Scene."""
+        from glitchygames.scenes import Scene
+
+        class UnrelatedClass:
+            pass
+
+        assert not issubclass(UnrelatedClass, Scene)
+        assert not isinstance(UnrelatedClass(), Scene)
+
+    def test_structural_match_counts_for_an_interface_with_abstract_methods(
+        self, mock_pygame_patches
+    ):
+        """A class that implements every abstract method of an interface counts as one.
+
+        The hook exists to make these interfaces structural: inheriting is not required.
+        """
+        from glitchygames.events import KeyboardEvents
+
+        class StructuralKeyboardHandler:
+            def on_key_down_event(self, event):
+                pass
+
+            def on_key_up_event(self, event):
+                pass
+
+            def on_key_chord_up_event(self, event, keys):
+                pass
+
+            def on_key_chord_down_event(self, event, keys):
+                pass
+
+        assert set(KeyboardEvents.__abstractmethods__) == {
+            'on_key_down_event',
+            'on_key_up_event',
+            'on_key_chord_up_event',
+            'on_key_chord_down_event',
+        }
+        assert issubclass(StructuralKeyboardHandler, KeyboardEvents)
+        assert isinstance(StructuralKeyboardHandler(), KeyboardEvents)
+
+    def test_partial_structural_match_is_not_an_interface(self, mock_pygame_patches):
+        """A class implementing only some abstract methods (and not inheriting) is not one."""
+        from glitchygames.events import KeyboardEvents
+
+        class PartialKeyboardHandler:
+            def on_key_down_event(self, event):
+                pass
+
+        assert not issubclass(PartialKeyboardHandler, KeyboardEvents)
+
+    def test_subclasshook_defers_to_inheritance_when_structure_does_not_match(
+        self, mock_pygame_patches
+    ):
+        """The hook returns NotImplemented (never False) so normal inheritance still counts."""
+        from glitchygames.scenes import Scene
+
+        class RealScene(Scene):
+            NAME = 'RealScene'
+
+        assert Scene.__subclasshook__(RealScene) is NotImplemented
 
 
 class TestEventManager:

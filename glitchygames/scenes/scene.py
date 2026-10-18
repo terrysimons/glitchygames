@@ -425,8 +425,9 @@ class SceneManager(SceneInterface, events.EventManager):
             return
         if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
             # Recorded before dispatch, so a quit-key release knows this scene saw the press.
-            # Looked up by name, not isinstance: an active scene may be any SceneInterface (and
-            # EventInterface.__subclasshook__ makes isinstance(subclass_instance, Scene) False)
+            # Looked up by name: at runtime an active scene may be any SceneInterface stand-in
+            # without record_key_press, but active_scene is annotated Scene, so an isinstance
+            # check would be flagged as unnecessary by the type checker
             record_key_press = getattr(self.active_scene, 'record_key_press', None)
             if record_key_press is not None:
                 record_key_press(key=event.key)

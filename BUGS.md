@@ -22,6 +22,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 56. isinstance/issubclass Against Scene, Sprite and Every Concrete Event Class Is False for Subclasses
+- **Description**: `issubclass(SubScene, Scene)` and `isinstance(sub_scene, Scene)` were False for every real subclass; the same held for every concrete class deriving from `EventInterface` (`Sprite`, `BitmappySprite`, `Scene`, the `*EventStubs`, the example game scenes, UI widgets and dialogs). Only an object whose exact type is the checked class passed (Python's exact-type fast path)
+- **Status**: Resolved
+- **Priority**: Low (no engine code path depended on the wrong answer; it blocked using isinstance)
+- **Reporter**: Found on feature/engine-world-space (Task 1b)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `EventInterface.__subclasshook__` returned `False` when its structural check failed. To `abc`, False means "definitely not a subclass", so normal inheritance was never consulted. Concrete classes have no abstract methods, so the structural check always failed for them
+- **Solution**: The hook returns True when the class implements every abstract method of the interface and `NotImplemented` otherwise, so `abc` falls back to inheritance. Audit (every `isinstance`/`issubclass` against an `EventInterface` subclass in `glitchygames/`, `scripts/` and `tests/`, plus a full-suite run with an instrumented hook): no check on a real object changes outcome (the checked objects are exact types or classes without subclasses); the 615 changed class pairs are subclass-vs-concrete-ancestor pairs and interface pairs involving abstract classes, which no code checks. `SceneManager.on_key_down_event` keeps its by-name `record_key_press` lookup: `active_scene` is annotated `Scene`, so an isinstance check is flagged as unnecessary by basedpyright
+- **Files Modified**: `glitchygames/events/base.py`, `glitchygames/scenes/scene.py` (comment only)
+- **Tests**: `TestEventInterface` in `tests/events/test_events_core.py`: a real Scene subclass passes issubclass/isinstance; an unrelated class does not; a class implementing every abstract method of `KeyboardEvents` without inheriting passes; a partial implementation does not; the hook returns NotImplemented for a non-matching class. The existing hook tests now expect NotImplemented instead of False
+
 ### 55. Input Pressed During a Scene Transition Is Delivered When It Ends
 - **Description**: Keys, buttons and clicks pressed during a transition (about 4 s for Clockwork Keep's elevator ride) were all delivered at once to the new scene when it ended: a jump pressed mid-ride jumped on arrival. A key held before the ride and released during it still read as held on the arrival scene's first frame, and quit or a controller disconnect during a ride waited for it to end
 - **Status**: Resolved
