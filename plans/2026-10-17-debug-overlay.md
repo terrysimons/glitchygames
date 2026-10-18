@@ -2,7 +2,8 @@
 
 - **Date:** 2026-10-17
 - **Branch:** `feature/debug-overlay`
-- **Status:** Design approved in conversation; spec awaiting review
+- **Status:** Implemented on `feature/debug-overlay` (this spec was updated in place to match
+  the implementation)
 - **Master plan:** `plans/engine-audit.md` (item #12)
 
 ## Goal
@@ -39,7 +40,9 @@ New package `glitchygames/debug/`:
 - `overlay.py` — `DebugOverlay`: owns `is_visible: bool`, `panel: DebugPanel`, a small font
   (created lazily on first draw), the rolling frame-time history, and the set of disabled hooks.
   - `toggle() -> None`, `cycle_panel() -> None`, `record_frame(*, frame_seconds: float) -> None`,
-    `draw(surface, *, scene, screen_offset: tuple[int, int]) -> None`.
+    `draw(surface, *, scene, screen_offset: tuple[int, int], frame_info: DebugFrameInfo) -> None`.
+  - `DebugFrameInfo` (in `panels.py`) carries the per-frame engine readings: target FPS, live voice
+    count, rumble levels, SCREEN shake offset, mouse position and the inspected scene's label.
 - `DebugPanel(Enum)`: `ALL`, `COLLISION`, `PHYSICS`, `CAMERA`, `PERFORMANCE`; `cycle_panel` advances
   in that order and wraps from `PERFORMANCE` to `ALL`.
 - `protocols.py` — runtime-checkable Protocols:
@@ -50,7 +53,8 @@ New package `glitchygames/debug/`:
 - `panels.py` — one pure drawing function per panel (`draw_collision_panel`, `draw_physics_panel`,
   `draw_camera_panel`, `draw_performance_panel`), each taking the surface, the data it needs and the
   world-annotation offset; no global state.
-- `glitchygames/debug/__init__.py` exports `DebugOverlay`, `DebugPanel`, `DebugDrawable`.
+- `glitchygames/debug/__init__.py` exports `DebugOverlay`, `DebugPanel`, `DebugDrawable`,
+  `DebugFrameInfo`, `HasPhysicsBody` and `PhysicsState`.
 
 ### Integration
 
@@ -68,7 +72,8 @@ New package `glitchygames/debug/`:
   - While visible, presentation uses a full display update (`pygame.display.flip()`), because the
     overlay changes every frame. The performance HUD states that the overlay itself lowers FPS
     slightly.
-- When not visible, the only cost is one boolean check in `_present_frame`.
+- When not visible, the cost is one boolean check in `_present_frame` plus `record_frame` (a deque
+  append) per frame.
 
 ### Keys
 
@@ -77,21 +82,24 @@ New package `glitchygames/debug/`:
   only, and only when no sprite in the active scene has keyboard focus (a sprite with `is_active` true,
   the same rule `Scene._handle_focused_sprite_events` uses). Intercepted keys are not forwarded; all
   other key-down events are forwarded to the active scene unchanged.
-- Mode line at the top centre while visible: `DEBUG: <Panel> (F3 off, F4 next)`.
+- Mode line at the top centre while visible: `DEBUG: <Panel> (F3 off, F4 next)`, followed by
+  `| paused: <name>` while the overlay inspects a scene other than the active one.
+- `Scene.debug_subject` (property, default the scene itself) names the scene the overlay inspects.
+  `PauseScene` returns the paused game, so its hitboxes and physics stay visible over the frozen
+  screenshot and line up with it.
 
 ### Data sources (read-only)
 
 | Source | Panel |
 |---|---|
-| `scene.collisions` layers and `glitchygames.collision.layers._get_sprite_collision_rect` (exactly what collision tests use) | Collision outlines by layer |
+| `scene.collisions` layers and `glitchygames.collision.layers.get_sprite_collision_rect` (exactly what collision tests use) | Collision outlines by layer |
 | `scene.all_sprites` | Unlayered sprites (faint outline) |
 | objects matching `HasPhysicsBody` among `scene.all_sprites` | Physics arrows, ground marker |
 | `scene.camera` | Camera bounds, lead point, shake offsets |
 | overlay's own frame history; `scene_manager.live_audio` (only if already created); `scene_manager.rumble` | Performance HUD |
 
-`_get_sprite_collision_rect` is private to the collision module; either make it public as
-`get_sprite_collision_rect` (keeping a private alias if anything imports the old name) or import it
-with a comment explaining why. Prefer making it public.
+`_get_sprite_collision_rect` was made public as `get_sprite_collision_rect`; nothing imported the
+old name, so no alias was kept.
 
 ---
 
@@ -101,10 +109,12 @@ with a comment explaining why. Prefer making it public.
 - 1 px hitbox outline per sprite in each collision layer, coloured from a fixed palette in layer
   creation order (`CollisionManager.layer_names()` order), so colours are stable between runs.
 - Outlines sit where each sprite is drawn: `sprite.rect` (set from the camera by the game) plus the
-  hitbox's offset from the snapped world position, so the box is never rounded a second time
-  through the camera (which put it 1 px off sprites under fractional smooth-follow cameras).
-- Legend (top-left): layer name, colour swatch, sprite count.
-- Sprites in `scene.all_sprites` that are in no collision layer: faint grey outline of `sprite.rect`.
+  hitbox's offset from the snapped world position (minus `draw_offset` for anchored sprites, whose
+  rect already includes it), so the box is never rounded a second time through the camera (which
+  put it 1 px off sprites under fractional smooth-follow cameras).
+- Legend (bottom-left): layer name, colour swatch, sprite count.
+- Sprites in `scene.all_sprites` that are in no collision layer: faint grey outline of the full
+  `sprite.rect` (not a trimmed hitbox).
 - Overlaps: when two sprites from different layers have overlapping collision rects, both outlines
   are drawn white for that frame (layer pairs are not configured anywhere today, so any cross-layer
   overlap counts).
@@ -116,21 +126,25 @@ with a comment explaining why. Prefer making it public.
 - Ground marker: a 2 px bar under the collision rect, green when `on_ground` is true, red otherwise.
 
 ### Camera
-- World bounds: each configured bound edge (`min_x`, `max_x`, `min_y`, `max_y`) drawn as a dashed line
-  where it falls on screen (via `camera.apply`). Add a read-only `Camera2D.bounds` property returning
+- World bounds: each configured bound edge drawn as a dashed line where it falls on screen, via the
+  side-effect-free `Camera2D.world_to_screen`. Bounds clamp the camera's top-left, so the left/top
+  edges are at `min_x`/`min_y` and the right/bottom edges at `max_x + screen width - 1` /
+  `max_y + screen height - 1` (the last world pixel). A read-only `Camera2D.bounds` property returns
   `(min_x, min_y, max_x, max_y)` (each `float | None`) instead of reading private fields.
 - Lead point: a crosshair at screen position (`camera.lead_x`, `camera.lead_y`).
-- Mouse world position next to the cursor: `camera.world_x + mouse_x`, `camera.world_y + mouse_y`
+- Mouse world position as text at the cursor: `camera.world_x + mouse_x`, `camera.world_y + mouse_y`
   (unshaken), only when the mouse is inside the window.
-- Shake: WORLD (`camera.shake_effect.offset`) and SCREEN offsets in px, shown only when non-zero.
+- Shake: WORLD (`camera.shake_effect.offset`) and SCREEN offsets in px, on separate lines, shown only
+  when non-zero.
 
 ### Performance HUD (top-right, not offset)
 - Current FPS (1 / last frame time), target FPS (`scene_manager.target_fps`, "uncapped" when 0),
   frame time in ms, 1% low over the last `PERFORMANCE_WINDOW_SECONDS` (5 s) of recorded frames
   (mean FPS of the slowest `max(1, ceil(0.01 × n))` frames in the window).
-- Rolling frame-time graph of the last `GRAPH_WINDOW_SECONDS` (2 s): one 1 px bar per frame, scaled to
-  a fixed height; a horizontal line at the target frame time when a target is set; bars above the
-  line drawn red.
+- Rolling frame-time graph of the last `GRAPH_WINDOW_SECONDS` (2 s) on a time axis spanning the
+  graph's full width: each frame's width is proportional to its duration, and a column shows the
+  slowest frame that covers it, scaled to a fixed height. A horizontal line marks the target frame
+  time when a target is set (none when uncapped); bars above it are drawn red.
 - Live voices playing (only if `live_audio` exists) and rumble levels (low/high) while non-zero.
 - The overlay keeps its own `collections.deque` of frame times (sized for the 5 s window at a generous
   maximum rate, e.g. 5000 entries) so the HUD does not depend on the shutdown statistics.
@@ -151,8 +165,9 @@ with a comment explaining why. Prefer making it public.
   `camera` is always present (default identity camera since spec revision 3 of the screen shake
   work) but bounds may all be `None`; no physics bodies → no arrows.
 - The overlay never mutates game state (positions, velocities, camera, sprite dirty flags).
-- Font creation and drawing use `pygame.font.Font(None, size)`; creation happens on first visible draw
-  so headless/test paths that never show the overlay never create fonts.
+- Text uses the engine's bundled Bitstream Vera Sans (`glitchygames/fonts/bitstream_vera/Vera.ttf`)
+  on translucent backing surfaces cached by size; the font is created on the first visible draw so
+  headless/test paths that never show the overlay never create fonts.
 
 ## Testing
 
