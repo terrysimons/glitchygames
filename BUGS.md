@@ -12,7 +12,331 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-15
 - **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
 
+### 46. scripts/legacy_sprite_loader.py Cannot Start
+- **Description**: The script raises `TypeError: Sprite.__init__() missing 'x' and 'y'` while building its scene
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Details**: `scripts/legacy_sprite_loader.py:~50`. Unchanged on the branch. Fix the call, or delete the script if it is obsolete.
+
 ## Resolved Bugs
+
+### 53. Undoing a Bitmappy Frame Delete Fails
+- **Description**: Deleting a frame from an animation in the film strip and then undoing the delete restored nothing: the undo failed with `AttributeError: 'PixelArray' object has no attribute 'flat'` and the frame stayed deleted. A frame known only by its surface came back black, and a restored frame lost its explicit hitbox and per-pixel alpha
+- **Status**: Resolved
+- **Priority**: Medium (undo of a frame delete was broken)
+- **Reporter**: Found while fixing BUGS.md #51 (`plans/future-work.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `FrameAddCommand._add_frame` (which `FrameDeleteCommand.undo` uses) copied pixels through `PixelArray.flat`, which pygame-ce's `PixelArray` does not have, so the undo raised, logged and returned False (the same bug as #51 in `AnimationAddCommand`). The delete capture (`FilmStripEventHandler.track_frame_deletion_for_undo`) recorded `frame.pixels`, which is empty for a frame that has only a surface, and did not record the frame's hitbox; the restore built a surface without `SRCALPHA`
+- **Solution**: The delete capture reads pixels with `SpriteFrame.get_pixel_data()` and records an explicit frame hitbox as an `(x, y, width, height)` tuple (None when the frame uses the hitbox fallback). `FrameAddCommand._add_frame` builds an `SRCALPHA` surface like the editor's own frames, passes the hitbox to `SpriteFrame` and copies pixels with `SpriteFrame.set_pixel_data` (which also keeps `frame.pixels`, which saves read). A grep of the package found no other `.flat` or `PixelArray` use
+- **Files Modified**: `glitchygames/bitmappy/history/commands.py`, `glitchygames/bitmappy/film_strip_events.py`
+- **Tests**: `TestFilmStripFrameDeleteUndo` in `tests/tools/test_bitmappy_film_strips.py` (real `AnimatedSprite` and `FilmStripWidget`): delete the middle frame, undo (pixels, alpha, duration and hitbox back at index 1, and saved), redo deletes it again, undo again; a frame with no pixel list is restored from its surface; the editor's `handle_undo`/`handle_redo` undo and redo the delete
+
+### 52. Bitmappy's Signal Handler Skips the AI Worker's Graceful Shutdown (and Can Lose the Signal)
+- **Description**: On SIGINT/SIGTERM Bitmappy exited without the AI worker's shutdown (`AIManager.cleanup`), so the worker (a daemon `multiprocessing.Process`) was killed at exit instead of receiving its shutdown message. A terminal Ctrl-C also killed the worker directly with KeyboardInterrupt. Verifying the fix showed a worse problem: a signal arriving while the editor was writing a log line was lost and the editor kept running
+- **Status**: Resolved
+- **Priority**: Low (no leak or traceback observed in normal runs), but the lost signal meant `kill` sometimes needed sending twice
+- **Reporter**: Found while verifying BUGS.md #47 in the binary (`plans/future-work.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `editor.main`'s handler called `sys.exit(0)`; the SystemExit ends `GameEngine.start` without the scene manager's loop exit, so no scene `cleanup()` (and so no `AIManager.cleanup`) ran. The terminal sends SIGINT to the whole process group, and the spawned worker kept Python's default SIGINT handler. The handler also logged; when the signal interrupted a write to stderr, logging raised `RuntimeError: reentrant call inside <_io.BufferedWriter name='<stderr>'>`, which escaped the handler in place of SystemExit and was swallowed by the frame loop
+- **Solution**: The handler now only records the signal and raises SystemExit. `main` wraps `engine.start()` in `try/finally`; the finally logs the signal and calls `shut_down_running_ai_workers()`, which runs `AIManager.cleanup` (shutdown message, join for `AI_WORKER_JOIN_TIMEOUT_SECONDS` = 2 s, terminate and then kill only if still alive, close queues) for each manager whose worker is running (a `WeakSet` filled by `AIManager.setup`). It runs after SystemExit has unwound the engine, so it cannot block on a lock the interrupted code held, and it does nothing after a normal quit (cleanup unregisters the manager and clears its process and queues, so it is safe to call twice). The worker now starts through `run_ai_worker_process`, which ignores SIGINT so Ctrl-C leaves it to exit on its shutdown message (`terminate()` still stops it)
+- **Verification**: Ran `uv run bitmappy` headless (`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`), waited for the worker, then sent SIGTERM to the editor process and, in a second run, SIGINT to the whole process group (as Ctrl-C does). Both exited in under 0.3 s with code 0, logged the shutdown message being sent and `AI process cleanup completed` without terminating the worker, printed no traceback, and left no processes
+- **Files Modified**: `glitchygames/bitmappy/editor.py`, `glitchygames/bitmappy/ai_manager.py`, `glitchygames/bitmappy/ai_worker.py`
+- **Tests**: `TestAiWorkerShutdown` in `tests/tools/test_bitmappy.py`: a signal while the engine runs exits 0 through `shut_down_running_ai_workers` without logging inside the handler; cleanup sends the message then joins with the timeout and does not terminate a worker that exits; terminates one that does not; started managers are shut down once; the worker process ignores SIGINT
+
+### 51. Undoing a Bitmappy Animation Delete Fails and Loses Its Transitions and Settings
+- **Description**: Deleting an animation drops the `[[transition]]` entries from or to it (BUGS.md #44), and undoing the delete did not bring them back. Fixing that showed the undo had never worked: it failed with `AttributeError: 'PixelArray' object has no attribute 'flat'` and restored nothing
+- **Status**: Resolved
+- **Priority**: Medium (undo of an animation delete was broken; transitions silently lost)
+- **Reporter**: Found while fixing BUGS.md #44 (`plans/future-work.md`)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_capture_animation_deletion_for_undo` saved only the frames. `AnimationAddCommand._add_animation` (which `AnimationDeleteCommand.undo` uses) copied pixels through `PixelArray.flat`, which pygame-ce's `PixelArray` does not have, so the undo raised, logged, and returned False. The delete also left the animation's loop flag, frame interval and `_animation_order` entry behind, and its redo (`AnimationAddCommand._delete_animation`) did not drop the transitions again
+- **Solution**: The delete capture also records the animation's position, loop flag, frame interval and the transitions it drops with their indices (`AnimatedSprite.transitions_for_animation`); frames are captured with `get_pixel_data()`. The delete (and `AnimatedSprite.remove_animation`) now drops the settings and order entry (`forget_animation_settings`). `AnimationDeleteCommand.undo` re-adds the frames (now via `SpriteFrame.set_pixel_data`), puts the animation back in its place with its settings (`restore_animation_settings`) and the transitions back at their original positions (`restore_transitions`); its redo drops the transitions and settings again
+- **Files Modified**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/film_strip_coordinator.py`, `glitchygames/bitmappy/history/commands.py`
+- **Tests**: `test_undoing_an_animation_delete_restores_its_transitions_and_settings` in `TestFilmStripAnimationTransitions` (`tests/tools/test_bitmappy_film_strips.py`, real `AnimatedSprite`: delete, undo, save, redo, undo); `test_removed_transitions_restore_to_their_original_positions` and `test_remove_animation_forgets_its_settings` in `tests/sprites/test_animated_sprite.py`
+
+### 50. Packaged Bitmappy AI Requests Fail With "Supported providers: set()"
+- **Description**: In the PyInstaller binary every AI sprite request failed with `ValueError: Invalid provider key 'anthropic'. Supported providers: set()`
+- **Status**: Resolved
+- **Priority**: High (AI generation unusable in the packaged app)
+- **Reporter**: User, testing the binary after BUGS.md #47
+- **Date Reported**: 2026-10-18
+- **Root Cause**: aisuite discovers providers by globbing `aisuite/providers/*_provider.py` on disk (`ProviderFactory.get_supported_providers`) and imports them by a constructed name. PyInstaller stores modules compiled inside its archive, so the glob found no files and the dynamic import was invisible to its analysis.
+- **Solution**: A project PyInstaller hook, `packaging/pyinstaller_hooks/hook-aisuite.py` (enabled via `hookspath` in `bitmappy.spec`), bundles the anthropic, openai and ollama provider modules as hidden imports and their source files as data, so both the glob and the import work. Only these providers are bundled, to keep vendor SDKs out of the binary; others fail with aisuite's clear "not supported" error.
+- **Files Modified**: `packaging/pyinstaller_hooks/hook-aisuite.py` (new), `bitmappy.spec`
+- **Tests**: `tests/tools/test_bitmappy_packaging.py` checks the spec uses the hook directory and that the hook bundles the default `AI_MODEL`'s provider and only real provider modules. Verified by rebuilding and listing the binary's archive (the three provider files are present); a real request in the binary still needs a manual run with an API key.
+
+### 49. bitmappy.spec Lists a Hidden Import That No Longer Exists
+- **Description**: The PyInstaller build logged `ERROR: Hidden import 'glitchygames.events.voice_portaudio' not found`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The PortAudio voice backend moved to `glitchygames.events.voice_backends.voice_portaudio`, and the spec was not updated. The spec had also never been committed: the PyInstaller section of `.gitignore` ignores `*.spec`, so a fresh clone could not run `nox -s build-binary` at all
+- **Solution**: The hidden import now names `glitchygames.events.voice_backends.voice_portaudio`. `.gitignore` makes an exception for `bitmappy.spec`, and the spec is now tracked
+- **Verification**: The rebuild logs no hidden-import errors for `glitchygames` modules. Its remaining `Hidden import … not found` warnings (`pycparser.lextab`, `pycparser.yacctab`, `scipy.special._cdflib`) come from third-party PyInstaller hooks, not from the spec
+- **Tests**: `test_every_spec_hidden_import_exists` (each hidden import must exist) and `test_spec_script_and_data_sources_exist` (the Analysis script and every `datas` source must exist) in `tests/tools/test_bitmappy_packaging.py`
+- **Files**: `bitmappy.spec`, `.gitignore`
+
+### 48. Packaged Bitmappy Is Missing `pygame._sdl2.audio`
+- **Description**: A background process in the PyInstaller build crashed with `ModuleNotFoundError: No module named 'pygame._sdl2.audio'`
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The module was not missing: both builds contain `pygame/_sdl2/audio.cpython-314-darwin.so` (checked with `pyi-archive_viewer --list`), and the main process imported it. The crashing process was one of the children that, without `freeze_support()` (#47), re-ran the whole entry point and imported Bitmappy. It crashed while the parent was being stopped, most likely because the one-file build's extracted files were already being removed
+- **Solution**: Fixed by #47 (children no longer import Bitmappy). `pygame._sdl2.audio` is now also listed in `bitmappy.spec`'s `hiddenimports`, so the binary cannot lose it if PyInstaller's analysis changes
+- **Verification**: Rebuilt binary ran headless and was stopped with SIGTERM and with SIGINT; neither run printed a `ModuleNotFoundError` or traceback
+- **Tests**: `test_spec_lists_the_audio_module_pygame_sdl2_imports` in `tests/tools/test_bitmappy_packaging.py`
+- **Files**: `bitmappy.spec`
+
+### 47. Packaged Bitmappy Re-Launches Itself for Background Processes (No freeze_support)
+- **Description**: In the PyInstaller build (`dist/bitmappy`), background processes (the AI worker and multiprocessing's resource tracker) started the bundled app again with multiprocessing's own arguments (`--multiprocessing-fork …`, `-B -S -I -c …`), which the app's argument parser rejected, so those processes failed
+- **Status**: Resolved
+- **Priority**: High for the packaged build; no effect when running from source
+- **Reporter**: Found while verifying BUGS.md #40 with `nox -s build-binary` (2026-10-18)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Bitmappy uses the `spawn` start method (`editor.main` calls `multiprocessing.set_start_method('spawn', force=True)`; `AIManager.setup` starts the worker with `multiprocessing.Process`), and a frozen app spawns children by re-running its own executable. No `multiprocessing.freeze_support()` call existed, so each child ran the app's entry point instead of its task
+- **Solution**: `scripts/bitmappy_entry.py` (the script `bitmappy.spec` builds) calls `multiprocessing.freeze_support()` first, and imports and starts Bitmappy only afterwards, so a child never imports Bitmappy or reaches its argument parser
+- **Verification**: Rebuilt with `nox -s build-binary` and ran `dist/bitmappy` headless (`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`). While it ran, the resource tracker (`-B -S -I -c …`) and the AI worker (`--multiprocessing-fork …`) were alive as child processes. The worker initialized its AI client (it logged `game.ai - WARNING - Client does not have _providers attribute`). After SIGINT, every process had exited within 5 s. There were no argparse usage errors, tracebacks or `ModuleNotFoundError`. A real AI request was not tried (it needs an API key or network access)
+- **Tests**: `test_entry_point_calls_freeze_support_before_starting_bitmappy` in `tests/tools/test_bitmappy_packaging.py`
+- **Files**: `scripts/bitmappy_entry.py`
+
+### 46. scripts/legacy_sprite_loader.py Cannot Start
+- **Description**: The script raised `TypeError: Sprite.__init__() missing 'x' and 'y'` while building its scene
+- **Status**: Resolved (script deleted)
+- **Priority**: Low
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `Sprite.__init__` gained required `x` and `y` arguments in 4bdc966 (Refactor/bitmappy editor, #87); the script still called it with only `width` and `height`. Beyond that, the script was obsolete: since it was added (f20bca6) its history is only lint clean-ups; nothing references it (docs, noxfile, tests, other scripts); its `inflate` draws each pixel as a zero-size rect, which pygame-ce draws as nothing, so even a fixed call would show a solid green square whatever the file held; it wrote the loaded sprite back as an INI `.cfg` file, a format the engine no longer loads (TOML only); and its input (headerless 32×32, one VGA palette index per byte) matches none of the Galimore formats surveyed in `docs/galimore.md` (RGB565 `.bg/.fg/.get/.spr`, 24-bit `.raw`), which Galimore import (sub-plan E) will convert to TOML instead
+- **Solution**: Deleted `scripts/legacy_sprite_loader.py` rather than fixing a script that cannot do its job. `scripts/sprite_loader.py` covers loading sprites (TOML). `scripts/raw_sprite_loader.py` is kept because tests use its `BitmappyLegacySprite.deflate`, though it has the same broken `Sprite` call and zero-size-rect `inflate` (noted in `plans/future-work.md`)
+- **Files Modified**: `scripts/legacy_sprite_loader.py` (deleted)
+- **Tests**: None (nothing to test; `uv run python -c "import pygame; ..."` confirmed a zero-size `pygame.draw.rect` leaves the surface unchanged)
+
+### 45. Renaming an Animation in Bitmappy Drops Its Timing and Loop Flag
+- **Description**: `_rename_animation_in_sprite` moved the animation's frames but not its loop flag or frame interval, so a renamed one-shot animation stopped honouring `loop = false` at runtime and saved as `loop = true` with the most common frame duration as its interval
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The coordinator renamed the sprite's per-animation data by hand (frames, `_animation_order`, and since #44 the transitions) and missed `_loop_flags` and `_animation_frame_intervals`. It also moved the frames to the end of `_animations` (the save order), left the sprite's `frame_manager.current_animation` on the old name when the renamed animation was the current one, and overwrote an existing animation when renamed onto its name. Renames had no undo command at all
+- **Solution**: New `AnimatedSprite.rename_animation(old_name=, new_name=)` moves everything stored under the name: frames (in place), `_animation_order`, loop flag, frame interval, transitions, cached surfaces for either name, and the current animation (keeping the current frame); it raises `ValueError` for a missing name or one already in use. `_rename_animation_in_sprite` calls it; `on_animation_rename` refuses (with a warning) a rename onto an existing animation and records an `AnimationRenameCommand` (`FilmStripOperationTracker.add_animation_renamed`, `OperationType.FILM_STRIP_ANIMATION_RENAME`), whose undo renames back through `on_animation_rename` and so restores the old name with its data, and whose redo renames again. The live `AnimationStateMachine` (built at load) is not renamed; Bitmappy does not run it, and saves use `transition_data`
+- **Files Modified**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/film_strip_coordinator.py`, `glitchygames/bitmappy/history/commands.py`, `glitchygames/bitmappy/history/operations.py`, `glitchygames/bitmappy/history/undo_redo.py`, `glitchygames/bitmappy/history/__init__.py`
+- **Tests**: `test_renaming_an_animation_moves_its_loop_flag_and_frame_interval` (flag and interval follow, the one-shot animation stops on its last frame, the save writes them under the new name), `test_renaming_the_current_animation_keeps_it_current`, `test_renaming_onto_an_existing_animation_is_refused` and `test_undoing_an_animation_rename_restores_the_old_name_and_its_data` in `TestFilmStripAnimationTransitions` (`tests/tools/test_bitmappy_film_strips.py`, real `AnimatedSprite`); `test_rename_animation_moves_transitions_and_keeps_the_order` and `test_rename_animation_rejects_a_missing_or_existing_name` in `tests/sprites/test_animated_sprite.py`
+
+### 44. TOML Save Drops Animation State Machine Transitions
+- **Description**: The TOML writers never wrote `[[transition]]` sections, so loading and saving a sprite lost its animation state machine (cobra: 2 transitions → 0; Papyrus player: 6 → 0). Saving a sprite in Bitmappy silently broke the game's animation logic
+- **Status**: Resolved
+- **Priority**: High (silent data loss in game assets)
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_load_toml` handed the `[[transition]]` tables straight to `AnimationStateMachine.load_from_toml` (which keeps only parsed `Transition` objects) and kept no copy, so neither `_save_toml` nor `_save_toml_single_frame` had anything to write. Bitmappy's derived sprites (viewport save, single-frame canvas save) had nothing to copy either
+- **Solution**: The loader keeps each table verbatim, in file order, in `AnimatedSprite.transition_data`; both writers append them as `[[transition]]` sections with the same keys, values and order (`_write_toml_transitions`). Strings are escaped as TOML basic strings (`toml_basic_string`: backslash, quote and control characters; also `toml_key` and `toml_scalar`), so `when` expressions with quotes or backslashes round-trip. Transitions that games add in code (the Papyrus player's compound falling transitions) are not part of the data and are not written. Bitmappy's viewport and single-frame canvas saves copy the transitions (`copy_transitions_from`); renaming an animation renames it in its transitions (`rename_animation_in_transitions`, called by `FilmStripCoordinator._rename_animation_in_sprite`); deleting one drops the transitions from or to it with a logged warning (`remove_transitions_for_animation`, called by `_delete_animation` and `AnimatedSprite.remove_animation`). Undoing a Bitmappy animation delete now restores the dropped transitions (BUGS.md #51)
+- **Tests**: `test_bundled_transitions_survive_a_save_round_trip` (every bundled sprite) and `test_state_machine_transitions_reload_in_order` (Papyrus player, cobra) in `tests/examples/test_examples_sprites.py`; `TestTransitionData` in `tests/sprites/test_animated_sprite.py`; `test_viewport_save_keeps_transitions` and `test_static_save_keeps_transitions` in `tests/tools/test_canvas_panning.py`; `TestFilmStripAnimationTransitions` in `tests/tools/test_bitmappy_film_strips.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/animated_canvas.py`, `glitchygames/bitmappy/film_strip_coordinator.py`
+
+### 43. Bitmappy Single-Frame Save Drops the Sprite Name, Frame Anchor and Sprite Hitbox
+- **Description**: Bitmappy's normal save of a single-frame sprite (`on_save_file_event` → `_save_as_static_sprite`) built a new `AnimatedSprite` and copied only `description`, so the saved file's `name` became `"animated_sprite"` (battle_axe: `bttlaxe.get` → `animated_sprite`) and `frame_anchor` and a sprite-level hitbox not stored on the frame were lost
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `AnimatedCanvasSprite._save_as_static_sprite` copied sprite-level fields one at a time and only `description` (and, since #44, the transitions) was ever added; the new sprite also lacked the loaded color glyphs, so a save could pick different characters
+- **Solution**: New `AnimatedSprite.copy_sprite_metadata_from` copies every sprite-level field the writers save (name, description, frame_anchor, the default hitbox, transitions) plus the loaded color glyphs and their order; `_save_as_static_sprite` uses it
+- **Tests**: `test_static_save_keeps_the_sprite_name` (battle_axe: name and pixel glyphs) and `test_static_save_keeps_frame_anchor_and_sprite_hitbox` in `tests/tools/test_canvas_panning.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/animated_canvas.py`
+
+### 42. TOML Writers Don't Escape Sprite Names and Descriptions
+- **Description**: Both TOML writers wrote `name = "{name}"` and `description = """{description}"""` without escaping, so a description containing `"""` or a name containing `"` or a backslash produced an invalid TOML file that could not be loaded again
+- **Status**: Resolved
+- **Priority**: Medium (AI-generated descriptions in Bitmappy can contain quotes)
+- **Reporter**: Found while fixing the single-frame writer (BUGS.md #39)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The values were interpolated into f-strings verbatim in `_save_toml_single_frame` and `_write_toml_sprite_section`
+- **Solution**: Names are written with `toml_basic_string` (the escaping added for BUGS.md #44) and descriptions with `toml_multiline_basic_string`, which keeps real line breaks but escapes backslashes, quotes, other control characters and a leading newline (which TOML would otherwise drop)
+- **Tests**: `test_names_and_descriptions_needing_escapes_round_trip` (both writers) in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
+### 41. Input Confirmation Dialog Sends Key-Down Events to the Key-Up Handler
+- **Description**: `InputConfirmationDialogScene.on_key_down_event` passed unhandled key-down events to `super().on_key_up_event(event)` instead of `super().on_key_down_event(event)`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found by the final whole-branch review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: A copy-paste slip in `glitchygames/ui/dialogs.py` (identical on main): the inactive-input branch of `on_key_down_event` called the base key-up handler, so base key-down handling never ran for the dialog (and its subclasses: New Canvas, Load, Save) and key-up handling ran twice per key press. No other key-down/key-up mix-up exists in `dialogs.py` (the delete-animation and delete-frame dialogs route correctly)
+- **Solution**: The branch now calls `super().on_key_down_event(event)`
+- **Files Modified**: `glitchygames/ui/dialogs.py`
+- **Tests**: `test_input_confirmation_dialog_key_down_inactive_input` in `tests/ui/test_dialogs.py` checks an unhandled key-down reaches `Scene.on_key_down_event` and not `Scene.on_key_up_event`
+
+### 40. Built-In Font Fallback Points at a Missing Path
+- **Description**: When no system font can be loaded (PyInstaller-packaged games), `FontManager` fell back to the bundled Vera.ttf via `Path(__file__).parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'`, which resolves to `glitchygames/fonts/fonts/bitstream_vera/Vera.ttf` (does not exist), so the fallback raised `FileNotFoundError` instead of loading the font
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found while choosing the debug overlay's font
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `font_manager.py` already lives in `glitchygames/fonts/`, so the extra `'fonts'` path segment pointed one directory too deep. The existing fallback test mocked `pygame.freetype.Font`, so the bad path was never opened
+- **Solution**: The fallback uses `Path(__file__).parent / 'bitstream_vera' / 'Vera.ttf'`, the path `bitmappy.spec`'s comment documents and bundles. No other copy of the wrong path exists (`glitchygames/debug/overlay.py`'s `DEBUG_FONT_PATH` was already correct)
+- **Tests**: `TestFontManagerBuiltInFallback` in `tests/fonts/test_font_manager.py` (with `SysFont` raising `TypeError` or `FileNotFoundError`, a real freetype font is loaded from a file that exists)
+- **Files**: `glitchygames/fonts/font_manager.py`
+
+### 39. Single-Frame TOML Save Drops the Description
+- **Description**: Saving a single-frame (static) sprite lost its `[sprite] description`
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found while fixing BUGS.md #36
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_save_toml_single_frame` writes its own `[sprite]` table (it needs `pixels` inside it) and wrote only `name`, `frame_anchor`, `pixels` and the hitbox, while the animated writer (`_write_toml_sprite_section`) also writes `description`. These are the only `[sprite]` keys the loader reads
+- **Solution**: The single-frame writer writes `description` in the same format as the animated writer
+- **Tests**: `test_static_sprite_metadata_survives_a_save_round_trip` and `test_bundled_sprite_metadata_survives_a_save_round_trip` (name, description, frame_anchor and effective hitbox for every bundled sprite) in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
+### 38. Only One Loop Flag Per Sprite Honoured at Runtime
+- **Description**: An AnimatedSprite with a looping and a non-looping animation (cobra: idle loops, strike does not; Papyrus player: jumping/falling do not) used a single `is_looping` for all of them: after loading it was the last animation's `loop`, whichever animation played
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found while fixing BUGS.md #34
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_process_toml_animation` assigned each animation's `loop` to the one sprite-wide `_is_looping`, so the last one won, and `set_animation` never changed it. Only `AnimationStateMachine` applied per-animation flags (from `_loop_flags`), so sprites without a state machine, and direct `play()`/`set_animation()` calls, ignored them. `get_animation_metadata`/`set_animation_metadata` likewise read and wrote the sprite-wide flag whatever animation was named
+- **Solution**: `_loop_flags` (filled at load, reset on each load) is the single per-animation store, also used by save (it replaces `_animation_loops` from #34). `set_animation` and the initial animation apply the animation's own flag through `_apply_animation_loop_flag`; setting `is_looping` still overrides it until the next animation is set, and animations without a loaded flag leave `is_looping` unchanged. The metadata methods read and write that animation's flag
+- **Tests**: `TestPerAnimationLoop` in `tests/sprites/test_animated_sprite.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
+### 37. PaddleSlap Ball-Ball Collisions Leave Stalled, Vertical or Flat Balls
+- **Description**: After ball-ball collisions PaddleSlap balls could end up nearly stopped (e.g. (13, 1) px/s), nearly vertical (e.g. (14, 218) px/s, bouncing between the top and bottom walls for 1000+ frames without reaching a paddle in a headless paddle-AI run), or flat (vy = 0, sliding along a wall)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Not an error in the physics: `_apply_elastic_collision` is an exact equal-mass elastic exchange (the recorded (96, 136) + (-160, 43) -> (-78, -38) + (14, 218) collision conserves momentum and kinetic energy to rounding, with the contact normal from the balls' centres). Exact physics legitimately produces these outcomes: a head-on hit on a slower ball hands over nearly all its speed, and the exchange can leave any heading. PaddleSlap had no rule keeping a ball playable after a ball-ball collision, unlike its serves, which `ServeSettings` keeps between 15 and 60 degrees from horizontal
+- **Solution**: A deliberate game-design rule (kept by user decision): it is not momentum-conserving, and it exists to prevent stalled, vertical and flat balls. The physics step is unchanged (the 2328-case collision sweeps still check swapped velocities, a mover that stops dead and conserved momentum and energy). `Game.update()` then runs `_keep_collided_balls_playable()`: each ball that collided this frame gets its velocity's angle from horizontal moved into its own `ServeSettings` band (keeping each component's sign; a zero component points away from the partner) and its speed raised to at least its serve speed (`_keep_ball_playable`). The rule conserves each ball's speed when it only turns it, adds energy only when it raises a slow ball's speed, and does not conserve momentum; balls already serve-like are untouched. A 3000-frame paddle-AI harness run had no stalled, vertical or flat balls afterwards (the same check found 1052 samples before)
+- **Tests**: `TestBallPairPlayability` in `tests/collision/test_ball_paddle_collision.py`; `test_update_keeps_collided_balls_playable_after_ball_collisions` in `tests/examples/test_paddleslap.py`; the existing sweeps in `tests/game_objects/test_ball_collision_physics.py`
+- **Files**: `glitchygames/examples/paddleslap.py`
+
+### 36. Saving a Static Sprite With an RGBA Color Blanks Its Pixels
+- **Description**: `toadstool.toml` came back from load -> save -> reload as a blank 16x18 grid: every pixel was written as `.`
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The file is valid; the static (single-frame) writer was wrong. toadstool declares one color with an `alpha` field (the unused magenta `"█" = { ..., alpha = 255 }`), so the loader gives the frame RGBA pixel tuples such as `(0, 0, 0, 255)`. `_build_toml_color_map` keys opaque colors as RGB (`(0, 0, 0)`) when no pixel has partial alpha, and `_save_toml_single_frame` looked pixels up by exact tuple equality, found nothing and silently wrote its default character `.` (which toadstool maps to black). The animated writer was unaffected because it uses `lookup_pixel_char`, which matches RGBA pixels against RGB keys
+- **Solution**: `_save_toml_single_frame` converts pixels with the same `_convert_pixels_to_toml_chars` as animated saves (which raises `KeyError` for a color missing from the map instead of writing a default character). Note: colors that no pixel uses are not written back, so toadstool's reloaded pixels are RGB tuples rather than RGBA; the colors are identical
+- **Tests**: `test_bundled_sprite_pixels_survive_a_save_round_trip` (every bundled sprite TOML, static and animated, compared as RGBA) in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
+### 35. TOML Save Turns the Visible-Pixel Fallback Into Explicit Hitboxes
+- **Description**: Saving a sprite without hitboxes wrote a `[sprite.hitbox]` (the union of all frames' visible bounds) and an `[animation.frame.hitbox]` for every frame, so a load -> save added hitboxes the author never defined (colors, glimmer, scarab, gold_scarab) and froze them: later edits to the art no longer changed the collision shape, and the sprite-level default no longer reached frames
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `_build_toml_data_structure` fell back to `_auto_compute_envelope_hitbox()` when `default_hitbox` was None, and `_create_toml_frame_data` fell back to `compute_bounding_box_from_pixels()` when a frame had no explicit hitbox. Both date from before the visible-pixel default existed, when a written hitbox was the only way to get a tight one
+- **Solution**: Save writes `[sprite.hitbox]` only when `default_hitbox` is set (loaded or set in code/Bitmappy) and a per-frame hitbox only when `SpriteFrame.has_explicit_hitbox`; `_auto_compute_envelope_hitbox` was removed. Nothing in Bitmappy or the tests relied on the synthesised sections (Bitmappy only carries explicit hitboxes, in its viewport save). Note: a magenta-keyed (non-alpha) `AnimatedSprite` saved without a hitbox now collides as its full frame, like one loaded without a hitbox (see the CLAUDE.md caveat)
+- **Tests**: `test_bundled_hitboxes_survive_a_save_round_trip_unchanged` (every bundled sprite, with and without hitboxes) in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/sprites/animated.py`
+
+### 34. TOML Save Loses Animation Timings and Loop Settings
+- **Description**: Loading an animated sprite and saving it (as Bitmappy does) wrote `frame_interval = 0.5` and `loop = true` for every animation and dropped per-frame `frame_interval` overrides, so every bundled animation (cobra, gold_scarab, the Papyrus player, scarab, scorpion, colors, slime-jump, ghosty) came back at 0.5 s per frame and the cobra's strike and the player's jump/fall animations started looping
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `AnimatedSprite._build_toml_data_structure` hard-coded `'frame_interval': 0.5` and `'loop': True` in every `[[animation]]` entry, and `_write_toml_animations` never wrote a per-frame `frame_interval`. The loader kept the timing only as each `SpriteFrame.duration` (and the last animation's loop in `_is_looping`)
+- **Solution**: The loader records each animation's `frame_interval` and `loop` (`_animation_frame_intervals`, `_animation_loops`). Save writes them back (`_build_toml_animation_entry`); animations without a loaded value (built in code or Bitmappy) use their most common frame duration. A frame gets a per-frame `frame_interval` only when its duration differs from its animation's, so the file's structure is reproduced. Bitmappy's viewport save copies the settings with `AnimatedSprite.copy_animation_timing_from`; the full save already saves the loaded sprite
+- **Tests**: `test_bundled_animation_timings_survive_a_save_round_trip` (parametrized over every bundled animated sprite) in `tests/examples/test_examples_sprites.py`; `test_viewport_save_keeps_animation_timing` in `tests/tools/test_canvas_panning.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/animated_canvas.py`
+- **Note (2026-10-18)**: Bitmappy's panned-viewport save (`save_animated_sprite` / `_save_viewport_sprite`), mentioned in the entries above, was unreachable from the editor and was later removed; planned item D11 (`plans/2026-10-18-level-tools-d-bitmappy-updates.md`) replaces its purpose.
+
+### 33. PaddleSlap Balls Collided as Their 20x20 Image; Half-Pixel Collision Rects 1 px Off
+- **Description**: PaddleSlap balls bounced off paddles and walls, and were killed off-screen, by their full 20x20 image instead of the radius-5 circle players see (turning around 5 px before a wall, killed 5 px late). A ball at x = 10.5 was drawn at 11 but collided at 10
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: (1) Collision rects were the sprite's whole image rect, transparent margin included, and `BallSprite.dt_tick` found paddles by scanning its groups with an image-rect test. (2) `get_collision_rect` placed rects at `round(world_x)` (Python's round-half-even: 10.5 -> 10) while the ball draws at its `pixel_snap_mode` (NEAREST_HALF_UP: 10.5 -> 11)
+- **Solution**: Hitboxes default to the image's visible pixels (`glitchygames/collision/bounds.py`; `TRIM_TRANSPARENT_HITBOX = False` opts out) and collision rects start at the sprite's own snapped position (`glitchygames/pixel_snap.py`). PaddleSlap pairs balls with paddles through `CollisionManager.check_overlap('balls', 'paddles')`, and `BallSprite.handle_paddle_collision` does an exact circle-vs-rect check, placing the visible edge flush on the face the ball came in through. Wall bounces, overshoot mirroring, the off-screen kill and the serve margin use the visible rect (`BallSprite._visible_rect`)
+- **Tests**: `tests/collision/test_ball_paddle_collision.py`; `tests/collision/test_ball_visible_walls.py`; `TestOpaqueBounds`, `TestVisiblePixelCollisionRect` and `test_snap_mode_sprite_rounds_half_up` in `tests/collision/test_collision.py`; `tests/examples/test_paddleslap.py`
+- **Files**: `glitchygames/collision/bounds.py`, `glitchygames/collision/detection.py`, `glitchygames/collision/layers.py`, `glitchygames/pixel_snap.py`, `glitchygames/game_objects/ball.py`, `glitchygames/examples/paddleslap.py`
+
+### 32. Gold Scarab Frame Drawn With a Notch
+- **Description**: The gold scarab's third frame had a notch in its right edge
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Frame 2, row 2 of `gold_scarab.toml` was 9 characters wide instead of 10; the loader pads short rows with their last (transparent) character
+- **Solution**: Restored the missing pixel; a test checks that every bundled sprite's rows are equal width
+- **Tests**: `test_bundled_sprite_rows_have_equal_lengths` in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/examples/brave_adventurer_papyrus/sprites/gold_scarab.toml`
+
+### 31. Two Simultaneous Enemy Contacts Cost Two Lives
+- **Description**: In Brave Adventurer and Papyrus, touching two enemies in the same frame lost two lives and respawned twice
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The collision manager calls the player-enemy callback once per overlapping pair, and each call ran `_player_die`
+- **Solution**: The enemy callback kills the player at most once per collision pass and never while the player is respawning
+- **Tests**: `TestOneDeathPerHit` in `tests/examples/test_brave_adventurer_game.py`
+- **Files**: `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
+
+### 30. Ledge Land/Fall Oscillation; Feet Off the Ground
+- **Description**: A player standing at a ledge or wall-top edge landed, fell and landed again forever (20 landings in 40 frames). Brave Adventurer's figure floated 1 px above the ground; Papyrus feet sank into or floated above the ground as the animation changed frames; players stopped short of walls (Papyrus about 12 px) and of the world's left edge, and a dt hitch could push a fast player through a wall
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: (1) Ground support used the current frame's hitbox, and falling frames and poses are wider than idle ones (Papyrus idle 6..28 vs falling 0..40), so an idle player off an edge fell, was caught by the wider falling hitbox and landed again. (2) Terrain used the drawn image size (Brave's feet end 1 px above its 48 px image; `PAPYRUS_PLAYER_WIDTH` was the full 40 px drawn width while the hitbox is 22 px at offset 6; the world-edge constraint stopped the image, not the hitbox). (3) Papyrus frames are top-aligned with visible bottoms from 24 to 27 rows, so a fixed foot line could not match every frame. (4) Walls pushed out on the side of the hitbox centre, which a long frame can carry past the wall's centre
+- **Solution**: Support uses a stable x-span shared by every frame and pose (`AnimatedSprite.common_hitbox_x_range()`, Brave's per-facing pose intersection, `_player_support_span`). Terrain, walls, world edges, scarab ground and Clockwork Keep platforms work from `get_sprite_collision_rect` and `collision_rect_offset`. Opt-in `AnimatedSprite.frame_anchor` (`FrameAnchor`) moves each frame so its hitbox bottom lands on the reference hitbox's; the Papyrus player uses BOTTOM on the 27-row foot line. Walls push out on the side the hitbox was on before this frame's move (`_entered_wall_from_left`)
+- **Tests**: `TestTerrainUsesHitbox`, `TestHitboxLooseEnds`, `TestStableSupportAtEdges`, `TestPapyrusFeetAnchoring` and `test_fast_player_*` in `tests/examples/test_brave_adventurer_game.py`; `TestPlatformSupportUsesHitbox` in `tests/examples/test_clockwork_keep.py`; `TestAnimatedSpriteFrameAnchor` and `test_common_hitbox_x_range_is_the_intersection_of_all_frames` in `tests/sprites/test_animated_sprite.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/collision/layers.py`, `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer/player.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`, `glitchygames/examples/brave_adventurer_papyrus/player.py`, `glitchygames/examples/brave_adventurer_papyrus/constants.py`, `glitchygames/examples/clockwork_keep/game.py`, `glitchygames/debug/panels.py`
+
+### 29. Papyrus Hitboxes Not Scaled 2x Nor Mirrored When Facing Left
+- **Description**: Papyrus player and enemy hitboxes covered only the top-left quarter of the drawn sprite, and facing left they kept the unflipped offset (an 8 px gap walking left into a wall, and wrong world-edge, ledge and enemy contact)
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: TOML hitboxes are in native pixels, but Papyrus draws every sprite at `SPRITE_SCALE = 2` and flips the image when facing left; `AnimatedSprite.hitbox` applied neither
+- **Solution**: `AnimatedSprite.hitbox_scale` multiplies explicit, default and trimmed hitboxes (set by `prepare_papyrus_sprite` right after loading, so hitboxes are scaled before the first tick), and `AnimatedSprite.hitbox_flip_x` mirrors them within the drawn frame width; Papyrus sets it wherever it flips the image
+- **Tests**: `TestPapyrusHitboxScale` and `test_freshly_constructed_sprites_have_scaled_hitboxes_before_any_tick` in `tests/collision/test_collision.py`; `TestPapyrusFacingLeftHitbox` in `tests/examples/test_brave_adventurer_game.py`; `test_hitbox_scale_*` and `test_hitbox_flip_x_*` in `tests/sprites/test_animated_sprite.py`
+- **Files**: `glitchygames/sprites/animated.py`, `glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py`, `glitchygames/examples/brave_adventurer_papyrus/player.py`, `glitchygames/examples/brave_adventurer_papyrus/enemies.py`, `glitchygames/examples/brave_adventurer_papyrus/constants.py`
+
+### 28. Resume Paused Again Immediately; Pause Screenshot One Frame Behind
+- **Description**: Clockwork Keep and Brave Adventurer paused again one frame after resuming. PaddleSlap's pause screenshot showed the previous frame while the game state was one frame ahead (the ball sat off its hitbox and jumped a frame on resume)
+- **Status**: Resolved
+- **Priority**: High
+- **Reporter**: Debug overlay review
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: (1) Games that paused by setting `next_scene` never cleared it, so after resuming, the loop's end-of-frame check switched to the old pause scene again. (2) `Scene.pause()` switched mid-frame, during event processing, after sprites had already moved but before they were rendered. The first fix for (1) reset `next_scene` on the scene becoming active, which wiped the `next_scene` that bootstrap scenes (`joystick_demo`, `scripts/cached_fonts.py`) set in `__init__`, so they never left their first scene
+- **Solution**: `Scene.pause()` requests the switch via `next_scene`, which the loop performs after rendering. `SceneManager.switch_to_scene` clears the outgoing scene's pending switch (`outgoing.next_scene = outgoing`) and leaves the incoming scene's alone (`_clear_outgoing_scene_pending_switch`, also called by `_start_transition`, so a scene left through a transition cannot bounce back to a stale `next_scene` when it is returned to); the end-of-frame check is `SceneManager._switch_to_requested_scene`
+- **Tests**: `test_pause_requests_a_pause_scene_after_this_frame`, `test_bootstrap_scene_reaches_the_scene_its_init_requests` and `test_resumed_scene_does_not_switch_back_to_the_old_pause_scene`, `test_scene_left_through_a_transition_does_not_switch_back_on_return` and `test_bootstrap_scene_reached_through_a_transition_still_hands_over` in `tests/scenes/test_scene.py`; `tests/scenes/builtin_scenes/test_pause_screen.py`
+- **Files**: `glitchygames/scenes/scene.py`
 
 ### 27. Live Voice Clicks at Chunk Boundaries
 - **Description**: A steady "click click click" was audible at the 100 ms live-voice chunk boundaries during the Clockwork Keep elevator ascent (the cut at arrival is accepted)

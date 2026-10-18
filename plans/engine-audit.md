@@ -26,18 +26,18 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 
 | # | Item | Status | Evidence / notes |
 |---|---|---|---|
-| 1 | Solid/terrain collision resolution (ground, walls, one-way platforms) | Open | 7 `_resolve_*_collision` methods across the games; `CollisionManager` detects but does not resolve |
+| 1 | Solid/terrain collision resolution (ground, walls, one-way platforms) | Open | 7 `_resolve_*_collision` methods across the games; `CollisionManager` detects but does not resolve. `_player_support_span` and `_entered_wall_from_left` are duplicated between Brave Adventurer and Papyrus (candidates for the solid-collision design) |
 | 2 | Expressions phase 2: `and` / `or` / `not` / parentheses | **Done** (branch `feature/expressions-phase-2`) | Grammar, whole-word keywords (fixes `abs`-prefix tokenizer bug); the three `_FallingCondition` copies became `when` strings (Papyrus's in `sprites/player.toml`) |
 | 3 | Screen shake | **Done** (this branch) | `plans/2026-10-17-screen-shake-and-synth.md` |
 | 4 | High-score table | Open | `_save_high_score` copied into 4 games |
 | 5 | Sound effect synthesis | **Done** (this branch) | Same spec: toolkit, recipes, live voices |
 | 6 | Engine world space (absorbs pixel snapping and camera follow) | Open — next design | See below |
-| 7 | Balls on `CollisionManager` | Open | Commit `fa5750f`: "except balls which we'll do later" |
-| 8 | Sprite transparency/scaling helpers; masks instead of alpha trimming | Open | Papyrus `sprite_utils.py` |
+| 7 | Balls on `CollisionManager` | Partly done (feature/debug-overlay): ball–paddle detection moved onto CollisionManager (ball–ball already used it), with an exact circle check in `BallSprite.handle_paddle_collision`; generic resolution waits for #1 | Commit `fa5750f`: "except balls which we'll do later" |
+| 8 | Sprite transparency/scaling helpers; masks instead of alpha trimming | Open (visible-pixel trimming is now the default hitbox, feature/debug-overlay; masks still open) | Papyrus `sprite_utils.py` |
 | 9 | Particles | Open | None exist |
 | 10 | Timers and cooldowns on game time | Open | Ad-hoc cooldown dicts in `ball.py` and PaddleSlap |
-| 11 | Level/room data format (and tilemaps) | Open | Each game defines its own `ScreenData`/`FloorData`/`LevelManager` |
-| 12 | Debug overlay (hitboxes, velocities, FPS) | Open | None exists |
+| 11 | Level/room data format (and tilemaps) | Open — design briefs written | Each game defines its own `ScreenData`/`FloorData`/`LevelManager`. Plan: `plans/2026-10-18-level-tools.md` (Glitchy Studio: tilemap format, Mapsmith, Tilesmith, Bitmappy updates, Galimore import) |
+| 12 | Debug overlay (hitboxes, velocities, FPS) | **Done** (feature/debug-overlay) | `plans/2026-10-17-debug-overlay.md` |
 | 13 | Controller rebinding UI and settings persistence | Open | `ActionMap.to_dict`/`from_dict` exist; nothing saves or edits bindings |
 | 14 | Multiplayer input: player slots and targeted rumble | Open | All rumble is broadcast to every device; no engine player-to-device mapping (only Bitmappy's own controller manager). See below |
 | 15 | Frame loop: one _finish_frame() that paces with the timer backend and records that frame's measured time | Open | BUGS.md #25: pacing and FPS tracking measured frames differently; the deleted _tick_clock() was an early form of this |

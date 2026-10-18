@@ -877,8 +877,13 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         frame_data: dict[str, Any] = {
             'width': frame_to_remove.image.get_width(),
             'height': frame_to_remove.image.get_height(),
-            'pixels': (frame_to_remove.pixels.copy() if hasattr(frame_to_remove, 'pixels') else []),
+            # The frame's pixels, read from its surface if it has no pixel list
+            'pixels': frame_to_remove.get_pixel_data(),
             'duration': frame_to_remove.duration,
+            # Restored by FrameAddCommand; None when the frame uses the hitbox fallback
+            'hitbox': (
+                tuple(frame_to_remove.hitbox) if frame_to_remove.has_explicit_hitbox else None
+            ),
         }
         self.widget.parent_scene.film_strip_operation_tracker.add_frame_deleted(
             frame_index,

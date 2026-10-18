@@ -8,7 +8,7 @@ import math
 import secrets
 from dataclasses import dataclass
 from enum import Enum, Flag, auto
-from typing import TYPE_CHECKING, Self, override
+from typing import TYPE_CHECKING, NamedTuple, Self, override
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -16,8 +16,15 @@ if TYPE_CHECKING:
 import pygame
 
 from glitchygames import game_objects
+from glitchygames.collision.detection import get_collision_rect, snapped_world_position
+from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.color import WHITE
 from glitchygames.movement import Speed
+
+# PixelSnapMode and snap_to_pixel moved to glitchygames.pixel_snap (with HALF_PIXEL, which
+# only snap_to_pixel uses) so collision code can share them; importing them here keeps
+# `from glitchygames.game_objects.ball import PixelSnapMode, snap_to_pixel` working.
+from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
 from glitchygames.sprites import Sprite
 
 log: logging.Logger = logging.getLogger('game.objects.ball')
@@ -28,9 +35,6 @@ SPEED_CHANGE_NOISE_FLOOR = 0.001
 # Minimum Y movement to be considered significant for logging
 SIGNIFICANT_MOVEMENT_THRESHOLD = 0.1
 
-# Fractional pixel at which NEAREST_HALF_UP snapping rounds up
-HALF_PIXEL = 0.5
-
 # Seconds of slack when deciding a CONTINUOUS speed-up is due, so float accumulation
 # (ten 0.1 s frames sum to 0.9999999999999999) cannot delay it by a frame
 CONTINUOUS_SPEED_UP_TIME_TOLERANCE = 1e-9
@@ -39,50 +43,25 @@ CONTINUOUS_SPEED_UP_TIME_TOLERANCE = 1e-9
 MAXIMUM_SERVE_ANGLE_DEGREES = 90.0
 
 
-class PixelSnapMode(Enum):
-    """How a sub-pixel world position is converted to the whole pixel a sprite is drawn at.
+class VisibleRect(NamedTuple):
+    """A ball's visible collision rect and its offset from the drawn (snapped) position."""
 
-    NEAREST_HALF_UP suits smooth-motion games (Pong, PaddleSlap): the drawn position
-    tracks the true position as closely as possible with even steps at half pixels.
-    FLOOR suits retro, top-down, and platformer games: like SNES-era fixed-point
-    positions, only the whole-pixel part is drawn, and it behaves the same on both
-    sides of zero.
-    """
+    left: int
+    top: int
+    width: int
+    height: int
+    offset_x: int  # visible left minus the snapped world x
+    offset_y: int  # visible top minus the snapped world y
 
-    NEAREST_HALF_UP = 'nearest_half_up'  # Halves round toward +infinity: 2.5 -> 3, -2.5 -> -2
-    NEAREST_EVEN = 'nearest_even'  # Python round(): halves go to the even pixel: 2.5 -> 2
-    FLOOR = 'floor'  # Toward -infinity: 2.9 -> 2, -0.5 -> -1
-    CEIL = 'ceil'  # Toward +infinity: 2.1 -> 3, -2.9 -> -2
-    TRUNCATE = 'truncate'  # Toward zero: -0.5 and 0.5 both -> 0
+    @property
+    def right(self) -> int:
+        """The visible right edge (exclusive, like pygame.Rect.right)."""
+        return self.left + self.width
 
-
-def snap_to_pixel(value: float, mode: PixelSnapMode) -> int:
-    """Convert a sub-pixel coordinate to a whole pixel using the given snap mode.
-
-    Args:
-        value: The sub-pixel coordinate.
-        mode: The rounding rule to apply.
-
-    Returns:
-        int: The whole-pixel coordinate.
-
-    """
-    match mode:
-        case PixelSnapMode.NEAREST_HALF_UP:
-            # Not math.floor(value + 0.5): the addition itself rounds at float boundaries,
-            # e.g. 0.49999999999999994 + 0.5 == 1.0, and above 2**52 a whole number plus
-            # 0.5 rounds to an even neighbor. Subtracting the floor is exact, so compare
-            # the fractional part directly.
-            whole_pixel = math.floor(value)
-            return whole_pixel + 1 if value - whole_pixel >= HALF_PIXEL else whole_pixel
-        case PixelSnapMode.NEAREST_EVEN:
-            return round(value)
-        case PixelSnapMode.FLOOR:
-            return math.floor(value)
-        case PixelSnapMode.CEIL:
-            return math.ceil(value)
-        case PixelSnapMode.TRUNCATE:
-            return math.trunc(value)
+    @property
+    def bottom(self) -> int:
+        """The visible bottom edge (exclusive, like pygame.Rect.bottom)."""
+        return self.top + self.height
 
 
 class BallSpawnMode:
@@ -305,8 +284,9 @@ class ServeSettings:
         horizontal: Horizontal direction of the serve.
         vertical: Vertical direction of the serve.
         speed: Serve speed in px/s.
-        spawn_margin: Minimum distance in px between a served ball and each screen
-            edge; on screens too small for it the ball is centered.
+        spawn_margin: Minimum distance in px between a served ball's visible circle
+            (its collision rect) and each screen edge; on screens too small for it the
+            ball is centered.
 
     """
 
@@ -344,7 +324,12 @@ class ServeSettings:
 
 
 class BallSprite(Sprite):
-    """Ball Sprite."""
+    """Ball Sprite.
+
+    The ball moves and bounces off walls itself; paddle hits are resolved by the caller:
+    a CollisionManager overlap check pairs balls with paddles and calls
+    handle_paddle_collision (PaddleSlap does this).
+    """
 
     def __init__(
         self: Self,
@@ -385,7 +370,8 @@ class BallSprite(Sprite):
 
         super().__init__(x=x, y=y, width=width, height=height, groups=groups)  # type: ignore[arg-type]
         self.use_gfxdraw = True
-        self.image.convert()
+        # Sprite.__init__ created the image after the display was set, so it already has the
+        # display's pixel format (convert() would return an equivalent copy)
         self.image.set_colorkey(0)
         self.direction = 0
         self.speed = Speed(250.0, 125.0)  # 250 pixels/second horizontal, 125 pixels/second vertical
@@ -409,6 +395,9 @@ class BallSprite(Sprite):
         self.speed_up_settings = speed_up_settings or SpeedUpSettings()
         self.speed_up_count = 0  # Speed-ups applied since the last reset (curve step n)
         self._continuous_elapsed_time = 0.0  # Game seconds toward the next CONTINUOUS step
+        # The dt of the last dt_tick, so handle_paddle_collision can tell where the ball was
+        # before this frame's move (0.0 until the first tick: no move to undo)
+        self._last_tick_dt = 0.0
 
         # Collision tracking (set by callers like PaddleSlap)
         self.collision_cooldowns: dict[str, float] = {}
@@ -494,18 +483,22 @@ class BallSprite(Sprite):
         self.speed_up_count = 0
         self._continuous_elapsed_time = 0.0
 
+        # The margin is measured from the visible circle (the collision rect) to each edge
         margin = self.serve_settings.spawn_margin
+        visible_rect = self._visible_rect()
         self.world_x = float(
-            self._random_spawn_coordinate(int(self.screen_width - self.width), margin)
+            self._random_spawn_coordinate(int(self.screen_width - visible_rect.width), margin)
+            - visible_rect.offset_x
         )
         self.world_y = float(
-            self._random_spawn_coordinate(int(self.screen_height - self.height), margin)
+            self._random_spawn_coordinate(int(self.screen_height - visible_rect.height), margin)
+            - visible_rect.offset_y
         )
         self.serve(serve_toward=serve_toward)
 
     @staticmethod
     def _random_spawn_coordinate(maximum_position: int, margin: int) -> int:
-        """Pick a coordinate in [margin, maximum_position - margin], or center if no room.
+        """Pick a visible-edge coordinate in [margin, maximum_position - margin], or center.
 
         Returns:
             int: The coordinate (never negative).
@@ -640,6 +633,8 @@ class BallSprite(Sprite):
             dt (float): The delta time.
 
         """
+        self._last_tick_dt = dt
+
         # Check for continuous speed-up
         self._advance_continuous_speed_up(dt)
 
@@ -650,17 +645,18 @@ class BallSprite(Sprite):
         # Ensure the ball is marked as dirty for redrawing
         self.dirty = 1
 
-        # Check for paddle collisions and prevent clipping
-        self._check_paddle_collisions()
+        # Paddle hits are found by the game's CollisionManager after the balls move and
+        # resolved by handle_paddle_collision() (see PaddleSlap's update()).
 
         self._do_bounce()
 
-        # Only kill ball if it goes off screen and left/right bouncing is disabled
-        if not self.bounce_left_right and (
-            self.rect.x > self.screen_width or self.rect.x < -self.width
-        ):
-            # Mark ball for deletion instead of resetting
-            self.kill()
+        # Only kill ball once its visible circle is fully off screen and left/right
+        # bouncing is disabled
+        if not self.bounce_left_right:
+            visible_rect = self._visible_rect()
+            if visible_rect.left > self.screen_width or visible_rect.right < 0:
+                # Mark ball for deletion instead of resetting
+                self.kill()
 
         # Vertical boundaries are handled by bounce(), not reset.
 
@@ -707,19 +703,22 @@ class BallSprite(Sprite):
         hit_horizontal_wall = False  # top or bottom
         hit_vertical_wall = False  # left or right
 
+        # Contact is on the visible circle's box at the snapped (drawn) position
+        visible_rect = self._visible_rect()
+
         if self.bounce_top_bottom:
-            if self.rect.y <= 0 and self.speed.y < 0:
+            if visible_rect.top <= 0 and self.speed.y < 0:
                 self._handle_top_collision(log)
                 hit_horizontal_wall = True
-            elif self.rect.y + self.height >= self.screen_height and self.speed.y > 0:
+            elif visible_rect.bottom >= self.screen_height and self.speed.y > 0:
                 self._handle_bottom_collision(log)
                 hit_horizontal_wall = True
 
         if self.bounce_left_right:
-            if self.rect.x <= 0 and self.speed.x < 0:
+            if visible_rect.left <= 0 and self.speed.x < 0:
                 self._handle_left_collision(log)
                 hit_vertical_wall = True
-            elif self.rect.x + self.width >= self.screen_width and self.speed.x > 0:
+            elif visible_rect.right >= self.screen_width and self.speed.x > 0:
                 self._handle_right_collision(log)
                 hit_vertical_wall = True
 
@@ -737,30 +736,58 @@ class BallSprite(Sprite):
         """Mirror any overshoot past a bouncing wall back inside the playfield.
 
         Runs whether or not the ball bounced this frame, so a ball found past a wall
-        while moving away from it (or not moving) is still put back inside.
+        while moving away from it (or not moving) is still put back inside. The limits
+        are where the visible circle's edges meet the walls.
         """
+        visible_rect = self._visible_rect()
         if self.bounce_top_bottom:
             self.world_y = self._mirrored_inside(
-                self.world_y, float(self.screen_height - self.height)
+                self.world_y,
+                minimum=float(-visible_rect.offset_y),
+                maximum=float(self.screen_height - visible_rect.height - visible_rect.offset_y),
             )
         if self.bounce_left_right:
             self.world_x = self._mirrored_inside(
-                self.world_x, float(self.screen_width - self.width)
+                self.world_x,
+                minimum=float(-visible_rect.offset_x),
+                maximum=float(self.screen_width - visible_rect.width - visible_rect.offset_x),
             )
 
     @staticmethod
-    def _mirrored_inside(position: float, maximum: float) -> float:
-        """Mirror a position that overshot [0, maximum] back inside, clamping huge overshoots.
+    def _mirrored_inside(position: float, *, minimum: float, maximum: float) -> float:
+        """Mirror a position that overshot [minimum, maximum] back inside, clamping huge ones.
 
         Returns:
-            float: The position within [0, maximum].
+            float: The position within [minimum, maximum].
 
         """
-        if position < 0.0:
-            position = -position
+        if position < minimum:
+            position = 2.0 * minimum - position
         elif position > maximum:
             position = 2.0 * maximum - position
-        return min(max(position, 0.0), maximum)
+        return min(max(position, minimum), maximum)
+
+    def _visible_rect(self: Self) -> VisibleRect:
+        """Return the ball's visible collision rect and its offset from the drawn position.
+
+        The rect is the same one collision checks use (get_collision_rect: the visible
+        pixels of the image at the snapped world position), so walls, paddles and other
+        balls all meet the circle players see.
+
+        Returns:
+            VisibleRect: The rect plus its offset from the snapped world position.
+
+        """
+        collision_rect = get_collision_rect(self, self.world_x, self.world_y)
+        snapped_world_x, snapped_world_y = snapped_world_position(self, self.world_x, self.world_y)
+        return VisibleRect(
+            left=collision_rect.left,
+            top=collision_rect.top,
+            width=collision_rect.width,
+            height=collision_rect.height,
+            offset_x=collision_rect.x - snapped_world_x,
+            offset_y=collision_rect.y - snapped_world_y,
+        )
 
     def _handle_top_collision(self: Self, log: logging.Logger) -> None:
         """Reflect the velocity off the top wall.
@@ -859,48 +886,78 @@ class BallSprite(Sprite):
         # Mark ball as needing visual update
         self.dirty = 2  # Force full redraw for visual effects
 
-    def _check_paddle_collisions(self: Self) -> None:
-        """Check for paddle collisions and prevent ball clipping through paddles.
+    def _entered_paddle_from_left(
+        self: Self, *, ball_rect: VisibleRect, paddle_rect: pygame.Rect
+    ) -> bool:
+        """Decide which face of a paddle the touching ball is pushed out of.
+
+        The same rule as the platformers' _entered_wall_from_left: look at where the visible
+        rect was before this frame's move (speed.x * the last tick's dt back). If it was clear
+        of the paddle on one side, the ball came in from that side, even when a long frame
+        (30 fps, a hitch) carried its centre past the paddle's centre. If it already
+        overlapped (e.g. resting on the paddle's top or bottom edge, or not moving), the side
+        of the paddle's centre the ball's centre is on decides, so it is pushed out on its own
+        side rather than through the paddle.
 
         Args:
-            None
+            ball_rect (VisibleRect): The ball's visible rect at its current position.
+            paddle_rect (pygame.Rect): The paddle's collision rect.
+
+        Returns:
+            bool: True to push the ball out of the paddle's left face, False its right face.
 
         """
-        # Get all paddle sprites from the same groups as this ball
-        paddle_sprites = [
-            sprite
-            for group in self.groups()
-            for sprite in group
-            if (hasattr(sprite, 'snd') or sprite.__class__.__name__.lower().find('paddle') != -1)
-            and sprite != self
-        ]
+        displacement_x = self.speed.x * self._last_tick_dt
+        previous_left = ball_rect.left - displacement_x
+        previous_right = ball_rect.right - displacement_x
+        if previous_right <= paddle_rect.left:
+            return True
+        if previous_left >= paddle_rect.right:
+            return False
+        ball_center_x = ball_rect.left + ball_rect.width / 2
+        paddle_center_x = paddle_rect.x + paddle_rect.width / 2
+        return ball_center_x < paddle_center_x
 
-        # Check collision with each paddle
-        for paddle in paddle_sprites:
-            assert paddle.rect is not None
-            if self.rect.colliderect(paddle.rect):
-                # Ball is overlapping with paddle - adjust position to prevent clipping
-                self._adjust_position_for_paddle_collision(paddle)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
+    def handle_paddle_collision(self: Self, paddle: Sprite) -> bool:
+        """Bounce off a paddle if the ball's visible circle touches it.
 
-    def _adjust_position_for_paddle_collision(self: Self, paddle: Sprite) -> None:
-        """Adjust ball position to prevent clipping through paddle and make it bounce.
+        Meant as the fine check after a CollisionManager broad-phase overlap. The ball is
+        the circle inscribed in its collision rect (its visible pixels); the paddle is its
+        collision rect. Touching counts. On a hit the ball is placed with its visible edge
+        flush against the face it came in through (see _entered_paddle_from_left), its
+        horizontal speed points away from the paddle, the paddle's sound plays, a
+        PADDLE_BOUNCE speed-up and the max_speed clamp are applied, and on_paddle_collision
+        is called.
 
         Args:
-            paddle (Sprite): The paddle sprite that the ball is colliding with
+            paddle (Sprite): The paddle the broad phase paired with this ball.
+
+        Returns:
+            bool: True if the ball hit the paddle and bounced; False (with no side effects)
+            otherwise.
 
         """
-        assert paddle.rect is not None
-        # Determine which side of the paddle the ball is on
-        ball_center_x = self.rect.centerx
-        paddle_center_x = paddle.rect.centerx
+        ball_rect = self._visible_rect()
+        paddle_rect = get_sprite_collision_rect(paddle)
 
-        if ball_center_x < paddle_center_x:
-            # Ball is on the left side of paddle - position ball to the left
-            self.world_x = float(paddle.rect.left - self.rect.width)
+        radius = ball_rect.width / 2
+        ball_center_x = ball_rect.left + ball_rect.width / 2
+        ball_center_y = ball_rect.top + ball_rect.height / 2
+        closest_x = min(max(ball_center_x, paddle_rect.left), paddle_rect.right)
+        closest_y = min(max(ball_center_y, paddle_rect.top), paddle_rect.bottom)
+        distance_squared = (ball_center_x - closest_x) ** 2 + (ball_center_y - closest_y) ** 2
+        if distance_squared > radius * radius:
+            return False
+
+        visible_offset_x = ball_rect.offset_x
+
+        if self._entered_paddle_from_left(ball_rect=ball_rect, paddle_rect=paddle_rect):
+            # Ball hits the paddle's left face - visible right edge on the left face
+            self.world_x = float(paddle_rect.left - (visible_offset_x + ball_rect.width))
             self.speed.x = -abs(self.speed.x)
         else:
-            # Ball is on the right side of paddle - position ball to the right
-            self.world_x = float(paddle.rect.right)
+            # Ball hits the paddle's right face - visible left edge on the right face
+            self.world_x = float(paddle_rect.right - visible_offset_x)
             self.speed.x = abs(self.speed.x)
 
         # Play collision sound if paddle has one
@@ -920,3 +977,4 @@ class BallSprite(Sprite):
 
         # Mark ball as dirty for redraw
         self.dirty = 2
+        return True

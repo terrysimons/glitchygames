@@ -38,6 +38,8 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+# ...except Bitmappy's hand-written spec, which `nox -s build-binary` builds from
+!bitmappy.spec
 
 # Installer logs
 pip-log.txt

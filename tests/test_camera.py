@@ -39,6 +39,12 @@ class TestCamera2DHasBeenApplied:
         camera.apply(1.0, 2.0)
         assert camera.has_been_applied is True
 
+    def test_world_to_screen_does_not_flip(self):
+        """world_to_screen is for read-only tools and never marks the camera as applied."""
+        camera = Camera2D(screen_width=800, screen_height=600)
+        camera.world_to_screen(1.0, 2.0)
+        assert camera.has_been_applied is False
+
 
 class TestCamera2DUpdate:
     """Smooth follow behavior."""
@@ -109,6 +115,13 @@ class TestCamera2DBounds:
         camera.update(target_x=-500.0, target_y=-300.0, dt=1.0 / 60.0)
         assert camera.world_x < 0.0
         assert camera.world_y < 0.0
+
+    def test_bounds_property_reports_configured_edges(self):
+        """Bounds returns (min_x, min_y, max_x, max_y), with None for unbounded edges."""
+        camera = Camera2D(screen_width=200, screen_height=100)
+        assert camera.bounds == (None, None, None, None)
+        camera.set_bounds(min_x=0.0, max_x=400.0)
+        assert camera.bounds == (0.0, None, 400.0, None)
 
 
 class TestCamera2DVisibility:
@@ -210,6 +223,14 @@ class TestCamera2DShake:
         camera = Camera2D(screen_width=200, screen_height=100)
         camera.shake_effect.add(_bounce())
         assert camera.apply(50.0, 50.0) == (50, 40)
+
+    def test_world_to_screen_matches_apply_when_scrolled_and_shaken(self):
+        camera = Camera2D(screen_width=200, screen_height=100)
+        camera.world_x = 30.0
+        camera.world_y = 5.0
+        camera.shake_effect.add(_bounce())
+        expected = camera.apply(50.0, 50.0)
+        assert camera.world_to_screen(50.0, 50.0) == expected
 
     def test_update_advances_shake(self):
         camera = Camera2D(screen_width=200, screen_height=100, smooth_factor=1.0)

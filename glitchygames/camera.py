@@ -177,6 +177,11 @@ class Camera2D:
         """
         return self._has_been_applied
 
+    @property
+    def bounds(self) -> tuple[float | None, float | None, float | None, float | None]:
+        """World bounds as (min_x, min_y, max_x, max_y); None means unbounded on that edge."""
+        return (self._min_x, self._min_y, self._max_x, self._max_y)
+
     def set_bounds(
         self,
         *,
@@ -285,6 +290,22 @@ class Camera2D:
 
         """
         self._has_been_applied = True
+        return self.world_to_screen(world_x, world_y)
+
+    def world_to_screen(self, world_x: float, world_y: float) -> tuple[int, int]:
+        """Convert world coordinates to screen coordinates without side effects.
+
+        Uses the same math as apply(), including the WORLD shake offset, but does not mark
+        the camera as applied. Intended for read-only tools such as the debug overlay.
+
+        Args:
+            world_x: X position in world space.
+            world_y: Y position in world space.
+
+        Returns:
+            A tuple of (screen_x, screen_y) pixel coordinates.
+
+        """
         shake_x, shake_y = self.shake_effect.offset
         return (
             round(world_x - self.world_x - shake_x),

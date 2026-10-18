@@ -59,7 +59,8 @@ class BasePaddle(Sprite):
         self.use_gfxdraw = True
         self.moving = False
 
-        self.image.convert()
+        # Sprite.__init__ created the image after the display was set, so it already has the
+        # display's pixel format (convert() would return an equivalent copy)
         draw.rect(self.image, color, (0, 0, self.width, self.height))
         if collision_sound:
             self.snd = load_sound(collision_sound)

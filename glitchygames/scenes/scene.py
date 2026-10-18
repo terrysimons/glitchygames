@@ -12,6 +12,7 @@ from glitchygames import events
 from glitchygames.camera import Camera2D
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
+from glitchygames.debug import DebugFrameInfo, DebugOverlay
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
@@ -85,7 +86,9 @@ class SceneManager(SceneInterface, events.EventManager):
 
         # SCREEN shake lives here (not on a scene) so it outlives scene switches
         self.screen_shake: ScreenShake = ScreenShake()
-        self._screen_shake_was_presented: bool = False
+        # A shaken or overlaid frame was presented, so the display no longer matches the surface
+        self._altered_frame_was_presented: bool = False
+        self.debug_overlay: DebugOverlay = DebugOverlay()
         self.rumble: RumbleController = RumbleController()
         self._live_audio: LiveAudio | None = None
 
@@ -137,6 +140,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
+            self.debug_overlay.is_visible = bool(self.OPTIONS.get('debug_overlay', False))
         self.log.info(f'Screen update type: {self.update_type}')
         self.log.info(f'FPS Log Interval: {self.fps_log_interval_ms}ms')
         self.log.info(f'Target FPS: {self.target_fps}')
@@ -215,6 +219,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
         # Set up the new scene (off-screen) so we can capture it
         self.previous_scene = self.active_scene
+        self._clear_outgoing_scene_pending_switch()
         self._cleanup_current_scene()
         scene = cast('Scene | None', next_scene)
         self._setup_new_scene(scene)
@@ -261,6 +266,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _update_frame_services(self: Self) -> None:
         """Advance services that outlive scenes: screen shake, rumble and live audio."""
+        self.debug_overlay.record_frame(frame_seconds=self.dt)
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
@@ -294,32 +300,125 @@ class SceneManager(SceneInterface, events.EventManager):
             self._live_audio = LiveAudio(channel_indices=channels)
         return self._live_audio
 
-    def _present_frame(self: Self, *, full_update: bool) -> None:
-        """Present the rendered frame, shifted by any active SCREEN shake.
+    def _debug_frame_info(
+        self: Self, *, shake_offset: tuple[float, float], inspected_scene_label: str | None
+    ) -> DebugFrameInfo:
+        """Gather the per-frame engine readings the debug overlay displays.
 
-        The display surface always holds the unshifted frame between presents: a shaken frame
-        is copied, shifted for the flip, then restored. Dirty-rect rendering, screenshots and
-        transition captures therefore never see the shift or the black strips.
+        Args:
+            shake_offset (tuple[float, float]): The current SCREEN shake offset.
+            inspected_scene_label (str | None): Name of the scene the overlay inspects when it
+                is not the active scene (a paused game), else None.
+
+        Returns:
+            DebugFrameInfo: The readings for this frame.
+
+        """
+        live_voice_count = (
+            self._live_audio.playing_voice_count if self._live_audio is not None else None
+        )
+        mouse_position = pygame.mouse.get_pos() if pygame.mouse.get_focused() else None
+        return DebugFrameInfo(
+            target_fps=float(self.target_fps),
+            live_voice_count=live_voice_count,
+            rumble_levels=self.rumble.sent_levels,
+            screen_shake_offset=shake_offset,
+            mouse_position=mouse_position,
+            inspected_scene_label=inspected_scene_label,
+        )
+
+    def _active_scene_has_focused_sprite(self: Self) -> bool:
+        """Report whether a sprite in the active scene has keyboard focus.
+
+        Returns:
+            bool: True when any sprite's is_active is True; False with no active scene.
+
+        """
+        if self.active_scene is None:
+            return False
+        # `is True` rather than truthiness: Mock sprites report a truthy Mock for any attribute
+        return any(
+            getattr(sprite, 'is_active', False) is True for sprite in self.active_scene.all_sprites
+        )
+
+    def on_key_down_event(self: Self, event: events.HashableEvent) -> None:
+        """Handle the debug overlay keys, then forward key-down events as the proxy would.
+
+        F3 toggles the overlay and F4 cycles its panels, unless a sprite in the active scene has
+        keyboard focus (is_active), so typing into text fields is never intercepted. Every other
+        key is routed exactly as `__getattr__` routes on_*_event calls: to the active scene, or
+        to the game engine when the scene is missing or lacks the handler.
+
+        Args:
+            event (events.HashableEvent): The key-down event.
+
+        Raises:
+            AttributeError: If neither the active scene nor the game engine has a handler.
+
+        """
+        overlay_keys = {pygame.K_F3, pygame.K_F4}
+        if event.key in overlay_keys and not self._active_scene_has_focused_sprite():
+            if event.key == pygame.K_F3:
+                self.debug_overlay.toggle()
+            else:
+                self.debug_overlay.cycle_panel()
+            return
+        if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
+            self.active_scene.on_key_down_event(event)
+        elif self.game_engine is not None and hasattr(self.game_engine, 'on_key_down_event'):
+            self.game_engine.on_key_down_event(event)
+        else:
+            message = (
+                f"'{type(self)}' object has no attribute 'on_key_down_event': neither the "
+                'active scene nor the game engine provides it'
+            )
+            raise AttributeError(message)
+
+    def _present_frame(self: Self, *, full_update: bool) -> None:
+        """Present the rendered frame, shifted by any active SCREEN shake and overlaid if shown.
+
+        The display surface always holds the clean frame between presents: a shaken or overlaid
+        frame is copied, shifted and drawn on for the flip, then restored. Dirty-rect rendering,
+        screenshots and transition captures therefore never see the shift, the black strips or
+        the debug overlay.
 
         Args:
             full_update: True to flip the whole display (transitions); False to use the
                 configured update type.
 
         """
+        # The overlay also draws during transitions (it reflects active_scene); captures stay clean
         offset_x, offset_y = self.screen_shake.offset
         pixel_offset = (round(offset_x), round(offset_y))
-        if self.screen is not None and pixel_offset != (0, 0):
-            unshifted = self.screen.copy()
-            self.screen.fill(SHAKE_BORDER_COLOR)
-            self.screen.blit(unshifted, pixel_offset)
+        overlay_visible = self.debug_overlay.is_visible
+        if self.screen is not None and (pixel_offset != (0, 0) or overlay_visible):
+            clean_frame = self.screen.copy()
+            if pixel_offset != (0, 0):
+                self.screen.fill(SHAKE_BORDER_COLOR)
+                self.screen.blit(clean_frame, pixel_offset)
+            if overlay_visible and self.active_scene is not None:
+                # A pause screen hands over the paused game, whose frozen picture it shows
+                debug_subject = self.active_scene.debug_subject
+                inspected_scene_label = (
+                    None if debug_subject is self.active_scene else debug_subject.NAME
+                )
+                self.debug_overlay.draw(
+                    self.screen,
+                    scene=debug_subject,
+                    screen_offset=pixel_offset,
+                    frame_info=self._debug_frame_info(
+                        shake_offset=(offset_x, offset_y),
+                        inspected_scene_label=inspected_scene_label,
+                    ),
+                )
             pygame.display.flip()
-            self.screen.blit(unshifted, (0, 0))
-            self._screen_shake_was_presented = True
+            self.screen.blit(clean_frame, (0, 0))
+            self._altered_frame_was_presented = True
             return
-        if self._screen_shake_was_presented:
-            # The display still shows the last shifted frame; the surface holds the correct
-            # unshifted one, so one full flip replaces it (a dirty-rect update would not).
-            self._screen_shake_was_presented = False
+        if self._altered_frame_was_presented:
+            # The display still shows the last shifted or overlaid frame; the surface holds the
+            # clean one, so one full flip replaces it (a dirty-rect update would not).
+            self._altered_frame_was_presented = False
             pygame.display.flip()
             return
         if full_update:
@@ -343,6 +442,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self.rumble.clear_sustained()  # ...nor leave a controller buzzing
             # Track the previous scene BEFORE any cleanup or setup
             self.previous_scene = self.active_scene
+            self._clear_outgoing_scene_pending_switch()
             self._reset_scene_timers()
             self._log_scene_switch(scene)
             self._cleanup_current_scene()
@@ -359,6 +459,30 @@ class SceneManager(SceneInterface, events.EventManager):
                     performance_manager.set_current_scene(scene.NAME)
             except ImportError:
                 pass  # Performance module not available
+
+    def _clear_outgoing_scene_pending_switch(self: Self) -> None:
+        """Clear the pending switch of the scene being switched away from.
+
+        Its pending switch has been honoured (or superseded by a transition): without this,
+        a game that paused via next_scene would pause again one frame after resuming, and a
+        scene left through a transition would switch back to a stale next_scene when it is
+        returned to. The incoming scene's next_scene is left alone, because bootstrap scenes
+        request their real scene from __init__.
+        """
+        if self.active_scene is not None:
+            self.active_scene.next_scene = self.active_scene
+
+    def _switch_to_requested_scene(self: Self) -> None:
+        """Perform the plain scene switch the active scene requested via next_scene.
+
+        Runs at the end of a frame, after rendering. A next_scene of None or of the active
+        scene itself means no switch is pending.
+        """
+        if self.active_scene is None:
+            return
+        requested_scene = self.active_scene.next_scene
+        if requested_scene is not None and requested_scene != self.active_scene:
+            self.switch_to_scene(requested_scene)
 
     @override
     def play(self: Self) -> None:
@@ -531,11 +655,8 @@ class SceneManager(SceneInterface, events.EventManager):
                     self._start_transition(*self._pending_transition)
                     self._pending_transition = None
                 # Check for plain scene switch (no transition, backward compatible)
-                elif (
-                    self.active_scene.next_scene is not None
-                    and self.active_scene.next_scene != self.active_scene
-                ):
-                    self.switch_to_scene(self.active_scene.next_scene)
+                else:
+                    self._switch_to_requested_scene()
 
             self._handle_frame_pacing(
                 timer=timer,
@@ -968,6 +1089,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.rect = self.screen.get_rect()
 
         self.dirty = 1
+
+    @property
+    def debug_subject(self: Self) -> Scene:
+        """The scene the debug overlay inspects: normally this scene itself.
+
+        A scene that only presents another scene (PauseScene shows a frozen screenshot of the
+        paused game) returns that scene, so its hitboxes and physics stay visible and line up
+        with the frozen picture.
+        """
+        return self
 
     @property
     def screenshot(self: Self) -> pygame.Surface:
@@ -1968,19 +2099,19 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     def pause(self: Self) -> None:
         """Pause the current scene.
 
-        Default implementation switches to a PauseScene.
+        Default implementation requests a PauseScene for the end of this frame.
         Scenes can override this method to provide custom pause behavior.
+
+        The switch happens after this frame renders (via next_scene), not immediately: pause()
+        usually runs during event processing, after sprites have moved this frame, so an
+        immediate switch would freeze the previous frame's picture one frame behind the game.
 
         """
         from .builtin_scenes.pause_scene import PauseScene
 
-        # Create the pause scene
-        pause_scene = PauseScene(options=self.options)
+        self.next_scene = PauseScene(options=self.options)
 
-        # Switch to the pause scene
-        self.scene_manager.switch_to_scene(pause_scene)
-
-        self.log.info('Scene paused')
+        self.log.info('Scene pause requested')
 
     def resume(self: Self) -> None:
         """Resume the current scene.

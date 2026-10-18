@@ -239,6 +239,14 @@ class TestLiveAudio:
         with pytest.raises(ValueError, match='live-voice-pool'):
             self._create(audio, 'scene')
 
+    def test_playing_voice_count(self, audio):
+        """playing_voice_count counts only voices that are currently playing."""
+        first = self._create(audio, 'scene')
+        self._create(audio, 'scene')
+        assert audio.playing_voice_count == 0
+        first.start()
+        assert audio.playing_voice_count == 1
+
     def test_released_channels_are_reused(self, audio):
         first = self._create(audio, 'scene')
         self._create(audio, 'scene')

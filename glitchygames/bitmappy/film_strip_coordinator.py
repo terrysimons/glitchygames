@@ -806,6 +806,10 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self._capture_animation_deletion_for_undo(animation_name)
 
         del self.editor.canvas.animated_sprite._animations[animation_name]  # type: ignore[reportPrivateUsage]
+        # Transitions from or to the deleted animation are dropped (each logged); the undo
+        # command captured them and the animation's settings to restore them
+        self.editor.canvas.animated_sprite.remove_transitions_for_animation(animation_name)
+        self.editor.canvas.animated_sprite.forget_animation_settings(animation_name)
         self.log.info('Deleted animation: %s at index %s', animation_name, deleted_index)
 
         # Switch to the first remaining animation and select the previous frame
@@ -828,15 +832,26 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             return
 
         # Get the animation data before deletion
-        animation = self.editor.canvas.animated_sprite._animations[animation_name]  # type: ignore[reportPrivateUsage]
-        animation_data: dict[str, Any] = {'frames': [], 'frame_count': len(animation)}
+        animated_sprite = self.editor.canvas.animated_sprite
+        animation = animated_sprite._animations[animation_name]  # type: ignore[reportPrivateUsage]
+        animation_data: dict[str, Any] = {
+            'frames': [],
+            'frame_count': len(animation),
+            # Restored by AnimationDeleteCommand.undo: the animation's place in the order, its
+            # loop flag and frame interval, and the transitions the delete drops
+            'position': list(animated_sprite._animations).index(animation_name),  # type: ignore[reportPrivateUsage]
+            'loop_flag': animated_sprite._loop_flags.get(animation_name),  # type: ignore[reportPrivateUsage]
+            'frame_interval': animated_sprite._animation_frame_intervals.get(animation_name),  # type: ignore[reportPrivateUsage]
+            'transitions': animated_sprite.transitions_for_animation(animation_name),
+        }
 
         # Capture frame data for each frame in the animation
         for frame in animation:
             frame_data = {
                 'width': frame.image.get_width(),
                 'height': frame.image.get_height(),
-                'pixels': frame.pixels.copy() if hasattr(frame, 'pixels') else [],
+                # The frame's pixels, read from its surface if it has no pixel list
+                'pixels': frame.get_pixel_data(),
                 'duration': frame.duration,
             }
             animation_data['frames'].append(frame_data)
@@ -1347,15 +1362,24 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             new_name: The new animation name.
 
         """
-        frames = sprite_to_update._animations[old_name]  # type: ignore[reportPrivateUsage]
-        del sprite_to_update._animations[old_name]  # type: ignore[reportPrivateUsage]
-        sprite_to_update._animations[new_name] = frames  # type: ignore[reportPrivateUsage]
-        # Maintain animation order list if present
-        if hasattr(sprite_to_update, '_animation_order'):
-            order = list(getattr(sprite_to_update, '_animation_order', []))
-            sprite_to_update._animation_order = [  # type: ignore[attr-defined]
-                (new_name if name == old_name else name) for name in order
-            ]
+        # Frames (in place in the animation order), loop flag, frame interval, transitions
+        # and the current animation all follow the new name (BUGS.md #45)
+        sprite_to_update.rename_animation(old_name=old_name, new_name=new_name)
+
+    def _track_animation_rename_for_undo(self, *, old_name: str, new_name: str) -> None:
+        """Record an animation rename so undo and redo can reverse and repeat it.
+
+        Args:
+            old_name: The animation's name before the rename.
+            new_name: The animation's name after the rename.
+
+        """
+        if not hasattr(self.editor, 'film_strip_operation_tracker'):
+            return
+        self.editor.film_strip_operation_tracker.add_animation_renamed(
+            old_name=old_name,
+            new_name=new_name,
+        )
 
     def _rename_film_strip_widget_internals(
         self,
@@ -1499,8 +1523,16 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                     "BitmapEditorScene: Animation '%s' not found for renaming",
                     old_name,
                 )
+            elif new_name in sprite_to_update._animations:  # type: ignore[reportPrivateUsage]
+                # Renaming onto an existing animation would overwrite its frames
+                self.log.warning(
+                    "BitmapEditorScene: Cannot rename '%s' to '%s': that animation exists",
+                    old_name,
+                    new_name,
+                )
             else:
                 self._rename_animation_in_sprite(sprite_to_update, old_name, new_name)
+                self._track_animation_rename_for_undo(old_name=old_name, new_name=new_name)
 
                 # Update current animation if it was the renamed one
                 if (

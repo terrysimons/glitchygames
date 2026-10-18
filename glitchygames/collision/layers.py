@@ -16,9 +16,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
 from glitchygames.collision.detection import (
     check_aabb_overlap,
     get_collision_rect,
+    snapped_world_position,
 )
 
 if TYPE_CHECKING:
@@ -152,6 +154,12 @@ class CollisionManager:
         If layer_a and layer_b are the same, checks all unique pairs
         within the layer (no self-collision, no duplicate pairs).
 
+        Each sprite_a's rect is computed once, before its inner loop, so a callback
+        that moves sprite_a does not change which later sprite_b it is tested against
+        in this pass. Both layers are iterated as snapshots taken at the start, so a
+        callback may add or remove sprites (e.g. collect a pickup) without skipping
+        pairs; a sprite removed during the pass can still be paired later in it.
+
         Args:
             layer_a_name: Name of the first layer.
             layer_b_name: Name of the second layer.
@@ -162,15 +170,17 @@ class CollisionManager:
         layer_b = self.get_layer(layer_b_name)
 
         same_layer = layer_a_name == layer_b_name
+        # Snapshots: callbacks may change the layers while we iterate
+        sprites_a = list(layer_a.sprites)
+        all_sprites_b = sprites_a if same_layer else list(layer_b.sprites)
 
-        for index_a, sprite_a in enumerate(layer_a.sprites):
-            rect_a = _get_sprite_collision_rect(sprite_a)
+        for index_a, sprite_a in enumerate(sprites_a):
+            rect_a = get_sprite_collision_rect(sprite_a)
 
-            start_b = index_a + 1 if same_layer else 0
-            sprites_b = layer_b.sprites[start_b:] if same_layer else layer_b.sprites
+            sprites_b = all_sprites_b[index_a + 1 :] if same_layer else all_sprites_b
 
             for sprite_b in sprites_b:
-                rect_b = _get_sprite_collision_rect(sprite_b)
+                rect_b = get_sprite_collision_rect(sprite_b)
                 if check_aabb_overlap(rect_a, rect_b):
                     callback(sprite_a, sprite_b)
 
@@ -180,7 +190,7 @@ class CollisionManager:
         layer_name: str,
         callback: Callable[[Any, Any], None],
     ) -> None:
-        """Check one sprite against all sprites in a layer.
+        """Check one sprite against all sprites in a layer (iterating a snapshot of it).
 
         Args:
             sprite: The sprite to check.
@@ -189,12 +199,13 @@ class CollisionManager:
 
         """
         layer = self.get_layer(layer_name)
-        rect = _get_sprite_collision_rect(sprite)
+        rect = get_sprite_collision_rect(sprite)
 
-        for other in layer.sprites:
+        # Snapshot: the callback may change the layer while we iterate
+        for other in list(layer.sprites):
             if other is sprite:
                 continue
-            other_rect = _get_sprite_collision_rect(other)
+            other_rect = get_sprite_collision_rect(other)
             if check_aabb_overlap(rect, other_rect):
                 callback(sprite, other)
 
@@ -204,14 +215,19 @@ class CollisionManager:
         return list(self._layers.keys())
 
 
-def _get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
+def get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
     """Extract a collision rect from a sprite.
 
     Handles sprites with world_x/world_y (game objects) and
     sprites with only rect (UI elements).
 
     Returns:
-        A pygame.Rect for collision detection.
+        A pygame.Rect for collision detection. Sprites with world_x/world_y
+        get a rect in world coordinates (see get_collision_rect); sprites with
+        only rect get a screen-space rect, trimmed to the visible pixels of
+        their image unless they have no image or set
+        TRIM_TRANSPARENT_HITBOX = False (then their rect, unchanged); sprites
+        with neither get an empty rect.
 
     """
     import pygame
@@ -220,6 +236,37 @@ def _get_sprite_collision_rect(sprite: Any) -> pygame.Rect:
         return get_collision_rect(sprite, sprite.world_x, sprite.world_y)
 
     if hasattr(sprite, 'rect') and sprite.rect is not None:
+        image = getattr(sprite, 'image', None)
+        if image is not None and trims_transparent_hitbox(sprite):
+            visible_bounds = opaque_bounds(image)
+            return pygame.Rect(
+                sprite.rect.x + visible_bounds.x,
+                sprite.rect.y + visible_bounds.y,
+                visible_bounds.width,
+                visible_bounds.height,
+            )
         return sprite.rect
 
     return pygame.Rect(0, 0, 0, 0)
+
+
+def collision_rect_offset(sprite: Any) -> tuple[int, int]:
+    """Return the offset of a world sprite's collision rect from its snapped world position.
+
+    Terrain code uses it to place a sprite so its collision rect (not its whole image) is
+    flush against a surface: ``world_x = wall_left - (offset_x + rect.width)`` puts the rect's
+    right edge on ``wall_left``, and ``world_x = wall_right - offset_x`` puts its left edge on
+    ``wall_right``.
+
+    Args:
+        sprite (Any): A sprite with world_x and world_y.
+
+    Returns:
+        tuple[int, int]: (offset_x, offset_y) of the collision rect's top-left.
+
+    """
+    collision_rect = get_collision_rect(sprite, sprite.world_x, sprite.world_y)
+    snapped_world_x, snapped_world_y = snapped_world_position(
+        sprite, sprite.world_x, sprite.world_y
+    )
+    return (collision_rect.x - snapped_world_x, collision_rect.y - snapped_world_y)

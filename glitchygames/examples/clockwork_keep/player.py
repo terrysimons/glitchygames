@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.examples.clockwork_keep.constants import (
     FALLING_VELOCITY_THRESHOLD,
     GRAVITY,
@@ -75,6 +76,11 @@ class Tinker(Sprite):
 
         self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT), pygame.SRCALPHA)
 
+        # Side walls: refitted to the hitbox every tick (see _fit_playfield_bounds_to_hitbox)
+        self._playfield_bounds = BoundsConstraint(
+            min_x=float(PLAYFIELD_LEFT),
+            max_x=float(PLAYFIELD_RIGHT - PLAYER_WIDTH),
+        )
         self.physics: PhysicsBody = PhysicsBody(
             world_x=world_x,
             world_y=world_y,
@@ -85,12 +91,7 @@ class Tinker(Sprite):
                     deceleration=PLAYER_DECELERATION,
                 ),
             ],
-            constraints=[
-                BoundsConstraint(
-                    min_x=float(PLAYFIELD_LEFT),
-                    max_x=float(PLAYFIELD_RIGHT - PLAYER_WIDTH),
-                ),
-            ],
+            constraints=[self._playfield_bounds],
         )
 
         # Animation state machine
@@ -189,11 +190,24 @@ class Tinker(Sprite):
         """
         super().dt_tick(dt)
         self.animation_timer += dt
+        self._fit_playfield_bounds_to_hitbox()
         self.physics.tick(dt)
 
         context = self.physics.get_animation_context()
         self.state_machine.evaluate(context, dt)
         self.state = self.state_machine.current_state
+
+    def _fit_playfield_bounds_to_hitbox(self: Self) -> None:
+        """Set the side-wall bounds so the hitbox, not the whole image, meets the walls.
+
+        The figure's transparent margin moves with its pose and facing (4 px on the side it
+        faces away from), so the bounds are refitted from the current collision rect each
+        tick: its left edge stops at PLAYFIELD_LEFT and its right edge at PLAYFIELD_RIGHT.
+        """
+        hitbox = get_sprite_collision_rect(self)
+        offset_x, _ = collision_rect_offset(self)
+        self._playfield_bounds.min_x = float(PLAYFIELD_LEFT - offset_x)
+        self._playfield_bounds.max_x = float(PLAYFIELD_RIGHT - (offset_x + hitbox.width))
 
     def jump(self, *, running: bool = False) -> None:
         """Initiate a jump if on the ground.

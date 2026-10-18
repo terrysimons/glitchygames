@@ -457,7 +457,8 @@ class FrameAddCommand:
             editor: The editor context.
             frame_index: Index where the frame was/will be added.
             animation_name: Name of the animation.
-            frame_data: Serialised frame data (pixels, width, height, duration).
+            frame_data: Serialised frame data (pixels, width, height, duration, and an
+                optional explicit hitbox as an (x, y, width, height) tuple).
 
         """
         from glitchygames.bitmappy.history.undo_redo import OperationType
@@ -508,15 +509,24 @@ class FrameAddCommand:
                 LOG.warning('Canvas or animated sprite not available for frame addition')
                 return False
 
-            surface = pygame.Surface((self.frame_data['width'], self.frame_data['height']))
+            # SRCALPHA like the editor's own frames (FilmStripCoordinator._create_blank_frame),
+            # so restored pixels keep their alpha
+            surface = pygame.Surface(
+                (self.frame_data['width'], self.frame_data['height']),
+                pygame.SRCALPHA,
+            )
+            # Only an explicit frame hitbox is recorded; None keeps the hitbox fallback
+            hitbox_data = self.frame_data.get('hitbox')
+            new_frame = SpriteFrame(
+                surface=surface,
+                duration=self.frame_data.get('duration', 1.0),
+                hitbox=None if hitbox_data is None else pygame.Rect(hitbox_data),
+            )
             if self.frame_data.get('pixels'):
-                pixel_array = pygame.PixelArray(surface)
-                for i, pixel in enumerate(self.frame_data['pixels']):
-                    if i < len(pixel_array.flat):  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-                        pixel_array.flat[i] = pixel  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-                del pixel_array
-
-            new_frame = SpriteFrame(surface=surface, duration=self.frame_data.get('duration', 1.0))
+                # Row-major pixels; also keeps frame.pixels, which saves read. (PixelArray
+                # has no .flat, so the previous copy raised and every restore failed; see
+                # BUGS.md #51 for the same fix in AnimationAddCommand.)
+                new_frame.set_pixel_data(self.frame_data['pixels'])
 
             self.editor.canvas.animated_sprite.add_frame(
                 self.animation_name,
@@ -855,14 +865,11 @@ class AnimationAddCommand:
             animations = self.editor.canvas.animated_sprite._animations
             for frame_data in self.animation_data.get('frames', []):
                 surface = pygame.Surface((frame_data['width'], frame_data['height']))
-                if frame_data.get('pixels'):
-                    pixel_array = pygame.PixelArray(surface)
-                    for i, pixel in enumerate(frame_data['pixels']):
-                        if i < len(pixel_array.flat):  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-                            pixel_array.flat[i] = pixel  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
-                    del pixel_array
-
                 new_frame = SpriteFrame(surface=surface, duration=frame_data.get('duration', 1.0))
+                if frame_data.get('pixels'):
+                    # Row-major pixels; also keeps frame.pixels, which saves read. (PixelArray
+                    # has no .flat, so the previous copy raised and every restore failed.)
+                    new_frame.set_pixel_data(frame_data['pixels'])
 
                 animations[self.animation_name] = animations.get(self.animation_name, [])
                 animations[self.animation_name].append(new_frame)
@@ -942,7 +949,7 @@ class AnimationDeleteCommand:
         self.description = f"Deleted animation '{animation_name}'"
 
     def execute(self) -> bool:
-        """Delete the animation (redo).
+        """Delete the animation (redo), dropping its transitions and settings again.
 
         Returns:
             True on success, False on failure.
@@ -950,10 +957,20 @@ class AnimationDeleteCommand:
         """
         # AnimationAddCommand.undo() performs deletion
         inverse = AnimationAddCommand(self.editor, self.animation_name, self.animation_data)
-        return inverse.undo()
+        if not inverse.undo():
+            return False
+        animated_sprite = self.editor.canvas.animated_sprite
+        animated_sprite.remove_transitions_for_animation(self.animation_name)
+        animated_sprite.forget_animation_settings(self.animation_name)
+        return True
 
     def undo(self) -> bool:
         """Re-add the animation (undo the deletion).
+
+        The frames go back in the animation's original place in the order, with its loop flag
+        and frame interval, and the transitions the delete dropped return to their original
+        positions in the transition order. Commands recorded without that data (older
+        captures) restore only the frames.
 
         Returns:
             True on success, False on failure.
@@ -961,7 +978,77 @@ class AnimationDeleteCommand:
         """
         # AnimationAddCommand.execute() performs addition
         inverse = AnimationAddCommand(self.editor, self.animation_name, self.animation_data)
-        return inverse.execute()
+        if not inverse.execute():
+            return False
+        position = self.animation_data.get('position')
+        if position is None:
+            return True
+        animated_sprite = self.editor.canvas.animated_sprite
+        animated_sprite.restore_animation_settings(
+            self.animation_name,
+            position=position,
+            loop_flag=self.animation_data.get('loop_flag'),
+            frame_interval=self.animation_data.get('frame_interval'),
+        )
+        animated_sprite.restore_transitions(self.animation_data.get('transitions', []))
+        return True
+
+
+class AnimationRenameCommand:
+    """Command for renaming an animation.
+
+    The rename goes through the coordinator's on_animation_rename, which moves the
+    animation's frames, loop flag, frame interval and transitions and renames its film
+    strip, so undo (renaming back) restores all of them.
+    """
+
+    def __init__(self, editor: Any, old_name: str, new_name: str) -> None:
+        """Initialize an animation-rename command.
+
+        Args:
+            editor: The editor context.
+            old_name: The animation's name before the rename.
+            new_name: The animation's name after the rename.
+
+        """
+        from glitchygames.bitmappy.history.undo_redo import OperationType
+
+        self.editor = editor
+        self.old_name = old_name
+        self.new_name = new_name
+        self.operation_type = OperationType.FILM_STRIP_ANIMATION_RENAME
+        self.timestamp: float = time.time()
+        self.description = f"Renamed animation '{old_name}' to '{new_name}'"
+
+    def execute(self) -> bool:
+        """Rename the animation again (redo).
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        return self._rename(from_name=self.old_name, to_name=self.new_name)
+
+    def undo(self) -> bool:
+        """Give the animation its old name back.
+
+        Returns:
+            True on success, False on failure.
+
+        """
+        return self._rename(from_name=self.new_name, to_name=self.old_name)
+
+    def _rename(self, *, from_name: str, to_name: str) -> bool:
+        animated_sprite = getattr(getattr(self.editor, 'canvas', None), 'animated_sprite', None)
+        if animated_sprite is None:
+            LOG.warning('Canvas or animated sprite not available for animation rename')
+            return False
+        animations = animated_sprite._animations
+        if from_name not in animations or to_name in animations:
+            LOG.warning(f"Cannot rename animation '{from_name}' to '{to_name}'")
+            return False
+        self.editor.film_strip_coordinator.on_animation_rename(from_name, to_name)
+        return to_name in animated_sprite._animations
 
 
 # ---------------------------------------------------------------------------

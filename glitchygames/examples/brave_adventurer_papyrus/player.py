@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 # GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
+from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     GRAVITY,
     JUMP_VELOCITY,
@@ -28,7 +29,7 @@ from glitchygames.physics import (
     GravityBehavior,
     PhysicsBody,
 )
-from glitchygames.sprites import AnimatedSprite
+from glitchygames.sprites import AnimatedSprite, FrameAnchor
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
@@ -69,10 +70,16 @@ class PapyrusPlayer(AnimatedSprite):
 
         # Scale up TOML pixel art and set magenta transparency
         prepare_papyrus_sprite(self)
+        # Frames are top-aligned with visible bottoms from 24 to 27 rows; anchor them at the
+        # hitbox bottom so the feet always sit on the 27-row foot line PAPYRUS_PLAYER_HEIGHT
+        # stands on (apply_camera adds the per-frame draw_offset to rect)
+        self.frame_anchor = FrameAnchor.BOTTOM
 
         # Physics body handles position, velocity, gravity, acceleration, bounds.
         # Ground collision is handled by game.py (terrain-based), not by a
         # GroundConstraint, so we build the body manually without one.
+        # World left edge: refitted to the hitbox every tick (see _fit_world_edge_to_hitbox)
+        self._world_edge_bounds = BoundsConstraint(min_x=0.0)
         self.physics: PhysicsBody = PhysicsBody(
             world_x=world_x,
             world_y=world_y,
@@ -86,9 +93,7 @@ class PapyrusPlayer(AnimatedSprite):
                     deceleration=PLAYER_DECELERATION,
                 ),
             ],
-            constraints=[
-                BoundsConstraint(min_x=0.0),
-            ],
+            constraints=[self._world_edge_bounds],
         )
 
         self.rect.x = round(world_x)
@@ -178,6 +183,15 @@ class PapyrusPlayer(AnimatedSprite):
 
     # --- Physics ---
 
+    def _fit_world_edge_to_hitbox(self: Self) -> None:
+        """Let the hitbox, not the image's transparent margin, stop at the world's left edge.
+
+        The margin changes with the animation frame's hitbox, so the bound is refitted from
+        the current collision rect each tick.
+        """
+        offset_x, _ = collision_rect_offset(self)
+        self._world_edge_bounds.min_x = float(-offset_x)
+
     def dt_tick(self: Self, dt: float) -> None:
         """Advance physics, animation, and detect state changes.
 
@@ -189,6 +203,7 @@ class PapyrusPlayer(AnimatedSprite):
         self.dt_timer += dt
 
         # PhysicsBody handles gravity, acceleration, bounds, integration
+        self._fit_world_edge_to_hitbox()
         self.physics.tick(dt)
 
         # State machine evaluates transitions from TOML + code overrides
@@ -200,9 +215,15 @@ class PapyrusPlayer(AnimatedSprite):
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)
 
-        # Flip image when facing left
+        # Flip image when facing left, and mirror the hitbox with it
+        self.hitbox_flip_x = not self.facing_right
         if not self.facing_right:
             self.image = pygame.transform.flip(self.image, flip_x=True, flip_y=False)
+
+        # The frame and facing may have changed the hitbox's offset since physics clamped
+        # against the world edge, so refit and clamp again with the hitbox now drawn
+        self._fit_world_edge_to_hitbox()
+        self._world_edge_bounds.apply(self.physics, dt)
 
         # Apply alpha for respawn fade effect
         self.image.set_alpha(round(self.alpha))
@@ -241,8 +262,10 @@ class PapyrusPlayer(AnimatedSprite):
 
         """
         screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
+        # Anchored frames are drawn at their draw_offset (the hitbox includes it too)
+        draw_offset_x, draw_offset_y = self.draw_offset
+        self.rect.x = screen_x + draw_offset_x
+        self.rect.y = screen_y + draw_offset_y
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

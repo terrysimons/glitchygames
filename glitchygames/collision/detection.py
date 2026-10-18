@@ -2,7 +2,8 @@
 
 Connects the TOML hitbox system to actual collision detection.
 Sprites with TOML-defined hitboxes get accurate collision rects;
-sprites without hitboxes fall back to their full rect.
+sprites without hitboxes collide as the visible pixels of their image
+(see glitchygames.collision.bounds), or their full rect when they opt out.
 """
 
 from __future__ import annotations
@@ -10,6 +11,37 @@ from __future__ import annotations
 from typing import Any
 
 import pygame
+
+from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
+from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+
+
+def snapped_world_position(
+    sprite: Any,
+    world_x: float,
+    world_y: float,
+) -> tuple[int, int]:
+    """Return the whole-pixel position a sprite is drawn at for a world position.
+
+    Sprites with a ``pixel_snap_mode`` (such as BallSprite) are snapped with it, so the
+    collision rect sits exactly where the sprite is drawn; other sprites use round().
+
+    Args:
+        sprite: The sprite.
+        world_x: X position in world space.
+        world_y: Y position in world space.
+
+    Returns:
+        The snapped (x, y) position.
+
+    """
+    pixel_snap_mode = getattr(sprite, 'pixel_snap_mode', None)
+    if isinstance(pixel_snap_mode, PixelSnapMode):
+        return (
+            snap_to_pixel(world_x, pixel_snap_mode),
+            snap_to_pixel(world_y, pixel_snap_mode),
+        )
+    return (round(world_x), round(world_y))
 
 
 def get_collision_rect(
@@ -19,9 +51,11 @@ def get_collision_rect(
 ) -> pygame.Rect:
     """Get the collision rect for a sprite at a world position.
 
-    Uses the sprite's TOML hitbox if available (via get_hitbox_world_rect),
-    otherwise falls back to a rect at the world position with the sprite's
-    dimensions.
+    Uses the sprite's TOML hitbox if available (via get_hitbox_world_rect).
+    Otherwise the rect starts at the snapped world position (see
+    snapped_world_position) and covers the visible pixels of the sprite's image
+    (see opaque_bounds), or the sprite's full rect size when the sprite has no
+    image or sets TRIM_TRANSPARENT_HITBOX = False.
 
     Args:
         sprite: The sprite to get a collision rect for.
@@ -35,9 +69,20 @@ def get_collision_rect(
     if hasattr(sprite, 'get_hitbox_world_rect'):
         return sprite.get_hitbox_world_rect(world_x, world_y)
 
+    snapped_x, snapped_y = snapped_world_position(sprite, world_x, world_y)
+    image = getattr(sprite, 'image', None)
+    if image is not None and trims_transparent_hitbox(sprite):
+        visible_bounds = opaque_bounds(image)
+        return pygame.Rect(
+            snapped_x + visible_bounds.x,
+            snapped_y + visible_bounds.y,
+            visible_bounds.width,
+            visible_bounds.height,
+        )
+
     return pygame.Rect(
-        round(world_x),
-        round(world_y),
+        snapped_x,
+        snapped_y,
         sprite.rect.width,
         sprite.rect.height,
     )

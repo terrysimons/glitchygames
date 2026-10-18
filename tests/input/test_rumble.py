@@ -140,6 +140,13 @@ class TestRumbleController:
         with pytest.raises(ValueError, match='intensity'):
             RumbleController(intensity=1.5)
 
+    def test_sent_levels_reflects_last_send(self, devices):
+        """sent_levels reports the (low, high) levels last sent to the devices."""
+        controller = RumbleController()
+        assert controller.sent_levels == (0.0, 0.0)
+        controller.update(shakers=[_rumbling_shaker()], dt=0.0, devices=lambda: devices)
+        assert controller.sent_levels == (1.0, 0.5)
+
 
 class TestSustainedRumble:
     """A held level (e.g. the elevator hum) combined with shakes."""

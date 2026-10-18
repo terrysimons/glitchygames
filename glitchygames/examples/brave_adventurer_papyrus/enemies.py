@@ -258,7 +258,8 @@ class PapyrusScorpion(AnimatedSprite):
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)
 
-        # Flip image when facing left
+        # Flip image when facing left, and mirror the hitbox with it
+        self.hitbox_flip_x = not self.facing_right
         if not self.facing_right:
             self.image = pygame.transform.flip(self.image, flip_x=True, flip_y=False)
 

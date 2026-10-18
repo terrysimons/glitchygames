@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 import pygame
 import pygame.freetype
 
+from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
 from glitchygames.events.joystick import JoystickEventManager
@@ -287,6 +288,8 @@ class Game(Scene):
         # when ball bounding boxes overlap across multiple consecutive frames.
         # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
         self._ball_collision_cooldowns: dict[tuple[int, int], int] = {}
+        # (ball, ball) pairs that collided this frame, for _keep_collided_balls_playable
+        self._ball_collision_pairs: list[tuple[BallSprite, BallSprite]] = []
 
         # Collision layers
         self.collisions.add_layer('balls')
@@ -476,11 +479,20 @@ class Game(Scene):
                 f'{self.player2.rect.height})',
             )
 
-            # Paddle collision handling is now done in BallSprite._check_paddle_collisions()
-            # The new system prevents clipping and triggers ball spawn via callback
+        # Ball-paddle hits: the collision manager pairs overlapping collision rects (AABB broad
+        # phase) and BallSprite.handle_paddle_collision does the exact circle-vs-rect check and
+        # the bounce (which also triggers ball spawn via on_paddle_collision). This runs after
+        # every ball moved in dt_tick and before ball-ball collisions and dead-ball cleanup.
+        self.collisions.check_overlap(
+            'balls',
+            'paddles',
+            callback=self._on_ball_paddle_collision,
+        )
 
-        # Check for ball-to-ball collisions
+        # Check for ball-to-ball collisions (exact elastic physics), then keep every ball that
+        # collided moving like a serve (a game rule, separate from the physics)
         self._handle_ball_collisions()
+        self._keep_collided_balls_playable()
 
         # Remove dead balls from our list
         balls_to_remove = [ball for ball in self.balls if not ball.alive()]
@@ -660,6 +672,17 @@ class Game(Scene):
         # NORMAL or default
         return 2.0
 
+    @staticmethod
+    def _on_ball_paddle_collision(ball: BallSprite, paddle: VerticalPaddle) -> None:
+        """Handle a ball-paddle candidate from the collision manager.
+
+        A ball that left the screen this frame was killed in its dt_tick but stays in the
+        'balls' layer until update() removes dead balls, so it is skipped here.
+        """
+        if not ball.alive():
+            return
+        ball.handle_paddle_collision(paddle)
+
     def _handle_ball_collisions(self: Self) -> None:
         """Handle ball-to-ball collisions with proper physics.
 
@@ -668,6 +691,7 @@ class Game(Scene):
         collisions with per-pair cooldown.
         """
         self._tick_collision_cooldowns()
+        self._ball_collision_pairs = []
 
         # Use collision manager for same-layer pair detection (AABB broad phase)
         self.collisions.check_overlap(
@@ -727,6 +751,80 @@ class Game(Scene):
 
         # Set cooldown for this pair
         self._ball_collision_cooldowns[pair_key] = cooldown_frames
+        self._ball_collision_pairs.append((ball1, ball2))
+
+    def _keep_collided_balls_playable(self: Self) -> None:
+        """Keep every ball that collided with another this frame moving like a serve.
+
+        Runs after _handle_ball_collisions. See _keep_ball_playable for the rule and why it
+        is separate from the collision physics.
+        """
+        for ball1, ball2 in self._ball_collision_pairs:
+            self._keep_ball_playable(ball1, partner=ball2)
+            self._keep_ball_playable(ball2, partner=ball1)
+
+    @staticmethod
+    def _keep_ball_playable(ball: BallSprite, *, partner: BallSprite) -> None:
+        """Turn and speed up a ball that left a ball-ball collision unplayable.
+
+        The equal-mass elastic exchange is exact (momentum and kinetic energy are
+        conserved), and exact physics can leave a ball almost stopped (a head-on hit on a
+        slower ball hands over nearly all its speed), almost vertical (it bounces between
+        the top and bottom walls and never reaches a paddle) or flat (vy = 0 slides along a
+        wall). PaddleSlap therefore applies a deliberate game-design rule (not physics) to
+        prevent stalled, vertical and flat balls, reusing the ball's own ServeSettings,
+        which already define a playable ball: the velocity's angle from horizontal is
+        moved into [minimum_angle_degrees, maximum_angle_degrees], keeping the sign of each
+        component, and its speed is raised to at least the serve speed. A component that is
+        exactly zero points away from the partner ball (down or right when the centres are
+        level). A ball already inside the band and at serve speed or faster is unchanged.
+        The rule is not momentum-conserving and adds energy when it raises a slow ball's
+        speed; it is deliberately not part of _apply_elastic_collision, whose physics the
+        collision sweep tests check.
+
+        Args:
+            ball (BallSprite): The ball to adjust.
+            partner (BallSprite): The ball it collided with.
+
+        """
+        serve_settings = ball.serve_settings
+        speed = math.hypot(ball.speed.x, ball.speed.y)
+        angle_degrees = math.degrees(math.atan2(abs(ball.speed.y), abs(ball.speed.x)))
+        playable_angle_degrees = min(
+            max(angle_degrees, serve_settings.minimum_angle_degrees),
+            serve_settings.maximum_angle_degrees,
+        )
+        if speed >= serve_settings.speed and playable_angle_degrees == angle_degrees:
+            return
+
+        ball_rect = get_sprite_collision_rect(ball)
+        partner_rect = get_sprite_collision_rect(partner)
+        horizontal_sign = Game._component_sign(
+            component=ball.speed.x, away_from_partner=ball_rect.centerx - partner_rect.centerx
+        )
+        vertical_sign = Game._component_sign(
+            component=ball.speed.y, away_from_partner=ball_rect.centery - partner_rect.centery
+        )
+        playable_speed = max(speed, serve_settings.speed)
+        playable_angle_radians = math.radians(playable_angle_degrees)
+        ball.speed.x = horizontal_sign * playable_speed * math.cos(playable_angle_radians)
+        ball.speed.y = vertical_sign * playable_speed * math.sin(playable_angle_radians)
+
+    @staticmethod
+    def _component_sign(*, component: float, away_from_partner: float) -> float:
+        """Return the direction (+1 or -1) a velocity component should keep or take.
+
+        Returns:
+            float: The component's own sign; for a zero component (within
+            SPEED_CHANGE_NOISE_FLOOR), the sign of the offset
+            away from the partner ball; +1 when both are zero.
+
+        """
+        if not math.isclose(component, 0.0, abs_tol=SPEED_CHANGE_NOISE_FLOOR):
+            return math.copysign(1.0, component)
+        if away_from_partner != 0:
+            return math.copysign(1.0, away_from_partner)
+        return 1.0
 
     def _tick_collision_cooldowns(self: Self) -> None:
         """Tick cooldowns: decrement all active cooldowns and remove expired ones."""
@@ -745,14 +843,20 @@ class Game(Scene):
     ) -> tuple[float, float, float, int]:
         """Calculate distance and collision threshold between two balls.
 
+        Uses the balls' collision rects (their visible circles, the same rects the
+        collision manager's broad phase compared), so balls collide when the circles
+        players see touch rather than when their larger transparent images do.
+
         Returns:
             Tuple of (dx, dy, distance, collision_distance).
 
         """
-        dx = float(ball2.rect.centerx - ball1.rect.centerx)
-        dy = float(ball2.rect.centery - ball1.rect.centery)
+        ball1_rect = get_sprite_collision_rect(ball1)
+        ball2_rect = get_sprite_collision_rect(ball2)
+        dx = float(ball2_rect.centerx - ball1_rect.centerx)
+        dy = float(ball2_rect.centery - ball1_rect.centery)
         distance = math.sqrt(dx * dx + dy * dy)
-        collision_distance = int(ball1.rect.width // 2 + ball2.rect.width // 2)
+        collision_distance = int(ball1_rect.width // 2 + ball2_rect.width // 2)
         return dx, dy, distance, collision_distance
 
     @staticmethod

@@ -69,13 +69,8 @@ class TestPauseScreen:
         game.on_key_down_event(space_down_event)
         game.on_key_up_event(space_up_event)
 
-        # Check if pause was triggered by checking the scene manager's active scene
-        from glitchygames.scenes import SceneManager
-
-        scene_manager = SceneManager()
-        assert scene_manager.active_scene == mock_pause_scene, (
-            'Expected pause scene to be set as active scene'
-        )
+        # The pause is requested for the end of the frame (after rendering), not switched mid-frame
+        assert game.next_scene == mock_pause_scene, 'Expected the pause scene to be requested'
         LOG.info('✅ Pause screen condition properly detected!')
 
     def test_pause_screen_resume_on_spacebar(self, mocker):
@@ -104,10 +99,12 @@ class TestPauseScreen:
         game.on_key_down_event(space_down_event)
         game.on_key_up_event(space_up_event)
 
-        # Get the pause scene from the scene manager
+        # The pause is requested for the end of the frame; perform that switch as the loop would
         from glitchygames.scenes import SceneManager
 
         scene_manager = SceneManager()
+        assert game.next_scene == mock_pause_scene, 'Expected the pause scene to be requested'
+        scene_manager.switch_to_scene(game.next_scene)
         pause_scene = scene_manager.active_scene
         assert pause_scene == mock_pause_scene, 'Expected pause scene to be created'
 
@@ -185,10 +182,12 @@ class TestPauseScreenIntegration:
 
         game.on_key_down_event(space_down_event)
         game.on_key_up_event(space_up_event)
-        # Check if pause was triggered by checking the scene manager's active scene
+        # The pause is requested for the end of the frame; perform that switch as the loop would
         from glitchygames.scenes import SceneManager
 
         scene_manager = SceneManager()
+        assert game.next_scene == mock_pause_scene, 'Expected the pause scene to be requested'
+        scene_manager.switch_to_scene(game.next_scene)
         assert scene_manager.active_scene == mock_pause_scene, 'Expected pause scene to be set'
 
         # Simulate resume

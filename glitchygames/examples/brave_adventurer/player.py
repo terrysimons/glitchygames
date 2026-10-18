@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Self, override
 import pygame
 
 # GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
+from glitchygames.collision.bounds import opaque_bounds
+from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer.constants import (
     FALLING_VELOCITY_THRESHOLD,
     GRAVITY,
@@ -31,6 +33,32 @@ from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
+
+
+# Common (every-pose) hitbox x-range per facing, measured once; see common_hitbox_x_range
+_COMMON_POSE_X_RANGES: dict[bool, tuple[int, int]] = {}
+# Animation times sampled when measuring poses (two seconds at 50 ms covers every cycle)
+_POSE_SAMPLE_TIMES = tuple(sample_index * 0.05 for sample_index in range(40))
+
+
+def _measure_common_pose_x_range(*, facing_right: bool) -> tuple[int, int]:
+    """Draw every pose for one facing and intersect their visible-pixel x-ranges.
+
+    Returns:
+        tuple[int, int]: (left, right) of the columns every pose covers; right exclusive.
+
+    """
+    scratch = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT), pygame.SRCALPHA)
+    common_left = 0
+    common_right = PLAYER_WIDTH
+    for state in (Player.IDLE, Player.RUNNING, Player.JUMPING, Player.FALLING):
+        for animation_time in _POSE_SAMPLE_TIMES:
+            scratch.fill((0, 0, 0, 0))
+            draw_player(scratch, state, facing_right=facing_right, animation_timer=animation_time)
+            visible = opaque_bounds(scratch)
+            common_left = max(common_left, visible.left)
+            common_right = min(common_right, visible.right)
+    return (common_left, common_right)
 
 
 class Player(Sprite):
@@ -78,6 +106,8 @@ class Player(Sprite):
         # Physics body handles position, velocity, gravity, acceleration, bounds.
         # Ground collision is handled by game.py (terrain-based), not by a
         # GroundConstraint, so we build the body manually without one.
+        # World left edge: refitted to the hitbox every tick (see _fit_world_edge_to_hitbox)
+        self._world_edge_bounds = BoundsConstraint(min_x=0.0)
         self.physics: PhysicsBody = PhysicsBody(
             world_x=world_x,
             world_y=world_y,
@@ -91,9 +121,7 @@ class Player(Sprite):
                     deceleration=PLAYER_DECELERATION,
                 ),
             ],
-            constraints=[
-                BoundsConstraint(min_x=0.0),
-            ],
+            constraints=[self._world_edge_bounds],
         )
 
         # Animation state machine (code-defined since primitives don't use TOML)
@@ -183,6 +211,33 @@ class Player(Sprite):
 
     # --- Physics ---
 
+    def common_hitbox_x_range(self: Self) -> tuple[int, int]:
+        """Return the horizontal hitbox span shared by every pose, for the current facing.
+
+        Poses are drawn procedurally and differ in width (falling is wider than idle), so
+        support (ledges, wall tops) uses the columns every pose covers: otherwise an idle
+        player at an edge would fall, be caught by the wider falling pose, land, and repeat.
+        Measured once per facing by drawing every state over a range of animation times.
+
+        Returns:
+            tuple[int, int]: (left, right) offsets from the drawn position; right exclusive.
+
+        """
+        cached_range = _COMMON_POSE_X_RANGES.get(self.facing_right)
+        if cached_range is None:
+            cached_range = _measure_common_pose_x_range(facing_right=self.facing_right)
+            _COMMON_POSE_X_RANGES[self.facing_right] = cached_range
+        return cached_range
+
+    def _fit_world_edge_to_hitbox(self: Self) -> None:
+        """Let the hitbox, not the image's transparent margin, stop at the world's left edge.
+
+        The margin changes with pose, facing and animation frame, so the bound is refitted
+        from the current collision rect each tick.
+        """
+        offset_x, _ = collision_rect_offset(self)
+        self._world_edge_bounds.min_x = float(-offset_x)
+
     @override
     def dt_tick(self: Self, dt: float) -> None:
         """Advance physics and update animation state.
@@ -195,6 +250,7 @@ class Player(Sprite):
         self.animation_timer += dt
 
         # PhysicsBody handles gravity, acceleration, bounds, integration
+        self._fit_world_edge_to_hitbox()
         self.physics.tick(dt)
 
         # State machine evaluates transitions from code-defined rules

@@ -5,10 +5,10 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-import pygame
 import pytest
 
 import glitchygames.game_objects.ball as ball_module
+from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.game_objects.ball import (
     BallSprite,
     PixelSnapMode,
@@ -21,6 +21,7 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
     snap_to_pixel,
 )
+from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.movement import Speed
 from tests.mocks.test_mock_factory import MockFactory
 
@@ -39,11 +40,11 @@ MULTIPLIER_1_1 = 1.1
 
 
 def _assert_within_spawn_area(ball: BallSprite) -> None:
-    """Assert the ball lies within ServeSettings.spawn_margin of every screen edge."""
+    """Assert the ball's visible rect lies within ServeSettings.spawn_margin of every edge."""
     margin = ball.serve_settings.spawn_margin
-    assert ball.rect is not None
-    assert margin <= ball.rect.x <= ball.screen_width - ball.width - margin
-    assert margin <= ball.rect.y <= ball.screen_height - ball.height - margin
+    visible_rect = get_sprite_collision_rect(ball)
+    assert margin <= visible_rect.left <= visible_rect.right <= ball.screen_width - margin
+    assert margin <= visible_rect.top <= visible_rect.bottom <= ball.screen_height - margin
 
 
 class TestBallSpriteInitialization:
@@ -448,14 +449,15 @@ class TestServeSettings:
 
     @pytest.mark.parametrize(('screen_width', 'screen_height'), [(100, 100), (20, 20), (10, 10)])
     def test_spawn_position_on_screens_too_small_for_the_margin(self, screen_width, screen_height):
-        """Without room for the margin, the ball is centered (clamped to stay on screen)."""
+        """Without room for the margin, the visible ball is centered (clamped to the screen)."""
         ball = BallSprite()
         ball.screen_width = screen_width
         ball.screen_height = screen_height
         ball.reset()
-        expected_x = max((screen_width - ball.width) // 2, 0)
-        expected_y = max((screen_height - ball.height) // 2, 0)
-        assert (ball.world_x, ball.world_y) == (expected_x, expected_y)
+        visible_rect = get_sprite_collision_rect(ball)
+        expected_left = max((screen_width - visible_rect.width) // 2, 0)
+        expected_top = max((screen_height - visible_rect.height) // 2, 0)
+        assert visible_rect.topleft == (expected_left, expected_top)
 
     @pytest.mark.parametrize(
         ('field', 'value'),
@@ -493,20 +495,50 @@ CORNERS = (('top', 'left'), ('top', 'right'), ('bottom', 'left'), ('bottom', 'ri
 INTO_WALL_DIRECTIONS = {'top': (0, -1), 'bottom': (0, 1), 'left': (-1, 0), 'right': (1, 0)}
 
 
+class PlayfieldLimits(NamedTuple):
+    """World positions at which the ball's visible edges touch each wall."""
+
+    minimum_x: float  # visible left edge on the left wall
+    maximum_x: float  # visible right edge on the right wall
+    minimum_y: float  # visible top edge on the top wall
+    maximum_y: float  # visible bottom edge on the bottom wall
+
+
+def _playfield_limits(ball: BallSprite) -> PlayfieldLimits:
+    """Return where the ball's visible collision rect touches each wall.
+
+    The ball's walls are its visible pixels (its collision rect), offset from its drawn
+    position. With pygame mocked the circle is not drawn, so the visible rect is the whole
+    image (offset 0) and the limits are 0 and screen size minus image size.
+
+    Returns:
+        PlayfieldLimits: The world positions of wall contact.
+
+    """
+    visible_rect = get_sprite_collision_rect(ball)
+    offset_x = visible_rect.x - snap_to_pixel(ball.world_x, ball.pixel_snap_mode)
+    offset_y = visible_rect.y - snap_to_pixel(ball.world_y, ball.pixel_snap_mode)
+    return PlayfieldLimits(
+        minimum_x=float(-offset_x),
+        maximum_x=float(ball.screen_width - visible_rect.width - offset_x),
+        minimum_y=float(-offset_y),
+        maximum_y=float(ball.screen_height - visible_rect.height - offset_y),
+    )
+
+
 def _place_ball_past_walls(ball: BallSprite, walls: tuple[str, ...], overshoot: float) -> None:
-    """Put the ball `overshoot` past each given wall, centered along any other axis."""
-    maximum_x = float(ball.screen_width - ball.width)
-    maximum_y = float(ball.screen_height - ball.height)
-    world_x = maximum_x / 2
-    world_y = maximum_y / 2
+    """Put the ball's visible edge `overshoot` past each given wall, centered otherwise."""
+    limits = _playfield_limits(ball)
+    world_x = (limits.minimum_x + limits.maximum_x) / 2
+    world_y = (limits.minimum_y + limits.maximum_y) / 2
     if 'left' in walls:
-        world_x = -overshoot
+        world_x = limits.minimum_x - overshoot
     if 'right' in walls:
-        world_x = maximum_x + overshoot
+        world_x = limits.maximum_x + overshoot
     if 'top' in walls:
-        world_y = -overshoot
+        world_y = limits.minimum_y - overshoot
     if 'bottom' in walls:
-        world_y = maximum_y + overshoot
+        world_y = limits.maximum_y + overshoot
     ball.world_x = world_x
     ball.world_y = world_y
 
@@ -514,20 +546,19 @@ def _place_ball_past_walls(ball: BallSprite, walls: tuple[str, ...], overshoot: 
 def _expected_position_after_bounce(
     ball: BallSprite, walls: tuple[str, ...], overshoot: float
 ) -> tuple[float, float]:
-    """Mirror the overshoot back inside each wall; a ball already inside stays put."""
-    maximum_x = float(ball.screen_width - ball.width)
-    maximum_y = float(ball.screen_height - ball.height)
-    expected_x = maximum_x / 2
-    expected_y = maximum_y / 2
+    """Mirror the visible overshoot back inside each wall; a ball already inside stays put."""
+    limits = _playfield_limits(ball)
+    expected_x = (limits.minimum_x + limits.maximum_x) / 2
+    expected_y = (limits.minimum_y + limits.maximum_y) / 2
     inside_distance = abs(overshoot)
     if 'left' in walls:
-        expected_x = inside_distance
+        expected_x = limits.minimum_x + inside_distance
     if 'right' in walls:
-        expected_x = maximum_x - inside_distance
+        expected_x = limits.maximum_x - inside_distance
     if 'top' in walls:
-        expected_y = inside_distance
+        expected_y = limits.minimum_y + inside_distance
     if 'bottom' in walls:
-        expected_y = maximum_y - inside_distance
+        expected_y = limits.maximum_y - inside_distance
     return expected_x, expected_y
 
 
@@ -633,8 +664,9 @@ class TestBallSpriteWallBounceSpeed:
         assert (ball.world_x, ball.world_y) == pytest.approx(
             _expected_position_after_bounce(ball, walls, overshoot), abs=WALL_BOUNCE_TOLERANCE
         ), description
-        assert 0.0 <= ball.world_x <= ball.screen_width - ball.width, description
-        assert 0.0 <= ball.world_y <= ball.screen_height - ball.height, description
+        limits = _playfield_limits(ball)
+        assert limits.minimum_x <= ball.world_x <= limits.maximum_x, description
+        assert limits.minimum_y <= ball.world_y <= limits.maximum_y, description
 
         speed_after_bounce = (ball.speed.x, ball.speed.y)
         for frame in range(1, FRAMES_AFTER_BOUNCE + 1):
@@ -1151,8 +1183,19 @@ class TestCornerCollisions:
             bounce_left_right=True,
         )
 
-    def _assert_corner_bounce(self, ball, *, corner_x, corner_y, speed_x, speed_y):
-        """Bounce a ball sitting exactly in a corner and check it reflects and leaves."""
+    def _assert_corner_bounce(self, ball, *, corner, speed_x, speed_y):
+        """Bounce a ball whose visible edges sit exactly in a corner; it reflects and leaves.
+
+        Args:
+            ball: The ball.
+            corner: ('top' or 'bottom', 'left' or 'right').
+            speed_x: Horizontal speed into the corner.
+            speed_y: Vertical speed into the corner.
+
+        """
+        limits = _playfield_limits(ball)
+        corner_x = limits.minimum_x if 'left' in corner else limits.maximum_x
+        corner_y = limits.minimum_y if 'top' in corner else limits.maximum_y
         ball.speed.x = speed_x
         ball.speed.y = speed_y
         ball.world_x = corner_x
@@ -1173,40 +1216,22 @@ class TestCornerCollisions:
     def test_top_left_corner_collision(self, mock_pygame_patches):
         """Test top-left corner collision."""
         ball = self._create_bouncing_ball()
-        self._assert_corner_bounce(ball, corner_x=0.0, corner_y=0.0, speed_x=-100.0, speed_y=-100.0)
+        self._assert_corner_bounce(ball, corner=('top', 'left'), speed_x=-100.0, speed_y=-100.0)
 
     def test_top_right_corner_collision(self, mock_pygame_patches):
         """Test top-right corner collision."""
         ball = self._create_bouncing_ball()
-        self._assert_corner_bounce(
-            ball,
-            corner_x=float(ball.screen_width - ball.width),
-            corner_y=0.0,
-            speed_x=100.0,
-            speed_y=-100.0,
-        )
+        self._assert_corner_bounce(ball, corner=('top', 'right'), speed_x=100.0, speed_y=-100.0)
 
     def test_bottom_left_corner_collision(self, mock_pygame_patches):
         """Test bottom-left corner collision."""
         ball = self._create_bouncing_ball()
-        self._assert_corner_bounce(
-            ball,
-            corner_x=0.0,
-            corner_y=float(ball.screen_height - ball.height),
-            speed_x=-100.0,
-            speed_y=100.0,
-        )
+        self._assert_corner_bounce(ball, corner=('bottom', 'left'), speed_x=-100.0, speed_y=100.0)
 
     def test_bottom_right_corner_collision(self, mock_pygame_patches):
         """Test bottom-right corner collision."""
         ball = self._create_bouncing_ball()
-        self._assert_corner_bounce(
-            ball,
-            corner_x=float(ball.screen_width - ball.width),
-            corner_y=float(ball.screen_height - ball.height),
-            speed_x=100.0,
-            speed_y=100.0,
-        )
+        self._assert_corner_bounce(ball, corner=('bottom', 'right'), speed_x=100.0, speed_y=100.0)
 
 
 class TestDtTickMovementMismatch:
@@ -1228,10 +1253,21 @@ class TestDtTickMovementMismatch:
         assert ball.rect.x != original_x or ball.rect.y != original_y
 
 
-class TestPaddleCollisionSpeedCap:
-    """Test paddle collision speed capping (lines 897-899, 903)."""
+def _speed_cap_paddle(*, x):
+    """A real VerticalPaddle at (x, 90), 20x100, with no collision sound."""
+    paddle = VerticalPaddle('Test Paddle', (20, 100), (x, 90), (255, 255, 255), 400)
+    paddle.snd = None
+    return paddle
 
-    def test_paddle_collision_caps_speed(self, mock_pygame_patches, mocker):
+
+class TestPaddleCollisionSpeedCap:
+    """Test handle_paddle_collision's speed cap, sound and callback (mocked pygame).
+
+    With pygame mocked the ball's circle is not drawn, so its collision rect is its full
+    20x20 image; the visible-pixel geometry is covered in test_ball_paddle_collision.py.
+    """
+
+    def test_paddle_collision_caps_speed(self, mock_pygame_patches):
         """Test that paddle collision caps speed at the configured max_speed."""
         ball = BallSprite(
             x=100,
@@ -1240,86 +1276,70 @@ class TestPaddleCollisionSpeedCap:
             height=20,
             speed_up_settings=SpeedUpSettings(max_speed=500.0),
         )
-
-        # Create a mock paddle
-        paddle = mocker.Mock()
-        paddle.rect = pygame.Rect(90, 90, 20, 100)
-        paddle.snd = None
+        paddle = _speed_cap_paddle(x=90)
 
         # Set extremely high speed
         ball.speed.x = 1000.0
         ball.speed.y = 1000.0
 
         # Position ball overlapping with paddle
-        assert ball.rect is not None
-        ball.rect.x = 95
-        ball.rect.y = 100
+        ball.world_x = 95.0
+        ball.world_y = 100.0
 
-        ball._adjust_position_for_paddle_collision(paddle)
+        assert ball.handle_paddle_collision(paddle) is True
 
         # Speed should be capped
         speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert speed_magnitude <= 500.0 + 0.01  # max_speed = 500.0
 
-    def test_paddle_collision_without_max_speed_does_not_cap(self, mock_pygame_patches, mocker):
+    def test_paddle_collision_without_max_speed_does_not_cap(self, mock_pygame_patches):
         """Test that default settings (max_speed=None) leave a fast ball uncapped."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
-
-        paddle = mocker.Mock()
-        paddle.rect = pygame.Rect(90, 90, 20, 100)
-        paddle.snd = None
+        paddle = _speed_cap_paddle(x=90)
 
         ball.speed.x = 1000.0
         ball.speed.y = 1000.0
+        ball.world_x = 95.0
+        ball.world_y = 100.0
 
-        assert ball.rect is not None
-        ball.rect.x = 95
-        ball.rect.y = 100
-
-        ball._adjust_position_for_paddle_collision(paddle)
+        assert ball.handle_paddle_collision(paddle) is True
 
         # No cap and no PADDLE_BOUNCE trigger: magnitude is unchanged by the collision
         speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert speed_magnitude == pytest.approx(math.sqrt(2) * 1000.0)
 
     def test_paddle_collision_with_sound(self, mock_pygame_patches, mocker):
-        """Test paddle collision plays paddle's sound (lines 886->890)."""
+        """Test paddle collision plays paddle's sound."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
-
-        paddle = mocker.Mock()
-        paddle.rect = pygame.Rect(120, 90, 20, 100)
+        paddle = _speed_cap_paddle(x=120)
         paddle.snd = mocker.Mock()
 
         ball.speed.x = 100.0
         ball.speed.y = 50.0
 
         # Ball center is to the right of paddle center
-        assert ball.rect is not None
-        ball.rect.x = 130
-        ball.rect.y = 100
+        ball.world_x = 130.0
+        ball.world_y = 100.0
 
-        ball._adjust_position_for_paddle_collision(paddle)
+        assert ball.handle_paddle_collision(paddle) is True
 
         paddle.snd.play.assert_called_once()
 
     def test_paddle_collision_triggers_on_paddle_collision(self, mock_pygame_patches, mocker):
-        """Test paddle collision calls on_paddle_collision if it exists (line 903)."""
+        """Test paddle collision calls on_paddle_collision if it exists."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
 
         mock_callback = mocker.Mock()
         ball.on_paddle_collision = mock_callback  # type: ignore[unresolved-attribute]
 
-        paddle = mocker.Mock()
-        paddle.rect = pygame.Rect(120, 90, 20, 100)
-        paddle.snd = None
+        paddle = _speed_cap_paddle(x=120)
 
         ball.speed.x = 100.0
         ball.speed.y = 50.0
-        assert ball.rect is not None
-        ball.rect.x = 130
-        ball.rect.y = 100
+        ball.world_x = 130.0
+        ball.world_y = 100.0
 
-        ball._adjust_position_for_paddle_collision(paddle)
+        assert ball.handle_paddle_collision(paddle) is True
 
         mock_callback.assert_called_once_with(ball)
 
@@ -1359,26 +1379,20 @@ class TestBallMovementMismatchWarning:
         assert ball.rect.y >= 0
 
 
-class TestBallCheckPaddleCollisions:
-    """Test _check_paddle_collisions with actual paddle sprites (line 859->858)."""
+class TestBallHandlePaddleCollisionMiss:
+    """Test handle_paddle_collision with a paddle the ball does not touch."""
 
-    def test_check_paddle_collisions_no_matching_sprites(self, mock_pygame_patches, mocker):
-        """Test _check_paddle_collisions when no paddle sprites overlap.
-
-        Covers branch 859->858 where colliderect returns False.
-        """
+    def test_far_paddle_is_not_a_collision(self, mock_pygame_patches):
+        """A paddle far from the ball returns False and leaves the ball's velocity alone."""
         ball = BallSprite(x=100, y=100, width=20, height=20)
+        ball.world_x = 100.0
+        ball.world_y = 100.0
+        ball.speed.x = 100.0
+        paddle = _speed_cap_paddle(x=500)
 
-        # Create a mock group with a non-colliding sprite
-        mock_group = mocker.Mock()
-        mock_sprite = mocker.Mock()
-        mock_sprite.rect = pygame.Rect(500, 500, 20, 100)  # Far away
-        mock_sprite.__class__.__name__ = 'PaddleSprite'
-        mock_group.__iter__ = mocker.Mock(return_value=iter([mock_sprite, ball]))
-
-        mocker.patch.object(ball, 'groups', return_value=[mock_group])
-
-        ball._check_paddle_collisions()
+        assert ball.handle_paddle_collision(paddle) is False
+        assert ball.speed.x == 100.0
+        assert ball.world_x == 100.0
 
 
 class TestBallBottomBounceZeroSpeed:
@@ -1552,6 +1566,16 @@ class TestSnapToPixel:
         snapped = snap_to_pixel(value, mode)
         assert snapped == expected_pixel
         assert type(snapped) is int
+
+    def test_snapping_lives_in_neutral_module_and_is_re_exported(self):
+        """glitchygames.pixel_snap owns snapping; ball and game_objects re-export it."""
+        import glitchygames.game_objects as game_objects_package
+        import glitchygames.pixel_snap as pixel_snap_module
+
+        assert ball_module.PixelSnapMode is pixel_snap_module.PixelSnapMode
+        assert ball_module.snap_to_pixel is pixel_snap_module.snap_to_pixel
+        assert game_objects_package.PixelSnapMode is pixel_snap_module.PixelSnapMode
+        assert game_objects_package.snap_to_pixel is pixel_snap_module.snap_to_pixel
 
 
 @pytest.mark.usefixtures('pygame_mocks')

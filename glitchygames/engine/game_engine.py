@@ -201,10 +201,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         The effective target FPS is resolved in initialize_arguments: an explicit
         --target-fps (including 0 = uncapped) wins, then the game scene class's
-        TARGET_FPS if it is not None, then DEFAULT_TARGET_FPS (60.44).
+        TARGET_FPS if it is not None, then DEFAULT_TARGET_FPS (60.01).
 
         Supported Arguments:
-            -f, --target-fps (default: the game's TARGET_FPS, else 60.44; 0 = uncapped)
+            -f, --target-fps (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
             --fps-log-interval-ms
             -w, --windowed
             -r, --resolution
@@ -224,7 +224,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         group.add_argument(
             '-f',
             '--target-fps',
-            help="cap the framerate (default: the game's TARGET_FPS, else 60.44; 0 = uncapped)",
+            help="cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)",
             type=target_fps_value,
             default=None,
         )
@@ -293,6 +293,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 'the target FPS)'
             ),
             default='equal-range',
+        )
+        group.add_argument(
+            '--debug-overlay',
+            help='show the debug overlay at startup (F3 toggles, F4 cycles panels)',
+            action='store_true',
+            default=False,
         )
         group.add_argument(
             '--screen-shake-intensity',

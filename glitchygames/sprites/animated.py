@@ -9,14 +9,18 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
+import operator
 import tomllib
 from collections import Counter
+from enum import Enum
 from pathlib import Path
 from typing import IO, Any, Self, cast, override
 
 import pygame
 
 from glitchygames.animation import AnimationStateMachine
+from glitchygames.collision.bounds import trims_transparent_hitbox
 
 # YAML support removed - TOML only
 # Import constants
@@ -32,8 +36,6 @@ from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .frame import FrameManager, SpriteFrame
 from .pixel_utils import (
     PIXEL_ARRAY_SHAPE_DIMENSIONS,
-    compute_bounding_box_from_pixels,
-    compute_envelope_bounding_box,
     convert_pixels_to_rgb_if_possible,
     convert_pixels_to_rgba_if_needed,
     create_alpha_surface,
@@ -43,6 +45,211 @@ from .pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
 )
+
+# Characters TOML basic strings must escape with a short escape sequence
+# (https://toml.io/en/v1.0.0#string)
+TOML_SHORT_ESCAPES = {
+    '\\': '\\\\',
+    '"': '\\"',
+    '\b': '\\b',
+    '\t': '\\t',
+    '\n': '\\n',
+    '\f': '\\f',
+    '\r': '\\r',
+}
+# Code points below this, and DEL, are control characters TOML strings must escape
+TOML_FIRST_PRINTABLE_CODE_POINT = 0x20
+TOML_DELETE_CODE_POINT = 0x7F
+# Bare TOML keys may use only these characters
+TOML_BARE_KEY_CHARACTERS = frozenset(
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
+)
+
+
+def toml_basic_string(value: str) -> str:
+    """Quote a string as a TOML basic string, escaping what TOML requires.
+
+    Returns:
+        str: The quoted, escaped string: a quote becomes backslash-quote, a backslash
+        becomes two backslashes and control characters use their escape sequences.
+
+    """
+    escaped_characters: list[str] = []
+    for character in value:
+        if character in TOML_SHORT_ESCAPES:
+            escaped_characters.append(TOML_SHORT_ESCAPES[character])
+        elif (
+            ord(character) < TOML_FIRST_PRINTABLE_CODE_POINT
+            or ord(character) == TOML_DELETE_CODE_POINT
+        ):
+            escaped_characters.append(f'\\u{ord(character):04X}')
+        else:
+            escaped_characters.append(character)
+    return '"' + ''.join(escaped_characters) + '"'
+
+
+def toml_multiline_basic_string(value: str) -> str:
+    """Quote a string as a TOML multi-line basic string (triple quotes), escaping as needed.
+
+    Newlines stay as real line breaks so descriptions stay readable. Backslashes and quotes
+    are escaped (so no run of three quotes can end the string early), as are other control
+    characters, and a leading newline is written as an escape because TOML drops a newline
+    right after the opening quotes.
+
+    Returns:
+        str: The value wrapped in triple quotes.
+
+    """
+    escaped_characters: list[str] = []
+    for position, character in enumerate(value):
+        if character == '\n' and position > 0:
+            escaped_characters.append(character)
+        elif character in TOML_SHORT_ESCAPES:
+            escaped_characters.append(TOML_SHORT_ESCAPES[character])
+        elif (
+            ord(character) < TOML_FIRST_PRINTABLE_CODE_POINT
+            or ord(character) == TOML_DELETE_CODE_POINT
+        ):
+            escaped_characters.append(f'\\u{ord(character):04X}')
+        else:
+            escaped_characters.append(character)
+    return '"""' + ''.join(escaped_characters) + '"""'
+
+
+def toml_key(key: str) -> str:
+    """Return a TOML key: bare when TOML allows it, otherwise a quoted basic string.
+
+    Returns:
+        str: The key as written in a TOML file.
+
+    """
+    if key and all(character in TOML_BARE_KEY_CHARACTERS for character in key):
+        return key
+    return toml_basic_string(key)
+
+
+def toml_scalar(value: object) -> str:
+    """Format a string, boolean, integer or float as a TOML value.
+
+    Returns:
+        str: The value as written in a TOML file.
+
+    Raises:
+        TypeError: For any other type (TOML tables, arrays and dates are not supported here).
+
+    """
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    if isinstance(value, str):
+        return toml_basic_string(value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if math.isnan(value):
+            return 'nan'
+        if math.isinf(value):
+            return 'inf' if value > 0 else '-inf'
+        return repr(value)
+    msg = f'Cannot write {type(value).__name__} value {value!r} as a TOML scalar'
+    raise TypeError(msg)
+
+
+class FrameAnchor(Enum):
+    """Which point of every animation frame's hitbox is kept in place when drawn.
+
+    Frames are authored top-left aligned. When their hitboxes differ (a short running frame
+    next to a tall idle frame), anchoring moves each frame so the chosen part of its hitbox
+    lands on the same part of the reference hitbox: the sprite-level default hitbox, else the
+    union of all frames' hitboxes. Edge anchors move only their own axis; CENTER and the
+    corners move both. Alternatively, author the art already aligned and keep NONE.
+
+    ============  ==========================  ==========================
+    Anchor        Horizontal (x)              Vertical (y)
+    ============  ==========================  ==========================
+    NONE          as authored                 as authored
+    TOP           as authored                 hitbox tops aligned
+    BOTTOM        as authored                 hitbox bottoms aligned
+    LEFT          hitbox left edges aligned   as authored
+    RIGHT         hitbox right edges aligned  as authored
+    CENTER        hitbox centres aligned      hitbox centres aligned
+    TOP_LEFT      left edges                  tops
+    TOP_RIGHT     right edges                 tops
+    BOTTOM_LEFT   left edges                  bottoms
+    BOTTOM_RIGHT  right edges                 bottoms
+    ============  ==========================  ==========================
+
+    Walkers use BOTTOM, spinners and floaters CENTER, hanging things TOP.
+
+    Contract: a game that sets frame_anchor must place the sprite's rect at its world
+    position (through the camera) plus AnimatedSprite.draw_offset, as Papyrus's
+    PapyrusPlayer.apply_camera does. hitbox already includes the offset, and the debug
+    overlay (glitchygames.debug.panels.screen_rect_for) takes it back out of rect, so a rect
+    placed without it shows outlines and collisions that do not match the drawing.
+    """
+
+    NONE = 'none'  # Draw frames as authored (default)
+    TOP_LEFT = 'top_left'
+    TOP = 'top'
+    TOP_RIGHT = 'top_right'
+    LEFT = 'left'
+    CENTER = 'center'
+    RIGHT = 'right'
+    BOTTOM_LEFT = 'bottom_left'
+    BOTTOM = 'bottom'
+    BOTTOM_RIGHT = 'bottom_right'
+
+
+# (horizontal edge, vertical edge) each anchor aligns: 'start', 'center', 'end', or None to
+# leave that axis as authored
+_FRAME_ANCHOR_EDGES: dict[FrameAnchor, tuple[str | None, str | None]] = {
+    FrameAnchor.TOP_LEFT: ('start', 'start'),
+    FrameAnchor.TOP: (None, 'start'),
+    FrameAnchor.TOP_RIGHT: ('end', 'start'),
+    FrameAnchor.LEFT: ('start', None),
+    FrameAnchor.CENTER: ('center', 'center'),
+    FrameAnchor.RIGHT: ('end', None),
+    FrameAnchor.BOTTOM_LEFT: ('start', 'end'),
+    FrameAnchor.BOTTOM: (None, 'end'),
+    FrameAnchor.BOTTOM_RIGHT: ('end', 'end'),
+}
+
+
+def _doubled_anchor_offset(
+    *,
+    reference_start: int,
+    reference_size: int,
+    frame_start: int,
+    frame_size: int,
+    edge: str | None,
+) -> int:
+    """Return twice the offset that puts a frame span's edge on the reference span's edge.
+
+    Returns:
+        int: The doubled offset (exact for half-pixel centres); 0 when edge is None.
+
+    """
+    if edge is None:
+        return 0
+    return _doubled_edge(reference_start, reference_size, edge) - _doubled_edge(
+        frame_start, frame_size, edge
+    )
+
+
+def _doubled_edge(start: int, size: int, edge: str) -> int:
+    """Return twice the coordinate of a span's start, centre or end (exact for half pixels).
+
+    Returns:
+        int: 2 * start, 2 * start + size, or 2 * (start + size).
+
+    """
+    match edge:
+        case 'start':
+            return 2 * start
+        case 'center':
+            return 2 * start + size
+        case _:
+            return 2 * (start + size)
+
 
 # Import detect_file_format function
 try:
@@ -72,6 +279,7 @@ LOG = logging.getLogger('game.sprites.animated')
 
 # Error message templates
 ERR_ANIMATION_NOT_FOUND = "Animation '{}' not found"
+ERR_ANIMATION_NAME_EXISTS = "Animation '{}' already exists"
 ERR_ANIMATION_NOT_FOUND_AVAILABLE = "Animation '{}' not found. Available animations: {}"
 ERR_NO_ANIMATION_SET = 'No animation is currently set'
 ERR_FAILED_TO_SET_ANIMATION = "Failed to set animation '{}'"
@@ -133,22 +341,229 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def hitbox(self) -> pygame.Rect:
         """The effective hitbox for the current frame.
 
+        Hitboxes are in native (TOML) pixels and are multiplied by hitbox_scale, offset
+        and size, for sprites drawn scaled up (Papyrus draws at 2x). When hitbox_flip_x is
+        True (the game draws the image mirrored, e.g. facing left) the result is mirrored
+        within the drawn frame width: x = drawn_width - (x + width).
+
         Resolution order:
         1. Current frame's explicit hitbox (per-frame override)
         2. Sprite-level default hitbox ([sprite.hitbox])
-        3. Current frame's full rect (backward-compatible fallback)
+        3. The visible pixels of the current frame's image (measured once per
+           frame surface, see SpriteFrame.opaque_bounds), or the frame's full
+           rect when the sprite sets TRIM_TRANSPARENT_HITBOX = False
 
         Always returns a valid pygame.Rect — game code never needs null checks.
         """
         current_frame = self.get_current_frame()
-        if current_frame is not None and current_frame.has_explicit_hitbox:
-            return current_frame.hitbox
+        if current_frame is None:
+            # No frame: the sprite's own rect is already in drawn pixels, so it is not scaled
+            return pygame.Rect(0, 0, self._gg_rect.width, self._gg_rect.height)
+        drawn_hitbox = self._drawn_hitbox(
+            self._native_frame_hitbox(current_frame), native_frame_width=current_frame.rect.width
+        )
+        # Anchored frames are drawn at an offset (see draw_offset); the hitbox moves with them
+        draw_offset_x, draw_offset_y = self.draw_offset
+        drawn_hitbox.move_ip(draw_offset_x, draw_offset_y)
+        return drawn_hitbox
+
+    def _frame_anchor_reference(self: Self) -> pygame.Rect | None:
+        """Return the native hitbox every anchored frame is aligned to.
+
+        The sprite-level default hitbox if there is one, else the union of all frames'
+        hitboxes (so every anchor point has a well-defined reference).
+
+        Returns:
+            pygame.Rect | None: The reference hitbox, or None without frames.
+
+        """
         if self._default_hitbox is not None:
             return self._default_hitbox
-        # Fallback: full frame dimensions
-        if current_frame is not None:
-            return current_frame.rect
-        return pygame.Rect(0, 0, self._gg_rect.width, self._gg_rect.height)
+        # Cached per frame set: frames are not changed after loading, so the union is built
+        # again only when frames are added, removed or replaced. A frame whose hitbox is
+        # edited in place keeps the old union (no game does that; Bitmappy does not anchor).
+        current_frames = tuple(frame for frames in self._animations.values() for frame in frames)
+        cached_entry = self._frame_anchor_reference_cache
+        if cached_entry is None or cached_entry[0] != current_frames:
+            cached_entry = (current_frames, self._union_of_frame_hitboxes(current_frames))
+            self._frame_anchor_reference_cache = cached_entry
+        cached_reference = cached_entry[1]
+        return None if cached_reference is None else cached_reference.copy()
+
+    def _union_of_frame_hitboxes(self: Self, frames: tuple[SpriteFrame, ...]) -> pygame.Rect | None:
+        """Return the union of the given frames' native hitboxes.
+
+        Returns:
+            pygame.Rect | None: The union, or None for no frames.
+
+        """
+        frame_hitboxes = [self._native_frame_hitbox(frame) for frame in frames]
+        if not frame_hitboxes:
+            return None
+        return frame_hitboxes[0].unionall(frame_hitboxes[1:])
+
+    def _frame_draw_offset(self: Self, frame: SpriteFrame) -> tuple[int, int]:
+        """Return where a frame is drawn relative to its authored position (see draw_offset).
+
+        Returns:
+            tuple[int, int]: (x, y) offset in drawn pixels; (0, 0) for FrameAnchor.NONE.
+
+        """
+        if self.frame_anchor is FrameAnchor.NONE:
+            return (0, 0)
+        reference = self._frame_anchor_reference()
+        if reference is None:
+            return (0, 0)
+        frame_hitbox = self._native_frame_hitbox(frame)
+        horizontal_edge, vertical_edge = _FRAME_ANCHOR_EDGES[self.frame_anchor]
+        # Computed in authored (unflipped) native pixels, doubled so centres stay exact
+        doubled_offset_x = _doubled_anchor_offset(
+            reference_start=reference.x,
+            reference_size=reference.width,
+            frame_start=frame_hitbox.x,
+            frame_size=frame_hitbox.width,
+            edge=horizontal_edge,
+        )
+        doubled_offset_y = _doubled_anchor_offset(
+            reference_start=reference.y,
+            reference_size=reference.height,
+            frame_start=frame_hitbox.y,
+            frame_size=frame_hitbox.height,
+            edge=vertical_edge,
+        )
+        drawn_offset_x = doubled_offset_x * self.hitbox_scale // 2
+        drawn_offset_y = doubled_offset_y * self.hitbox_scale // 2
+        if self.hitbox_flip_x and horizontal_edge is not None:
+            # Mirrored with the image. Each frame flips within its own width, so mirror the
+            # anchored point against one common axis (the widest frame): frames narrower than
+            # it are moved right by the difference, which is exact for differing widths
+            widest_frame_width = max(
+                (other.rect.width for frames in self._animations.values() for other in frames),
+                default=frame.rect.width,
+            )
+            drawn_offset_x = -drawn_offset_x + (widest_frame_width - frame.rect.width) * (
+                self.hitbox_scale
+            )
+        return (drawn_offset_x, drawn_offset_y)
+
+    @property
+    def draw_offset(self: Self) -> tuple[int, int]:
+        """Where the current frame is drawn relative to its authored (top-left) position.
+
+        With a frame_anchor other than NONE, each frame is moved so the anchor point of its
+        hitbox (see FrameAnchor) lands on the same point of the reference hitbox, in drawn
+        pixels (times hitbox_scale; computed in authored space and, when hitbox_flip_x,
+        mirrored with the image about the widest frame's width, so frames of differing widths
+        stay exact). Games add it when placing rect (e.g. after camera.apply), and hitbox
+        includes it, so collisions match the drawing. NONE (the default) is (0, 0).
+
+        Returns:
+            tuple[int, int]: (x, y) offset in drawn pixels.
+
+        """
+        current_frame = self.get_current_frame()
+        if current_frame is None:
+            return (0, 0)
+        return self._frame_draw_offset(current_frame)
+
+    @staticmethod
+    def _parse_frame_anchor(frame_anchor_name: str | None) -> FrameAnchor:
+        """Parse the optional [sprite] frame_anchor TOML value.
+
+        Returns:
+            FrameAnchor: The anchor; NONE when the key is absent.
+
+        Raises:
+            ValueError: If the value names no FrameAnchor.
+
+        """
+        if frame_anchor_name is None:
+            return FrameAnchor.NONE
+        try:
+            return FrameAnchor(frame_anchor_name)
+        except ValueError:
+            valid_names = ', '.join(repr(anchor.value) for anchor in FrameAnchor)
+            msg = f'[sprite] frame_anchor must be one of {valid_names}, got {frame_anchor_name!r}'
+            raise ValueError(msg) from None
+
+    def common_hitbox_x_range(self: Self) -> tuple[int, int]:
+        """Return the horizontal hitbox span shared by every animation frame.
+
+        The intersection of all frames' hitbox x-ranges (drawn pixels, after hitbox_scale and
+        hitbox_flip_x), relative to the sprite's position. Unlike ``hitbox`` it does not
+        change from frame to frame, so games use it for support (standing on ledges and wall
+        tops): a wider falling frame then cannot catch a player that just walked off an edge
+        with a narrower idle frame, which would make it land, fall and land again forever.
+
+        Returns:
+            tuple[int, int]: (left, right) offsets; right is exclusive. Without frames, or if
+            the frames share no column, the current hitbox's x-range.
+
+        """
+        common_left: int | None = None
+        common_right: int | None = None
+        for frames in self._animations.values():
+            for frame in frames:
+                frame_hitbox = self._drawn_hitbox(
+                    self._native_frame_hitbox(frame), native_frame_width=frame.rect.width
+                )
+                frame_hitbox.move_ip(self._frame_draw_offset(frame))
+                common_left = (
+                    frame_hitbox.left
+                    if common_left is None
+                    else max(common_left, frame_hitbox.left)
+                )
+                common_right = (
+                    frame_hitbox.right
+                    if common_right is None
+                    else min(common_right, frame_hitbox.right)
+                )
+        if common_left is None or common_right is None or common_left >= common_right:
+            current_hitbox = self.hitbox
+            return (current_hitbox.left, current_hitbox.right)
+        return (common_left, common_right)
+
+    def _native_frame_hitbox(self: Self, frame: SpriteFrame) -> pygame.Rect:
+        """Return a frame's hitbox in native, unflipped pixels (resolution order of hitbox).
+
+        The visible-pixel fallback is measured on the unflipped frame image; hitbox_flip_x
+        mirrors it (and the TOML hitboxes) afterwards in _drawn_hitbox.
+
+        Returns:
+            pygame.Rect: The native hitbox (may be the frame's or the sprite's own rect).
+
+        """
+        if frame.has_explicit_hitbox:
+            return frame.hitbox
+        if self._default_hitbox is not None:
+            return self._default_hitbox
+        if trims_transparent_hitbox(self):
+            return frame.opaque_bounds()
+        return frame.rect
+
+    def _drawn_hitbox(
+        self: Self, native_hitbox: pygame.Rect, *, native_frame_width: int
+    ) -> pygame.Rect:
+        """Return a new rect: a native hitbox scaled by hitbox_scale, mirrored if flipped.
+
+        Args:
+            native_hitbox: The hitbox in native frame pixels.
+            native_frame_width: The frame's width in native pixels (the mirror span).
+
+        Returns:
+            pygame.Rect: The hitbox in drawn pixels (never the caller's rect object).
+
+        """
+        drawn_x = native_hitbox.x * self.hitbox_scale
+        drawn_width = native_hitbox.width * self.hitbox_scale
+        if self.hitbox_flip_x:
+            drawn_x = native_frame_width * self.hitbox_scale - (drawn_x + drawn_width)
+        return pygame.Rect(
+            drawn_x,
+            native_hitbox.y * self.hitbox_scale,
+            drawn_width,
+            native_hitbox.height * self.hitbox_scale,
+        )
 
     def get_hitbox_world_rect(
         self: Self,
@@ -189,6 +604,16 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self.name = 'animated_sprite'  # Default name
         self.description = ''  # Description field for metadata
         self._animations: dict[str, list[SpriteFrame]] = {}
+        # Each animation's [[animation]] frame_interval and loop as loaded, so a save writes
+        # them back (frames without a per-frame override use the animation's frame_interval).
+        # set_animation applies the animation's loop flag to is_looping; the animation state
+        # machine reads _loop_flags too
+        self._animation_frame_intervals: dict[str, float] = {}
+        self._loop_flags: dict[str, bool] = {}
+        # The [[transition]] tables as loaded (keys and values verbatim, in file order), so a
+        # save writes the animation state machine back; transitions games add in code are not
+        # part of it
+        self.transition_data: list[dict[str, Any]] = []
         self._is_playing: bool = False
         self._is_looping: bool = False
         self._frame_timer: float = 0.0
@@ -208,6 +633,20 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         # Sprite-level default hitbox (loaded from [sprite.hitbox] in TOML)
         self._default_hitbox: pygame.Rect | None = None
+
+        # Multiplier from native TOML pixels to drawn pixels for hitboxes (see hitbox);
+        # games that draw this sprite scaled up set it to their scale factor
+        self.hitbox_scale: int = 1
+        # True while the game draws this sprite mirrored horizontally (see hitbox)
+        self.hitbox_flip_x: bool = False
+        # How frames of different shapes line up when drawn (see draw_offset); NONE draws
+        # each frame as authored. When set, the game must add draw_offset when placing rect
+        # (see FrameAnchor's contract)
+        self.frame_anchor: FrameAnchor = FrameAnchor.NONE
+        # (frames it was built from, union of their hitboxes); see _frame_anchor_reference
+        self._frame_anchor_reference_cache: (
+            tuple[tuple[SpriteFrame, ...], pygame.Rect | None] | None
+        ) = None
 
         if filename:
             self.load(filename)
@@ -482,6 +921,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if not self.frame_manager.set_animation(animation_name):
             raise ValueError(ERR_FAILED_TO_SET_ANIMATION.format(animation_name))
 
+        self._apply_animation_loop_flag(animation_name)
         self._frame_timer = 0.0
         self._update_surface_and_mark_dirty()
 
@@ -500,9 +940,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
     @override
     def remove_animation(self: Self, name: str) -> None:
-        """Remove an animation."""
+        """Remove an animation and the transitions from or to it."""
         if name in self._animations:
             del self._animations[name]
+            self.remove_transitions_for_animation(name)
+            self.forget_animation_settings(name)
             if self.frame_manager.current_animation == name:
                 # Switch to first available animation
                 if self._animations:
@@ -511,6 +953,196 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 else:
                     self.frame_manager.current_animation = ''
                     self.frame_manager.current_frame = 0
+
+    def rename_animation(self: Self, *, old_name: str, new_name: str) -> None:
+        """Rename an animation and move everything stored under its name.
+
+        The frames keep their place in the animation order; the animation's loop flag and
+        frame interval, the transitions from or to it and, when it is the current animation,
+        the frame manager's current animation (keeping the current frame) follow the new
+        name. Cached surfaces for either name are dropped.
+
+        Args:
+            old_name (str): The animation's current name.
+            new_name (str): The name to give it.
+
+        Raises:
+            ValueError: If old_name is not an animation, or new_name already is one.
+
+        """
+        if old_name not in self._animations:
+            raise ValueError(ERR_ANIMATION_NOT_FOUND.format(old_name))
+        if new_name != old_name and new_name in self._animations:
+            raise ValueError(ERR_ANIMATION_NAME_EXISTS.format(new_name))
+
+        self._animations = {
+            (new_name if name == old_name else name): frames
+            for name, frames in self._animations.items()
+        }
+        if hasattr(self, '_animation_order'):
+            self._animation_order = [
+                (new_name if name == old_name else name) for name in self._animation_order
+            ]
+        if old_name in self._loop_flags:
+            self._loop_flags[new_name] = self._loop_flags.pop(old_name)
+        if old_name in self._animation_frame_intervals:
+            self._animation_frame_intervals[new_name] = self._animation_frame_intervals.pop(
+                old_name
+            )
+        self.rename_animation_in_transitions(old_name=old_name, new_name=new_name)
+
+        # Surfaces are cached as '<animation>_<frame>'; a stale entry for new_name would
+        # show another animation's frame. The prefix can also match another animation whose
+        # name starts with '<name>_'; dropping its entries only costs a re-render
+        for cache_key in list(self._surface_cache):
+            if cache_key.startswith((f'{old_name}_', f'{new_name}_')):
+                del self._surface_cache[cache_key]
+
+        if self.frame_manager.current_animation == old_name:
+            current_frame = self.frame_manager.current_frame
+            # Setting the animation resets the frame to 0, so restore it afterwards
+            self.frame_manager.current_animation = new_name
+            self.frame_manager.current_frame = current_frame
+
+    def rename_animation_in_transitions(self: Self, *, old_name: str, new_name: str) -> None:
+        """Rename an animation in transition_data, wherever it is a transition's from or to."""
+        for transition in self.transition_data:
+            for end_key in ('from', 'to'):
+                if transition.get(end_key) == old_name:
+                    transition[end_key] = new_name
+
+    def remove_transitions_for_animation(self: Self, animation_name: str) -> None:
+        """Drop the transitions from or to a deleted animation, logging a warning for each."""
+        kept_transitions: list[dict[str, Any]] = []
+        for transition in self.transition_data:
+            if animation_name in {transition.get('from'), transition.get('to')}:
+                self.log.warning(
+                    "Dropping transition %s: animation '%s' was removed", transition, animation_name
+                )
+            else:
+                kept_transitions.append(transition)
+        self.transition_data = kept_transitions
+
+    def transitions_for_animation(
+        self: Self, animation_name: str
+    ) -> list[tuple[int, dict[str, Any]]]:
+        """Return a copy of each transition from or to an animation, with its index.
+
+        Bitmappy captures them before deleting the animation so an undo can put them back with
+        restore_transitions.
+
+        Args:
+            animation_name (str): The animation's name.
+
+        Returns:
+            list[tuple[int, dict[str, Any]]]: (index in transition_data, transition copy) pairs,
+            in transition order.
+
+        """
+        return [
+            (index, dict(transition))
+            for index, transition in enumerate(self.transition_data)
+            if animation_name in {transition.get('from'), transition.get('to')}
+        ]
+
+    def restore_transitions(
+        self: Self, indexed_transitions: list[tuple[int, dict[str, Any]]]
+    ) -> None:
+        """Put transitions back at the indices transitions_for_animation reported.
+
+        Inserting in ascending index order rebuilds the original order, provided transition_data
+        is otherwise as it was when they were removed.
+
+        Args:
+            indexed_transitions (list[tuple[int, dict[str, Any]]]): (index, transition) pairs.
+
+        """
+        for index, transition in sorted(indexed_transitions, key=operator.itemgetter(0)):
+            self.transition_data.insert(index, dict(transition))
+
+    def forget_animation_settings(self: Self, animation_name: str) -> None:
+        """Drop a removed animation's loop flag, frame interval and place in the order.
+
+        Otherwise a later animation given the same name would inherit them, and animation_order
+        would still list it.
+
+        Args:
+            animation_name (str): The removed animation's name.
+
+        """
+        self._loop_flags.pop(animation_name, None)
+        self._animation_frame_intervals.pop(animation_name, None)
+        if hasattr(self, '_animation_order'):
+            self._animation_order = [
+                name for name in self._animation_order if name != animation_name
+            ]
+
+    def restore_animation_settings(
+        self: Self,
+        animation_name: str,
+        *,
+        position: int,
+        loop_flag: bool | None,
+        frame_interval: float | None,
+    ) -> None:
+        """Put a restored animation back in its place, with its loop flag and frame interval.
+
+        The animation's frames must already be in the sprite (Bitmappy's undo re-adds them).
+
+        Args:
+            animation_name (str): The restored animation's name.
+            position (int): Its index in the animation order before it was removed.
+            loop_flag (bool | None): Its loop flag, or None if it had none.
+            frame_interval (float | None): Its frame interval, or None if it had none.
+
+        """
+        frames = self._animations.pop(animation_name)
+        names = list(self._animations)
+        names.insert(position, animation_name)
+        self._animations = {
+            name: (frames if name == animation_name else self._animations[name]) for name in names
+        }
+        if hasattr(self, '_animation_order'):
+            order = [name for name in self._animation_order if name != animation_name]
+            order.insert(position, animation_name)
+            self._animation_order = order
+        if loop_flag is not None:
+            self._loop_flags[animation_name] = loop_flag
+        if frame_interval is not None:
+            self._animation_frame_intervals[animation_name] = frame_interval
+
+    def copy_transitions_from(self: Self, source: AnimatedSprite) -> None:
+        """Copy another sprite's transition_data (Bitmappy builds derived sprites to save).
+
+        Args:
+            source (AnimatedSprite): The sprite whose transitions to copy.
+
+        """
+        self.transition_data = [dict(transition) for transition in source.transition_data]
+
+    def copy_sprite_metadata_from(self: Self, source: AnimatedSprite) -> None:
+        """Copy every sprite-level field the TOML writers save from another sprite.
+
+        name, description, frame_anchor, the sprite-level default hitbox, the transitions,
+        and the loaded color glyphs and their order (so a save reuses the source file's
+        characters). Bitmappy uses it when it builds a new sprite to save from a loaded one.
+
+        Args:
+            source (AnimatedSprite): The sprite whose metadata to copy.
+
+        """
+        self.name = source.name
+        self.description = source.description
+        self.frame_anchor = source.frame_anchor
+        self.default_hitbox = (
+            None if source.default_hitbox is None else source.default_hitbox.copy()
+        )
+        self.copy_transitions_from(source)
+        self._color_map = dict(source._color_map)
+        self._color_order = list(getattr(source, '_color_order', []))
+        self._colors_with_per_pixel_alpha = dict(
+            getattr(source, '_colors_with_per_pixel_alpha', {})
+        )
 
     @override
     def get_frame(self: Self, animation_name: str, frame_index: int) -> SpriteFrame:
@@ -605,7 +1237,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         return {
             'frame_count': len(frames),
             'total_duration': sum(f.duration for f in frames),
-            'is_looping': self._is_looping,
+            # The animation's own loop flag; the runtime flag for one without a loaded flag
+            'is_looping': self._loop_flags.get(animation_name, self._is_looping),
         }
 
     def set_animation_metadata(
@@ -622,9 +1255,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if animation_name not in self._animations:
             raise ValueError(ERR_ANIMATION_NOT_FOUND.format(animation_name))
 
-        # Update looping state if provided
+        # Update this animation's loop flag (and is_looping if it is the current animation)
         if 'is_looping' in metadata:
-            self._is_looping = bool(metadata['is_looping'])
+            self._loop_flags[animation_name] = bool(metadata['is_looping'])
+            if self.frame_manager.current_animation == animation_name:
+                self._apply_animation_loop_flag(animation_name)
 
     # File I/O methods
     @override
@@ -649,6 +1284,16 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         else:
             raise ValueError(ERR_UNSUPPORTED_FORMAT.format(file_format))
 
+    def _apply_animation_loop_flag(self: Self, animation_name: str) -> None:
+        """Make is_looping follow the animation's own [[animation]] loop flag, when it has one.
+
+        Animations without a loaded flag (built in code or in Bitmappy) leave is_looping as
+        it is. Setting is_looping afterwards still overrides it until the next animation is set.
+        """
+        loop_flag = self._loop_flags.get(animation_name)
+        if loop_flag is not None:
+            self._is_looping = loop_flag
+
     def _set_initial_animation(self: Self) -> None:
         """Set the initial animation and frame."""
         if self._animations:
@@ -659,6 +1304,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 else next(iter(self._animations.keys()))
             )
             self.frame_manager.current_animation = initial_animation
+            self._apply_animation_loop_flag(initial_animation)
             self.log.debug(
                 'Set initial animation to first animation in file: '
                 f"'{initial_animation}' with {len(self._animations[initial_animation])} frames",
@@ -692,9 +1338,16 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._default_hitbox = AnimatedSprite._parse_hitbox_data(
             data.get('sprite', {}).get('hitbox'),
         )
+        # Optional [sprite] frame_anchor = "none", "bottom", "top_left", ... (FrameAnchor values)
+        self.frame_anchor = AnimatedSprite._parse_frame_anchor(
+            data.get('sprite', {}).get('frame_anchor')
+        )
 
         self._animations = {}
         self._animation_order: list[str] = []
+        self._animation_frame_intervals = {}
+        self._loop_flags = {}
+        self.transition_data = [dict(transition) for transition in data.get('transition', [])]
 
         color_map, color_order, colors_with_per_pixel_alpha = self.build_color_map(data)
         self._color_map = color_map  # Store color map for later use
@@ -718,12 +1371,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 if frames:
                     self._animations[anim_name] = frames
                     self._animation_order.append(anim_name)  # Track order
-
-        # Store per-animation loop flags for state machine auto-loop-mode
-        self._loop_flags: dict[str, bool] = {}
-        for anim_data in animations:
-            anim_name = anim_data.get('namespace', 'default')
-            self._loop_flags[anim_name] = anim_data.get('loop', True)
 
         # Auto-create animation state machine if [[transition]] sections exist
         self.state_machine: AnimationStateMachine | None = None
@@ -891,13 +1538,16 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         anim_name = anim_data.get('namespace', 'default')
         frames_data = anim_data.get('frame', [])
 
-        # Set loop property from TOML data
+        # Loop property from TOML data (applied when the animation is set, see set_animation)
         loop_setting = anim_data.get('loop', True)
-        self._is_looping = loop_setting
 
         # Set frame interval from TOML data
         frame_interval = anim_data.get('frame_interval', 0.5)
         self._frame_interval = frame_interval
+
+        # Remember both per animation so save() writes them back
+        self._animation_frame_intervals[anim_name] = frame_interval
+        self._loop_flags[anim_name] = loop_setting
 
         self.log.debug(f"Processing animation '{anim_name}' with {len(frames_data)} frame(s)")
         self._log_animation_metadata(anim_data, anim_name)
@@ -1279,31 +1929,20 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         width, height = frame.get_size()
         pixels = frame.get_pixel_data()
 
-        # Convert pixels to character representation
-        pixel_rows: list[str] = []
-        for y in range(height):
-            row = ''
-            for x in range(width):
-                pixel_index = y * width + x
-                if pixel_index < len(pixels):
-                    pixel = pixels[pixel_index]
-                    # Find the character for this color
-                    char = None
-                    for color, char_val in color_map.items():
-                        if color == pixel:
-                            char = char_val
-                            break
-                    if char is None:
-                        char = '.'  # Default character
-                    row += char
-                else:
-                    row += '.'  # Default character
-            pixel_rows.append(row)
+        # Convert pixels to characters with the same lookup as animated saves, which matches
+        # RGBA pixels against RGB color-map keys (and raises for a missing color) instead of
+        # requiring identical tuples and silently writing '.'
+        pixel_rows = AnimatedSprite._convert_pixels_to_toml_chars(pixels, width, height, color_map)
 
         # Write TOML file with proper block string format
         with Path(filename).open('w', encoding='utf-8') as f:
             f.write('[sprite]\n')
-            f.write(f'name = "{self.name}"\n')
+            f.write(f'name = {toml_basic_string(self.name)}\n')
+            # The same [sprite] keys, in the same format, as _write_toml_sprite_section
+            if self.description:
+                f.write(f'description = {toml_multiline_basic_string(self.description)}\n')
+            if self.frame_anchor is not FrameAnchor.NONE:
+                f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
             f.write('pixels = """\n')
             f.write('\n'.join(pixel_rows))
             f.write('\n"""\n\n')
@@ -1323,6 +1962,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 {'colors': color_data},
                 getattr(self, '_color_order', None),
             )
+            AnimatedSprite._write_toml_transitions(f, self.transition_data)
 
     def _save_toml(self: Self, filename: str) -> None:
         """Save animated sprite in TOML format.
@@ -1343,6 +1983,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             # Use original color order if available to preserve file format
             color_order = getattr(self, '_color_order', None)
             AnimatedSprite._write_toml_colors(f, data, color_order)
+            AnimatedSprite._write_toml_transitions(f, self.transition_data)
 
     def _build_toml_color_map(self: Self) -> dict[tuple[int, ...], str]:
         """Build color map for TOML format.
@@ -1542,28 +2183,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         return colors
 
-    def _auto_compute_envelope_hitbox(self: Self) -> dict[str, int] | None:
-        """Auto-compute a sprite-level envelope hitbox from all animation frames.
-
-        Computes per-frame bounding boxes from pixel data and returns
-        their union envelope. Used during save when no explicit hitbox
-        is set.
-
-        Returns:
-            Hitbox dict with offset_x, offset_y, width, height keys,
-            or None if all frames are fully transparent.
-
-        """
-        per_frame_boxes: list[dict[str, int]] = []
-        for frames in self._animations.values():
-            for frame in frames:
-                pixels = frame.get_pixel_data()
-                width, height = frame.get_size()
-                bounding_box = compute_bounding_box_from_pixels(pixels, width, height)
-                if bounding_box is not None:
-                    per_frame_boxes.append(bounding_box)
-        return compute_envelope_bounding_box(per_frame_boxes)
-
     def _build_toml_data_structure(
         self: Self,
         color_map: dict[tuple[int, ...], str],
@@ -1578,8 +2197,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             'name': self.name or 'animated_sprite',
             'description': self.description or '',
         }
+        if self.frame_anchor is not FrameAnchor.NONE:
+            sprite_section['frame_anchor'] = self.frame_anchor.value
 
-        # Include sprite-level hitbox: use explicit if set, otherwise auto-compute
+        # Write the sprite-level hitbox only when one was defined (loaded or set); without
+        # one, collision uses the visible pixels, which a written hitbox would freeze
         if self._default_hitbox is not None:
             sprite_section['hitbox'] = {
                 'offset_x': self._default_hitbox.x,
@@ -1587,11 +2209,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 'width': self._default_hitbox.width,
                 'height': self._default_hitbox.height,
             }
-        else:
-            # Auto-compute envelope hitbox from all animation frames
-            auto_hitbox = self._auto_compute_envelope_hitbox()
-            if auto_hitbox is not None:
-                sprite_section['hitbox'] = auto_hitbox
 
         data: dict[str, Any] = {
             'sprite': sprite_section,
@@ -1619,17 +2236,55 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         # Add animations
         for anim_name, frames in self._animations.items():
-            animation_frames = AnimatedSprite._create_toml_animation_frames(frames, color_map)
-            animation_entry = {
-                'namespace': anim_name,
-                'frame_interval': 0.5,
-                'loop': True,
-                'frame': animation_frames,
-            }
-            data['animation'].append(animation_entry)
+            data['animation'].append(self._build_toml_animation_entry(anim_name, frames, color_map))
             self.log.debug(f"Serializing animation '{anim_name}' with {len(frames)} frames")
 
         return data
+
+    def _build_toml_animation_entry(
+        self: Self,
+        animation_name: str,
+        frames: list[SpriteFrame],
+        color_map: dict[tuple[int, ...], str],
+    ) -> dict[str, Any]:
+        """Build one [[animation]] entry with its timing and frames.
+
+        Returns:
+            dict: The animation's namespace, frame_interval, loop and frame list. Only frames
+            whose duration differs from the animation's frame_interval carry their own.
+
+        """
+        animation_frame_interval = self._animation_frame_interval_for_save(animation_name)
+        animation_frames = AnimatedSprite._create_toml_animation_frames(frames, color_map)
+        for frame, frame_data in zip(frames, animation_frames, strict=True):
+            if frame.duration != animation_frame_interval:
+                frame_data['frame_interval'] = frame.duration
+        return {
+            'namespace': animation_name,
+            'frame_interval': animation_frame_interval,
+            'loop': self._loop_flags.get(animation_name, True),
+            'frame': animation_frames,
+        }
+
+    def _animation_frame_interval_for_save(self: Self, animation_name: str) -> float:
+        """Return the [[animation]] frame_interval to write for an animation.
+
+        The value loaded from TOML when there is one. Otherwise (an animation built in code
+        or in Bitmappy) the most common frame duration, the first frame's on a tie, so as few
+        frames as possible need a per-frame override; 0.5 (the loader's default) with no
+        frames.
+
+        Returns:
+            float: The animation's frame_interval in seconds.
+
+        """
+        loaded_frame_interval = self._animation_frame_intervals.get(animation_name)
+        if loaded_frame_interval is not None:
+            return loaded_frame_interval
+        durations = [frame.duration for frame in self._animations.get(animation_name, [])]
+        if not durations:
+            return 0.5
+        return max(durations, key=durations.count)
 
     @staticmethod
     def _create_toml_animation_frames(
@@ -1668,7 +2323,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             'pixels': '\n'.join(pixel_chars),
         }
 
-        # Include per-frame hitbox: use explicit if set, otherwise auto-compute
+        # Write a per-frame hitbox only when the frame has an explicit one (never the
+        # visible-pixel fallback)
         if frame.has_explicit_hitbox:
             hitbox = frame.hitbox
             frame_data['hitbox'] = {
@@ -1677,11 +2333,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 'width': hitbox.width,
                 'height': hitbox.height,
             }
-        else:
-            # Auto-compute tight bounding box from pixel data
-            auto_hitbox = compute_bounding_box_from_pixels(pixels, width, height)
-            if auto_hitbox is not None:
-                frame_data['hitbox'] = auto_hitbox
 
         return frame_data
 
@@ -1721,9 +2372,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def _write_toml_sprite_section(f: IO[str], data: dict[str, Any]) -> None:
         """Write TOML sprite section."""
         f.write('[sprite]\n')
-        f.write(f'name = "{data["sprite"]["name"]}"\n')
+        f.write(f'name = {toml_basic_string(data["sprite"]["name"])}\n')
         if data['sprite'].get('description'):
-            f.write(f'description = """{data["sprite"]["description"]}"""\n')
+            description = data['sprite']['description']
+            f.write(f'description = {toml_multiline_basic_string(description)}\n')
+        if 'frame_anchor' in data['sprite']:
+            f.write(f'frame_anchor = "{data["sprite"]["frame_anchor"]}"\n')
         f.write('\n')
 
         # Write sprite-level hitbox if present
@@ -1747,6 +2401,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 f.write('[[animation.frame]]\n')
                 f.write(f'namespace = "{animation["namespace"]}"\n')
                 f.write(f'frame_index = {frame["frame_index"]}\n')
+                if 'frame_interval' in frame:
+                    f.write(f'frame_interval = {frame["frame_interval"]}\n')
                 f.write('pixels = """\n')
                 f.write(frame['pixels'])
                 f.write('\n"""\n\n')
@@ -1777,6 +2433,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 r, g, b = color_tuple
                 color_defs[char] = {'red': r, 'green': g, 'blue': b}
         return color_defs
+
+    @staticmethod
+    def _write_toml_transitions(f: IO[str], transitions: list[dict[str, Any]]) -> None:
+        """Write [[transition]] tables in order, each key and value as loaded (escaped)."""
+        for transition in transitions:
+            f.write('\n[[transition]]\n')
+            for key, value in transition.items():
+                f.write(f'{toml_key(key)} = {toml_scalar(value)}\n')
 
     @staticmethod
     def _write_toml_hitbox_section(

@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, override
 
 import pygame
 
+# Imported under another name so it does not shadow SpriteFrame.opaque_bounds in reading
+from glitchygames.collision.bounds import opaque_bounds as measure_opaque_bounds
 from glitchygames.color import (
     MAX_COLOR_CHANNEL_VALUE,
     RGBA_COMPONENT_COUNT,
@@ -165,6 +167,8 @@ class SpriteFrame:
         self.duration = duration
         self.pixels: list[tuple[int, ...]] = []
         self._hitbox: pygame.Rect | None = hitbox
+        # (surface measured, its visible-pixel bounds); see opaque_bounds()
+        self._opaque_bounds_cache: tuple[pygame.Surface, pygame.Rect] | None = None
 
     @property
     def image(self) -> pygame.Surface:
@@ -190,8 +194,12 @@ class SpriteFrame:
     def hitbox(self) -> pygame.Rect:
         """The collision hitbox for this frame.
 
-        Returns the explicit hitbox if one was set, otherwise falls back
-        to the full frame rect. Always returns a valid pygame.Rect.
+        Returns the explicit hitbox if one was set, otherwise the full frame rect. That
+        fallback is only SpriteFrame's own value: AnimatedSprite.hitbox, which is what
+        collision uses, resolves an explicit frame hitbox first, then the sprite-level
+        default hitbox, then the frame's visible pixels (see its resolution order), and
+        checks has_explicit_hitbox rather than relying on this fallback. Always returns a
+        valid pygame.Rect.
         """
         if self._hitbox is not None:
             return self._hitbox
@@ -199,8 +207,28 @@ class SpriteFrame:
 
     @hitbox.setter
     def hitbox(self, value: pygame.Rect | None) -> None:
-        """Set the collision hitbox, or None to revert to full-frame fallback."""
+        """Set the collision hitbox, or None to clear the explicit hitbox."""
         self._hitbox = value
+
+    def opaque_bounds(self) -> pygame.Rect:
+        """Return the visible-pixel bounds of this frame's image, measured once per surface.
+
+        Animation frame images are treated as immutable, so the bounds are cached. The
+        cached value is tied to the surface it was measured from: assigning a new ``image``
+        (as Papyrus's prepare_papyrus_sprite does after loading) measures the new surface.
+        Drawing into a frame's surface in place is not detected (Bitmappy's editing fast path
+        does that, but never uses hitboxes).
+
+        Returns:
+            pygame.Rect: A new rect (see glitchygames.collision.bounds.opaque_bounds).
+
+        """
+        cached_entry = self._opaque_bounds_cache
+        if cached_entry is not None and cached_entry[0] is self._image:
+            return cached_entry[1].copy()
+        visible_bounds = measure_opaque_bounds(self._image)
+        self._opaque_bounds_cache = (self._image, visible_bounds)
+        return visible_bounds.copy()
 
     @property
     def has_explicit_hitbox(self) -> bool:

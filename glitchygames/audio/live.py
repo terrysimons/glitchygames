@@ -382,6 +382,11 @@ class LiveAudio:
         self._voices.append(voice)
         return voice
 
+    @property
+    def playing_voice_count(self) -> int:
+        """Number of pool voices currently playing (see LiveVoice.is_playing)."""
+        return sum(1 for voice in self._voices if voice.is_playing)
+
     def release_voice(self, voice: LiveVoice) -> None:
         """Silence a voice and return its channel to the pool."""
         voice.stop_now()

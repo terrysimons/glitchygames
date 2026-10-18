@@ -219,7 +219,7 @@ class _UndoRedoMockScene:
 
     def create_frame(self, animation, frame_index):
         """Create a new frame and track it."""
-        # Use empty pixels to avoid PixelArray.flat issues during redo
+        # Empty pixels: redo rebuilds a blank frame of this size
         frame_data = {
             'width': 32,
             'height': 32,
@@ -245,7 +245,7 @@ class _UndoRedoMockScene:
 
     def create_animation(self, animation_name):
         """Create a new animation and track it."""
-        # Use empty pixels to avoid PixelArray.flat issues during redo
+        # Empty pixels: redo rebuilds a blank frame of this size
         animation_data = {
             'frames': [
                 {

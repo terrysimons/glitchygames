@@ -12,6 +12,10 @@ from glitchygames.collision import (
     get_collision_rect,
     get_collision_rect_with_margin,
 )
+from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
+from glitchygames.collision.detection import snapped_world_position
+from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.pixel_snap import PixelSnapMode
 
 
 def _default_rect(world_x: float, world_y: float, size: int = 32) -> pygame.Rect:
@@ -61,6 +65,30 @@ class HitboxSprite:
 
 
 # --- Detection ---
+
+
+class TestGetSpriteCollisionRect:
+    """Public sprite-to-collision-rect lookup shared by layers and the debug overlay."""
+
+    def test_is_public_and_uses_world_position(self, mocker):
+        """Sprites with world_x/world_y get their rect at the world position."""
+        sprite = mocker.Mock(spec=['world_x', 'world_y', 'rect'])
+        sprite.world_x, sprite.world_y = 100.0, 50.0
+        sprite.rect = pygame.Rect(0, 0, 10, 20)
+        rect = get_sprite_collision_rect(sprite)
+        assert (rect.x, rect.y) == (100, 50)
+
+    def test_sprite_without_world_position_uses_its_rect(self, mocker):
+        """UI sprites without world_x/world_y fall back to their screen rect."""
+        sprite = mocker.Mock(spec=['rect'])
+        sprite.rect = pygame.Rect(7, 8, 9, 10)
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(7, 8, 9, 10)
+
+    def test_sprite_without_any_rect_gets_empty_rect(self, mocker):
+        """Sprites with neither world position nor rect get an empty rect."""
+        sprite = mocker.Mock(spec=['rect'])
+        sprite.rect = None
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(0, 0, 0, 0)
 
 
 class TestGetCollisionRect:
@@ -320,3 +348,378 @@ class TestCollisionManager:
         )
         # Should NOT collide because hitbox doesn't reach (97, 97)
         assert len(hits) == 0
+
+
+# --- Visible-pixel hitboxes ---
+
+
+BALL_IMAGE_SIZE = 20
+BALL_RADIUS = 5
+
+
+def _ball_like_image() -> pygame.Surface:
+    """A 20x20 colorkey image with a radius-5 circle in the middle, like BallSprite's."""
+    image = pygame.Surface((BALL_IMAGE_SIZE, BALL_IMAGE_SIZE))
+    image.set_colorkey(0)
+    pygame.draw.circle(
+        image,
+        (255, 255, 255),
+        (BALL_IMAGE_SIZE // 2, BALL_IMAGE_SIZE // 2),
+        BALL_RADIUS,
+        0,
+    )
+    return image
+
+
+class ImageWorldSprite:
+    """A world-space sprite with a real image and no TOML hitbox."""
+
+    def __init__(self, *, image, world_x=0.0, world_y=0.0):
+        """Initialize the test double."""
+        self.image = image
+        self.world_x = world_x
+        self.world_y = world_y
+        self.rect = image.get_rect()
+
+
+class UntrimmedImageWorldSprite(ImageWorldSprite):
+    """A world-space sprite whose class opts out of visible-pixel trimming."""
+
+    TRIM_TRANSPARENT_HITBOX = False
+
+
+class SnappingImageWorldSprite(ImageWorldSprite):
+    """A world-space sprite with its own pixel snap mode, like BallSprite."""
+
+    def __init__(self, *, pixel_snap_mode, **kwargs):
+        """Initialize the test double."""
+        super().__init__(**kwargs)
+        self.pixel_snap_mode = pixel_snap_mode
+
+
+class ImageScreenSprite:
+    """A screen-space sprite (rect only, no world position) with a real image."""
+
+    def __init__(self, *, image, x, y):
+        """Initialize the test double."""
+        self.image = image
+        self.rect = image.get_rect(topleft=(x, y))
+
+
+class TestOpaqueBounds:
+    """opaque_bounds: the visible-pixel rect of an image, cached per surface."""
+
+    def test_colorkey_circle_is_trimmed_to_its_visible_pixels(self):
+        """The ball's radius-5 circle on a 20x20 colorkey image is a 10x10 box at (5, 5)."""
+        assert opaque_bounds(_ball_like_image()) == pygame.Rect(5, 5, 10, 10)
+
+    def test_per_pixel_alpha_is_honoured(self):
+        """Fully transparent SRCALPHA pixels are trimmed."""
+        image = pygame.Surface((8, 8), pygame.SRCALPHA)
+        image.fill((10, 20, 30, 255), pygame.Rect(2, 3, 4, 1))
+        assert opaque_bounds(image) == pygame.Rect(2, 3, 4, 1)
+
+    def test_opaque_image_keeps_its_full_rect(self):
+        """An image without colorkey or alpha is visible everywhere."""
+        assert opaque_bounds(pygame.Surface((12, 7))) == pygame.Rect(0, 0, 12, 7)
+
+    def test_fully_transparent_image_keeps_its_full_rect(self):
+        """An invisible trigger image keeps its whole area instead of an empty rect."""
+        image = pygame.Surface((16, 9), pygame.SRCALPHA)
+        assert opaque_bounds(image) == pygame.Rect(0, 0, 16, 9)
+
+    def test_returns_a_copy_callers_may_mutate(self):
+        """Mutating a returned rect does not change later results."""
+        image = _ball_like_image()
+        first = opaque_bounds(image)
+        first.move_ip(100, 100)
+        assert opaque_bounds(image) == pygame.Rect(5, 5, 10, 10)
+
+    def test_in_place_redraw_is_measured_again(self):
+        """Bounds are measured on every call, so redrawing into the same surface is seen."""
+        image = _ball_like_image()
+        assert opaque_bounds(image) == pygame.Rect(5, 5, 10, 10)
+
+        image.fill((0, 0, 0))
+        image.fill((255, 255, 255), pygame.Rect(1, 2, 3, 4))
+        assert opaque_bounds(image) == pygame.Rect(1, 2, 3, 4)
+
+    def test_query_before_first_draw_then_draw(self):
+        """A blank image (queried before the game draws it) is full-size, then trims once drawn.
+
+        Brave Adventurer and Clockwork Keep create a blank SRCALPHA image and draw into it in
+        update(), after dt_tick has already run collision checks.
+        """
+        image = pygame.Surface((16, 9), pygame.SRCALPHA)
+        assert opaque_bounds(image) == pygame.Rect(0, 0, 16, 9)
+
+        image.fill((255, 0, 0, 255), pygame.Rect(4, 2, 6, 5))
+        assert opaque_bounds(image) == pygame.Rect(4, 2, 6, 5)
+
+    def test_pose_change_in_place_follows(self):
+        """A cobra-like pose change redrawn into the same surface moves the trimmed rect."""
+        image = pygame.Surface((20, 20), pygame.SRCALPHA)
+        image.fill((0, 255, 0, 255), pygame.Rect(2, 10, 6, 10))  # coiled
+        assert opaque_bounds(image) == pygame.Rect(2, 10, 6, 10)
+
+        image.fill((0, 0, 0, 0))
+        image.fill((0, 255, 0, 255), pygame.Rect(2, 2, 16, 18))  # striking
+        assert opaque_bounds(image) == pygame.Rect(2, 2, 16, 18)
+
+    def test_trims_transparent_hitbox_defaults_to_true(self):
+        """Sprites without the attribute trim; the attribute opts out."""
+        assert trims_transparent_hitbox(ImageWorldSprite(image=_ball_like_image())) is True
+        untrimmed = UntrimmedImageWorldSprite(image=_ball_like_image())
+        assert trims_transparent_hitbox(untrimmed) is False
+
+
+class TestVisiblePixelCollisionRect:
+    """Collision rects default to the visible pixels of the sprite's image."""
+
+    def test_world_sprite_rect_is_trimmed_to_visible_pixels(self):
+        """A ball-like world sprite at (100, 50) collides as the 10x10 circle box."""
+        sprite = ImageWorldSprite(image=_ball_like_image(), world_x=100.0, world_y=50.0)
+        rect = get_collision_rect(sprite, world_x=100.0, world_y=50.0)
+        assert rect == pygame.Rect(105, 55, 10, 10)
+
+    def test_class_attribute_opts_out_of_trimming(self):
+        """TRIM_TRANSPARENT_HITBOX = False on the class keeps the full image size."""
+        sprite = UntrimmedImageWorldSprite(image=_ball_like_image(), world_x=100.0, world_y=50.0)
+        rect = get_collision_rect(sprite, world_x=100.0, world_y=50.0)
+        assert rect == pygame.Rect(100, 50, 20, 20)
+
+    def test_instance_attribute_opts_out_of_trimming(self):
+        """TRIM_TRANSPARENT_HITBOX = False on one instance keeps the full image size."""
+        sprite = ImageWorldSprite(image=_ball_like_image(), world_x=100.0, world_y=50.0)
+        sprite.TRIM_TRANSPARENT_HITBOX = False
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(100, 50, 20, 20)
+
+    def test_toml_hitbox_wins_over_trimming(self):
+        """A sprite with get_hitbox_world_rect keeps its explicit hitbox."""
+        sprite = HitboxSprite(world_x=100.0, world_y=200.0)
+        sprite.image = _ball_like_image()  # type: ignore[attr-defined]
+        assert get_collision_rect(sprite, world_x=100.0, world_y=200.0) == pygame.Rect(
+            104, 202, 24, 28
+        )
+
+    def test_screen_sprite_rect_is_trimmed_to_visible_pixels(self):
+        """A sprite without a world position trims from its screen rect's top-left."""
+        sprite = ImageScreenSprite(image=_ball_like_image(), x=30, y=40)
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(35, 45, 10, 10)
+
+    def test_screen_sprite_opt_out_returns_its_rect(self):
+        """A screen sprite that opts out collides as its full rect."""
+        sprite = ImageScreenSprite(image=_ball_like_image(), x=30, y=40)
+        sprite.TRIM_TRANSPARENT_HITBOX = False
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(30, 40, 20, 20)
+
+    def test_check_overlap_ignores_transparent_corners(self):
+        """Two ball-like sprites whose full boxes overlap but visible boxes do not miss."""
+        manager = CollisionManager()
+        manager.add_layer('balls')
+        first = ImageWorldSprite(image=_ball_like_image(), world_x=100.0, world_y=100.0)
+        # Full boxes overlap (100-120 vs 112-132); visible boxes (105-115 vs 117-127) do not.
+        second = ImageWorldSprite(image=_ball_like_image(), world_x=112.0, world_y=100.0)
+        manager.get_layer('balls').add(first)
+        manager.get_layer('balls').add(second)
+
+        hits: list[tuple] = []
+        manager.check_overlap('balls', 'balls', callback=lambda a, b: hits.append((a, b)))
+        assert hits == []
+
+
+class TestSnappedCollisionPosition:
+    """Collision rects use the sprite's own pixel snapping, matching where it is drawn."""
+
+    def test_snap_mode_sprite_rounds_half_up(self):
+        """NEAREST_HALF_UP draws 10.5 at 11, so the collision rect is at 11 too."""
+        sprite = SnappingImageWorldSprite(
+            image=_ball_like_image(),
+            world_x=10.5,
+            world_y=20.5,
+            pixel_snap_mode=PixelSnapMode.NEAREST_HALF_UP,
+        )
+        assert snapped_world_position(sprite, world_x=10.5, world_y=20.5) == (11, 21)
+        assert get_sprite_collision_rect(sprite) == pygame.Rect(16, 26, 10, 10)
+
+    def test_floor_snap_mode_sprite(self):
+        """FLOOR snapping is honoured as well."""
+        sprite = SnappingImageWorldSprite(
+            image=_ball_like_image(),
+            world_x=10.9,
+            world_y=-0.5,
+            pixel_snap_mode=PixelSnapMode.FLOOR,
+        )
+        assert snapped_world_position(sprite, world_x=10.9, world_y=-0.5) == (10, -1)
+
+    def test_sprite_without_snap_mode_uses_round(self):
+        """Sprites without pixel_snap_mode keep Python round() (halves to even)."""
+        sprite = FakeSprite(world_x=10.5, world_y=11.5)
+        assert snapped_world_position(sprite, world_x=10.5, world_y=11.5) == (10, 12)
+        assert get_collision_rect(sprite, world_x=10.5, world_y=11.5).topleft == (10, 12)
+
+
+class TestRedrawnGameSprites:
+    """Games that redraw into the same image each update get up-to-date hitboxes."""
+
+    @pytest.fixture(autouse=True)
+    def real_display(self):
+        """Brave Adventurer's sprites convert against a real display."""
+        pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 600))
+
+    def test_cobra_hitbox_follows_first_draw_and_strike(self):
+        """Brave Adventurer's Cobra: blank before update(), then idle, then striking pose."""
+        from glitchygames.examples.brave_adventurer.enemies import Cobra
+
+        cobra = Cobra(500.0, pygame.sprite.LayeredDirty())
+        full_rect = get_sprite_collision_rect(cobra)
+        assert full_rect.size == cobra.image.get_size()
+
+        cobra.update()
+        idle_rect = get_sprite_collision_rect(cobra)
+        idle_visible = cobra.image.get_bounding_rect()
+        assert idle_rect.size == idle_visible.size
+        assert idle_rect.topleft == (
+            full_rect.x + idle_visible.x,
+            full_rect.y + idle_visible.y,
+        )
+
+        cobra.striking = True
+        cobra.update()
+        striking_visible = cobra.image.get_bounding_rect()
+        assert striking_visible != idle_visible
+        assert get_sprite_collision_rect(cobra).size == striking_visible.size
+
+
+class TestPapyrusHitboxScale:
+    """Papyrus draws sprites at SPRITE_SCALE, so its TOML hitboxes must scale with them."""
+
+    @pytest.fixture(autouse=True)
+    def real_display(self):
+        """Papyrus sprites load TOML art and convert against a real display."""
+        pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 600))
+
+    def test_scaled_papyrus_player_collides_at_twice_the_toml_hitbox(self):
+        """After its first tick the player's collision rect is the TOML hitbox times 2."""
+        from glitchygames.examples.brave_adventurer_papyrus.constants import SPRITE_SCALE
+        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+
+        player = PapyrusPlayer(100.0, 200.0, pygame.sprite.LayeredDirty())
+        player.dt_tick(0.0)
+
+        assert player.hitbox_scale == SPRITE_SCALE == 2
+        frame = player.get_current_frame()
+        assert frame is not None
+        native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
+        assert native_hitbox is not None
+        draw_offset_x, draw_offset_y = player.draw_offset  # BOTTOM frame anchoring
+        assert get_sprite_collision_rect(player) == pygame.Rect(
+            round(player.world_x) + native_hitbox.x * 2 + draw_offset_x,
+            round(player.world_y) + native_hitbox.y * 2 + draw_offset_y,
+            native_hitbox.width * 2,
+            native_hitbox.height * 2,
+        )
+
+    @pytest.mark.parametrize(
+        'sprite_name', ['player', 'cobra', 'scarab', 'scorpion', 'gold_scarab']
+    )
+    def test_freshly_constructed_sprites_have_scaled_hitboxes_before_any_tick(self, sprite_name):
+        """No frame ever uses native-size hitboxes: the scale is set when the sprite is built."""
+        from glitchygames.examples.brave_adventurer_papyrus.constants import SPRITE_SCALE
+        from glitchygames.examples.brave_adventurer_papyrus.enemies import (
+            PapyrusCobra,
+            PapyrusScarab,
+            PapyrusScorpion,
+        )
+        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+        from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+
+        group = pygame.sprite.LayeredDirty()
+        builders = {
+            'player': lambda: PapyrusPlayer(100.0, 200.0, group),
+            'cobra': lambda: PapyrusCobra(100.0, group),
+            'scarab': lambda: PapyrusScarab(100.0, group),
+            'scorpion': lambda: PapyrusScorpion(100.0, group),
+            'gold_scarab': lambda: PapyrusGoldScarab(100.0, 200.0, group),
+        }
+        sprite = builders[sprite_name]()
+
+        assert sprite.hitbox_scale == SPRITE_SCALE
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        if frame.has_explicit_hitbox:
+            native_hitbox = frame.hitbox
+        elif sprite.default_hitbox is not None:
+            native_hitbox = sprite.default_hitbox
+        else:
+            native_hitbox = frame.opaque_bounds()
+        assert sprite.hitbox.size == (
+            native_hitbox.width * SPRITE_SCALE,
+            native_hitbox.height * SPRITE_SCALE,
+        )
+
+    def test_scale_one_keeps_native_hitbox(self):
+        """apply_transparency_and_scale with scale_factor=1 leaves hitboxes native."""
+        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+        from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+            apply_transparency_and_scale,
+        )
+
+        player = PapyrusPlayer(100.0, 200.0, pygame.sprite.LayeredDirty())
+        apply_transparency_and_scale(player, scale_factor=1)
+
+        assert player.hitbox_scale == 1
+        frame = player.get_current_frame()
+        assert frame is not None
+        native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
+        assert native_hitbox is not None
+        assert player.hitbox == native_hitbox.move(player.draw_offset)
+
+
+class TestCallbacksThatRemoveSprites:
+    """Callbacks may remove sprites from the layers being checked without skipping pairs."""
+
+    def test_check_overlap_collects_two_overlapped_pickups_in_one_pass(self):
+        """Removing the first pickup inside the callback must not skip the second."""
+        manager = CollisionManager()
+        manager.add_layer('player')
+        manager.add_layer('cogs')
+        player = FakeSprite(world_x=100.0, world_y=100.0)
+        first_cog = FakeSprite(world_x=110.0, world_y=110.0)
+        second_cog = FakeSprite(world_x=120.0, world_y=105.0)
+        manager.get_layer('player').add(player)
+        manager.get_layer('cogs').add(first_cog)
+        manager.get_layer('cogs').add(second_cog)
+        collected = []
+
+        def collect(_player, cog):
+            collected.append(cog)
+            manager.get_layer('cogs').remove(cog)
+
+        manager.check_overlap('player', 'cogs', callback=collect)
+
+        assert collected == [first_cog, second_cog]
+        assert manager.get_layer('cogs').sprites == []
+
+    def test_check_single_collects_two_overlapped_pickups_in_one_pass(self):
+        """check_single iterates a snapshot too."""
+        manager = CollisionManager()
+        manager.add_layer('cogs')
+        player = FakeSprite(world_x=100.0, world_y=100.0)
+        first_cog = FakeSprite(world_x=110.0, world_y=110.0)
+        second_cog = FakeSprite(world_x=120.0, world_y=105.0)
+        manager.get_layer('cogs').add(first_cog)
+        manager.get_layer('cogs').add(second_cog)
+        collected = []
+
+        def collect(_player, cog):
+            collected.append(cog)
+            manager.get_layer('cogs').remove(cog)
+
+        manager.check_single(player, 'cogs', callback=collect)
+
+        assert collected == [first_cog, second_cog]

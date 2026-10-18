@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.camera import Camera2D
+from glitchygames.collision.detection import snapped_world_position
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.engine import GameEngine
 from glitchygames.examples.brave_adventurer.constants import (
     DEATH_RUMBLE_DURATION,
@@ -41,9 +43,6 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     LAYER_NEAR_BACKGROUND,
     LAYER_SKY,
     PAPYRUS_PLAYER_HEIGHT,
-    PAPYRUS_PLAYER_WIDTH,
-    PAPYRUS_SCARAB_HEIGHT,
-    PAPYRUS_SCARAB_WIDTH,
     PARALLAX_FAR,
     PARALLAX_MID,
     PARALLAX_NEAR,
@@ -167,6 +166,8 @@ class PapyrusBraveAdventurerScene(Scene):
 
         # Game state
         self.game_over_triggered: bool = False
+        # Set by the first enemy contact in a collision pass (see _on_player_enemy_collision)
+        self._enemy_hit_this_pass: bool = False
 
         # Persistence
         self.saves = SaveManager(app_name='brave-adventurer-papyrus')
@@ -321,9 +322,14 @@ class PapyrusBraveAdventurerScene(Scene):
         """Check if the player lands on ground and snap to the surface."""
         self.player.on_ground = False
 
+        # Horizontal support comes from the collision rect (hitbox), not the drawn width
+        player_rect = get_sprite_collision_rect(self.player)
+        # Support uses the span every frame/pose shares, so a pose change cannot drop and
+        # re-catch a player at a ledge edge (see common_hitbox_x_range)
+        support_left, support_right = self._player_support_span()
         trailing_foot_x = self._get_trailing_foot_x(
-            body_x=self.player.world_x,
-            body_width=PAPYRUS_PLAYER_WIDTH,
+            body_x=support_left,
+            body_width=support_right - support_left,
             velocity_x=self.player.velocity_x,
         )
         player_bottom = round(self.player.world_y) + PAPYRUS_PLAYER_HEIGHT
@@ -354,8 +360,10 @@ class PapyrusBraveAdventurerScene(Scene):
             not self.player.on_ground
             and round(self.player.world_y) + PAPYRUS_PLAYER_HEIGHT > GROUND_Y
         ):
-            player_left = round(self.player.world_x)
-            player_right = player_left + PAPYRUS_PLAYER_WIDTH
+            player_rect = get_sprite_collision_rect(self.player)
+            player_offset_x, _ = collision_rect_offset(self.player)
+            player_left = player_rect.left
+            player_right = player_rect.right
 
             for ground_segment in self.ground_sprites:
                 segment_left = round(ground_segment.world_x)
@@ -366,7 +374,10 @@ class PapyrusBraveAdventurerScene(Scene):
                     and player_right > segment_left
                     and player_left < segment_left
                 ):
-                    self.player.world_x = segment_left - PAPYRUS_PLAYER_WIDTH
+                    # Hitbox right edge flush with the segment's left edge
+                    self.player.world_x = float(
+                        segment_left - (player_offset_x + player_rect.width)
+                    )
                     break
 
                 if (
@@ -374,7 +385,8 @@ class PapyrusBraveAdventurerScene(Scene):
                     and player_left < segment_right
                     and player_right > segment_right
                 ):
-                    self.player.world_x = float(segment_right)
+                    # Hitbox left edge flush with the segment's right edge
+                    self.player.world_x = float(segment_right - player_offset_x)
                     break
 
     def _resolve_player_wall_collision(self: Self) -> None:
@@ -383,10 +395,13 @@ class PapyrusBraveAdventurerScene(Scene):
         Handles landing on top (treated like ground) and side collision
         (horizontal push-back). The on-top check runs first.
         """
-        player_left = round(self.player.world_x)
-        player_right = player_left + PAPYRUS_PLAYER_WIDTH
+        # Left/right edges come from the collision rect (hitbox), not the drawn width
+        player_rect = get_sprite_collision_rect(self.player)
+        player_offset_x, _ = collision_rect_offset(self.player)
         player_top = round(self.player.world_y)
         player_bottom = player_top + PAPYRUS_PLAYER_HEIGHT
+
+        support_left, support_right = self._player_support_span()
 
         for wall in self.wall_sprites:
             wall_left = round(wall.world_x)
@@ -394,7 +409,9 @@ class PapyrusBraveAdventurerScene(Scene):
             wall_top = round(wall.world_y)
             wall_bottom = wall_top + wall.wall_height
 
-            horizontally_overlapping = player_right > wall_left and player_left < wall_right
+            horizontally_overlapping = (
+                player_rect.right > wall_left and player_rect.left < wall_right
+            )
 
             if not horizontally_overlapping:
                 continue
@@ -408,6 +425,9 @@ class PapyrusBraveAdventurerScene(Scene):
                 and player_bottom <= wall_top + landing_tolerance
                 and player_top < wall_top
                 and self.player.velocity_y >= 0
+                # Supported by the span every frame/pose shares, not the current hitbox
+                and support_right > wall_left
+                and support_left < wall_right
             )
 
             if standing_on_top:
@@ -419,10 +439,53 @@ class PapyrusBraveAdventurerScene(Scene):
             vertically_overlapping = player_bottom > wall_top and player_top < wall_bottom
 
             if vertically_overlapping:
-                if self.player.velocity_x > 0:
-                    self.player.world_x = wall.world_x - PAPYRUS_PLAYER_WIDTH
-                elif self.player.velocity_x < 0:
-                    self.player.world_x = wall.world_x + STONE_WALL_WIDTH
+                if self._entered_wall_from_left(
+                    player_rect=player_rect, wall_left=wall_left, wall_right=wall_right
+                ):
+                    self.player.world_x = float(wall_left - (player_offset_x + player_rect.width))
+                else:
+                    self.player.world_x = float(wall_right - player_offset_x)
+
+    def _player_support_span(self: Self) -> tuple[int, int]:
+        """Return the player's support span in world pixels: (left, right), right exclusive.
+
+        It is the hitbox x-range every animation frame or pose shares (it does not change
+        when the frame changes), at the player's snapped world position.
+
+        Returns:
+            tuple[int, int]: The span's left and right world x.
+
+        """
+        snapped_world_x, _ = snapped_world_position(
+            self.player, self.player.world_x, self.player.world_y
+        )
+        left_offset, right_offset = self.player.common_hitbox_x_range()
+        return (snapped_world_x + left_offset, snapped_world_x + right_offset)
+
+    def _entered_wall_from_left(
+        self: Self, *, player_rect: pygame.Rect, wall_left: int, wall_right: int
+    ) -> bool:
+        """Decide which side of a wall an overlapping player is pushed out of.
+
+        Uses where the hitbox was before this frame's movement (velocity_x * dt back): if
+        it was clear of the wall on one side, the player came in from that side, even when
+        a dt hitch carried its centre past the wall's centre. If it already overlapped (the
+        hitbox widened with a new animation frame or pose, or the player is not moving),
+        the side of the wall's centre the hitbox's centre is on decides, so a widened hitbox
+        is pushed back out on its own side, never through the wall.
+
+        Returns:
+            bool: True to push the player out to the left of the wall, False to the right.
+
+        """
+        displacement_x = self.player.velocity_x * self.dt
+        previous_left = player_rect.left - displacement_x
+        previous_right = player_rect.right - displacement_x
+        if previous_right <= wall_left:
+            return True
+        if previous_left >= wall_right:
+            return False
+        return player_rect.centerx < (wall_left + wall_right) / 2
 
     def _resolve_enemy_terrain_collisions(self: Self) -> None:
         """Resolve enemy-terrain collisions so scarabs follow the ground."""
@@ -432,12 +495,16 @@ class PapyrusBraveAdventurerScene(Scene):
             if not isinstance(enemy, PapyrusScarab):
                 continue
 
-            scarab_bottom = enemy.world_y + PAPYRUS_SCARAB_HEIGHT
+            # Vertical contact uses the hitbox bottom (the visible underside), not the image
+            scarab_rect = get_sprite_collision_rect(enemy)
+            _, scarab_offset_y = collision_rect_offset(enemy)
+            scarab_feet = scarab_offset_y + scarab_rect.height
+            scarab_bottom = enemy.world_y + scarab_feet
 
             # Ground collision: land on the nearest ground segment
             landed = False
             if self.ground_sprites:
-                scarab_center_x = round(enemy.world_x) + PAPYRUS_SCARAB_WIDTH // 2
+                scarab_center_x = get_sprite_collision_rect(enemy).centerx
                 for ground_segment in self.ground_sprites:
                     segment_left = round(ground_segment.world_x)
                     segment_right = segment_left + ground_segment.segment_width
@@ -446,14 +513,14 @@ class PapyrusBraveAdventurerScene(Scene):
                         scarab_center_x >= segment_left and scarab_center_x < segment_right
                     )
                     if over_segment and scarab_bottom >= GROUND_Y and enemy.velocity_y >= 0:
-                        enemy.world_y = GROUND_Y - PAPYRUS_SCARAB_HEIGHT
+                        enemy.world_y = float(GROUND_Y - scarab_feet)
                         enemy.velocity_y = 0.0
                         enemy.on_ground = True
                         landed = True
                         break
 
             # Pit floor: if scarab fell below ground level, land on pit floor
-            pit_floor_y = self.screen_height - PAPYRUS_SCARAB_HEIGHT
+            pit_floor_y = self.screen_height - scarab_feet
             if not landed and scarab_bottom >= self.screen_height:
                 enemy.world_y = float(pit_floor_y)
                 enemy.velocity_y = 0.0
@@ -463,14 +530,14 @@ class PapyrusBraveAdventurerScene(Scene):
             for wall in self.wall_sprites:
                 wall_left = round(wall.world_x)
                 wall_right = wall_left + STONE_WALL_WIDTH
-                scarab_left = round(enemy.world_x)
-                scarab_right = scarab_left + PAPYRUS_SCARAB_WIDTH
+                scarab_rect = get_sprite_collision_rect(enemy)
+                scarab_offset_x, _ = collision_rect_offset(enemy)
 
-                if scarab_right > wall_left and scarab_left < wall_right:
+                if scarab_rect.right > wall_left and scarab_rect.left < wall_right:
                     if enemy.roll_speed < 0:
-                        enemy.world_x = float(wall_right)
+                        enemy.world_x = float(wall_right - scarab_offset_x)
                     else:
-                        enemy.world_x = float(wall_left - PAPYRUS_SCARAB_WIDTH)
+                        enemy.world_x = float(wall_left - (scarab_offset_x + scarab_rect.width))
                     enemy.roll_speed = -enemy.roll_speed
 
     def _check_enemy_collisions(self: Self) -> None:
@@ -479,6 +546,7 @@ class PapyrusBraveAdventurerScene(Scene):
         Uses the collision manager with TOML hitboxes for accurate
         sprite-vs-sprite detection.
         """
+        self._enemy_hit_this_pass = False
         self.collisions.check_overlap(
             'player',
             'enemies',
@@ -486,7 +554,14 @@ class PapyrusBraveAdventurerScene(Scene):
         )
 
     def _on_player_enemy_collision(self: Self, _player: Any, _enemy: Any) -> None:
-        """Handle player-enemy collision by triggering death."""
+        """Handle player-enemy collision by triggering death, once per collision pass.
+
+        Touching two enemies at once must cost one life and one respawn, and a player
+        already dying or respawning cannot die again.
+        """
+        if self._enemy_hit_this_pass or self.player.is_respawning:
+            return
+        self._enemy_hit_this_pass = True
         self._player_die()
 
     def _check_collectible_collisions(self: Self) -> None:

@@ -5,7 +5,7 @@ Re-exports all public names from submodules for backwards compatibility.
 
 from __future__ import annotations
 
-from .animated import AnimatedSprite
+from .animated import AnimatedSprite, FrameAnchor
 from .animated_interface import AnimatedSpriteInterface
 from .bitmappy_sprite import (
     BitmappySprite,
@@ -26,6 +26,7 @@ __all__ = [
     'AnimatedSpriteInterface',
     'BitmappySprite',
     'FocusableSingletonBitmappySprite',
+    'FrameAnchor',
     'RootSprite',
     'Singleton',
     'SingletonBitmappySprite',

@@ -313,7 +313,7 @@ class InputConfirmationDialogScene(Scene):
         if self.dialog.input_box.is_active:
             self.dialog.on_key_down_event(event)
         else:
-            super().on_key_up_event(event)
+            super().on_key_down_event(event)
 
 
 class NewCanvasDialogScene(InputConfirmationDialogScene):

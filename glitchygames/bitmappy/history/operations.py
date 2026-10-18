@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 from .commands import (
     AnimationAddCommand,
     AnimationDeleteCommand,
+    AnimationRenameCommand,
     BrushStrokeCommand,
     ControllerModeCommand,
     ControllerPositionCommand,
@@ -324,6 +325,23 @@ class FilmStripOperationTracker:
 
         self.undo_redo_manager.push_command(command)
         LOG.debug(f'Tracked animation deletion: {command.description}')
+
+    def add_animation_renamed(self, *, old_name: str, new_name: str) -> None:
+        """Track when an animation is renamed.
+
+        Args:
+            old_name: The animation's name before the rename.
+            new_name: The animation's name after the rename.
+
+        """
+        command = AnimationRenameCommand(
+            editor=self.editor,
+            old_name=old_name,
+            new_name=new_name,
+        )
+
+        self.undo_redo_manager.push_command(command)
+        LOG.debug(f'Tracked animation rename: {command.description}')
 
     def add_frame_selection(self, animation: str, frame: int) -> None:
         """Track when a frame is selected.

@@ -1,5 +1,6 @@
 """Tests for animated sprite functionality."""
 
+import logging
 import math
 import shutil
 import sys
@@ -16,12 +17,13 @@ from scripts.sprite_stack import (
 )
 
 import glitchygames.sprites
+import glitchygames.sprites.frame as frame_module
 from glitchygames.sprites import (
     AnimatedSpriteInterface,
     BitmappySprite,
     SpriteFactory,
 )
-from glitchygames.sprites.animated import AnimatedSprite
+from glitchygames.sprites.animated import AnimatedSprite, FrameAnchor
 from glitchygames.sprites.frame import SpriteFrame
 from glitchygames.sprites.pixel_utils import (
     convert_pixels_to_rgb_if_possible,
@@ -2345,7 +2347,10 @@ class TestSpriteFrameHitbox:
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_default_hitbox_is_full_frame(self):
-        """SpriteFrame without explicit hitbox falls back to full frame rect."""
+        """SpriteFrame's own hitbox without an explicit one is its full frame rect.
+
+        AnimatedSprite.hitbox does not use this fallback; it trims to visible pixels.
+        """
         surface = pygame.Surface((16, 24))
         frame = SpriteFrame(surface)
         assert frame.hitbox == frame.rect
@@ -2371,7 +2376,7 @@ class TestSpriteFrameHitbox:
         assert frame.has_explicit_hitbox
 
     def test_hitbox_reset_to_none(self):
-        """Setting hitbox to None reverts to full-frame fallback."""
+        """Setting hitbox to None clears the explicit hitbox (SpriteFrame's rect again)."""
         surface = pygame.Surface((16, 24))
         frame = SpriteFrame(surface, hitbox=pygame.Rect(4, 0, 12, 20))
         assert frame.has_explicit_hitbox
@@ -2390,7 +2395,7 @@ class TestAnimatedSpriteHitbox:
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
     def test_sprite_hitbox_fallback(self):
-        """Sprite with no hitbox set anywhere falls back to full frame rect."""
+        """With no hitbox set anywhere, a fully opaque frame's visible bounds are its rect."""
         sprite = AnimatedSprite()
         surface = pygame.Surface((16, 24))
         frame = SpriteFrame(surface, duration=FRAME_DURATION)
@@ -2439,6 +2444,401 @@ class TestAnimatedSpriteHitbox:
         sprite.default_hitbox = pygame.Rect(4, 2, 12, 20)
         world_rect = sprite.get_hitbox_world_rect(world_x=100.0, world_y=200.0)
         assert world_rect == pygame.Rect(104, 202, 12, 20)
+
+
+class TestAnimatedSpriteVisiblePixelHitbox:
+    """AnimatedSprite falls back to the current frame's visible pixels (real surfaces)."""
+
+    @staticmethod
+    def _frame_with_visible_box(visible_box: pygame.Rect, *, hitbox=None) -> SpriteFrame:
+        """Build a 16x24 per-pixel-alpha frame whose only visible pixels fill visible_box."""
+        surface = pygame.Surface((16, 24), pygame.SRCALPHA)
+        surface.fill((200, 100, 50, 255), visible_box)
+        return SpriteFrame(surface, duration=FRAME_DURATION, hitbox=hitbox)
+
+    def test_fallback_hitbox_is_trimmed_to_visible_pixels(self):
+        """With no explicit or default hitbox, the hitbox is the frame's visible box."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+        assert sprite.get_hitbox_world_rect(world_x=100.0, world_y=200.0) == pygame.Rect(
+            103, 204, 10, 18
+        )
+
+    def test_fallback_follows_the_current_frame(self):
+        """Each frame's own visible box is used as the animation advances."""
+        sprite = AnimatedSprite()
+        first = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        second = self._frame_with_visible_box(pygame.Rect(0, 10, 16, 14))
+        sprite.add_animation('walk', [first, second])
+        sprite.set_animation('walk')
+
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+        sprite.set_frame(1)
+        assert sprite.hitbox == pygame.Rect(0, 10, 16, 14)
+
+    def test_opt_out_keeps_the_full_frame_rect(self):
+        """TRIM_TRANSPARENT_HITBOX = False uses the full frame rect, not the visible pixels."""
+        sprite = AnimatedSprite()
+        sprite.TRIM_TRANSPARENT_HITBOX = False  # type: ignore[attr-defined]
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        assert sprite.hitbox == pygame.Rect(0, 0, 16, 24)
+
+    def test_explicit_frame_hitbox_wins_over_trimming(self):
+        """A per-frame TOML hitbox is used as-is."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(
+            pygame.Rect(3, 4, 10, 18), hitbox=pygame.Rect(1, 1, 2, 2)
+        )
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        assert sprite.hitbox == pygame.Rect(1, 1, 2, 2)
+
+    def test_frame_bounds_are_measured_once_per_frame_surface(self, mocker):
+        """Frame images are immutable, so each frame surface is measured only once."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        measure_spy = mocker.spy(frame_module, 'measure_opaque_bounds')
+
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+
+        assert measure_spy.call_count == 1
+
+    def test_replacing_a_frame_image_measures_the_new_surface(self):
+        """Papyrus's prepare_papyrus_sprite replaces frame.image after load; bounds follow."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+
+        replacement = pygame.Surface((16, 24), pygame.SRCALPHA)
+        replacement.fill((1, 2, 3, 255), pygame.Rect(0, 0, 5, 6))
+        frame.image = replacement
+
+        assert sprite.hitbox == pygame.Rect(0, 0, 5, 6)
+
+    def test_hitbox_scale_defaults_to_one(self):
+        """Unscaled sprites keep native-pixel hitboxes."""
+        sprite = AnimatedSprite()
+        assert sprite.hitbox_scale == 1
+
+    def test_hitbox_scale_multiplies_explicit_frame_hitbox(self):
+        """A sprite drawn at 2x gets its per-frame TOML hitbox at 2x offset and size."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(
+            pygame.Rect(3, 4, 10, 18), hitbox=pygame.Rect(3, 0, 11, 27)
+        )
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.hitbox_scale = 2
+
+        assert sprite.hitbox == pygame.Rect(6, 0, 22, 54)
+        assert frame.hitbox == pygame.Rect(3, 0, 11, 27)  # the frame's own hitbox is untouched
+        assert sprite.get_hitbox_world_rect(world_x=100.0, world_y=200.0) == pygame.Rect(
+            106, 200, 22, 54
+        )
+
+    def test_hitbox_scale_multiplies_default_hitbox(self):
+        """The sprite-level default hitbox is scaled too."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.default_hitbox = pygame.Rect(1, 2, 12, 20)
+        sprite.hitbox_scale = 2
+
+        assert sprite.hitbox == pygame.Rect(2, 4, 24, 40)
+        assert sprite.default_hitbox == pygame.Rect(1, 2, 12, 20)
+
+    def test_hitbox_scale_multiplies_trimmed_fallback(self):
+        """The visible-pixel fallback, measured on the native frame, is scaled too."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.hitbox_scale = 3
+
+        assert sprite.hitbox == pygame.Rect(9, 12, 30, 54)
+
+    def test_hitbox_flip_x_defaults_to_false(self):
+        """Unflipped sprites keep their hitboxes where the TOML puts them."""
+        assert AnimatedSprite().hitbox_flip_x is False
+
+    def test_hitbox_flip_x_mirrors_explicit_hitbox_within_drawn_width(self):
+        """Facing left, a 2x sprite's hitbox is mirrored inside its 32 px drawn width."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(
+            pygame.Rect(3, 4, 10, 18), hitbox=pygame.Rect(3, 0, 11, 27)
+        )
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.hitbox_scale = 2
+        sprite.hitbox_flip_x = True
+
+        # Drawn (6, 0, 22, 54) mirrored in 16 * 2 = 32 px: x = 32 - (6 + 22) = 4
+        assert sprite.hitbox == pygame.Rect(4, 0, 22, 54)
+
+    def test_hitbox_flip_x_mirrors_default_and_trimmed_hitboxes(self):
+        """The default hitbox and the visible-pixel fallback are mirrored too."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.hitbox_flip_x = True
+
+        assert sprite.hitbox == pygame.Rect(16 - (3 + 10), 4, 10, 18)
+        sprite.default_hitbox = pygame.Rect(1, 2, 12, 20)
+        assert sprite.hitbox == pygame.Rect(16 - (1 + 12), 2, 12, 20)
+
+    def test_common_hitbox_x_range_is_the_intersection_of_all_frames(self):
+        """Support uses the columns every frame covers, scaled and mirrored like hitbox."""
+        sprite = AnimatedSprite()
+        idle = self._frame_with_visible_box(
+            pygame.Rect(0, 0, 1, 1), hitbox=pygame.Rect(3, 0, 8, 20)
+        )
+        falling = self._frame_with_visible_box(
+            pygame.Rect(0, 0, 1, 1), hitbox=pygame.Rect(0, 0, 10, 20)
+        )
+        sprite.add_animation('idle', [idle])
+        sprite.add_animation('falling', [falling])
+        sprite.set_animation('idle')
+
+        assert sprite.common_hitbox_x_range() == (3, 10)
+        sprite.hitbox_scale = 2
+        assert sprite.common_hitbox_x_range() == (6, 20)
+        sprite.hitbox_flip_x = True  # mirrored in 16 * 2 = 32 px
+        assert sprite.common_hitbox_x_range() == (12, 26)
+
+    def test_default_hitbox_wins_over_trimming(self):
+        """A sprite-level TOML hitbox is used as-is."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.default_hitbox = pygame.Rect(4, 0, 12, 20)
+
+        assert sprite.hitbox == pygame.Rect(4, 0, 12, 20)
+
+
+class TestAnimatedSpriteFrameAnchor:
+    """FrameAnchor keeps one point of every frame's hitbox in place (real surfaces)."""
+
+    # Three frames with different hitboxes, each frame's visible pixels == its hitbox
+    FRAME_HITBOXES = (
+        pygame.Rect(3, 0, 11, 27),
+        pygame.Rect(1, 2, 14, 22),
+        pygame.Rect(0, 5, 19, 19),
+    )
+
+    def _sprite(self, frame_anchor, *, hitbox_scale=1, hitbox_flip_x=False):
+        """A three-frame sprite in one animation, anchored as given.
+
+        Returns:
+            AnimatedSprite: The sprite.
+
+        """
+        sprite = AnimatedSprite()
+        frames = []
+        for frame_hitbox in self.FRAME_HITBOXES:
+            surface = pygame.Surface((20, 28), pygame.SRCALPHA)
+            surface.fill((10, 200, 30, 255), frame_hitbox)
+            frames.append(SpriteFrame(surface, duration=FRAME_DURATION, hitbox=frame_hitbox))
+        sprite.add_animation('cycle', frames)
+        sprite.set_animation('cycle')
+        sprite.frame_anchor = frame_anchor
+        sprite.hitbox_scale = hitbox_scale
+        sprite.hitbox_flip_x = hitbox_flip_x
+        return sprite
+
+    @staticmethod
+    def _anchor_point(rect, frame_anchor, *, mirrored=False):
+        """Return the anchor's point of a rect, doubled to keep half pixels exact.
+
+        Edge anchors (TOP, BOTTOM, LEFT, RIGHT) anchor only their own axis; the other
+        coordinate is None. When mirrored, an authored left edge is the drawn right edge.
+        """
+        name = frame_anchor.name
+        if mirrored:
+            name = name.replace('LEFT', 'SWAP').replace('RIGHT', 'LEFT').replace('SWAP', 'RIGHT')
+        if name in {'TOP', 'BOTTOM'}:
+            point_x = None
+        elif name.endswith('LEFT'):
+            point_x = 2 * rect.left
+        elif name.endswith('RIGHT'):
+            point_x = 2 * rect.right
+        else:
+            point_x = 2 * rect.left + rect.width
+        if name in {'LEFT', 'RIGHT'}:
+            point_y = None
+        elif name.startswith('TOP'):
+            point_y = 2 * rect.top
+        elif name.startswith('BOTTOM'):
+            point_y = 2 * rect.bottom
+        else:
+            point_y = 2 * rect.top + rect.height
+        return (point_x, point_y)
+
+    def _points_per_frame(self, sprite):
+        """For every frame: the hitbox's anchor point and the drawn pixels' anchor point."""
+        hitbox_points = []
+        drawn_points = []
+        for frame_index in range(len(self.FRAME_HITBOXES)):
+            sprite.set_frame(frame_index)
+            frame = sprite.get_current_frame()
+            hitbox_points.append(
+                self._anchor_point(
+                    sprite.hitbox, sprite.frame_anchor, mirrored=sprite.hitbox_flip_x
+                )
+            )
+            # Where the frame's visible pixels land when drawn at rect = position + draw_offset
+            visible = frame.image.get_bounding_rect()
+            scale = sprite.hitbox_scale
+            drawn_x = visible.x * scale
+            if sprite.hitbox_flip_x:
+                drawn_x = frame.rect.width * scale - (drawn_x + visible.width * scale)
+            drawn = pygame.Rect(
+                drawn_x, visible.y * scale, visible.width * scale, visible.height * scale
+            )
+            drawn.move_ip(sprite.draw_offset)
+            drawn_points.append(
+                self._anchor_point(drawn, sprite.frame_anchor, mirrored=sprite.hitbox_flip_x)
+            )
+        return hitbox_points, drawn_points
+
+    @pytest.mark.parametrize(
+        'frame_anchor',
+        [anchor for anchor in FrameAnchor if anchor is not FrameAnchor.NONE],
+        ids=lambda anchor: anchor.name,
+    )
+    def test_anchor_point_is_identical_for_every_frame(self, frame_anchor):
+        """The anchor point of every frame's hitbox and drawing lands on the reference's."""
+        sprite = self._sprite(frame_anchor, hitbox_scale=2)
+        reference = self.FRAME_HITBOXES[0].unionall(self.FRAME_HITBOXES[1:])
+        scaled_reference = pygame.Rect(
+            reference.x * 2, reference.y * 2, reference.width * 2, reference.height * 2
+        )
+        hitbox_points, drawn_points = self._points_per_frame(sprite)
+        expected = self._anchor_point(scaled_reference, frame_anchor)
+        assert set(hitbox_points) == {expected}
+        assert set(drawn_points) == {expected}
+
+    @pytest.mark.parametrize(
+        ('frame_anchor', 'free_axis'),
+        [
+            (FrameAnchor.TOP, 0),
+            (FrameAnchor.BOTTOM, 0),
+            (FrameAnchor.LEFT, 1),
+            (FrameAnchor.RIGHT, 1),
+        ],
+        ids=lambda value: value.name if isinstance(value, FrameAnchor) else str(value),
+    )
+    def test_edge_anchors_leave_the_other_axis_as_authored(self, frame_anchor, free_axis):
+        """TOP/BOTTOM never move a frame in x; LEFT/RIGHT never move it in y."""
+        sprite = self._sprite(frame_anchor, hitbox_scale=2)
+        for frame_index in range(len(self.FRAME_HITBOXES)):
+            sprite.set_frame(frame_index)
+            assert sprite.draw_offset[free_axis] == 0
+
+    def test_none_is_a_strict_no_op(self):
+        """The default NONE draws frames as authored: no offset, hitboxes unchanged."""
+        sprite = self._sprite(FrameAnchor.NONE)
+        assert AnimatedSprite().frame_anchor is FrameAnchor.NONE
+        for frame_index, frame_hitbox in enumerate(self.FRAME_HITBOXES):
+            sprite.set_frame(frame_index)
+            assert sprite.draw_offset == (0, 0)
+            assert sprite.hitbox == frame_hitbox
+
+    def test_left_anchor_on_a_flipped_sprite_keeps_the_visual_right_edge(self):
+        """Mirrored drawing: LEFT (computed in authored space) pins the on-screen right edge."""
+        sprite = self._sprite(FrameAnchor.LEFT, hitbox_flip_x=True)
+        right_edges = set()
+        drawn_right_edges = set()
+        for frame_index in range(len(self.FRAME_HITBOXES)):
+            sprite.set_frame(frame_index)
+            right_edges.add(sprite.hitbox.right)
+            frame = sprite.get_current_frame()
+            visible = frame.image.get_bounding_rect()
+            drawn_right = frame.rect.width - visible.x + sprite.draw_offset[0]
+            drawn_right_edges.add(drawn_right)
+        # Reference left edge 0 in authored space -> right edge 20 in the 20 px mirrored frame
+        assert right_edges == {20}
+        assert drawn_right_edges == {20}
+
+    @pytest.mark.parametrize(
+        'frame_anchor',
+        [
+            FrameAnchor.LEFT,
+            FrameAnchor.RIGHT,
+            FrameAnchor.CENTER,
+            FrameAnchor.TOP_LEFT,
+            FrameAnchor.TOP_RIGHT,
+            FrameAnchor.BOTTOM_LEFT,
+            FrameAnchor.BOTTOM_RIGHT,
+        ],
+        ids=lambda anchor: anchor.name,
+    )
+    def test_flipped_anchor_is_exact_for_frames_of_differing_widths(self, frame_anchor):
+        """Mirrored frames 20, 16 and 24 px wide still put the anchor point in one place."""
+        sprite = AnimatedSprite()
+        frames = []
+        for frame_width, frame_hitbox in zip((20, 16, 24), self.FRAME_HITBOXES, strict=True):
+            surface = pygame.Surface((frame_width, 28), pygame.SRCALPHA)
+            surface.fill((10, 200, 30, 255), frame_hitbox)
+            frames.append(SpriteFrame(surface, duration=FRAME_DURATION, hitbox=frame_hitbox))
+        sprite.add_animation('cycle', frames)
+        sprite.set_animation('cycle')
+        sprite.frame_anchor = frame_anchor
+        sprite.hitbox_scale = 2
+        sprite.hitbox_flip_x = True
+
+        hitbox_points, drawn_points = self._points_per_frame(sprite)
+
+        assert len(set(hitbox_points)) == 1
+        assert set(drawn_points) == set(hitbox_points)
+
+    def test_reference_is_cached_until_the_frames_change(self, mocker):
+        """The union reference is built once per frame set, not on every draw_offset."""
+        sprite = self._sprite(FrameAnchor.BOTTOM)
+        union_spy = mocker.spy(sprite, '_union_of_frame_hitboxes')
+        for frame_index in (0, 1, 2, 0, 1):
+            sprite.set_frame(frame_index)
+            _ = sprite.draw_offset
+        assert union_spy.call_count == 1
+
+        taller = pygame.Surface((20, 40), pygame.SRCALPHA)
+        sprite.add_animation(
+            'tall', [SpriteFrame(taller, duration=FRAME_DURATION, hitbox=pygame.Rect(0, 0, 20, 40))]
+        )
+        sprite.set_animation('cycle')
+        sprite.set_frame(0)
+        assert sprite.draw_offset == (0, 40 - 27)
+        assert union_spy.call_count == 2
+
+    def test_reference_prefers_the_default_hitbox(self):
+        """With a sprite-level default hitbox, frames align to it, not the union."""
+        sprite = self._sprite(FrameAnchor.BOTTOM)
+        sprite.default_hitbox = pygame.Rect(0, 0, 20, 28)
+        sprite.set_frame(1)
+        assert sprite.hitbox.bottom == 28
+        assert sprite.hitbox.left == self.FRAME_HITBOXES[1].left  # x as authored
+
+    def test_toml_frame_anchor_is_parsed(self):
+        """[sprite] frame_anchor takes the lowercase names; absent is NONE; unknown raises."""
+        assert AnimatedSprite._parse_frame_anchor(None) is FrameAnchor.NONE
+        assert AnimatedSprite._parse_frame_anchor('bottom_left') is FrameAnchor.BOTTOM_LEFT
+        with pytest.raises(ValueError, match='frame_anchor'):
+            AnimatedSprite._parse_frame_anchor('sideways')
 
 
 class TestHitboxTomlRoundTrip:
@@ -2526,7 +2926,7 @@ blue = 0
         assert current_frame.hitbox == pygame.Rect(3, 2, 14, 20)
 
     def test_load_without_hitbox_backward_compatible(self, tmp_path):
-        """Loading TOML without hitbox sections still works (fallback to full frame)."""
+        """Loading TOML without hitbox sections still works (visible-pixel fallback)."""
         toml_content = """[sprite]
 name = "no_hitbox"
 
@@ -2557,7 +2957,7 @@ blue = 0
         current_frame = sprite.get_current_frame()
         assert current_frame is not None
         assert not current_frame.has_explicit_hitbox
-        # hitbox should fall back to full frame dimensions
+        # Every pixel is opaque, so the visible-pixel fallback is the full frame
         assert sprite.hitbox == current_frame.rect
 
     def test_save_sprite_level_hitbox(self, tmp_path):
@@ -2580,6 +2980,66 @@ blue = 0
         assert 'offset_y = 0' in content
         assert 'width = 6' in content
         assert 'height = 10' in content
+
+    def test_frame_anchor_survives_a_save_and_reload(self, tmp_path):
+        """[sprite] frame_anchor is written back (the path Bitmappy's save uses) and reloads."""
+        source = Path('glitchygames/examples/brave_adventurer_papyrus/sprites/player.toml')
+        toml_file = tmp_path / 'anchored.toml'
+        toml_file.write_text(
+            source.read_text(encoding='utf-8').replace(
+                '[sprite]\n', '[sprite]\nframe_anchor = "bottom"\n', 1
+            )
+        )
+        sprite = AnimatedSprite(str(toml_file))
+        assert sprite.frame_anchor is FrameAnchor.BOTTOM
+        frame_hitboxes = {
+            name: [frame.hitbox if frame.has_explicit_hitbox else None for frame in frames]
+            for name, frames in sprite.animation_data.items()
+        }
+
+        save_path = tmp_path / 'resaved.toml'
+        sprite.save(str(save_path), 'toml')
+        reloaded = AnimatedSprite(str(save_path))
+
+        assert 'frame_anchor = "bottom"' in save_path.read_text()
+        assert reloaded.frame_anchor is FrameAnchor.BOTTOM
+        assert reloaded.default_hitbox == sprite.default_hitbox
+        assert {
+            name: [frame.hitbox if frame.has_explicit_hitbox else None for frame in frames]
+            for name, frames in reloaded.animation_data.items()
+        } == frame_hitboxes
+
+    def test_frame_anchor_none_writes_nothing(self, tmp_path):
+        """The default NONE leaves the TOML without a frame_anchor key."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        frames = []
+        for _ in range(2):
+            frame = SpriteFrame(surface, duration=FRAME_DURATION)
+            frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+            frames.append(frame)
+        sprite.add_animation('idle', frames)
+        sprite.set_animation('idle')
+
+        save_path = tmp_path / 'plain.toml'
+        sprite.save(str(save_path), 'toml')
+
+        assert 'frame_anchor' not in save_path.read_text()
+
+    def test_static_sprite_frame_anchor_is_written(self, tmp_path):
+        """The single-frame (static) save path writes frame_anchor too."""
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((2, 2))
+        frame = SpriteFrame(surface, duration=FRAME_DURATION)
+        frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        sprite.frame_anchor = FrameAnchor.TOP_LEFT
+
+        save_path = tmp_path / 'static.toml'
+        sprite.save(str(save_path), 'toml')
+
+        assert 'frame_anchor = "top_left"' in save_path.read_text()
 
     def test_save_per_frame_hitbox(self, tmp_path):
         """Saving sprite with per-frame hitbox writes [animation.frame.hitbox]."""
@@ -2654,3 +3114,241 @@ blue = 0
         assert loaded_frame is not None
         assert loaded_frame.has_explicit_hitbox
         assert loaded_frame.hitbox == pygame.Rect(1, 2, 3, 4)
+
+
+LOOPING_AND_ONE_SHOT_TOML = """[sprite]
+name = "loops"
+
+[[animation]]
+namespace = "idle"
+frame_interval = 0.1
+loop = true
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 0
+pixels = \"\"\"
+#
+\"\"\"
+
+[[animation.frame]]
+namespace = "idle"
+frame_index = 1
+pixels = \"\"\"
+.
+\"\"\"
+
+[[animation]]
+namespace = "strike"
+frame_interval = 0.1
+loop = false
+
+[[animation.frame]]
+namespace = "strike"
+frame_index = 0
+pixels = \"\"\"
+#
+\"\"\"
+
+[[animation.frame]]
+namespace = "strike"
+frame_index = 1
+pixels = \"\"\"
+.
+\"\"\"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."."]
+red = 255
+green = 0
+blue = 255
+"""
+
+
+class TestPerAnimationLoop:
+    """Each animation's own [[animation]] loop flag applies while it plays."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @staticmethod
+    def _play_past_the_end(sprite: AnimatedSprite, animation_name: str) -> None:
+        """Play an animation for longer than its two 0.1 s frames."""
+        sprite.play(animation_name)
+        for _ in range(5):
+            sprite.update(dt=0.1)
+
+    def test_each_animation_keeps_its_own_loop_flag(self, tmp_path):
+        """The looping animation wraps, the one-shot stops on its last frame, either order."""
+        toml_file = tmp_path / 'loops.toml'
+        toml_file.write_text(LOOPING_AND_ONE_SHOT_TOML, encoding='utf-8')
+        sprite = AnimatedSprite(str(toml_file))
+
+        assert sprite.is_looping  # the first (initial) animation, idle, loops
+        self._play_past_the_end(sprite, 'strike')
+        assert not sprite.is_looping
+        assert not sprite.is_playing
+        assert sprite.current_frame == 1
+
+        self._play_past_the_end(sprite, 'idle')
+        assert sprite.is_looping
+        assert sprite.is_playing
+
+        self._play_past_the_end(sprite, 'strike')
+        assert not sprite.is_playing
+        assert sprite.current_frame == 1
+
+    def test_loop_flags_survive_a_save_round_trip(self, tmp_path):
+        """Both animations' loop flags are written back and apply after reloading."""
+        toml_file = tmp_path / 'loops.toml'
+        toml_file.write_text(LOOPING_AND_ONE_SHOT_TOML, encoding='utf-8')
+        saved_file = tmp_path / 'resaved.toml'
+        AnimatedSprite(str(toml_file)).save(str(saved_file), 'toml')
+
+        reloaded = AnimatedSprite(str(saved_file))
+        reloaded.set_animation('strike')
+        assert not reloaded.is_looping
+        reloaded.set_animation('idle')
+        assert reloaded.is_looping
+
+    def test_animation_metadata_loop_flag_is_per_animation(self, tmp_path):
+        """get/set_animation_metadata read and change one animation's loop flag."""
+        toml_file = tmp_path / 'loops.toml'
+        toml_file.write_text(LOOPING_AND_ONE_SHOT_TOML, encoding='utf-8')
+        sprite = AnimatedSprite(str(toml_file))
+
+        assert sprite.get_animation_metadata('idle')['is_looping'] is True
+        assert sprite.get_animation_metadata('strike')['is_looping'] is False
+
+        sprite.set_animation_metadata('strike', {'is_looping': True})
+
+        assert sprite.get_animation_metadata('strike')['is_looping'] is True
+        assert sprite.is_looping  # idle (current) is unaffected and still loops
+        sprite.set_animation('strike')
+        assert sprite.is_looping
+
+
+TRANSITIONS_TOML = (
+    LOOPING_AND_ONE_SHOT_TOML
+    + """
+[[transition]]
+from = "idle"
+to = "strike"
+when = "timer > 2.0"
+
+[[transition]]
+from = "strike"
+to = "idle"
+when = "timer > 0.3"
+"""
+)
+
+
+class TestTransitionData:
+    """Loaded [[transition]] sections are kept as data and follow animation renames/deletes."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @staticmethod
+    def _load(tmp_path) -> AnimatedSprite:
+        toml_file = tmp_path / 'transitions.toml'
+        toml_file.write_text(TRANSITIONS_TOML, encoding='utf-8')
+        return AnimatedSprite(str(toml_file))
+
+    @staticmethod
+    def _saved_transitions(sprite: AnimatedSprite, tmp_path) -> list[dict]:
+        import tomllib
+
+        saved_file = tmp_path / 'resaved.toml'
+        sprite.save(str(saved_file), 'toml')
+        return tomllib.loads(saved_file.read_text(encoding='utf-8')).get('transition', [])
+
+    def test_transitions_are_kept_in_file_order(self, tmp_path):
+        """transition_data holds each [[transition]] table as loaded."""
+        sprite = self._load(tmp_path)
+
+        assert sprite.transition_data == [
+            {'from': 'idle', 'to': 'strike', 'when': 'timer > 2.0'},
+            {'from': 'strike', 'to': 'idle', 'when': 'timer > 0.3'},
+        ]
+
+    def test_renaming_an_animation_renames_it_in_transitions(self, tmp_path):
+        """A renamed animation keeps its transitions under the new name."""
+        sprite = self._load(tmp_path)
+
+        sprite.rename_animation_in_transitions(old_name='strike', new_name='lunge')
+
+        assert self._saved_transitions(sprite, tmp_path) == [
+            {'from': 'idle', 'to': 'lunge', 'when': 'timer > 2.0'},
+            {'from': 'lunge', 'to': 'idle', 'when': 'timer > 0.3'},
+        ]
+
+    def test_rename_animation_moves_transitions_and_keeps_the_order(self, tmp_path):
+        """rename_animation renames the frames in place and in the transitions."""
+        sprite = self._load(tmp_path)
+
+        sprite.rename_animation(old_name='idle', new_name='rest')
+
+        assert list(sprite._animations) == ['rest', 'strike']
+        assert sprite.animation_order == ['rest', 'strike']
+        assert sprite.transition_data[0] == {'from': 'rest', 'to': 'strike', 'when': 'timer > 2.0'}
+
+    def test_removed_transitions_restore_to_their_original_positions(self, tmp_path):
+        """transitions_for_animation + restore_transitions undo remove_transitions_for_animation."""
+        sprite = self._load(tmp_path)
+        sprite.transition_data.insert(1, {'from': 'idle', 'to': 'idle', 'when': 'timer > 9.0'})
+        original_transitions = [dict(transition) for transition in sprite.transition_data]
+
+        dropped_transitions = sprite.transitions_for_animation('strike')
+        sprite.remove_transitions_for_animation('strike')
+        assert sprite.transition_data == [{'from': 'idle', 'to': 'idle', 'when': 'timer > 9.0'}]
+
+        sprite.restore_transitions(dropped_transitions)
+        assert sprite.transition_data == original_transitions
+
+    def test_remove_animation_forgets_its_settings(self, tmp_path):
+        """A removed animation's loop flag, interval and place in the order are dropped."""
+        sprite = self._load(tmp_path)
+
+        sprite.remove_animation('strike')
+
+        assert 'strike' not in sprite._loop_flags
+        assert 'strike' not in sprite._animation_frame_intervals
+        assert sprite.animation_order == ['idle']
+
+    def test_rename_animation_rejects_a_missing_or_existing_name(self, tmp_path):
+        """Renaming a missing animation, or onto an existing one, raises ValueError."""
+        sprite = self._load(tmp_path)
+
+        with pytest.raises(ValueError, match="'missing' not found"):
+            sprite.rename_animation(old_name='missing', new_name='other')
+        with pytest.raises(ValueError, match="'strike' already exists"):
+            sprite.rename_animation(old_name='idle', new_name='strike')
+        assert list(sprite._animations) == ['idle', 'strike']
+
+    def test_removing_an_animation_drops_its_transitions_with_a_warning(self, tmp_path, caplog):
+        """Transitions from or to a removed animation are dropped and logged."""
+        sprite = self._load(tmp_path)
+
+        with caplog.at_level(logging.WARNING):
+            sprite.remove_animation('strike')
+
+        assert sprite.transition_data == []
+        assert 'strike' in caplog.text
+
+    def test_when_strings_with_quotes_and_backslashes_round_trip(self, tmp_path):
+        """Transition when strings are escaped for TOML: quotes and backslashes survive a save."""
+        sprite = self._load(tmp_path)
+        tricky_when = 'name == "a\\\\b" and timer > 1'
+        sprite.transition_data[0]['when'] = tricky_when
+
+        assert self._saved_transitions(sprite, tmp_path)[0]['when'] == tricky_when

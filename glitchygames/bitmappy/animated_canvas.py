@@ -9,7 +9,6 @@ import pygame
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites import BitmappySprite, SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 
 from .canvas_interfaces import (
     AnimatedCanvasInterface,
@@ -836,26 +835,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 # Mark as dirty
                 self.dirty_pixels = [True] * len(self.pixels)
                 self.dirty = 1
-
-    def save_animated_sprite(self, filename: str) -> None:
-        """Save the animated sprite to a file."""
-        if self.is_panning_active():
-            # Save viewport only when panning is active
-            self.log.info('Saving viewport only due to active panning')
-            self._save_viewport_sprite(filename)
-        else:
-            # Save full sprite when not panning
-            # Prefer canvas.animated_sprite if available
-            sprite_to_save = None
-            if hasattr(self, 'canvas') and self.canvas and hasattr(self.canvas, 'animated_sprite'):  # type: ignore[attr-defined]
-                sprite_to_save = self.canvas.animated_sprite  # type: ignore[attr-defined]
-            elif hasattr(self, 'animated_sprite'):
-                sprite_to_save = self.animated_sprite
-
-            if sprite_to_save:
-                self.sprite_serializer.save(sprite_to_save, filename, DEFAULT_FILE_FORMAT)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-            else:
-                self.log.error('No sprite found to save')
 
     @classmethod
     def from_file(  # ruff: ignore[too-many-arguments]
@@ -1815,10 +1794,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         animated_sprite.frame_manager.current_animation = animation_name
         animated_sprite.frame_manager.current_frame = 0
 
-        # Preserve the description from the original sprite
-        if hasattr(self.animated_sprite, 'description'):
-            animated_sprite.description = self.animated_sprite.description
-            self.log.debug(f"Preserved description: '{animated_sprite.description}'")
+        # Preserve every sprite-level field the writer saves: name, description, frame_anchor,
+        # the sprite-level hitbox, transitions and the original color glyphs
+        animated_sprite.copy_sprite_metadata_from(self.animated_sprite)
 
         # Update the sprite's image to match the frame
         animated_sprite.image = frame.image.copy()
@@ -2148,93 +2126,3 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         # Force redraw to update the visual display including borders
         self.force_redraw()
-
-    def _save_viewport_sprite(self, filename: str) -> None:
-        """Save only the viewport area when panning is active."""
-        from glitchygames.sprites.animated import AnimatedSprite
-
-        # Create a new animated sprite with viewport data
-        viewport_sprite = AnimatedSprite()
-        viewport_sprite.name = self.animated_sprite.name + '_viewport'
-        viewport_sprite.description = f'Viewport of {self.animated_sprite.name} (panned)'
-
-        # Copy viewport data for each animation
-        for anim_name, frames in self.animated_sprite._animations.items():  # type: ignore[reportPrivateUsage]
-            viewport_frames: list[SpriteFrame] = []
-            for frame in frames:
-                viewport_frame = self._create_viewport_frame(frame)
-                viewport_frames.append(viewport_frame)
-            viewport_sprite.add_animation(anim_name, viewport_frames)
-
-        # Save the newly created viewport sprite
-        self.sprite_serializer.save(viewport_sprite, filename, DEFAULT_FILE_FORMAT)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
-        self.log.info('Viewport sprite saved to %s', filename)
-
-    def _create_viewport_frame(self, original_frame: SpriteFrame) -> SpriteFrame:
-        """Create a frame containing only the viewport data.
-
-        Returns:
-            SpriteFrame: The result.
-
-        """
-        from glitchygames.sprites.animated import SpriteFrame
-
-        # Get viewport pixel data
-        viewport_pixels = self._get_viewport_pixels_from_frame(original_frame)
-
-        # Create new frame with viewport dimensions
-        new_frame = SpriteFrame(
-            surface=pygame.Surface((self.pixels_across, self.pixels_tall), pygame.SRCALPHA),
-            duration=original_frame.duration,
-        )
-
-        # Set viewport pixel data
-        new_frame.set_pixel_data(viewport_pixels)
-
-        return new_frame
-
-    def _get_viewport_pixels_from_frame(
-        self,
-        frame: SpriteFrame,
-    ) -> list[tuple[int, int, int, int]]:
-        """Get viewport pixels from a frame based on current panning offset.
-
-        Returns:
-            list[tuple[int, int, int, int]]: The viewport pixels from frame.
-
-        """
-        # Get the frame's pixel data
-        frame_pixels = frame.get_pixel_data()
-        frame_width, frame_height = frame.get_size()
-
-        # Get current frame panning offset
-        frame_key = self._get_current_frame_key()
-        if frame_key in self._frame_panning and self._frame_panning[frame_key]['active']:
-            pan_offset_x = self._frame_panning[frame_key]['pan_x']
-            pan_offset_y = self._frame_panning[frame_key]['pan_y']
-        else:
-            pan_offset_x = 0
-            pan_offset_y = 0
-
-        # Create viewport pixels
-        # Magenta (255, 0, 255, 255) is used as transparency key color
-        transparent_pixel: tuple[int, int, int, int] = (255, 0, 255, 255)
-        viewport_pixels: list[tuple[int, int, int, int]] = []
-        for y in range(self.pixels_tall):
-            for x in range(self.pixels_across):
-                buffer_x = x + pan_offset_x
-                buffer_y = y + pan_offset_y
-
-                # Check if buffer coordinates are within frame bounds
-                if 0 <= buffer_x < frame_width and 0 <= buffer_y < frame_height:
-                    pixel_index = buffer_y * frame_width + buffer_x
-                    if pixel_index < len(frame_pixels):
-                        pixel = frame_pixels[pixel_index]
-                        alpha = pixel[3] if len(pixel) > RGBA_COMPONENT_COUNT - 1 else 255
-                        viewport_pixels.append((pixel[0], pixel[1], pixel[2], alpha))
-                    else:
-                        viewport_pixels.append(transparent_pixel)
-                else:
-                    viewport_pixels.append(transparent_pixel)
-
-        return viewport_pixels
