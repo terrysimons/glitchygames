@@ -529,9 +529,18 @@ class TestShutdownStatistics:
         assert stats['min_fps'] == pytest.approx(243.9, abs=0.05)
         assert stats['avg_fps'] == pytest.approx(272.1, abs=0.05)
         assert stats['fps_bucket_width'] == pytest.approx((10000 / 19 - 10000 / 41) / 10)
-        assert sum(stats['fps_histogram'].values()) == 10
-        assert next(iter(stats['fps_histogram'].values())) == 9  # first bucket holds the 9 stale
-        assert list(stats['fps_histogram'].values())[-1] == 1  # the maximum is in the last bucket
+        assert stats['fps_histogram'] == {
+            '244-271': 9,
+            '272-299': 0,
+            '300-328': 0,
+            '329-356': 0,
+            '357-384': 0,
+            '385-412': 0,
+            '413-441': 0,
+            '442-469': 0,
+            '470-497': 0,
+            '498-526': 1,
+        }
 
     # 4. Trimming
     def test_trim_boundaries_at_five_percent(self):
@@ -772,6 +781,18 @@ class TestHistogramBucketing:
         assert histogram['500-599'] == 1
         assert histogram['1000-1100'] == 1
 
+    @pytest.mark.parametrize(('lowest', 'highest'), [(100.0, 137.0), (0.0, 7.0)])
+    def test_every_constructed_boundary_value_lands_in_its_upper_bucket(self, lowest, highest):
+        """With non-dyadic widths (3.7, 0.7) boundary values must not fall into the lower bucket."""
+        width = (highest - lowest) / HISTOGRAM_BUCKET_COUNT
+        boundary_values = [lowest + index * width for index in range(HISTOGRAM_BUCKET_COUNT)]
+        counts_by_index, _ = AdaptiveClamping._count_equal_range_buckets(
+            sorted([*boundary_values, highest])
+        )
+
+        # One value per boundary; the maximum joins the last bucket.
+        assert counts_by_index == [1] * (HISTOGRAM_BUCKET_COUNT - 1) + [2]
+
     def test_identical_values_give_a_single_bucket(self):
         """Equal minimum and maximum collapse to one bucket of width 0."""
         self._feed('Scene', [250.0] * 4)
@@ -793,6 +814,7 @@ class TestHistogramBucketing:
         assert lower_bounds == sorted(set(lower_bounds))
         assert sum(stats['fps_histogram'].values()) == 10
         assert stats['fps_bucket_width'] == pytest.approx(0.32)
+        assert len(labels) < HISTOGRAM_BUCKET_COUNT
 
     def test_buckets_ordered_numerically_across_digit_counts(self):
         """Buckets with 2 and 4 digit bounds are ordered by value, not as strings."""
@@ -956,6 +978,39 @@ class TestHistogramModes:
             'no target FPS set for target-relative):'
         )
 
+    def test_header_reports_real_bucket_count_after_merging(self, mocker):
+        """A narrow spread merges buckets, so the header must not claim 10 equal buckets."""
+        self._feed('Scene', [1.0 + 0.7 * index for index in range(11)])  # 1.0 to 8.0
+
+        lines = self._printed_lines(mocker)
+
+        assert lines[0] == (
+            '\n📊 FPS Distribution (7 buckets after merging equal labels, 0.7 FPS wide):'
+        )
+
+    def test_target_relative_small_target_uses_one_decimal_bounds(self):
+        """Target 5 gives distinct tenths-of-an-FPS ranges instead of colliding '1-1' labels."""
+        stats = self._target_relative_histogram([0.4, 0.5, 0.9, 1.0, 1.4, 2.0, 5.0], target_fps=5.0)
+
+        assert stats['fps_histogram'] == {
+            '<10% (<0.5)': 1,
+            '10-19% (0.5-0.9)': 2,
+            '20-29% (1.0-1.4)': 2,
+            '40-49% (2.0-2.4)': 1,
+            '>=100% (5+ FPS)': 1,
+        }
+
+    def test_target_relative_fractional_target_uses_exact_target_for_top_bucket(self):
+        """Target 59.94 labels the top bucket '59.94+' and uses one-decimal bounds."""
+        stats = self._target_relative_histogram([5.0, 53.9, 53.95, 59.94], target_fps=59.94)
+
+        assert stats['fps_histogram'] == {
+            '<10% (<6.0)': 1,
+            '80-89% (48.0-53.9)': 1,
+            '90-99% (54.0-59.9)': 1,
+            '>=100% (59.94+ FPS)': 1,
+        }
+
     def test_histogram_percentages_use_trimmed_frames(self, mocker):
         """Percentages are count / trimmed_frames."""
         self._feed('Scene', [100.0] * 9 + [200.0] * 12)
@@ -976,7 +1031,8 @@ class TestHistogramModes:
 
         rows = [line for line in self._printed_lines(mocker) if ' frames (' in line]
 
-        assert any('1000-1000 FPS' not in row and '-1000 FPS' in row for row in rows)
+        assert '90-180 FPS' in rows[0]
+        assert '909-1000 FPS' in rows[-1]
         assert len({row.index(' FPS') for row in rows}) == 1
 
 

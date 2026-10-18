@@ -974,18 +974,24 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                     'Timer backend failed to initialize; using pygame clock only: %s',
                     timer_error,
                 )
-            # Configure performance trim percent if available
+            # Configure performance trim percent and histogram mode, each guarded on its own so
+            # a bad value for one cannot silently skip the other.
             try:
                 from glitchygames.performance import performance_manager
 
                 trim = float(GameEngine.OPTIONS.get('perf_trim_percent', 5.0))
                 if hasattr(performance_manager, 'set_trim_percent'):
                     performance_manager.set_trim_percent(trim)
+            except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
+                LOG.debug('Performance trim percent configuration failed: %s', perf_error)
+            try:
+                from glitchygames.performance import performance_manager
+
                 performance_manager.set_histogram_mode(
                     GameEngine.OPTIONS.get('fps_histogram', 'equal-range')
                 )
             except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
-                LOG.debug('Performance trim percent configuration failed: %s', perf_error)
+                LOG.debug('Performance FPS histogram mode configuration failed: %s', perf_error)
             self.scene_manager.start()
         except Exception:
             scene_name = self._resolve_scene_name_for_error()

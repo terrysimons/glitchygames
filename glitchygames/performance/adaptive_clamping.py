@@ -6,6 +6,7 @@ import logging
 import math
 import statistics
 import time
+from bisect import bisect_right
 from collections import deque
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar, Self
@@ -48,6 +49,9 @@ HISTOGRAM_BUCKET_COUNT = 10
 
 # Target-relative histogram: buckets are this many percentage points of the target FPS wide.
 TARGET_RELATIVE_STEP_PERCENT = 10
+
+# Targets below this FPS (or non-integer targets) label target-relative FPS bounds in tenths.
+DECIMAL_LABEL_TARGET_FPS = 20
 
 # "1% low" definition: the mean FPS of the slowest ONE_PERCENT_LOW_FRACTION of ALL valid
 # (untrimmed) frames, using max(1, ceil(fraction * total_frames)) frames.
@@ -384,13 +388,42 @@ class AdaptiveClamping:
         LOG.info('Reset performance tracking')
 
     @staticmethod
+    def _count_equal_range_buckets(trimmed_fps: list[float]) -> tuple[list[int], list[float]]:
+        """Count frames per equal-width bucket using precomputed boundaries.
+
+        Compares against boundaries computed once rather than flooring (fps - min) / width:
+        with non-dyadic widths the division puts a value on a boundary in the lower bucket
+        (for example 0.7 * 3 / 0.7 = 2.9999999999999996).
+
+        Args:
+            trimmed_fps: Analyzed (trimmed) FPS values, ascending, with max greater than min
+
+        Returns:
+            Tuple of (frame count per bucket, lower boundary of each bucket).
+
+        """
+        lowest_fps = trimmed_fps[0]
+        bucket_width = (trimmed_fps[-1] - lowest_fps) / HISTOGRAM_BUCKET_COUNT
+        boundaries = [
+            lowest_fps + bucket_index * bucket_width
+            for bucket_index in range(HISTOGRAM_BUCKET_COUNT)
+        ]
+        counts_by_index = [0] * HISTOGRAM_BUCKET_COUNT
+        for fps in trimmed_fps:
+            bucket_index = min(HISTOGRAM_BUCKET_COUNT - 1, bisect_right(boundaries, fps) - 1)
+            counts_by_index[bucket_index] += 1
+        return counts_by_index, boundaries
+
+    @staticmethod
     def _build_equal_range_histogram(trimmed_fps: list[float]) -> tuple[dict[str, int], float]:
         """Count frames in HISTOGRAM_BUCKET_COUNT equal-width buckets spanning [min, max].
 
-        The bucket index is min(last, floor((fps - min) / width)) so the maximum lands in the
-        last bucket. Labels use integer bounds "lower-upper" with lower = round(min + index *
-        width) and upper = (the next bucket's lower) - 1, the last bucket's upper being
-        round(max). Buckets whose rounded lower bounds collide (a spread narrower than the
+        A value goes to the highest bucket whose precomputed boundary (min + index * width) it
+        reaches, so a value on a boundary lands in the upper bucket and the maximum in the last.
+
+        Labels use integer bounds "lower-upper" with lower = round(min + index * width)
+        and upper = (the next bucket's lower) - 1, the last bucket's upper being round(max).
+        Buckets whose rounded lower bounds collide (a spread narrower than the
         bucket count) are merged so labels stay unique and ascending.
 
         Args:
@@ -406,18 +439,12 @@ class AdaptiveClamping:
         if bucket_width == 0:
             return {f'{round(lowest_fps)}': len(trimmed_fps)}, 0.0
 
-        counts_by_index = [0] * HISTOGRAM_BUCKET_COUNT
-        for fps in trimmed_fps:
-            bucket_index = min(
-                HISTOGRAM_BUCKET_COUNT - 1,
-                math.floor((fps - lowest_fps) / bucket_width),
-            )
-            counts_by_index[bucket_index] += 1
+        counts_by_index, boundaries = AdaptiveClamping._count_equal_range_buckets(trimmed_fps)
 
         # Merge consecutive buckets that share the same rounded lower bound.
         merged_buckets: list[list[int]] = []  # each entry: [rounded lower bound, frame count]
         for bucket_index, count in enumerate(counts_by_index):
-            lower_bound = round(lowest_fps + bucket_index * bucket_width)
+            lower_bound = round(boundaries[bucket_index])
             if merged_buckets and merged_buckets[-1][0] == lower_bound:
                 merged_buckets[-1][1] += count
             else:
@@ -465,22 +492,30 @@ class AdaptiveClamping:
             )
             counts_by_step_index[step_index] = counts_by_step_index.get(step_index, 0) + 1
 
-        def lower_fps_bound(step_index: int) -> int:
-            return math.ceil(step_index * TARGET_RELATIVE_STEP_PERCENT * target_fps / 100)
+        # Small or fractional targets collapse or overlap integer FPS ranges (target 5 gives
+        # 10-19% as "1-1" and 20-29% as "1-1"), so they are labelled in tenths of an FPS.
+        use_decimals = target_fps < DECIMAL_LABEL_TARGET_FPS or not float(target_fps).is_integer()
+        scale = 10 if use_decimals else 1
+
+        def lower_bound_scaled(step_index: int) -> int:
+            return math.ceil(step_index * TARGET_RELATIVE_STEP_PERCENT * target_fps * scale / 100)
+
+        def format_bound(scaled_value: int) -> str:
+            return f'{scaled_value / scale:.1f}' if use_decimals else f'{scaled_value}'
 
         fps_histogram: dict[str, int] = {}
         for step_index in sorted(counts_by_step_index):
-            lower_bound = lower_fps_bound(step_index)
+            lower_bound = lower_bound_scaled(step_index)
             if step_index == top_step_index:
-                label = f'>=100% ({lower_bound}+ FPS)'
+                label = f'>=100% ({target_fps:g}+ FPS)'
             elif step_index == 0:
-                label = f'<{TARGET_RELATIVE_STEP_PERCENT}% (<{lower_fps_bound(1)})'
+                label = f'<{TARGET_RELATIVE_STEP_PERCENT}% (<{format_bound(lower_bound_scaled(1))})'
             else:
-                upper_bound = max(lower_bound, lower_fps_bound(step_index + 1) - 1)
+                upper_bound = max(lower_bound, lower_bound_scaled(step_index + 1) - 1)
                 step_percent = step_index * TARGET_RELATIVE_STEP_PERCENT
                 label = (
                     f'{step_percent}-{step_percent + TARGET_RELATIVE_STEP_PERCENT - 1}% '
-                    f'({lower_bound}-{upper_bound})'
+                    f'({format_bound(lower_bound)}-{format_bound(upper_bound)})'
                 )
             fps_histogram[label] = counts_by_step_index[step_index]
         return fps_histogram
@@ -779,7 +814,14 @@ class AdaptiveClamping:
         if bucket_width == 0:
             description = 'single bucket; every analyzed frame has the same FPS'
         else:
-            description = f'{HISTOGRAM_BUCKET_COUNT} equal buckets, {bucket_width:.1f} FPS wide'
+            bucket_count = len(stats['fps_histogram'])
+            if bucket_count == HISTOGRAM_BUCKET_COUNT:
+                description = f'{bucket_count} equal buckets, {bucket_width:.1f} FPS wide'
+            else:
+                description = (
+                    f'{bucket_count} buckets after merging equal labels, '
+                    f'{bucket_width:.1f} FPS wide'
+                )
         if self._histogram_mode is FpsHistogramMode.TARGET_RELATIVE:
             description += '; no target FPS set for target-relative'
         return f'\n📊 FPS Distribution ({description}):'

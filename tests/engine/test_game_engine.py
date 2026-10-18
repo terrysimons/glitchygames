@@ -2283,3 +2283,26 @@ class TestFpsHistogramArgument:
         engine.start()
 
         mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
+
+    def test_start_sets_the_mode_even_when_set_trim_percent_raises(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """Test a bad trim value cannot skip setting the histogram mode."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        mocker.patch('glitchygames.engine.game_engine.create_timer')
+        mock_manager = mocker.patch('glitchygames.performance.performance_manager')
+        mock_manager.set_trim_percent.side_effect = ValueError('bad trim')
+        GameEngine.game = mocker.Mock()
+        GameEngine.OPTIONS = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 5.0,
+            'fps_histogram': 'target-relative',
+        }
+        engine.scene_manager = mocker.Mock()
+        engine._initialize_event_managers = mocker.Mock()
+        engine._shutdown = mocker.Mock()
+
+        engine.start()
+
+        mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
