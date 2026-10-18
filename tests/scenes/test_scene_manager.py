@@ -384,11 +384,15 @@ class TestSceneManagerInternals:
         self.scene_manager.switch_to_scene(mocker.Mock())
         assert not self.scene_manager.screen_shake.is_active
 
-    def test_switch_to_scene_clears_sustained_rumble(self, mocker):
-        """Pause must never leave a controller buzzing."""
+    def test_switch_to_scene_keeps_pulse_but_clears_sustained_rumble(self, mocker):
+        """Pause must never leave a controller buzzing, but a death pulse survives game over."""
+        device = mocker.Mock()
         self.scene_manager.rumble.set_sustained(low_frequency=0.25, high_frequency=0.05)
+        self.scene_manager.rumble.pulse(low_frequency=1.0, high_frequency=0.6, duration=0.8)
         self.scene_manager.switch_to_scene(mocker.Mock())
         assert self.scene_manager.rumble.sustained_levels == (0.0, 0.0)
+        self.scene_manager.rumble.update(shakers=[], dt=0.0, devices=lambda: [device])
+        device.rumble.assert_called_once_with(1.0, 0.6, 800)
 
     def test_frame_services_advance_screen_shake(self):
         """Test the per-frame services advance the screen shake by the frame time."""

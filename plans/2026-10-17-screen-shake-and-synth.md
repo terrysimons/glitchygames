@@ -494,6 +494,25 @@ Requested after playtesting ("better, definitely better"):
 
 ---
 
+## Iteration 2: rumble pulse and Brave Adventurer death rumble
+
+- **Pulse API:** `RumbleController.pulse(low_frequency=, high_frequency=, duration=)` adds a finite
+  rumble fading linearly to exactly 0.0 at `duration` (levels validated 0.0-1.0, duration > 0).
+  Pulses advance by `dt` inside `update`, are dropped once finished, combine per motor (maximum)
+  with shakes and sustained rumble, and their remaining time sets the send duration.
+- **Scene switches:** `switch_to_scene` still clears sustained rumble but keeps pulses (they are
+  finite), so the game-over pulse is felt on the game-over screen. `clear_pulses()` exists but is
+  not called by the switch.
+- **Brave Adventurer and Papyrus:** `_player_die` pulses `DEATH_RUMBLE_*` (0.7 / 0.4, 0.35 s) when a
+  life is lost and `GAME_OVER_RUMBLE_*` (1.0 / 0.6, 0.8 s) on the last life; constants live in
+  `brave_adventurer/constants.py` (tuned by feel). No on-screen shake.
+- **Targeting (planned, not implemented):** pulses, like all rumble today, go to every connected
+  device. Per-player targeting is a planned engine item; when it lands, `pulse`, `set_sustained`
+  and `RumbleSettings` will gain a `targets` keyword defaulting to all devices, so existing calls
+  stay valid.
+
+---
+
 ## Known follow-ups (deferred review minors)
 
 Minor findings from the per-task reviews, triaged by the final review as not blocking merge.

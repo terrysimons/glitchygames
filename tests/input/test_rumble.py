@@ -195,6 +195,84 @@ class TestSustainedRumble:
         devices[0].rumble.assert_called_once_with(0.2, 0.1, 250)
 
 
+class TestRumblePulse:
+    """A finite one-shot rumble that fades linearly to zero."""
+
+    def test_pulse_alone_sends_levels_then_fades_and_stops_at_duration(self, devices):
+        controller = RumbleController()
+        controller.pulse(low_frequency=1.0, high_frequency=0.5, duration=1.0)
+        controller.update(shakers=[], dt=0.0, devices=lambda: devices)
+        devices[0].rumble.assert_called_once_with(1.0, 0.5, 1000)
+
+        controller.update(shakers=[], dt=0.5, devices=lambda: devices)  # half duration
+        assert devices[0].rumble.call_args.args[:2] == (0.5, 0.25)
+
+        controller.update(shakers=[], dt=0.5, devices=lambda: devices)  # exactly the duration
+        devices[0].stop_rumble.assert_called_once()
+
+    def test_pulse_contributes_exactly_zero_at_duration(self, devices):
+        controller = RumbleController()
+        controller.pulse(low_frequency=1.0, high_frequency=1.0, duration=0.5)
+        controller.update(shakers=[], dt=0.5, devices=lambda: devices)
+        devices[0].rumble.assert_not_called()
+
+    def test_one_large_dt_past_the_end_leaves_no_final_rumble(self, devices):
+        controller = RumbleController()
+        controller.pulse(low_frequency=1.0, high_frequency=1.0, duration=0.5)
+        controller.update(shakers=[], dt=0.0, devices=lambda: devices)
+        controller.update(shakers=[], dt=10.0, devices=lambda: devices)
+        assert devices[0].rumble.call_count == 1
+        devices[0].stop_rumble.assert_called_once()
+
+    def test_pulse_sustained_and_shake_take_per_motor_maximum(self, devices):
+        controller = RumbleController()
+        controller.set_sustained(low_frequency=0.25, high_frequency=0.9)
+        controller.pulse(low_frequency=0.6, high_frequency=0.1, duration=2.0)
+        shaker = _rumbling_shaker(duration=1.0, low=0.4, high=0.3)
+        controller.update(shakers=[shaker], dt=0.0, devices=lambda: devices)
+        # low: pulse 0.6 beats shake 0.4 and sustained 0.25; high: sustained 0.9
+        # The send lasts as long as the longest remaining pulse (2.0 s)
+        devices[0].rumble.assert_called_once_with(0.6, 0.9, 2000)
+
+    @pytest.mark.parametrize(
+        ('low_frequency', 'high_frequency'), [(-0.1, 0.0), (1.1, 0.0), (0.0, -0.1), (0.0, 1.1)]
+    )
+    def test_pulse_validates_levels(self, low_frequency, high_frequency):
+        controller = RumbleController()
+        with pytest.raises(ValueError, match=r'between 0\.0 and 1\.0'):
+            controller.pulse(
+                low_frequency=low_frequency, high_frequency=high_frequency, duration=1.0
+            )
+
+    @pytest.mark.parametrize('duration', [0.0, -1.0])
+    def test_pulse_validates_duration(self, duration):
+        controller = RumbleController()
+        with pytest.raises(ValueError, match='duration'):
+            controller.pulse(low_frequency=0.5, high_frequency=0.5, duration=duration)
+
+    def test_intensity_scales_pulse(self, devices):
+        controller = RumbleController(intensity=0.5)
+        controller.pulse(low_frequency=0.8, high_frequency=0.4, duration=1.0)
+        controller.update(shakers=[], dt=0.0, devices=lambda: devices)
+        devices[0].rumble.assert_called_once_with(0.4, 0.2, 1000)
+
+    def test_clear_sustained_leaves_pulse_running(self, devices):
+        controller = RumbleController()
+        controller.set_sustained(low_frequency=0.25, high_frequency=0.05)
+        controller.pulse(low_frequency=0.8, high_frequency=0.4, duration=1.0)
+        controller.clear_sustained()
+        controller.update(shakers=[], dt=0.0, devices=lambda: devices)
+        devices[0].rumble.assert_called_once_with(0.8, 0.4, 1000)
+
+    def test_clear_pulses_stops_the_pulse(self, devices):
+        controller = RumbleController()
+        controller.pulse(low_frequency=0.8, high_frequency=0.4, duration=1.0)
+        controller.update(shakers=[], dt=0.0, devices=lambda: devices)
+        controller.clear_pulses()
+        controller.update(shakers=[], dt=0.016, devices=lambda: devices)
+        devices[0].stop_rumble.assert_called_once()
+
+
 class TestConnectedRumbleDevices:
     """Test device discovery in controller and joystick modes."""
 

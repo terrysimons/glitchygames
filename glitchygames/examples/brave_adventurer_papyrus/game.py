@@ -14,6 +14,14 @@ import pygame
 
 from glitchygames.camera import Camera2D
 from glitchygames.engine import GameEngine
+from glitchygames.examples.brave_adventurer.constants import (
+    DEATH_RUMBLE_DURATION,
+    DEATH_RUMBLE_HIGH,
+    DEATH_RUMBLE_LOW,
+    GAME_OVER_RUMBLE_DURATION,
+    GAME_OVER_RUMBLE_HIGH,
+    GAME_OVER_RUMBLE_LOW,
+)
 from glitchygames.examples.brave_adventurer.drawing import (
     draw_dunes_and_oasis,
     draw_near_ground_details,
@@ -514,6 +522,11 @@ class PapyrusBraveAdventurerScene(Scene):
         if self.player.lives <= 0:
             self.game_over_triggered = True
             self.sounds.play_game_over()
+            self.scene_manager.rumble.pulse(
+                low_frequency=GAME_OVER_RUMBLE_LOW,
+                high_frequency=GAME_OVER_RUMBLE_HIGH,
+                duration=GAME_OVER_RUMBLE_DURATION,
+            )
             high_scores = self._save_high_score()
             game_over_scene = GameOverScene(
                 final_score=self.player.score,
@@ -523,6 +536,11 @@ class PapyrusBraveAdventurerScene(Scene):
             self.next_scene = game_over_scene
         else:
             self.sounds.play_death()
+            self.scene_manager.rumble.pulse(
+                low_frequency=DEATH_RUMBLE_LOW,
+                high_frequency=DEATH_RUMBLE_HIGH,
+                duration=DEATH_RUMBLE_DURATION,
+            )
             self._respawn_player()
 
     def _save_high_score(self: Self) -> list[dict[str, int]]:

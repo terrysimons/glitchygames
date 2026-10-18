@@ -114,3 +114,12 @@ HUD_SHADOW_COLOR = (0, 0, 0)
 # Rock and grass detail colors
 ROCK_COLOR = (160, 145, 125)
 GRASS_COLOR = (120, 160, 70)
+
+# Death rumble pulses (RumbleController.pulse), tuned by feel. The game-over pulse is heavier
+# and longer; it survives the switch to the game-over scene because pulses are finite.
+DEATH_RUMBLE_LOW = 0.7
+DEATH_RUMBLE_HIGH = 0.4
+DEATH_RUMBLE_DURATION = 0.35
+GAME_OVER_RUMBLE_LOW = 1.0
+GAME_OVER_RUMBLE_HIGH = 0.6
+GAME_OVER_RUMBLE_DURATION = 0.8

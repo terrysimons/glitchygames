@@ -1,4 +1,4 @@
-"""Controller rumble driven by active shakes.
+"""Controller rumble driven by active shakes, sustained levels and one-shot pulses.
 
 SDL replaces a running rumble whenever a new one starts and treats a duration of 0 as
 "forever", so this controller sends one combined level (per-motor maximum over all shakers)
@@ -82,6 +82,8 @@ class RumbleController:
         self._sent_levels = (0.0, 0.0)
         self._sent_time_left = 0.0
         self._sustained_levels = (0.0, 0.0)
+        # Each pulse is [low_frequency, high_frequency, duration, elapsed] in seconds
+        self._pulses: list[list[float]] = []
 
     @property
     def sustained_levels(self) -> tuple[float, float]:
@@ -109,8 +111,48 @@ class RumbleController:
         self._sustained_levels = (low_frequency, high_frequency)
 
     def clear_sustained(self) -> None:
-        """Stop holding a sustained level (shake rumble is unaffected)."""
+        """Stop holding a sustained level (shake and pulse rumble are unaffected).
+
+        Scene switches call this because a sustained level has no natural end and would
+        otherwise leave a controller buzzing in the next scene.
+        """
         self._sustained_levels = (0.0, 0.0)
+
+    def pulse(self, *, low_frequency: float, high_frequency: float, duration: float) -> None:
+        """Add a one-shot rumble that fades linearly from the given levels to 0.0.
+
+        Unlike sustained rumble, a pulse is finite, so scene switches deliberately leave it
+        running: a death pulse started just before the game-over scene replaces the game
+        scene must still be felt. A pulse contributes exactly 0.0 at and after its duration.
+
+        Like all rumble today, a pulse goes to every connected device. Per-player targeting is
+        a planned engine item: when it lands, pulse(), set_sustained() and RumbleSettings will
+        gain a ``targets`` keyword defaulting to all devices, so existing calls stay valid.
+
+        Args:
+            low_frequency: Starting low-frequency (heavy) motor level, 0.0-1.0.
+            high_frequency: Starting high-frequency (light) motor level, 0.0-1.0.
+            duration: Seconds of game time until the pulse has faded to nothing; must be > 0.
+
+        Raises:
+            ValueError: If either level is outside 0.0-1.0 or duration is not positive.
+
+        """
+        for field_name, value in (
+            ('low_frequency', low_frequency),
+            ('high_frequency', high_frequency),
+        ):
+            if not 0.0 <= value <= 1.0:
+                message = f'{field_name} must be between 0.0 and 1.0, got {value}'
+                raise ValueError(message)
+        if duration <= 0.0:
+            message = f'duration must be greater than 0.0, got {duration}'
+            raise ValueError(message)
+        self._pulses.append([low_frequency, high_frequency, duration, 0.0])
+
+    def clear_pulses(self) -> None:
+        """Drop every running pulse (not called by scene switches; see pulse())."""
+        self._pulses.clear()
 
     @property
     def intensity(self) -> float:
@@ -140,12 +182,17 @@ class RumbleController:
 
         """
         self._sent_time_left -= dt
+        pulse_low, pulse_high, pulse_remaining = self._advance_pulses(dt=dt)
         sustained_low, sustained_high = self._sustained_levels
         low = max((shaker.rumble_levels[0] for shaker in shakers), default=0.0)
-        low = max(low, sustained_low) * self._intensity
+        low = max(low, sustained_low, pulse_low) * self._intensity
         high = max((shaker.rumble_levels[1] for shaker in shakers), default=0.0)
-        high = max(high, sustained_high) * self._intensity
-        remaining = max((shaker.rumble_remaining for shaker in shakers), default=0.0)
+        high = max(high, sustained_high, pulse_high) * self._intensity
+        # Pulses are finite like shakes, so they count toward the remaining time
+        remaining = max(
+            max((shaker.rumble_remaining for shaker in shakers), default=0.0),
+            pulse_remaining,
+        )
         # Only shakes have a real end; the sustained slice must not look like "shakes outlast
         # what was sent" every frame, or it would be re-sent every frame.
         send_remaining = remaining
@@ -176,6 +223,30 @@ class RumbleController:
         )
         self._sent_levels = (low, high)
         self._sent_time_left = duration_milliseconds / MILLISECONDS_PER_SECOND
+
+    def _advance_pulses(self, *, dt: float) -> tuple[float, float, float]:
+        """Advance every pulse by dt, drop finished ones and combine the rest.
+
+        Returns:
+            The per-motor maximum (low, high) pulse level and the longest remaining time.
+
+        """
+        low = 0.0
+        high = 0.0
+        longest_remaining = 0.0
+        running_pulses: list[list[float]] = []
+        for pulse in self._pulses:
+            pulse[3] += dt
+            start_low, start_high, duration, elapsed = pulse
+            if elapsed >= duration:
+                continue
+            running_pulses.append(pulse)
+            fade = 1.0 - elapsed / duration
+            low = max(low, start_low * fade)
+            high = max(high, start_high * fade)
+            longest_remaining = max(longest_remaining, duration - elapsed)
+        self._pulses = running_pulses
+        return low, high, longest_remaining
 
     @staticmethod
     def _send_rumble(
