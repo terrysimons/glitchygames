@@ -87,6 +87,34 @@ def toml_basic_string(value: str) -> str:
     return '"' + ''.join(escaped_characters) + '"'
 
 
+def toml_multiline_basic_string(value: str) -> str:
+    """Quote a string as a TOML multi-line basic string (triple quotes), escaping as needed.
+
+    Newlines stay as real line breaks so descriptions stay readable. Backslashes and quotes
+    are escaped (so no run of three quotes can end the string early), as are other control
+    characters, and a leading newline is written as an escape because TOML drops a newline
+    right after the opening quotes.
+
+    Returns:
+        str: The value wrapped in triple quotes.
+
+    """
+    escaped_characters: list[str] = []
+    for position, character in enumerate(value):
+        if character == '\n' and position > 0:
+            escaped_characters.append(character)
+        elif character in TOML_SHORT_ESCAPES:
+            escaped_characters.append(TOML_SHORT_ESCAPES[character])
+        elif (
+            ord(character) < TOML_FIRST_PRINTABLE_CODE_POINT
+            or ord(character) == TOML_DELETE_CODE_POINT
+        ):
+            escaped_characters.append(f'\\u{ord(character):04X}')
+        else:
+            escaped_characters.append(character)
+    return '"""' + ''.join(escaped_characters) + '"""'
+
+
 def toml_key(key: str) -> str:
     """Return a TOML key: bare when TOML allows it, otherwise a quoted basic string.
 
@@ -1744,10 +1772,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Write TOML file with proper block string format
         with Path(filename).open('w', encoding='utf-8') as f:
             f.write('[sprite]\n')
-            f.write(f'name = "{self.name}"\n')
+            f.write(f'name = {toml_basic_string(self.name)}\n')
             # The same [sprite] keys, in the same format, as _write_toml_sprite_section
             if self.description:
-                f.write(f'description = """{self.description}"""\n')
+                f.write(f'description = {toml_multiline_basic_string(self.description)}\n')
             if self.frame_anchor is not FrameAnchor.NONE:
                 f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
             f.write('pixels = """\n')
@@ -2192,9 +2220,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def _write_toml_sprite_section(f: IO[str], data: dict[str, Any]) -> None:
         """Write TOML sprite section."""
         f.write('[sprite]\n')
-        f.write(f'name = "{data["sprite"]["name"]}"\n')
+        f.write(f'name = {toml_basic_string(data["sprite"]["name"])}\n')
         if data['sprite'].get('description'):
-            f.write(f'description = """{data["sprite"]["description"]}"""\n')
+            description = data['sprite']['description']
+            f.write(f'description = {toml_multiline_basic_string(description)}\n')
         if 'frame_anchor' in data['sprite']:
             f.write(f'frame_anchor = "{data["sprite"]["frame_anchor"]}"\n')
         f.write('\n')

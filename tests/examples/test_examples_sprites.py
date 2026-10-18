@@ -599,3 +599,29 @@ def test_state_machine_transitions_reload_in_order(sprite_file, expected_pairs, 
         (transition.from_state, transition.to_state)
         for transition in reloaded_sprite.state_machine._transitions
     ] == expected_pairs
+
+
+@pytest.mark.usefixtures('real_display')
+@pytest.mark.parametrize('frame_count', [1, 2], ids=['single-frame-writer', 'animated-writer'])
+def test_names_and_descriptions_needing_escapes_round_trip(frame_count, tmp_path):
+    """Quotes, backslashes, triple quotes and a leading newline survive both writers."""
+    import pygame as real_pygame
+
+    from glitchygames.sprites import AnimatedSprite, SpriteFrame
+
+    sprite = AnimatedSprite()
+    frames = [SpriteFrame(real_pygame.Surface((2, 2))) for _ in range(frame_count)]
+    for frame in frames:
+        frame.pixels = [(0, 0, 0)] * 4
+    sprite.add_animation('idle', frames)
+    sprite.name = 'say "hi" \\ bye'
+    sprite.description = '\nFirst line with """triple quotes""" and a \\ backslash.\nSecond line.'
+    saved_file = tmp_path / 'escapes.toml'
+
+    sprite.save(str(saved_file), 'toml')
+    reloaded_sprite = AnimatedSprite(str(saved_file))
+
+    assert (reloaded_sprite.name, reloaded_sprite.description) == (
+        sprite.name,
+        sprite.description,
+    )

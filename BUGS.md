@@ -28,14 +28,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-18
 - **Details**: `glitchygames/ui/dialogs.py:~305-317`. Identical on main. Base-class key-down handling never runs for that dialog, and key-up handling runs twice per key press.
 
-### 42. TOML Writers Don't Escape Sprite Names and Descriptions
-- **Description**: Both TOML writers write `name = "{name}"` and `description = """{description}"""` without escaping, so a description containing `"""` or a name containing `"` or a backslash produces an invalid TOML file that cannot be loaded again
-- **Status**: Active
-- **Priority**: Medium (AI-generated descriptions in Bitmappy can contain quotes)
-- **Reporter**: Found while fixing the single-frame writer (BUGS.md #39)
-- **Date Reported**: 2026-10-18
-- **Details**: `glitchygames/sprites/animated.py:1633-1636` (single-frame writer) and `_write_toml_sprite_section` (`:2076-2081`, animated writer). Identical on main. Fix: escape per the TOML spec (or emit the values through a TOML writer) and round-trip-test names and descriptions with quotes, backslashes and triple quotes.
-
 ### 43. Bitmappy Single-Frame Save Drops the Sprite Name, Frame Anchor and Sprite Hitbox
 - **Description**: Bitmappy's normal save of a single-frame sprite (`on_save_file_event` → `_save_as_static_sprite`) builds a new `AnimatedSprite` and copies only `description`, so the saved file's `name` becomes `"animated_sprite"` (battle_axe: `bttlaxe.get` → `animated_sprite`) and `frame_anchor` and a sprite-level hitbox not stored on the frame are lost
 - **Status**: Active
@@ -73,6 +65,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Solution**: The loader keeps each table verbatim, in file order, in `AnimatedSprite.transition_data`; both writers append them as `[[transition]]` sections with the same keys, values and order (`_write_toml_transitions`). Strings are escaped as TOML basic strings (`toml_basic_string`: backslash, quote and control characters; also `toml_key` and `toml_scalar`), so `when` expressions with quotes or backslashes round-trip. Transitions that games add in code (the Papyrus player's compound falling transitions) are not part of the data and are not written. Bitmappy's viewport and single-frame canvas saves copy the transitions (`copy_transitions_from`); renaming an animation renames it in its transitions (`rename_animation_in_transitions`, called by `FilmStripCoordinator._rename_animation_in_sprite`); deleting one drops the transitions from or to it with a logged warning (`remove_transitions_for_animation`, called by `_delete_animation` and `AnimatedSprite.remove_animation`). Undoing a Bitmappy animation delete does not restore the dropped transitions
 - **Tests**: `test_bundled_transitions_survive_a_save_round_trip` (every bundled sprite) and `test_state_machine_transitions_reload_in_order` (Papyrus player, cobra) in `tests/examples/test_examples_sprites.py`; `TestTransitionData` in `tests/sprites/test_animated_sprite.py`; `test_viewport_save_keeps_transitions` and `test_static_save_keeps_transitions` in `tests/tools/test_canvas_panning.py`; `TestFilmStripAnimationTransitions` in `tests/tools/test_bitmappy_film_strips.py`
 - **Files**: `glitchygames/sprites/animated.py`, `glitchygames/bitmappy/animated_canvas.py`, `glitchygames/bitmappy/film_strip_coordinator.py`
+
+### 42. TOML Writers Don't Escape Sprite Names and Descriptions
+- **Description**: Both TOML writers wrote `name = "{name}"` and `description = """{description}"""` without escaping, so a description containing `"""` or a name containing `"` or a backslash produced an invalid TOML file that could not be loaded again
+- **Status**: Resolved
+- **Priority**: Medium (AI-generated descriptions in Bitmappy can contain quotes)
+- **Reporter**: Found while fixing the single-frame writer (BUGS.md #39)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: The values were interpolated into f-strings verbatim in `_save_toml_single_frame` and `_write_toml_sprite_section`
+- **Solution**: Names are written with `toml_basic_string` (the escaping added for BUGS.md #44) and descriptions with `toml_multiline_basic_string`, which keeps real line breaks but escapes backslashes, quotes, other control characters and a leading newline (which TOML would otherwise drop)
+- **Tests**: `test_names_and_descriptions_needing_escapes_round_trip` (both writers) in `tests/examples/test_examples_sprites.py`
+- **Files**: `glitchygames/sprites/animated.py`
 
 ### 39. Single-Frame TOML Save Drops the Description
 - **Description**: Saving a single-frame (static) sprite lost its `[sprite] description`
