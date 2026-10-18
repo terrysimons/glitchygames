@@ -8,6 +8,7 @@ import pygame
 
 # GRAVITY, MAX_FALL_SPEED, PLAYER_ACCELERATION, PLAYER_DECELERATION used in PhysicsBody.platformer()
 from glitchygames.animation.expressions import Expression
+from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.examples.brave_adventurer.constants import (
     FALLING_VELOCITY_THRESHOLD,
     GRAVITY,
@@ -98,6 +99,8 @@ class Player(Sprite):
         # Physics body handles position, velocity, gravity, acceleration, bounds.
         # Ground collision is handled by game.py (terrain-based), not by a
         # GroundConstraint, so we build the body manually without one.
+        # World left edge: refitted to the hitbox every tick (see _fit_world_edge_to_hitbox)
+        self._world_edge_bounds = BoundsConstraint(min_x=0.0)
         self.physics: PhysicsBody = PhysicsBody(
             world_x=world_x,
             world_y=world_y,
@@ -111,9 +114,7 @@ class Player(Sprite):
                     deceleration=PLAYER_DECELERATION,
                 ),
             ],
-            constraints=[
-                BoundsConstraint(min_x=0.0),
-            ],
+            constraints=[self._world_edge_bounds],
         )
 
         # Animation state machine (code-defined since primitives don't use TOML)
@@ -204,6 +205,15 @@ class Player(Sprite):
 
     # --- Physics ---
 
+    def _fit_world_edge_to_hitbox(self: Self) -> None:
+        """Let the hitbox, not the image's transparent margin, stop at the world's left edge.
+
+        The margin changes with pose, facing and animation frame, so the bound is refitted
+        from the current collision rect each tick.
+        """
+        offset_x, _ = collision_rect_offset(self)
+        self._world_edge_bounds.min_x = float(-offset_x)
+
     @override
     def dt_tick(self: Self, dt: float) -> None:
         """Advance physics and update animation state.
@@ -216,6 +226,7 @@ class Player(Sprite):
         self.animation_timer += dt
 
         # PhysicsBody handles gravity, acceleration, bounds, integration
+        self._fit_world_edge_to_hitbox()
         self.physics.tick(dt)
 
         # State machine evaluates transitions from code-defined rules

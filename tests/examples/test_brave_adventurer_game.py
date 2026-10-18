@@ -120,6 +120,9 @@ class TestTerrainUsesHitbox:
         player = _drawn_player(scene)
         offset_x, _ = collision_rect_offset(player)
         player.world_x = float(hitbox_left - offset_x)
+        # Sunk into the ground and falling, so each game snaps it up onto its own foot line
+        player.world_y = float(GROUND_Y - 20)
+        player.velocity_y = 50.0
         scene._resolve_player_ground_collision()
         return player
 
@@ -174,3 +177,71 @@ class TestTerrainUsesHitbox:
         player.world_x = float(segment_right - offset_x)
         scene._resolve_player_ground_collision()
         assert not player.on_ground
+
+
+def _make_scarab(scene):
+    """Build each game's scarab, drawn once so its collision rect trims to its pixels.
+
+    Returns:
+        The scarab.
+
+    """
+    if isinstance(scene, PapyrusBraveAdventurerScene):
+        from glitchygames.examples.brave_adventurer_papyrus.enemies import PapyrusScarab
+
+        scarab = PapyrusScarab(500.0, pygame.sprite.LayeredDirty())
+        scarab.dt_tick(0.0)
+    else:
+        from glitchygames.examples.brave_adventurer.enemies import Scarab
+
+        scarab = Scarab(500.0, pygame.sprite.LayeredDirty())
+        scarab.update()
+    return scarab
+
+
+class TestHitboxLooseEnds:
+    """World edge, standing height and scarab ground contact use collision rects."""
+
+    def test_world_left_edge_stops_the_hitbox(self, adventurer_scene):
+        """The player's hitbox, not its transparent margin, meets the world's left edge."""
+        player = _drawn_player(adventurer_scene)
+        player.world_x = -50.0
+        player.velocity_x = -200.0
+        player.dt_tick(0.0)
+        assert _player_hitbox(adventurer_scene).left == 0
+
+    @pytest.mark.parametrize('adventurer_scene', [BraveAdventurerScene], indirect=True)
+    def test_brave_adventurer_feet_stand_on_the_ground(self, adventurer_scene):
+        """Brave Adventurer's figure ends 1 px above its 48 px image; the feet touch the ground.
+
+        Papyrus keeps PAPYRUS_PLAYER_HEIGHT as its foot line: its per-frame hitboxes are 24-27
+        native rows tall, so standing on the hitbox bottom would bounce between frames.
+        """
+        scene = adventurer_scene
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
+        scene.wall_sprites[:] = []
+        player = _drawn_player(scene)
+        player.world_x = 100.0
+        player.world_y = float(GROUND_Y - 40)
+        player.velocity_y = 100.0
+
+        scene._resolve_player_ground_collision()
+
+        assert player.on_ground
+        assert _player_hitbox(scene).bottom == GROUND_Y
+        assert round(player.world_y) + player.image.get_bounding_rect().bottom == GROUND_Y
+
+    def test_scarab_rolls_with_its_visible_bottom_on_the_ground(self, adventurer_scene):
+        """The scarab's hitbox bottom (2 px above its image bottom) rests on the ground."""
+        scene = adventurer_scene
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
+        scene.wall_sprites[:] = []
+        scarab = _make_scarab(scene)
+        scarab.world_y = float(GROUND_Y - 10)
+        scarab.velocity_y = 100.0
+        scene.enemy_sprites[:] = [scarab]
+
+        scene._resolve_enemy_terrain_collisions()
+
+        assert scarab.on_ground
+        assert get_sprite_collision_rect(scarab).bottom == GROUND_Y

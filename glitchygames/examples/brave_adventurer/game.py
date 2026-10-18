@@ -39,7 +39,6 @@ from glitchygames.examples.brave_adventurer.constants import (
     PIT_WALL_SHADOW,
     PLAYER_HEIGHT,
     RESPAWN_OFFSET,
-    SCARAB_HEIGHT,
     SCREEN_HEIGHT,
     SKY_COLOR,
     STONE_WALL_WIDTH,
@@ -328,6 +327,16 @@ class BraveAdventurerScene(Scene):
             return left + body_width
         return left + body_width // 2
 
+    def _player_feet_below_world_y(self: Self) -> int:
+        """Return how far below world_y the player's hitbox bottom (visible feet) is.
+
+        Returns:
+            int: The hitbox's offset from the snapped world y plus its height.
+
+        """
+        _, player_offset_y = collision_rect_offset(self.player)
+        return player_offset_y + get_sprite_collision_rect(self.player).height
+
     def _resolve_player_ground_collision(self: Self) -> None:
         """Check if the player lands on ground and snap to the surface."""
         self.player.on_ground = False
@@ -339,7 +348,10 @@ class BraveAdventurerScene(Scene):
             body_width=player_rect.width,
             velocity_x=self.player.velocity_x,
         )
-        player_bottom = round(self.player.world_y) + PLAYER_HEIGHT
+        # Vertical contact uses the hitbox bottom: the figure's visible feet end 1 px above
+        # its 48 px image, so standing on PLAYER_HEIGHT floated it
+        player_feet = self._player_feet_below_world_y()
+        player_bottom = player_rect.bottom
 
         if self.ground_sprites:
             for ground_segment in self.ground_sprites:
@@ -353,19 +365,19 @@ class BraveAdventurerScene(Scene):
                 feet_on_surface = player_bottom >= GROUND_Y
 
                 if feet_over_segment and feet_on_surface and self.player.velocity_y >= 0:
-                    self.player.world_y = GROUND_Y - PLAYER_HEIGHT
+                    self.player.world_y = float(GROUND_Y - player_feet)
                     self.player.velocity_y = 0.0
                     self.player.on_ground = True
                     break
         elif player_bottom >= GROUND_Y and self.player.velocity_y >= 0:
             # Fallback: infinite flat ground when no segments defined
-            self.player.world_y = GROUND_Y - PLAYER_HEIGHT
+            self.player.world_y = float(GROUND_Y - player_feet)
             self.player.velocity_y = 0.0
             self.player.on_ground = True
 
         # If the player is in a pit (below ground, not on ground), the edges
         # of adjacent ground segments act as walls to prevent climbing out.
-        if not self.player.on_ground and round(self.player.world_y) + PLAYER_HEIGHT > GROUND_Y:
+        if not self.player.on_ground and get_sprite_collision_rect(self.player).bottom > GROUND_Y:
             player_rect = get_sprite_collision_rect(self.player)
             player_offset_x, _ = collision_rect_offset(self.player)
             player_left = player_rect.left
@@ -410,8 +422,9 @@ class BraveAdventurerScene(Scene):
         # Left/right edges come from the collision rect (hitbox), not the drawn width
         player_rect = get_sprite_collision_rect(self.player)
         player_offset_x, _ = collision_rect_offset(self.player)
-        player_top = round(self.player.world_y)
-        player_bottom = player_top + PLAYER_HEIGHT
+        player_top = player_rect.top
+        player_bottom = player_rect.bottom
+        player_feet = self._player_feet_below_world_y()
 
         for wall in self.wall_sprites:
             wall_left = round(wall.world_x)
@@ -440,7 +453,7 @@ class BraveAdventurerScene(Scene):
             )
 
             if standing_on_top:
-                self.player.world_y = wall_top - PLAYER_HEIGHT
+                self.player.world_y = float(wall_top - player_feet)
                 self.player.velocity_y = 0.0
                 self.player.on_ground = True
                 continue
@@ -471,7 +484,11 @@ class BraveAdventurerScene(Scene):
             if not isinstance(enemy, Scarab):
                 continue
 
-            scarab_bottom = enemy.world_y + SCARAB_HEIGHT
+            # Vertical contact uses the hitbox bottom (the visible underside), not the image
+            scarab_rect = get_sprite_collision_rect(enemy)
+            _, scarab_offset_y = collision_rect_offset(enemy)
+            scarab_feet = scarab_offset_y + scarab_rect.height
+            scarab_bottom = enemy.world_y + scarab_feet
 
             # Ground collision: land on the nearest ground segment
             landed = False
@@ -485,14 +502,14 @@ class BraveAdventurerScene(Scene):
                         scarab_center_x >= segment_left and scarab_center_x < segment_right
                     )
                     if over_segment and scarab_bottom >= GROUND_Y and enemy.velocity_y >= 0:
-                        enemy.world_y = GROUND_Y - SCARAB_HEIGHT
+                        enemy.world_y = float(GROUND_Y - scarab_feet)
                         enemy.velocity_y = 0.0
                         enemy.on_ground = True
                         landed = True
                         break
 
             # Pit floor: if scarab fell below ground level, land on pit floor
-            pit_floor_y = self.screen_height - SCARAB_HEIGHT
+            pit_floor_y = self.screen_height - scarab_feet
             if not landed and scarab_bottom >= self.screen_height:
                 enemy.world_y = float(pit_floor_y)
                 enemy.velocity_y = 0.0
@@ -613,7 +630,7 @@ class BraveAdventurerScene(Scene):
 
         def _reposition_and_fade_in() -> None:
             self.player.world_x = respawn_x
-            self.player.world_y = GROUND_Y - PLAYER_HEIGHT
+            self.player.world_y = float(GROUND_Y - self._player_feet_below_world_y())
             self.player.on_ground = True
             self.player.is_respawning = False
             # Fade back in

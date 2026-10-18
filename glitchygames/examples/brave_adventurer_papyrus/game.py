@@ -42,7 +42,6 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     LAYER_NEAR_BACKGROUND,
     LAYER_SKY,
     PAPYRUS_PLAYER_HEIGHT,
-    PAPYRUS_SCARAB_HEIGHT,
     PARALLAX_FAR,
     PARALLAX_MID,
     PARALLAX_NEAR,
@@ -446,7 +445,11 @@ class PapyrusBraveAdventurerScene(Scene):
             if not isinstance(enemy, PapyrusScarab):
                 continue
 
-            scarab_bottom = enemy.world_y + PAPYRUS_SCARAB_HEIGHT
+            # Vertical contact uses the hitbox bottom (the visible underside), not the image
+            scarab_rect = get_sprite_collision_rect(enemy)
+            _, scarab_offset_y = collision_rect_offset(enemy)
+            scarab_feet = scarab_offset_y + scarab_rect.height
+            scarab_bottom = enemy.world_y + scarab_feet
 
             # Ground collision: land on the nearest ground segment
             landed = False
@@ -460,14 +463,14 @@ class PapyrusBraveAdventurerScene(Scene):
                         scarab_center_x >= segment_left and scarab_center_x < segment_right
                     )
                     if over_segment and scarab_bottom >= GROUND_Y and enemy.velocity_y >= 0:
-                        enemy.world_y = GROUND_Y - PAPYRUS_SCARAB_HEIGHT
+                        enemy.world_y = float(GROUND_Y - scarab_feet)
                         enemy.velocity_y = 0.0
                         enemy.on_ground = True
                         landed = True
                         break
 
             # Pit floor: if scarab fell below ground level, land on pit floor
-            pit_floor_y = self.screen_height - PAPYRUS_SCARAB_HEIGHT
+            pit_floor_y = self.screen_height - scarab_feet
             if not landed and scarab_bottom >= self.screen_height:
                 enemy.world_y = float(pit_floor_y)
                 enemy.velocity_y = 0.0
