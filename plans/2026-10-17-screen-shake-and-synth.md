@@ -1,8 +1,9 @@
 # Screen Shake and Sound Synthesis — Design
 
-- **Date:** 2026-10-17 (revision 2, after adversarial audit)
+- **Date:** 2026-10-17 (revision 3, after the final whole-branch review; see "Revision 3" at the end)
 - **Branch:** `game/brave-adventurer`
-- **Status:** Design approved in conversation; revised spec awaiting review
+- **Status:** Implemented (Tasks 1-15); revision 3 fix pass approved 2026-10-17
+- **Master plan:** `plans/engine-audit.md` (items #3 and #5)
 - **Origin:** Requested while building Clockwork Keep (April 2026): "when the elevator gets to the
   next floor kind of thing and stops... Big clunky shake and some deep sound effects if we can make
   them from scratch." Engine audit items #3 (screen shake) and #5 (sound synthesis).
@@ -121,7 +122,9 @@ Style behavior (`t` = elapsed seconds, `remaining = 1 - t / duration`):
 - When the shake ends, the manager forces one full redraw (all sprites dirty and a full display
   update, as `_finalize_transition` does) so the last shifted present is fully replaced.
 - **Lifecycle:** the screen shake survives `transition_to` (the elevator's shake continues into the
-  new floor) and is cleared by `switch_to_scene` (pause, game over, and any direct scene switch).
+  new floor) and is cleared by `switch_to_scene` (pause and any direct scene switch). A game that
+  reaches game over through `transition_to` clears it explicitly before the transition (revision 3:
+  Clockwork Keep's game over uses `transition_to(FadeTransition)`).
 
 ### Transition screenshots and WORLD shake
 
@@ -134,9 +137,18 @@ the old scene's camera (when it has one) and the scene re-applies its camera (th
 
 `Scene.shake(shake, *, targets=ShakeTarget.WORLD)`
 
-- `Scene` gains `camera: Camera2D | None = None`. The three platformers already assign
-  `self.camera`; they construct it with `shake_intensity=self.options['screen_shake_intensity']`.
-- `WORLD` with no camera raises `ValueError`.
+- (Revision 3) Every `Scene` has a camera: `Scene.camera: Camera2D`, never `None`. The base
+  `__init__` creates a default camera sized to the screen at (0, 0) with no bounds; nothing moves
+  it, so `apply(x, y)` returns `(x, y)` (a null-object camera for scenes that do not scroll). The
+  three platformers replace it, as before, constructing theirs with
+  `shake_intensity=self.options.get('screen_shake_intensity', 1.0)`. Revision 2's
+  `Camera2D | None` made every out-of-`__init__` use a type error; re-annotating `camera` in
+  subclasses is rejected by basedpyright and ty (mutable attribute invariance).
+- (Revision 3) `WORLD` shakes the scene's camera. It moves only sprites positioned through
+  `camera.apply()`. `Camera2D` records whether `apply()` has been called; `Scene.shake(..., WORLD)`
+  logs a warning once per scene when its camera has never been applied ("WORLD shake on <scene>
+  has no effect: no sprites are positioned through its camera; use ShakeTarget.SCREEN").
+  Revision 2's `ValueError` for a missing camera no longer applies.
 - `SCREEN` routes to `scene_manager.screen_shake`.
 - Rumble is owned by a new `RumbleController` held by `SceneManager` (not by the scene, so it
   survives transitions):
@@ -319,8 +331,8 @@ more voices than the pool raises `ValueError`.
 - **Ownership rule:** cue and `on_update` callbacks are closures over the scene that started the
   transition, which has already been cleaned up. They may use `SceneManager`-owned services
   (`screen_shake`, `RumbleController`, `live_audio`, sound playback) but must not touch that
-  scene's camera or sprites. `Scene.shake` called on a cleaned-up scene with `WORLD` raises
-  `RuntimeError`.
+  scene's camera or sprites. `Scene.shake` called with `WORLD` on a scene that is not the active
+  scene raises `RuntimeError` (the concrete form of "cleaned up").
 
 ### The elevator, end to end
 
@@ -383,8 +395,10 @@ path, tested with explicit mocks). Voice logic is tested against a mocked `Chann
   `pre_init` call; no audio device logs and continues; jump on an elevator jumps and does not ride,
   interact rides.
 - **Shake:** each style's decay curve; exactly zero offset and rumble at and after `duration`;
-  stacking sums; the cap holds for every combination; intensity 0 gives no offset and no rumble;
-  `WORLD` without a camera raises `ValueError`; parallax shake scales with `scroll_factor`;
+  stacking sums; the cap holds for every combination; screen-shake intensity 0 gives no offset
+  (rumble is governed only by `--rumble-intensity`, revision 3); every scene has a default
+  identity camera; WORLD on a never-applied camera warns once; parallax shake scales with
+  `scroll_factor`;
   presenting a shaken frame leaves the display surface unshifted afterwards; one full redraw when
   the shake ends; screen shake survives `transition_to` and is cleared by `switch_to_scene`;
   transition screenshots are unshaken.
@@ -427,3 +441,34 @@ path, tested with explicit mocks). Voice logic is tested against a mocked `Chann
   the transition hooks, the 44100/512 mixer, and the three new engine arguments
   (`--screen-shake-intensity`, `--rumble-intensity`, `--live-voice-pool`).
 - BUGS.md: #21–#24 resolved when their fixes land.
+
+---
+
+## Revision 3 (2026-10-17): final review fix pass
+
+The final whole-branch review found the branch tip failing basedpyright (12 errors) and ty (12)
+because of `Scene.camera: Camera2D | None`, plus a missing spec-listed test. Decisions, made with
+the user:
+
+1. **Default camera on every scene** (the user's proposal): `Scene.camera` is always a
+   `Camera2D`; non-scrolling scenes get an identity camera. Removes all `None` guards in the three
+   platformers; no `require_camera()` helper is needed.
+2. **WORLD shake on a scene whose sprites never use the camera** warns once instead of raising
+   (see "API for games"). Automatic camera positioning, which would make WORLD shake work for any
+   scene, is deferred to the "Engine world space" plan (`plans/engine-audit.md`), designed
+   together with engine pixel snapping and camera follow.
+3. **Following a target stays in each game** for now: games follow on different axes and after
+   physics; a base-class follow would lag a frame. Also deferred to "Engine world space".
+4. **Rumble is independent of screen-shake intensity.** Separate `--screen-shake-intensity` and
+   `--rumble-intensity` exist so players can turn off on-screen motion and keep rumble; revision 2's
+   test line "intensity 0 gives no offset and no rumble" is amended.
+5. **Clockwork Keep's game over clears the screen shake** before its fade transition.
+6. **Pre-rendered sounds:** `SoundBank.prerender()` renders every recipe up front (a no-op without
+   audio); Clockwork Keep calls it during floor setup so the elevator clank does not render on the
+   slam frame.
+7. **Small fixes:** Brave Adventurer and Papyrus pass the shake intensity option to their cameras;
+   `_start_elevator_motor` also catches `AudioUnavailableError`; the frame-services ordering comment
+   states that `Scene.update()` runs inside rendering, after frame services.
+8. **Test added:** transition screenshots are unshaken (WORLD shake cleared and sprites
+   re-positioned before the old-scene capture).
+

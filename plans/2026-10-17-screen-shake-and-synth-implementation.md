@@ -4588,3 +4588,75 @@ run (12,944 passed, 22 skipped) plus the new tests.
   the sounds are an octave lower and longer than before, and that the parallax now scrolls.
 
 - [ ] **Step 5: Checkpoint and commit.** Report results, including anything skipped and why. Never push.
+
+---
+
+### Task 16: Final review fix pass (spec revision 3)
+
+Implements spec revision 3 ("Revision 3" section at the end of the spec). Approved by the user on
+2026-10-17, including commits to the Brave Adventurer and Papyrus game files.
+
+**Files:**
+- Modify: `glitchygames/camera.py` (track `apply()` use), `glitchygames/scenes/scene.py`
+  (default camera, WORLD warning, ordering comment)
+- Modify: `glitchygames/examples/brave_adventurer/game.py`,
+  `glitchygames/examples/brave_adventurer_papyrus/game.py`,
+  `glitchygames/examples/clockwork_keep/game.py`
+- Modify: `glitchygames/audio/recipes.py` (`SoundBank.prerender()`)
+- Test: `tests/test_camera.py`, `tests/scenes/test_scene_manager.py`,
+  `tests/effects/test_shake.py`, `tests/audio/test_recipes.py`, `tests/examples/test_clockwork_keep.py`
+
+**Interfaces:**
+- `Scene.camera: Camera2D` (never `None`); base `__init__` builds
+  `Camera2D(screen_width=self.screen_width, screen_height=self.screen_height)`.
+- `Camera2D.has_been_applied -> bool` (read-only property; becomes True on the first `apply()`).
+- `SoundBank.prerender() -> None` (renders every recipe at the mixer rate; logged no-op without
+  audio, same once-only warning as `play`).
+
+- [ ] **Step 1: Default camera.** In `Scene.__init__`, replace `self.camera: Camera2D | None = None`
+  with a default `Camera2D` sized to the screen (comment: identity camera for scenes that do not
+  scroll; scrolling games replace it). Update the `Scene.camera` docstring/comment. Remove the
+  `isinstance(camera, Camera2D)` / `is None` checks that existed only because the camera could be
+  `None` (in `SceneManager._update_frame_services` and `_start_transition`, keep a check only where
+  the scene object itself may be a non-`Scene` mock in tests — judge by running tests/scenes).
+- [ ] **Step 2: Remove the guards.** The working tree has an uncommitted change adding
+  `_follow_player_with_camera()` guards to the two Brave Adventurer games. Do NOT `git restore`
+  or `git checkout` anything; edit those files to the final design: keep the extracted
+  `_follow_player_with_camera()` helper if it reads well, but without the `None` check/raise; drop
+  the `None` guard in the pit-gap drawing; remove Papyrus's stray empty "# 11. Distance score"
+  comment. Pass `shake_intensity=self.options.get('screen_shake_intensity', 1.0)` to `Camera2D` in
+  both games. In Clockwork Keep remove the Task 14 `self.camera is None` guards.
+- [ ] **Step 3: WORLD warning.** `Camera2D` sets a private flag in `apply()`; expose
+  `has_been_applied`. In `Scene.shake`, for `WORLD`: delete the "no camera" `ValueError`; keep the
+  not-active-scene `RuntimeError`; after adding the shake, if `not self.camera.has_been_applied`,
+  log a warning once per scene instance:
+  `'WORLD shake on %s has no effect: no sprites are positioned through its camera; use ShakeTarget.SCREEN'`.
+  Tests: default camera exists and `apply(5.0, 7.0) == (5, 7)`; `has_been_applied` flips on first
+  `apply`; WORLD on an unapplied camera warns exactly once across two shakes; WORLD on an applied
+  camera does not warn; delete/replace the old "WORLD requires camera raises ValueError" test.
+- [ ] **Step 4: Transition screenshot test** (in `tests/effects/test_shake.py`, real surfaces):
+  a scene whose camera has an active WORLD shake goes through `SceneManager._start_transition`;
+  assert the old camera's `shake_effect.is_active` is False and `apply_camera_to_sprites` was called
+  before the old-scene screenshot was taken (e.g. spy on it and on `transition.start`, check order),
+  and that a sprite positioned through the camera is at its unshaken position in the capture.
+- [ ] **Step 5: Rumble independence.** No code change in shake.py (rumble already ignores
+  screen-shake intensity). Add a test in `tests/input/test_rumble.py` or `tests/effects/test_shake.py`:
+  a shaker with `intensity=0.0` and a rumbling shake gives offset (0, 0) but non-zero
+  `rumble_levels`.
+- [ ] **Step 6: Clockwork Keep game over clears the shake.** In `_player_die`'s game-over branch,
+  call `self.scene_manager.screen_shake.clear()` before `transition_to(...)`, with a comment citing
+  spec revision 3. Test: an active screen shake is cleared when the last life is lost.
+- [ ] **Step 7: Pre-render sounds.** Add `SoundBank.prerender()` (render and cache every recipe;
+  catch `AudioUnavailableError` with the existing once-only warning). Clockwork Keep calls
+  `self.sounds.prerender()` in `setup()`. Tests: prerender caches all recipes so a later `play`
+  does not call `to_sound` again; prerender without audio warns once and does not raise.
+- [ ] **Step 8: Small fixes.** `_start_elevator_motor` catches `(ValueError, AudioUnavailableError)`
+  (import from `glitchygames.audio.exceptions`), with a test where `create_voice`'s voice `start()`
+  raises `AudioUnavailableError` and the ride still completes. Fix the main-loop/frame-services
+  comment in `scene.py` to say `Scene.update()` runs inside `_render_scene`, after frame services.
+- [ ] **Step 9: Verify.** `uv run ruff format --check glitchygames tests scripts noxfile.py`,
+  `uv run ruff check glitchygames tests scripts noxfile.py`, `uv run basedpyright`,
+  `uv run ty check glitchygames scripts` (0 errors; report pre-existing warnings), and
+  `uv run pytest -n auto -q -p no:cacheprovider` (all pass, coverage >= 80%, no warnings).
+- [ ] **Step 10: Commit** only the files above (never `uv.lock`), in one or a few descriptive
+  commits ending with your Co-Authored-By trailer. Never push or amend.
