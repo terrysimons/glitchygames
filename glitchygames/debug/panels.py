@@ -121,8 +121,9 @@ def screen_rect_for(*, sprite: Any, screen_offset: tuple[int, int]) -> pygame.Re
         snapped_world_x, snapped_world_y = snapped_world_position(
             sprite, sprite.world_x, sprite.world_y
         )
-        # An anchored AnimatedSprite's rect already includes its draw_offset, and so does its
-        # collision rect, so take the offset out once (sprites without one have (0, 0))
+        # An anchored AnimatedSprite's rect already includes its draw_offset (the FrameAnchor
+        # contract: games place rect with it), and so does its collision rect, so take the
+        # offset out once (sprites without one have (0, 0))
         draw_offset_x, draw_offset_y = getattr(sprite, 'draw_offset', (0, 0))
         screen_rect.topleft = (
             sprite.rect.x - draw_offset_x + collision_rect.x - snapped_world_x,

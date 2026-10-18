@@ -72,6 +72,12 @@ class FrameAnchor(Enum):
     ============  ==========================  ==========================
 
     Walkers use BOTTOM, spinners and floaters CENTER, hanging things TOP.
+
+    Contract: a game that sets frame_anchor must place the sprite's rect at its world
+    position (through the camera) plus AnimatedSprite.draw_offset, as Papyrus's
+    PapyrusPlayer.apply_camera does. hitbox already includes the offset, and the debug
+    overlay (glitchygames.debug.panels.screen_rect_for) takes it back out of rect, so a rect
+    placed without it shows outlines and collisions that do not match the drawing.
     """
 
     NONE = 'none'  # Draw frames as authored (default)
@@ -516,7 +522,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # True while the game draws this sprite mirrored horizontally (see hitbox)
         self.hitbox_flip_x: bool = False
         # How frames of different shapes line up when drawn (see draw_offset); NONE draws
-        # each frame as authored
+        # each frame as authored. When set, the game must add draw_offset when placing rect
+        # (see FrameAnchor's contract)
         self.frame_anchor: FrameAnchor = FrameAnchor.NONE
         # (frames it was built from, union of their hitboxes); see _frame_anchor_reference
         self._frame_anchor_reference_cache: (
