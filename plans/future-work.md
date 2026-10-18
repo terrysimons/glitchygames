@@ -16,8 +16,8 @@ One line per item, with where it is detailed. Review, then promote items into
 | Undoing an animation delete in Bitmappy restores its frames but not the `[[transition]]` entries dropped with it | `glitchygames/bitmappy/` (delete-animation command and its undo) | Found while fixing BUGS.md #44; the transitions should be captured by the delete command. |
 | On SIGINT/SIGTERM Bitmappy's signal handler exits without the AI worker's queue cleanup, so the worker is killed as a daemon instead of receiving its shutdown message | Bitmappy signal handling / `ai_manager.py` | Found while verifying BUGS.md #47 in the binary; no leak or traceback observed, but shutdown isn't graceful for the worker. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
-| `scripts/legacy_sprite_loader.py` cannot start (`Sprite.__init__()` missing x and y) | `scripts/legacy_sprite_loader.py:~50` | BUGS.md #46 (active); fix or delete. |
 | Bitmappy's editor canvas now honours `loop = false` (a one-shot animation plays once on SPACE and stays stopped) | `glitchygames/bitmappy/animated_canvas.py:~589` (`show_frame`) | Side effect of BUGS.md #38. Decide: keep, or force looping in the editor canvas as `film_strip.py:218` does for previews. |
+| `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
 | PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `glitchygames/examples/paddleslap.py` | Pre-existing, self-correcting next frame. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)

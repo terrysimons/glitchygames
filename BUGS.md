@@ -72,6 +72,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Tests**: `test_entry_point_calls_freeze_support_before_starting_bitmappy` in `tests/tools/test_bitmappy_packaging.py`
 - **Files**: `scripts/bitmappy_entry.py`
 
+### 46. scripts/legacy_sprite_loader.py Cannot Start
+- **Description**: The script raised `TypeError: Sprite.__init__() missing 'x' and 'y'` while building its scene
+- **Status**: Resolved (script deleted)
+- **Priority**: Low
+- **Reporter**: Found by the re-review of `feature/debug-overlay`
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `Sprite.__init__` gained required `x` and `y` arguments in 4bdc966 (Refactor/bitmappy editor, #87); the script still called it with only `width` and `height`. Beyond that, the script was obsolete: since it was added (f20bca6) its history is only lint clean-ups; nothing references it (docs, noxfile, tests, other scripts); its `inflate` draws each pixel as a zero-size rect, which pygame-ce draws as nothing, so even a fixed call would show a solid green square whatever the file held; it wrote the loaded sprite back as an INI `.cfg` file, a format the engine no longer loads (TOML only); and its input (headerless 32×32, one VGA palette index per byte) matches none of the Galimore formats surveyed in `docs/galimore.md` (RGB565 `.bg/.fg/.get/.spr`, 24-bit `.raw`), which Galimore import (sub-plan E) will convert to TOML instead
+- **Solution**: Deleted `scripts/legacy_sprite_loader.py` rather than fixing a script that cannot do its job. `scripts/sprite_loader.py` covers loading sprites (TOML). `scripts/raw_sprite_loader.py` is kept because tests use its `BitmappyLegacySprite.deflate`, though it has the same broken `Sprite` call and zero-size-rect `inflate` (noted in `plans/future-work.md`)
+- **Files Modified**: `scripts/legacy_sprite_loader.py` (deleted)
+- **Tests**: None (nothing to test; `uv run python -c "import pygame; ..."` confirmed a zero-size `pygame.draw.rect` leaves the surface unchanged)
+
 ### 45. Renaming an Animation in Bitmappy Drops Its Timing and Loop Flag
 - **Description**: `_rename_animation_in_sprite` moved the animation's frames but not its loop flag or frame interval, so a renamed one-shot animation stopped honouring `loop = false` at runtime and saved as `loop = true` with the most common frame duration as its interval
 - **Status**: Resolved
