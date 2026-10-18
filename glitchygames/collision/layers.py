@@ -153,6 +153,10 @@ class CollisionManager:
         If layer_a and layer_b are the same, checks all unique pairs
         within the layer (no self-collision, no duplicate pairs).
 
+        Each sprite_a's rect is computed once, before its inner loop, so a callback
+        that moves sprite_a does not change which later sprite_b it is tested against
+        in this pass.
+
         Args:
             layer_a_name: Name of the first layer.
             layer_b_name: Name of the second layer.

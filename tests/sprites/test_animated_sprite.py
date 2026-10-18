@@ -16,6 +16,7 @@ from scripts.sprite_stack import (
 )
 
 import glitchygames.sprites
+import glitchygames.sprites.frame as frame_module
 from glitchygames.sprites import (
     AnimatedSpriteInterface,
     BitmappySprite,
@@ -2495,6 +2496,33 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         sprite.set_animation('idle')
 
         assert sprite.hitbox == pygame.Rect(1, 1, 2, 2)
+
+    def test_frame_bounds_are_measured_once_per_frame_surface(self, mocker):
+        """Frame images are immutable, so each frame surface is measured only once."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        measure_spy = mocker.spy(frame_module, 'measure_opaque_bounds')
+
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+
+        assert measure_spy.call_count == 1
+
+    def test_replacing_a_frame_image_measures_the_new_surface(self):
+        """Papyrus's prepare_papyrus_sprite replaces frame.image after load; bounds follow."""
+        sprite = AnimatedSprite()
+        frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        assert sprite.hitbox == pygame.Rect(3, 4, 10, 18)
+
+        replacement = pygame.Surface((16, 24), pygame.SRCALPHA)
+        replacement.fill((1, 2, 3, 255), pygame.Rect(0, 0, 5, 6))
+        frame.image = replacement
+
+        assert sprite.hitbox == pygame.Rect(0, 0, 5, 6)
 
     def test_default_hitbox_wins_over_trimming(self):
         """A sprite-level TOML hitbox is used as-is."""

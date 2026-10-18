@@ -12,11 +12,7 @@ from glitchygames.collision import (
     get_collision_rect,
     get_collision_rect_with_margin,
 )
-from glitchygames.collision.bounds import (
-    forget_opaque_bounds,
-    opaque_bounds,
-    trims_transparent_hitbox,
-)
+from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.pixel_snap import PixelSnapMode
@@ -439,21 +435,36 @@ class TestOpaqueBounds:
         first.move_ip(100, 100)
         assert opaque_bounds(image) == pygame.Rect(5, 5, 10, 10)
 
-    def test_in_place_redraw_keeps_cached_bounds_until_forgotten(self):
-        """Bounds are cached per surface; forget_opaque_bounds recomputes after a redraw."""
+    def test_in_place_redraw_is_measured_again(self):
+        """Bounds are measured on every call, so redrawing into the same surface is seen."""
         image = _ball_like_image()
         assert opaque_bounds(image) == pygame.Rect(5, 5, 10, 10)
 
         image.fill((0, 0, 0))
         image.fill((255, 255, 255), pygame.Rect(1, 2, 3, 4))
-        assert opaque_bounds(image) == pygame.Rect(5, 5, 10, 10)
-
-        forget_opaque_bounds(image)
         assert opaque_bounds(image) == pygame.Rect(1, 2, 3, 4)
 
-    def test_forgetting_an_unknown_image_is_harmless(self):
-        """forget_opaque_bounds on an image never measured does nothing."""
-        forget_opaque_bounds(pygame.Surface((4, 4)))
+    def test_query_before_first_draw_then_draw(self):
+        """A blank image (queried before the game draws it) is full-size, then trims once drawn.
+
+        Brave Adventurer and Clockwork Keep create a blank SRCALPHA image and draw into it in
+        update(), after dt_tick has already run collision checks.
+        """
+        image = pygame.Surface((16, 9), pygame.SRCALPHA)
+        assert opaque_bounds(image) == pygame.Rect(0, 0, 16, 9)
+
+        image.fill((255, 0, 0, 255), pygame.Rect(4, 2, 6, 5))
+        assert opaque_bounds(image) == pygame.Rect(4, 2, 6, 5)
+
+    def test_pose_change_in_place_follows(self):
+        """A cobra-like pose change redrawn into the same surface moves the trimmed rect."""
+        image = pygame.Surface((20, 20), pygame.SRCALPHA)
+        image.fill((0, 255, 0, 255), pygame.Rect(2, 10, 6, 10))  # coiled
+        assert opaque_bounds(image) == pygame.Rect(2, 10, 6, 10)
+
+        image.fill((0, 0, 0, 0))
+        image.fill((0, 255, 0, 255), pygame.Rect(2, 2, 16, 18))  # striking
+        assert opaque_bounds(image) == pygame.Rect(2, 2, 16, 18)
 
     def test_trims_transparent_hitbox_defaults_to_true(self):
         """Sprites without the attribute trim; the attribute opts out."""
@@ -546,3 +557,37 @@ class TestSnappedCollisionPosition:
         sprite = FakeSprite(world_x=10.5, world_y=11.5)
         assert snapped_world_position(sprite, world_x=10.5, world_y=11.5) == (10, 12)
         assert get_collision_rect(sprite, world_x=10.5, world_y=11.5).topleft == (10, 12)
+
+
+class TestRedrawnGameSprites:
+    """Games that redraw into the same image each update get up-to-date hitboxes."""
+
+    @pytest.fixture(autouse=True)
+    def real_display(self):
+        """Brave Adventurer's sprites convert against a real display."""
+        pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 600))
+
+    def test_cobra_hitbox_follows_first_draw_and_strike(self):
+        """Brave Adventurer's Cobra: blank before update(), then idle, then striking pose."""
+        from glitchygames.examples.brave_adventurer.enemies import Cobra
+
+        cobra = Cobra(500.0, pygame.sprite.LayeredDirty())
+        full_rect = get_sprite_collision_rect(cobra)
+        assert full_rect.size == cobra.image.get_size()
+
+        cobra.update()
+        idle_rect = get_sprite_collision_rect(cobra)
+        idle_visible = cobra.image.get_bounding_rect()
+        assert idle_rect.size == idle_visible.size
+        assert idle_rect.topleft == (
+            full_rect.x + idle_visible.x,
+            full_rect.y + idle_visible.y,
+        )
+
+        cobra.striking = True
+        cobra.update()
+        striking_visible = cobra.image.get_bounding_rect()
+        assert striking_visible != idle_visible
+        assert get_sprite_collision_rect(cobra).size == striking_visible.size

@@ -17,7 +17,7 @@ from typing import IO, Any, Self, cast, override
 import pygame
 
 from glitchygames.animation import AnimationStateMachine
-from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
+from glitchygames.collision.bounds import trims_transparent_hitbox
 
 # YAML support removed - TOML only
 # Import constants
@@ -137,8 +137,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         Resolution order:
         1. Current frame's explicit hitbox (per-frame override)
         2. Sprite-level default hitbox ([sprite.hitbox])
-        3. The visible pixels of the current frame's image (see
-           glitchygames.collision.bounds.opaque_bounds), or the frame's full
+        3. The visible pixels of the current frame's image (measured once per
+           frame surface, see SpriteFrame.opaque_bounds), or the frame's full
            rect when the sprite sets TRIM_TRANSPARENT_HITBOX = False
 
         Always returns a valid pygame.Rect — game code never needs null checks.
@@ -148,10 +148,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             return current_frame.hitbox
         if self._default_hitbox is not None:
             return self._default_hitbox
-        # Fallback: the frame's visible pixels (cached per frame surface), or its full rect
+        # Fallback: the frame's visible pixels (cached per frame surface), or its full rect.
+        # The bounds come from the unflipped frame image; a game that mirrors self.image (e.g.
+        # facing left) gets unmirrored bounds, so asymmetric sprites need a TOML hitbox.
         if current_frame is not None:
             if trims_transparent_hitbox(self):
-                return opaque_bounds(current_frame.image)
+                return current_frame.opaque_bounds()
             return current_frame.rect
         return pygame.Rect(0, 0, self._gg_rect.width, self._gg_rect.height)
 
