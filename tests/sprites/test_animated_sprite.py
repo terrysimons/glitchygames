@@ -2659,21 +2659,28 @@ class TestAnimatedSpriteFrameAnchor:
 
     @staticmethod
     def _anchor_point(rect, frame_anchor):
-        """Return the anchor's point of a rect, doubled to keep half pixels exact."""
-        horizontal = {
-            'LEFT': 2 * rect.left,
-            'RIGHT': 2 * rect.right,
-        }
-        vertical = {'TOP': 2 * rect.top, 'BOTTOM': 2 * rect.bottom}
+        """Return the anchor's point of a rect, doubled to keep half pixels exact.
+
+        Edge anchors (TOP, BOTTOM, LEFT, RIGHT) anchor only their own axis; the other
+        coordinate is None.
+        """
         name = frame_anchor.name
-        horizontal_key = (
-            'LEFT' if name.endswith('LEFT') else 'RIGHT' if name.endswith('RIGHT') else None
-        )
-        vertical_key = (
-            'TOP' if name.startswith('TOP') else 'BOTTOM' if name.startswith('BOTTOM') else None
-        )
-        point_x = horizontal[horizontal_key] if horizontal_key else 2 * rect.left + rect.width
-        point_y = vertical[vertical_key] if vertical_key else 2 * rect.top + rect.height
+        if name in {'TOP', 'BOTTOM'}:
+            point_x = None
+        elif name.endswith('LEFT'):
+            point_x = 2 * rect.left
+        elif name.endswith('RIGHT'):
+            point_x = 2 * rect.right
+        else:
+            point_x = 2 * rect.left + rect.width
+        if name in {'LEFT', 'RIGHT'}:
+            point_y = None
+        elif name.startswith('TOP'):
+            point_y = 2 * rect.top
+        elif name.startswith('BOTTOM'):
+            point_y = 2 * rect.bottom
+        else:
+            point_y = 2 * rect.top + rect.height
         return (point_x, point_y)
 
     def _points_per_frame(self, sprite):
@@ -2714,6 +2721,23 @@ class TestAnimatedSpriteFrameAnchor:
         assert set(hitbox_points) == {expected}
         assert set(drawn_points) == {expected}
 
+    @pytest.mark.parametrize(
+        ('frame_anchor', 'free_axis'),
+        [
+            (FrameAnchor.TOP, 0),
+            (FrameAnchor.BOTTOM, 0),
+            (FrameAnchor.LEFT, 1),
+            (FrameAnchor.RIGHT, 1),
+        ],
+        ids=lambda value: value.name if isinstance(value, FrameAnchor) else str(value),
+    )
+    def test_edge_anchors_leave_the_other_axis_as_authored(self, frame_anchor, free_axis):
+        """TOP/BOTTOM never move a frame in x; LEFT/RIGHT never move it in y."""
+        sprite = self._sprite(frame_anchor, hitbox_scale=2)
+        for frame_index in range(len(self.FRAME_HITBOXES)):
+            sprite.set_frame(frame_index)
+            assert sprite.draw_offset[free_axis] == 0
+
     def test_none_is_a_strict_no_op(self):
         """The default NONE draws frames as authored: no offset, hitboxes unchanged."""
         sprite = self._sprite(FrameAnchor.NONE)
@@ -2745,7 +2769,7 @@ class TestAnimatedSpriteFrameAnchor:
         sprite.default_hitbox = pygame.Rect(0, 0, 20, 28)
         sprite.set_frame(1)
         assert sprite.hitbox.bottom == 28
-        assert 2 * sprite.hitbox.left + sprite.hitbox.width == 20
+        assert sprite.hitbox.left == self.FRAME_HITBOXES[1].left  # x as authored
 
     def test_toml_frame_anchor_is_parsed(self):
         """[sprite] frame_anchor takes the lowercase names; absent is NONE; unknown raises."""

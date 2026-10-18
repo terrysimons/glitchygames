@@ -557,10 +557,7 @@ class TestPapyrusFeetAnchoring:
         assert misplaced == []
 
     def test_head_bob_is_the_frame_anchor_offset(self, standing_player):
-        """Each frame is drawn (27 - its hitbox bottom) * 2 px lower: idle 0, running 4-6.
-
-        BOTTOM also centres each frame's hitbox horizontally on the sprite hitbox's centre.
-        """
+        """Each frame is drawn (27 - its hitbox bottom) * 2 px lower: idle 0, running 4-6."""
         _, player = standing_player
         offsets = {}
         for animation_name, frame_index in self._all_frames(player):
@@ -568,8 +565,9 @@ class TestPapyrusFeetAnchoring:
             player.set_frame(frame_index)
             frame = player.get_current_frame()
             offsets[animation_name, frame_index] = player.draw_offset
-            assert player.draw_offset[1] == (27 - frame.hitbox.bottom) * 2
-        assert offsets['idle', 0][1] == 0
+            # BOTTOM moves frames only vertically: no horizontal shift per frame
+            assert player.draw_offset == (0, (27 - frame.hitbox.bottom) * 2)
+        assert offsets['idle', 0] == (0, 0)
 
     def test_running_cycle_never_leaves_the_ground(self, standing_player):
         """Running across flat ground through every run frame: on_ground stays True."""

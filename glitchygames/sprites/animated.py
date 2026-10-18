@@ -51,13 +51,27 @@ class FrameAnchor(Enum):
     """Which point of every animation frame's hitbox is kept in place when drawn.
 
     Frames are authored top-left aligned. When their hitboxes differ (a short running frame
-    next to a tall idle frame), anchoring moves each frame so the chosen point of its hitbox
-    lands on the same point of the reference hitbox: the sprite-level default hitbox, else the
-    union of all frames' hitboxes. The vertical part is the hitbox top (TOP_*), vertical centre
-    (LEFT, CENTER, RIGHT) or bottom (BOTTOM_*); the horizontal part is the left edge (*_LEFT,
-    LEFT), horizontal centre (TOP, CENTER, BOTTOM) or right edge (*_RIGHT, RIGHT). Walkers
-    use BOTTOM, spinners and floaters CENTER, hanging things TOP. Alternatively, author the
-    art already aligned and keep NONE.
+    next to a tall idle frame), anchoring moves each frame so the chosen part of its hitbox
+    lands on the same part of the reference hitbox: the sprite-level default hitbox, else the
+    union of all frames' hitboxes. Edge anchors move only their own axis; CENTER and the
+    corners move both. Alternatively, author the art already aligned and keep NONE.
+
+    ============  ==========================  ==========================
+    Anchor        Horizontal (x)              Vertical (y)
+    ============  ==========================  ==========================
+    NONE          as authored                 as authored
+    TOP           as authored                 hitbox tops aligned
+    BOTTOM        as authored                 hitbox bottoms aligned
+    LEFT          hitbox left edges aligned   as authored
+    RIGHT         hitbox right edges aligned  as authored
+    CENTER        hitbox centres aligned      hitbox centres aligned
+    TOP_LEFT      left edges                  tops
+    TOP_RIGHT     right edges                 tops
+    BOTTOM_LEFT   left edges                  bottoms
+    BOTTOM_RIGHT  right edges                 bottoms
+    ============  ==========================  ==========================
+
+    Walkers use BOTTOM, spinners and floaters CENTER, hanging things TOP.
     """
 
     NONE = 'none'  # Draw frames as authored (default)
@@ -72,18 +86,40 @@ class FrameAnchor(Enum):
     BOTTOM_RIGHT = 'bottom_right'
 
 
-# (horizontal edge, vertical edge) each anchor aligns: 'start', 'center' or 'end'
-_FRAME_ANCHOR_EDGES: dict[FrameAnchor, tuple[str, str]] = {
+# (horizontal edge, vertical edge) each anchor aligns: 'start', 'center', 'end', or None to
+# leave that axis as authored
+_FRAME_ANCHOR_EDGES: dict[FrameAnchor, tuple[str | None, str | None]] = {
     FrameAnchor.TOP_LEFT: ('start', 'start'),
-    FrameAnchor.TOP: ('center', 'start'),
+    FrameAnchor.TOP: (None, 'start'),
     FrameAnchor.TOP_RIGHT: ('end', 'start'),
-    FrameAnchor.LEFT: ('start', 'center'),
+    FrameAnchor.LEFT: ('start', None),
     FrameAnchor.CENTER: ('center', 'center'),
-    FrameAnchor.RIGHT: ('end', 'center'),
+    FrameAnchor.RIGHT: ('end', None),
     FrameAnchor.BOTTOM_LEFT: ('start', 'end'),
-    FrameAnchor.BOTTOM: ('center', 'end'),
+    FrameAnchor.BOTTOM: (None, 'end'),
     FrameAnchor.BOTTOM_RIGHT: ('end', 'end'),
 }
+
+
+def _doubled_anchor_offset(
+    *,
+    reference_start: int,
+    reference_size: int,
+    frame_start: int,
+    frame_size: int,
+    edge: str | None,
+) -> int:
+    """Return twice the offset that puts a frame span's edge on the reference span's edge.
+
+    Returns:
+        int: The doubled offset (exact for half-pixel centres); 0 when edge is None.
+
+    """
+    if edge is None:
+        return 0
+    return _doubled_edge(reference_start, reference_size, edge) - _doubled_edge(
+        frame_start, frame_size, edge
+    )
 
 
 def _doubled_edge(start: int, size: int, edge: str) -> int:
@@ -253,12 +289,20 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         frame_hitbox = self._native_frame_hitbox(frame)
         horizontal_edge, vertical_edge = _FRAME_ANCHOR_EDGES[self.frame_anchor]
         # Computed in authored (unflipped) native pixels, doubled so centres stay exact
-        doubled_offset_x = _doubled_edge(
-            reference.x, reference.width, horizontal_edge
-        ) - _doubled_edge(frame_hitbox.x, frame_hitbox.width, horizontal_edge)
-        doubled_offset_y = _doubled_edge(
-            reference.y, reference.height, vertical_edge
-        ) - _doubled_edge(frame_hitbox.y, frame_hitbox.height, vertical_edge)
+        doubled_offset_x = _doubled_anchor_offset(
+            reference_start=reference.x,
+            reference_size=reference.width,
+            frame_start=frame_hitbox.x,
+            frame_size=frame_hitbox.width,
+            edge=horizontal_edge,
+        )
+        doubled_offset_y = _doubled_anchor_offset(
+            reference_start=reference.y,
+            reference_size=reference.height,
+            frame_start=frame_hitbox.y,
+            frame_size=frame_hitbox.height,
+            edge=vertical_edge,
+        )
         drawn_offset_x = doubled_offset_x * self.hitbox_scale // 2
         drawn_offset_y = doubled_offset_y * self.hitbox_scale // 2
         if self.hitbox_flip_x:
