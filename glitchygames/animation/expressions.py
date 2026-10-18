@@ -39,6 +39,12 @@ _TOKEN_PATTERN = re.compile(
 
 _COMPARISON_OPERATORS = frozenset({'>', '<', '>=', '<=', '==', '!='})
 _RESERVED_WORDS = frozenset({'and', 'or', 'not', 'abs', 'true', 'false'})
+_NUMBER_PATTERN = re.compile(r'^-?\d+\.?\d*$')
+
+# Each nesting level (a "(" or a chained "not") costs several Python stack frames in the
+# recursive descent parser, so unbounded nesting would hit RecursionError. 32 levels is far
+# beyond any realistic transition condition and well inside the default recursion limit.
+MAXIMUM_NESTING_DEPTH = 32
 _IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z_]\w*$')
 
 
@@ -256,6 +262,8 @@ def parse(expression_string: str) -> Expression:
         msg = f"Empty expression: '{expression_string}'"
         raise ValueError(msg)
 
+    _check_nesting_depth(tokens=tokens, expression_string=expression_string)
+
     expression, remaining = _parse_or_expression(tokens)
     if remaining:
         if remaining[0] == ')':
@@ -265,6 +273,35 @@ def parse(expression_string: str) -> Expression:
         raise ValueError(msg)
 
     return expression
+
+
+def _check_nesting_depth(tokens: list[str], expression_string: str) -> None:
+    """Reject expressions nested deeper than MAXIMUM_NESTING_DEPTH.
+
+    Nesting is open parentheses plus the current run of consecutive "not" words.
+
+    Args:
+        tokens: The tokenized expression.
+        expression_string: The original string, for the error message.
+
+    Raises:
+        ValueError: If the nesting is too deep.
+
+    """
+    parenthesis_depth = 0
+    consecutive_not_count = 0
+    for token in tokens:
+        if token == '(':
+            parenthesis_depth += 1
+        elif token == ')':
+            parenthesis_depth -= 1
+        consecutive_not_count = consecutive_not_count + 1 if token == 'not' else 0
+        if parenthesis_depth + consecutive_not_count > MAXIMUM_NESTING_DEPTH:
+            msg = (
+                f'Expression nesting is deeper than the maximum of {MAXIMUM_NESTING_DEPTH}: '
+                f"'{expression_string}'"
+            )
+            raise ValueError(msg)
 
 
 def _parse_or_expression(tokens: list[str]) -> tuple[Expression, list[str]]:
@@ -437,12 +474,9 @@ def _parse_term(tokens: list[str]) -> tuple[Expression, list[str]]:
         msg = f"Reserved word '{token}' cannot be used as a variable"
         raise ValueError(msg)
 
-    # Number
-    try:
-        value = float(token)
-        return LiteralExpr(value=value), remaining
-    except ValueError:
-        pass
+    # Number (only real numeric tokens: float() would also accept "inf" and "nan")
+    if _NUMBER_PATTERN.match(token):
+        return LiteralExpr(value=float(token)), remaining
 
     # Variable (identifier)
     if _IDENTIFIER_PATTERN.match(token):

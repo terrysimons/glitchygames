@@ -7,7 +7,12 @@ from typing import Any
 import pytest
 
 from glitchygames.animation.expressions import (
+    MAXIMUM_NESTING_DEPTH,
+    AndExpr,
     Expression,
+    NotExpr,
+    OrExpr,
+    VariableExpr,
     parse,
     tokenize,
 )
@@ -169,8 +174,9 @@ class TestBooleanOperators:
 
     def test_left_associativity_shape(self):
         expression = parse('a and b and c')
-        assert expression.left.__class__.__name__ == 'AndExpr'  # type: ignore[attr-defined]
-        assert expression.right.__class__.__name__ == 'VariableExpr'  # type: ignore[attr-defined]
+        assert isinstance(expression, AndExpr)
+        assert isinstance(expression.left, AndExpr)
+        assert isinstance(expression.right, VariableExpr)
 
     def test_nested_parentheses(self):
         expression = parse('((a or b) and (c or (d and e)))')
@@ -190,24 +196,18 @@ class TestBooleanOperators:
         assert parse('not speed').evaluate({'speed': 5.0}) is False
 
     def test_and_short_circuits_when_left_is_false(self):
-        from glitchygames.animation.expressions import AndExpr
-
         right = RecordingExpression(result=True, raises=True)
         expression = AndExpr(left=RecordingExpression(result=False), right=right)
         assert expression.evaluate({}) is False
         assert right.evaluation_count == 0
 
     def test_or_short_circuits_when_left_is_true(self):
-        from glitchygames.animation.expressions import OrExpr
-
         right = RecordingExpression(result=False, raises=True)
         expression = OrExpr(left=RecordingExpression(result=True), right=right)
         assert expression.evaluate({}) is True
         assert right.evaluation_count == 0
 
     def test_and_or_evaluate_right_when_left_does_not_decide(self):
-        from glitchygames.animation.expressions import AndExpr, OrExpr
-
         right_for_and = RecordingExpression(result=True)
         assert AndExpr(left=RecordingExpression(result=True), right=right_for_and).evaluate({})
         assert right_for_and.evaluation_count == 1
@@ -216,8 +216,6 @@ class TestBooleanOperators:
         assert right_for_or.evaluation_count == 1
 
     def test_not_expr_negates(self):
-        from glitchygames.animation.expressions import NotExpr
-
         assert NotExpr(operand=RecordingExpression(result=False)).evaluate({}) is True
 
     def test_comparison_inside_group(self):
@@ -280,6 +278,50 @@ class TestExpressionErrors:
     def test_keywords_are_lowercase_only(self):
         assert parse('AND').evaluate({'AND': True}) is True
         assert parse('Not').evaluate({'Not': True}) is True
+
+
+class TestNumbersAndNesting:
+    """Numeric tokens versus identifiers, negative numbers, and nesting limits."""
+
+    @pytest.mark.parametrize('name', ['inf', 'nan', 'infinity'])
+    def test_float_words_are_variables(self, name):
+        expression = parse(name)
+        assert isinstance(expression, VariableExpr)
+        assert expression.evaluate({name: True}) is True
+        assert expression.evaluate({}) is False
+
+    def test_nan_comparison_reads_variable(self):
+        expression = parse('nan > 1')
+        assert expression.evaluate({'nan': 5.0}) is True
+        assert expression.evaluate({'nan': 0.0}) is False
+
+    def test_not_of_negative_number_is_false(self):
+        assert parse('not -1').evaluate({}) is False
+
+    def test_comparison_with_negative_number_without_spaces(self):
+        assert tokenize('x>-1') == ['x', '>', '-1']
+        expression = parse('x>-1')
+        assert expression.evaluate({'x': 0.0}) is True
+        assert expression.evaluate({'x': -2.0}) is False
+
+    def test_nesting_at_limit_parses(self):
+        depth = MAXIMUM_NESTING_DEPTH
+        expression = parse('(' * depth + 'x' + ')' * depth)
+        assert expression.evaluate({'x': True}) is True
+
+    def test_nesting_over_limit_raises_value_error(self):
+        depth = MAXIMUM_NESTING_DEPTH + 1
+        with pytest.raises(ValueError, match='nesting'):
+            parse('(' * depth + 'x' + ')' * depth)
+
+    def test_not_chain_at_and_over_limit(self):
+        assert parse('not ' * MAXIMUM_NESTING_DEPTH + 'x').evaluate({'x': True}) is True
+        with pytest.raises(ValueError, match='nesting'):
+            parse('not ' * (MAXIMUM_NESTING_DEPTH + 1) + 'x')
+
+    def test_very_deep_input_raises_value_error_not_recursion_error(self):
+        with pytest.raises(ValueError, match='nesting'):
+            parse('(' * 5000 + 'x' + ')' * 5000)
 
 
 class TestKeywordTokenization:

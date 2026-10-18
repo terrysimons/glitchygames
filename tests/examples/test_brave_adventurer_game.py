@@ -19,7 +19,9 @@ from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     FALLING_VELOCITY_THRESHOLD as PAPYRUS_FALLING_VELOCITY_THRESHOLD,
 )
-from glitchygames.examples.brave_adventurer_papyrus.constants import SPRITES_DIR
+from glitchygames.examples.brave_adventurer_papyrus.constants import (
+    SPRITES_DIR,
+)
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 
 
