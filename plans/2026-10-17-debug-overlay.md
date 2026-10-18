@@ -144,7 +144,9 @@ old name, so no alias was kept.
 - Rolling frame-time graph of the last `GRAPH_WINDOW_SECONDS` (2 s) on a time axis spanning the
   graph's full width: each frame's width is proportional to its duration, and a column shows the
   slowest frame that covers it, scaled to a fixed height. A horizontal line marks the target frame
-  time when a target is set (none when uncapped); bars above it are drawn red.
+  time when a target is set (none when uncapped); bars more than `SLOW_FRAME_TOLERANCE_MILLISECONDS`
+  (1 ms) above it are drawn red, so timer jitter (at 60.01 FPS many frames land a hair over the
+  target) does not turn on-target frames red. The line itself marks the exact target.
 - Live voices playing (only if `live_audio` exists) and rumble levels (low/high) while non-zero.
 - The overlay keeps its own `collections.deque` of frame times (sized for the 5 s window at a generous
   maximum rate, e.g. 5000 entries) so the HUD does not depend on the shutdown statistics.
@@ -184,7 +186,8 @@ pygame — e.g. `tests/debug/`); `mocker` for input and timing.
 - Physics: arrow end point for a known velocity; the 80 px cap; ground marker green vs red.
 - Camera: bound lines drawn only when on screen; mouse world position text; shake text only when
   non-zero; `Camera2D.bounds` property.
-- Performance: graph bars over the target line red; 1% low over the window, including the window
+- Performance: graph bars red only above the target frame time plus the 1 ms tolerance (at 60 FPS
+  17 ms and exactly target + 1 ms are not red, 18 ms is); 1% low over the window, including the window
   boundary (a frame just older than 5 s is excluded); "uncapped" when target is 0.
 - Hook: called on scene and sprites; a raising hook logs once and is not called again; not called in
   `PERFORMANCE` mode.

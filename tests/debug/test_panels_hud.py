@@ -13,6 +13,8 @@ from glitchygames.debug.panels import (
     BOUNDS_COLOR,
     GRAPH_BAR_COLOR,
     HUD_LINE_HEIGHT,
+    MILLISECONDS_PER_SECOND,
+    SLOW_FRAME_TOLERANCE_MILLISECONDS,
     TARGET_LINE_COLOR,
     TEXT_BACKING_PADDING,
     DebugFrameInfo,
@@ -296,18 +298,26 @@ class TestCameraPanel:
 class TestPerformancePanel:
     """FPS text, the frame-time graph and the optional lines."""
 
-    def test_bar_over_target_frame_time_is_red(self, surface, font):
-        """At 60 FPS (16.67 ms) a 17 ms frame draws red and a 16 ms frame does not."""
-        slow = DebugOverlay(visible=True)
-        slow.record_frame(frame_seconds=0.017)
-        draw_performance(surface=surface, overlay=slow, font=font)
-        assert pixels_of_color(surface, color=PURE_RED) > 0
+    @staticmethod
+    def _red_pixels_for_frame(font, *, frame_seconds):
+        frame_surface = pygame.Surface(SURFACE_SIZE)
+        overlay = DebugOverlay(visible=True)
+        overlay.record_frame(frame_seconds=frame_seconds)
+        draw_performance(surface=frame_surface, overlay=overlay, font=font)
+        return pixels_of_color(frame_surface, color=PURE_RED)
 
-        fast_surface = pygame.Surface(SURFACE_SIZE)
-        fast = DebugOverlay(visible=True)
-        fast.record_frame(frame_seconds=0.016)
-        draw_performance(surface=fast_surface, overlay=fast, font=font)
-        assert pixels_of_color(fast_surface, color=PURE_RED) == 0
+    def test_bar_over_target_frame_time_plus_tolerance_is_red(self, font):
+        """At 60 FPS (16.67 ms, red above 17.67 ms) 18 ms is red; 17 ms and 16 ms are not."""
+        assert SLOW_FRAME_TOLERANCE_MILLISECONDS == 1.0
+        assert self._red_pixels_for_frame(font, frame_seconds=0.018) > 0
+        assert self._red_pixels_for_frame(font, frame_seconds=0.017) == 0
+        assert self._red_pixels_for_frame(font, frame_seconds=0.016) == 0
+
+    def test_bar_exactly_at_target_plus_tolerance_is_not_red(self, font):
+        """Red means strictly slower than the target frame time plus the tolerance."""
+        boundary_milliseconds = MILLISECONDS_PER_SECOND / 60.0 + SLOW_FRAME_TOLERANCE_MILLISECONDS
+        boundary_seconds = boundary_milliseconds / MILLISECONDS_PER_SECOND
+        assert self._red_pixels_for_frame(font, frame_seconds=boundary_seconds) == 0
 
     def test_uncapped_has_no_red_bars(self, surface, font):
         """With no target FPS even a 40 ms frame is not red."""

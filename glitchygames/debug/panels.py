@@ -73,6 +73,10 @@ GRAPH_HEIGHT = 60
 GRAPH_CEILING_MILLISECONDS = 50.0
 GRAPH_BAR_COLOR: Color = (60, 200, 60)
 SLOW_BAR_COLOR: Color = (255, 0, 0)
+# A bar is red only when its frame took longer than the target frame time plus this much. Timer
+# jitter puts many on-target frames a hair over (at 60.01 FPS most land just past 16.66 ms), so
+# without it red would not mean a real hitch. The target line itself stays at the exact target.
+SLOW_FRAME_TOLERANCE_MILLISECONDS = 1.0
 TARGET_LINE_COLOR: Color = (255, 255, 0)
 MILLISECONDS_PER_SECOND = 1000.0
 
@@ -559,7 +563,10 @@ def _draw_frame_time_graph(
             continue
         frame_milliseconds = frame_seconds * MILLISECONDS_PER_SECOND
         bar_height = min(GRAPH_HEIGHT, max(1, round(frame_milliseconds * pixels_per_millisecond)))
-        is_slow = target_milliseconds is not None and frame_milliseconds > target_milliseconds
+        is_slow = (
+            target_milliseconds is not None
+            and frame_milliseconds > target_milliseconds + SLOW_FRAME_TOLERANCE_MILLISECONDS
+        )
         bar_color = SLOW_BAR_COLOR if is_slow else GRAPH_BAR_COLOR
         bar_x = graph_rect.left + column
         pygame.draw.line(
@@ -586,8 +593,9 @@ def draw_performance_panel(
     """Draw FPS text, the 1% low, optional audio/rumble lines and a frame-time graph.
 
     The panel sits in the top-right corner, with the graph in the bottom-right corner. Bars
-    are red when the frame time exceeds the target frame time (1 / target FPS). With no
-    target (uncapped) there is no target line and no red bars.
+    are red when the frame time exceeds the target frame time (1 / target FPS) by more than
+    SLOW_FRAME_TOLERANCE_MILLISECONDS; the target line marks the exact target frame time. With
+    no target (uncapped) there is no target line and no red bars.
 
     Args:
         surface (pygame.Surface): The presented frame to draw onto.

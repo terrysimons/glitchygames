@@ -45,8 +45,6 @@ One line per item, with where it is detailed. Review, then promote items into
 - Cull pickups by distance before `check_overlap` (Brave Adventurer checks all 46 collectibles per
   frame; each now measures visible pixels, ~0.15 ms/frame). Final review M5.
 - Vsync-locked presentation to remove the remaining beat between 60.01 FPS and a 60 Hz display.
-- Debug-overlay graph: optional tolerance before a bar turns red (at 60.01 FPS many frames land a
-  hair over target). Not decided.
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.
