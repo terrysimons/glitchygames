@@ -27,6 +27,7 @@ class TestEngineEventSystem:
         mock_game = mocker.Mock()
         mock_game.NAME = 'MockGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
         return mock_game
 

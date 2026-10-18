@@ -9,6 +9,8 @@ import math
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -376,3 +378,47 @@ class TestResolveTargetFps:
         )
         options = GameEngine.initialize_arguments(BitmapEditorScene)
         assert math.isclose(options['target_fps'], DEFAULT_TARGET_FPS, abs_tol=1e-9)
+
+    @pytest.mark.parametrize('invalid_target_fps', ['120', True, False, b'60'])
+    def test_non_numeric_game_target_raises_type_error(self, invalid_target_fps):
+        with pytest.raises(TypeError, match='TARGET_FPS'):
+            GameEngine.resolve_target_fps(
+                command_line_target_fps=None, game=self._scene_class(invalid_target_fps)
+            )
+
+    @pytest.mark.parametrize('invalid_target_fps', [-1, -0.5, float('nan'), float('inf')])
+    def test_out_of_range_game_target_raises_value_error(self, invalid_target_fps):
+        with pytest.raises(ValueError, match='TARGET_FPS'):
+            GameEngine.resolve_target_fps(
+                command_line_target_fps=None, game=self._scene_class(invalid_target_fps)
+            )
+
+    @pytest.mark.parametrize('valid_target_fps', [0, 120])
+    def test_valid_game_target_is_accepted(self, valid_target_fps):
+        result = GameEngine.resolve_target_fps(
+            command_line_target_fps=None, game=self._scene_class(valid_target_fps)
+        )
+        assert math.isclose(result, float(valid_target_fps), abs_tol=1e-9)
+
+    def test_error_names_the_scene_class(self):
+        with pytest.raises(TypeError, match='_GameScene'):
+            GameEngine.resolve_target_fps(
+                command_line_target_fps=None, game=self._scene_class('120')
+            )
+
+
+class TestTargetFpsArgumentValidation:
+    """Tests for the --target-fps argparse type."""
+
+    @pytest.mark.parametrize('invalid_text', ['-5', 'nan', 'inf', '-inf', 'fast'])
+    def test_invalid_values_are_rejected(self, invalid_text, capsys):
+        parser = GameEngine.args(argparse.ArgumentParser())
+        with pytest.raises(SystemExit):
+            parser.parse_args(['--target-fps', invalid_text])
+        assert '--target-fps' in capsys.readouterr().err
+
+    @pytest.mark.parametrize(('text', 'expected'), [('0', 0.0), ('60.5', 60.5)])
+    def test_valid_values_are_accepted(self, text, expected):
+        parser = GameEngine.args(argparse.ArgumentParser())
+        args = parser.parse_args(['--target-fps', text])
+        assert math.isclose(args.target_fps, expected, abs_tol=1e-9)

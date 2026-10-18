@@ -8,6 +8,7 @@ import contextlib
 import cProfile
 import importlib.metadata
 import logging
+import math
 import multiprocessing
 import os
 import platform
@@ -79,6 +80,30 @@ def unit_interval(value: str) -> float:
         raise argparse.ArgumentTypeError(message) from error
     if not 0.0 <= number <= 1.0:  # Also rejects NaN, which fails every comparison
         message = f'{value!r} must be between 0.0 and 1.0'
+        raise argparse.ArgumentTypeError(message)
+    return number
+
+
+def target_fps_value(value: str) -> float:
+    """Argparse type: a finite float >= 0 (0 means uncapped).
+
+    Args:
+        value: The command-line text.
+
+    Returns:
+        The parsed float.
+
+    Raises:
+        argparse.ArgumentTypeError: If the text is not a finite number >= 0.
+
+    """
+    try:
+        number = float(value)
+    except ValueError as error:
+        message = f'{value!r} is not a number'
+        raise argparse.ArgumentTypeError(message) from error
+    if not math.isfinite(number) or number < 0.0:
+        message = f'{value!r} must be a finite number >= 0 (0 = uncapped)'
         raise argparse.ArgumentTypeError(message)
     return number
 
@@ -199,7 +224,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             '-f',
             '--target-fps',
             help="cap the framerate (default: the game's TARGET_FPS, else 60.5; 0 = uncapped)",
-            type=float,
+            type=target_fps_value,
             default=None,
         )
         group.add_argument(
@@ -357,15 +382,34 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         Returns:
             float: The effective target FPS (0 means uncapped).
 
+        Raises:
+            TypeError: If the game's TARGET_FPS is neither None nor a (non-bool) number.
+            ValueError: If the game's TARGET_FPS is negative, NaN or infinite.
+
         """
         if command_line_target_fps is not None:
             return float(command_line_target_fps)
 
         game_target_fps = getattr(game, 'TARGET_FPS', None)
-        if isinstance(game_target_fps, (int, float)):
-            return float(game_target_fps)
+        if game_target_fps is None:
+            return DEFAULT_TARGET_FPS
 
-        return DEFAULT_TARGET_FPS
+        scene_class = game if isinstance(game, type) else type(game)
+        # bool is a subclass of int, so it must be rejected explicitly.
+        if isinstance(game_target_fps, bool) or not isinstance(game_target_fps, (int, float)):
+            message = (
+                f'{scene_class.__name__}.TARGET_FPS must be a number or None, '
+                f'got {game_target_fps!r}'
+            )
+            raise TypeError(message)
+        if not math.isfinite(game_target_fps) or game_target_fps < 0:
+            message = (
+                f'{scene_class.__name__}.TARGET_FPS must be a finite number >= 0 '
+                f'(0 = uncapped), got {game_target_fps!r}'
+            )
+            raise ValueError(message)
+
+        return float(game_target_fps)
 
     @classmethod
     def initialize_arguments(cls, game: type[Scene] | Scene) -> dict[str, Any]:

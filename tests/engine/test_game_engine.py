@@ -65,6 +65,7 @@ def _make_engine(mocker, mock_pygame_patches, mock_game_args):
     mock_game = mocker.Mock()
     mock_game.NAME = 'TestGame'
     mock_game.VERSION = '1.0'
+    mock_game.TARGET_FPS = None
     mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
     return GameEngine(game=mock_game)
@@ -83,6 +84,7 @@ class TestGameEngineInitializeArguments:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '2.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -106,6 +108,7 @@ class TestGameEngineInitializeArguments:
         mock_game = mocker.Mock(spec=[])  # No methods at all
         mock_game.NAME = 'NoArgsGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
 
         mock_args = mocker.Mock()
         mock_args.log_level = 'INFO'
@@ -121,6 +124,7 @@ class TestGameEngineInitializeArguments:
         mock_game = mocker.Mock()
         mock_game.NAME = 'DebugGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -136,6 +140,7 @@ class TestGameEngineInitializeArguments:
         mock_game = mocker.Mock()
         mock_game.NAME = 'InfoGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -158,6 +163,7 @@ class TestGameEngineSuggestedResolution:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -174,6 +180,7 @@ class TestGameEngineSuggestedResolution:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -196,6 +203,7 @@ class TestGameEngineResolveSceneName:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -214,6 +222,7 @@ class TestGameEngineResolveSceneName:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -233,6 +242,7 @@ class TestGameEngineResolveSceneName:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -252,6 +262,7 @@ class TestGameEngineResolveSceneName:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -274,6 +285,7 @@ class TestGameEngineDisplayMethods:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -289,6 +301,7 @@ class TestGameEngineDisplayMethods:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -304,6 +317,7 @@ class TestGameEngineDisplayMethods:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -318,6 +332,7 @@ class TestGameEngineDisplayMethods:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -335,6 +350,7 @@ class TestGameEngineHandleEvent:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -352,6 +368,7 @@ class TestGameEngineHandleEvent:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -382,6 +399,7 @@ class TestGameEngineShutdown:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -407,6 +425,7 @@ class TestGameEngineInitializeEventHandlers:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -426,6 +445,7 @@ class TestGameEngineInitializeEventHandlers:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -451,6 +471,7 @@ class TestGameEngineSystemInfo:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -465,6 +486,7 @@ class TestGameEngineSystemInfo:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         engine = GameEngine(game=mock_game)
@@ -479,6 +501,7 @@ class TestGameEngineSystemInfo:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
         mock_game.icon = None  # Force fallback to default icon
 
@@ -1988,6 +2011,7 @@ class TestGameEngineInitializeArgumentsLogLevels:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
@@ -2002,6 +2026,7 @@ class TestGameEngineInitializeArgumentsLogLevels:
         mock_game = mocker.Mock()
         mock_game.NAME = 'TestGame'
         mock_game.VERSION = '1.0'
+        mock_game.TARGET_FPS = None
         mock_game.args = mocker.Mock(return_value=mocker.Mock())
 
         mock_args = mocker.Mock()
