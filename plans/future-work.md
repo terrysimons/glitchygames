@@ -8,6 +8,8 @@ One line per item, with where it is detailed. Review, then promote items into
 
 | Item | Where | Notes |
 |---|---|---|
+| Undoing a frame delete in Bitmappy fails: `FrameAddCommand` uses `PixelArray.flat`, which pygame-ce doesn't have (the same bug was fixed for animation deletes in BUGS.md #51) | `glitchygames/bitmappy/history/commands.py` | Found while fixing #51. |
+| Bitmappy's panned-viewport save (`save_animated_sprite`) appears unreachable from the editor UI (no callers) | `glitchygames/bitmappy/animated_canvas.py` | Decide: wire it to a menu action or remove it. Its hitbox handling was fixed on this branch anyway. |
 | Brave Adventurer and Clockwork Keep draw their poses in `update()`, after wall resolution, so after turning the hitbox can sit past a wall (up to 4 px) for one frame | `examples/brave_adventurer/player.py`, `examples/clockwork_keep/player.py` | Needs pose drawing earlier in the frame; fits engine world space (#6). |
 | `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |
 | Frame-anchor reference cache doesn't notice a frame hitbox edited in place (only frame add/remove/replace) | `glitchygames/sprites/animated.py` (documented) | Nothing edits in place today. |
