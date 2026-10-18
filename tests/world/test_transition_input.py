@@ -93,6 +93,7 @@ class ArrivalScene(Scene):
     # Replaced by running_game, so every test starts with nothing held
     shared_actions: ClassVar[ActionMap] = new_shared_actions()
     hat_values: ClassVar[dict[int, tuple[int, int]]] = {}
+    dropped_files: ClassVar[list[tuple[str, str]]] = []
 
     @override
     def on_key_down_event(self: Self, event: Any) -> None:
@@ -110,6 +111,11 @@ class ArrivalScene(Scene):
     def on_joy_axis_motion_event(self: Self, event: Any) -> None:
         """Feed stick motion to the shared ActionMap."""
         ArrivalScene.shared_actions.handle_event(event)
+
+    @override
+    def on_drop_file_event(self: Self, event: Any) -> None:
+        """Remember which scene received each dropped file."""
+        ArrivalScene.dropped_files.append((type(self).__name__, event.file))
 
     @override
     def on_joy_hat_motion_event(self: Self, event: Any) -> None:
@@ -143,6 +149,7 @@ def running_game(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager]
     clock = FakeClock(start_seconds=FAKE_CLOCK_START_SECONDS)
     ArrivalScene.shared_actions = new_shared_actions()
     ArrivalScene.hat_values = {}
+    ArrivalScene.dropped_files = []
     with (
         tempfile.TemporaryDirectory(prefix='transition-input-saves-') as save_directory,
         deterministic_environment(clock=clock, save_root=Path(save_directory)),
@@ -285,6 +292,10 @@ def test_discarded_event_types_are_presses_only():
         pygame.CONTROLLERAXISMOTION,
         pygame.FINGERDOWN,
         pygame.FINGERMOTION,
+        pygame.TEXTEDITING,
+        pygame.CONTROLLERTOUCHPADDOWN,
+        pygame.CONTROLLERTOUCHPADMOTION,
+        pygame.MULTIGESTURE,
     } == TRANSITION_DISCARDED_EVENT_TYPES
     released_types = {
         pygame.KEYUP,
@@ -292,8 +303,12 @@ def test_discarded_event_types_are_presses_only():
         pygame.JOYBUTTONUP,
         pygame.CONTROLLERBUTTONUP,
         pygame.FINGERUP,
+        pygame.CONTROLLERTOUCHPADUP,
     }
+    # A drop should land in the arriving scene
+    delivered_types = {pygame.DROPFILE, pygame.DROPTEXT}
     assert not released_types & TRANSITION_DISCARDED_EVENT_TYPES
+    assert not delivered_types & TRANSITION_DISCARDED_EVENT_TYPES
 
 
 def test_jump_pressed_during_elevator_ride_does_not_jump_on_arrival():
@@ -482,3 +497,13 @@ def test_quit_key_pressed_and_released_in_a_scene_quits():
         step(manager)
 
         assert manager.quit_requested is True
+
+
+def test_file_dropped_during_transition_lands_in_the_arriving_scene():
+    """A drop is not a press: it is delivered, to the scene that will be active."""
+    with running_game(DepartureScene) as manager:
+        start_departure(manager)
+        step(manager, pygame.event.Event(pygame.DROPFILE, file='sprite.toml', window_id=0))
+
+        assert manager._active_transition is not None
+        assert ArrivalScene.dropped_files == [('ArrivalScene', 'sprite.toml')]

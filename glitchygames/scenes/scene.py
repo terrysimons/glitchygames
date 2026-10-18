@@ -38,6 +38,8 @@ SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
 # MOUSEBUTTONUP, JOYBUTTONUP, CONTROLLERBUTTONUP, FINGERUP), quit, window, focus and device
 # events are still delivered, so held-input state (ActionMap) is never left stuck. Motion back
 # to neutral is a release too and is delivered: see is_discarded_during_transition.
+# CONTROLLERTOUCHPADUP is a release and is delivered. DROPFILE and DROPTEXT are deliberately
+# delivered too, to the arriving scene: a file or text dropped during a ride should land.
 TRANSITION_DISCARDED_EVENT_TYPES: frozenset[int] = frozenset({
     pygame.KEYDOWN,
     pygame.TEXTINPUT,
@@ -52,6 +54,10 @@ TRANSITION_DISCARDED_EVENT_TYPES: frozenset[int] = frozenset({
     pygame.CONTROLLERAXISMOTION,
     pygame.FINGERDOWN,
     pygame.FINGERMOTION,
+    pygame.TEXTEDITING,
+    pygame.CONTROLLERTOUCHPADDOWN,
+    pygame.CONTROLLERTOUCHPADMOTION,
+    pygame.MULTIGESTURE,
 })
 
 
