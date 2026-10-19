@@ -6,7 +6,7 @@ through the engine, from bootstrap to rendering.
 ## Bootstrap & Main Loop
 
 How Bitmappy starts up: entry point through `main()`, GameEngine initialization,
-scene setup, and the four-phase main loop.
+scene setup, and the main loop (one frame per pass, ended by `_finish_frame`).
 
 ```mermaid
 sequenceDiagram
@@ -34,15 +34,19 @@ sequenceDiagram
     GE->>SM: scene_manager.start()
 
     loop Main Game Loop (while active_scene is not None)
-        SM->>SM: dt = perf_counter delta
-        SM->>BES: _update_scene()
+        Note over SM: dt = the previous frame's start-to-start time
+        SM->>SM: camera.begin_frame()
+        SM->>BES: _update_scene() (Scene.dt_tick: logic and collision)
         SM->>GE: _process_events()
         GE->>GE: pygame.event.get()
         GE->>SM: EVENT_HANDLERS[event.type](event)
         SM->>BES: on_*_event(event)
-        SM->>SM: _render_scene()
-        SM->>SM: _update_display()
-        SM->>SM: _handle_frame_pacing(timer)
+        SM->>SM: _update_frame_services() (shake, rumble)
+        SM->>SM: _aim_active_camera() (camera_target / follow)
+        SM->>SM: _position_active_world_sprites() (world sprites' rect, culling)
+        SM->>SM: _render_scene() (Scene.update, then draw)
+        SM->>SM: _present_frame() (overlay, display update)
+        SM->>SM: _finish_frame() (pace, then set dt once from perf_counter)
     end
 ```
 

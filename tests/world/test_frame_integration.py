@@ -31,6 +31,8 @@ from scripts.record_golden_traces import (
 
 from glitchygames.camera import Camera2D
 from glitchygames.collision.detection import snapped_world_position
+from glitchygames.collision.layers import collision_rect_offset
+from glitchygames.examples import paddleslap
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
@@ -51,6 +53,8 @@ FRAMES_TO_RUN = 6
 SCREEN_SPRITE_TOPLEFT = (7, 9)
 TEST_FADE_SECONDS = 0.25
 PAUSE_FRAMES = 3
+# PaddleSlap starts with one ball; a paddle hit spawns a second
+PADDLESLAP_BALLS_AFTER_ONE_SPAWN = 2
 
 # Transition capture: the player is drawn in a colour nothing else uses, so its pixels can be
 # counted in a screenshot; the landmark proves the capture really drew the world sprites
@@ -603,3 +607,38 @@ class TestTransitionCapture:
             for scene in (departing_scene, arriving_scene):
                 assert not scene.player.visible
                 assert scene.player.hidden is scene_class.start_hidden
+
+
+class TestPaddleSlapInTheFrame:
+    """PaddleSlap's world-space balls are drawn where their logic left them, every frame."""
+
+    def test_paddle_hit_and_spawned_ball_are_drawn_at_their_world_positions(self):
+        """A paddle bounce and the ball it spawns are both placed before that frame's render.
+
+        Both happen in the game's dt_tick; the engine then positions world sprites, so neither
+        ball is drawn a frame late, and the new ball is never drawn at (0, 0).
+        """
+        with running_scene(paddleslap.Game) as manager:
+            step(manager)
+            game = manager.active_scene
+            assert isinstance(game, paddleslap.Game)
+            ball = game.balls[0]
+            paddle = game.player1
+            # Visible circle 1 px right of the left paddle, moving left 5 px: inside it after
+            # one frame
+            visible_offset_x, _visible_offset_y = collision_rect_offset(ball)
+            ball.world_x = float(paddle.rect.right + 1 - visible_offset_x)
+            ball.world_y = float(paddle.rect.centery - ball.rect.height // 2)
+            ball.speed.x = -300.0
+            ball.speed.y = 0.0
+
+            step(manager)
+
+            assert len(game.balls) == PADDLESLAP_BALLS_AFTER_ONE_SPAWN
+            assert ball.speed.x > 0  # bounced this frame
+            spawned_ball = game.balls[-1]
+            for drawn_ball in (ball, spawned_ball):
+                assert drawn_ball.rect.topleft == snapped_world_position(
+                    drawn_ball, drawn_ball.world_x, drawn_ball.world_y
+                )
+            assert spawned_ball.rect.topleft != (0, 0)

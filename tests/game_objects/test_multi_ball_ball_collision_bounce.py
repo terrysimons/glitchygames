@@ -15,6 +15,7 @@ import random
 import pygame
 
 from glitchygames.game_objects.ball import BallSprite
+from tests.game_objects.test_ball import _drawn_position
 
 # Tolerance for floating-point energy comparison.
 # The collision math (normal decomposition + exchange) is exact in theory.
@@ -195,6 +196,8 @@ def _update_balls_and_count_wall_bounces(balls, dt):
         if ball.alive():
             old_speed_x, old_speed_y = ball.speed.x, ball.speed.y
             ball.dt_tick(dt)
+            # The engine positions world-space balls before each render
+            _drawn_position(ball)
 
             if old_speed_x * ball.speed.x < 0 and (
                 ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1

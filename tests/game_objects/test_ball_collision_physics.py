@@ -8,8 +8,9 @@ import pytest
 
 from glitchygames.collision.layers import CollisionManager
 from glitchygames.examples.paddleslap import Game
-from glitchygames.game_objects.ball import BallSprite, snap_to_pixel
+from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
+from tests.game_objects.test_ball import _drawn_position
 
 LOG = logging.getLogger(__name__)
 
@@ -592,6 +593,8 @@ class _CollisionSweepHarness:
         self.second_ball = self._create_ball_aimed_at_meeting_point(second_velocity, time_to_meet)
         self.collision_distance = SWEEP_BALL_SIZE
         self.maximum_frames_to_collision = round(time_to_meet / SWEEP_FRAME_DT) + 30
+        # Balls whose rect the last collision step wrote directly (see step())
+        self.rects_written_by_collisions: list[str] = []
 
     def _create_ball_aimed_at_meeting_point(
         self,
@@ -631,31 +634,6 @@ class _CollisionSweepHarness:
             (self.second_ball.world_x, self.second_ball.world_y),
         )
 
-    def balls_with_rect_out_of_sync(self) -> list[str]:
-        """Describe any ball whose rect no longer matches its world position.
-
-        Every movement path in BallSprite (dt_tick, wall bounces, paddle hits, reset)
-        goes through the world_x/world_y setters, which snap rect to match, and dt_tick
-        rebuilds rect from world_x/world_y each frame. A rect that disagrees with the
-        world position is therefore silently overwritten on the next frame.
-
-        Returns:
-            list[str]: One description per out-of-sync ball (empty when all agree).
-
-        """
-        descriptions = []
-        for label, ball in (('first', self.first_ball), ('second', self.second_ball)):
-            expected_rect_position = (
-                snap_to_pixel(ball.world_x, ball.pixel_snap_mode),
-                snap_to_pixel(ball.world_y, ball.pixel_snap_mode),
-            )
-            if (ball.rect.x, ball.rect.y) != expected_rect_position:
-                descriptions.append(
-                    f'{label} ball rect=({ball.rect.x}, {ball.rect.y}) but '
-                    f'world=({ball.world_x:.1f}, {ball.world_y:.1f})'
-                )
-        return descriptions
-
     def velocities(self) -> tuple[tuple[float, float], tuple[float, float]]:
         """Return both balls' current velocities."""
         return (
@@ -673,7 +651,20 @@ class _CollisionSweepHarness:
         self.first_ball.dt_tick(SWEEP_FRAME_DT)
         self.second_ball.dt_tick(SWEEP_FRAME_DT)
         velocities_before = self.velocities()
+        balls = (('first', self.first_ball), ('second', self.second_ball))
+        rects_before = {label: ball.rect.topleft for label, ball in balls}
         self.game._handle_ball_collisions()
+        # Collision handling must move the world positions only: the engine rebuilds rect
+        # from world_x/world_y before each render, so a rect written here would be undone
+        self.rects_written_by_collisions = [
+            f'{label} ball rect {rects_before[label]} -> {ball.rect.topleft}, '
+            f'world=({ball.world_x:.1f}, {ball.world_y:.1f})'
+            for label, ball in balls
+            if ball.rect.topleft != rects_before[label]
+        ]
+        # Then the engine positions the world sprites, as the frame loop does after dt_tick
+        for _label, ball in balls:
+            _drawn_position(ball)
         return self.velocities() != velocities_before
 
 
@@ -726,16 +717,16 @@ def _assert_rects_in_sync_after_collision(
     harness: _CollisionSweepHarness,
     case_description: str,
 ) -> None:
-    """Assert collision handling left each ball's rect in sync with its world position.
+    """Assert collision handling moved only world positions, never a ball's rect.
 
-    Otherwise the next dt_tick rebuilds rect from world_x/world_y and silently undoes
-    the overlap separation.
+    The engine rebuilds rect from world_x/world_y before each render, so a rect written by
+    collision handling would silently undo the overlap separation.
     """
-    out_of_sync_balls = harness.balls_with_rect_out_of_sync()
+    out_of_sync_balls = harness.rects_written_by_collisions
     assert not out_of_sync_balls, (
-        f'Collision handling moved rect without moving world position '
-        f'({case_description}): {"; ".join(out_of_sync_balls)}. The next dt_tick resets '
-        f'rect from world_x/world_y, undoing the separation (distance '
+        f'Collision handling wrote rect directly ({case_description}): '
+        f'{"; ".join(out_of_sync_balls)}. The engine rebuilds rect from world_x/world_y '
+        f'before rendering, undoing the separation (distance '
         f'{harness.center_distance():.1f} now, collision distance '
         f'{harness.collision_distance})'
     )

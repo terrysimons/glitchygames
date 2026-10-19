@@ -137,8 +137,8 @@ class TestGameOverIntegration:
 
         game.balls = [mock_ball1, mock_ball2]
 
-        # Call update to trigger Game Over
-        game.update()
+        # Run a frame's logic (dt_tick resolves collisions and checks for Game Over)
+        game.dt_tick(0.0)
 
         # Verify that next_scene was set to the mocked GameOverScene
         assert game.next_scene == mock_game_over_scene

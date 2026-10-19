@@ -17,6 +17,7 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
+from tests.game_objects.test_ball import _drawn_position
 
 
 class TestBallBoundaryPhysics:
@@ -45,10 +46,9 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
 
         # Simulate movement that would go past top boundary
-        assert ball.rect is not None
-        ball.rect.y = -5  # Past the boundary
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
+        _drawn_position(ball)
 
         # Ball should be repositioned and speed should be positive (downward)
         assert ball.rect.y >= 0
@@ -65,10 +65,9 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, 50.0)  # Moving down
 
         # Simulate movement that would go past bottom boundary
-        assert ball.rect is not None
-        ball.rect.y = 600  # Past the boundary
-        ball.world_y = 600.0  # Sub-pixel position must also be set
+        ball.world_y = 600.0  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
+        _drawn_position(ball)
 
         # Ball should be repositioned and speed should be negative (upward)
         assert ball.rect.y + ball.rect.height <= 600
@@ -85,10 +84,9 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(-50.0, 100.0)  # Moving left
 
         # Simulate movement that would go past left boundary
-        assert ball.rect is not None
-        ball.rect.x = -5  # Past the boundary
-        ball.world_x = -5.0  # Sub-pixel position must also be set
+        ball.world_x = -5.0  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
+        _drawn_position(ball)
 
         # Ball should be repositioned and speed should be positive (rightward)
         assert ball.rect.x >= 0
@@ -105,10 +103,9 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(50.0, 100.0)  # Moving right
 
         # Simulate movement that would go past right boundary
-        assert ball.rect is not None
-        ball.rect.x = 800  # Past the boundary
-        ball.world_x = 800.0  # Sub-pixel position must also be set
+        ball.world_x = 800.0  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
+        _drawn_position(ball)
 
         # Ball should be repositioned and speed should be negative (leftward)
         assert ball.rect.x + ball.rect.width <= 800
@@ -127,9 +124,7 @@ class TestBallBoundaryPhysics:
         initial_speed_y = ball.speed.y
 
         # Simulate movement past boundary
-        assert ball.rect is not None
-        ball.rect.y = -5
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0
         ball.dt_tick(0.016)
 
         # Speed should remain unchanged (no bounce)
@@ -146,12 +141,10 @@ class TestBallBoundaryPhysics:
         )
         ball.speed = Speed(-50.0, -50.0)  # Moving up-left
 
-        assert ball.rect is not None
-        ball.rect.x = -5
-        ball.rect.y = -5
-        ball.world_x = -5.0  # Sub-pixel position must also be set
+        ball.world_x = -5.0
         ball.world_y = -5.0
         ball.dt_tick(0.016)
+        _drawn_position(ball)
 
         # Both X and Y should be corrected
         assert ball.rect.x >= 0
@@ -171,11 +164,8 @@ class TestBallBoundaryPhysics:
         # Test with very high speed that could cause clipping
         ball.speed = Speed(1000.0, 1000.0)  # Very fast movement
 
-        assert ball.rect is not None
-        initial_x = ball.rect.x
-        initial_y = ball.rect.y
-
         ball.dt_tick(0.016)
+        _drawn_position(ball)
 
         # Ball should not clip through boundaries
         assert ball.rect.x >= 0
@@ -196,9 +186,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
         initial_speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
 
-        assert ball.rect is not None
-        ball.rect.y = -5
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0
         ball.dt_tick(0.016)
 
         # Speed magnitude should be preserved (energy conservation)
@@ -218,11 +206,10 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(0.0, -100.0)  # Moving straight up
 
         # Simulate multiple frames of bouncing
-        assert ball.rect is not None
         for _ in range(10):
-            ball.rect.y = -5  # Past boundary
-            ball.world_y = -5.0  # Sub-pixel position must also be set
+            ball.world_y = -5.0  # Past boundary
             ball.dt_tick(0.016)
+            _drawn_position(ball)
 
             # Ball should always be within bounds
             assert ball.rect.y >= 0
@@ -247,9 +234,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(100.0, -50.0)  # Moving up
         initial_speed_y = abs(ball.speed.y)
 
-        assert ball.rect is not None
-        ball.rect.y = -5
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0
         ball.dt_tick(0.016)
 
         # Vertical speed should be increased by the first logarithmic step; X untouched
@@ -272,10 +257,9 @@ class TestBallBoundaryPhysics:
         )
         ball.speed = Speed(0.0, 0.0)  # Zero speed
 
-        assert ball.rect is not None
-        ball.rect.y = -5  # Past boundary
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0  # Past boundary
         ball.dt_tick(0.016)
+        _drawn_position(ball)
 
         # Ball should be repositioned but speed remains zero
         assert ball.rect.y >= 0
@@ -298,9 +282,7 @@ class TestBallBoundaryPhysics:
         # moving away from a wall is moved back inside without bouncing (no sound)
         ball.speed = Speed(0.0, -100.0)
 
-        assert ball.rect is not None
-        ball.rect.y = -5
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0
         ball.dt_tick(0.016)
 
         # Sound should be played
@@ -317,9 +299,7 @@ class TestBallBoundaryPhysics:
 
         mock_log = mocker.patch('glitchygames.game_objects.ball.log')
 
-        assert ball.rect is not None
-        ball.rect.y = -5
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0
         ball.dt_tick(0.016)
 
         # Debug logging should be called

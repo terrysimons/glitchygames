@@ -31,7 +31,7 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 | 3 | Screen shake | **Done** (this branch) | `plans/2026-10-17-screen-shake-and-synth.md` |
 | 4 | High-score table | Open | `_save_high_score` copied into 4 games |
 | 5 | Sound effect synthesis | **Done** (this branch) | Same spec: toolkit, recipes, live voices |
-| 6 | Engine world space (absorbs pixel snapping and camera follow) | Open — next design | See below |
+| 6 | Engine world space (absorbs pixel snapping and camera follow) | **Done** (branch `feature/engine-world-space`, commits `7d12dea` (spec) through "Move PaddleSlap's ball onto engine world space; document world space") | Spec `plans/2026-10-18-engine-world-space.md`; `glitchygames/world.py`; all four games migrated; see below |
 | 7 | Balls on `CollisionManager` | Partly done (feature/debug-overlay): ball–paddle detection moved onto CollisionManager (ball–ball already used it), with an exact circle check in `BallSprite.handle_paddle_collision`; generic resolution waits for #1 | Commit `fa5750f`: "except balls which we'll do later" |
 | 8 | Sprite transparency/scaling helpers; masks instead of alpha trimming | Open (visible-pixel trimming is now the default hitbox, feature/debug-overlay; masks still open) | Papyrus `sprite_utils.py` |
 | 9 | Particles | Open | None exist |
@@ -40,13 +40,13 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 | 12 | Debug overlay (hitboxes, velocities, FPS) | **Done** (feature/debug-overlay) | `plans/2026-10-17-debug-overlay.md` |
 | 13 | Controller rebinding UI and settings persistence | Open | `ActionMap.to_dict`/`from_dict` exist; nothing saves or edits bindings |
 | 14 | Multiplayer input: player slots and targeted rumble | Open | All rumble is broadcast to every device; no engine player-to-device mapping (only Bitmappy's own controller manager). See below |
-| 15 | Frame loop: one _finish_frame() that paces with the timer backend and records that frame's measured time | Open | BUGS.md #25: pacing and FPS tracking measured frames differently; the deleted _tick_clock() was an early form of this |
+| 15 | Frame loop: one _finish_frame() that paces with the timer backend and records that frame's measured time | **Done** (branch `feature/engine-world-space`, same commits) | `SceneManager._finish_frame`; BUGS.md #25 was the motivation; see below |
 
 Nice to have, not needed by current games: sprite-sheet import, localization, pathfinding.
 
 ## Recommended order (one branch each)
 
-1. **Engine world space** (#6) — touches the coordinate system every later item builds on.
+1. ~~**Engine world space** (#6)~~ — **Done** (`feature/engine-world-space`, with #15).
 2. **Expressions phase 2** (#2) — small; removes three copies of `_FallingCondition`.
 3. **Solid collision** (#1) together with **balls on CollisionManager** (#7) — one collision design.
 4. Remaining items as small independent branches.
@@ -58,6 +58,18 @@ that no per-task check looked at.
 ---
 
 ## #6 Engine world space — design brief (to be brainstormed into a full spec)
+
+**Status: Done** on branch `feature/engine-world-space` (commits `7d12dea` (spec) through "Move PaddleSlap's ball onto engine world space; document world space"). Spec:
+`plans/2026-10-18-engine-world-space.md`; plan: `plans/2026-10-18-engine-world-space-implementation.md`.
+What was built: `glitchygames/world.py` (`CoordinateSpace`, `WorldPositioned`, `hidden`,
+`position_world_sprites` with `CULL_MARGIN_PIXELS` culling, `aim_camera`); `Camera2D.follow`,
+`aim_at`, `begin_frame`; `Scene.camera_target()`, `Scene.PIXEL_SNAP_MODE`,
+`Scene.MAX_FRAME_SECONDS`; the pose-before-collision rule; Brave Adventurer, Papyrus, Clockwork
+Keep and PaddleSlap migrated, proven by golden traces (`tests/world/test_golden_traces.py`). The
+open questions below were answered in the spec: a class attribute declares the space;
+positioning runs after logic, events, frame services and the camera aim, before render;
+`apply_camera_to_sprites()` stays as an override point for games that still use
+`Camera2D.apply()`. The brief is kept as written.
 
 **Goal:** sprites live in world coordinates and the engine turns them into screen pixels, so
 games stop writing per-sprite camera loops and every engine feature that needs world-to-screen
@@ -131,6 +143,13 @@ how players join (press-to-join vs connection order), whether screen-shake rumbl
 per player (split screen), keyboard players (no rumble).
 
 ## #15 Frame loop: one end-of-frame call
+
+**Status: Done** on branch `feature/engine-world-space` (same commits as #6):
+`SceneManager._finish_frame(*, frame_start_seconds, ...)` paces, then reads
+`time.perf_counter()` once; `self.dt` is set only there (start to start), statistics are
+recorded after the closing reading, and processing time excludes the pacing sleep. Pacing
+re-anchors after falling more than one period behind (`9e96791`). The notes below are kept as
+written.
 
 **Motivation:** BUGS.md #25. Frame pacing (timer backend or pygame clock) and FPS tracking measured
 frames differently: pacing used the timer, tracking used pygame's 10-frame `Clock.get_fps()`, so

@@ -9,6 +9,7 @@ from typing import NamedTuple
 import pytest
 
 import glitchygames.game_objects.ball as ball_module
+from glitchygames.camera import Camera2D
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.game_objects.ball import (
     BallSprite,
@@ -30,6 +31,7 @@ from glitchygames.randomness import (
     reset_streams,
     stream_seed,
 )
+from glitchygames.world import position_world_sprites
 from tests.mocks.test_mock_factory import MockFactory
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -45,6 +47,22 @@ POS_102 = 102
 POS_103 = 103
 DIRECTION_315 = 315
 MULTIPLIER_1_1 = 1.1
+
+
+def _drawn_position(ball: BallSprite) -> tuple[int, int]:
+    """Position the ball as the engine does before a render, under an identity camera.
+
+    The ball is a world sprite: its rect is written only by the engine's positioning step
+    (glitchygames/world.py), so tests that check where the ball is drawn run that step first.
+    PaddleSlap's camera never moves, so screen and world coordinates are the same.
+
+    Returns:
+        tuple[int, int]: The ball's rect top-left after positioning.
+
+    """
+    screen_size = (int(ball.screen_width), int(ball.screen_height))
+    position_world_sprites(sprites=[ball], camera=Camera2D(*screen_size), screen_size=screen_size)
+    return ball.rect.topleft
 
 
 def _assert_within_spawn_area(ball: BallSprite) -> None:
@@ -175,8 +193,7 @@ class TestBallSpriteBounce:
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
         assert ball.rect is not None
-        ball.rect.y = -5  # Above screen
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0  # Above screen
         ball.speed.y = -2
         ball.snd = mocker.Mock()
 
@@ -184,7 +201,7 @@ class TestBallSpriteBounce:
 
         # Ball reflects off top boundary preserving overshoot: world_y = -(-5) = 5
         assert ball.world_y >= 0  # Ball is inside boundary
-        assert ball.rect.y == round(ball.world_y)
+        assert _drawn_position(ball)[1] == snap_to_pixel(ball.world_y, ball.pixel_snap_mode)
         assert ball.speed.y == SPEED_2  # Reversed
         ball.snd.play.assert_called_once()
 
@@ -195,8 +212,7 @@ class TestBallSpriteBounce:
         ball.screen_height = 600
         ball.height = 20
         assert ball.rect is not None
-        ball.rect.y = 590  # Below screen (590 + 20 = 610 >= 600)
-        ball.world_y = 590.0  # Sub-pixel position must also be set
+        ball.world_y = 590.0  # Below screen (590 + 20 = 610 >= 600)
         ball.speed.y = 2
         ball.snd = mocker.Mock()
 
@@ -205,7 +221,7 @@ class TestBallSpriteBounce:
         # Ball reflects off bottom boundary preserving overshoot
         boundary = float(ball.screen_height - ball.height)  # 580.0
         assert ball.world_y <= boundary  # Ball is inside boundary
-        assert ball.rect.y == round(ball.world_y)
+        assert _drawn_position(ball)[1] == snap_to_pixel(ball.world_y, ball.pixel_snap_mode)
         assert ball.speed.y == SPEED_NEG_2  # Reversed
         ball.snd.play.assert_called_once()
 
@@ -214,8 +230,7 @@ class TestBallSpriteBounce:
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
         assert ball.rect is not None
-        ball.rect.y = -5
-        ball.world_y = -5.0  # Sub-pixel position must also be set
+        ball.world_y = -5.0  # Above screen
         ball.speed.y = -2
         # No snd attribute set
 
@@ -223,7 +238,7 @@ class TestBallSpriteBounce:
 
         # Ball reflects off top boundary preserving overshoot
         assert ball.world_y >= 0  # Ball is inside boundary
-        assert ball.rect.y == round(ball.world_y)
+        assert _drawn_position(ball)[1] == snap_to_pixel(ball.world_y, ball.pixel_snap_mode)
         assert ball.speed.y == SPEED_2
 
     def test_do_bounce_no_collision(self, mocker):
@@ -259,8 +274,7 @@ class TestBallSpriteReset:
 
         ball.reset()
 
-        assert ball.rect is not None
-        assert (ball.rect.x, ball.rect.y) == (173, 70)
+        assert _drawn_position(ball) == (173, 70)
         margin = ball.serve_settings.spawn_margin
         assert randint.call_args_list == [
             mocker.call(margin, ball.screen_width - ball.width - margin),
@@ -281,8 +295,7 @@ class TestBallSpriteReset:
             )
         )
         margin = ball.serve_settings.spawn_margin
-        assert ball.rect is not None
-        assert (ball.rect.x, ball.rect.y) == (
+        assert _drawn_position(ball) == (
             reference_generator.randint(margin, ball.screen_width - ball.width - margin),
             reference_generator.randint(margin, ball.screen_height - ball.height - margin),
         )
@@ -894,13 +907,12 @@ class TestBallSpriteIntegration:
         assert ball.dirty == SPEED_2
 
         # Update should move ball
-        assert ball.rect is not None
-        original_x = ball.rect.x
-        original_y = ball.rect.y
+        original_x, original_y = _drawn_position(ball)
         ball.dt_tick(0.016)  # Use dt_tick instead of update
 
         # Ball should have moved
-        assert ball.rect.x != original_x or ball.rect.y != original_y
+        drawn_x, drawn_y = _drawn_position(ball)
+        assert drawn_x != original_x or drawn_y != original_y
 
     def test_ball_with_sound_integration(self, mocker):
         """Test ball with sound integration."""
@@ -1279,14 +1291,13 @@ class TestDtTickMovementMismatch:
         ball.speed.x = 200.0
         ball.speed.y = 100.0
 
-        assert ball.rect is not None
-        original_x = ball.rect.x
-        original_y = ball.rect.y
+        original_x, original_y = _drawn_position(ball)
 
         ball.dt_tick(0.016)
 
         # Position should change based on speed * dt
-        assert ball.rect.x != original_x or ball.rect.y != original_y
+        drawn_x, drawn_y = _drawn_position(ball)
+        assert drawn_x != original_x or drawn_y != original_y
 
 
 def _speed_cap_paddle(*, x):
@@ -1402,17 +1413,15 @@ class TestBallMovementMismatchWarning:
         ball.speed.x = 0.0
         ball.speed.y = -200.0  # Moving up fast
 
-        # Position ball so bounce will modify rect.y
-        assert ball.rect is not None
-        ball.rect.y = -5
+        # Position ball so the bounce mirrors its world_y back inside
+        ball.world_y = -5.0
 
-        # dt_tick will: add move_y to rect.y (making it more negative),
-        # then _do_bounce will set it to 1.
-        # This means delta_y != round(move_y), triggering line 553.
+        # dt_tick moves world_y further up (more negative), then _do_bounce mirrors it inside
         ball.dt_tick(0.016)
 
-        # After bounce, rect.y should be positive
-        assert ball.rect.y >= 0
+        # After the bounce the ball moves down and is drawn inside the screen
+        assert ball.speed.y > 0
+        assert _drawn_position(ball)[1] >= 0
 
 
 class TestBallHandlePaddleCollisionMiss:
@@ -1616,7 +1625,7 @@ class TestSnapToPixel:
 
 @pytest.mark.usefixtures('pygame_mocks')
 class TestBallSpritePixelSnapping:
-    """Test that world_x/world_y keep rect in sync using the ball's pixel snap mode."""
+    """The engine draws the ball at world_x/world_y snapped with the ball's pixel snap mode."""
 
     @pytest.fixture
     def pygame_mocks(self, mocker):
@@ -1628,37 +1637,37 @@ class TestBallSpritePixelSnapping:
         ball = BallSprite()
         assert ball.pixel_snap_mode is PixelSnapMode.NEAREST_HALF_UP
 
-    def test_setting_world_position_updates_rect(self):
-        """Assigning world_x/world_y moves rect without any manual sync."""
+    def test_setting_world_position_places_the_drawn_rect(self):
+        """Assigning world_x/world_y moves the drawn rect at the next positioning."""
         ball = BallSprite()
         ball.world_x = 123.6
         ball.world_y = 45.5
-        assert (ball.rect.x, ball.rect.y) == (124, 46)
+        assert _drawn_position(ball) == (124, 46)
 
-    def test_in_place_adjustment_updates_rect(self):
-        """Augmented assignment (e.g. collision separation) also moves rect."""
+    def test_in_place_adjustment_places_the_drawn_rect(self):
+        """Augmented assignment (e.g. collision separation) also moves the drawn rect."""
         ball = BallSprite()
         ball.world_x = 100.0
         ball.world_y = 100.0
         ball.world_x -= 2.5
         ball.world_y += 1.5
-        assert (ball.rect.x, ball.rect.y) == (98, 102)
+        assert _drawn_position(ball) == (98, 102)
         assert (ball.world_x, ball.world_y) == (97.5, 101.5)
 
-    def test_custom_mode_is_used_for_rect(self):
+    def test_custom_mode_is_used_for_the_drawn_rect(self):
         """A ball created with FLOOR snapping draws at the floored position."""
         ball = BallSprite(pixel_snap_mode=PixelSnapMode.FLOOR)
         ball.world_x = 10.9
         ball.world_y = -0.5
-        assert (ball.rect.x, ball.rect.y) == (10, -1)
+        assert _drawn_position(ball) == (10, -1)
 
-    def test_changing_mode_resnaps_rect(self):
-        """Switching modes immediately re-derives rect from the world position."""
+    def test_changing_mode_is_drawn_at_the_next_positioning(self):
+        """Switching modes changes where the next positioning draws the ball."""
         ball = BallSprite()
         ball.world_x = 10.5
-        assert ball.rect.x == 11
+        assert _drawn_position(ball)[0] == 11
         ball.pixel_snap_mode = PixelSnapMode.FLOOR
-        assert ball.rect.x == 10
+        assert _drawn_position(ball)[0] == 10
 
     def test_half_pixel_per_frame_motion_steps_evenly(self):
         """At 0.5 px/frame, NEAREST_HALF_UP advances exactly 1 px every 2 frames.
@@ -1672,8 +1681,8 @@ class TestBallSpritePixelSnapping:
         # 32 px/s at 1/64 s per frame is exactly 0.5 px/frame in binary floating point,
         # so accumulated error cannot nudge a position off the .5 boundary.
         ball.speed = Speed(32.0, 0.0)
-        rendered_x_positions = [ball.rect.x]
+        rendered_x_positions = [_drawn_position(ball)[0]]
         for _ in range(8):
             ball.dt_tick(1 / 64)
-            rendered_x_positions.append(ball.rect.x)
+            rendered_x_positions.append(_drawn_position(ball)[0])
         assert rendered_x_positions == [100, 101, 101, 102, 102, 103, 103, 104, 104]

@@ -31,13 +31,17 @@ sequenceDiagram
 
     loop Main Game Loop (while active_scene is not None)
         Note over SM: dt = the previous frame's start-to-start time
-        SM->>BES: _update_scene()
+        SM->>SM: camera.begin_frame()
+        SM->>BES: _update_scene() (Scene.dt_tick: logic and collision)
         SM->>GE: _process_events()
         GE->>GE: pygame.event.get()
         GE->>SM: EVENT_HANDLERS[event.type](event)
         SM->>BES: on_*_event(event)
-        SM->>SM: _render_scene()
-        SM->>SM: _update_display()
+        SM->>SM: _update_frame_services() (shake, rumble)
+        SM->>SM: _aim_active_camera() (camera_target / follow)
+        SM->>SM: _position_active_world_sprites() (world sprites' rect, culling)
+        SM->>SM: _render_scene() (Scene.update, then draw)
+        SM->>SM: _present_frame() (overlay, display update)
         SM->>SM: _finish_frame() (pace, then set dt once from perf_counter)
     end
 ```

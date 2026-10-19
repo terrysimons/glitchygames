@@ -217,6 +217,29 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
+### 39. Engine World Space and One End-of-Frame Call ✅ COMPLETED
+- **Description**: Sprites declare `CoordinateSpace.WORLD` and the engine positions, snaps and
+  culls them from the scene's camera every frame; the camera follows a target on chosen axes;
+  every frame ends in one `_finish_frame` that paces and measures the frame once (engine audit
+  #6 and #15)
+- **Use Case**: Games no longer write per-sprite camera loops or culling; shake, snapping,
+  culling and follow have one place in the engine; frame statistics match what the loop did
+- **Status**: ✅ COMPLETED (branch `feature/engine-world-space`, 2026-10-18)
+- **Priority**: High
+- **Implementation**:
+  - `glitchygames/world.py`: `CoordinateSpace`, `WorldPositioned`, `hidden`,
+    `position_world_sprites` (`CULL_MARGIN_PIXELS` culling that never lowers `dirty = 2`,
+    `draw_offset` added), `aim_camera`
+  - `Camera2D.follow(target=, axes=FollowAxes)`, `aim_at`, `begin_frame`; `Scene.camera_target()`,
+    `Scene.PIXEL_SNAP_MODE`, `Scene.MAX_FRAME_SECONDS`
+  - `SceneManager._finish_frame`: one start-to-start `dt`; pacing re-anchors after a hitch
+  - Brave Adventurer, Papyrus, Clockwork Keep and PaddleSlap migrated; the pose rule (draw the
+    pose in `dt_tick` before collision) fixes the one-frame wall lag
+  - Golden traces of every game (`tests/world/test_golden_traces.py`), each difference proven by
+    exactly one rule; gameplay recording (`--record-trace`) and seeded random streams
+    (`--random-seed`)
+- **Docs**: CLAUDE.md (World Space, Frame Pacing), `plans/2026-10-18-engine-world-space.md`
+
 ### 16. ASCII Transparency Contrast Enhancement ✅ COMPLETED
 - **Description**: Enhanced ASCII renderer to draw fully transparent pixels as light grey for better contrast visibility
 - **Use Case**: Improves visibility of transparent pixels in terminal output, making it easier to see sprite boundaries and structure

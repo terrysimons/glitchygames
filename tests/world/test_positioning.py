@@ -12,7 +12,9 @@ import pygame
 import pytest
 
 from glitchygames.camera import Camera2D
+from glitchygames.collision.detection import snapped_world_position
 from glitchygames.effects.shake import ScreenShake
+from glitchygames.game_objects.ball import BallSprite
 from glitchygames.pixel_snap import (
     PixelSnapMode,
     active_default_snap_mode,
@@ -505,3 +507,65 @@ def test_step_never_changes_world_position_camera_or_image(camera: Camera2D) -> 
     assert sprite.world_y == 60.75
     assert (camera.world_x, camera.world_y) == (CAMERA_START_X, 4.25)
     assert sprite.image is original_image
+
+
+# --- PaddleSlap's ball: a world sprite under an identity camera ---
+
+BALL_DISPLAY_SIZE = (800, 600)
+BALL_HALF_POSITION = (100.5, 60.5)
+
+
+@pytest.fixture
+def ball_display() -> None:
+    """Give BallSprite a real display to create its image against."""
+    pygame.init()
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode(BALL_DISPLAY_SIZE)
+
+
+@pytest.mark.usefixtures('ball_display')
+class TestBallWorldSpace:
+    """The ball lives in world space; the engine, not its setters, writes its rect."""
+
+    def test_ball_declares_world_space(self) -> None:
+        """BallSprite is positioned by the engine."""
+        assert BallSprite.COORDINATE_SPACE is CoordinateSpace.WORLD
+        assert is_world_positioned(BallSprite())
+
+    def test_setting_the_world_position_leaves_rect_alone(self) -> None:
+        """world_x/world_y and pixel_snap_mode no longer write rect."""
+        ball = BallSprite()
+        rect_before = ball.rect.topleft
+
+        ball.world_x = 123.75
+        ball.world_y = 45.25
+        ball.pixel_snap_mode = PixelSnapMode.FLOOR
+
+        assert ball.rect.topleft == rect_before
+        assert (ball.world_x, ball.world_y) == (123.75, 45.25)
+
+    @pytest.mark.parametrize(
+        ('ball_mode', 'expected_topleft'),
+        [(PixelSnapMode.NEAREST_HALF_UP, (101, 61)), (PixelSnapMode.FLOOR, (100, 60))],
+        ids=['nearest-half-up', 'floor'],
+    )
+    def test_identity_camera_places_the_ball_at_its_snapped_world_position(
+        self, ball_mode: PixelSnapMode, expected_topleft: tuple[int, int]
+    ) -> None:
+        """Under the identity camera, rect is the world position snapped with the ball's mode.
+
+        The scene default is set to a third mode, so only the ball's own mode can give the
+        expected positions.
+        """
+        set_active_default_snap_mode(PixelSnapMode.CEIL)
+        identity_camera = Camera2D(*BALL_DISPLAY_SIZE)
+        ball = BallSprite(pixel_snap_mode=ball_mode)
+        ball.world_x, ball.world_y = BALL_HALF_POSITION
+
+        position_world_sprites(
+            sprites=[ball], camera=identity_camera, screen_size=BALL_DISPLAY_SIZE
+        )
+
+        assert ball.rect.topleft == expected_topleft
+        assert ball.rect.topleft == snapped_world_position(ball, ball.world_x, ball.world_y)
+        assert ball.visible

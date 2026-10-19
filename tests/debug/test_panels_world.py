@@ -21,6 +21,7 @@ from glitchygames.debug.panels import (
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
 from glitchygames.sprites.frame import SpriteFrame
+from glitchygames.world import position_world_sprites
 
 SURFACE_SIZE = (400, 300)
 
@@ -177,6 +178,10 @@ class TestScreenRectFor:
         """A NEAREST_HALF_UP ball at x=10.5 is drawn at 11; its circle box starts at 11 + 5."""
         ball.world_x = 10.5
         ball.world_y = 20.0
+        # The engine places the world-space ball before rendering (PaddleSlap's identity camera)
+        position_world_sprites(
+            sprites=[ball], camera=Camera2D(*SURFACE_SIZE), screen_size=SURFACE_SIZE
+        )
         assert ball.rect.x == 11
 
         collision_rect = get_sprite_collision_rect(ball)

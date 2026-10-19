@@ -52,6 +52,7 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
+from glitchygames.collision.detection import snapped_world_position
 from glitchygames.engine import GameEngine
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.examples import paddleslap
@@ -65,6 +66,7 @@ from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trac
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    from glitchygames.game_objects.ball import BallSprite
     from glitchygames.scenes import Scene
 
 # Project root (scripts/ is one level below project root)
@@ -345,6 +347,27 @@ def brave_adventurer_script() -> InputScript:
     return script
 
 
+def ball_drawn_center(ball: BallSprite) -> tuple[int, int]:
+    """Return the centre of a ball's image at its current snapped world position.
+
+    The ball is a world sprite, so its rect is written by the engine during the frame: before
+    the first frame it is still the constructor's placeholder. Its snapped world position is
+    where it is drawn, the value the ball's own setters wrote into rect when the PaddleSlap
+    baseline was recorded, so the tracker steers exactly as it did then.
+
+    Args:
+        ball: The ball.
+
+    Returns:
+        The centre, as the ball's rect.center reads after positioning.
+
+    """
+    drawn_rect = pygame.Rect(
+        snapped_world_position(ball, ball.world_x, ball.world_y), ball.rect.size
+    )
+    return drawn_rect.center
+
+
 class PaddleTracker:
     """Hold each PaddleSlap paddle's up or down key to follow the nearest approaching ball."""
 
@@ -377,10 +400,10 @@ class PaddleTracker:
             if moving_toward:
                 target_ball = min(
                     moving_toward,
-                    key=lambda ball: abs(ball.rect.centerx - paddle.rect.centerx),
+                    key=lambda ball: abs(ball_drawn_center(ball)[0] - paddle.rect.centerx),
                 )
                 up_key, down_key = PADDLESLAP_PADDLE_KEYS[paddle_index]
-                offset = target_ball.rect.centery - paddle.rect.centery
+                offset = ball_drawn_center(target_ball)[1] - paddle.rect.centery
                 if offset < -PADDLESLAP_TRACKING_DEAD_ZONE_PIXELS:
                     wanted_key = up_key
                 elif offset > PADDLESLAP_TRACKING_DEAD_ZONE_PIXELS:

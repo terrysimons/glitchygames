@@ -40,6 +40,54 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 64. Collision Used the Previous Frame's Pose (Hitbox Up to 4 px Inside a Wall for One Frame)
+- **Description**: In Brave Adventurer and Clockwork Keep, on the frame the player turned toward a wall or started to run while standing at it, the drawn hitbox sat 1-4 px inside the wall for one frame; the first ground check after a respawn also ran on the blank image, so the player stood 1-2 px high
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found on feature/debug-overlay (`plans/future-work.md`); fixed on feature/engine-world-space
+- **Date Reported**: 2026-10-17
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Both games drew the player's pose in `update()`, which runs in the render phase after collision, so wall and ground resolution in `dt_tick` used the previous frame's image and hitbox
+- **Solution**: The pose rule (CLAUDE.md, World Space): each player draws its pose in `dt_tick` (`_draw_pose()`), after physics and the state machine and before collision, then refits its wall bounds to the new hitbox; `update()` keeps only visual work (the respawn fade). Papyrus already drew in `dt_tick`
+- **Files Modified**: `glitchygames/examples/clockwork_keep/player.py` (51d4f08), `glitchygames/examples/brave_adventurer/player.py` (dc4d25f)
+- **Tests**: `TestPoseBeforeCollision` in `tests/examples/test_clockwork_keep.py` and `tests/examples/test_brave_adventurer_game.py` (8 wall/facing/key cases each, hitbox checked after logic and after render, both Brave editions); the golden traces prove the changed frames exactly
+
+### 63. Camera Stepped Ahead on the Frame a Scene Resumed From Pause
+- **Description**: After the engine took over camera aiming, Brave Adventurer's camera moved one extra smoothing step on the frame it resumed from the pause screen, so every sprite was drawn a little off for the following frames (about 470 golden-trace rects on frames 373-386)
+- **Status**: Resolved (found and fixed before it reached main)
+- **Priority**: Medium
+- **Reporter**: Found by the golden traces on feature/engine-world-space (Task 7)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `PauseScene` resumes with `switch_to_scene` during event processing, after the pause scene's `dt_tick`. The engine then aimed the resumed scene's camera that same frame although that scene ran no logic, an extra step the games' own `camera.update` in `dt_tick` had never taken
+- **Solution**: `SceneManager._run_scene_frame` aims the camera only when the scene that ran `dt_tick` this frame is still active; its world sprites are still positioned for the frame's render
+- **Files Modified**: `glitchygames/scenes/scene.py` (0823479)
+- **Tests**: `test_camera_waits_for_the_resumed_scene_logic` in `tests/world/test_frame_integration.py`; the Brave Adventurer golden trace
+
+### 62. Frame Processing Time Included the Pacing Sleep
+- **Description**: The per-frame processing time handed to the performance manager was measured after `_handle_frame_pacing`, so it included the sleep; `AdaptiveClamping.get_spare_time_stats` reported about zero spare capacity whenever a timer backend paced the loop
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/engine-world-space (Task 5)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: `actual_processing_time` was taken from the frame start to after pacing, not to the end of the frame's work
+- **Solution**: `SceneManager.start()` measures `processing_seconds` from the frame start to the end of `_run_frame()`, before pacing, and passes it to `_finish_frame`, which records it (engine audit #15)
+- **Files Modified**: `glitchygames/scenes/scene.py` (733ebb4)
+- **Tests**: `test_processing_time_excludes_the_pacing_sleep` in `tests/world/test_finish_frame.py` (on a fake clock; before the fix the sample was 0.0234 s for 0.0059 s of work)
+
+### 61. Brave Adventurer Sprites That Had Been Off Screen Stopped Being Drawn
+- **Description**: Brave Adventurer's per-sprite culling set `dirty = 0` on sprites outside the screen. `Scene.update()` calls `update()` only on dirty sprites, so an off-screen scarab never drew its image: collision then used the blank image (the whole image as the hitbox) and the scarabs rolled 2 px above the ground. Enemies that draw in `update()` (Cobra, Scarab, Scorpion) were drawn once when they came back on screen (the `visible` setter dirtied them) and then froze on that frame
+- **Status**: Resolved
+- **Priority**: Low (the scripted runs never show an enemy returning on screen; worked out from the code and proven on the scarabs)
+- **Reporter**: Found by the golden traces on feature/engine-world-space (Task 7)
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Culling and redraw scheduling shared one flag: `dirty = 0` meant both "nothing changed" and "do not run `update()`"
+- **Solution**: The games' `is_visible` culling was removed; the engine's positioning step culls with `visible` only and never lowers `dirty = 2` (spec 2.4). The scarabs now rest their visible underside on the ground (3384 golden rects, each proven by an exact rule; a scratch emulation restoring only the old culling reproduced the baseline with 0 differences)
+- **Files Modified**: `glitchygames/examples/brave_adventurer/terrain.py`, `glitchygames/examples/brave_adventurer/enemies.py` (dc4d25f); Papyrus's copies in d5144ce
+- **Tests**: `test_scarab_rolls_with_its_visible_bottom_on_the_ground`; the off-screen Papyrus scarab keeps `dirty = 2` (`TestPapyrusEngineWorldSpace` in `tests/examples/test_brave_adventurer_game.py`); `test_dirty_two_sprite_stays_two` in `tests/world/test_positioning.py`
+
 ### 58. Frame Pacing Bursts to Catch Up After a Hitch
 - **Description**: After a long stall (a 2 s hitch, a window drag, a debugger pause) the main loop ran about 120-150 frames back to back without sleeping: a CPU spike, skewed FPS, frame-time and 1%-low statistics, uneven presentation, and anything counted per frame ran fast until the deadlines caught up
 - **Status**: Resolved

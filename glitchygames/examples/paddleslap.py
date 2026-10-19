@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 import pygame
 import pygame.freetype
 
+from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.color import BLACKLUCENT, WHITE
 from glitchygames.engine import GameEngine
@@ -405,7 +406,8 @@ class Game(Scene):
         if not hasattr(ball, '_debug_positions'):
             ball._debug_positions = []  # type: ignore[attr-defined]
 
-        ball._debug_positions.append((ball.rect.x, ball.rect.y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
+        drawn_x, drawn_y = snapped_world_position(ball, ball.world_x, ball.world_y)
+        ball._debug_positions.append((drawn_x, drawn_y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
 
         # Keep only last positions for trajectory analysis
         if len(ball._debug_positions) > DEBUG_TRAJECTORY_HISTORY_SIZE:  # type: ignore[attr-defined]
@@ -429,7 +431,7 @@ class Game(Scene):
                     )
 
         log.debug(
-            f'BALL {ball_index + 1} BEFORE: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+            f'BALL {ball_index + 1} BEFORE: pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
             f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
             f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
         )
@@ -460,18 +462,20 @@ class Game(Scene):
         for i, ball in enumerate(self.balls):
             if ball.alive():
                 log.debug(
-                    f'BALL {i + 1} AFTER:  pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+                    f'BALL {i + 1} AFTER:  pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
                     f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
                     f'magnitude={math.sqrt(ball.speed.x**2 + ball.speed.y**2):.1f}',
                 )
 
-    @override
-    def update(self: Self) -> None:
-        """Update the game.
+        # Collisions are game logic, so they run here, after every sprite moved. The engine
+        # positions the world-space balls after dt_tick and before update() renders, so a
+        # bounce or a ball spawned here is drawn this frame (glitchygames/world.py).
+        self._resolve_collisions()
 
-        Args:
-            None
+    def _resolve_collisions(self: Self) -> None:
+        """Resolve this frame's paddle and ball-ball hits, remove dead balls, check game over.
 
+        Runs at the end of dt_tick, after every sprite moved this frame.
         """
         for i, ball in enumerate(self.balls):
             if not ball.alive():
@@ -479,7 +483,7 @@ class Game(Scene):
 
             # Debug log ball state before collision checks
             log.debug(
-                f'BALL {i + 1} COLLISION CHECK: pos=({ball.rect.x:.1f},{ball.rect.y:.1f}) '
+                f'BALL {i + 1} COLLISION CHECK: pos=({ball.world_x:.1f},{ball.world_y:.1f}) '
                 f'speed=({ball.speed.x:.1f},{ball.speed.y:.1f}) '
                 f'paddle1_rect=({self.player1.rect.x},'
                 f'{self.player1.rect.y},'
@@ -494,7 +498,7 @@ class Game(Scene):
         # Ball-paddle hits: the collision manager pairs overlapping collision rects (AABB broad
         # phase) and BallSprite.handle_paddle_collision does the exact circle-vs-rect check and
         # the bounce (which also triggers ball spawn via on_paddle_collision). This runs after
-        # every ball moved in dt_tick and before ball-ball collisions and dead-ball cleanup.
+        # every ball moved and before ball-ball collisions and dead-ball cleanup.
         self.collisions.check_overlap(
             'balls',
             'paddles',
@@ -516,8 +520,6 @@ class Game(Scene):
         # Check for Game Over condition
         if len(self.balls) == 0:
             self._show_game_over()
-
-        super().update()
 
     def _show_game_over(self: Self) -> None:
         """Save high score and show the Game Over scene."""
@@ -589,8 +591,9 @@ class Game(Scene):
                 min_distance = 100  # Minimum distance from other balls
                 too_close = False
                 for existing_ball in self.balls:
-                    dx = spawn_x - existing_ball.rect.centerx
-                    dy = spawn_y - existing_ball.rect.centery
+                    existing_center_x, existing_center_y = self._drawn_center(existing_ball)
+                    dx = spawn_x - existing_center_x
+                    dy = spawn_y - existing_center_y
                     distance = math.sqrt(dx * dx + dy * dy)
                     if distance < min_distance:
                         too_close = True
@@ -629,6 +632,25 @@ class Game(Scene):
         self.balls.append(new_ball)
         self.all_sprites.add(new_ball)
         self.collisions.get_layer('balls').add(new_ball)
+
+    @staticmethod
+    def _drawn_center(ball: BallSprite) -> tuple[int, int]:
+        """Return the centre of the ball's image at its current (snapped) world position.
+
+        A ball's rect is written by the engine before each render, so during dt_tick it still
+        holds where the ball was last drawn; this is where the ball will be drawn next.
+
+        Args:
+            ball: The ball.
+
+        Returns:
+            tuple[int, int]: The centre, as rect.center would give it after positioning.
+
+        """
+        drawn_rect = pygame.Rect(
+            snapped_world_position(ball, ball.world_x, ball.world_y), ball.rect.size
+        )
+        return drawn_rect.center
 
     def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
         """Count the rally hit and conditionally spawn a new ball.
@@ -686,7 +708,7 @@ class Game(Scene):
         """Handle a ball-paddle candidate from the collision manager.
 
         A ball that left the screen this frame was killed in its dt_tick but stays in the
-        'balls' layer until update() removes dead balls, so it is skipped here.
+        'balls' layer until _resolve_collisions removes dead balls, so it is skipped here.
         """
         if not ball.alive():
             return
@@ -960,9 +982,9 @@ class Game(Scene):
         ):
             separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
 
-        # Move the sub-pixel world positions; their setters snap rect to match.
-        # Moving rect directly would be undone on the next frame, because
-        # BallSprite.dt_tick() rebuilds rect from world_x/world_y.
+        # Move the sub-pixel world positions; the engine places each ball's rect from them
+        # before this frame's render. Moving rect directly would be undone, because the
+        # engine rebuilds rect from world_x/world_y every frame.
         ball1.world_x -= separation_x
         ball1.world_y -= separation_y
         ball2.world_x += separation_x

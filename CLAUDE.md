@@ -125,11 +125,17 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 - Pre-computes `EVENT_HANDLERS` dict for O(1) event dispatch
 
 **SceneManager** (`glitchygames/scenes/__init__.py`)
-- Singleton managing the main game loop with four phases:
-  1. **Update**: Accumulate delta time via `Scene.dt_tick(dt)`
-  2. **Event Processing**: Route pygame events through GameEngine
-  3. **Render**: Update dirty sprites and draw via `LayeredDirty.draw()`
-  4. **Display Update**: Call `pygame.display.update()` or `flip()`
+- Singleton running the main game loop; each frame (`_run_scene_frame`), in order:
+  1. **Begin**: `camera.begin_frame()` (clears the camera's manual-update flag)
+  2. **Logic**: `Scene.dt_tick(dt)` (game logic, physics and collision)
+  3. **Event Processing**: Route pygame events through GameEngine
+  4. **Frame services**: shake and rumble (so positioning sees this frame's WORLD shake)
+  5. **Aim**: move the camera toward `Scene.camera_target()` (skipped when the scene was switched
+     mid-frame, e.g. resuming from pause: that scene ran no logic this frame)
+  6. **Position**: place world-space sprites from the camera and cull them (see World Space)
+  7. **Render**: `Scene.update()` (visual-only work), then `LayeredDirty.draw()`
+  8. **Present**: debug overlay, `pygame.display.update()` or `flip()`
+  9. **Finish**: `_finish_frame` (see Frame Pacing)
 - Handles scene transitions and lifecycle (`setup()`, `cleanup()`, `load_resources()`)
 
 **Frame Pacing** (`glitchygames/timing.py`)
@@ -142,10 +148,53 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   `glitchygames.engine`); `--target-fps 0` is uncapped for every game
 - A game scene may set `TARGET_FPS` (class attribute, like `NAME`/`VERSION`; `0.0` = uncapped,
   `None` = engine default). Resolution order: explicit `--target-fps` > scene `TARGET_FPS` > 60.01
+- A scene may set `MAX_FRAME_SECONDS` (class attribute, default `None` = no cap): its `dt_tick` and
+  the camera aim get `min(dt, MAX_FRAME_SECONDS)`, so a hitch advances the game at most the cap.
+  The manager's `self.dt` stays the raw frame time (pacing, FPS statistics, overlay, shake), and
+  recordings hold the raw dt (Clockwork Keep caps at 0.05 s)
+- `_finish_frame(*, frame_start_seconds, ...)` ends every frame: pace, then read
+  `time.perf_counter()` once; that reading ends this frame and starts the next, and `self.dt` is
+  set only there (start to start), so recorded frames sum exactly to wall-clock time and logic,
+  the overlay and the FPS statistics all see the same value. Processing time excludes the
+  pacing sleep
 - After falling more than one frame behind, pacing re-anchors instead of bursting to catch up
   (`next_frame_deadline_ns`; a slightly late frame is still caught up, so the average rate holds)
 - Configurable sleep granularity for tight frame pacing
 - Windows timer resolution control via WinMM
+
+**World Space** (`glitchygames/world.py`, `glitchygames/camera.py`)
+- A sprite declares `COORDINATE_SPACE = CoordinateSpace.WORLD` and keeps float `world_x`/`world_y`
+  (the `WorldPositioned` Protocol); the engine is then the only writer of its `rect`. Sprites
+  without the attribute (HUD, UI, PaddleSlap's paddles) are screen space and never touched
+- Each frame `position_world_sprites` sets `rect.topleft` to `snap(world) - snap(camera) -
+  snap(WORLD shake)` plus the sprite's `draw_offset` (frame anchor), each term snapped with the
+  sprite's own `pixel_snap_mode` or else the scene's `PIXEL_SNAP_MODE` (class attribute, default
+  `PixelSnapMode.NEAREST_HALF_UP`; collision's `snapped_world_position` resolves it the same way).
+  It marks the sprite dirty only when it moved (never lowering `dirty = 2`) and owns `visible`:
+  on screen within `CULL_MARGIN_PIXELS` (32) and not `hidden`. A game hides a world sprite with
+  `hidden = True`, never `visible = False`
+- Never read a world sprite's `rect` in game logic (`dt_tick`, event handlers): it holds where
+  the sprite was last drawn. Use `world_x`/`world_y`, `snapped_world_position` or the collision
+  rect. In the render phase (`update()`, `render()`) rects are this frame's positions
+- Camera: `camera.follow(target=player, axes=FollowAxes.X)` in `setup()` (`FollowAxes.X`, `Y` or
+  `BOTH`, the default); override `Scene.camera_target()` to aim anywhere else (return `None` for a
+  manual camera, e.g. after game over). The engine aims with `camera.aim_at`; an axis not followed
+  keeps its goal. Camera bounds, lead offsets, smoothing and `snap_to` still apply (without a
+  `snap_to` in `setup()` the camera eases in from the origin). A game that also calls
+  `camera.update()` while the engine aims gets a one-time warning. `Camera2D.apply()` stays as a
+  helper for one-off conversions; to draw against world sprites in the render phase, use their
+  positioned rects (Brave Adventurer's pit gaps do)
+- The pose rule: draw a sprite's pose (image, so its hitbox) in `dt_tick`, after its state is
+  decided and before collision; `update()` runs in the render phase, after collision, and may do
+  only visual work (fades). Drawing the pose in `update()` makes collision use last frame's pose
+  (the old one-frame wall lag). Likewise collision resolution belongs in `dt_tick` (PaddleSlap),
+  so its result is positioned before the frame renders
+- Transition captures hide a world-space player with `hidden` and restore it afterwards
+- Golden traces (`scripts/record_golden_traces.py`, `tests/world/test_golden_traces.py`) replay
+  every example game and compare each sprite's rect and visibility, frame by frame, with
+  baselines recorded before the world-space change. Every difference must be explained by
+  exactly one `ExpectedDifference` entry whose rule proves it exactly (an entry that explains
+  nothing fails too); never re-record the baselines to make a change pass
 
 **Gameplay Recording** (`glitchygames/recording.py`, `glitchygames/randomness.py`)
 - `--record-trace PATH`: record the session as a gzip JSON Lines trace (`glitchygames/tracing.py`
@@ -164,8 +213,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`
 - Styles: `NOISE` (trauma model), `JITTER`, `BOUNCE`; shakes stack and are capped
-- WORLD shakes `Camera2D` sprites (HUD stays still); SCREEN shifts the presented frame,
-  survives `transition_to`, and is cleared by `switch_to_scene`
+- WORLD shakes world-space sprites and parallax layers (HUD stays still); SCREEN shifts the
+  presented frame, survives `transition_to`, and is cleared by `switch_to_scene`. A WORLD shake
+  on a scene with nothing it could move (no world sprites, parallax or `camera.apply()` use) logs
+  a warning, decided at `shake()` time
 - Optional `RumbleSettings` per shake; `SceneManager` sends combined rumble in controller and
   joystick modes
 - `--screen-shake-intensity`, `--rumble-intensity` (0.0-1.0)
@@ -196,7 +247,8 @@ the HUD shows `| paused: <name>`).
 
 **Pixel snapping** (`glitchygames/pixel_snap.py`): `PixelSnapMode` and `snap_to_pixel` convert
 sub-pixel world positions to drawn whole pixels (NEAREST_HALF_UP for smooth-motion games, FLOOR
-for retro/platformer games), shared by sprites, collision and the debug overlay.
+for retro/platformer games), shared by sprites, collision and the debug overlay. A scene picks its
+mode with `Scene.PIXEL_SNAP_MODE`; a sprite may override it with `pixel_snap_mode` (the ball does).
 
 ### Event System
 
@@ -239,7 +291,8 @@ opaque pixels, so the visible-pixel default trims nothing for them; give them a 
 (e.g. the union of their frames' non-magenta bounds, as `ghosty.toml` does).
 Frames of different shapes: draw walkers bottom-aligned, or set `AnimatedSprite.frame_anchor`
 (`FrameAnchor`: edge names align one axis, CENTER/corners both; `[sprite] frame_anchor =
-"bottom"`) and add `draw_offset` to `rect`.
+"bottom"`). The engine adds `draw_offset` to `rect` for world-space sprites; a screen-space sprite
+adds it to `rect` itself.
 
 **Rendering Optimization**:
 - `pygame.sprite.LayeredDirty` for dirty-rect rendering
