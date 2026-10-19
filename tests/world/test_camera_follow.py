@@ -261,12 +261,12 @@ class TestCameraTargetHook:
     def test_default_hook_without_follow_target_is_none(self):
         assert make_scene(camera=make_camera()).camera_target() is None
 
-    def test_default_hook_names_a_target_without_world_position(self):
+    def test_follow_names_a_target_without_world_position(self):
+        """The error comes from the follow() call, not a frame later from camera_target()."""
         camera = make_camera()
-        camera.follow(target=PositionlessSprite())
-        scene = make_scene(camera=camera)
         with pytest.raises(TypeError, match='PositionlessSprite'):
-            scene.camera_target()
+            camera.follow(target=PositionlessSprite())
+        assert camera.follow_target is None
 
     def test_overridden_hook_wins_over_follow_target(self):
         camera = make_camera()

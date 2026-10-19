@@ -166,8 +166,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 - Windows timer resolution control via WinMM
 
 **World Space** (`glitchygames/world.py`, `glitchygames/camera.py`)
-- A sprite declares `COORDINATE_SPACE = CoordinateSpace.WORLD` and keeps float `world_x`/`world_y`
-  (the `WorldPositioned` Protocol); the engine is then the only writer of its `rect`. Sprites
+- A sprite declares `COORDINATE_SPACE = CoordinateSpace.WORLD` and keeps float `world_x`/`world_y`;
+  the engine is then the only writer of its `rect` (it checks only `COORDINATE_SPACE` at runtime;
+  `WorldPositioned` is the Protocol for read-only `world_x`/`world_y`, the type of a camera
+  follow target). Sprites
   without the attribute (HUD, UI, PaddleSlap's paddles) are screen space and never touched
 - Each frame `position_world_sprites` sets `rect.topleft` to `snap(world) - snap(camera) -
   snap(WORLD shake)` plus the sprite's `draw_offset` (frame anchor), each term snapped with the
@@ -180,7 +182,7 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   the sprite was last drawn. Use `world_x`/`world_y`, `snapped_world_position` or the collision
   rect. In the render phase (`update()`, `render()`) rects are this frame's positions
 - Camera: `camera.follow(target=player, axes=FollowAxes.X)` in `setup()` (`FollowAxes.X`, `Y` or
-  `BOTH`, the default); override `Scene.camera_target()` to aim anywhere else (return `None` for a
+  `BOTH`, the default; a target without `world_x`/`world_y` raises `TypeError` there); override `Scene.camera_target()` to aim anywhere else (return `None` for a
   manual camera, e.g. after game over). The engine aims with `camera.aim_at`; an axis not followed
   keeps its goal. Camera bounds, lead offsets, smoothing and `snap_to` still apply (without a
   `snap_to` in `setup()` the camera eases in from the origin). A game that also calls

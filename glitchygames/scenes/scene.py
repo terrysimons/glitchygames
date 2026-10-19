@@ -1613,19 +1613,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             tuple[float, float] | None: The target's (world_x, world_y), or None when the
                 camera follows nothing.
 
-        Raises:
-            TypeError: If the follow target has no world_x or world_y.
-
         """
         target = self.camera.follow_target
         if target is None:
             return None
-        world_x = getattr(target, 'world_x', None)
-        world_y = getattr(target, 'world_y', None)
-        if world_x is None or world_y is None:
-            message = f'Camera follow target {type(target).__name__} has no world_x/world_y'
-            raise TypeError(message)
-        return (float(world_x), float(world_y))
+        # Camera2D.follow() checked that the target has world_x and world_y
+        return (float(target.world_x), float(target.world_y))
 
     def apply_camera_to_sprites(self: Self) -> None:
         """Reposition camera-relative sprites from the current camera.

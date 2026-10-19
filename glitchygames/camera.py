@@ -24,6 +24,8 @@ from glitchygames.sprites import Sprite
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from glitchygames.world import WorldPositioned
+
 log: logging.Logger = logging.getLogger('game.camera')
 
 # Threshold for comparing scroll factors to zero
@@ -178,7 +180,7 @@ class Camera2D:
         self._has_been_applied: bool = False
 
         # Declared follow target (see follow()); the engine aims the camera at it each frame
-        self._follow_target: object | None = None
+        self._follow_target: WorldPositioned | None = None
         self._follow_axes: FollowAxes = FollowAxes.BOTH
 
         # Set when game code calls update() this frame (cleared by begin_frame()), so the
@@ -190,7 +192,7 @@ class Camera2D:
         self._shake_advanced_this_frame: bool = False
 
     @property
-    def follow_target(self: Self) -> object | None:
+    def follow_target(self: Self) -> WorldPositioned | None:
         """The world sprite the engine aims the camera at, or None (manual camera)."""
         return self._follow_target
 
@@ -199,11 +201,15 @@ class Camera2D:
         """The axes that follow the target; the others keep the camera where it is."""
         return self._follow_axes
 
-    def follow(self: Self, *, target: object | None, axes: FollowAxes = FollowAxes.BOTH) -> None:
+    def follow(
+        self: Self, *, target: WorldPositioned | None, axes: FollowAxes = FollowAxes.BOTH
+    ) -> None:
         """Declare the world sprite the engine aims this camera at each frame.
 
-        The target needs world_x and world_y. The scene's camera_target() hook reads it, and
-        the engine applies the axes to whichever point that hook supplies.
+        The target is a world sprite (glitchygames.world.WorldPositioned); its world_x and
+        world_y are checked here, so a target without them fails at this call rather than a
+        frame later. The scene's camera_target() hook reads it, and the engine applies the
+        axes to whichever point that hook supplies.
 
         The camera holds the target strongly. A target that is killed or removed from its
         groups keeps the camera aimed at its last position; call follow(target=...) again with
@@ -214,7 +220,15 @@ class Camera2D:
             target: The sprite to follow, or None to stop following (manual camera).
             axes: The axes that follow (FollowAxes.X, FollowAxes.Y or FollowAxes.BOTH).
 
+        Raises:
+            TypeError: If the target has no world_x or world_y.
+
         """
+        if target is not None and (
+            getattr(target, 'world_x', None) is None or getattr(target, 'world_y', None) is None
+        ):
+            message = f'Camera follow target {type(target).__name__} has no world_x/world_y'
+            raise TypeError(message)
         self._follow_target = target
         self._follow_axes = axes
 

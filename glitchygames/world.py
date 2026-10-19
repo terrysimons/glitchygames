@@ -41,12 +41,30 @@ class CoordinateSpace(enum.Enum):
 
 @runtime_checkable
 class WorldPositioned(Protocol):
-    """A sprite the engine positions from the camera each frame."""
+    """Something with a world position: the static type of a camera follow target.
 
-    COORDINATE_SPACE: CoordinateSpace
-    world_x: float
-    world_y: float
-    rect: pygame.Rect
+    Camera2D.follow() and Camera2D.follow_target use it, and Scene.camera_target() reads the
+    target's world_x and world_y through it. The members are read-only properties because
+    the engine only reads them, so plain attributes and properties (as the example games'
+    players use) both match.
+
+    Whether the engine positions a sprite is decided at runtime by its declaration alone,
+    ``COORDINATE_SPACE = CoordinateSpace.WORLD`` (is_world_positioned), so the frame accepts
+    any sprite in all_sprites; screen_position_for then raises a TypeError naming a declared
+    world sprite without world_x/world_y. The declaration is not part of this Protocol: the
+    type checker infers ``COORDINATE_SPACE = CoordinateSpace.WORLD`` as a literal type, which
+    does not match a mutable protocol attribute typed ``CoordinateSpace``.
+    """
+
+    @property
+    def world_x(self) -> float:
+        """World X of the sprite's top-left."""
+        ...
+
+    @property
+    def world_y(self) -> float:
+        """World Y of the sprite's top-left."""
+        ...
 
 
 class _CameraTargetScene(Protocol):
