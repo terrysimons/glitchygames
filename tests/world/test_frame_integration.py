@@ -30,6 +30,7 @@ from scripts.record_golden_traces import (
     release,
 )
 
+from glitchygames import live_sources as live_sources_module
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset
@@ -45,6 +46,8 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
     from pytest_mock import MockerFixture
+
+    from glitchygames.input.state import InputSnapshot
 
 SPRITE_SIZE = 16
 PLAYER_START = (400.5, 300.25)
@@ -846,3 +849,22 @@ class TestWorldShakeOnAStillCamera:
             assert [call.args for call in shake_update_spy.call_args_list] == [
                 (FRAME_SECONDS,)
             ] * SHAKE_ADVANCE_FRAMES
+
+
+class TestInputSnapshotInTheFrame:
+    """The snapshot is taken once per frame, right after the pump, and stays fixed."""
+
+    def test_snapshot_taken_after_the_pump_is_the_frames_input(self, mocker: MockerFixture):
+        """Each frame asks the live sources for exactly one snapshot."""
+        captures: list[int] = []
+        original_capture = live_sources_module.capture_live_snapshot
+
+        def counting_capture(**keywords: Any) -> InputSnapshot:
+            captures.append(1)
+            return original_capture(**keywords)
+
+        # LiveSources calls the name it imported into glitchygames/live_sources.py
+        mocker.patch.object(live_sources_module, 'capture_live_snapshot', counting_capture)
+        with running_scene(CameraFreeScene) as manager:
+            step(manager, frames=3)
+        assert len(captures) == 3

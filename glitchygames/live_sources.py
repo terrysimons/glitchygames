@@ -10,7 +10,10 @@ from typing import TYPE_CHECKING, Self
 
 import pygame
 
+from glitchygames.input.state import capture_live_snapshot
+
 if TYPE_CHECKING:
+    from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
 
@@ -62,6 +65,15 @@ class LiveSources:
 
         """
         return measured
+
+    def input_snapshot(self: Self) -> InputSnapshot:
+        """Read pygame's polled input now (Task 5 adds the device positions).
+
+        Returns:
+            The live snapshot.
+
+        """
+        return capture_live_snapshot()
 
     def end_frame(self: Self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
         """Nothing to do after a live frame."""

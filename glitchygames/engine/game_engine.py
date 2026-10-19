@@ -36,6 +36,7 @@ from glitchygames.events.mouse import MouseEventManager
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
+from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import seed_engine_random
 from glitchygames.recording import GameplayRecorder, json_safe_value, post_event
@@ -49,6 +50,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from types import FrameType
 
+    from glitchygames.input.state import InputSnapshot
     from glitchygames.sources import EngineSources
 
 LOG: logging.Logger = logging.getLogger('game.engine')
@@ -632,6 +634,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Fresh doors for this run (glitchygames/sources.py). Task 12 makes this install the
         # replay's sources instead when --replay-trace is given
         reset_sources()
+        # reset_sources() leaves the polled input alone (glitchygames/sources.py is a leaf)
+        reset_current_input()
         install_sources(
             sources=LiveSources(
                 random_seed=self.random_seed, use_fastevents=GameEngine.USE_FASTEVENTS
@@ -817,6 +821,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         for sprite_type, counters in sprite_counters.items():
             for key, value in counters.items():
                 self.log.info('%s Sprite %s: %s', sprite_type, key, value)
+
+    @property
+    def input(self: Self) -> InputSnapshot:
+        """This frame's polled input (glitchygames/input/state.py ``current_input``)."""
+        return current_input()
 
     @property
     def screen_width(self: Self) -> int:
@@ -1363,6 +1372,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         raw_events = self._pump_events()
+        # Polled input is read once per frame, right after the pump, so it agrees with this
+        # frame's events and never changes during the frame (glitchygames/input/state.py)
+        set_current_input(snapshot=active_sources().input_snapshot())
         dispatched_event_count = 0
         every_event_was_handled = True
         for pygame_event in raw_events:

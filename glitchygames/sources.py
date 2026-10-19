@@ -29,6 +29,9 @@ from glitchygames.randomness import engine_random_seed
 if TYPE_CHECKING:
     import pygame
 
+    # Type only: glitchygames.input's package __init__ imports input.rumble, which comes to
+    # import this module, so a runtime import here would be a cycle (this module is a leaf)
+    from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
 
@@ -64,6 +67,10 @@ class EngineSources(Protocol):
 
     def frame_seconds(self, *, measured: float) -> float:
         """Return the frame time logic receives, given the measured start-to-start time."""
+        ...
+
+    def input_snapshot(self) -> InputSnapshot:
+        """Return this frame's polled input, asked once per frame right after the first pump."""
         ...
 
     def end_frame(self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
@@ -159,7 +166,11 @@ def frame_clock_seconds() -> float:
 
 
 def reset_sources() -> None:
-    """Forget every installed and scoped source and the frame clock (a new run, or a test)."""
+    """Forget every installed and scoped source and the frame clock (a new run, or a test).
+
+    The frame's polled input is not reset here (this leaf may not import glitchygames.input):
+    callers also call glitchygames.input.state.reset_current_input().
+    """
     for sources in [*_REGISTRY.scoped, _REGISTRY.installed]:
         if sources is not None:
             sources.on_uninstalled()

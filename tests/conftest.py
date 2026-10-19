@@ -27,6 +27,7 @@ from glitchygames import pixel_snap, randomness, sources
 from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
+from glitchygames.input.state import reset_current_input
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import (
     FocusableSingletonBitmappySprite,
@@ -214,11 +215,14 @@ def reset_engine_sources():
     """Give every test fresh live doors and reset them afterwards (glitchygames/sources.py).
 
     reset_sources() tells the installed sources (on_uninstalled), which is where a replay stops
-    tracking code-posted events (Task 12), so no tracking leaks into the next test.
+    tracking code-posted events (Task 12), so no tracking leaks into the next test. The frame's
+    polled input (glitchygames/input/state.py) is reset too: reset_sources() leaves it alone.
     """
     sources.reset_sources()
+    reset_current_input()
     yield
     sources.reset_sources()
+    reset_current_input()
 
 
 @pytest.fixture(autouse=True)
