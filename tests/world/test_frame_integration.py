@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
+import pytest
 from scripts.record_golden_traces import (
     FAKE_CLOCK_START_SECONDS,
     FRAME_SECONDS,
@@ -24,17 +25,22 @@ from scripts.record_golden_traces import (
     command_line,
     deterministic_environment,
     discard_environment_events,
+    press,
+    release,
 )
 
 from glitchygames.camera import Camera2D
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.scenes import Scene
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, screen_position_for
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+    from pytest_mock import MockerFixture
 
 SPRITE_SIZE = 16
 PLAYER_START = (400.5, 300.25)
@@ -44,6 +50,14 @@ SPAWN_FRAME = 3
 FRAMES_TO_RUN = 6
 SCREEN_SPRITE_TOPLEFT = (7, 9)
 TEST_FADE_SECONDS = 0.25
+PAUSE_FRAMES = 3
+
+# Transition capture: the player is drawn in a colour nothing else uses, so its pixels can be
+# counted in a screenshot; the landmark proves the capture really drew the world sprites
+PLAYER_COLOR = (250, 20, 200)
+LANDMARK_COLOR = (20, 230, 40)
+LANDMARK_OFFSET_X = 80.0
+EXACT_COLOR_THRESHOLD = (1, 1, 1, 255)
 
 
 class WorldSprite(pygame.sprite.DirtySprite):
@@ -96,7 +110,13 @@ class FollowingScene(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Create the player, the HUD sprite and a following camera."""
+        """Create the player, the HUD sprite and a following camera (once).
+
+        Resuming from a pause runs setup() again; the scene keeps what it already has, as a
+        game keeps its state across a pause.
+        """
+        if getattr(self, 'player', None) is not None:
+            return
         self.camera = Camera2D(
             screen_width=self.screen_width,
             screen_height=self.screen_height,
@@ -137,6 +157,7 @@ class FollowingScene(Scene):
                 screen_position_for(sprite=sprite, camera=self.camera) for sprite in world_sprites
             ],
             'hud': self.hud.rect.topleft,
+            'snap_mode': active_default_snap_mode(),
         })
         super().render(screen)
 
@@ -151,6 +172,68 @@ class ManualCameraScene(FollowingScene):
         """Move the camera by hand every frame, after the engine's aim."""
         self.camera.update(self.player.world_x, self.player.world_y, FRAME_SECONDS)
         super().update()
+
+
+class FloorFollowingScene(FollowingScene):
+    """A FLOOR-snapping scrolling scene, to check its mode comes back after a pause."""
+
+    NAME = 'Floor Following'
+    PIXEL_SNAP_MODE: ClassVar[PixelSnapMode] = PixelSnapMode.FLOOR
+
+
+def filled_world_sprite(*, world_x: float, world_y: float, color: tuple[int, int, int]) -> Any:
+    """Build a world sprite whose whole image is one colour.
+
+    Args:
+        world_x: World X of the sprite's top-left.
+        world_y: World Y of the sprite's top-left.
+        color: The fill colour.
+
+    Returns:
+        The WorldSprite.
+
+    """
+    sprite = WorldSprite(world_x=world_x, world_y=world_y)
+    sprite.image.fill(color)
+    return sprite
+
+
+class CapturedPlayerScene(Scene):
+    """A scene with a WORLD-space ``player`` (which transitions hide) and a landmark."""
+
+    NAME = 'Captured Player'
+    VERSION = '1.0'
+
+    @override
+    def setup(self: Self) -> None:
+        """Create the player and landmark and follow the player."""
+        self.camera = Camera2D(
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+            lead_x=self.screen_width / 2,
+            lead_y=self.screen_height / 2,
+        )
+        player_x, player_y = PLAYER_START
+        self.player = filled_world_sprite(world_x=player_x, world_y=player_y, color=PLAYER_COLOR)
+        self.landmark = filled_world_sprite(
+            world_x=player_x + LANDMARK_OFFSET_X, world_y=player_y, color=LANDMARK_COLOR
+        )
+        self.all_sprites.add(self.player, self.landmark)
+        self.camera.follow(target=self.player)
+
+
+class CameraFreeScene(Scene):
+    """A plain scene holding one world sprite; the test removes its camera."""
+
+    NAME = 'Camera Free'
+    VERSION = '1.0'
+
+    @override
+    def setup(self: Self) -> None:
+        """Add a world sprite away from the origin."""
+        player_x, player_y = PLAYER_START
+        self.world_sprite = WorldSprite(world_x=player_x, world_y=player_y)
+        self.all_sprites.add(self.world_sprite)
 
 
 class FloorSnappingScene(Scene):
@@ -209,17 +292,21 @@ def running_scene(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager
             GoldenTraceSceneManager.uninstall()
 
 
-def step(manager: GoldenTraceSceneManager, *, frames: int = 1) -> None:
-    """Run frames at the harness's fixed dt.
+def step(manager: GoldenTraceSceneManager, *events: pygame.event.Event, frames: int = 1) -> None:
+    """Run frames at the harness's fixed dt, posting events before the first one.
 
     Args:
         manager: The running scene manager.
+        *events: Events posted before the first frame.
         frames: How many frames to run.
 
     """
-    for _ in range(frames):
+    for frame_index in range(frames):
         manager.dt = FRAME_SECONDS
         discard_environment_events()
+        if frame_index == 0:
+            for event in events:
+                pygame.event.post(event)
         manager.run_frame()
 
 
@@ -315,6 +402,82 @@ class TestSnapModeActivation:
             assert snapped_world_position(sprite, world_x=10.5, world_y=-0.5) == (10, -1)
 
 
+def color_pixel_count(surface: pygame.Surface, color: tuple[int, int, int]) -> int:
+    """Count the pixels of exactly one colour in a surface.
+
+    Args:
+        surface: The captured surface.
+        color: The colour to count.
+
+    Returns:
+        The number of pixels of that colour.
+
+    """
+    return pygame.mask.from_threshold(surface, color, EXACT_COLOR_THRESHOLD).count()
+
+
+class TestFrameWithoutDisplay:
+    """Without a display surface the camera is still aimed; positioning is skipped."""
+
+    def test_no_screen_aims_the_camera_but_skips_positioning(self, mocker: MockerFixture):
+        """With no surface to place sprites on, rects stay put while the camera moves."""
+        with running_scene(FollowingScene) as manager:
+            scene = active_following_scene(manager)
+            mocker.patch.object(pygame.display, 'get_surface', return_value=None)
+            manager.screen = None
+            player_rect_before = scene.player.rect.copy()
+            camera_before = (scene.camera.world_x, scene.camera.world_y)
+
+            step(manager, frames=2)
+
+            assert (scene.camera.world_x, scene.camera.world_y) != camera_before
+            assert scene.player.rect == player_rect_before
+
+
+class TestSceneWithoutCamera:
+    """A scene stand-in without a camera runs its frames; the camera steps are skipped."""
+
+    def test_frame_runs_without_a_camera(self):
+        """No begin_frame, aim or positioning without a camera, and no crash."""
+        with running_scene(CameraFreeScene) as manager:
+            scene = manager.active_scene
+            assert isinstance(scene, CameraFreeScene)
+            del scene.camera
+            sprite_rect_before = scene.world_sprite.rect.copy()
+
+            step(manager, frames=2)
+
+            assert scene.world_sprite.rect == sprite_rect_before
+
+
+class TestResumeAfterPause:
+    """Resuming a game from PauseScene restores its snap mode and positions its sprites."""
+
+    def test_resume_restores_snap_mode_and_positions_world_sprites(self):
+        """The first frame after resume snaps with FLOOR and draws sprites in place."""
+        with running_scene(FloorFollowingScene) as manager:
+            step(manager, frames=2)
+            game_scene = active_following_scene(manager)
+            game_scene.pause()
+            step(manager)
+            assert isinstance(manager.active_scene, PauseScene)
+            assert active_default_snap_mode() is PixelSnapMode.NEAREST_HALF_UP
+
+            # The game moves on while paused, so its sprites' rects are stale on resume
+            game_scene.player.world_x += PLAYER_STEP_X
+            step(manager, frames=PAUSE_FRAMES)
+            step(manager, press(pygame.K_SPACE))
+            samples_before_resume = len(game_scene.render_samples)
+            step(manager, release(pygame.K_SPACE))
+            assert manager.active_scene is game_scene
+            assert active_default_snap_mode() is PixelSnapMode.FLOOR
+            step(manager)
+
+            first_resumed_sample = game_scene.render_samples[samples_before_resume]
+            assert first_resumed_sample['snap_mode'] is PixelSnapMode.FLOOR
+            assert first_resumed_sample['drawn'][0] == first_resumed_sample['expected'][0]
+
+
 class TestTransitionCapture:
     """The arriving scene's transition screenshot shows its world sprites in place."""
 
@@ -332,3 +495,33 @@ class TestTransitionCapture:
                 sprite=arriving_scene.player, camera=arriving_scene.camera
             )
             assert arriving_scene.player.rect.topleft != (0, 0)
+
+    @pytest.mark.parametrize('capture_index', [0, 1], ids=['outgoing', 'arriving'])
+    def test_world_space_player_is_hidden_in_both_captures(
+        self, mocker: MockerFixture, capture_index: int
+    ):
+        """The transition draws its own player overlay, so neither screenshot has the player."""
+        with running_scene(CapturedPlayerScene) as manager:
+            step(manager, frames=2)
+            departing_scene = manager.active_scene
+            assert isinstance(departing_scene, CapturedPlayerScene)
+            assert manager.screen is not None
+            # The player really is on screen before the transition
+            assert color_pixel_count(manager.screen, PLAYER_COLOR) > 0
+
+            transition = FadeTransition(duration=TEST_FADE_SECONDS)
+            start_spy = mocker.spy(transition, 'start')
+            departing_scene.transition_to(
+                CapturedPlayerScene(options=departing_scene.options), transition
+            )
+            step(manager)
+
+            assert start_spy.call_count == 1
+            capture = start_spy.call_args.args[capture_index]
+            assert color_pixel_count(capture, PLAYER_COLOR) == 0
+            assert color_pixel_count(capture, LANDMARK_COLOR) > 0
+            arriving_scene = manager.active_scene
+            assert isinstance(arriving_scene, CapturedPlayerScene)
+            # Visibility is restored afterwards, as before
+            assert departing_scene.player.visible
+            assert arriving_scene.player.visible

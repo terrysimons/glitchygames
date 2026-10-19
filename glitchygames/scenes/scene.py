@@ -262,30 +262,7 @@ class SceneManager(SceneInterface, events.EventManager):
             transition: The Transition object.
 
         """
-        # Capture screenshot of the current (old) scene.
-        # Hide the player first so the transition can draw its own
-        # player overlay without doubling.
-        old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
-
-        # Clear a WORLD shake so the old-floor screenshot is unshaken.
-        camera_was_shaking = False
-        if self.active_scene is not None and self.active_scene.camera.shake_effect.is_active:
-            camera_was_shaking = True
-            self.active_scene.camera.shake_effect.clear()
-            self.active_scene.apply_camera_to_sprites()
-
-        if old_player is not None:
-            old_player.visible = False
-            old_player.dirty = 0
-        if (old_player is not None or camera_was_shaking) and self.active_scene and self.screen:
-            # Re-place world sprites: the WORLD shake they were placed with is now cleared
-            self._position_active_world_sprites()
-            self.active_scene.update()
-            self.active_scene.render(self.screen)
-        old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
-        if old_player is not None:
-            old_player.visible = True
-            old_player.dirty = 2
+        old_surface = self._capture_outgoing_scene()
 
         # Set up the new scene (off-screen) so we can capture it
         self.previous_scene = self.active_scene
@@ -296,10 +273,63 @@ class SceneManager(SceneInterface, events.EventManager):
         self.active_scene = scene
         self._configure_active_scene()
 
-        # Snap the camera to the player position (no lerp) and render
-        # so the screenshot shows the correct view for the transition.
-        # Hide the player sprite during capture so it doesn't appear in
-        # the screenshot (the transition draws its own player overlay).
+        new_surface = self._capture_arriving_scene()
+
+        # Start the transition effect with both screenshots
+        transition.start(old_surface, new_surface)
+        self._active_transition = transition
+
+    def _capture_outgoing_scene(self: Self) -> pygame.Surface:
+        """Screenshot the scene being left, without its player and without a WORLD shake.
+
+        The player is hidden so the transition can draw its own player overlay without
+        doubling, and shown again afterwards.
+
+        Returns:
+            A copy of the screen showing the outgoing scene.
+
+        """
+        old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
+
+        # Clear a WORLD shake so the old-floor screenshot is unshaken.
+        camera_was_shaking = False
+        if self.active_scene is not None and self.active_scene.camera.shake_effect.is_active:
+            camera_was_shaking = True
+            self.active_scene.camera.shake_effect.clear()
+            self.active_scene.apply_camera_to_sprites()
+
+        recapture_old_scene = bool(
+            (old_player is not None or camera_was_shaking) and self.active_scene and self.screen
+        )
+        if recapture_old_scene:
+            # Re-place world sprites (the WORLD shake they were placed with is now cleared)
+            # before hiding the player: positioning rewrites a world sprite's visible flag
+            self._position_active_world_sprites()
+        if old_player is not None:
+            old_player.visible = False
+            old_player.dirty = 0
+        if recapture_old_scene:
+            assert self.active_scene is not None
+            assert self.screen is not None
+            self.active_scene.update()
+            self.active_scene.render(self.screen)
+        old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
+        if old_player is not None:
+            old_player.visible = True
+            old_player.dirty = 2
+        return old_surface
+
+    def _capture_arriving_scene(self: Self) -> pygame.Surface:
+        """Screenshot the scene being entered (already set up and active), without its player.
+
+        Snaps the camera to the player position (no lerp) and renders, so the screenshot
+        shows the correct view for the transition. The player sprite is hidden during the
+        capture (the transition draws its own player overlay) and restored afterwards.
+
+        Returns:
+            A copy of the screen showing the arriving scene.
+
+        """
         if self.active_scene and self.screen:
             camera = self.active_scene.camera
             player = getattr(self.active_scene, 'player', None)
@@ -308,25 +338,25 @@ class SceneManager(SceneInterface, events.EventManager):
                 player_was_visible = getattr(player, 'visible', True)
                 player.visible = False
                 player.dirty = 0
-            if player is not None:
                 camera.snap_to(
                     target_x=getattr(player, 'world_x', 0.0),
                     target_y=getattr(player, 'world_y', 0.0),
                 )
             self.active_scene.dt_tick(0.001)
-            # Place the arriving scene's world sprites, so its screenshot shows them in place
+            # Place the arriving scene's world sprites, so its screenshot shows them in place.
+            # Positioning rewrites a world sprite's visible flag (culling), so the player is
+            # hidden again afterwards; it was hidden before dt_tick as well, as it always was
             self._position_active_world_sprites()
+            if player is not None:
+                player.visible = False
+                player.dirty = 0
             self.active_scene.update()
             self.active_scene.render(self.screen)
             # Restore player visibility for when gameplay resumes
             if player is not None:
                 player.visible = player_was_visible
                 player.dirty = 2
-        new_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
-
-        # Start the transition effect with both screenshots
-        transition.start(old_surface, new_surface)
-        self._active_transition = transition
+        return self.screen.copy() if self.screen else pygame.Surface((800, 600))
 
     def _finalize_transition(self: Self) -> None:
         """Complete a transition and resume normal scene rendering."""
@@ -342,8 +372,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
-        if self.active_scene is not None:
-            shakers.append(self.active_scene.camera.shake_effect)
+        active_camera = self._active_camera()
+        if active_camera is not None:
+            shakers.append(active_camera.shake_effect)
         controller_manager = getattr(self.game_engine, 'controller_manager', None)
         self.rumble.update(
             shakers=shakers,
@@ -768,18 +799,21 @@ class SceneManager(SceneInterface, events.EventManager):
         then starts a pending transition or performs a requested scene switch. ``self.dt``
         must already hold this frame's delta time.
         """
-        assert self.active_scene is not None
         # Order matters: begin_frame() first, so a camera.update() the game made last frame
         # does not count as this frame's (the double-update warning in aim_camera). Then
         # Scene.dt_tick, events, frame services (shake and rumble, so positioning uses this
         # frame's WORLD shake offset), the camera aim and positioning, so sprites spawned in
         # dt_tick are placed before their first render. Scene.update() runs inside
         # _render_scene, after positioning.
-        self.active_scene.camera.begin_frame()
+        active_camera = self._active_camera()
+        if active_camera is not None:
+            active_camera.begin_frame()
         self._update_scene()
         self._process_events()
         self._update_frame_services()
         self._aim_active_camera()
+        # The display surface may appear only after startup; positioning needs its size
+        self.update_screen()
         self._position_active_world_sprites()
         self._render_scene()
         self._present_frame(full_update=False)
@@ -792,24 +826,40 @@ class SceneManager(SceneInterface, events.EventManager):
         else:
             self._switch_to_requested_scene()
 
+    def _active_camera(self: Self) -> Camera2D | None:
+        """Return the active scene's camera, or None.
+
+        Every Scene has a camera; a scene stand-in (a SceneInterface that is not a Scene) may
+        not, and then the engine's camera steps are skipped, as _activate_scene_snap_mode
+        tolerates a stand-in without a snap mode.
+
+        Returns:
+            The active scene's Camera2D, or None when there is none.
+
+        """
+        return cast('Camera2D | None', getattr(self.active_scene, 'camera', None))
+
     def _aim_active_camera(self: Self) -> None:
         """Aim the active scene's camera at its camera target (glitchygames.world.aim_camera)."""
-        assert self.active_scene is not None
-        aim_camera(scene=self.active_scene, camera=self.active_scene.camera, dt=self.dt)
+        camera = self._active_camera()
+        if camera is None:
+            return
+        aim_camera(scene=self.active_scene, camera=camera, dt=self.dt)
 
     def _position_active_world_sprites(self: Self) -> None:
         """Place the active scene's world sprites on screen from its camera, and cull them.
 
-        Screen-space sprites are untouched (glitchygames.world.position_world_sprites). Without
-        a display surface there is nothing to place sprites on, so nothing is done.
+        Screen-space sprites are untouched (glitchygames.world.position_world_sprites). Uses
+        self.screen as it is (callers refresh it with update_screen() first): without a display
+        surface there is nothing to place sprites on, so nothing is done.
         """
-        assert self.active_scene is not None
-        self.update_screen()
-        if self.screen is None:
+        camera = self._active_camera()
+        if camera is None or self.screen is None:
             return
+        assert self.active_scene is not None
         position_world_sprites(
             sprites=self.active_scene.all_sprites,
-            camera=self.active_scene.camera,
+            camera=camera,
             screen_size=self.screen.get_size(),
         )
 
