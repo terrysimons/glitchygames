@@ -21,6 +21,7 @@ import pygame
 import pytest
 
 from glitchygames.scenes import SceneManager
+from glitchygames.timing import next_frame_deadline_ns
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -129,6 +130,27 @@ class FakeTimer:
         return self.ns_now()
 
 
+class ReanchoringFakeTimer(FakeTimer):
+    """A FakeTimer whose deadlines follow the real backends' policy (next_frame_deadline_ns).
+
+    After a hitch the real backends re-anchor instead of running the missed frames back to
+    back (BUGS.md #58); FakeTimer's plain previous + period keeps the older policy.
+    """
+
+    @override
+    def compute_deadline(self, prev_deadline_ns: int | None, period_ns: int) -> int:
+        """Compute the next deadline with next_frame_deadline_ns, recording the call.
+
+        Returns:
+            The deadline in nanoseconds.
+
+        """
+        self.compute_deadline_calls.append((prev_deadline_ns, period_ns))
+        return next_frame_deadline_ns(
+            previous_deadline_ns=prev_deadline_ns, period_ns=period_ns, now_ns=self.ns_now()
+        )
+
+
 class DtWriteRecordingSceneManager(SceneManager):
     """A SceneManager that records every write to ``dt`` in ``dt_writes``."""
 
@@ -158,6 +180,7 @@ class FrameDriver:
         target_fps: float,
         use_timer: bool = True,
         log_timer_jitter: bool = False,
+        timer_class: type[FakeTimer] = FakeTimer,
     ) -> None:
         """Build the manager, the fake clock and timer, and the performance-manager spy.
 
@@ -166,10 +189,11 @@ class FrameDriver:
             target_fps: The manager's target FPS.
             use_timer: Whether the engine has a timer backend.
             log_timer_jitter: The --log-timer-jitter option.
+            timer_class: The fake timer backend (ReanchoringFakeTimer for the real policy).
 
         """
         self.clock = FakeClock()
-        self.timer = FakeTimer(clock=self.clock)
+        self.timer = timer_class(clock=self.clock)
         mocker.patch(
             'glitchygames.scenes.scene.time', SimpleNamespace(perf_counter=self.clock.perf_counter)
         )
@@ -465,6 +489,35 @@ class TestPacing:
             hitch_deadline,
             EXACT_PERIOD_NS,
         )
+
+
+class TestPacingAfterAHitch:
+    """Review focus 5 through SceneManager: after a hitch, frames are paced, with no burst."""
+
+    def test_frames_after_a_hitch_are_paced_one_period_apart(self, driver_factory):
+        """One long frame, then every frame takes exactly one period (no catch-up burst).
+
+        With the deadline policy the real timer backends use (next_frame_deadline_ns), the
+        hitch frame re-anchors pacing; the older previous + period policy would leave ~128
+        deadlines of a 2 s hitch in the past and run those frames back to back, unpaced.
+        """
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS, timer_class=ReanchoringFakeTimer)
+        hitch_frame_index = 4
+
+        def work_seconds(frame_index: int) -> float:
+            return HITCH_SECONDS if frame_index == hitch_frame_index else FRAME_WORK_SECONDS
+
+        driver.run(frame_count=FRAMES_TO_RUN, work_seconds=work_seconds)
+
+        samples = _closing_samples(driver)
+        period_seconds = EXACT_PERIOD_NS / NANOSECONDS_PER_SECOND
+        assert [sample for sample in samples if sample > 1.0] == [samples[hitch_frame_index]]
+        assert samples[hitch_frame_index] > HITCH_SECONDS
+        assert samples[hitch_frame_index + 1 :] == [period_seconds] * (
+            FRAMES_TO_RUN - hitch_frame_index - 1
+        )
+        # Logic in the frame after the hitch receives the whole hitch as one dt
+        assert driver.logic_dts[hitch_frame_index + 1] == samples[hitch_frame_index]
 
 
 class TestTransitionFrames:

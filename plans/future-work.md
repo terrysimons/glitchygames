@@ -35,6 +35,29 @@ to 2026-10-18) and not done yet. One line per item, with where it is detailed. R
   needs a brainstormed spec before implementation.
 - BUGS.md #19 (ruff PLW0717, 102 overly broad `try` blocks; rule temporarily disabled) is still active.
 
+## World space follow-ups (feature/engine-world-space final review)
+
+- **Clockwork Keep's start-of-scene camera swoop (game design decision):** at scene start the
+  camera eases down from world y=0 to the tinker instead of starting on it. It was preserved on
+  purpose during the migration so the golden traces match the baseline. A
+  `self.camera.snap_to(...)` (or `snap_followed_axes_to`) at the end of `ClockworkKeepScene.setup()`
+  would remove it; that changes every floor's opening frames, so it needs a golden
+  expected-difference entry. Decide whether the swoop is wanted.
+- **Review focus 3 gap:** no shipped game calls `snap_to` in `setup()`, so "a game that snaps in
+  setup keeps doing so" is pinned only by `tests/world/test_camera_follow.py::TestSnapToThenAim`
+  (function level) and, per game, by the golden traces. Add a frame-level test with a scene that
+  snaps in `setup()` if a game starts doing it.
+- **Review focus 4 gap:** int `world_x`/`world_y` and the missing-`world_y` `TypeError` are tested
+  at function level (`tests/world/test_positioning.py`), not through `_run_scene_frame`
+  (positioning calls the same function; acceptable, noted).
+- ~~**Review focus 5 gap:** pacing re-anchor after a hitch proven only in the timer tests~~ Done:
+  `tests/world/test_finish_frame.py::TestPacingAfterAHitch` runs `SceneManager.start()` with the
+  real deadline policy and checks every frame after a 2 s hitch takes exactly one period.
+- **WORLD shake, misuse ordering:** a game that calls `camera.update()` in the render phase
+  (`update()`) while the engine also aims advances the shake twice that frame and gets no
+  double-update warning (the aim ran first and saw no game update). Calls in `dt_tick` are
+  handled (one advance, one warning). Remove such calls; consider warning from `update()` itself.
+
 ## Gameplay replay (follow-up to `--record-trace`, feature/engine-world-space Task 1d)
 
 - **`--replay-trace PATH`:** load a recording (`glitchygames/recording.py`, read with
