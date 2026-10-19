@@ -648,7 +648,7 @@ class TraceWriter:
 
     def __exit__(
         self,
-        exception_type: type[BaseException] | None,
+        _exception_type: type[BaseException] | None,
         exception: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
@@ -840,7 +840,7 @@ class TraceReader:
 
     def __exit__(
         self,
-        exception_type: type[BaseException] | None,
+        _exception_type: type[BaseException] | None,
         exception: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
