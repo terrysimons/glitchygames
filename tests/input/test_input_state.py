@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import typing
 from typing import TYPE_CHECKING, Any
 
 import pygame
@@ -114,6 +115,60 @@ class TestLiveCapture:
             return_value=pygame.key.ScancodeWrapper((False,) * SCANCODE_COUNT),
         )
         assert capture_live_snapshot().pressed_scancodes == frozenset()
+
+    @pytest.mark.usefixtures('mock_pygame_patches')
+    def test_the_centralized_get_pressed_mock_refuses_iteration_like_pygame_ce(self):
+        """The shared mock behaves like ScancodeWrapper, so iterating code fails under it too."""
+        pressed = pygame.key.get_pressed()
+        assert isinstance(pressed, tuple)
+        assert len(pressed) == SCANCODE_COUNT
+        with pytest.raises(TypeError, match='Iterating over key states is not supported'):
+            iter(pressed)
+        assert pressed.count(True) == 0
+
+
+class TestFreezing:
+    """A snapshot never changes, whatever it was built from."""
+
+    def test_list_device_values_become_tuples(self):
+        """Lists (as JSON hands them back) are stored as tuples; hats as tuples of 2-tuples."""
+        from_lists = snapshot_with(
+            device_axes={3: [0.25, -0.5]},
+            device_buttons={3: [False, True]},
+            device_hats={3: [[0, -1], [1, 1]]},
+        )
+        assert from_lists.device_axes[3] == (0.25, -0.5)
+        assert from_lists.device_buttons[3] == (False, True)
+        assert from_lists.device_hats[3] == ((0, -1), (1, 1))
+        assert all(isinstance(hat, tuple) for hat in from_lists.device_hats[3])
+        assert from_lists == snapshot_with(
+            device_axes={3: (0.25, -0.5)},
+            device_buttons={3: (False, True)},
+            device_hats={3: ((0, -1), (1, 1))},
+        )
+
+    def test_changing_the_source_mapping_does_not_change_the_snapshot(self):
+        """The snapshot keeps its own copy of the device mappings and values."""
+        axes = [0.25]
+        source = {3: axes}
+        snapshot = snapshot_with(device_axes=source)
+        axes.append(1.0)
+        source[4] = [0.5]
+        assert dict(snapshot.device_axes) == {3: (0.25,)}
+
+    def test_type_hints_resolve(self):
+        """Every annotation names a real module-level type (get_type_hints evaluates them)."""
+        hints = typing.get_type_hints(InputSnapshot)
+        assert set(hints) == {
+            'pressed_scancodes',
+            'modifiers',
+            'mouse_position',
+            'mouse_buttons',
+            'mouse_focused',
+            'device_axes',
+            'device_buttons',
+            'device_hats',
+        }
 
 
 class TestCurrentInput:

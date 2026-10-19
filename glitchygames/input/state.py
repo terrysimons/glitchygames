@@ -1,10 +1,17 @@
 """Polled input as one immutable snapshot per frame: the polled-input door.
 
-Once per frame, right after the frame's first pump (``GameEngine.process_events``), the engine
-asks the active sources (glitchygames/sources.py) for an ``InputSnapshot`` and makes it
-the frame's ``current_input()``. Live sources read pygame (``capture_live_snapshot``); a replay
-hands back the recorded snapshot. Code reads held keys, modifiers, the mouse and device positions
-from the snapshot, never from pygame: ``tests/test_engine_doors.py`` rejects direct polling.
+Once per frame, right after the frame's pump (``GameEngine.process_events``), the engine asks
+the active sources (glitchygames/sources.py) for an ``InputSnapshot`` and makes it
+``current_input()`` until the next frame's pump. Live sources read pygame
+(``capture_live_snapshot``); a replay hands back the recorded snapshot. Code reads held keys,
+modifiers, the mouse and device positions from the snapshot, never from pygame; a guard test
+(added later in Part 1 of the gameplay replay plan) rejects direct polling.
+
+Timing: a frame runs ``dt_tick`` before it processes events, so logic in ``dt_tick`` reads the
+snapshot captured at the previous frame's pump. That is the same state
+``pygame.key.get_pressed()`` returned there before snapshots existed: SDL updates its polled
+state when the event queue is pumped, and the previous frame's pump was the last one. Event
+handlers and everything after the pump read the snapshot captured this frame.
 
 Recordings store only what changed from the previous frame (``snapshot_changes``), so idle
 frames add nothing; ``apply_snapshot_changes`` rebuilds the snapshot.
@@ -14,17 +21,24 @@ from __future__ import annotations
 
 import dataclasses
 import functools
+from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, cast, override
 
 import pygame
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
 # Length of pygame.key.get_pressed(): one entry per SDL scancode
 SCANCODE_COUNT = 512
 MOUSE_BUTTON_COUNT = 3
+
+# Device instance id -> positions. Mapping is a real import (not TYPE_CHECKING only), so
+# typing.get_type_hints(InputSnapshot) resolves every field
+type DeviceAxes = Mapping[int, tuple[float, ...]]
+type DeviceButtons = Mapping[int, tuple[bool, ...]]
+type DeviceHats = Mapping[int, tuple[tuple[int, int], ...]]
 
 _EMPTY: Mapping[int, Any] = MappingProxyType({})
 
@@ -50,14 +64,38 @@ class InputSnapshot:
     mouse_position: tuple[int, int]
     mouse_buttons: tuple[bool, bool, bool]
     mouse_focused: bool
-    device_axes: Mapping[int, tuple[float, ...]] = _EMPTY
-    device_buttons: Mapping[int, tuple[bool, ...]] = _EMPTY
-    device_hats: Mapping[int, tuple[tuple[int, int], ...]] = _EMPTY
+    device_axes: DeviceAxes = _EMPTY
+    device_buttons: DeviceButtons = _EMPTY
+    device_hats: DeviceHats = _EMPTY
 
     def __post_init__(self) -> None:
-        """Freeze the device mappings (a snapshot never changes)."""
-        for field_name in ('device_axes', 'device_buttons', 'device_hats'):
-            object.__setattr__(self, field_name, MappingProxyType(dict(getattr(self, field_name))))
+        """Freeze the device mappings and their values (a snapshot never changes).
+
+        Each device's values become a tuple, and each hat position a 2-tuple, so a snapshot
+        built from lists (JSON hands lists back) equals one built from tuples.
+        """
+        object.__setattr__(
+            self,
+            'device_axes',
+            MappingProxyType({
+                device_id: tuple(axes) for device_id, axes in self.device_axes.items()
+            }),
+        )
+        object.__setattr__(
+            self,
+            'device_buttons',
+            MappingProxyType({
+                device_id: tuple(buttons) for device_id, buttons in self.device_buttons.items()
+            }),
+        )
+        object.__setattr__(
+            self,
+            'device_hats',
+            MappingProxyType({
+                device_id: tuple((hat_x, hat_y) for hat_x, hat_y in hats)
+                for device_id, hats in self.device_hats.items()
+            }),
+        )
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -180,9 +218,9 @@ def _held_scancodes(*, pressed: Sequence[bool]) -> frozenset[int]:
 
 def capture_live_snapshot(
     *,
-    device_axes: Mapping[int, tuple[float, ...]] = _EMPTY,
-    device_buttons: Mapping[int, tuple[bool, ...]] = _EMPTY,
-    device_hats: Mapping[int, tuple[tuple[int, int], ...]] = _EMPTY,
+    device_axes: DeviceAxes = _EMPTY,
+    device_buttons: DeviceButtons = _EMPTY,
+    device_hats: DeviceHats = _EMPTY,
 ) -> InputSnapshot:
     """Read pygame's polled state now (the live door; the only polling in the package).
 
@@ -210,7 +248,9 @@ def capture_live_snapshot(
 
 
 def current_input() -> InputSnapshot:
-    """Return this frame's snapshot (IDLE_INPUT before the first pump).
+    """Return the snapshot captured at the latest pump (IDLE_INPUT before the first pump).
+
+    In ``dt_tick``, which runs before the frame's pump, that is the previous frame's snapshot.
 
     Returns:
         The snapshot.

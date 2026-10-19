@@ -17,6 +17,12 @@ from glitchygames.sprites import AnimatedSprite
 MIN_ARGS_FOR_DIMENSIONS = 2
 DEFAULT_SIZE = 32
 MIN_ARGS_FOR_FGCOLOR = 2
+SCANCODE_COUNT = 512  # Length of pygame.key.get_pressed()
+
+# The real class, captured before any test replaces pygame.key with a Mock: a tuple subclass
+# that refuses iteration and is subscripted by key code, so the mocked get_pressed() result
+# behaves exactly like pygame-ce's
+REAL_SCANCODE_WRAPPER = pygame.key.ScancodeWrapper
 
 
 class MockSpriteConfig(NamedTuple):
@@ -1617,7 +1623,8 @@ class MockFactory:  # ruff: ignore[too-many-public-methods]
         key_mock = Mock()
         key_mock.set_repeat.return_value = None
         key_mock.get_mods.return_value = 0  # No modifier keys pressed by default
-        key_mock.get_pressed.return_value = [False] * 512  # All keys not pressed by default
+        # All keys not pressed by default; a real ScancodeWrapper, like pygame-ce returns
+        key_mock.get_pressed.return_value = REAL_SCANCODE_WRAPPER((False,) * SCANCODE_COUNT)
 
         # FontManager mock - create a mock font that returns a proper surface
         mock_font = MockFactory._create_mock_font()

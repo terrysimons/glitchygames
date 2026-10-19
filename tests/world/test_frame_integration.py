@@ -35,7 +35,9 @@ from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
+from glitchygames.engine import GameEngine
 from glitchygames.examples import paddleslap
+from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
@@ -47,9 +49,9 @@ if TYPE_CHECKING:
 
     from pytest_mock import MockerFixture
 
-    from glitchygames.input.state import InputSnapshot
 
 SPRITE_SIZE = 16
+INPUT_SNAPSHOT_FRAMES = 3
 PLAYER_START = (400.5, 300.25)
 PLAYER_STEP_X = 3.5
 SPAWNED_SPRITE_WORLD_POSITION = (520.75, 330.5)
@@ -855,16 +857,37 @@ class TestInputSnapshotInTheFrame:
     """The snapshot is taken once per frame, right after the pump, and stays fixed."""
 
     def test_snapshot_taken_after_the_pump_is_the_frames_input(self, mocker: MockerFixture):
-        """Each frame asks the live sources for exactly one snapshot."""
-        captures: list[int] = []
-        original_capture = live_sources_module.capture_live_snapshot
+        """Each frame pumps, then captures one snapshot, which becomes the engine's input."""
+        order: list[str] = []
+        captured: list[InputSnapshot] = []
+        original_pump = GameEngine._pump_events
 
-        def counting_capture(**keywords: Any) -> InputSnapshot:
-            captures.append(1)
-            return original_capture(**keywords)
+        def recording_pump(engine: GameEngine) -> list[pygame.event.Event]:
+            order.append('pump')
+            return original_pump(engine)
 
+        def distinct_capture(**keywords: Any) -> InputSnapshot:
+            # A different snapshot every frame, so each frame's input is identifiable
+            order.append('capture')
+            snapshot = InputSnapshot(
+                pressed_scancodes=frozenset(),
+                modifiers=0,
+                mouse_position=(len(captured), 0),
+                mouse_buttons=(False, False, False),
+                mouse_focused=True,
+                **keywords,
+            )
+            captured.append(snapshot)
+            return snapshot
+
+        mocker.patch.object(GameEngine, '_pump_events', autospec=True, side_effect=recording_pump)
         # LiveSources calls the name it imported into glitchygames/live_sources.py
-        mocker.patch.object(live_sources_module, 'capture_live_snapshot', counting_capture)
+        mocker.patch.object(live_sources_module, 'capture_live_snapshot', distinct_capture)
         with running_scene(CameraFreeScene) as manager:
-            step(manager, frames=3)
-        assert len(captures) == 3
+            assert manager.game_engine is not None
+            for frame_index in range(INPUT_SNAPSHOT_FRAMES):
+                step(manager)
+                assert len(captured) == frame_index + 1
+                assert manager.game_engine.input is captured[-1]
+                assert current_input() is captured[-1]
+        assert order == ['pump', 'capture'] * INPUT_SNAPSHOT_FRAMES

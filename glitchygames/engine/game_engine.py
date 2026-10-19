@@ -824,7 +824,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
     @property
     def input(self: Self) -> InputSnapshot:
-        """This frame's polled input (glitchygames/input/state.py ``current_input``)."""
+        """The polled input captured at the latest pump (glitchygames/input/state.py).
+
+        Read in ``dt_tick``, which runs before the frame's pump, it is the previous frame's
+        snapshot; see ``current_input``.
+
+        Returns:
+            The snapshot.
+
+        """
         return current_input()
 
     @property
@@ -1373,7 +1381,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         raw_events = self._pump_events()
         # Polled input is read once per frame, right after the pump, so it agrees with this
-        # frame's events and never changes during the frame (glitchygames/input/state.py)
+        # frame's events; it stays fixed until the next frame's pump, so dt_tick (which runs
+        # before this) reads the previous frame's snapshot (glitchygames/input/state.py)
         set_current_input(snapshot=active_sources().input_snapshot())
         dispatched_event_count = 0
         every_event_was_handled = True
