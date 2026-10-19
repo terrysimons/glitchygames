@@ -456,7 +456,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         hitbox (see FrameAnchor) lands on the same point of the reference hitbox, in drawn
         pixels (times hitbox_scale; computed in authored space and, when hitbox_flip_x,
         mirrored with the image about the widest frame's width, so frames of differing widths
-        stay exact). Games add it when placing rect (e.g. after camera.apply), and hitbox
+        stay exact). The engine adds it when placing a world-space sprite's rect
+        (glitchygames.world.screen_position_for); a screen-space game adds it itself. hitbox
         includes it, so collisions match the drawing. NONE (the default) is (0, 0).
 
         Returns:

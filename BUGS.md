@@ -20,6 +20,24 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-18
 - **Details**: `scripts/legacy_sprite_loader.py:~50`. Unchanged on the branch. Fix the call, or delete the script if it is obsolete.
 
+### 59. Papyrus Sprites Keep Their Unscaled Native Rect Size
+- **Description**: Papyrus's TOML sprites are drawn at 2x (`SPRITE_SCALE`), but their `rect` keeps the native size: the player's rect is 20x28 while its image is 40x56, a scarab's 10x8 while its image is 20x16
+- **Status**: Active (latent)
+- **Priority**: Low
+- **Reporter**: Found on feature/engine-world-space (Task 8)
+- **Date Reported**: 2026-10-18
+- **Details**: Predates the branch. Latent today: every Papyrus sprite is `dirty = 2`, the scene renders the full screen, the image overhangs the rect by at most 28 px (less than `CULL_MARGIN_PIXELS`, 32), and hitboxes and the debug overlay use collision rects. It would surface with mouse picking (`sprites_at_position`, `pygame.sprite.spritecollide`), a non-dirty Papyrus sprite, or `pygame.display.update(rects)`. Fixing it (sizing rect from the scaled image in `apply_transparency_and_scale` / `prepare_papyrus_sprite`) changes every Papyrus rect size in the golden trace, so it needs its own expected-difference class in `tests/world/test_golden_traces.py`
+- **Files**: `glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py`
+
+### 60. Brave Adventurer Ground and Walls Stay Drawn Only Because the Parallax Layers Dirty the Screen
+- **Description**: The shared `GroundSegment` and `StoneWall` (both editions) are `dirty = 1` and are dirtied again only when they move. With a still camera they stay on screen only because the full-screen `dirty = 2` ParallaxLayers make the whole screen dirty every frame
+- **Status**: Active (fragile, works today)
+- **Priority**: Low
+- **Reporter**: Found by the Task 8 review on feature/engine-world-space
+- **Date Reported**: 2026-10-18
+- **Details**: If the parallax layers stop redrawing the full screen (made static, partially sized, or removed), a still camera would let other sprites' clearing erase the terrain. Either make the terrain `dirty = 2` or document the dependency where the layers are built
+- **Files**: `glitchygames/examples/brave_adventurer/terrain.py`, `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
+
 ## Resolved Bugs
 
 ### 58. Frame Pacing Bursts to Catch Up After a Hitch
