@@ -17,11 +17,15 @@ from scripts.record_golden_traces import (
     command_line,
 )
 
+from glitchygames import sources as engine_sources_module
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene
 from glitchygames.sources import (
+    SourcesAlreadyInstalledError,
     SourcesAlreadyRunningError,
     active_sources,
+    advance_frame_clock,
+    frame_clock_seconds,
     install_sources,
     mark_frames_started,
     reset_sources,
@@ -112,6 +116,38 @@ class TestRegistry:
         with pytest.raises(SourcesAlreadyRunningError):
             install_sources(sources=ScriptedSources())
 
+    def test_installing_over_earlier_sources_tells_the_earlier_ones(self):
+        earlier_sources = ScriptedSources()
+        later_sources = ScriptedSources()
+        install_sources(sources=earlier_sources)
+        install_sources(sources=later_sources)
+        assert earlier_sources.uninstalled_calls == 1
+        assert later_sources.installed_calls == 1
+        assert later_sources.uninstalled_calls == 0
+        assert active_sources() is later_sources
+
+    def test_installing_the_same_sources_twice_is_refused(self):
+        sources = ScriptedSources()
+        install_sources(sources=sources)
+        with pytest.raises(SourcesAlreadyInstalledError):
+            install_sources(sources=sources)
+        # Refused before telling them anything: still installed once, never uninstalled
+        assert sources.installed_calls == 1
+        assert sources.uninstalled_calls == 0
+        assert active_sources() is sources
+
+    def test_reset_tells_the_scoped_sources(self):
+        installed_sources = ScriptedSources()
+        scoped_sources = ScriptedSources()
+        install_sources(sources=installed_sources)
+        # No push API until Part 3 (push_scoped_sources); put scoped sources in the registry
+        engine_sources_module._REGISTRY.scoped.append(scoped_sources)
+        assert active_sources() is scoped_sources
+        reset_sources()
+        assert scoped_sources.uninstalled_calls == 1
+        assert installed_sources.uninstalled_calls == 1
+        assert active_sources() is not scoped_sources
+
 
 class TestFrameLoopUsesTheDoors:
     """The frame loop reads events and frame time and ends frames through the doors."""
@@ -159,5 +195,28 @@ class TestFrameLoopUsesTheDoors:
             )
             assert manager.dt == 0.25
             assert closing > 0.0
+            # The door got the measured start-to-start time (start was 0.0), once
+            frame_seconds = sources.frame_seconds
+            assert isinstance(frame_seconds, mocker.Mock)
+            frame_seconds.assert_called_once_with(measured=pytest.approx(closing - 0.0))
+        finally:
+            GoldenTraceSceneManager.uninstall()
+
+    def test_a_second_engine_starts_numbering_frames_and_the_clock_at_zero(self):
+        manager = start_engine(scene_class=KeyCountingScene)
+        try:
+            for _ in range(3):
+                manager.dt = FRAME_SECONDS
+                manager.run_frame()
+            advance_frame_clock(seconds=3 * FRAME_SECONDS)
+            assert manager.frame_number == 3
+            assert frame_clock_seconds() == 3 * FRAME_SECONDS
+
+            # The same SceneManager singleton serves the next engine in this process
+            with command_line(['--windowed', '--resolution', '320x240', '--log-level', 'warning']):
+                GoldenTraceEngine(game=KeyCountingScene)
+
+            assert manager.frame_number == 0
+            assert frame_clock_seconds() == 0.0
         finally:
             GoldenTraceSceneManager.uninstall()

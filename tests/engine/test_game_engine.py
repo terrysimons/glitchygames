@@ -2385,6 +2385,8 @@ class TestGameEngineFastEvents:
         # Create a fake fastevent module
         mock_fastevent = mocker.Mock()
         mocker.patch.object(pygame, 'fastevent', mock_fastevent, create=True)
+        # The engine sets the class attribute; patching it undoes that at teardown (BUGS.md #65)
+        mocker.patch.object(GameEngine, 'USE_FASTEVENTS', new=False)
 
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         assert engine.USE_FASTEVENTS is True

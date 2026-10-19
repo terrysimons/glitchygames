@@ -190,9 +190,11 @@ def restore_game_engine_class_state(mocker):
     in `OPTIONS`, and GameEngine.initialize_icon stores the icon in `icon`. A test that runs
     them with mocks (a Mock game, a mocked pygame.image.load) would otherwise leave the mocks
     there for every later test on the worker: a real GameEngine then fails in
-    initialize_system_icons with "Argument to set_icon must be a Surface".
+    initialize_system_icons with "Argument to set_icon must be a Surface". GameEngine.__init__
+    also sets `USE_FASTEVENTS` on a (mocked) old pygame, which would make every later engine on
+    the worker create fastevent live sources (BUGS.md #65).
     """
-    for attribute_name in ('game', 'icon', 'OPTIONS'):
+    for attribute_name in ('game', 'icon', 'OPTIONS', 'USE_FASTEVENTS'):
         # Patched with its own value: whatever the test assigns is undone at teardown
         mocker.patch.object(GameEngine, attribute_name, getattr(GameEngine, attribute_name))
 

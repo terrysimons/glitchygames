@@ -20,7 +20,9 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 import pytest
 
+from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import SceneManager
+from glitchygames.sources import SourcesAlreadyRunningError, install_sources
 from glitchygames.timing import next_frame_deadline_ns
 
 if TYPE_CHECKING:
@@ -38,6 +40,9 @@ EXACT_TARGET_FPS = 64.0
 EXACT_PERIOD_NS = 15_625_000
 HITCH_SECONDS = 2.0
 FRAMES_TO_RUN = 10
+# The doors' frame times for StoppingSources: exact binary fractions, unlike any measurement
+SCRIPTED_FRAME_SECONDS = (1 / 8, 1 / 16, 1 / 32, 1 / 64)
+FRAMES_BEFORE_STOP = 3
 FPS_LOG_INTERVAL_MS = 1000
 
 
@@ -149,6 +154,44 @@ class ReanchoringFakeTimer(FakeTimer):
         return next_frame_deadline_ns(
             previous_deadline_ns=prev_deadline_ns, period_ns=period_ns, now_ns=self.ns_now()
         )
+
+
+class StoppingSources(LiveSources):
+    """Live doors that return scripted frame times and ask to stop after a number of frames."""
+
+    def __init__(self: Self, *, frames_before_stop: int) -> None:
+        """Create the doors.
+
+        Args:
+            frames_before_stop: How many frames end before stop_requested turns True.
+
+        """
+        super().__init__(random_seed=1)
+        self.frames_before_stop = frames_before_stop
+        self.measured_frame_seconds: list[float] = []
+        self.ended_frames: list[int] = []
+
+    @property
+    @override
+    def stop_requested(self: Self) -> bool:
+        """True once frames_before_stop frames have ended."""
+        return len(self.ended_frames) >= self.frames_before_stop
+
+    @override
+    def frame_seconds(self: Self, *, measured: float) -> float:
+        """Record the measurement and return the next scripted frame time.
+
+        Returns:
+            The scripted frame time for this call.
+
+        """
+        self.measured_frame_seconds.append(measured)
+        return SCRIPTED_FRAME_SECONDS[len(self.measured_frame_seconds) - 1]
+
+    @override
+    def end_frame(self: Self, *, frame_number: int, dt: float, scene: object) -> None:
+        """Record the frame number."""
+        self.ended_frames.append(frame_number)
 
 
 class DtWriteRecordingSceneManager(SceneManager):
@@ -416,6 +459,30 @@ class TestOneFrameTime:
         posted_fps = [call.args[0].fps for call in driver.post_event.call_args_list]
         assert len(posted_fps) == 2
         assert posted_fps == pytest.approx([EXACT_TARGET_FPS, EXACT_TARGET_FPS])
+
+
+class TestStartLoopUsesTheDoors:
+    """start() takes every frame time from the doors and stops when they ask."""
+
+    def test_loop_runs_until_the_sources_ask_to_stop(self, driver_factory):
+        """Frame times come from the doors, the loop stops on their request, installs are shut."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        sources = StoppingSources(frames_before_stop=FRAMES_BEFORE_STOP)
+        install_sources(sources=sources)
+
+        # Far more frames than the doors allow: only stop_requested can end the loop
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        assert sources.ended_frames == list(range(FRAMES_BEFORE_STOP))
+        assert len(driver.logic_dts) == FRAMES_BEFORE_STOP
+        # The first dt went through the door too: start() measured the short time between its
+        # two readings and logic received the door's answer, as every later frame did
+        assert sources.measured_frame_seconds[0] == CLOCK_READING_SECONDS
+        assert len(sources.measured_frame_seconds) == FRAMES_BEFORE_STOP + 1
+        assert driver.logic_dts == list(SCRIPTED_FRAME_SECONDS[:FRAMES_BEFORE_STOP])
+        # start() marked the frames as started, so the doors can no longer be swapped
+        with pytest.raises(SourcesAlreadyRunningError):
+            install_sources(sources=LiveSources(random_seed=1))
 
 
 class TestPacing:

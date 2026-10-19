@@ -32,6 +32,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 65. A Test Left GameEngine.USE_FASTEVENTS Set for Every Later Test on Its Worker
+- **Description**: `test_use_fastevents_with_old_pygame` mocks pygame as version 1.1, so `GameEngine.__init__` sets the class attribute `GameEngine.USE_FASTEVENTS = True`; nothing undid it, so every later engine on that pytest worker chose the fastevent path (and, since the engine's doors, created fastevent `LiveSources`). Harmless only because `pygame.fastevent` no longer exists once the test's mock is undone
+- **Status**: Resolved
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 2 review)
+- **Date Reported**: 2026-10-19
+- **Date Resolved**: 2026-10-19
+- **Root Cause**: The autouse `restore_game_engine_class_state` fixture restored only `game`, `icon` and `OPTIONS`, not the other class attribute engine code writes
+- **Solution**: The fixture also restores `USE_FASTEVENTS`, and the test patches it with `mocker.patch.object` so it undoes its own write
+- **Files Modified**: `tests/conftest.py`, `tests/engine/test_game_engine.py`
+- **Tests**: `TestGameEngineFastEvents` in `tests/engine/test_game_engine.py`; the full suite
+
 ### 64. Collision Used the Previous Frame's Pose (Hitbox Up to 4 px Inside a Wall for One Frame)
 - **Description**: In Brave Adventurer and Clockwork Keep, on the frame the player turned toward a wall or started to run while standing at it, the drawn hitbox sat 1-4 px inside the wall for one frame; the first ground check after a respawn also ran on the blank image, so the player stood 1-2 px high
 - **Status**: Resolved

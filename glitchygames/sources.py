@@ -36,6 +36,10 @@ class SourcesAlreadyRunningError(RuntimeError):
     """install_sources() was called after the first frame started."""
 
 
+class SourcesAlreadyInstalledError(RuntimeError):
+    """install_sources() was called with the sources that are already installed."""
+
+
 class EngineSources(Protocol):
     """The doors (see the module docstring)."""
 
@@ -81,6 +85,10 @@ _REGISTRY = _SourcesRegistry()
 def active_sources() -> EngineSources:
     """Return the doors in use: scoped sources, else installed ones, else fresh live ones.
 
+    The fresh live sources take the run's master seed from
+    ``glitchygames.randomness.engine_random_seed()``, which draws (and sets) one if nothing has
+    seeded the engine random streams yet.
+
     Returns:
         The active sources.
 
@@ -88,9 +96,11 @@ def active_sources() -> EngineSources:
     if _REGISTRY.scoped:
         return _REGISTRY.scoped[-1]
     if _REGISTRY.installed is None:
-        # The one function-level import of the door modules: live_sources imports the input,
-        # devices and saves modules, which import this module, so importing it at the top would
-        # make a cycle. It runs only when nothing was installed (unit tests, tools).
+        # The one function-level import of the door modules, deferred on purpose: this module
+        # is a leaf, and live_sources is not. Today live_sources imports only pygame, but later
+        # tasks give it the input, devices and saves modules, which import this module, so a
+        # top-level import here would become a cycle. It runs only when nothing was installed
+        # (unit tests, tools).
         from glitchygames.live_sources import LiveSources
 
         _REGISTRY.installed = LiveSources(random_seed=engine_random_seed())
@@ -100,14 +110,26 @@ def active_sources() -> EngineSources:
 def install_sources(*, sources: EngineSources) -> None:
     """Make ``sources`` the run's doors; allowed only before the first frame.
 
+    Sources installed earlier are told they are replaced (``on_uninstalled``) before the new ones
+    are told they are installed (``on_installed``). Installing the sources that are already
+    installed is refused rather than ignored, so ``on_installed`` never runs twice without an
+    ``on_uninstalled`` between.
+
+    Args:
+        sources: The doors to read from.
+
     Raises:
         SourcesAlreadyRunningError: If a frame has already started.
+        SourcesAlreadyInstalledError: If ``sources`` are already the installed sources.
 
     """
     if _REGISTRY.frames_started:
         message = 'install_sources() is allowed only before the first frame'
         raise SourcesAlreadyRunningError(message)
-    if _REGISTRY.installed is not None and _REGISTRY.installed is not sources:
+    if _REGISTRY.installed is sources:
+        message = 'install_sources() was given the sources that are already installed'
+        raise SourcesAlreadyInstalledError(message)
+    if _REGISTRY.installed is not None:
         _REGISTRY.installed.on_uninstalled()
     _REGISTRY.installed = sources
     sources.on_installed()
