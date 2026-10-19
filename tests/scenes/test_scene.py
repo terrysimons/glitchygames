@@ -763,7 +763,7 @@ class TestSceneKeyUpEvent:
         scene = Scene()
         mock_post = mocker.patch('pygame.event.post')
 
-        scene.record_key_press(key=pygame.K_q)
+        scene._record_key_press(key=pygame.K_q)
         event = mocker.Mock()
         event.key = pygame.K_q
 
@@ -776,7 +776,7 @@ class TestSceneKeyUpEvent:
         scene = Scene()
         mock_post = mocker.patch('pygame.event.post')
 
-        scene.record_key_press(key=pygame.K_ESCAPE)
+        scene._record_key_press(key=pygame.K_ESCAPE)
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
 
@@ -805,7 +805,7 @@ class TestSceneKeyUpEvent:
         """A recorded press is consumed by its release."""
         scene = Scene()
         mock_post = mocker.patch('pygame.event.post')
-        scene.record_key_press(key=pygame.K_ESCAPE)
+        scene._record_key_press(key=pygame.K_ESCAPE)
         event = mocker.Mock()
         event.key = pygame.K_ESCAPE
 

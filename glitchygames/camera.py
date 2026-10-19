@@ -237,6 +237,10 @@ class Camera2D:
         advanced again if game code already advanced it this frame (a camera.update() in
         dt_tick while the engine also aims), so it advances once per frame.
 
+        An engine hook (public only because the engine calls it from another module): games
+        use follow(), camera_target() or update(), never this, or they would bypass the
+        double-update warning.
+
         Args:
             target_x: Target X position in world coordinates.
             target_y: Target Y position in world coordinates.
@@ -298,6 +302,9 @@ class Camera2D:
         is running they are redrawn from the same position with the new shake offset, so
         their shake displacement follows the shake and returns to rest with it.
 
+        An engine hook (public only because the scene manager calls it from another module);
+        games never call it.
+
         Args:
             dt: Delta time in seconds (the scene's dt, as the engine aim would have used).
 
@@ -312,7 +319,11 @@ class Camera2D:
             )
 
     def begin_frame(self: Self) -> None:
-        """Start a new frame: forget last frame's game update() and WORLD shake advance."""
+        """Start a new frame: forget last frame's game update() and WORLD shake advance.
+
+        An engine hook (public only because the scene manager calls it from another module);
+        games never call it.
+        """
         self._updated_by_game_this_frame = False
         self._shake_advanced_this_frame = False
 

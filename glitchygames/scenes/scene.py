@@ -70,7 +70,7 @@ _AXIS_MOTION_EVENT_TYPES: frozenset[int] = frozenset({
     pygame.JOYAXISMOTION,
     pygame.CONTROLLERAXISMOTION,
 })
-HAT_CENTRED: tuple[int, int] = (0, 0)
+_HAT_CENTRED: tuple[int, int] = (0, 0)
 
 
 def is_discarded_during_transition(event: pygame.event.Event) -> bool:
@@ -93,7 +93,7 @@ def is_discarded_during_transition(event: pygame.event.Event) -> bool:
         position = normalized_axis_value(event_type=event.type, value=event.value)
         return abs(position) >= DEFAULT_DEADZONE
     if event.type == pygame.JOYHATMOTION:
-        return tuple(event.value) != HAT_CENTRED
+        return tuple(event.value) != _HAT_CENTRED
     return True
 
 
@@ -527,9 +527,9 @@ class SceneManager(SceneInterface, events.EventManager):
         if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
             # Recorded before dispatch, so a quit-key release knows this scene saw the press.
             # Looked up by name: at runtime an active scene may be any SceneInterface stand-in
-            # without record_key_press, but active_scene is annotated Scene, so an isinstance
+            # without _record_key_press, but active_scene is annotated Scene, so an isinstance
             # check would be flagged as unnecessary by the type checker
-            record_key_press = getattr(self.active_scene, 'record_key_press', None)
+            record_key_press = getattr(self.active_scene, '_record_key_press', None)
             if record_key_press is not None:
                 record_key_press(key=event.key)
             self.active_scene.on_key_down_event(event)
@@ -1267,8 +1267,8 @@ class SceneManager(SceneInterface, events.EventManager):
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
             # A press recorded before the scene was left (an ESC that paused it, released in
             # the pause scene) must not let a later release quit. Looked up by name, like
-            # record_key_press: the scene may be a SceneInterface stand-in without it
-            forget_key_presses = getattr(next_scene, 'forget_key_presses', None)
+            # _record_key_press: the scene may be a SceneInterface stand-in without it
+            forget_key_presses = getattr(next_scene, '_forget_key_presses', None)
             if forget_key_presses is not None:
                 forget_key_presses()
             # The scene's snap mode is active from setup() on, so positions snapped while it
@@ -1451,7 +1451,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self._last_fps_log_time: float = 0.0
         self._screenshot: pygame.Surface | None = None
         self.quit_requested: bool = False
-        # Keys whose key-down reached this scene and are not yet released (record_key_press)
+        # Keys whose key-down reached this scene and are not yet released (_record_key_press)
         self._keys_pressed_in_scene: set[int] = set()
         self._world_shake_warning_logged: bool = False
         self.next_scene: Scene | Self | None = self
@@ -1766,7 +1766,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             self.log.debug('Click outside focusable sprites - unfocusing')
             self._unfocus_sprites(focused_sprites)
 
-    def record_key_press(self: Self, *, key: int) -> None:
+    def _record_key_press(self: Self, *, key: int) -> None:
         """Note that a key-down reached this scene.
 
         SceneManager calls this for every key-down it routes to the active scene, before the
@@ -1779,8 +1779,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self._keys_pressed_in_scene.add(key)
 
-    def forget_key_presses(self: Self) -> None:
-        """Forget every key press recorded by record_key_press.
+    def _forget_key_presses(self: Self) -> None:
+        """Forget every key press recorded by _record_key_press.
 
         SceneManager calls this whenever the scene becomes active (switched to, resumed, or
         the target of a transition), before setup(). A press whose release went to another
@@ -1874,7 +1874,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Check for focused sprites first
         focused_sprites = self._get_focused_sprites()
 
-        # Only a release whose press this scene received can quit (record_key_press): a key
+        # Only a release whose press this scene received can quit (_record_key_press): a key
         # pressed during a transition (the press is discarded) or in a scene that has since
         # been left must not quit from here. Each release consumes its press.
         event_key: int | None = getattr(event, 'key', None)
