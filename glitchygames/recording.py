@@ -12,9 +12,11 @@ traces read recordings too. On top of the sprite fields it records what a later 
 - Exactly one frame line per main-loop frame, numbered 0, 1, 2, ... in order: transition
   frames, paused frames, frames where nothing changed, and a final frame whose active scene
   is None (``scene: null``, no sprites) included.
-- Each frame: ``dt``, the delta time the frame's logic received (``Scene.dt_tick`` or the
-  transition's ``update``), and ``event_batches``: one batch per time the engine read SDL's
-  queue that frame (``GameEngine._pump_events``, the only place it does), in order, each
+- Each frame: ``dt``, the frame's raw delta time (``SceneManager.dt``). A transition's
+  ``update`` receives it as is; scene logic (``Scene.dt_tick``) and the camera aim receive
+  ``min(dt, MAX_FRAME_SECONDS)`` when the scene sets that cap, which a replay re-derives from
+  the scene class's attribute. And ``event_batches``: one batch per time the engine read
+  SDL's queue that frame (``GameEngine._pump_events``, the only place it does), in order, each
   holding the raw events exactly as pygame returned them, before any dispatch, discarding
   (transitions) or unhandled-event reporting. Every pump's batch is kept, including empty
   ones, so a replay can hand batch N to pump call N without guessing. What was delivered,
@@ -541,7 +543,8 @@ class GameplayRecorder:
         """Write the frame just finished: its dt, its event batches and the scene's sprites.
 
         Args:
-            dt: The delta time the frame's logic received.
+            dt: The frame's raw delta time (scene logic received it capped at the scene's
+                MAX_FRAME_SECONDS, when the scene sets one).
             scene: The active scene at the end of the frame (None once the game has ended).
 
         """

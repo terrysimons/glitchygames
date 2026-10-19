@@ -866,9 +866,12 @@ class SceneManager(SceneInterface, events.EventManager):
 
         ``self.dt`` must already hold this frame's delta time. It is read before the frame
         runs, because a scene switch at the end of the frame resets ``self.dt``: the
-        recording gets the dt the frame's logic received. The recorder samples the sprites
-        after rendering, from the scene active at the end of the frame (after a switch, the
-        new scene as set up), exactly as the golden-trace harness does.
+        recording gets the frame's raw dt. A transition's update receives it as is; scene
+        logic and the camera aim receive it capped at the scene's MAX_FRAME_SECONDS
+        (_scene_frame_seconds), which a replay re-derives from the scene class's attribute.
+        The recorder samples the sprites after rendering, from the scene active at the end of
+        the frame (after a switch, the new scene as set up), exactly as the golden-trace
+        harness does.
         """
         frame_dt = self.dt
         # During a transition, render the transition effect instead of the scene
