@@ -36,9 +36,11 @@ from glitchygames.events.mouse import MouseEventManager
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.fonts import FontManager
+from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import seed_engine_random
 from glitchygames.recording import GameplayRecorder, json_safe_value, post_event
 from glitchygames.scenes import Scene, SceneManager
+from glitchygames.sources import active_sources, install_sources, reset_sources
 from glitchygames.sprites import Sprite
 from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
 
@@ -46,6 +48,8 @@ if TYPE_CHECKING:
     from collections import OrderedDict
     from collections.abc import Callable
     from types import FrameType
+
+    from glitchygames.sources import EngineSources
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
@@ -624,6 +628,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             #
             # pygame.event doesn't have an init() method, so nothing to do.
             self.log.info(f'Using pygame.events for pygame version {pygame.version.ver}')
+
+        # Fresh doors for this run (glitchygames/sources.py). Task 12 makes this install the
+        # replay's sources instead when --replay-trace is given
+        reset_sources()
+        install_sources(
+            sources=LiveSources(
+                random_seed=self.random_seed, use_fastevents=GameEngine.USE_FASTEVENTS
+            )
+        )
 
         # We are fully initialized now, so we can set up the scene.
         #
@@ -1377,29 +1390,27 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return dispatched_event_count > 0 and every_event_was_handled
 
-    def _pump_events(self: Self) -> list[pygame.event.Event]:
-        """Take every event from SDL's queue: the one place the engine reads it.
+    def install_sources(self: Self, *, sources: EngineSources) -> None:
+        """Make ``sources`` this run's doors (before the first frame; glitchygames/sources.py).
 
-        A running recorder (``--record-trace``) records the batch here exactly as pygame
-        returned it, before any dispatch or discarding. This is also the seam a replay will
-        use to hand back a recorded batch instead of reading SDL's queue.
+        Args:
+            sources: The doors to read events, frame time and the rest from.
+
+        """
+        install_sources(sources=sources)
+
+    def _pump_events(self: Self) -> list[pygame.event.Event]:
+        """Take the next batch from the active sources' event pump: the one place it is read.
+
+        A running recorder (``--record-trace``) records the batch here exactly as the pump
+        returned it, before any dispatch or discarding. Live sources read SDL's queue; a
+        replay's sources hand back a recorded batch instead (glitchygames/sources.py).
 
         Returns:
             The batch, in queue order.
 
         """
-        # To use events in a different thread, use the fastevent package from pygame.
-        # if you're using pygame < 2.2, you'll need to use pygame.fastevent.
-        # if you're using pygame >= 2.2, you can use the new pygame.event.
-        # You can create your own new events with the events.HashableEvent() object type.
-        pump_events: Callable[..., Any] = pygame.event.get
-
-        if self.USE_FASTEVENTS and hasattr(pygame, 'fastevent'):
-            pump_events = pygame.fastevent.get  # type: ignore[attr-defined]
-
-        raw_events: list[pygame.event.Event] = cast(  # ty: ignore[redundant-cast]
-            'list[pygame.event.Event]', pump_events()
-        )
+        raw_events = active_sources().pump_events()
         # The only per-frame cost of recording when it is off: this check
         if self.trace_recorder is not None:
             self.trace_recorder.record_event_batch(raw_events=raw_events)

@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Imported after the SDL environment is set up above
 import pygame
 
-from glitchygames import pixel_snap, randomness
+from glitchygames import pixel_snap, randomness, sources
 from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
@@ -205,6 +205,18 @@ def fresh_random_streams(mocker):
     this, one test's seed and half-used streams would carry into the next test on the worker.
     """
     mocker.patch.object(randomness, '_STATE', randomness.EngineRandomState())
+
+
+@pytest.fixture(autouse=True)
+def reset_engine_sources():
+    """Give every test fresh live doors and reset them afterwards (glitchygames/sources.py).
+
+    reset_sources() tells the installed sources (on_uninstalled), which is where a replay stops
+    tracking code-posted events (Task 12), so no tracking leaks into the next test.
+    """
+    sources.reset_sources()
+    yield
+    sources.reset_sources()
 
 
 @pytest.fixture(autouse=True)

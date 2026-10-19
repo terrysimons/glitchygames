@@ -49,6 +49,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import non_negative_int, unit_interval
+from glitchygames.live_sources import LiveSources
 from tests.mocks import MockFactory
 
 
@@ -2392,7 +2393,10 @@ class TestGameEngineFastEvents:
     def test_process_events_with_fastevents(self, mock_pygame_patches, mock_game_args, mocker):
         """Test process_events uses fastevent.get when USE_FASTEVENTS is True (line 924)."""
         engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        engine.USE_FASTEVENTS = True
+        # The live doors decide fastevent use when created (glitchygames/live_sources.py)
+        engine.install_sources(
+            sources=LiveSources(random_seed=engine.random_seed, use_fastevents=True)
+        )
         # Create a fake fastevent module
         mock_fastevent = mocker.Mock()
         mock_fastevent.get.return_value = []

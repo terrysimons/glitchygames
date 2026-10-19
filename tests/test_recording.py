@@ -626,7 +626,9 @@ class TestGameplayRecorder:
         recorder.close()
 
 
-# Calls that read (or drain) SDL's event queue; only GameEngine._pump_events may use them
+# Calls that read (or drain) SDL's event queue; only a doors' event pump may use them
+# (LiveSources.pump_events in glitchygames/live_sources.py, which GameEngine._pump_events calls)
+_PUMP_SEAM_FUNCTION_NAME = 'pump_events'
 _QUEUE_READING_ATTRIBUTES = frozenset({'get', 'poll', 'wait', 'peek', 'pump', 'clear'})
 _EVENT_MODULE_NAMES = frozenset({'event', 'fastevent'})
 
@@ -642,11 +644,11 @@ def _is_queue_read(node: ast.AST) -> bool:
 
 
 def _queue_reads_outside_the_pump_seam(source_path: Path) -> list[str]:
-    """List each reference to a queue-reading pygame call outside ``_pump_events``."""
+    """List each reference to a queue-reading pygame call outside a ``pump_events`` method."""
     tree = ast.parse(source_path.read_text(encoding='utf-8'), filename=str(source_path))
     allowed_nodes: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == '_pump_events':
+        if isinstance(node, ast.FunctionDef) and node.name == _PUMP_SEAM_FUNCTION_NAME:
             allowed_nodes.update(id(child) for child in ast.walk(node))
     return [
         f'{source_path}:{node.lineno} pygame.{node.value.attr}.{node.attr}'
@@ -659,7 +661,7 @@ def _queue_reads_outside_the_pump_seam(source_path: Path) -> list[str]:
 
 
 def test_pump_seam_is_the_only_place_the_engine_reads_sdl_queue():
-    """Every read of SDL's queue in the package goes through GameEngine._pump_events.
+    """Every read of SDL's queue in the package goes through the doors' event pump.
 
     A recording must see every batch, and a replay must be able to substitute every batch,
     so no other code may call pygame.event.get/poll/wait/peek/pump/clear.
@@ -678,7 +680,7 @@ def test_pump_seam_scan_finds_a_read(tmp_path):
     """The scan above does report a read outside the seam (it is not vacuous)."""
     source_path = tmp_path / 'reader.py'
     source_path.write_text(
-        'import pygame\n\n\ndef _pump_events():\n    return pygame.event.get()\n\n\n'
+        'import pygame\n\n\ndef pump_events():\n    return pygame.event.get()\n\n\n'
         'def elsewhere():\n    return pygame.event.poll()\n',
         encoding='utf-8',
     )

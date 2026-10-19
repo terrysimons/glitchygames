@@ -21,6 +21,7 @@ from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.recording import post_event
+from glitchygames.sources import active_sources, mark_frames_started
 from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
@@ -145,6 +146,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self.next_scene: Scene | None = self.active_scene
         self.previous_scene: Scene | None = self.active_scene
         self.quit_requested: bool = False
+        # Frames finished this run; the doors' end_frame receives each frame's number
+        self.frame_number: int = 0
 
         # Scene transition support
         self._active_transition: Any = None  # Transition object during effect
@@ -791,10 +794,15 @@ class SceneManager(SceneInterface, events.EventManager):
         frame_start_seconds: float = time.perf_counter()
         self._previous_fps_event_seconds = frame_start_seconds
         # The first frame has no previous frame: its dt is the short time since the reading
-        # above, as before
-        self.dt = time.perf_counter() - frame_start_seconds
+        # above, as before (a replay's frame-time door returns the recorded first dt)
+        self.dt = active_sources().frame_seconds(measured=time.perf_counter() - frame_start_seconds)
+        mark_frames_started()
 
-        while self.active_scene is not None and self.quit_requested is False:
+        while (
+            self.active_scene is not None
+            and self.quit_requested is False
+            and not active_sources().stop_requested
+        ):
             # Frame pacing using timer backend when available
             timer = getattr(self.game_engine, 'timer', None)
             period_ns = 0
@@ -833,7 +841,8 @@ class SceneManager(SceneInterface, events.EventManager):
         In order: pace (timer backend deadline on the timer's own clock, else the pygame
         clock; target 0 never sleeps) and log timer jitter; read time.perf_counter() once,
         which ends this frame and starts the next; set ``self.dt`` to the start-to-start
-        period; record it as the frame's FPS sample and post the FPS event when its
+        period as the frame-time door returns it: the measurement when live, the recorded dt
+        in a replay; record it as the frame's FPS sample and post the FPS event when its
         wall-clock interval has passed. Each frame's ``self.dt`` is set only here, so
         recorded frames sum exactly to elapsed time, and logic and the debug overlay in the
         next frame see the same value the statistics recorded (engine audit #15).
@@ -860,7 +869,9 @@ class SceneManager(SceneInterface, events.EventManager):
         )
 
         closing_reading_seconds = time.perf_counter()
-        self.dt = closing_reading_seconds - frame_start_seconds
+        self.dt = active_sources().frame_seconds(
+            measured=closing_reading_seconds - frame_start_seconds
+        )
 
         self._track_performance(processing_time=processing_seconds)
         if self._should_post_fps_event(closing_reading_seconds, self._previous_fps_event_seconds):
@@ -896,6 +907,10 @@ class SceneManager(SceneInterface, events.EventManager):
 
         if self.trace_recorder is not None:
             self.trace_recorder.record_frame(dt=frame_dt, scene=self.active_scene)
+        active_sources().end_frame(
+            frame_number=self.frame_number, dt=frame_dt, scene=self.active_scene
+        )
+        self.frame_number += 1
 
     def _run_scene_frame(self: Self) -> None:
         """Run one non-transition frame of the active scene.
