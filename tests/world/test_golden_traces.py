@@ -7,9 +7,10 @@ frame by frame.
 
 A difference fails the test unless an entry in ``EXPECTED_DIFFERENCES`` explains it: same
 field, frame inside the entry's range, sprite id matching its pattern, and either the current
-value equal to the entry's pinned ``expected`` value or the entry's ``rule`` accepting the
-(baseline, current) pair. An entry that explains no difference also fails, so the list cannot
-go stale.
+value equal to the entry's pinned ``expected`` value, the entry's ``rule`` accepting the
+(baseline, current) pair, or its ``world_rule`` accepting the difference given the frame's
+world sample (world and camera positions the trace does not record, read from the current
+run). An entry that explains no difference also fails, so the list cannot go stale.
 """
 
 from __future__ import annotations
@@ -17,19 +18,29 @@ from __future__ import annotations
 import copy
 import dataclasses
 import fnmatch
+import functools
 import gzip
 import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import pygame
 import pytest
 from scripts.record_golden_traces import GAME_SCENES, golden_path, record_trace
 
+from glitchygames.examples.clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
+from glitchygames.examples.clockwork_keep.drawing import draw_tinker
+from glitchygames.examples.clockwork_keep.player import Tinker
+from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
 from glitchygames.tracing import TraceReader, decode_frame, read_trace, write_trace
+from glitchygames.world import CULL_MARGIN_PIXELS, is_world_positioned
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from pathlib import Path
+
+    from glitchygames.scenes import Scene
+    from glitchygames.tracing import StableSpriteIds
 
 # Marks an ExpectedDifference without a pinned value (None is a real value, so it can't be used)
 NO_EXPECTED_VALUE: Any = object()
@@ -40,13 +51,92 @@ SEEDED_TRACE_FRAME_COUNT = 120
 
 
 @dataclass(frozen=True)
+class SpriteWorldSample:
+    """One world sprite after a frame of the current run.
+
+    Attributes:
+        world_x: The sprite's world x.
+        world_y: The sprite's world y.
+        rect: The sprite's rect as [x, y, width, height] (as the trace records it).
+        hidden: Whether the game hid the sprite (``hidden``).
+
+    """
+
+    world_x: float
+    world_y: float
+    rect: list[int]
+    hidden: bool
+
+
+@dataclass(frozen=True)
+class FrameWorldSample:
+    """World data of the current run after one frame, which the trace does not record.
+
+    Attributes:
+        camera_x: The camera's world x.
+        camera_y: The camera's world y.
+        shake_offset: The camera's WORLD shake offset.
+        snap_mode: The scene's PIXEL_SNAP_MODE.
+        screen_size: The display surface size (what the engine culls against).
+        sprites: Each world sprite's sample, by trace id.
+
+    """
+
+    camera_x: float
+    camera_y: float
+    shake_offset: tuple[float, float]
+    snap_mode: PixelSnapMode
+    screen_size: tuple[int, int]
+    sprites: dict[str, SpriteWorldSample]
+
+
+class WorldSampler:
+    """A record_trace frame observer that keeps each frame's world sample."""
+
+    def __init__(self) -> None:
+        """Start with no frames sampled."""
+        self.frames: dict[int, FrameWorldSample] = {}
+
+    def __call__(self, *, frame_number: int, scene: Scene, sprite_ids: StableSpriteIds) -> None:
+        """Sample the camera and every world sprite of the active scene.
+
+        Args:
+            frame_number: The frame just run.
+            scene: The active scene after the frame.
+            sprite_ids: The run's sprite ids (the trace's ids).
+
+        """
+        camera = scene.camera
+        display_surface = pygame.display.get_surface()
+        assert display_surface is not None
+        self.frames[frame_number] = FrameWorldSample(
+            camera_x=camera.world_x,
+            camera_y=camera.world_y,
+            shake_offset=camera.shake_effect.offset,
+            snap_mode=scene.PIXEL_SNAP_MODE,
+            screen_size=display_surface.get_size(),
+            sprites={
+                sprite_ids.id_for(sprite): SpriteWorldSample(
+                    world_x=sprite.world_x,
+                    world_y=sprite.world_y,
+                    rect=[sprite.rect.x, sprite.rect.y, sprite.rect.width, sprite.rect.height],
+                    hidden=bool(getattr(sprite, 'hidden', False)),
+                )
+                for sprite in scene.all_sprites.sprites()
+                if is_world_positioned(sprite)
+            },
+        )
+
+
+@dataclass(frozen=True)
 class ExpectedDifference:
     """Justified differences between a baseline trace and the current run.
 
     An entry explains a difference when the field is the same, the frame is in ``frames``, the
     sprite id matches ``sprite_pattern`` (fnmatch, e.g. ``'GroundSegment#*'``; ``''`` matches
-    frame-level fields), and either the current value equals ``expected`` or ``rule`` returns
-    True for (baseline value, current value).
+    frame-level fields), and either the current value equals ``expected``, ``rule`` returns
+    True for (baseline value, current value), or ``world_rule`` returns True for the
+    difference and the frame's world sample.
 
     Attributes:
         frames: The frames the entry covers (``range(n, n + 1)`` for one frame).
@@ -57,6 +147,8 @@ class ExpectedDifference:
         reason: Why the difference is expected.
         expected: The value the current run must now produce.
         rule: Accepts (baseline value, current value) for a systematic difference.
+        world_rule: Accepts (difference, the frame's world sample) for a difference whose
+            cause is proven from world and camera positions; never called without a sample.
 
     """
 
@@ -66,6 +158,9 @@ class ExpectedDifference:
     reason: str
     expected: Any = NO_EXPECTED_VALUE
     rule: Callable[[Any, Any], bool] | None = dataclasses.field(default=None, compare=False)
+    world_rule: Callable[[TraceDifference, FrameWorldSample], bool] | None = dataclasses.field(
+        default=None, compare=False
+    )
 
     def __post_init__(self) -> None:
         """Reject an entry that would explain any value.
@@ -74,14 +169,18 @@ class ExpectedDifference:
             ValueError: If neither an expected value nor a rule is given.
 
         """
-        if self.expected is NO_EXPECTED_VALUE and self.rule is None:
+        if self.expected is NO_EXPECTED_VALUE and self.rule is None and self.world_rule is None:
             raise ValueError(MISSING_EXPECTATION_MESSAGE)
 
-    def explains(self, difference: TraceDifference) -> bool:
+    def explains(
+        self, difference: TraceDifference, *, world_sample: FrameWorldSample | None = None
+    ) -> bool:
         """Report whether this entry explains a difference.
 
         Args:
             difference: A difference found between the traces.
+            world_sample: The current run's world sample for the difference's frame, if
+                sampled.
 
         Returns:
             True if the difference matches this entry.
@@ -95,7 +194,13 @@ class ExpectedDifference:
             return False
         if self.expected is not NO_EXPECTED_VALUE and difference.current == self.expected:
             return True
-        return self.rule is not None and self.rule(difference.baseline, difference.current)
+        if self.rule is not None and self.rule(difference.baseline, difference.current):
+            return True
+        return (
+            self.world_rule is not None
+            and world_sample is not None
+            and self.world_rule(difference, world_sample)
+        )
 
 
 @dataclass(frozen=True)
@@ -123,9 +228,221 @@ class TraceDifference:
         return (self.frame, self.sprite_id, self.field)
 
 
+def engine_rect(sprite: SpriteWorldSample, frame: FrameWorldSample) -> list[int]:
+    """The rect the engine places a world sprite at: snap(world) - snap(camera) - snap(shake).
+
+    Returns:
+        [x, y, width, height].
+
+    """
+    shake_x, shake_y = frame.shake_offset
+    mode = frame.snap_mode
+    return [
+        snap_to_pixel(sprite.world_x, mode)
+        - snap_to_pixel(frame.camera_x, mode)
+        - snap_to_pixel(shake_x, mode),
+        snap_to_pixel(sprite.world_y, mode)
+        - snap_to_pixel(frame.camera_y, mode)
+        - snap_to_pixel(shake_y, mode),
+        *sprite.rect[2:],
+    ]
+
+
+def camera_apply_rect(
+    sprite: SpriteWorldSample, frame: FrameWorldSample, *, world_y_offset: float = 0.0
+) -> list[int]:
+    """The rect the games' old apply_camera gave: Camera2D.apply, round(world - camera - shake).
+
+    Args:
+        sprite: The sprite's world sample.
+        frame: The frame's world sample.
+        world_y_offset: Added to the sprite's world y (where the old run had the sprite).
+
+    Returns:
+        [x, y, width, height].
+
+    """
+    shake_x, shake_y = frame.shake_offset
+    return [
+        round(sprite.world_x - frame.camera_x - shake_x),
+        round(sprite.world_y + world_y_offset - frame.camera_y - shake_y),
+        *sprite.rect[2:],
+    ]
+
+
+@functools.cache
+def tinker_feet_margin_pixels() -> int:
+    """Transparent rows below the tinker's feet (its image is taller than the drawn figure).
+
+    Before the pose fix, the first ground check of a new floor ran before any pose was drawn:
+    a blank image's hitbox is the whole image, so the tinker stood this many pixels too high
+    until the next tick.
+
+    Returns:
+        The image height minus the bottom of the drawn idle pose.
+
+    """
+    image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT), pygame.SRCALPHA)
+    draw_tinker(image, Tinker.IDLE, facing_right=True, animation_timer=0.0)
+    return PLAYER_HEIGHT - image.get_bounding_rect().bottom
+
+
+def _sprite_sample(
+    difference: TraceDifference, frame: FrameWorldSample
+) -> SpriteWorldSample | None:
+    return frame.sprites.get(difference.sprite_id)
+
+
+def separately_snapped(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """Spec 2.2: the same world and camera positions give the baseline by the old formula.
+
+    The current rect is snap(world) - snap(camera); the baseline is round(world - camera) of
+    the very same positions. They differ by a pixel when the fractions of world and camera
+    positions straddle a half.
+
+    Returns:
+        True if both rects follow from this frame's positions.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    return (
+        sprite is not None
+        and difference.current == engine_rect(sprite, frame)
+        and difference.baseline == camera_apply_rect(sprite, frame)
+    )
+
+
+def stood_on_blank_image_hitbox(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """Pose fix: the old run stood the tinker tinker_feet_margin_pixels() higher, same camera.
+
+    Returns:
+        True if the baseline is the old formula with the tinker raised by the margin.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    return (
+        sprite is not None
+        and difference.current == engine_rect(sprite, frame)
+        and difference.baseline
+        == camera_apply_rect(sprite, frame, world_y_offset=-tinker_feet_margin_pixels())
+    )
+
+
+def settling_after_blank_image_hitbox(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """Pose fix, the frames after it: the old tinker was still dropping onto its floor.
+
+    Standing too high (stood_on_blank_image_hitbox), the old tinker fell its last pixels over
+    the next frames, and the old camera, aimed at it, trailed by a fraction of a pixel. The
+    current rect is exactly the engine's; the baseline is one pixel off the old formula on
+    this run's positions, in y only. Not an exact proof: the old positions are not sampled.
+    Replaying the old pose order and round(world - camera) reproduces every baseline rect of
+    the trace exactly (see the Task 6 report).
+
+    Returns:
+        True if the current rect is the engine's and the baseline is 1 px off in y only.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    if sprite is None or difference.current != engine_rect(sprite, frame):
+        return False
+    old_rect = camera_apply_rect(sprite, frame)
+    return (
+        difference.baseline[0] == old_rect[0]
+        and abs(difference.baseline[1] - old_rect[1]) == 1
+        and difference.baseline[2:] == old_rect[2:]
+    )
+
+
+def culled_outside_margin(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """Engine culling: the sprite is entirely outside the screen grown by CULL_MARGIN_PIXELS.
+
+    Returns:
+        True if the sprite became invisible and is off screen beyond the margin, not hidden.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    cull_rect = pygame.Rect((0, 0), frame.screen_size).inflate(
+        2 * CULL_MARGIN_PIXELS, 2 * CULL_MARGIN_PIXELS
+    )
+    return (
+        sprite is not None
+        and difference.baseline is True
+        and difference.current is False
+        and not sprite.hidden
+        and not cull_rect.colliderect(pygame.Rect(sprite.rect))
+    )
+
+
+# Every frame of a run, for entries that hold wherever their rule proves them
+ALL_FRAMES = range(1_000_000)
+
 # Filled in by later tasks of the world-space plan; every entry must say why it is expected.
 EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
-    'clockwork_keep': [],
+    'clockwork_keep': [
+        ExpectedDifference(
+            frames=ALL_FRAMES,
+            sprite_pattern='*',
+            field='visible',
+            world_rule=culled_outside_margin,
+            reason=(
+                'Engine culling (spec 2.4): Clockwork Keep never culled, so sprites far off '
+                'screen (and the tinker before the camera swoops down to it, or after it is '
+                'placed on the elevator) were visible; the engine hides them beyond '
+                'CULL_MARGIN_PIXELS'
+            ),
+        ),
+        ExpectedDifference(
+            frames=ALL_FRAMES,
+            sprite_pattern='*',
+            field='rect',
+            world_rule=separately_snapped,
+            reason=(
+                'Spec 2.2: sprite and camera are snapped separately, snap(world) - '
+                'snap(camera), instead of round(world - camera); the bobbing cogs and the '
+                'gliding camera both have fractions'
+            ),
+        ),
+        ExpectedDifference(
+            frames=range(1),
+            sprite_pattern='Tinker#0',
+            field='rect',
+            world_rule=stood_on_blank_image_hitbox,
+            reason=(
+                'Pose fix (spec 1): the first ground check used to run before any pose was '
+                'drawn, on the blank image, standing the tinker 2 px too high'
+            ),
+        ),
+        ExpectedDifference(
+            frames=range(351, 595),
+            sprite_pattern='Tinker#1',
+            field='rect',
+            world_rule=stood_on_blank_image_hitbox,
+            reason=(
+                'Pose fix (spec 1): during the elevator ride the arriving floor shows its '
+                'capture tick, whose ground check used to run on the blank image (2 px high)'
+            ),
+        ),
+        ExpectedDifference(
+            frames=range(1, 10),
+            sprite_pattern='*',
+            field='rect',
+            world_rule=settling_after_blank_image_hitbox,
+            reason=(
+                'Pose fix (spec 1): after standing 2 px high on frame 0 the old tinker fell '
+                'onto the floor and the old camera trailed it by a fraction of a pixel'
+            ),
+        ),
+        ExpectedDifference(
+            frames=range(595, 596),
+            sprite_pattern='Tinker#1',
+            field='rect',
+            world_rule=settling_after_blank_image_hitbox,
+            reason=(
+                'Pose fix (spec 1): on the first frame after the ride the old tinker dropped '
+                'its 2 px and the old camera followed it'
+            ),
+        ),
+    ],
     'brave_adventurer': [],
     'brave_adventurer_papyrus': [],
     'paddleslap': [],
@@ -222,23 +539,31 @@ def trace_differences(
 
 
 def unexplained_and_stale(
-    *, differences: list[TraceDifference], expected: list[ExpectedDifference]
+    *,
+    differences: list[TraceDifference],
+    expected: list[ExpectedDifference],
+    world_samples: Mapping[int, FrameWorldSample] | None = None,
 ) -> tuple[list[TraceDifference], list[ExpectedDifference]]:
     """Split differences into unexplained ones and expected ones that did not occur.
 
     Args:
         differences: The differences found.
         expected: The listed, justified differences.
+        world_samples: The current run's world samples by frame (for world rules).
 
     Returns:
         (differences not listed, listed differences that no longer occur).
 
     """
+    world_samples = world_samples or {}
     used_entries: set[int] = set()
     unexplained: list[TraceDifference] = []
     for difference in differences:
+        world_sample = world_samples.get(difference.frame)
         explaining_entries = [
-            entry_index for entry_index, entry in enumerate(expected) if entry.explains(difference)
+            entry_index
+            for entry_index, entry in enumerate(expected)
+            if entry.explains(difference, world_sample=world_sample)
         ]
         if explaining_entries:
             used_entries.update(explaining_entries)
@@ -264,13 +589,17 @@ def test_expected_differences_cover_every_game():
 def test_game_matches_golden_trace(game_key):
     """Replaying the game's script reproduces its golden trace, up to listed differences."""
     baseline = read_trace(path=golden_path(game_key))
-    current = record_trace(game_key, frame_count=len(baseline['frames']))
+    world_sampler = WorldSampler()
+    current = record_trace(
+        game_key, frame_count=len(baseline['frames']), frame_observer=world_sampler
+    )
 
     assert current['game'] == baseline['game']
     assert current['frame_seconds'] == baseline['frame_seconds']
     unexplained, stale = unexplained_and_stale(
         differences=trace_differences(baseline=baseline, current=current),
         expected=EXPECTED_DIFFERENCES[game_key],
+        world_samples=world_sampler.frames,
     )
     if unexplained:
         pytest.fail(
@@ -571,3 +900,82 @@ class TestTraceComparison:
     def test_entry_needs_an_expected_value_or_a_rule(self):
         with pytest.raises(ValueError, match='expected value or a rule'):
             ExpectedDifference(frames=range(1), sprite_pattern='*', field='rect', reason='test')
+
+    @staticmethod
+    def _world_frame(*, camera_y: float, sprite: SpriteWorldSample) -> FrameWorldSample:
+        return FrameWorldSample(
+            camera_x=0.0,
+            camera_y=camera_y,
+            shake_offset=(0.0, 0.0),
+            snap_mode=PixelSnapMode.NEAREST_HALF_UP,
+            screen_size=(800, 480),
+            sprites={'Cog#0': sprite},
+        )
+
+    def test_world_rule_explains_with_the_frames_world_sample_only(self):
+        # Camera 0.4, cog 10.7: round(10.7 - 0.4) = 10 before, snap(10.7) - snap(0.4) = 11 now
+        sprite = SpriteWorldSample(world_x=0.0, world_y=10.7, rect=[0, 11, 16, 16], hidden=False)
+        frame = self._world_frame(camera_y=0.4, sprite=sprite)
+        difference = TraceDifference(
+            frame=0,
+            sprite_id='Cog#0',
+            field='rect',
+            baseline=[0, 10, 16, 16],
+            current=[0, 11, 16, 16],
+        )
+        entry = ExpectedDifference(
+            frames=range(1),
+            sprite_pattern='*',
+            field='rect',
+            world_rule=separately_snapped,
+            reason='test',
+        )
+        unexplained, stale = unexplained_and_stale(
+            differences=[difference], expected=[entry], world_samples={0: frame}
+        )
+        unsampled_unexplained, _ = unexplained_and_stale(differences=[difference], expected=[entry])
+        assert unexplained == []
+        assert stale == []
+        assert unsampled_unexplained == [difference]
+
+    def test_separately_snapped_rejects_a_baseline_the_old_formula_does_not_give(self):
+        sprite = SpriteWorldSample(world_x=0.0, world_y=10.7, rect=[0, 11, 16, 16], hidden=False)
+        frame = self._world_frame(camera_y=0.4, sprite=sprite)
+        difference = TraceDifference(
+            frame=0,
+            sprite_id='Cog#0',
+            field='rect',
+            baseline=[0, 9, 16, 16],
+            current=[0, 11, 16, 16],
+        )
+        assert not separately_snapped(difference, frame)
+
+    @pytest.mark.parametrize(
+        ('rect', 'hidden', 'explained'),
+        [
+            ([0, 480 + CULL_MARGIN_PIXELS, 16, 16], False, True),
+            ([0, 480 + CULL_MARGIN_PIXELS - 1, 16, 16], False, False),
+            ([0, 100, 16, 16], False, False),
+            ([0, 900, 16, 16], True, False),
+        ],
+        ids=['beyond_margin', 'inside_margin', 'on_screen', 'hidden_by_the_game'],
+    )
+    def test_culled_outside_margin_needs_the_sprite_beyond_the_margin(
+        self, rect, hidden, explained
+    ):
+        sprite = SpriteWorldSample(world_x=0.0, world_y=0.0, rect=rect, hidden=hidden)
+        frame = self._world_frame(camera_y=0.0, sprite=sprite)
+        difference = TraceDifference(
+            frame=0, sprite_id='Cog#0', field='visible', baseline=True, current=False
+        )
+        assert culled_outside_margin(difference, frame) is explained
+
+    def test_entry_with_only_a_world_rule_is_accepted(self):
+        entry = ExpectedDifference(
+            frames=range(1),
+            sprite_pattern='*',
+            field='rect',
+            world_rule=separately_snapped,
+            reason='test',
+        )
+        assert entry.world_rule is separately_snapped

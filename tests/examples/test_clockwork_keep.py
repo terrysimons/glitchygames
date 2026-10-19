@@ -8,6 +8,7 @@ import pytest
 
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.live import VoiceState
+from glitchygames.camera import FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
@@ -23,9 +24,16 @@ from glitchygames.examples.clockwork_keep.game import (
     ELEVATOR_STOP_BOUNCE,
     ELEVATOR_STOP_RATTLE,
     ClockworkKeepScene,
+    CogCollectible,
 )
+from glitchygames.examples.clockwork_keep.player import Tinker
+from glitchygames.examples.clockwork_keep.terrain import Elevator, MovingGear, Platform
+from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+from glitchygames.world import CoordinateSpace, position_world_sprites
 
 FRAME_TIME = 1.0 / 60.0
+SCREEN_SIZE = (800, 480)
+WORLD_SPRITE_CLASSES = (Tinker, Platform, Elevator, MovingGear, CogCollectible)
 
 
 @pytest.fixture
@@ -230,11 +238,17 @@ class TestElevatorRide:
         assert transition.update(5.0) is True
         played.assert_any_call('elevator_clank')
 
-    def test_apply_camera_to_sprites_repositions(self, clockwork_scene):
+    def test_engine_positions_platforms_from_the_camera(self, clockwork_scene):
+        """The engine's positioning step places the floor's world sprites (no game loop)."""
         clockwork_scene.camera.world_y = 37.0
-        clockwork_scene.apply_camera_to_sprites()
+        position_world_sprites(
+            sprites=clockwork_scene.all_sprites,
+            camera=clockwork_scene.camera,
+            screen_size=SCREEN_SIZE,
+        )
         platform = clockwork_scene.platform_sprites[0]
-        assert platform.rect.y == round(platform.world_y - 37.0)
+        mode = PixelSnapMode.NEAREST_HALF_UP
+        assert platform.rect.y == snap_to_pixel(platform.world_y, mode) - 37
 
 
 class TestElevatorRumble:
@@ -348,7 +362,7 @@ class TestPlatformSupportUsesHitbox:
         ]
         scene.elevator_sprites[:] = []
         player = scene.player
-        player.update()  # draws the figure; collision rects trim to its visible pixels
+        player.dt_tick(0.0)  # draws the pose; collision rects trim to its visible pixels
         offset_x, offset_y = collision_rect_offset(player)
         player.world_x = float(hitbox_left - offset_x)
         # Hitbox bottom (the visible feet) level with the platform top
@@ -387,7 +401,7 @@ class TestHitboxLooseEnds:
         """
         player = scene.player
         player.facing_right = facing_right
-        player.update()
+        player.dt_tick(0.0)  # dt_tick draws the pose
         return player
 
     def test_left_wall_stops_the_hitbox_not_the_image(self, clockwork_scene):
@@ -480,7 +494,7 @@ def test_two_overlapped_cogs_are_both_collected_in_one_frame(clockwork_scene, pl
     """Collecting one cog (removing it from the layer) must not skip the next one."""
     scene = clockwork_scene
     player = scene.player
-    player.update()
+    player.dt_tick(0.0)  # dt_tick draws the pose
     player.world_x = 400.0
     player.world_y = 200.0
     hitbox = get_sprite_collision_rect(player)
@@ -495,3 +509,119 @@ def test_two_overlapped_cogs_are_both_collected_in_one_frame(clockwork_scene, pl
 
     assert first_cog not in scene.collectible_sprites
     assert second_cog not in scene.collectible_sprites
+
+
+class TestEngineWorldSpace:
+    """Clockwork Keep's sprites live in world space; the engine aims the camera and places them."""
+
+    @pytest.mark.parametrize('sprite_class', WORLD_SPRITE_CLASSES, ids=lambda cls: cls.__name__)
+    def test_world_sprite_classes_declare_world_space(self, sprite_class):
+        assert sprite_class.COORDINATE_SPACE is CoordinateSpace.WORLD
+
+    @pytest.mark.parametrize('sprite_class', WORLD_SPRITE_CLASSES, ids=lambda cls: cls.__name__)
+    def test_no_sprite_class_positions_itself_from_the_camera(self, sprite_class):
+        assert not hasattr(sprite_class, 'apply_camera')
+
+    def test_scene_has_no_camera_loop(self):
+        assert 'apply_camera_to_sprites' not in vars(ClockworkKeepScene)
+
+    def test_setup_follows_the_player_on_both_axes(self, clockwork_scene):
+        clockwork_scene.setup()
+        assert clockwork_scene.camera.follow_target is clockwork_scene.player
+        assert clockwork_scene.camera.follow_axes is FollowAxes.BOTH
+
+    def test_dt_tick_leaves_the_camera_to_the_engine(self, clockwork_scene):
+        """The game no longer calls camera.update(); the engine aims the camera."""
+        clockwork_scene.camera.begin_frame()
+        camera_position = (clockwork_scene.camera.world_x, clockwork_scene.camera.world_y)
+        clockwork_scene.dt_tick(FRAME_TIME)
+        assert not clockwork_scene.camera.updated_by_game_this_frame
+        assert (clockwork_scene.camera.world_x, clockwork_scene.camera.world_y) == (camera_position)
+
+    def test_camera_aims_at_the_player(self, clockwork_scene):
+        clockwork_scene.setup()
+        player = clockwork_scene.player
+        assert clockwork_scene.camera_target() == (player.world_x, player.world_y)
+
+    def test_camera_stays_still_after_game_over(self, clockwork_scene):
+        """dt_tick stops after game over, and so does the camera (it no longer moves)."""
+        clockwork_scene.setup()
+        clockwork_scene.game_over_triggered = True
+        assert clockwork_scene.camera_target() is None
+
+
+class TestPoseBeforeCollision:
+    """The tinker's pose (its hitbox) is final before collision runs: no one-frame wall lag.
+
+    Each frame runs as the engine runs it: scene logic (dt_tick), then input events, then
+    the render phase (the sprite's update()). The hitbox is checked after logic (what
+    collision used) and after the render phase (what is drawn and what the debug overlay
+    shows).
+    """
+
+    @staticmethod
+    def _stand_flush_against_wall(scene, *, wall, facing_right):
+        """Stand the player on the floor with its hitbox flush against a side wall.
+
+        Returns:
+            The player.
+
+        """
+        player = scene.player
+        for _ in range(30):  # settle onto the floor
+            scene.dt_tick(FRAME_TIME)
+            player.update()
+        player.facing_right = facing_right
+        player.dt_tick(0.0)
+        player.update()
+        offset_x, _ = collision_rect_offset(player)
+        hitbox_width = get_sprite_collision_rect(player).width
+        if wall == 'left':
+            player.world_x = float(PLAYFIELD_LEFT - offset_x)
+        else:
+            player.world_x = float(PLAYFIELD_RIGHT - (offset_x + hitbox_width))
+        scene.dt_tick(FRAME_TIME)
+        player.update()
+        hitbox = get_sprite_collision_rect(player)
+        assert hitbox.left == PLAYFIELD_LEFT if wall == 'left' else hitbox.right == PLAYFIELD_RIGHT
+        assert player.on_ground
+        return player
+
+    @staticmethod
+    def _hitbox_overlaps_a_wall(player):
+        hitbox = get_sprite_collision_rect(player)
+        return hitbox.left < PLAYFIELD_LEFT or hitbox.right > PLAYFIELD_RIGHT
+
+    @pytest.mark.parametrize('wall', ['left', 'right'])
+    @pytest.mark.parametrize('facing_right', [True, False], ids=['facing_right', 'facing_left'])
+    @pytest.mark.parametrize('move_key', [pygame.K_LEFT, pygame.K_RIGHT], ids=['left', 'right'])
+    def test_turning_and_jumping_at_a_wall_never_puts_the_hitbox_in_it(
+        self, clockwork_scene, wall, facing_right, move_key
+    ):
+        scene = clockwork_scene
+        player = self._stand_flush_against_wall(scene, wall=wall, facing_right=facing_right)
+        _press_key(scene, move_key)
+        overlapping_frames = []
+        for frame_number in range(20):
+            scene.dt_tick(FRAME_TIME)
+            if self._hitbox_overlaps_a_wall(player):
+                overlapping_frames.append((frame_number, 'collision'))
+            if frame_number == 0:
+                _press_key(scene, pygame.K_SPACE)
+            player.update()
+            if self._hitbox_overlaps_a_wall(player):
+                overlapping_frames.append((frame_number, 'drawn'))
+        assert player.velocity_y < 0 or not player.on_ground  # it jumped
+        assert overlapping_frames == []
+
+    def test_dt_tick_draws_the_pose_collision_uses(self, clockwork_scene):
+        """The image after dt_tick already shows this frame's facing; update() keeps it."""
+        scene = clockwork_scene
+        player = self._stand_flush_against_wall(scene, wall='left', facing_right=True)
+        _press_key(scene, pygame.K_LEFT)
+        scene.dt_tick(FRAME_TIME)
+        bounds_after_logic = player.image.get_bounding_rect()
+        player.update()
+        assert not player.facing_right
+        assert player.image.get_bounding_rect() == bounds_after_logic
+        assert bounds_after_logic.left == 0  # facing left: the transparent margin is on the right

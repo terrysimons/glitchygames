@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import Any, Self, override
 
 import pygame
 
@@ -15,9 +15,7 @@ from glitchygames.examples.clockwork_keep.constants import (
 )
 from glitchygames.examples.clockwork_keep.drawing import draw_elevator, draw_platform
 from glitchygames.sprites import Sprite
-
-if TYPE_CHECKING:
-    from glitchygames.camera import Camera2D
+from glitchygames.world import CoordinateSpace
 
 
 class Platform(Sprite):
@@ -32,6 +30,9 @@ class Platform(Sprite):
         groups: Sprite group to add to.
 
     """
+
+    # A world sprite: the engine places it from the camera
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
         self,
@@ -58,17 +59,6 @@ class Platform(Sprite):
         draw_platform(self.image, platform_color, top_color)
         self.dirty = 1
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera.
-
-        Args:
-            camera: The camera for world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
 
 class Elevator(Sprite):
     """An interactable elevator that triggers floor transitions.
@@ -81,6 +71,9 @@ class Elevator(Sprite):
         groups: Sprite group to add to.
 
     """
+
+    # A world sprite: the engine places it from the camera
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self,
@@ -104,17 +97,6 @@ class Elevator(Sprite):
         draw_elevator(self.image)
         self.dirty = 1
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera.
-
-        Args:
-            camera: The camera for world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
 
 class MovingGear(Sprite):
     """A gear-shaped platform that moves on a sine path.
@@ -129,6 +111,9 @@ class MovingGear(Sprite):
         groups: Sprite group to add to.
 
     """
+
+    # A world sprite: the engine places it from the camera
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(  # ruff: ignore[too-many-arguments]
         self,
@@ -179,14 +164,3 @@ class MovingGear(Sprite):
         self._timer += dt
         self.world_x = self._center_x + self._move_range_x * math.sin(self._timer * self._speed)
         self.world_y = self._center_y + self._move_range_y * math.sin(self._timer * self._speed)
-
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera.
-
-        Args:
-            camera: The camera for world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y

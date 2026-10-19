@@ -6,10 +6,9 @@ image. A sprite opts out with a ``TRIM_TRANSPARENT_HITBOX = False`` attribute on
 or instance.
 
 Bounds are measured on every call, never cached per surface: several games (Brave Adventurer,
-Clockwork Keep) create a blank image and redraw poses into that same surface in update(),
-after dt_tick has already run collision checks, so a per-surface cache would keep the blank or
-first pose. AnimatedSprite frames, whose surfaces do not change, cache their bounds per frame
-(see SpriteFrame.opaque_bounds).
+Clockwork Keep) create a blank image and redraw each frame's pose into that same surface, so
+a per-surface cache would keep the blank or first pose. AnimatedSprite frames, whose surfaces
+do not change, cache their bounds per frame (see SpriteFrame.opaque_bounds).
 """
 
 from __future__ import annotations

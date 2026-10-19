@@ -45,7 +45,7 @@ import tempfile
 import types
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any, Protocol, override
 
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
@@ -113,6 +113,21 @@ PADDLESLAP_PADDLE_KEYS: tuple[tuple[int, int], tuple[int, int]] = (
 )
 # A paddle holds still while the tracked ball's centre is within this many pixels of its own
 PADDLESLAP_TRACKING_DEAD_ZONE_PIXELS = 12
+
+
+class FrameObserver(Protocol):
+    """Called after each recorded frame, to read more than the trace records (world data)."""
+
+    def __call__(self, *, frame_number: int, scene: Scene, sprite_ids: StableSpriteIds) -> None:
+        """Observe the active scene after a frame.
+
+        Args:
+            frame_number: The frame just run.
+            scene: The active scene after the frame.
+            sprite_ids: The run's sprite ids (the ids the trace uses).
+
+        """
+        ...
 
 
 class FakeClock:
@@ -598,6 +613,7 @@ def record_trace(
     frame_count: int,
     recording_path: Path | None = None,
     random_seed: int = RANDOM_SEED,
+    frame_observer: FrameObserver | None = None,
 ) -> dict[str, Any]:
     """Run a game headless with its scripted input and record every sprite each frame.
 
@@ -608,6 +624,8 @@ def record_trace(
             would (GameEngine.start_trace_recording), for checking recordings against the
             harness's own frames.
         random_seed: The run's master seed, passed as ``--random-seed``.
+        frame_observer: If given, called after each frame is sampled, with the same scene
+            and sprite ids (the golden test reads world and camera positions through it).
 
     Returns:
         The trace: game key, frame seconds and one record per frame.
@@ -647,6 +665,12 @@ def record_trace(
                         sprite_ids=sprite_ids,
                     )
                 )
+                if frame_observer is not None:
+                    frame_observer(
+                        frame_number=frame_number,
+                        scene=manager.active_scene,
+                        sprite_ids=sprite_ids,
+                    )
         finally:
             engine.stop_trace_recording()
             pygame.event.clear()
