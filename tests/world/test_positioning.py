@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 import pygame
 import pytest
 
-from glitchygames import pixel_snap
 from glitchygames.camera import Camera2D
 from glitchygames.effects.shake import ScreenShake
 from glitchygames.pixel_snap import (
@@ -30,8 +29,6 @@ from glitchygames.world import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
     from pytest_mock import MockerFixture
 
 SCREEN_WIDTH = 320
@@ -48,6 +45,20 @@ SCROLL_STEPS = 8
 
 TEST_SHAKE_OFFSET = (3.0, -2.0)
 TEST_DRAW_OFFSET = (0, 6)
+
+# Every term on an exact half, some negative: world (-0.5, -3.5), camera (-10.5, 1.5),
+# shake (2.5, -0.5). Expected screen positions are worked by hand per mode, term by term.
+HALF_WORLD_POSITION = (-0.5, -3.5)
+HALF_CAMERA_POSITION = (-10.5, 1.5)
+HALF_SHAKE_OFFSET = (2.5, -0.5)
+EXPECTED_HALF_POSITIONS = {
+    # Each tuple lists x then y as the world, camera and shake terms, snapped in that order
+    PixelSnapMode.NEAREST_HALF_UP: (0 + 10 - 3, -3 - 2 - 0),
+    PixelSnapMode.NEAREST_EVEN: (0 + 10 - 2, -4 - 2 - 0),
+    PixelSnapMode.FLOOR: (-1 + 11 - 2, -4 - 1 + 1),
+    PixelSnapMode.CEIL: (0 + 10 - 3, -3 - 2 - 0),
+    PixelSnapMode.TRUNCATE: (0 + 10 - 2, -3 - 1 - 0),
+}
 
 
 class WorldSprite(pygame.sprite.DirtySprite):
@@ -81,6 +92,12 @@ class OffsetWorldSprite(WorldSprite):
     """A world sprite drawn a few pixels below its world position."""
 
     draw_offset = TEST_DRAW_OFFSET
+
+
+class FractionalDrawOffsetSprite(WorldSprite):
+    """A world sprite whose draw_offset is not whole pixels."""
+
+    draw_offset = (0, 6.5)
 
 
 class MissingWorldYSprite(pygame.sprite.DirtySprite):
@@ -117,19 +134,6 @@ class ScreenSprite(UndeclaredSprite):
     COORDINATE_SPACE = CoordinateSpace.SCREEN
 
 
-@pytest.fixture(autouse=True)
-def restore_default_snap_mode() -> Generator[None]:
-    """Put the module-level default snap mode back after each test.
-
-    Yields:
-        None: Control to the test.
-
-    """
-    original_mode = pixel_snap.active_default_snap_mode()
-    yield
-    pixel_snap.set_active_default_snap_mode(original_mode)
-
-
 @pytest.fixture
 def camera() -> Camera2D:
     """A real camera at the world origin.
@@ -139,6 +143,13 @@ def camera() -> Camera2D:
 
     """
     return Camera2D(SCREEN_WIDTH, SCREEN_HEIGHT)
+
+
+def patch_world_shake(mocker: MockerFixture, offset: tuple[float, float]) -> None:
+    """Make every camera's WORLD shake report a fixed offset."""
+    mocker.patch.object(
+        ScreenShake, 'offset', new_callable=mocker.PropertyMock, return_value=offset
+    )
 
 
 def position(sprite: object, camera: Camera2D) -> None:
@@ -237,12 +248,7 @@ def test_world_shake_offset_shifts_the_screen_position(
     """A WORLD shake offset of (3, -2) moves the sprite by (-3, +2)."""
     sprite = WorldSprite(world_x=50.0, world_y=60.0)
     unshaken_position = screen_position_for(sprite=sprite, camera=camera)
-    mocker.patch.object(
-        ScreenShake,
-        'offset',
-        new_callable=mocker.PropertyMock,
-        return_value=TEST_SHAKE_OFFSET,
-    )
+    patch_world_shake(mocker, TEST_SHAKE_OFFSET)
 
     assert screen_position_for(sprite=sprite, camera=camera) == (
         unshaken_position[0] - 3,
@@ -250,11 +256,81 @@ def test_world_shake_offset_shifts_the_screen_position(
     )
 
 
+@pytest.mark.parametrize('mode', list(PixelSnapMode))
+def test_every_term_snaps_with_the_sprite_mode(
+    camera: Camera2D, mocker: MockerFixture, mode: PixelSnapMode
+) -> None:
+    """World, camera and shake each snap with the sprite's resolved mode, halves included.
+
+    The active default is set to a mode that differs from the sprite's on every half, so a
+    term snapped with the default instead would change the result.
+    """
+    set_active_default_snap_mode(
+        PixelSnapMode.CEIL if mode is PixelSnapMode.FLOOR else PixelSnapMode.FLOOR
+    )
+    camera.world_x, camera.world_y = HALF_CAMERA_POSITION
+    patch_world_shake(mocker, HALF_SHAKE_OFFSET)
+    sprite = WorldSprite(world_x=HALF_WORLD_POSITION[0], world_y=HALF_WORLD_POSITION[1])
+    sprite.pixel_snap_mode = mode
+
+    assert screen_position_for(sprite=sprite, camera=camera) == EXPECTED_HALF_POSITIONS[mode]
+
+
+@pytest.mark.parametrize('mode', list(PixelSnapMode))
+def test_every_term_snaps_with_the_active_default(
+    camera: Camera2D, mocker: MockerFixture, mode: PixelSnapMode
+) -> None:
+    """A sprite without its own mode snaps every term with the active default."""
+    set_active_default_snap_mode(mode)
+    camera.world_x, camera.world_y = HALF_CAMERA_POSITION
+    patch_world_shake(mocker, HALF_SHAKE_OFFSET)
+    sprite = WorldSprite(world_x=HALF_WORLD_POSITION[0], world_y=HALF_WORLD_POSITION[1])
+
+    assert screen_position_for(sprite=sprite, camera=camera) == EXPECTED_HALF_POSITIONS[mode]
+
+
+@pytest.mark.parametrize(
+    ('mode', 'shake_x', 'expected_shift_x'),
+    [
+        # snap(0.5) is 0 under FLOOR but 1 under NEAREST_HALF_UP; snap(-0.5) is -1 and 0
+        (PixelSnapMode.FLOOR, 0.5, 0),
+        (PixelSnapMode.FLOOR, -0.5, 1),
+        (PixelSnapMode.NEAREST_HALF_UP, 0.5, -1),
+        (PixelSnapMode.NEAREST_HALF_UP, -0.5, 0),
+    ],
+)
+def test_half_pixel_shake_snaps_asymmetrically(
+    camera: Camera2D,
+    mocker: MockerFixture,
+    mode: PixelSnapMode,
+    shake_x: float,
+    expected_shift_x: int,
+) -> None:
+    """A +/-0.5 shake moves the sprite by one pixel in one direction only (per the spec).
+
+    The shake offset is snapped like any other term, so the shift for +0.5 and -0.5 is not
+    mirrored: FLOOR moves only for -0.5, NEAREST_HALF_UP only for +0.5.
+    """
+    set_active_default_snap_mode(mode)
+    sprite = WorldSprite(world_x=50.0, world_y=60.0)
+    patch_world_shake(mocker, (shake_x, 0.0))
+
+    assert screen_position_for(sprite=sprite, camera=camera) == (50 + expected_shift_x, 60)
+
+
 def test_draw_offset_is_added(camera: Camera2D) -> None:
     """draw_offset (0, 6) draws the sprite 6 pixels lower."""
     sprite = OffsetWorldSprite(world_x=50.0, world_y=60.0)
 
     assert screen_position_for(sprite=sprite, camera=camera) == (50, 66)
+
+
+def test_fractional_draw_offset_raises_type_error_naming_the_class(camera: Camera2D) -> None:
+    """draw_offset must be whole pixels; a float component fails clearly."""
+    with pytest.raises(TypeError, match=r'FractionalDrawOffsetSprite draw_offset must be whole'):
+        screen_position_for(
+            sprite=FractionalDrawOffsetSprite(world_x=0.0, world_y=0.0), camera=camera
+        )
 
 
 def test_integer_world_positions_work(camera: Camera2D) -> None:
@@ -338,6 +414,33 @@ def test_sprite_beyond_the_cull_margin_is_not_visible(camera: Camera2D) -> None:
     position(sprite, camera)
 
     assert not sprite.visible
+
+
+@pytest.mark.parametrize(
+    ('edge', 'world_position'),
+    [
+        ('left', (-CULL_MARGIN_PIXELS - SPRITE_SIZE, 100)),
+        ('right', (SCREEN_WIDTH + CULL_MARGIN_PIXELS, 100)),
+        ('top', (100, -CULL_MARGIN_PIXELS - SPRITE_SIZE)),
+        ('bottom', (100, SCREEN_HEIGHT + CULL_MARGIN_PIXELS)),
+    ],
+)
+def test_cull_boundary_on_every_edge(
+    camera: Camera2D, edge: str, world_position: tuple[int, int]
+) -> None:
+    """Exactly CULL_MARGIN_PIXELS outside an edge is culled; one pixel nearer is visible."""
+    toward_screen = {'left': (1, 0), 'right': (-1, 0), 'top': (0, 1), 'bottom': (0, -1)}[edge]
+    sprite = WorldSprite(world_x=world_position[0], world_y=world_position[1])
+
+    position(sprite, camera)
+
+    assert not sprite.visible
+
+    sprite.world_x += toward_screen[0]
+    sprite.world_y += toward_screen[1]
+    position(sprite, camera)
+
+    assert sprite.visible
 
 
 def test_hidden_sprite_is_invisible_and_returns_when_unhidden(camera: Camera2D) -> None:

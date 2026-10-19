@@ -68,6 +68,8 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
 
     Sprite and camera are snapped separately with the sprite's snap mode, so sprites that move
     with the camera keep a constant on-screen spacing instead of shimmering by a pixel.
+    The shake offset is snapped with the same mode, so a +/-0.5 shake is not mirrored (FLOOR
+    moves only for -0.5, NEAREST_HALF_UP only for +0.5), as the spec specifies.
 
     Args:
         sprite: A sprite declaring CoordinateSpace.WORLD.
@@ -77,7 +79,8 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
         tuple[int, int]: The whole-pixel screen top-left.
 
     Raises:
-        TypeError: If the sprite declares world space but lacks world_x or world_y.
+        TypeError: If the sprite declares world space but lacks world_x or world_y, or its
+            draw_offset is not whole pixels.
 
     """
     world_x = getattr(sprite, 'world_x', None)
@@ -92,6 +95,15 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
     # The WORLD shake offset is read, never advanced: Camera2D.update() advances it
     shake_x, shake_y = camera.shake_effect.offset
     draw_offset_x, draw_offset_y = getattr(sprite, 'draw_offset', (0, 0))
+    if not all(
+        isinstance(component, int) and not isinstance(component, bool)
+        for component in (draw_offset_x, draw_offset_y)
+    ):
+        message = (
+            f'{type(sprite).__name__} draw_offset must be whole pixels (ints), '
+            f'got {(draw_offset_x, draw_offset_y)!r}'
+        )
+        raise TypeError(message)
     screen_x = (
         snap_to_pixel(world_x, mode)
         - snap_to_pixel(camera.world_x, mode)

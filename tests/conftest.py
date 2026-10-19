@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Imported after the SDL environment is set up above
 import pygame
 
-from glitchygames import randomness
+from glitchygames import pixel_snap, randomness
 from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
@@ -205,6 +205,19 @@ def fresh_random_streams(mocker):
     this, one test's seed and half-used streams would carry into the next test on the worker.
     """
     mocker.patch.object(randomness, '_STATE', randomness.EngineRandomState())
+
+
+@pytest.fixture(autouse=True)
+def reset_default_snap_mode():
+    """Start and end each test with the engine default snap mode (NEAREST_HALF_UP).
+
+    The active default is process-global (glitchygames/pixel_snap.py) and scene setup sets it
+    from Scene.PIXEL_SNAP_MODE; without this, one test's scene would change snapping for the
+    next test on the worker.
+    """
+    pixel_snap.set_active_default_snap_mode(pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
+    yield
+    pixel_snap.set_active_default_snap_mode(pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
 
 
 @pytest.fixture(autouse=True)
