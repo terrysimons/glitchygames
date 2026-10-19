@@ -283,7 +283,11 @@ class PapyrusBraveAdventurerScene(Scene):
         self.player.score = round(self.player.max_distance / DISTANCE_SCORE_DIVISOR)
 
     def _follow_player_with_camera(self: Self) -> None:
-        """Move the camera toward the player and apply it to all world-space sprites."""
+        """Move the camera toward the player and apply it to Papyrus's own world sprites.
+
+        The ground segments and stone walls are Brave Adventurer's classes, which are engine
+        world sprites: the engine places them from this camera after the tick.
+        """
         camera = self.camera
         camera.update(
             target_x=self.player.world_x,
@@ -292,10 +296,6 @@ class PapyrusBraveAdventurerScene(Scene):
         )
 
         self.player.apply_camera(camera)
-        for ground_segment in self.ground_sprites:
-            ground_segment.apply_camera(camera)
-        for wall in self.wall_sprites:
-            wall.apply_camera(camera)
         for enemy in self.enemy_sprites:
             enemy.apply_camera(camera)
         for collectible in self.collectible_sprites:

@@ -3,12 +3,16 @@
 import math
 import tomllib
 import types
+from pathlib import Path
 
 import pygame
 import pytest
 
 from glitchygames.animation.state_machine import AnimationStateMachine
+from glitchygames.camera import FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.events.base import HashableEvent
+from glitchygames.examples import brave_adventurer as brave_adventurer_package
 from glitchygames.examples.brave_adventurer.constants import (
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
@@ -19,7 +23,11 @@ from glitchygames.examples.brave_adventurer.constants import (
     GROUND_Y,
     STONE_WALL_WIDTH,
 )
+from glitchygames.examples.brave_adventurer.drawing import draw_player
+from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
+from glitchygames.examples.brave_adventurer.player import Player
+from glitchygames.examples.brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     FALLING_VELOCITY_THRESHOLD as PAPYRUS_FALLING_VELOCITY_THRESHOLD,
 )
@@ -29,7 +37,13 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
 )
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import apply_transparency_and_scale
+from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
+from glitchygames.world import CoordinateSpace
+
+FRAME_SECONDS = 1 / 60
+BRAVE_ADVENTURER_PACKAGE = Path(brave_adventurer_package.__file__).parent
+BRAVE_WORLD_SPRITE_CLASSES = (Player, GroundSegment, StoneWall, GoldScarab, Cobra, Scarab, Scorpion)
 
 
 @pytest.fixture(params=[BraveAdventurerScene, PapyrusBraveAdventurerScene])
@@ -84,7 +98,8 @@ class TestDeathRumble:
 def _drawn_player(scene):
     """Tick and draw the player once, as a game frame does, and return it.
 
-    dt_tick sets Papyrus's hitbox_scale; update() draws Brave Adventurer's figure.
+    dt_tick draws Brave Adventurer's pose and sets Papyrus's hitbox_scale; update() is the
+    render phase (Brave Adventurer's respawn fade, Papyrus's animation).
     """
     scene.player.dt_tick(0.0)
     scene.player.update()
@@ -276,8 +291,8 @@ class TestHitboxLooseEnds:
         player.world_x = -50.0
         # A few frames walking left, then at rest against the edge. Turning or changing pose
         # moves the hitbox inside the image; the bound is refitted from the hitbox each tick,
-        # so the edge is exact once the pose settles (Brave Adventurer draws its pose in
-        # update(), after dt_tick, so a pose change can lag the bound by one frame).
+        # so the edge is exact once the pose settles (Brave Adventurer refits it after drawing
+        # its pose in dt_tick, so its edge is exact on every frame: see the test below).
         for _ in range(3):
             player.velocity_x = -200.0
             player.dt_tick(1 / 60)
@@ -287,6 +302,24 @@ class TestHitboxLooseEnds:
             player.dt_tick(1 / 60)
             player.update()
         assert _player_hitbox(adventurer_scene).left == 0
+
+    @pytest.mark.parametrize('adventurer_scene', [BraveAdventurerScene], indirect=True)
+    def test_brave_adventurer_hitbox_never_passes_the_world_left_edge(self, adventurer_scene):
+        """Walking left into the edge, turning right and back: the hitbox stays at x >= 0.
+
+        The pose is drawn in dt_tick and the edge refitted to it, so a turn (which moves the
+        hitbox inside the image) cannot leave the hitbox past the edge for a frame.
+        """
+        player = _drawn_player(adventurer_scene)
+        player.world_x = 10.0
+        hitbox_lefts = []
+        for move in [player.move_left] * 20 + [player.move_right] * 2 + [player.move_left] * 5:
+            move()
+            player.dt_tick(1 / 60)
+            hitbox_lefts.append(_player_hitbox(adventurer_scene).left)  # what collision used
+            player.update()
+            hitbox_lefts.append(_player_hitbox(adventurer_scene).left)  # what is drawn
+        assert min(hitbox_lefts) == 0
 
     @pytest.mark.parametrize('adventurer_scene', [BraveAdventurerScene], indirect=True)
     def test_brave_adventurer_feet_stand_on_the_ground(self, adventurer_scene):
@@ -402,7 +435,7 @@ class TestPapyrusFacingLeftHitbox:
 
 
 def _tick_like_the_game(scene):
-    """One frame: player tick, terrain resolution, then draw (Brave Adventurer draws in update).
+    """One frame: player tick (Brave Adventurer draws its pose here), terrain, render phase.
 
     Returns:
         True if the player landed this frame (in the air before, on the ground after).
@@ -698,3 +731,243 @@ class TestPapyrusFallingTransitions:
         state_machine.set_state('idle')
         state_machine.evaluate({'velocity_x': 0.0, 'velocity_y': 20.0, 'on_ground': True})
         assert state_machine.current_state == 'idle'
+
+
+@pytest.fixture
+def brave_scene(mocker):
+    """A Brave Adventurer scene with sounds, rumble and saving mocked."""
+    if not pygame.get_init():
+        pygame.init()
+    if pygame.display.get_surface() is None:
+        pygame.display.set_mode((800, 480))
+    scene = BraveAdventurerScene(options={'input_mode': 'joystick'})
+    mocker.patch.object(scene.scene_manager.rumble, 'pulse')
+    mocker.patch.object(scene, 'sounds')
+    mocker.patch.object(scene, '_save_high_score', return_value=[])
+    return scene
+
+
+def _press_key(scene, key):
+    scene.on_key_down_event(HashableEvent(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=0))
+
+
+class TestEngineWorldSpace:
+    """Brave Adventurer's sprites are world sprites; the engine aims the camera and places them."""
+
+    @pytest.mark.parametrize(
+        'sprite_class', BRAVE_WORLD_SPRITE_CLASSES, ids=lambda cls: cls.__name__
+    )
+    def test_world_sprite_classes_declare_world_space(self, sprite_class):
+        assert sprite_class.COORDINATE_SPACE is CoordinateSpace.WORLD
+
+    @pytest.mark.parametrize(
+        'sprite_class', BRAVE_WORLD_SPRITE_CLASSES, ids=lambda cls: cls.__name__
+    )
+    def test_no_sprite_class_positions_itself_from_the_camera(self, sprite_class):
+        assert not hasattr(sprite_class, 'apply_camera')
+
+    @pytest.mark.parametrize(
+        'source_path', sorted(BRAVE_ADVENTURER_PACKAGE.glob('*.py')), ids=lambda path: path.name
+    )
+    def test_no_module_culls_or_positions_sprites_itself(self, source_path):
+        """Culling and positioning are the engine's; only the pit gaps still use camera.apply."""
+        source = source_path.read_text(encoding='utf-8')
+        assert 'is_visible' not in source
+        assert 'apply_camera' not in source
+
+    def test_scene_has_no_camera_loop(self):
+        assert '_follow_player_with_camera' not in vars(BraveAdventurerScene)
+
+    def test_ground_segment_has_its_world_y(self):
+        segment = GroundSegment(
+            world_x=40.0, segment_width=100, groups=pygame.sprite.LayeredDirty()
+        )
+        assert segment.world_y == GROUND_Y
+
+    def test_setup_follows_the_player_on_the_x_axis(self, brave_scene):
+        brave_scene.setup()
+        assert brave_scene.camera.follow_target is brave_scene.player
+        assert brave_scene.camera.follow_axes is FollowAxes.X
+
+    def test_dt_tick_leaves_the_camera_to_the_engine(self, brave_scene):
+        """The game no longer calls camera.update(); the engine aims the camera."""
+        brave_scene.camera.begin_frame()
+        camera_position = (brave_scene.camera.world_x, brave_scene.camera.world_y)
+        brave_scene.dt_tick(FRAME_SECONDS)
+        assert not brave_scene.camera.updated_by_game_this_frame
+        assert (brave_scene.camera.world_x, brave_scene.camera.world_y) == camera_position
+
+    def test_dt_tick_still_updates_the_distance_score(self, brave_scene):
+        brave_scene.player.world_x = 2000.0
+        brave_scene.dt_tick(FRAME_SECONDS)
+        assert brave_scene.player.max_distance >= 2000.0
+        assert brave_scene.player.score > 0
+
+    def test_camera_aims_at_the_player(self, brave_scene):
+        brave_scene.setup()
+        player = brave_scene.player
+        assert brave_scene.camera_target() == (player.world_x, player.world_y)
+
+    def test_camera_stays_still_after_game_over(self, brave_scene):
+        """dt_tick stops after game over, and so does the camera (it no longer moves)."""
+        brave_scene.setup()
+        brave_scene.game_over_triggered = True
+        assert brave_scene.camera_target() is None
+
+    def test_terrain_collision_snaps_with_the_scene_mode(self, brave_scene):
+        """Terrain edges are snapped as the engine draws them (FLOOR here), not with round()."""
+        set_active_default_snap_mode(PixelSnapMode.FLOOR)
+        segment_right = 300
+        # A segment at 0.6 ends at 300 with FLOOR (300.6 floors to 300); round() gave 301
+        brave_scene.ground_sprites[:] = [
+            types.SimpleNamespace(world_x=0.6, world_y=float(GROUND_Y), segment_width=segment_right)
+        ]
+        brave_scene.wall_sprites[:] = []
+        player = _drawn_player(brave_scene)
+        player.world_y = float(GROUND_Y - 20)
+        player.velocity_y = 50.0
+        player.velocity_x = 200.0
+        support_left, _ = brave_scene._player_support_span()
+        player.world_x += segment_right - support_left
+
+        brave_scene._resolve_player_ground_collision()
+
+        assert not player.on_ground
+
+    def test_wall_collision_snaps_with_the_scene_mode(self, brave_scene):
+        """A wall at 400.6 has its left face at 400 under FLOOR (round() put it at 401)."""
+        set_active_default_snap_mode(PixelSnapMode.FLOOR)
+        wall_x = 400.6
+        brave_scene.wall_sprites[:] = [
+            types.SimpleNamespace(world_x=wall_x, world_y=GROUND_Y - 64.0, wall_height=64)
+        ]
+        brave_scene.ground_sprites[:] = [
+            types.SimpleNamespace(world_x=0.0, world_y=float(GROUND_Y), segment_width=2000)
+        ]
+        player = _drawn_player(brave_scene)
+        offset_x, _ = collision_rect_offset(player)
+        hitbox_width = _player_hitbox(brave_scene).width
+        player.world_x = float(400 - hitbox_width - offset_x + 3)  # 3 px into the wall
+        player.world_y = float(GROUND_Y - 47)
+        player.velocity_x = 200.0
+
+        brave_scene._resolve_player_wall_collision()
+
+        assert _player_hitbox(brave_scene).right == 400
+
+
+class TestPoseBeforeCollision:
+    """The adventurer's pose (its hitbox) is final before collision runs: no one-frame wall lag.
+
+    Each frame runs as the engine runs it: scene logic (dt_tick), then input events, then
+    the render phase (the sprite's update()). The hitbox is checked after logic (what
+    collision used) and after the render phase (what is drawn and what the debug overlay
+    shows).
+    """
+
+    WALL_X = 400.0
+    WALL_HEIGHT = 64
+
+    @pytest.fixture
+    def walled_scene(self, brave_scene, mocker):
+        """The scene with one long ground segment and one real stone wall, and no enemies.
+
+        Returns:
+            The scene.
+
+        """
+        wall = StoneWall(
+            world_x=self.WALL_X, wall_height=self.WALL_HEIGHT, groups=pygame.sprite.LayeredDirty()
+        )
+        brave_scene.wall_sprites[:] = [wall]
+        brave_scene.ground_sprites[:] = [
+            GroundSegment(world_x=0.0, segment_width=2000, groups=pygame.sprite.LayeredDirty())
+        ]
+        mocker.patch.object(brave_scene, '_check_enemy_collisions')
+        return brave_scene
+
+    def _stand_flush_against_wall(self, scene, *, side, facing_right):
+        """Stand the player on the ground with its hitbox flush against a side of the wall.
+
+        Returns:
+            The player.
+
+        """
+        player = scene.player
+        player.world_x = self.WALL_X - 200.0
+        for _ in range(30):  # settle onto the ground
+            scene.dt_tick(FRAME_SECONDS)
+            player.update()
+        player.facing_right = facing_right
+        player.dt_tick(0.0)
+        player.update()
+        offset_x, _ = collision_rect_offset(player)
+        hitbox_width = get_sprite_collision_rect(player).width
+        wall_left = round(self.WALL_X)
+        wall_right = wall_left + STONE_WALL_WIDTH
+        if side == 'left':
+            player.world_x = float(wall_left - (offset_x + hitbox_width))
+        else:
+            player.world_x = float(wall_right - offset_x)
+        scene.dt_tick(FRAME_SECONDS)
+        player.update()
+        hitbox = get_sprite_collision_rect(player)
+        if side == 'left':
+            assert hitbox.right == wall_left
+        else:
+            assert hitbox.left == wall_right
+        assert player.on_ground
+        return player
+
+    def _hitbox_overlaps_the_wall(self, player):
+        hitbox = get_sprite_collision_rect(player)
+        wall_rect = pygame.Rect(
+            round(self.WALL_X),
+            GROUND_Y - self.WALL_HEIGHT,
+            STONE_WALL_WIDTH,
+            self.WALL_HEIGHT,
+        )
+        return hitbox.colliderect(wall_rect)
+
+    @pytest.mark.parametrize('side', ['left', 'right'])
+    @pytest.mark.parametrize('facing_right', [True, False], ids=['facing_right', 'facing_left'])
+    @pytest.mark.parametrize('move_key', [pygame.K_LEFT, pygame.K_RIGHT], ids=['left', 'right'])
+    def test_turning_and_jumping_at_a_wall_never_puts_the_hitbox_in_it(
+        self, walled_scene, side, facing_right, move_key
+    ):
+        scene = walled_scene
+        player = self._stand_flush_against_wall(scene, side=side, facing_right=facing_right)
+        _press_key(scene, move_key)
+        overlapping_frames = []
+        on_ground_by_frame = []
+        for frame_number in range(20):
+            scene.dt_tick(FRAME_SECONDS)
+            on_ground_by_frame.append(player.on_ground)
+            if self._hitbox_overlaps_the_wall(player):
+                overlapping_frames.append((frame_number, 'collision'))
+            if frame_number == 0:
+                _press_key(scene, pygame.K_SPACE)
+            player.update()
+            if self._hitbox_overlaps_the_wall(player):
+                overlapping_frames.append((frame_number, 'drawn'))
+        # Jump pressed during frame 0's events: airborne from frame 1's logic on
+        assert on_ground_by_frame[0]
+        assert not on_ground_by_frame[1]
+        assert overlapping_frames == []
+
+    def test_dt_tick_draws_the_pose_collision_uses(self, walled_scene):
+        """The image after dt_tick already shows this frame's facing; update() keeps it."""
+        scene = walled_scene
+        player = self._stand_flush_against_wall(scene, side='left', facing_right=True)
+        _press_key(scene, pygame.K_LEFT)
+        scene.dt_tick(FRAME_SECONDS)
+        bounds_after_logic = player.image.get_bounding_rect()
+        player.update()
+        assert not player.facing_right
+        assert player.image.get_bounding_rect() == bounds_after_logic
+        facing_left = player.image.copy()
+        facing_left.fill((0, 0, 0, 0))
+        draw_player(
+            facing_left, player.state, facing_right=False, animation_timer=player.animation_timer
+        )
+        assert bounds_after_logic == facing_left.get_bounding_rect()

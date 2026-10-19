@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Self, override
+from typing import Self, override
 
 import pygame
 
@@ -21,17 +21,17 @@ from glitchygames.examples.brave_adventurer.drawing import (
     draw_stone_wall,
 )
 from glitchygames.sprites import Sprite
-
-if TYPE_CHECKING:
-    from glitchygames.camera import Camera2D
+from glitchygames.world import CoordinateSpace
 
 
 class GroundSegment(Sprite):
     """A solid ground platform the player can stand on.
 
     Ground segments are placed at GROUND_Y and have a fixed height.
-    Gaps between segments form pits.
+    Gaps between segments form pits. A world sprite: the engine places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self,
@@ -63,33 +63,19 @@ class GroundSegment(Sprite):
         draw_ground_segment(self.image, segment_width)
 
         self.world_x: float = world_x
+        self.world_y: float = float(GROUND_Y)
         self.segment_width: int = segment_width
         self.dirty = 1
-
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, GROUND_Y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, self.segment_width):
-            self.visible = True
-            self.dirty = 1
-        else:
-            self.visible = False
-            self.dirty = 0
 
 
 class StoneWall(Sprite):
     """A stone wall obstacle the player must jump over.
 
-    Walls sit on top of the ground and have a configurable height.
+    Walls sit on top of the ground and have a configurable height. A world sprite: the
+    engine places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self,
@@ -125,30 +111,15 @@ class StoneWall(Sprite):
         self.wall_height: int = wall_height
         self.dirty = 1
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, STONE_WALL_WIDTH):
-            self.visible = True
-            self.dirty = 1
-        else:
-            self.visible = False
-            self.dirty = 0
-
 
 class GoldScarab(Sprite):
     """A collectible gold scarab that bobs up and down.
 
-    Awards bonus score when collected by the player.
+    Awards bonus score when collected by the player. A world sprite: the engine places it
+    from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self,
@@ -195,20 +166,3 @@ class GoldScarab(Sprite):
         super().dt_tick(dt)
         self.bob_timer += dt
         self.world_y = self.base_world_y + math.sin(self.bob_timer * 3.0) * 4.0
-
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, GOLD_SCARAB_SIZE):
-            self.visible = True
-        else:
-            self.visible = False
-            self.dirty = 0

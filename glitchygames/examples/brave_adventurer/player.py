@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, override
+from typing import Self, override
 
 import pygame
 
@@ -30,10 +30,7 @@ from glitchygames.physics import (
     PhysicsBody,
 )
 from glitchygames.sprites import Sprite
-
-if TYPE_CHECKING:
-    from glitchygames.camera import Camera2D
-
+from glitchygames.world import CoordinateSpace
 
 # Common (every-pose) hitbox x-range per facing, measured once; see common_hitbox_x_range
 _COMMON_POSE_X_RANGES: dict[bool, tuple[int, int]] = {}
@@ -65,9 +62,11 @@ class Player(Sprite):
     """The adventurer character with platformer physics.
 
     Stores world-space coordinates separately from the screen-space rect.
-    Physics (gravity, jumping) are applied in dt_tick(). The screen rect
-    is updated via apply_camera() before rendering.
+    Physics (gravity, jumping) and the pose are applied in dt_tick(). A world
+    sprite: the engine places its screen rect from the camera each frame.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     IDLE = 'idle'
     RUNNING = 'running'
@@ -240,7 +239,12 @@ class Player(Sprite):
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
-        """Advance physics and update animation state.
+        """Advance physics and update animation state, then draw this frame's pose.
+
+        The pose is drawn here, not in update(), because the hitbox is trimmed to the drawn
+        pixels: collision (the world edge here, the scene's ground and wall checks after this)
+        must use this frame's pose, not the previous frame's (the pose-before-collision rule,
+        plans/2026-10-18-engine-world-space.md section 1).
 
         Args:
             dt: Delta time in seconds since the last frame.
@@ -257,6 +261,22 @@ class Player(Sprite):
         context = self.physics.get_animation_context()
         self.state_machine.evaluate(context, dt)
         self.state = self.state_machine.current_state
+
+        self._draw_pose()
+        # The new pose (facing or state) can move the hitbox inside the image, so the world
+        # edge is refitted to it and applied again: the hitbox never passes the left edge
+        self._fit_world_edge_to_hitbox()
+        self._world_edge_bounds.apply(self.physics, dt)
+
+    def _draw_pose(self: Self) -> None:
+        """Redraw the image for the current state, facing and animation time."""
+        self.image.fill((0, 0, 0, 0))
+        draw_player(
+            self.image,
+            self.state,
+            facing_right=self.facing_right,
+            animation_timer=self.animation_timer,
+        )
 
     def jump(self) -> None:
         """Initiate a jump if the player is on the ground."""
@@ -284,26 +304,7 @@ class Player(Sprite):
         if accel:
             accel.target_velocity_x = 0.0
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update the screen-space rect from world coordinates using the camera.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
     @override
     def update(self: Self) -> None:
-        """Redraw the player image based on the current state."""
-        self.image.fill((0, 0, 0, 0))
-        draw_player(
-            self.image,
-            self.state,
-            facing_right=self.facing_right,
-            animation_timer=self.animation_timer,
-        )
-        # Apply alpha for respawn fade effect
+        """Apply the respawn fade (purely visual; the pose is drawn in dt_tick)."""
         self.image.set_alpha(round(self.alpha))

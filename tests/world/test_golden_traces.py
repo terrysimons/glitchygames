@@ -28,6 +28,9 @@ import pygame
 import pytest
 from scripts.record_golden_traces import GAME_SCENES, golden_path, record_trace
 
+from glitchygames.examples.brave_adventurer import constants as brave_constants
+from glitchygames.examples.brave_adventurer.drawing import draw_player, draw_scarab
+from glitchygames.examples.brave_adventurer.player import Player as AdventurerPlayer
 from glitchygames.examples.clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
 from glitchygames.examples.clockwork_keep.drawing import draw_tinker
 from glitchygames.examples.clockwork_keep.player import Tinker
@@ -331,6 +334,44 @@ def tinker_feet_margin_pixels() -> int:
     return PLAYER_HEIGHT - image.get_bounding_rect().bottom
 
 
+@functools.cache
+def adventurer_feet_margin_pixels() -> int:
+    """Transparent rows below the Brave Adventurer figure's feet in its 48 px image.
+
+    Before the pose fix, the first ground check ran before any pose was drawn, on the blank
+    image, whose hitbox is the whole image: the adventurer stood this many pixels too high.
+
+    Returns:
+        The image height minus the bottom of the drawn idle pose.
+
+    """
+    image = pygame.Surface(
+        (brave_constants.PLAYER_WIDTH, brave_constants.PLAYER_HEIGHT), pygame.SRCALPHA
+    )
+    draw_player(image, AdventurerPlayer.IDLE, facing_right=True, animation_timer=0.0)
+    return brave_constants.PLAYER_HEIGHT - image.get_bounding_rect().bottom
+
+
+@functools.cache
+def scarab_feet_margin_pixels() -> int:
+    """Transparent rows below a Brave Adventurer scarab's drawn underside.
+
+    The old per-sprite culling set dirty = 0 on a culled sprite, and Scene.update() calls
+    update() only on dirty sprites, so a scarab that was never on screen was never drawn: it
+    collided on its blank image (hitbox = the whole image) and rolled this many pixels high.
+    The underside does not change with the roll angle.
+
+    Returns:
+        The image height minus the bottom of the drawn scarab.
+
+    """
+    image = pygame.Surface(
+        (brave_constants.SCARAB_WIDTH, brave_constants.SCARAB_HEIGHT), pygame.SRCALPHA
+    )
+    draw_scarab(image, 0.0)
+    return brave_constants.SCARAB_HEIGHT - image.get_bounding_rect().bottom
+
+
 def _sprite_sample(
     difference: TraceDifference, frame: FrameWorldSample
 ) -> SpriteWorldSample | None:
@@ -379,6 +420,26 @@ def separately_snapped(difference: TraceDifference, frame: FrameWorldSample) -> 
     )
 
 
+def _old_sprite_stood_higher_by(
+    difference: TraceDifference, frame: FrameWorldSample, *, margin_pixels: float
+) -> bool:
+    """Whether the old run had the sprite margin_pixels higher than today, same x and camera.
+
+    Exact: the current rect is the engine's for this frame's positions, and the baseline is
+    the old formula, round(world - camera - shake), with the sprite raised by the margin.
+
+    Returns:
+        True if both rects follow from this frame's positions and the margin.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    return (
+        sprite is not None
+        and difference.current == engine_rect(sprite, frame, mode=SPEC_SNAP_MODE)
+        and difference.baseline == camera_apply_rect(sprite, frame, world_y_offset=-margin_pixels)
+    )
+
+
 def stood_on_blank_image_hitbox(difference: TraceDifference, frame: FrameWorldSample) -> bool:
     """Pose fix: the old run stood the tinker tinker_feet_margin_pixels() higher, same camera.
 
@@ -386,12 +447,78 @@ def stood_on_blank_image_hitbox(difference: TraceDifference, frame: FrameWorldSa
         True if the baseline is the old formula with the tinker raised by the margin.
 
     """
+    return _old_sprite_stood_higher_by(difference, frame, margin_pixels=tinker_feet_margin_pixels())
+
+
+def adventurer_stood_on_blank_image_hitbox(
+    difference: TraceDifference, frame: FrameWorldSample
+) -> bool:
+    """Pose fix: the old run stood the adventurer adventurer_feet_margin_pixels() higher.
+
+    Returns:
+        True if the baseline is the old formula with the adventurer raised by the margin.
+
+    """
+    return _old_sprite_stood_higher_by(
+        difference, frame, margin_pixels=adventurer_feet_margin_pixels()
+    )
+
+
+def _scarab_is_dropping_from_its_spawn_height(sprite: SpriteWorldSample) -> bool:
+    """Whether a scarab is between its spawn height and its resting height (its first drop).
+
+    A scarab spawns with its image bottom on the ground and today drops the margin until its
+    drawn underside lands; it never comes back up into this band (it only falls, into pits).
+
+    Returns:
+        True while the scarab is strictly between the two heights.
+
+    """
+    spawn_world_y = brave_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
+    return spawn_world_y < sprite.world_y < spawn_world_y + scarab_feet_margin_pixels()
+
+
+def scarab_stood_on_blank_image_hitbox(
+    difference: TraceDifference, frame: FrameWorldSample
+) -> bool:
+    """Old culling: an undrawn scarab rolled scarab_feet_margin_pixels() higher, same x.
+
+    Exact for every frame after the scarab's first drop (old world y = today's - margin; the
+    blank and drawn hitboxes share x and width, so x is unchanged). The drop itself is
+    scarab_dropping_from_its_spawn_height.
+
+    Returns:
+        True if the baseline is the old formula with the scarab raised by the margin.
+
+    """
     sprite = _sprite_sample(difference, frame)
     return (
         sprite is not None
-        and difference.current == engine_rect(sprite, frame, mode=SPEC_SNAP_MODE)
-        and difference.baseline
-        == camera_apply_rect(sprite, frame, world_y_offset=-tinker_feet_margin_pixels())
+        and not _scarab_is_dropping_from_its_spawn_height(sprite)
+        and _old_sprite_stood_higher_by(
+            difference, frame, margin_pixels=scarab_feet_margin_pixels()
+        )
+    )
+
+
+def scarab_dropping_from_its_spawn_height(
+    difference: TraceDifference, frame: FrameWorldSample
+) -> bool:
+    """Old culling, the first frames: today's scarab drops onto its drawn underside.
+
+    The old, undrawn scarab already stood on its blank image at its spawn height, so the
+    baseline is the old formula with the scarab exactly at GROUND_Y - SCARAB_HEIGHT.
+
+    Returns:
+        True if the scarab is dropping and the baseline puts the old one at its spawn height.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    if sprite is None or not _scarab_is_dropping_from_its_spawn_height(sprite):
+        return False
+    spawn_world_y = brave_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
+    return _old_sprite_stood_higher_by(
+        difference, frame, margin_pixels=sprite.world_y - spawn_world_y
     )
 
 
@@ -546,8 +673,79 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
             ),
         ),
     ],
-    'brave_adventurer': [],
-    'brave_adventurer_papyrus': [],
+    'brave_adventurer': [
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='*',
+            field='visible',
+            world_rule=culled_outside_margin,
+            reason=(
+                'Engine culling (spec 2.4): the old per-sprite culling (Camera2D.is_visible) '
+                'kept sprites up to 64 px beyond the screen sides and never culled the '
+                'adventurer (below the screen after falling into a pit); the engine hides '
+                'every world sprite beyond CULL_MARGIN_PIXELS'
+            ),
+        ),
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='*',
+            field='rect',
+            world_rule=separately_snapped,
+            reason=(
+                'Spec 2.2: sprite and camera are snapped separately, snap(world) - '
+                'snap(camera), instead of round(world - camera); the running adventurer, the '
+                'rolling scarabs and the gliding camera all have fractions'
+            ),
+        ),
+        ExpectedDifference(
+            frames=range(1, 2),
+            sprite_pattern='Player#0',
+            field='rect',
+            world_rule=adventurer_stood_on_blank_image_hitbox,
+            reason=(
+                'Pose fix (spec 1): the first ground check used to run before any pose was '
+                'drawn, on the blank image, standing the adventurer 1 px too high'
+            ),
+        ),
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='Scarab#*',
+            field='rect',
+            world_rule=scarab_stood_on_blank_image_hitbox,
+            reason=(
+                'Old culling side effect: culled sprites got dirty = 0, so Scene.update() never '
+                'drew them and an off-screen scarab collided on its blank image (whole-image '
+                'hitbox), rolling 2 px high; engine culling keeps dirty = 2, so scarabs are '
+                'drawn and rest their visible underside on the ground'
+            ),
+        ),
+        ExpectedDifference(
+            frames=range(1, 4),
+            sprite_pattern='Scarab#*',
+            field='rect',
+            world_rule=scarab_dropping_from_its_spawn_height,
+            reason=(
+                'Old culling side effect, first frames: today a scarab drops its 2 px from its '
+                'spawn height onto its drawn underside; the undrawn old one stood at its spawn '
+                'height'
+            ),
+        ),
+    ],
+    'brave_adventurer_papyrus': [
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern=sprite_pattern,
+            field='visible',
+            world_rule=culled_outside_margin,
+            reason=(
+                "Engine culling (spec 2.4): Papyrus shares Brave Adventurer's ground segments "
+                'and stone walls, which are engine world sprites now; the old culling kept '
+                'them up to 64 px beyond the screen sides, the engine hides them beyond '
+                'CULL_MARGIN_PIXELS'
+            ),
+        )
+        for sprite_pattern in ('GroundSegment#*', 'StoneWall#*')
+    ],
     'paddleslap': [],
 }
 
@@ -1211,3 +1409,76 @@ class TestWorldRules:
             current=[400, 728, 16, 16],
         )
         assert not settled_onto_floor(cog_difference, frame)
+
+    @staticmethod
+    def _scarab_frame(*, world_y: float) -> FrameWorldSample:
+        """A frame with one Brave Adventurer scarab at world_y; the camera has a fraction.
+
+        Returns:
+            The world sample.
+
+        """
+        scarab = SpriteWorldSample(
+            world_x=6294.0, world_y=world_y, rect=[0, 0, 20, 16], hidden=False
+        )
+        return FrameWorldSample(
+            camera_x=0.6,
+            camera_y=0.0,
+            shake_offset=(0.0, 0.0),
+            snap_mode=PixelSnapMode.NEAREST_HALF_UP,
+            screen_size=(800, 480),
+            sprites={'Scarab#0': scarab},
+        )
+
+    def test_blank_image_margins_are_measured_from_the_drawings(self):
+        """The scarab's underside is 2 px above its image bottom; the adventurer's feet 1 px."""
+        assert scarab_feet_margin_pixels() == 2
+        assert adventurer_feet_margin_pixels() == 1
+
+    @pytest.mark.parametrize(('baseline_y', 'explained'), [(384, True), (385, False), (386, False)])
+    def test_scarab_on_its_blank_image_stood_the_margin_higher(self, baseline_y, explained):
+        # Today's scarab rests at 386 (drawn underside on the ground); the blank one at 384
+        frame = self._scarab_frame(world_y=386.0)
+        difference = TraceDifference(
+            frame=40,
+            sprite_id='Scarab#0',
+            field='rect',
+            baseline=[6294 - 1, baseline_y, 20, 16],
+            current=[6294 - 1, 386, 20, 16],
+        )
+        assert scarab_stood_on_blank_image_hitbox(difference, frame) is explained
+
+    def test_scarab_raised_rule_rejects_a_scarab_still_dropping_from_its_spawn(self):
+        """While dropping its first 2 px, the old scarab was at its spawn height, not 2 px up."""
+        frame = self._scarab_frame(world_y=385.6)
+        difference = TraceDifference(
+            frame=3,
+            sprite_id='Scarab#0',
+            field='rect',
+            baseline=[6293, 384, 20, 16],
+            current=[6293, 386, 20, 16],
+        )
+        assert not scarab_stood_on_blank_image_hitbox(difference, frame)
+        assert scarab_dropping_from_its_spawn_height(difference, frame)
+
+    def test_scarab_drop_rule_needs_the_old_scarab_at_its_spawn_height(self):
+        frame = self._scarab_frame(world_y=385.6)
+        difference = TraceDifference(
+            frame=3,
+            sprite_id='Scarab#0',
+            field='rect',
+            baseline=[6293, 385, 20, 16],
+            current=[6293, 386, 20, 16],
+        )
+        assert not scarab_dropping_from_its_spawn_height(difference, frame)
+
+    def test_scarab_drop_rule_rejects_a_scarab_that_has_landed(self):
+        frame = self._scarab_frame(world_y=386.0)
+        difference = TraceDifference(
+            frame=40,
+            sprite_id='Scarab#0',
+            field='rect',
+            baseline=[6293, 384, 20, 16],
+            current=[6293, 386, 20, 16],
+        )
+        assert not scarab_dropping_from_its_spawn_height(difference, frame)
