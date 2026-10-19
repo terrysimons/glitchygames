@@ -19,9 +19,10 @@ from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
-from glitchygames.pixel_snap import PixelSnapMode
+from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.recording import post_event
 from glitchygames.timing import DEFAULT_TARGET_FPS
+from glitchygames.world import aim_camera, position_world_sprites
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -277,6 +278,8 @@ class SceneManager(SceneInterface, events.EventManager):
             old_player.visible = False
             old_player.dirty = 0
         if (old_player is not None or camera_was_shaking) and self.active_scene and self.screen:
+            # Re-place world sprites: the WORLD shake they were placed with is now cleared
+            self._position_active_world_sprites()
             self.active_scene.update()
             self.active_scene.render(self.screen)
         old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
@@ -311,6 +314,8 @@ class SceneManager(SceneInterface, events.EventManager):
                     target_y=getattr(player, 'world_y', 0.0),
                 )
             self.active_scene.dt_tick(0.001)
+            # Place the arriving scene's world sprites, so its screenshot shows them in place
+            self._position_active_world_sprites()
             self.active_scene.update()
             self.active_scene.render(self.screen)
             # Restore player visibility for when gameplay resumes
@@ -758,15 +763,24 @@ class SceneManager(SceneInterface, events.EventManager):
     def _run_scene_frame(self: Self) -> None:
         """Run one non-transition frame of the active scene.
 
-        Updates the scene, processes events, updates frame services, renders and
-        presents the frame, then starts a pending transition or performs a requested
-        scene switch. ``self.dt`` must already hold this frame's delta time.
+        Starts the camera's frame, updates the scene, processes events, updates frame
+        services, aims the camera, positions world sprites, renders and presents the frame,
+        then starts a pending transition or performs a requested scene switch. ``self.dt``
+        must already hold this frame's delta time.
         """
-        # Order matters: Scene.dt_tick runs first, then frame services (shake and
-        # rumble). Scene.update() runs inside _render_scene, after frame services.
+        assert self.active_scene is not None
+        # Order matters: begin_frame() first, so a camera.update() the game made last frame
+        # does not count as this frame's (the double-update warning in aim_camera). Then
+        # Scene.dt_tick, events, frame services (shake and rumble, so positioning uses this
+        # frame's WORLD shake offset), the camera aim and positioning, so sprites spawned in
+        # dt_tick are placed before their first render. Scene.update() runs inside
+        # _render_scene, after positioning.
+        self.active_scene.camera.begin_frame()
         self._update_scene()
         self._process_events()
         self._update_frame_services()
+        self._aim_active_camera()
+        self._position_active_world_sprites()
         self._render_scene()
         self._present_frame(full_update=False)
 
@@ -777,6 +791,27 @@ class SceneManager(SceneInterface, events.EventManager):
         # Check for plain scene switch (no transition, backward compatible)
         else:
             self._switch_to_requested_scene()
+
+    def _aim_active_camera(self: Self) -> None:
+        """Aim the active scene's camera at its camera target (glitchygames.world.aim_camera)."""
+        assert self.active_scene is not None
+        aim_camera(scene=self.active_scene, camera=self.active_scene.camera, dt=self.dt)
+
+    def _position_active_world_sprites(self: Self) -> None:
+        """Place the active scene's world sprites on screen from its camera, and cull them.
+
+        Screen-space sprites are untouched (glitchygames.world.position_world_sprites). Without
+        a display surface there is nothing to place sprites on, so nothing is done.
+        """
+        assert self.active_scene is not None
+        self.update_screen()
+        if self.screen is None:
+            return
+        position_world_sprites(
+            sprites=self.active_scene.all_sprites,
+            camera=self.active_scene.camera,
+            screen_size=self.screen.get_size(),
+        )
 
     def _update_timing(self, previous_time: float, current_time: float) -> tuple[float, float]:
         """Update timing variables for the game loop.
@@ -1030,7 +1065,25 @@ class SceneManager(SceneInterface, events.EventManager):
             forget_key_presses = getattr(next_scene, 'forget_key_presses', None)
             if forget_key_presses is not None:
                 forget_key_presses()
+            # The scene's snap mode is active from setup() on, so positions snapped while it
+            # sets itself up (camera.snap_to, collision) use it, not the previous scene's mode
+            self._activate_scene_snap_mode(next_scene)
             next_scene.setup()
+
+    def _activate_scene_snap_mode(self, scene: Scene) -> None:
+        """Make the scene's PIXEL_SNAP_MODE the default for sprites without their own mode.
+
+        A scene stand-in (a SceneInterface that is not a Scene) without a PixelSnapMode gets
+        the engine default, NEAREST_HALF_UP, so the previous scene's mode never leaks into it.
+
+        Args:
+            scene: The scene being activated.
+
+        """
+        scene_mode = getattr(scene, 'PIXEL_SNAP_MODE', None)
+        if not isinstance(scene_mode, PixelSnapMode):
+            scene_mode = PixelSnapMode.NEAREST_HALF_UP
+        set_active_default_snap_mode(scene_mode)
 
     def _log_blocked_events(self, next_scene: Scene | None) -> None:
         """Log blocked events for the scene."""

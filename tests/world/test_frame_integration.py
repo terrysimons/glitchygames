@@ -1,0 +1,334 @@
+"""The engine's camera aim and world-sprite positioning, run inside the real frame.
+
+Runs small real scenes headless through the golden-trace harness
+(``scripts/record_golden_traces.py``), which steps frames exactly as ``SceneManager.start()``
+does, without pacing. Nothing in pygame is mocked: the rects asserted are the ones drawn.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import tempfile
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
+
+import pygame
+from scripts.record_golden_traces import (
+    FAKE_CLOCK_START_SECONDS,
+    FRAME_SECONDS,
+    RANDOM_SEED,
+    SCREEN_RESOLUTION,
+    FakeClock,
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+    deterministic_environment,
+    discard_environment_events,
+)
+
+from glitchygames.camera import Camera2D
+from glitchygames.collision.detection import snapped_world_position
+from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
+from glitchygames.scenes import Scene
+from glitchygames.transitions import FadeTransition
+from glitchygames.world import CoordinateSpace, screen_position_for
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+SPRITE_SIZE = 16
+PLAYER_START = (400.5, 300.25)
+PLAYER_STEP_X = 3.5
+SPAWNED_SPRITE_WORLD_POSITION = (520.75, 330.5)
+SPAWN_FRAME = 3
+FRAMES_TO_RUN = 6
+SCREEN_SPRITE_TOPLEFT = (7, 9)
+TEST_FADE_SECONDS = 0.25
+
+
+class WorldSprite(pygame.sprite.DirtySprite):
+    """A minimal sprite living in world coordinates."""
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
+
+    def __init__(self, *, world_x: float, world_y: float) -> None:
+        """Create the sprite at a world position with a small real surface.
+
+        Args:
+            world_x: World X of the sprite's top-left.
+            world_y: World Y of the sprite's top-left.
+
+        """
+        super().__init__()
+        self.world_x = world_x
+        self.world_y = world_y
+        self.image = pygame.Surface((SPRITE_SIZE, SPRITE_SIZE))
+        self.rect = self.image.get_rect()
+
+    def update_nested_sprites(self) -> None:
+        """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+
+class ScreenSprite(pygame.sprite.DirtySprite):
+    """A HUD-style sprite: no coordinate space declared, so the engine never moves it."""
+
+    def __init__(self) -> None:
+        """Create the sprite at a fixed screen position."""
+        super().__init__()
+        self.world_x = 900.0
+        self.world_y = 900.0
+        self.image = pygame.Surface((SPRITE_SIZE, SPRITE_SIZE))
+        self.rect = pygame.Rect(SCREEN_SPRITE_TOPLEFT, (SPRITE_SIZE, SPRITE_SIZE))
+
+    def update_nested_sprites(self) -> None:
+        """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+
+class FollowingScene(Scene):
+    """A scrolling scene: the camera follows a moving player; one sprite spawns mid-run.
+
+    Records, at render time, each world sprite's rect next to where screen_position_for says
+    it belongs, so the tests can check what was actually drawn.
+    """
+
+    NAME = 'Following'
+    VERSION = '1.0'
+
+    @override
+    def setup(self: Self) -> None:
+        """Create the player, the HUD sprite and a following camera."""
+        self.camera = Camera2D(
+            screen_width=self.screen_width,
+            screen_height=self.screen_height,
+            lead_x=self.screen_width / 2,
+            lead_y=self.screen_height / 2,
+        )
+        player_x, player_y = PLAYER_START
+        self.player = WorldSprite(world_x=player_x, world_y=player_y)
+        self.hud = ScreenSprite()
+        self.all_sprites.add(self.player, self.hud)
+        self.camera.follow(target=self.player)
+        self.frame_number = 0
+        self.spawned: WorldSprite | None = None
+        self.render_samples: list[dict[str, Any]] = []
+        self.game_updated_camera_at_tick_start: list[bool] = []
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Move the player; spawn a sprite on SPAWN_FRAME, as a game spawns a ball."""
+        self.game_updated_camera_at_tick_start.append(self.camera.updated_by_game_this_frame)
+        super().dt_tick(dt)
+        self.frame_number += 1
+        self.player.world_x += PLAYER_STEP_X
+        if self.frame_number == SPAWN_FRAME:
+            spawned_x, spawned_y = SPAWNED_SPRITE_WORLD_POSITION
+            self.spawned = WorldSprite(world_x=spawned_x, world_y=spawned_y)
+            self.all_sprites.add(self.spawned)
+
+    @override
+    def render(self: Self, screen: pygame.Surface) -> None:
+        """Record every sprite's rect and expected position, then draw."""
+        world_sprites = [self.player] + ([self.spawned] if self.spawned is not None else [])
+        self.render_samples.append({
+            'frame': self.frame_number,
+            'camera': (self.camera.world_x, self.camera.world_y),
+            'drawn': [sprite.rect.topleft for sprite in world_sprites],
+            'expected': [
+                screen_position_for(sprite=sprite, camera=self.camera) for sprite in world_sprites
+            ],
+            'hud': self.hud.rect.topleft,
+        })
+        super().render(screen)
+
+
+class ManualCameraScene(FollowingScene):
+    """A game that still moves its camera itself, in update() (the render phase)."""
+
+    NAME = 'Manual Camera'
+
+    @override
+    def update(self: Self) -> None:
+        """Move the camera by hand every frame, after the engine's aim."""
+        self.camera.update(self.player.world_x, self.player.world_y, FRAME_SECONDS)
+        super().update()
+
+
+class FloorSnappingScene(Scene):
+    """A retro scene that snaps with FLOOR; records the active mode seen during setup()."""
+
+    NAME = 'Floor Snapping'
+    VERSION = '1.0'
+    PIXEL_SNAP_MODE: ClassVar[PixelSnapMode] = PixelSnapMode.FLOOR
+
+    mode_during_setup: ClassVar[PixelSnapMode | None] = None
+
+    @override
+    def setup(self: Self) -> None:
+        """Remember the active snap mode while the scene sets itself up."""
+        FloorSnappingScene.mode_during_setup = active_default_snap_mode()
+
+    def leave(self: Self) -> None:
+        """Fade to a FollowingScene (default NEAREST_HALF_UP)."""
+        self.transition_to(
+            FollowingScene(options=self.options), FadeTransition(duration=TEST_FADE_SECONDS)
+        )
+
+
+@contextlib.contextmanager
+def running_scene(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager]:
+    """Start a scene headless in the harness's deterministic environment.
+
+    Args:
+        scene_class: The scene class to make active.
+
+    Yields:
+        The scene manager with the scene active.
+
+    """
+    clock = FakeClock(start_seconds=FAKE_CLOCK_START_SECONDS)
+    with (
+        tempfile.TemporaryDirectory(prefix='frame-integration-saves-') as save_directory,
+        deterministic_environment(clock=clock, save_root=Path(save_directory)),
+    ):
+        manager = GoldenTraceSceneManager.install()
+        try:
+            with command_line([
+                '--windowed',
+                '--resolution',
+                SCREEN_RESOLUTION,
+                '--log-level',
+                'warning',
+                '--random-seed',
+                str(RANDOM_SEED),
+            ]):
+                engine = GoldenTraceEngine(game=scene_class)
+            engine.install_game(scene_class=scene_class)
+            yield manager
+        finally:
+            pygame.event.clear()
+            GoldenTraceSceneManager.uninstall()
+
+
+def step(manager: GoldenTraceSceneManager, *, frames: int = 1) -> None:
+    """Run frames at the harness's fixed dt.
+
+    Args:
+        manager: The running scene manager.
+        frames: How many frames to run.
+
+    """
+    for _ in range(frames):
+        manager.dt = FRAME_SECONDS
+        discard_environment_events()
+        manager.run_frame()
+
+
+def active_following_scene(manager: GoldenTraceSceneManager) -> FollowingScene:
+    """Return the active scene, checked to be a FollowingScene.
+
+    Args:
+        manager: The running scene manager.
+
+    Returns:
+        The active FollowingScene.
+
+    """
+    scene = manager.active_scene
+    assert isinstance(scene, FollowingScene)
+    return scene
+
+
+class TestPositioningInTheFrame:
+    """World sprites are aimed at and placed by the engine before every render."""
+
+    def test_world_sprite_is_positioned_before_render(self):
+        """At render time the player's rect is where screen_position_for puts it."""
+        with running_scene(FollowingScene) as manager:
+            step(manager, frames=FRAMES_TO_RUN)
+            scene = active_following_scene(manager)
+
+            assert len(scene.render_samples) == FRAMES_TO_RUN
+            for sample in scene.render_samples:
+                assert sample['drawn'][0] == sample['expected'][0]
+            # The camera really moved (the engine aimed it at the moving player)
+            first_camera = scene.render_samples[0]['camera']
+            last_camera = scene.render_samples[-1]['camera']
+            assert last_camera[0] > first_camera[0]
+
+    def test_sprite_spawned_during_dt_tick_is_positioned_on_its_first_frame(self):
+        """A sprite added in dt_tick is drawn at its place on its very first frame."""
+        with running_scene(FollowingScene) as manager:
+            step(manager, frames=FRAMES_TO_RUN)
+            scene = active_following_scene(manager)
+
+            first_spawned_sample = next(
+                sample for sample in scene.render_samples if len(sample['drawn']) > 1
+            )
+            assert first_spawned_sample['frame'] == SPAWN_FRAME
+            assert first_spawned_sample['drawn'][1] == first_spawned_sample['expected'][1]
+            assert first_spawned_sample['drawn'][1] != (0, 0)
+
+    def test_screen_space_sprite_is_never_moved(self):
+        """The HUD sprite stays at its screen position while the camera scrolls."""
+        with running_scene(FollowingScene) as manager:
+            step(manager, frames=FRAMES_TO_RUN)
+            scene = active_following_scene(manager)
+
+            assert {sample['hud'] for sample in scene.render_samples} == {SCREEN_SPRITE_TOPLEFT}
+
+    def test_manual_update_flag_is_cleared_at_the_start_of_each_frame(self):
+        """begin_frame() runs before dt_tick: last frame's manual update() does not carry over."""
+        with running_scene(ManualCameraScene) as manager:
+            step(manager, frames=FRAMES_TO_RUN)
+            scene = active_following_scene(manager)
+
+            assert scene.game_updated_camera_at_tick_start == [False] * FRAMES_TO_RUN
+            assert scene.camera.updated_by_game_this_frame is True
+
+
+class TestSnapModeActivation:
+    """Activating a scene makes its PIXEL_SNAP_MODE the active default snap mode."""
+
+    def test_activation_sets_the_scene_snap_mode_before_setup(self):
+        """The FLOOR scene's setup() and frames already run with FLOOR."""
+        FloorSnappingScene.mode_during_setup = None
+        with running_scene(FloorSnappingScene) as manager:
+            assert FloorSnappingScene.mode_during_setup is PixelSnapMode.FLOOR
+            step(manager)
+            assert active_default_snap_mode() is PixelSnapMode.FLOOR
+
+    def test_transition_to_a_default_scene_restores_nearest_half_up(self):
+        """Leaving the FLOOR scene for a default scene switches the active mode back."""
+        with running_scene(FloorSnappingScene) as manager:
+            scene = manager.active_scene
+            assert isinstance(scene, FloorSnappingScene)
+            scene.leave()
+            step(manager)
+
+            assert isinstance(manager.active_scene, FollowingScene)
+            assert active_default_snap_mode() is PixelSnapMode.NEAREST_HALF_UP
+
+    def test_collision_snapping_follows_the_active_scene_mode(self):
+        """snapped_world_position for a sprite without its own mode uses the scene's mode."""
+        sprite = WorldSprite(world_x=10.5, world_y=-0.5)
+        with running_scene(FloorSnappingScene):
+            assert snapped_world_position(sprite, world_x=10.5, world_y=-0.5) == (10, -1)
+
+
+class TestTransitionCapture:
+    """The arriving scene's transition screenshot shows its world sprites in place."""
+
+    def test_arriving_scene_world_sprites_are_positioned_for_the_capture(self):
+        """After a transition starts, the new scene's player sits where the camera puts it."""
+        with running_scene(FloorSnappingScene) as manager:
+            scene = manager.active_scene
+            assert isinstance(scene, FloorSnappingScene)
+            scene.leave()
+            step(manager)
+
+            assert manager._active_transition is not None
+            arriving_scene = active_following_scene(manager)
+            assert arriving_scene.player.rect.topleft == screen_position_for(
+                sprite=arriving_scene.player, camera=arriving_scene.camera
+            )
+            assert arriving_scene.player.rect.topleft != (0, 0)

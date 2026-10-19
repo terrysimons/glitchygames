@@ -13,7 +13,7 @@ from typing import Any
 import pygame
 
 from glitchygames.collision.bounds import opaque_bounds, trims_transparent_hitbox
-from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+from glitchygames.pixel_snap import resolve_snap_mode, snap_to_pixel
 
 
 def snapped_world_position(
@@ -23,8 +23,10 @@ def snapped_world_position(
 ) -> tuple[int, int]:
     """Return the whole-pixel position a sprite is drawn at for a world position.
 
-    Sprites with a ``pixel_snap_mode`` (such as BallSprite) are snapped with it, so the
-    collision rect sits exactly where the sprite is drawn; other sprites use round().
+    Sprites with a ``pixel_snap_mode`` (such as BallSprite) are snapped with it; other sprites
+    use the active scene's ``PIXEL_SNAP_MODE`` (glitchygames.pixel_snap.resolve_snap_mode), the
+    same resolution the engine positions world sprites with, so the collision rect sits
+    exactly where the sprite is drawn.
 
     Args:
         sprite: The sprite.
@@ -35,13 +37,11 @@ def snapped_world_position(
         The snapped (x, y) position.
 
     """
-    pixel_snap_mode = getattr(sprite, 'pixel_snap_mode', None)
-    if isinstance(pixel_snap_mode, PixelSnapMode):
-        return (
-            snap_to_pixel(world_x, pixel_snap_mode),
-            snap_to_pixel(world_y, pixel_snap_mode),
-        )
-    return (round(world_x), round(world_y))
+    pixel_snap_mode = resolve_snap_mode(sprite)
+    return (
+        snap_to_pixel(world_x, pixel_snap_mode),
+        snap_to_pixel(world_y, pixel_snap_mode),
+    )
 
 
 def get_collision_rect(
