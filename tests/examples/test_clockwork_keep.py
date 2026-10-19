@@ -544,10 +544,16 @@ class TestEngineWorldSpace:
         player = clockwork_scene.player
         assert clockwork_scene.camera_target() == (player.world_x, player.world_y)
 
-    def test_camera_stays_still_after_game_over(self, clockwork_scene):
-        """dt_tick stops after game over, and so does the camera (it no longer moves)."""
+    def test_camera_stops_following_at_game_over(self, clockwork_scene, mocker):
+        """dt_tick stops after game over, and so does the camera: it follows nothing."""
+        mocker.patch.object(clockwork_scene, 'sounds')
+        mocker.patch.object(clockwork_scene, '_save_high_score')
+        mocker.patch.object(clockwork_scene, '_load_high_scores', return_value=[])
         clockwork_scene.setup()
-        clockwork_scene.game_over_triggered = True
+        clockwork_scene.player.lives = 1
+        clockwork_scene._player_die()
+        assert clockwork_scene.game_over_triggered
+        assert clockwork_scene.camera.follow_target is None
         assert clockwork_scene.camera_target() is None
 
 

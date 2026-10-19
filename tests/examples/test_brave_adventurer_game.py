@@ -832,10 +832,13 @@ class TestEngineWorldSpace:
         player = adventurer_scene.player
         assert adventurer_scene.camera_target() == (player.world_x, player.world_y)
 
-    def test_camera_stays_still_after_game_over(self, adventurer_scene):
-        """dt_tick stops after game over, and so does the camera (it no longer moves)."""
+    def test_camera_stops_following_at_game_over(self, adventurer_scene):
+        """dt_tick stops after game over, and so does the camera: it follows nothing."""
         adventurer_scene.setup()
-        adventurer_scene.game_over_triggered = True
+        adventurer_scene.player.lives = 1
+        adventurer_scene._player_die()
+        assert adventurer_scene.game_over_triggered
+        assert adventurer_scene.camera.follow_target is None
         assert adventurer_scene.camera_target() is None
 
     def test_terrain_collision_snaps_with_the_scene_mode(self, adventurer_scene):

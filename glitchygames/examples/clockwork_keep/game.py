@@ -391,18 +391,6 @@ class ClockworkKeepScene(Scene):
         )
 
     @override
-    def camera_target(self: Self) -> tuple[float, float] | None:
-        """Aim at the player, except after game over: the floor (and its camera) stand still.
-
-        Returns:
-            tuple[float, float] | None: The player's world position, or None after game over.
-
-        """
-        if self.game_over_triggered:
-            return None
-        return super().camera_target()
-
-    @override
     def dt_tick(self: Self, dt: float) -> None:
         """Master tick: input, physics, collision (the engine then aims the camera).
 
@@ -691,6 +679,8 @@ class ClockworkKeepScene(Scene):
 
         if self.player.lives <= 0:
             self.game_over_triggered = True
+            # The floor (and its camera) stand still from here on: stop following
+            self.camera.follow(target=None)
             self.sounds.play('game_over')
             self._save_high_score()
             # Spec revision 3: a shake still running would carry into the fade; end it first.

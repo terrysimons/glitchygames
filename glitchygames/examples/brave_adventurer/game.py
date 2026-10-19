@@ -240,18 +240,6 @@ class BraveAdventurerScene(Scene):
         log.info('Brave Adventurer setup complete')
 
     @override
-    def camera_target(self: Self) -> tuple[float, float] | None:
-        """Aim at the player, except after game over: the world (and its camera) stand still.
-
-        Returns:
-            tuple[float, float] | None: The player's world position, or None after game over.
-
-        """
-        if self.game_over_triggered:
-            return None
-        return super().camera_target()
-
-    @override
     def dt_tick(self: Self, dt: float) -> None:
         """Master tick: physics, collision, scoring (the engine then aims the camera).
 
@@ -643,6 +631,8 @@ class BraveAdventurerScene(Scene):
 
         if self.player.lives <= 0:
             self.game_over_triggered = True
+            # The world (and its camera) stand still from here on: stop following
+            self.camera.follow(target=None)
             self.sounds.play_game_over()
             self.scene_manager.rumble.pulse(
                 low_frequency=GAME_OVER_RUMBLE_LOW,
