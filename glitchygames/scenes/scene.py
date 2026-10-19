@@ -906,10 +906,16 @@ class SceneManager(SceneInterface, events.EventManager):
         # Logic and the camera aim share one (possibly capped) dt; self.dt stays the raw frame
         # time for the frame services, pacing and FPS statistics
         scene_dt = self._scene_frame_seconds()
+        logic_scene = self.active_scene
         self._update_scene(scene_dt=scene_dt)
         self._process_events()
         self._update_frame_services()
-        self._aim_active_camera(scene_dt=scene_dt)
+        # A scene switched to during this frame (resuming from the pause screen switches while
+        # events are processed) ran no logic this frame, so its camera is not aimed either:
+        # camera time stays in step with the scene's dt_tick, as when games moved the camera
+        # in dt_tick. Its world sprites are still positioned for this frame's render.
+        if self.active_scene is logic_scene:
+            self._aim_active_camera(scene_dt=scene_dt)
         # The display surface may appear only after startup; positioning needs its size
         self.update_screen()
         self._position_active_world_sprites()

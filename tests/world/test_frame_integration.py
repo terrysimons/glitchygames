@@ -504,6 +504,33 @@ class TestResumeAfterPause:
             assert first_resumed_sample['snap_mode'] is PixelSnapMode.FLOOR
             assert first_resumed_sample['drawn'][0] == first_resumed_sample['expected'][0]
 
+    def test_camera_waits_for_the_resumed_scene_logic(self):
+        """A scene switched to during a frame's events is not aimed until its first dt_tick.
+
+        Resuming from the pause screen switches scenes while events are processed, after the
+        pause scene's logic ran. The resumed scene ran no logic that frame, so its camera must
+        not take a smoothing step either: camera time stays in step with the scene's game time
+        (the camera moved only in dt_tick before the engine aimed it).
+        """
+        with running_scene(FollowingScene) as manager:
+            step(manager, frames=2)
+            game_scene = active_following_scene(manager)
+            game_scene.pause()
+            step(manager)
+            game_scene.player.world_x += PLAYER_STEP_X  # the camera now has somewhere to go
+            step(manager, press(pygame.K_SPACE))
+            camera_before_resume = (game_scene.camera.world_x, game_scene.camera.world_y)
+            ticks_before_resume = game_scene.frame_number
+
+            step(manager, release(pygame.K_SPACE))
+
+            assert manager.active_scene is game_scene
+            assert game_scene.frame_number == ticks_before_resume
+            assert (game_scene.camera.world_x, game_scene.camera.world_y) == camera_before_resume
+            step(manager)
+            assert game_scene.frame_number == ticks_before_resume + 1
+            assert (game_scene.camera.world_x, game_scene.camera.world_y) != camera_before_resume
+
 
 class TestTransitionCapture:
     """The arriving scene's transition screenshot shows its world sprites in place."""
