@@ -48,6 +48,12 @@ if TYPE_CHECKING:
 # Marks an ExpectedDifference without a pinned value (None is a real value, so it can't be used)
 NO_EXPECTED_VALUE: Any = object()
 MISSING_EXPECTATION_MESSAGE = 'An ExpectedDifference needs an expected value or a rule'
+
+
+class AmbiguousExpectedDifferenceError(ValueError):
+    """A difference is explained by more than one entry: each must have exactly one cause."""
+
+
 # The seeded-reproducibility test: --random-seed value and frames per run
 SEEDED_TRACE_SEED = 123
 SEEDED_TRACE_FRAME_COUNT = 120
@@ -360,6 +366,11 @@ def scarab_feet_margin_pixels() -> int:
     update() only on dirty sprites, so a scarab that was never on screen was never drawn: it
     collided on its blank image (hitbox = the whole image) and rolled this many pixels high.
     The underside does not change with the roll angle.
+
+    Evidence (Task 7, scratch emulation of the old game on this branch): with the old culling
+    (dirty = 0), the old pose order and the old manual camera restored, the run matches the
+    baseline with 0 differences in 900 frames; restoring only the old culling's dirty = 0
+    accounts for exactly the 3384 scarab rect differences.
 
     Returns:
         The image height minus the bottom of the drawn scarab.
@@ -855,6 +866,9 @@ def unexplained_and_stale(
     Returns:
         (differences not listed, listed differences that no longer occur).
 
+    Raises:
+        AmbiguousExpectedDifferenceError: If more than one entry explains a difference.
+
     """
     world_samples = world_samples or {}
     used_entries: set[int] = set()
@@ -866,6 +880,16 @@ def unexplained_and_stale(
             for entry_index, entry in enumerate(expected)
             if entry.explains(difference, world_sample=world_sample)
         ]
+        if len(explaining_entries) > 1:
+            entry_reasons = '; '.join(
+                f'entry {entry_index}: {expected[entry_index].reason}'
+                for entry_index in explaining_entries
+            )
+            message = (
+                f'{_describe(difference)} is explained by {len(explaining_entries)} entries '
+                f'(each difference needs exactly one cause): {entry_reasons}'
+            )
+            raise AmbiguousExpectedDifferenceError(message)
         if explaining_entries:
             used_entries.update(explaining_entries)
         else:
@@ -1213,6 +1237,31 @@ class TestTraceComparison:
         )
         assert unexplained == []
         assert stale == []
+
+    def test_difference_explained_by_two_entries_fails_naming_both(self):
+        """Each difference must have exactly one cause: overlapping entries are an error."""
+        expected = [
+            ExpectedDifference(
+                frames=None,
+                sprite_pattern='Ball#0',
+                field='rect',
+                expected=[2, 2, 3, 4],
+                reason='first cause',
+            ),
+            ExpectedDifference(
+                frames=range(1),
+                sprite_pattern='*',
+                field='rect',
+                rule=lambda baseline_value, current_value: True,
+                reason='second cause',
+            ),
+        ]
+        with pytest.raises(AmbiguousExpectedDifferenceError) as error_info:
+            unexplained_and_stale(differences=self._one_rect_change(), expected=expected)
+        message = str(error_info.value)
+        assert 'frame 0, sprite Ball#0, rect' in message
+        assert 'first cause' in message
+        assert 'second cause' in message
 
     def test_entry_needs_an_expected_value_or_a_rule(self):
         with pytest.raises(ValueError, match='expected value or a rule'):
