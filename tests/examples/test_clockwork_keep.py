@@ -537,7 +537,7 @@ class TestEngineWorldSpace:
         camera_position = (clockwork_scene.camera.world_x, clockwork_scene.camera.world_y)
         clockwork_scene.dt_tick(FRAME_TIME)
         assert not clockwork_scene.camera.updated_by_game_this_frame
-        assert (clockwork_scene.camera.world_x, clockwork_scene.camera.world_y) == (camera_position)
+        assert (clockwork_scene.camera.world_x, clockwork_scene.camera.world_y) == camera_position
 
     def test_camera_aims_at_the_player(self, clockwork_scene):
         clockwork_scene.setup()
@@ -584,7 +584,10 @@ class TestPoseBeforeCollision:
         scene.dt_tick(FRAME_TIME)
         player.update()
         hitbox = get_sprite_collision_rect(player)
-        assert hitbox.left == PLAYFIELD_LEFT if wall == 'left' else hitbox.right == PLAYFIELD_RIGHT
+        if wall == 'left':
+            assert hitbox.left == PLAYFIELD_LEFT
+        else:
+            assert hitbox.right == PLAYFIELD_RIGHT
         assert player.on_ground
         return player
 
@@ -603,8 +606,10 @@ class TestPoseBeforeCollision:
         player = self._stand_flush_against_wall(scene, wall=wall, facing_right=facing_right)
         _press_key(scene, move_key)
         overlapping_frames = []
+        on_ground_by_frame = []
         for frame_number in range(20):
             scene.dt_tick(FRAME_TIME)
+            on_ground_by_frame.append(player.on_ground)
             if self._hitbox_overlaps_a_wall(player):
                 overlapping_frames.append((frame_number, 'collision'))
             if frame_number == 0:
@@ -612,7 +617,9 @@ class TestPoseBeforeCollision:
             player.update()
             if self._hitbox_overlaps_a_wall(player):
                 overlapping_frames.append((frame_number, 'drawn'))
-        assert player.velocity_y < 0 or not player.on_ground  # it jumped
+        # Jump pressed during frame 0's events: airborne from frame 1's logic on
+        assert on_ground_by_frame[0]
+        assert not on_ground_by_frame[1]
         assert overlapping_frames == []
 
     def test_dt_tick_draws_the_pose_collision_uses(self, clockwork_scene):

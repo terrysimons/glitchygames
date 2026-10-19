@@ -6,11 +6,11 @@ replays the same scripted, deterministic run and compares every sprite's rect an
 frame by frame.
 
 A difference fails the test unless an entry in ``EXPECTED_DIFFERENCES`` explains it: same
-field, frame inside the entry's range, sprite id matching its pattern, and either the current
-value equal to the entry's pinned ``expected`` value, the entry's ``rule`` accepting the
-(baseline, current) pair, or its ``world_rule`` accepting the difference given the frame's
-world sample (world and camera positions the trace does not record, read from the current
-run). An entry that explains no difference also fails, so the list cannot go stale.
+field, frame inside the entry's range (or any frame), sprite id matching its pattern, and
+either the current value equal to the entry's pinned ``expected`` value, the entry's ``rule``
+accepting the (baseline, current) pair, or its ``world_rule`` accepting the difference given
+the frame's world sample (world and camera positions the trace does not record, read from the
+current run). An entry that explains no difference also fails, so the list cannot go stale.
 """
 
 from __future__ import annotations
@@ -163,14 +163,15 @@ class WorldSampler:
 class ExpectedDifference:
     """Justified differences between a baseline trace and the current run.
 
-    An entry explains a difference when the field is the same, the frame is in ``frames``, the
-    sprite id matches ``sprite_pattern`` (fnmatch, e.g. ``'GroundSegment#*'``; ``''`` matches
-    frame-level fields), and either the current value equals ``expected``, ``rule`` returns
-    True for (baseline value, current value), or ``world_rule`` returns True for the
-    difference and the frame's world sample.
+    An entry explains a difference when the field is the same, the frame is in ``frames`` (any
+    frame when ``frames`` is None), the sprite id matches ``sprite_pattern`` (fnmatch, e.g.
+    ``'GroundSegment#*'``; ``''`` matches frame-level fields), and either the current value
+    equals ``expected``, ``rule`` returns True for (baseline value, current value), or
+    ``world_rule`` returns True for the difference and the frame's world sample.
 
     Attributes:
-        frames: The frames the entry covers (``range(n, n + 1)`` for one frame).
+        frames: The frames the entry covers (``range(n, n + 1)`` for one frame), or None for
+            every frame (an entry whose rule proves each difference wherever it occurs).
         sprite_pattern: fnmatch pattern for sprite ids (``<ClassName>#<n>``).
         field: ``'rect'`` (list), ``'visible'`` (bool) or ``'present'`` (bool: is the sprite
             in the current run) for a sprite; ``'scene'`` or ``'frame_count'`` for the frame
@@ -183,7 +184,7 @@ class ExpectedDifference:
 
     """
 
-    frames: range
+    frames: range | None
     sprite_pattern: str
     field: str
     reason: str
@@ -219,7 +220,7 @@ class ExpectedDifference:
         """
         if (
             difference.field != self.field
-            or difference.frame not in self.frames
+            or (self.frames is not None and difference.frame not in self.frames)
             or not fnmatch.fnmatchcase(difference.sprite_id, self.sprite_pattern)
         ):
             return False
@@ -478,14 +479,11 @@ def culled_outside_margin(difference: TraceDifference, frame: FrameWorldSample) 
     )
 
 
-# Every frame of a run, for entries that hold wherever their rule proves them
-ALL_FRAMES = range(1_000_000)
-
 # Filled in by later tasks of the world-space plan; every entry must say why it is expected.
 EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
     'clockwork_keep': [
         ExpectedDifference(
-            frames=ALL_FRAMES,
+            frames=None,
             sprite_pattern='*',
             field='visible',
             world_rule=culled_outside_margin,
@@ -497,7 +495,7 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
             ),
         ),
         ExpectedDifference(
-            frames=ALL_FRAMES,
+            frames=None,
             sprite_pattern='*',
             field='rect',
             world_rule=separately_snapped,
@@ -1001,6 +999,22 @@ class TestTraceComparison:
         )
         assert unexplained == []
         assert stale == expected
+
+    def test_entry_without_frames_covers_every_frame(self):
+        expected = [
+            ExpectedDifference(
+                frames=None,
+                sprite_pattern='Ball#0',
+                field='rect',
+                expected=[2, 2, 3, 4],
+                reason='test',
+            )
+        ]
+        unexplained, stale = unexplained_and_stale(
+            differences=self._one_rect_change(frame_count=4), expected=expected
+        )
+        assert unexplained == []
+        assert stale == []
 
     def test_entry_needs_an_expected_value_or_a_rule(self):
         with pytest.raises(ValueError, match='expected value or a rule'):
