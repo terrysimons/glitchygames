@@ -285,13 +285,16 @@ class SceneManager(SceneInterface, events.EventManager):
         """Screenshot the scene being left, without its player and without a WORLD shake.
 
         The player is hidden so the transition can draw its own player overlay without
-        doubling, and shown again afterwards.
+        doubling, and shown again afterwards. A world-space player is hidden with ``hidden``
+        (the engine owns its ``visible``) and re-culled afterwards; a screen-space player's
+        ``visible`` is written directly.
 
         Returns:
             A copy of the screen showing the outgoing scene.
 
         """
         old_player = getattr(self.active_scene, 'player', None) if self.active_scene else None
+        old_player_was_hidden = self._hide_world_player_for_capture(old_player)
 
         # Clear a WORLD shake so the old-floor screenshot is unshaken.
         camera_was_shaking = False
@@ -304,11 +307,12 @@ class SceneManager(SceneInterface, events.EventManager):
             (old_player is not None or camera_was_shaking) and self.active_scene and self.screen
         )
         if recapture_old_scene:
-            # Re-place world sprites (the WORLD shake they were placed with is now cleared)
-            # before hiding the player: positioning rewrites a world sprite's visible flag
+            # Re-place world sprites (the WORLD shake they were placed with is now cleared);
+            # a world-space player is already hidden, so positioning culls it
             self._position_active_world_sprites()
         if old_player is not None:
-            old_player.visible = False
+            if old_player_was_hidden is None:
+                old_player.visible = False
             old_player.dirty = 0
         if recapture_old_scene:
             assert self.active_scene is not None
@@ -317,9 +321,45 @@ class SceneManager(SceneInterface, events.EventManager):
             self.active_scene.render(self.screen)
         old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
         if old_player is not None:
-            old_player.visible = True
+            if old_player_was_hidden is None:
+                old_player.visible = True
+            else:
+                self._restore_world_player_after_capture(
+                    player=old_player, was_hidden=old_player_was_hidden
+                )
             old_player.dirty = 2
         return old_surface
+
+    @staticmethod
+    def _hide_world_player_for_capture(player: object) -> bool | None:
+        """Hide a world-space player with ``hidden`` for a transition capture.
+
+        Returns:
+            The player's previous ``hidden`` value, or None when there is no player or it is
+            screen space (its ``visible`` is written directly instead).
+
+        """
+        if player is None or not is_world_positioned(player):
+            return None
+        was_hidden = bool(getattr(player, 'hidden', False))
+        cast('Any', player).hidden = True
+        return was_hidden
+
+    def _restore_world_player_after_capture(
+        self: Self, *, player: object, was_hidden: bool
+    ) -> None:
+        """Give a world-space player back its ``hidden`` value and let the engine re-cull it.
+
+        Positioning again sets ``visible`` from the screen and ``hidden``, so a player off
+        screen stays invisible instead of being shown until the next frame.
+
+        Args:
+            player: The world-space player.
+            was_hidden: Its ``hidden`` value before the capture.
+
+        """
+        cast('Any', player).hidden = was_hidden
+        self._position_active_world_sprites()
 
     def _capture_arriving_scene(self: Self) -> pygame.Surface:
         """Screenshot the scene being entered (already set up and active), without its player.
@@ -335,28 +375,36 @@ class SceneManager(SceneInterface, events.EventManager):
         if self.active_scene and self.screen:
             camera = self.active_scene.camera
             player = getattr(self.active_scene, 'player', None)
+            # A world-space player is hidden with hidden (positioning then culls it); a
+            # screen-space player's visible is written directly, as it always was
+            player_was_hidden = self._hide_world_player_for_capture(player)
             player_was_visible = True
             if player is not None:
-                player_was_visible = getattr(player, 'visible', True)
-                player.visible = False
+                if player_was_hidden is None:
+                    player_was_visible = getattr(player, 'visible', True)
+                    player.visible = False
                 player.dirty = 0
                 camera.snap_to(
                     target_x=getattr(player, 'world_x', 0.0),
                     target_y=getattr(player, 'world_y', 0.0),
                 )
             self.active_scene.dt_tick(0.001)
-            # Place the arriving scene's world sprites, so its screenshot shows them in place.
-            # Positioning rewrites a world sprite's visible flag (culling), so the player is
-            # hidden again afterwards; it was hidden before dt_tick as well, as it always was
+            # Place the arriving scene's world sprites, so its screenshot shows them in place
             self._position_active_world_sprites()
             if player is not None:
-                player.visible = False
+                if player_was_hidden is None:
+                    player.visible = False
                 player.dirty = 0
             self.active_scene.update()
             self.active_scene.render(self.screen)
-            # Restore player visibility for when gameplay resumes
+            # Restore the player for when gameplay resumes
             if player is not None:
-                player.visible = player_was_visible
+                if player_was_hidden is None:
+                    player.visible = player_was_visible
+                else:
+                    self._restore_world_player_after_capture(
+                        player=player, was_hidden=player_was_hidden
+                    )
                 player.dirty = 2
         return self.screen.copy() if self.screen else pygame.Surface((800, 600))
 

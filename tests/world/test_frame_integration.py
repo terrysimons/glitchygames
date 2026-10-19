@@ -222,6 +222,33 @@ class CapturedPlayerScene(Scene):
         self.camera.follow(target=self.player)
 
 
+OFF_SCREEN_PLAYER_POSITION = (5000.0, 5000.0)
+
+
+class OffScreenPlayerScene(Scene):
+    """A scene whose WORLD-space ``player`` is far off screen; the camera is pinned at 0, 0."""
+
+    NAME = 'Off Screen Player'
+    VERSION = '1.0'
+    start_hidden: ClassVar[bool] = False
+
+    @override
+    def setup(self: Self) -> None:
+        """Create the off-screen player; bounds keep the camera from ever reaching it."""
+        self.camera.set_bounds(min_x=0.0, max_x=0.0, min_y=0.0, max_y=0.0)
+        player_x, player_y = OFF_SCREEN_PLAYER_POSITION
+        self.player = filled_world_sprite(world_x=player_x, world_y=player_y, color=PLAYER_COLOR)
+        self.player.hidden = self.start_hidden
+        self.all_sprites.add(self.player)
+
+
+class HiddenOffScreenPlayerScene(OffScreenPlayerScene):
+    """The same scene with the player hidden by the game."""
+
+    NAME = 'Hidden Off Screen Player'
+    start_hidden: ClassVar[bool] = True
+
+
 class CameraFreeScene(Scene):
     """A plain scene holding one world sprite; the test removes its camera."""
 
@@ -525,3 +552,27 @@ class TestTransitionCapture:
             # Visibility is restored afterwards, as before
             assert departing_scene.player.visible
             assert arriving_scene.player.visible
+
+    @pytest.mark.parametrize(
+        'scene_class', [OffScreenPlayerScene, HiddenOffScreenPlayerScene], ids=['shown', 'hidden']
+    )
+    def test_captures_never_uncull_an_off_screen_world_player(self, scene_class: type[Scene]):
+        """The captures hide a world player with hidden, restored afterwards, never visible."""
+        with running_scene(scene_class) as manager:
+            step(manager, frames=2)
+            departing_scene = manager.active_scene
+            assert isinstance(departing_scene, OffScreenPlayerScene)
+            assert not departing_scene.player.visible  # culled: far off screen
+
+            departing_scene.transition_to(
+                scene_class(options=departing_scene.options),
+                FadeTransition(duration=TEST_FADE_SECONDS),
+            )
+            step(manager)
+
+            arriving_scene = manager.active_scene
+            assert isinstance(arriving_scene, OffScreenPlayerScene)
+            assert arriving_scene is not departing_scene
+            for scene in (departing_scene, arriving_scene):
+                assert not scene.player.visible
+                assert scene.player.hidden is scene_class.start_hidden
