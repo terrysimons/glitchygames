@@ -12,14 +12,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-15
 - **Details**: Broad try blocks can catch exceptions from statements that were never expected to raise, hiding bugs. Each needs the try narrowed to the statements that can raise, with tests run per file. Re-enable with `uv run ruff check --select PLW0717 glitchygames tests scripts` to list them.
 
-### 46. scripts/legacy_sprite_loader.py Cannot Start
-- **Description**: The script raises `TypeError: Sprite.__init__() missing 'x' and 'y'` while building its scene
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the re-review of `feature/debug-overlay`
-- **Date Reported**: 2026-10-18
-- **Details**: `scripts/legacy_sprite_loader.py:~50`. Unchanged on the branch. Fix the call, or delete the script if it is obsolete.
-
 ### 59. Papyrus Sprites Keep Their Unscaled Native Rect Size
 - **Description**: Papyrus's TOML sprites are drawn at 2x (`SPRITE_SCALE`), but their `rect` keeps the native size: the player's rect is 20x28 while its image is 40x56, a scarab's 10x8 while its image is 20x16
 - **Status**: Active (latent)
