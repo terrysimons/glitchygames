@@ -895,7 +895,9 @@ class SceneManager(SceneInterface, events.EventManager):
         Starts the camera's frame, updates the scene, processes events, updates frame
         services, aims the camera, positions world sprites, renders and presents the frame,
         then starts a pending transition or performs a requested scene switch. ``self.dt``
-        must already hold this frame's delta time.
+        must already hold this frame's delta time. The aim is skipped when the active scene
+        was switched mid-frame (during its logic or events, as resuming from the pause screen
+        does): that scene ran no logic this frame, so its camera waits for its first dt_tick.
         """
         # Order matters: begin_frame() first, so a camera.update() the game made last frame
         # does not count as this frame's (the double-update warning in aim_camera). Then

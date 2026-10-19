@@ -916,8 +916,11 @@ class BraveAdventurerScene(Scene):
             if gap_right_world <= gap_left_world:
                 continue
 
-            gap_left_screen, _ = self.camera.apply(gap_left_world, 0)
-            gap_right_screen, _ = self.camera.apply(gap_right_world, 0)
+            # The gap runs between the segments' drawn rects (the engine positioned them before
+            # render), so the pit edges always meet the ground: Camera2D.apply's
+            # round(world - camera) can differ by 1 px at an exact half-pixel camera
+            gap_left_screen = current_segment.rect.right
+            gap_right_screen = next_segment.rect.left
             gap_width = gap_right_screen - gap_left_screen
 
             if gap_right_screen < 0 or gap_left_screen > self.screen_width:

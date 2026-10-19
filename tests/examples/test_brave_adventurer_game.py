@@ -39,7 +39,7 @@ from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdve
 from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import apply_transparency_and_scale
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
-from glitchygames.world import CoordinateSpace
+from glitchygames.world import CoordinateSpace, position_world_sprites
 
 FRAME_SECONDS = 1 / 60
 BRAVE_ADVENTURER_PACKAGE = Path(brave_adventurer_package.__file__).parent
@@ -971,3 +971,70 @@ class TestPoseBeforeCollision:
             facing_left, player.state, facing_right=False, animation_timer=player.animation_timer
         )
         assert bounds_after_logic == facing_left.get_bounding_rect()
+
+
+class TestEngineCullingKeepsEnemiesAnimated:
+    """Off-screen enemies keep animating: engine culling never sets dirty = 0.
+
+    The old per-sprite culling set dirty = 0 on a culled sprite, and Scene.update() calls
+    update() only on dirty sprites, so an enemy that had been off screen drew once on coming
+    back and then froze.
+    """
+
+    SCREEN_SIZE = (800, 480)
+
+    def _position(self, scene, *, camera_x):
+        scene.camera.world_x = camera_x
+        position_world_sprites(
+            sprites=scene.all_sprites, camera=scene.camera, screen_size=self.SCREEN_SIZE
+        )
+
+    def test_scarab_redraws_after_being_off_screen(self, brave_scene):
+        scene = brave_scene
+        scarab = Scarab(world_x=1000.0, groups=scene.all_sprites)
+        scarab.roll_angle = 0.0
+
+        self._position(scene, camera_x=scarab.world_x + 5000.0)  # far off screen
+        assert not scarab.visible
+        assert scarab.dirty == 2
+
+        self._position(scene, camera_x=scarab.world_x - 100.0)  # back on screen
+        assert scarab.visible
+        assert scarab.dirty == 2
+        scene.update()
+        first_image = pygame.image.tobytes(scarab.image, 'RGBA')
+
+        scarab.roll_angle = 1.2  # the wing line leans 3 px: a different picture
+        self._position(scene, camera_x=scarab.world_x - 100.0)
+        scene.update()
+
+        assert scarab.dirty == 2
+        assert pygame.image.tobytes(scarab.image, 'RGBA') != first_image
+
+
+class TestPitGapsMatchTheGround:
+    """Pit gaps are drawn between the ground segments' drawn rects, so no seam can open."""
+
+    def test_pit_edges_coincide_with_the_drawn_segments_at_a_half_pixel_camera(
+        self, brave_scene, mocker
+    ):
+        """Camera at x.5: round(world - camera) and snap(world) - snap(camera) differ by 1 px.
+
+        With the camera at 100.5, round(450 - 100.5) = 350 (half to even) while the engine
+        draws the segment edge at 450 - 101 = 349.
+        """
+        scene = brave_scene
+        sprite_group = pygame.sprite.LayeredDirty()
+        left_segment = GroundSegment(world_x=0.0, segment_width=450, groups=sprite_group)
+        right_segment = GroundSegment(world_x=550.0, segment_width=400, groups=sprite_group)
+        scene.ground_sprites[:] = [left_segment, right_segment]
+        scene.camera.world_x = 100.5
+        position_world_sprites(sprites=sprite_group, camera=scene.camera, screen_size=(800, 480))
+        draw_rect_spy = mocker.spy(pygame.draw, 'rect')
+
+        scene._draw_pits(pygame.Surface((800, 480)))
+
+        pit_fill_rect = draw_rect_spy.call_args_list[0].args[2]
+        assert left_segment.rect.right == 349
+        assert pit_fill_rect[0] == left_segment.rect.right
+        assert pit_fill_rect[0] + pit_fill_rect[2] == right_segment.rect.left
