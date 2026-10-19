@@ -24,7 +24,7 @@ headless to frame N and pauses — exact and simple, because a fresh process has
 
 ## Global Constraints
 
-See the master plan. Part 1 must be complete (all 12 tasks committed) before this part starts.
+See the master plan. Part 1 must be complete (all 13 tasks committed) before this part starts.
 
 ## Review Focus
 
@@ -48,7 +48,7 @@ an empty bookmark list on save).
 ### Task 1: `--headless`, exit codes and the divergence report
 
 **Files:**
-- Modify: `glitchygames/engine/sources.py` (`EngineSources.paced_frame_seconds`; `LiveSources`
+- Modify: `glitchygames/sources.py` (`EngineSources.paced_frame_seconds`; `LiveSources`
   returns None)
 - Modify: `glitchygames/recording.py` (`RecordingSources.paced_frame_seconds` delegates)
 - Modify: `glitchygames/replay/driver.py` (`ReplaySources(..., headless=...)`; recent-frame
@@ -175,7 +175,7 @@ add to `TestPacing`:
 ```python
     def test_sources_pacing_override_replaces_the_target(self, driver_factory, mocker):
         """A door that paces a frame to 0.0 seconds (a headless replay) never sleeps."""
-        from glitchygames.engine.sources import active_sources
+        from glitchygames.sources import active_sources
 
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
         mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=0.0)
@@ -214,7 +214,7 @@ then override the returned period; keep `_handle_frame_pacing`'s "period 0 never
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/engine/sources.py glitchygames/recording.py glitchygames/replay/driver.py glitchygames/scenes/scene.py glitchygames/engine/game_engine.py tests/world/test_gameplay_replay.py tests/world/test_finish_frame.py
+git add glitchygames/sources.py glitchygames/recording.py glitchygames/replay/driver.py glitchygames/scenes/scene.py glitchygames/engine/game_engine.py tests/world/test_gameplay_replay.py tests/world/test_finish_frame.py
 git commit -m "Add --headless replays with exit codes and a divergence report"
 ```
 
@@ -224,7 +224,7 @@ git commit -m "Add --headless replays with exit codes and a divergence report"
 
 **Files:**
 - Create: `glitchygames/replay/controls.py`
-- Modify: `glitchygames/engine/sources.py` (`hold_frame`, `draw_overlay` on the Protocol; Live:
+- Modify: `glitchygames/sources.py` (`hold_frame`, `draw_overlay` on the Protocol; Live:
   False / no-op), `glitchygames/recording.py` (delegate)
 - Modify: `glitchygames/replay/driver.py` (owns a `ReplayControls`; real KEYDOWNs go to it;
   `paced_frame_seconds` = next recorded dt / speed for watched replays; `hold_frame`)
@@ -400,7 +400,7 @@ class TestWatched:
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/replay/controls.py glitchygames/engine/sources.py glitchygames/recording.py glitchygames/replay/driver.py glitchygames/scenes/scene.py tests/replay/__init__.py tests/replay/test_controls.py tests/world/test_gameplay_replay.py
+git add glitchygames/replay/controls.py glitchygames/sources.py glitchygames/recording.py glitchygames/replay/driver.py glitchygames/scenes/scene.py tests/replay/__init__.py tests/replay/test_controls.py tests/world/test_gameplay_replay.py
 git commit -m "Watch replays: recorded pacing, status bar, pause, step and speed"
 ```
 
@@ -522,7 +522,7 @@ str(recording_path), *extra_arguments])` exactly as `run_engine` does, calls
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/replay/controls.py glitchygames/replay/driver.py glitchygames/engine/game_engine.py glitchygames/engine/sources.py glitchygames/recording.py glitchygames/scenes/scene.py tests/replay/test_controls.py tests/world/test_gameplay_replay.py
+git add glitchygames/replay/controls.py glitchygames/replay/driver.py glitchygames/engine/game_engine.py glitchygames/sources.py glitchygames/recording.py glitchygames/scenes/scene.py tests/replay/test_controls.py tests/world/test_gameplay_replay.py
 git commit -m "Step back, Home and jump to the divergence by re-running the replay to a frame"
 ```
 
@@ -783,7 +783,7 @@ class TestRebaseline:
 
 - [ ] **Step 5: Lint, type-check, docs, commit.** Add `--headless`, the watched-replay keys,
   step back, bookmarks, the pytest plugin and `--rebaseline` to CLAUDE.md's replay section and the
-  docs page from Part 1 Task 12; run mkdocs strict.
+  docs page from Part 1 Task 13; run mkdocs strict.
 
 ```bash
 git add glitchygames/replay/rebaseline.py glitchygames/replay/driver.py glitchygames/engine/game_engine.py tests/world/test_gameplay_replay.py CLAUDE.md docs/<replay page>

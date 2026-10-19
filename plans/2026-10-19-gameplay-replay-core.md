@@ -10,7 +10,7 @@ task here)
 what passes through them, and replay a recording exactly with `--replay-trace`, reporting the first
 divergence.
 
-**Architecture:** `glitchygames/engine/sources.py` holds the doors and a module-level registry
+**Architecture:** `glitchygames/sources.py` holds the doors and a module-level registry
 (like `glitchygames/randomness.py`'s `_STATE`), so engine code, games and widgets reach the active
 sources without an engine reference. `GameEngine._pump_events`, `SceneManager.start`/
 `_finish_frame` and `GameEngine.process_events` ask the active sources; `RecordingSources` wraps
@@ -47,12 +47,13 @@ From the master plan, owned here: items 1–4.
 | 4 | Game time and the frame clock | `Scene.game_time`, `frame_clock_seconds`, FPS events from frame time |
 | 5 | The devices door | `DeviceRegistry`, live registry, stand-ins, device sites moved |
 | 6 | The saves door | `open_saves`, `SandboxSaves`, the four games moved |
-| 7 | Bypass sites and the guard test | polled input / wall clock moved; `tests/test_engine_doors.py` |
-| 8 | Supervisor hook and control events | `add_supervisor`, `record_control_event`, handlers |
-| 9 | `RecordingSources` | recorder folded into the doors; format-3 fields recorded |
-| 10 | `ReplaySources` and `--replay-trace` | the replay, event merge, comparison, `Divergence` |
-| 11 | `--audit` | two subprocess replays with per-frame digests |
-| 12 | Documentation | CLAUDE.md, recording docstring, docs page, future-work |
+| 7 | Clock exports; polled input, engine, UI and game clock sites | `glitchygames/clock.py`, sites moved |
+| 8 | Bitmappy onto the clock exports, and the guard test | 74 Bitmappy sites; `tests/test_engine_doors.py` |
+| 9 | Supervisor hook and control events | `add_supervisor`, `record_control_event`, handlers |
+| 10 | `RecordingSources` | recorder folded into the doors; format-3 fields recorded |
+| 11 | `ReplaySources` and `--replay-trace` | the replay, event merge, comparison, `Divergence` |
+| 12 | `--audit` | two subprocess replays with per-frame digests |
+| 13 | Documentation | CLAUDE.md, recording docstring, docs page, future-work |
 
 ---
 
@@ -186,7 +187,7 @@ git commit -m "Trace format version 3: read versions 2 and 3, name the recording
 ### Task 2: The doors and the registry
 
 **Files:**
-- Create: `glitchygames/engine/sources.py`
+- Create: `glitchygames/sources.py`
 - Modify: `glitchygames/engine/game_engine.py:1380-1406` (`_pump_events`), `:547-575`
   (`__init__`: reset the registry), new method `install_sources`
 - Modify: `glitchygames/scenes/scene.py:121-175` (`SceneManager.__init__`: `frame_number`),
@@ -219,7 +220,7 @@ SceneManager.frame_number: int     # frames finished so far this run
 - [ ] **Step 1: Write the failing tests** (`tests/engine/test_engine_sources.py`)
 
 ```python
-"""The engine's doors (glitchygames/engine/sources.py): live by default, swappable before the
+"""The engine's doors (glitchygames/sources.py): live by default, swappable before the
 first frame, and the only way the frame loop reads events and frame time."""
 
 from __future__ import annotations
@@ -235,7 +236,7 @@ from scripts.record_golden_traces import (
     command_line,
 )
 
-from glitchygames.engine.sources import (
+from glitchygames.sources import (
     LiveSources,
     SourcesAlreadyRunningError,
     active_sources,
@@ -356,8 +357,8 @@ restore fixture):
 ```python
 @pytest.fixture(autouse=True)
 def reset_engine_sources():
-    """Give every test fresh live doors (glitchygames/engine/sources.py)."""
-    from glitchygames.engine.sources import reset_sources
+    """Give every test fresh live doors (glitchygames/sources.py)."""
+    from glitchygames.sources import reset_sources
 
     reset_sources()
     yield
@@ -367,9 +368,9 @@ def reset_engine_sources():
 - [ ] **Step 2: Run to see them fail**
 
 Run: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run pytest tests/engine/test_engine_sources.py -q -p no:cacheprovider --no-cov`
-Expected: FAIL with `ModuleNotFoundError: glitchygames.engine.sources`.
+Expected: FAIL with `ModuleNotFoundError: glitchygames.sources`.
 
-- [ ] **Step 3: Implement `glitchygames/engine/sources.py`**
+- [ ] **Step 3: Implement `glitchygames/sources.py`**
 
 ```python
 """The engine's doors: every input the engine takes from the outside world.
@@ -547,7 +548,7 @@ def reset_sources() -> None:
 In `GameEngine.__init__`, right after `self.random_seed = seed_engine_random(...)`:
 
 ```python
-        # Fresh live doors for this run (glitchygames/engine/sources.py); --replay-trace and
+        # Fresh live doors for this run (glitchygames/sources.py); --replay-trace and
         # --record-trace install their own before the first frame
         reset_sources()
         install_sources(sources=LiveSources(random_seed=self.random_seed,
@@ -559,7 +560,7 @@ where `__init__` assigns it and keep the documented fallback behaviour), and add
 
 ```python
     def install_sources(self: Self, *, sources: EngineSources) -> None:
-        """Make ``sources`` this run's doors (before the first frame; see engine/sources.py)."""
+        """Make ``sources`` this run's doors (before the first frame; see sources.py)."""
         install_sources(sources=sources)
 ```
 
@@ -574,7 +575,7 @@ from the active sources' event pump: the one place the engine reads events"):
         return raw_events
 ```
 
-(Task 9 moves the recorder into `RecordingSources`; until then this check stays.) The
+(Task 10 moves the recorder into `RecordingSources`; until then this check stays.) The
 fastevent comment block moves into `LiveSources.pump_events` (shown above).
 
 In `SceneManager.__init__` add `self.frame_number: int = 0` (comment: "Frames finished this run;
@@ -623,7 +624,7 @@ Expected: PASS (golden unchanged).
 - [ ] **Step 5: Lint, type-check, full suite, commit**
 
 ```bash
-git add glitchygames/engine/sources.py glitchygames/engine/game_engine.py glitchygames/scenes/scene.py tests/conftest.py tests/engine/test_engine_sources.py
+git add glitchygames/sources.py glitchygames/engine/game_engine.py glitchygames/scenes/scene.py tests/conftest.py tests/engine/test_engine_sources.py
 git commit -m "Add the engine's doors: events and frame time through swappable sources"
 ```
 
@@ -633,7 +634,7 @@ git commit -m "Add the engine's doors: events and frame time through swappable s
 
 **Files:**
 - Create: `glitchygames/input/state.py`
-- Modify: `glitchygames/engine/sources.py` (Protocol + `LiveSources.input_snapshot`)
+- Modify: `glitchygames/sources.py` (Protocol + `LiveSources.input_snapshot`)
 - Modify: `glitchygames/engine/game_engine.py:1327-1378` (`process_events`: capture after the
   pump), new property `input`
 - Test: `tests/input/test_input_state.py` (new)
@@ -745,7 +746,7 @@ class TestInputSnapshotInTheFrame:
     """The snapshot is taken once per frame, right after the pump, and stays fixed."""
 
     def test_snapshot_taken_after_the_pump_is_the_frames_input(self, mocker):
-        from glitchygames.engine import sources as sources_module
+        from glitchygames import sources as sources_module
 
         captures: list[int] = []
         original_capture = sources_module.capture_live_snapshot
@@ -754,7 +755,7 @@ class TestInputSnapshotInTheFrame:
             captures.append(1)
             return original_capture(**keywords)
 
-        # LiveSources calls the name it imported into glitchygames/engine/sources.py
+        # LiveSources calls the name it imported into glitchygames/sources.py
         mocker.patch.object(sources_module, 'capture_live_snapshot', counting_capture)
         with running_scene(CameraFreeScene) as manager:
             step(manager, frames=3)
@@ -772,7 +773,7 @@ Expected: FAIL (`ModuleNotFoundError: glitchygames.input.state`).
 """Polled input as one immutable snapshot per frame: the polled-input door.
 
 Once per frame, right after the frame's first pump (``GameEngine.process_events``), the engine
-asks the active sources (glitchygames/engine/sources.py) for an ``InputSnapshot`` and makes it
+asks the active sources (glitchygames/sources.py) for an ``InputSnapshot`` and makes it
 the frame's ``current_input()``. Live sources read pygame (``capture_live_snapshot``); a replay
 hands back the recorded snapshot. Code reads held keys, modifiers, the mouse and device positions
 from the snapshot, never from pygame: ``tests/test_engine_doors.py`` rejects direct polling.
@@ -1055,7 +1056,7 @@ on this commit and on the commit before Task 2, and put both results in the repo
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/input/state.py glitchygames/engine/sources.py glitchygames/engine/game_engine.py tests/input/test_input_state.py tests/world/test_frame_integration.py
+git add glitchygames/input/state.py glitchygames/sources.py glitchygames/engine/game_engine.py tests/input/test_input_state.py tests/world/test_frame_integration.py
 git commit -m "Add the polled-input door: one InputSnapshot per frame, taken after the pump"
 ```
 
@@ -1174,7 +1175,7 @@ and call that.)
 `SceneManager._run_frame`, first line after `frame_dt = self.dt`:
 
 ```python
-        # The frame clock (engine/sources.py) is the sum of raw frame times: UI timing and FPS
+        # The frame clock (sources.py) is the sum of raw frame times: UI timing and FPS
         # events use it, so they replay exactly
         advance_frame_clock(seconds=frame_dt)
 ```
@@ -1209,7 +1210,7 @@ git commit -m "Add Scene.game_time and time FPS events from the replayable frame
 
 **Files:**
 - Create: `glitchygames/input/devices.py`
-- Modify: `glitchygames/engine/sources.py` (`EngineSources.devices`, `LiveSources`)
+- Modify: `glitchygames/sources.py` (`EngineSources.devices`, `LiveSources`)
 - Modify device construction sites: `glitchygames/events/joystick.py:55-64, :302, :467`,
   `glitchygames/events/controller.py:76`, `glitchygames/input/rumble.py:64`,
   `glitchygames/examples/joystick_demo.py:383, :830, :943`,
@@ -1242,7 +1243,7 @@ class DeviceRegistry(Protocol):
     def joystick_for_instance(self, *, instance_id: int) -> Any | None: ...
     def take_opened_descriptors(self) -> list[DeviceDescriptor]: ...
 class LiveDeviceRegistry: ...          # opens real pygame devices, polls them
-class ReplayDeviceRegistry: ...        # stand-ins from descriptors (Task 10 builds it)
+class ReplayDeviceRegistry: ...        # stand-ins from descriptors (Task 11 builds it)
 class ReplayJoystick / ReplayController  # read positions from current_input(); rumble no-op
 EngineSources.devices(self) -> DeviceRegistry
 ```
@@ -1641,7 +1642,7 @@ Expected: PASS.
 - [ ] **Step 5: Lint, type-check, full suite, commit**
 
 ```bash
-git add glitchygames/input/devices.py glitchygames/engine/sources.py glitchygames/events/joystick.py glitchygames/events/controller.py glitchygames/input/rumble.py glitchygames/examples/joystick_demo.py glitchygames/bitmappy/controllers/event_handler.py tests/input/test_devices.py <the events test file you changed>
+git add glitchygames/input/devices.py glitchygames/sources.py glitchygames/events/joystick.py glitchygames/events/controller.py glitchygames/input/rumble.py glitchygames/examples/joystick_demo.py glitchygames/bitmappy/controllers/event_handler.py tests/input/test_devices.py <the events test file you changed>
 git commit -m "Add the devices door: open joysticks and controllers through the registry"
 ```
 
@@ -1652,7 +1653,7 @@ git commit -m "Add the devices door: open joysticks and controllers through the 
 **Files:**
 - Create: `glitchygames/state/sandbox.py`
 - Modify: `glitchygames/state/__init__.py` (export `open_saves`, `SaveStore`, `SandboxSaves`)
-- Modify: `glitchygames/engine/sources.py` (`EngineSources.saves`, `LiveSources.saves`)
+- Modify: `glitchygames/sources.py` (`EngineSources.saves`, `LiveSources.saves`)
 - Modify: `glitchygames/examples/paddleslap.py:300`, `glitchygames/examples/clockwork_keep/game.py:323`,
   `glitchygames/examples/brave_adventurer/game.py:173`,
   `glitchygames/examples/brave_adventurer_papyrus/game.py:173`
@@ -1673,7 +1674,7 @@ class SandboxSaves:  # implements SaveStore
 def open_saves(*, app_name: str) -> SaveStore      # through the active sources
 def save_namespace_snapshot(*, saves: SaveManager) -> dict[str, dict[str, Any]]  # slot -> envelope
 EngineSources.saves(self, *, namespace: str) -> SaveStore
-LiveSources.opened_save_namespaces -> dict[str, SaveManager]   # for RecordingSources (Task 9)
+LiveSources.opened_save_namespaces -> dict[str, SaveManager]   # for RecordingSources (Task 10)
 ```
 
 - [ ] **Step 1: Write the failing tests** (`tests/state/test_sandbox.py`)
@@ -1685,7 +1686,7 @@ from __future__ import annotations
 
 import pytest
 
-from glitchygames.engine.sources import LiveSources, install_sources
+from glitchygames.sources import LiveSources, install_sources
 from glitchygames.state import SaveManager, SaveNotFoundError
 from glitchygames.state.sandbox import SandboxSaves, open_saves, save_namespace_snapshot
 
@@ -1820,13 +1821,13 @@ def save_namespace_snapshot(*, saves: SaveManager) -> dict[str, dict[str, Any]]:
 
 
 def open_saves(*, app_name: str) -> SaveStore:
-    """Open a game's save store through the active sources (glitchygames/engine/sources.py).
+    """Open a game's save store through the active sources (glitchygames/sources.py).
 
     Returns:
         The store: a SaveManager live, a SandboxSaves in a replay.
 
     """
-    from glitchygames.engine.sources import active_sources
+    from glitchygames.sources import active_sources
 
     return active_sources().saves(namespace=app_name)
 ```
@@ -1855,43 +1856,372 @@ use in the four games uses only `load`/`save`/`exists`/`delete`.
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/state/sandbox.py glitchygames/state/__init__.py glitchygames/engine/sources.py glitchygames/examples/paddleslap.py glitchygames/examples/clockwork_keep/game.py glitchygames/examples/brave_adventurer/game.py glitchygames/examples/brave_adventurer_papyrus/game.py tests/state/test_sandbox.py
+git add glitchygames/state/sandbox.py glitchygames/state/__init__.py glitchygames/sources.py glitchygames/examples/paddleslap.py glitchygames/examples/clockwork_keep/game.py glitchygames/examples/brave_adventurer/game.py glitchygames/examples/brave_adventurer_papyrus/game.py tests/state/test_sandbox.py
 git commit -m "Add the saves door: games open saves through the sources; replay sandbox"
 ```
 
 ---
 
-### Task 7: Bypass sites and the guard test
+### Task 7: Clock exports; polled input, engine, UI and game clock sites
 
 **Files:**
-- Create: `tests/ast_scanning.py` (shared AST helpers moved out of `tests/test_randomness.py`)
-- Create: `tests/test_engine_doors.py`
-- Modify: `tests/test_randomness.py` (import the moved helpers)
+- Create: `glitchygames/clock.py` (the public clock exports)
+- Modify: `glitchygames/sources.py` (`EngineSources.wall_clock_time`, `EngineSources.elapsed_seconds`;
+  `LiveSources` live providers)
+- Create: `tests/test_clock.py`
 - Modify (polled input → `current_input()`): `glitchygames/ui/inputs.py:528`,
   `glitchygames/ui/text_widgets.py:1207, :1487`, `glitchygames/scenes/scene.py:481` (debug overlay
   mouse), `glitchygames/examples/dt_demo.py:131`, `glitchygames/bitmappy/editor.py:485, :1392`,
   `glitchygames/bitmappy/film_strip_sprite.py:126-127, :182-183, :478`,
   `glitchygames/bitmappy/file_io.py:120`, `glitchygames/bitmappy/animated_canvas.py:916`
-- Modify (wall clock): `glitchygames/examples/paddleslap.py:301, :650, :670` (→ `game_time`;
-  drop `import time`), `glitchygames/ui/inputs.py:156` and `glitchygames/ui/text_widgets.py:711,
-  :714, :1082, :1142, :1247` (→ `frame_clock_seconds()`)
+- Modify (clock sites outside Bitmappy, table below): `glitchygames/examples/paddleslap.py`,
+  `glitchygames/ui/inputs.py`, `glitchygames/ui/text_widgets.py`, `glitchygames/scenes/scene.py`,
+  `glitchygames/engine/game_engine.py`, `glitchygames/state/manager.py`
 - Modify: `scripts/record_golden_traces.py:458-487` (drop the `paddleslap.time` patch)
 - Modify (if needed): `tests/world/test_golden_traces.py` (`EXPECTED_DIFFERENCES['paddleslap']`)
-- Test: `tests/test_engine_doors.py`, plus each touched module's existing tests
+- Test: `tests/test_clock.py`, plus each touched module's existing tests
 
 **Interfaces:**
-- Consumes: `current_input()` (Task 3), `Scene.game_time` and `frame_clock_seconds()` (Task 4).
+- Consumes: `current_input()` (Task 3), `Scene.game_time` and the frame clock (Task 4).
+- Produces (`glitchygames/clock.py`, the one module code imports clocks from):
+
+```python
+def frame_clock_seconds() -> float        # sum of frame times; re-exported from glitchygames.sources
+def wall_clock_time() -> datetime.datetime          # timezone-aware UTC
+def wall_clock_epoch_seconds() -> float            # wall_clock_time().timestamp()
+def elapsed_seconds() -> float                     # monotonic seconds; only differences mean anything
+# Scene.game_time stays on the scene (Task 4); clock.py's docstring points to it.
+EngineSources.wall_clock_time(self) -> datetime.datetime
+EngineSources.elapsed_seconds(self) -> float
+```
+
+Providers: `LiveSources.wall_clock_time()` = `datetime.datetime.now(tz=datetime.UTC)`;
+`LiveSources.elapsed_seconds()` = `time.monotonic()`. Replay (Task 11 implements it in
+`ReplaySources`): `wall_clock_time()` = the header's `recorded_at` (`datetime.fromisoformat`) +
+`timedelta(seconds=frame_clock_seconds())`; `elapsed_seconds()` = `frame_clock_seconds()`. So both
+replay exactly. `RecordingSources` (Task 10) delegates both to its inner sources. Which export a
+call site uses:
+
+| Export | Use it for | Pauses with the game? |
+|---|---|---|
+| `scene.game_time` | gameplay timers and cooldowns | yes |
+| `frame_clock_seconds()` | blinks, animation timing, FPS events, "how long since" in UI | no |
+| `wall_clock_time()` / `wall_clock_epoch_seconds()` | timestamps: undo history, save and file metadata, log records, ids | no |
+| `elapsed_seconds()` | durations, metrics, controller and input timing | no |
+
+Only pacing (`glitchygames/timing.py`, the frame measurement in `SceneManager.start` /
+`_finish_frame`), the performance statistics (`glitchygames/performance/`, the debug HUD's timing),
+the audio-glitch probe (`glitchygames/audio/diagnostics.py`, which measures the real machine) and
+the recording's own start stamp (`GameEngine.trace_recording_header`'s `recorded_at`) read the raw
+clock; Task 8's guard test lists them by file.
+
+Clock sites this task moves (taken at `414d080`; re-grep in Step 1):
+
+| Site | Today | Export |
+|---|---|---|
+| `examples/paddleslap.py:650, :670` | ball-spawn cooldown, `time.time()` | `self.game_time` (and `:301` → `-math.inf`) |
+| `ui/inputs.py:156` | cursor blink, `time.time() % 1` | `frame_clock_seconds()` |
+| `ui/text_widgets.py:711, :714, :1082, :1142, :1247` | cursor blink and update interval, `get_ticks()` | `frame_clock_seconds()` (in ms, one helper) |
+| `scenes/scene.py:2491` | FPS log interval in `Scene.on_fps_event`, `perf_counter()` | `frame_clock_seconds()` |
+| `engine/game_engine.py:578, :1944` | unhandled-event first-seen time (teardown report), `perf_counter()` | `elapsed_seconds()` |
+| `state/manager.py:144` | save envelope timestamp, `datetime.now(tz=UTC)` | `wall_clock_time()` |
+
+Stays raw (allowed in Task 8's guard): `scenes/scene.py:791, :795, :809, :862` (pacing
+measurement), `engine/game_engine.py:1114` (`recorded_at`), `performance/adaptive_clamping.py:147`,
+`audio/diagnostics.py` (7 reads). Not clock reads (`time.sleep`): `engine/game_engine.py:2038`
+(`sleep(0)`, a thread yield), `events/voice.py:230, :237` (voice-recognition retry back-off on its
+own thread), `audio/controller_audio.py:739` (waits for a test tone to finish) — they block, they
+do not read the time, so they cannot make a replay differ; leave them and say so in the report.
+`api/client.py:341, :371` signs requests to a real server, which needs real time: allowed raw
+(the guard lists it), not an export.
+
+- [ ] **Step 1: Re-grep every site and compare with the tables (here and in Task 8)**
+
+Run: `grep -rn -E "time\.time\(\)|time\.monotonic\(\)|time\.perf_counter\(\)|time\.perf_counter_ns\(\)|time\.monotonic_ns\(\)|time\.time_ns\(\)|datetime\.now|datetime\.utcnow|pygame\.time\.get_ticks|time\.sleep\(|time_module\.|key\.get_pressed|key\.get_mods|mouse\.get_pos|mouse\.get_pressed|mouse\.get_focused" glitchygames | grep "\.py:"`
+
+Any site not in the tables: categorise it with the export table above and add it to this task
+(outside `bitmappy/`) or Task 8 (inside), and list it in the report.
+
+- [ ] **Step 2: Write the failing clock tests** (`tests/test_clock.py`)
+
+```python
+"""The engine's clock exports (glitchygames/clock.py): live and replay providers."""
+
+from __future__ import annotations
+
+import datetime
+
+import pytest
+
+from glitchygames import clock
+from glitchygames.sources import LiveSources, advance_frame_clock, install_sources
+
+
+def test_live_wall_clock_is_aware_utc_now(mocker):
+    fixed = datetime.datetime(2026, 10, 19, 12, 0, tzinfo=datetime.UTC)
+    mocker.patch('glitchygames.sources.datetime', wraps=datetime)
+    mocker.patch.object(LiveSources, 'wall_clock_time', return_value=fixed)
+    assert clock.wall_clock_time() == fixed
+    assert clock.wall_clock_epoch_seconds() == fixed.timestamp()
+
+
+def test_live_elapsed_seconds_is_monotonic(mocker):
+    mocker.patch('glitchygames.sources.time.monotonic', side_effect=[10.0, 10.5])
+    first = clock.elapsed_seconds()
+    second = clock.elapsed_seconds()
+    assert second - first == 0.5
+
+
+def test_frame_clock_is_the_sum_of_frame_times():
+    advance_frame_clock(seconds=0.25)
+    advance_frame_clock(seconds=0.5)
+    assert clock.frame_clock_seconds() == 0.75
+
+
+class FixedClockSources(LiveSources):
+    """Stand-in for the replay providers Task 11 writes: start time + frame clock."""
+
+    START = datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=datetime.UTC)
+
+    def wall_clock_time(self) -> datetime.datetime:
+        return self.START + datetime.timedelta(seconds=clock.frame_clock_seconds())
+
+    def elapsed_seconds(self) -> float:
+        return clock.frame_clock_seconds()
+
+
+def test_clock_exports_read_the_active_sources():
+    install_sources(sources=FixedClockSources(random_seed=1))
+    advance_frame_clock(seconds=2.0)
+    assert clock.wall_clock_time() == FixedClockSources.START + datetime.timedelta(seconds=2)
+    assert clock.elapsed_seconds() == pytest.approx(2.0)
+```
+
+(Drop the `mocker.patch('glitchygames.sources.datetime', ...)` line if `LiveSources` imports
+`datetime` differently — the second patch is what the test relies on.)
+
+- [ ] **Step 3: Run to see them fail** — `ModuleNotFoundError: glitchygames.clock`.
+
+- [ ] **Step 4: Implement `glitchygames/clock.py` and the providers**
+
+```python
+"""The engine's clocks: every time a game, widget or editor reads comes from here.
+
+Pick by what the time is for:
+
+- ``Scene.game_time`` (on the scene): gameplay timers and cooldowns; pauses with the scene.
+- ``frame_clock_seconds()``: blinks, animation timing, FPS events, "how long since" in UI; the
+  sum of frame times, never pauses.
+- ``wall_clock_time()`` / ``wall_clock_epoch_seconds()``: timestamps (undo history, save and
+  file metadata, log records, ids).
+- ``elapsed_seconds()``: durations, metrics, controller and input timing; only differences
+  between two readings mean anything.
+
+Each reads the active sources (glitchygames/sources.py), so a replay serves them exactly: the
+frame clock comes from recorded frame times, the wall clock is the recording's start time plus
+the frame clock, and elapsed seconds are the frame clock. Only pacing, the performance statistics,
+the audio-glitch probe and the recording's own start stamp read the raw clock
+(tests/test_engine_doors.py lists them).
+"""
+
+from __future__ import annotations
+
+import datetime
+
+from glitchygames.sources import active_sources, frame_clock_seconds
+
+__all__ = ['elapsed_seconds', 'frame_clock_seconds', 'wall_clock_epoch_seconds', 'wall_clock_time']
+
+
+def wall_clock_time() -> datetime.datetime:
+    """Return the current wall-clock time (timezone-aware UTC) from the active sources.
+
+    Returns:
+        Now, live; the recording's start time plus the frame clock, in a replay.
+
+    """
+    return active_sources().wall_clock_time()
+
+
+def wall_clock_epoch_seconds() -> float:
+    """Return ``wall_clock_time()`` as seconds since the Unix epoch (what ``time.time()`` gave).
+
+    Returns:
+        Seconds since 1970-01-01 UTC.
+
+    """
+    return wall_clock_time().timestamp()
+
+
+def elapsed_seconds() -> float:
+    """Return a monotonic reading in seconds; subtract two readings for a duration.
+
+    Returns:
+        ``time.monotonic()`` live; the frame clock in a replay.
+
+    """
+    return active_sources().elapsed_seconds()
+```
+
+In `glitchygames/sources.py`: add the two methods to `EngineSources` (docstrings as above) and to
+`LiveSources`:
+
+```python
+    def wall_clock_time(self: Self) -> datetime.datetime:
+        """Return now, in UTC (the live wall-clock provider)."""
+        return datetime.datetime.now(tz=datetime.UTC)
+
+    def elapsed_seconds(self: Self) -> float:
+        """Return time.monotonic() (the live elapsed-time provider)."""
+        return time.monotonic()
+```
+
+- [ ] **Step 5: Move the polled-input sites and the clock sites in the table**
+
+Polled input, e.g. `bitmappy/editor.py:485`:
+
+```python
+        held_keys = current_input()
+        is_shift_click = held_keys.key_pressed(pygame.K_LSHIFT) or held_keys.key_pressed(
+            pygame.K_RSHIFT
+        )
+```
+
+`ui/inputs.py:528`, `ui/text_widgets.py:1487`, `bitmappy/*` mouse reads:
+`mouse_pos = current_input().mouse_position`. `ui/text_widgets.py:1207`:
+`mods = current_input().modifiers`. Debug overlay `scenes/scene.py:481`:
+
+```python
+        frame_input = current_input()
+        mouse_position = frame_input.mouse_position if frame_input.mouse_focused else None
+```
+
+PaddleSlap (read the comments at `:301-302` first):
+
+```python
+        # Game time of the last spawn (Scene.game_time); -inf so the first spawn is never held
+        # back by the cooldown, as with the old wall-clock start of 0.0
+        self.last_ball_spawn_time = -math.inf
+```
+
+`:650` `current_time = self.game_time`; `:670` `self.last_ball_spawn_time = self.game_time`;
+remove `import time` if nothing else uses it. `ui/inputs.py:156`:
+
+```python
+        if frame_clock_seconds() % 1 > CURSOR_BLINK_HALF_SECOND and self.is_active:
+```
+
+`ui/text_widgets.py` keeps milliseconds through one helper in that module:
+
+```python
+def _frame_clock_milliseconds() -> int:
+    """The replayable frame clock in milliseconds (cursor blink and update timing)."""
+    return round(frame_clock_seconds() * 1000)
+```
+
+`scenes/scene.py:2491`: `current_time = frame_clock_seconds()` (and initialise
+`_last_fps_log_time` from the same clock — read where it is set; it is `0.0` in `Scene.__init__`,
+which stays correct). `engine/game_engine.py:578`: `self._started_at_seconds: float =
+elapsed_seconds()`; `:1944`: `first_seen_seconds=elapsed_seconds() - self._started_at_seconds`.
+`state/manager.py:144`: `'timestamp': wall_clock_time().isoformat(),` (drop the now-unused
+`datetime`/`UTC` imports if nothing else uses them).
+
+Golden harness: remove `(paddleslap, 'time', types.SimpleNamespace(time=clock.now))` from
+`deterministic_environment` and update its docstring ("Replace the save directory ... PaddleSlap's
+cooldown now uses Scene.game_time, which the harness's fixed dt drives"). If `clock` is then
+unused by `deterministic_environment`, keep the parameter only if other callers rely on it
+(`grep -rn deterministic_environment tests scripts`); otherwise remove it and update callers.
+
+- [ ] **Step 6: Golden check and the behaviour-fix rule**
+
+Run: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run pytest tests/world/test_golden_traces.py -q -p no:cacheprovider --no-cov`
+
+The harness's fake clock advanced `FRAME_SECONDS` every frame, including paused frames; game time
+does not advance while paused. If PaddleSlap's golden differs, every difference must be a spawn
+that happens one or more frames later than in the baseline because the cooldown was measured in
+wall time across the script's pause (`paddleslap_script` pauses; read it). Add one
+`ExpectedDifference` per class with a `rule` that proves it exactly: from the frame observer
+(Task 6 of the world-space plan added `frame_observer` sampling), record each frame's
+`scene.game_time` and the fake wall time (`FAKE_CLOCK_START_SECONDS + frame * FRAME_SECONDS`);
+the rule accepts a frame only if the baseline's ball count is explained by the wall-time cooldown
+and the current one by the game-time cooldown (`last_ball_spawn_time` from the observer). Never
+edit the baseline. If there is no difference, say so in the report (the script's spawns may all
+be outside the pause window).
+
+- [ ] **Step 7: Run every touched module's tests, `tests/world`, the full suite** — PASS, no
+  warnings.
+
+- [ ] **Step 8: Lint, type-check, vulture, commit**
+
+```bash
+git add glitchygames/clock.py glitchygames/sources.py tests/test_clock.py scripts/record_golden_traces.py <every modified glitchygames file> <tests you changed>
+git commit -m "Add the engine's clock exports; move polled input and engine/UI/game clocks"
+```
+
+---
+
+### Task 8: Bitmappy onto the clock exports, and the guard test
+
+**Files:**
+- Modify (every Bitmappy clock site, table below): `glitchygames/bitmappy/history/commands.py`,
+  `history/undo_redo.py`, `controllers/selection.py`, `controllers/performance.py`,
+  `controllers/manager.py`, `controllers/canvas_operations.py`, `controllers/event_handler.py`,
+  `controllers/slider_operations.py`, `controllers/enhancements.py`, `controllers/strategies.py`,
+  `controllers/error_handling.py`, `ai_worker.py`, `ai_manager.py`, `editor.py`,
+  `canvas_interfaces.py`, `frame_operations.py`, `film_strip_rendering.py`, `film_strip_events.py`
+  (all under `glitchygames/bitmappy/`)
+- Create: `tests/ast_scanning.py` (shared AST helpers moved out of `tests/test_randomness.py`)
+- Create: `tests/test_engine_doors.py`
+- Modify: `tests/test_randomness.py` (import the moved helpers)
+- Test: `tests/test_engine_doors.py`, plus the Bitmappy tests of every touched module
+  (`grep -rln "<module name>" tests/` for each)
+
+**Interfaces:**
+- Consumes: `glitchygames/clock.py` (Task 7), `current_input()` (Task 3).
 - Produces: `tests/ast_scanning.py`: `import_bindings(tree) -> dict[str, str]`,
-  `qualified_name(node, bindings) -> str | None`; `tests/test_engine_doors.py`:
-  `door_bypasses(source_path) -> list[str]`, `ALLOWED_BYPASSES`.
+  `dynamic_import_name(node) -> str | None`, `qualified_name(node, bindings) -> str | None`;
+  `tests/test_engine_doors.py`: `door_bypasses(source_path, *, allowed) -> list[str]`,
+  `DOOR_BYPASSES`, `ALLOWED_BYPASSES`.
 
-- [ ] **Step 1: Re-grep the sites and write down the list in your report**
+Bitmappy clock sites (taken at `414d080`; 74 in all; re-grep with Task 7's Step 1 command):
 
-Run: `grep -rn -E "key\.get_pressed|key\.get_mods|mouse\.get_pos|mouse\.get_pressed|mouse\.get_focused|time\.time\(\)|time\.monotonic\(\)|pygame\.time\.get_ticks|datetime\.now|event\.post\(|joystick\.Joystick\(|controller\.Controller\(" glitchygames | grep -v "\.pyc"`
+| Site | What it is | Export |
+|---|---|---|
+| `history/commands.py:104, :198, :285, :367, :471, :645, :707, :826, :948, :1020, :1092, :1165, :1258` (13) | each command's `self.timestamp` (undo history) | `wall_clock_epoch_seconds()` |
+| `history/undo_redo.py:327, :362` (2) | history entry `timestamp=` | `wall_clock_epoch_seconds()` |
+| `controllers/selection.py:85, :125` (2) | selection-history `'timestamp'` records | `wall_clock_epoch_seconds()` |
+| `controllers/canvas_operations.py:370` (1) | operation record `'timestamp'` | `wall_clock_epoch_seconds()` |
+| `controllers/enhancements.py:311` (1) | action record `'timestamp'` | `wall_clock_epoch_seconds()` |
+| `controllers/error_handling.py:109` (1) | error record `timestamp=` | `wall_clock_epoch_seconds()` |
+| `ai_manager.py:322` (1) | `request_id = str(time.time())` | `wall_clock_epoch_seconds()` (an id; see note) |
+| `history/commands.py:1202-1204` (1) | `import time as time_module`; mode switch time passed to `switch_to_mode` | `elapsed_seconds()` (drop the local import) |
+| `controllers/selection.py:70, :89, :102, :130, :175, :197, :219, :273, :282, :325` (10) | `creation_time`, `last_update_time`, "seconds since last update" | `elapsed_seconds()` |
+| `controllers/performance.py:65, :305, :315, :326, :329, :351, :356, :367, :437, :446, :474, :529` (12) | operation metrics and cleanup interval | `elapsed_seconds()` |
+| `controllers/manager.py:110, :246, :247, :273, :338, :364` (6) | controller scan interval, assignment and activity times, inactivity cleanup | `elapsed_seconds()` |
+| `controllers/canvas_operations.py:65, :530, :591` (3) | drag end time; continuous-movement start and repeat timing | `elapsed_seconds()` |
+| `controllers/event_handler.py:465, :571` (2) | axis-motion and trigger mode-switch timing | `elapsed_seconds()` |
+| `controllers/slider_operations.py:97, :176, :207` (3) | mode-switch times passed to `switch_to_mode` | `elapsed_seconds()` |
+| `controllers/strategies.py:247` (1) | strategy `'start_time'` | `elapsed_seconds()` |
+| `controllers/enhancements.py:168, :285` (2) | visual-update metric; update throttle | `elapsed_seconds()` |
+| `ai_worker.py:436, :442, :574, :613, :619` (5) | AI request durations (worker thread) | `elapsed_seconds()` |
+| `editor.py:858, :859` (2) | "log animation state about once per second" | `frame_clock_seconds()` |
+| `canvas_interfaces.py:529` + `frame_operations.py:422` (2) | single-pixel change debounce: started / "more than 0.1 s since" | `frame_clock_seconds()` (both ends of the one timer) |
+| `film_strip_rendering.py:587` + `film_strip_events.py:138, :287, :302` (4) | film-strip label cursor blink, `get_ticks()` ms | `frame_clock_seconds()` (ms helper, as `text_widgets.py`) |
 
-Every hit outside the allowed files below must be moved in this task.
+Notes: every value read from `elapsed_seconds()` must be compared only with other
+`elapsed_seconds()` readings — check each site's partner (e.g. `switch_to_mode(new_mode,
+current_time)` stores the time; find where the mode switcher subtracts it and confirm the other
+reading is also moved, or move it here). A timestamp field that some code *subtracts* is not a
+timestamp but a duration source — if you find one (`grep` each `timestamp` field's readers), use
+`elapsed_seconds()` for it instead and note it. `ai_worker.py` runs on a worker thread: reading
+`elapsed_seconds()` there reads the active sources from another thread, which is safe (a float
+read); in a replay the AI worker is not exercised (its requests are network calls, out of replay's
+scope) — say so in the report. `ai_manager.py:322`'s request id only needs to be unique: if two
+requests in one frame of a replay could get the same id (the frame clock does not advance within
+a frame), append a per-process counter (`itertools.count()`) to the id and test that two ids made
+in one frame differ.
 
-- [ ] **Step 2: Move the AST helpers and write the failing guard test**
+- [ ] **Step 1: Move the AST helpers and write the failing guard test**
 
 Move `_import_bindings`, `_dynamic_import_name` and `_qualified_name` from
 `tests/test_randomness.py` into `tests/ast_scanning.py` as public `import_bindings`,
@@ -1904,11 +2234,10 @@ Move `_import_bindings`, `_dynamic_import_name` and `_qualified_name` from
 """Nothing in the package reads input or time from outside the engine's doors.
 
 Polled input goes through glitchygames/input/state.py, devices through
-glitchygames/input/devices.py, events through glitchygames/engine/sources.py and posted events
-through glitchygames/recording.post_event, gameplay time through Scene.game_time and UI time
-through glitchygames.engine.sources.frame_clock_seconds — so a replay reaches all of it
-(plans/2026-10-19-gameplay-replay.md, section 3.4). time.perf_counter is not listed: it measures
-the real run (pacing, statistics) and reaches logic only through the frame-time door.
+glitchygames/input/devices.py, events through glitchygames/sources.py, posted events through
+glitchygames/recording.post_event, and time through glitchygames/clock.py (or Scene.game_time),
+so a replay reaches all of it (plans/2026-10-19-gameplay-replay.md, section 3.4). Only the files
+in ALLOWED_BYPASSES read the raw clock or pygame directly, each for the reason given.
 """
 
 from __future__ import annotations
@@ -1921,31 +2250,44 @@ from tests.ast_scanning import import_bindings, qualified_name
 
 PACKAGE = Path(__file__).resolve().parent.parent / 'glitchygames'
 
-DOOR_BYPASSES = frozenset({
+RAW_CLOCK_READS = frozenset({
+    'time.time', 'time.time_ns', 'time.monotonic', 'time.monotonic_ns', 'time.perf_counter',
+    'time.perf_counter_ns', 'datetime.datetime.now', 'datetime.datetime.utcnow',
+    'pygame.time.get_ticks',
+})
+
+DOOR_BYPASSES = RAW_CLOCK_READS | frozenset({
     'pygame.key.get_pressed', 'pygame.key.get_mods', 'pygame.mouse.get_pos',
     'pygame.mouse.get_pressed', 'pygame.mouse.get_focused',
     'pygame.event.get', 'pygame.event.post', 'pygame.fastevent.get',
     'pygame.joystick.Joystick', 'pygame._sdl2.controller.Controller',
     'pygame.controller.Controller',
-    'time.time', 'time.monotonic', 'pygame.time.get_ticks', 'datetime.datetime.now',
 })
 
 # Files (or directories, ending in '/') allowed to use each bypass, with the reason
 ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
+    # The doors themselves
     'input/state.py': frozenset({'pygame.key.get_pressed', 'pygame.key.get_mods',
                                  'pygame.mouse.get_pos', 'pygame.mouse.get_pressed',
-                                 'pygame.mouse.get_focused'}),          # the polled-input door
+                                 'pygame.mouse.get_focused'}),
     'input/devices.py': frozenset({'pygame.joystick.Joystick',
-                                   'pygame._sdl2.controller.Controller'}),  # the devices door
-    'engine/sources.py': frozenset({'pygame.event.get', 'pygame.fastevent.get'}),  # event door
+                                   'pygame._sdl2.controller.Controller'}),
+    'sources.py': frozenset({'pygame.event.get', 'pygame.fastevent.get', 'time.monotonic',
+                             'datetime.datetime.now'}),
     'replay/driver.py': frozenset({'pygame.event.get'}),  # drains the real queue during replay
     'recording.py': frozenset({'pygame.event.post'}),     # post_event, the one poster
-    'engine/game_engine.py': frozenset({'datetime.datetime.now'}),  # recording start stamp
-    'state/manager.py': frozenset({'datetime.datetime.now'}),       # save metadata stamp
-    'api/client.py': frozenset({'time.time'}),            # request timestamps (not gameplay)
-    # Bitmappy's undo history, metrics and controller timing read the wall clock in ~80 places;
-    # Bitmappy replay is best effort until they move (plans/future-work.md)
-    'bitmappy/': frozenset({'time.time', 'pygame.time.get_ticks'}),
+    # Pacing measures the real run; logic gets frame time only through the frame-time door
+    'timing.py': RAW_CLOCK_READS,
+    'scenes/scene.py': frozenset({'time.perf_counter'}),  # SceneManager.start/_finish_frame
+    # Performance statistics and the debug HUD describe the real run; never compared
+    'performance/': RAW_CLOCK_READS,
+    'debug/': RAW_CLOCK_READS,
+    # The audio-glitch probe measures the real machine (scripts/audio_glitch_probe.py)
+    'audio/diagnostics.py': RAW_CLOCK_READS,
+    # The recording's own start stamp (header recorded_at, the replay wall clock's origin)
+    'engine/game_engine.py': frozenset({'datetime.datetime.now'}),
+    # Signs requests to a real server, which needs real time
+    'api/client.py': frozenset({'time.time'}),
 }
 
 
@@ -1976,7 +2318,7 @@ def test_package_reads_input_and_time_only_through_the_doors():
         str(path.relative_to(PACKAGE)): bypasses
         for path in sorted(PACKAGE.rglob('*.py'))
         if (bypasses := door_bypasses(
-            path, allowed=_allowed(str(path.relative_to(PACKAGE)).replace('\\', '/'))))
+            path, allowed=_allowed(path.relative_to(PACKAGE).as_posix())))
     }
     assert offenders == {}
 
@@ -1989,6 +2331,10 @@ from datetime import datetime as clock
 
 def poll():
     return pygame.key.get_pressed(), keyboard.get_mods(), time.time(), clock.now()
+
+def measure():
+    import time as time_module
+    return time_module.perf_counter(), pygame.time.get_ticks()
 
 def post():
     pygame.event.post(pygame.event.Event(pygame.USEREVENT))
@@ -2005,106 +2351,69 @@ def offending_file(tmp_path) -> Path:
 def test_scan_finds_every_kind(offending_file):
     names = {entry.split(': ', 1)[1] for entry in door_bypasses(offending_file)}
     assert names == {'pygame.key.get_pressed', 'pygame.key.get_mods', 'time.time',
-                     'datetime.datetime.now', 'pygame.event.post'}
+                     'datetime.datetime.now', 'time.perf_counter', 'pygame.time.get_ticks',
+                     'pygame.event.post'}
+
+
+def test_allowed_files_are_exact_paths_or_directories():
+    assert _allowed('timing.py') == RAW_CLOCK_READS
+    assert _allowed('performance/adaptive_clamping.py') == RAW_CLOCK_READS
+    assert _allowed('bitmappy/editor.py') == frozenset()
 ```
 
-(`qualified_name` must resolve `clock.now` to `datetime.datetime.now` through the
-`from datetime import datetime as clock` binding; if the moved helper does not, extend it in
-`tests/ast_scanning.py` and add a case to the randomness guard's tests too.)
+(`qualified_name` must resolve `clock.now` through `from datetime import datetime as clock` and
+`time_module.perf_counter` through a function-local `import time as time_module`; if the moved
+helper does not, extend it in `tests/ast_scanning.py` and add the same cases to the randomness
+guard's tests.)
 
-- [ ] **Step 3: Run the guard to see it fail and list the offenders**
+- [ ] **Step 2: Run the guard to see it fail** — it lists every Bitmappy site in the table (and
+  nothing else, since Task 7 moved the rest). Expected: `test_package_...` FAILS; the fixture tests
+  pass once the helper resolves aliases.
 
-Run: `uv run pytest tests/test_engine_doors.py -q -p no:cacheprovider --no-cov`
-Expected: the package test FAILS listing every site from Step 1; the fixture test passes once the
-helper resolves aliases.
-
-- [ ] **Step 4: Move every site**
-
-Polled input, e.g. `bitmappy/editor.py:485`:
+- [ ] **Step 3: Move every Bitmappy site** per the table, e.g. `history/commands.py:104`:
 
 ```python
-        held_keys = current_input()
-        is_shift_click = held_keys.key_pressed(pygame.K_LSHIFT) or held_keys.key_pressed(
-            pygame.K_RSHIFT
-        )
+        # When the command was made (undo history); replays exactly (glitchygames/clock.py)
+        self.timestamp: float = wall_clock_epoch_seconds()
 ```
 
-`ui/inputs.py:528`, `ui/text_widgets.py:1487`, `bitmappy/*` mouse reads:
-`mouse_pos = current_input().mouse_position`. `ui/text_widgets.py:1207`:
-`mods = current_input().modifiers`. Debug overlay `scenes/scene.py:481`:
+`controllers/selection.py:282`:
 
 ```python
-        frame_input = current_input()
-        mouse_position = frame_input.mouse_position if frame_input.mouse_focused else None
+        return elapsed_seconds() - self.state.last_update_time
 ```
 
-Wall clock in PaddleSlap (read the comments at `:301-302` first):
+`film_strip_rendering.py:587` and `film_strip_events.py`: one `_frame_clock_milliseconds()`
+helper (define it once in `glitchygames/clock.py` as public `frame_clock_milliseconds() -> int`
+and use it in `ui/text_widgets.py` too — update Task 7's private helper to call it). Remove each
+`import time` the module no longer needs.
 
-```python
-        # Game time of the last spawn (Scene.game_time); -inf so the first spawn is never held
-        # back by the cooldown, as with the old wall-clock start of 0.0
-        self.last_ball_spawn_time = -math.inf
-```
+- [ ] **Step 4: Run the guard, every touched module's tests, `tests/world`, the full suite**
 
-`:650` `current_time = self.game_time`; `:670` `self.last_ball_spawn_time = self.game_time`;
-remove `import time` if nothing else uses it. Cursor blinks: `ui/inputs.py:156`:
+Run: `uv run pytest tests/test_engine_doors.py -q -p no:cacheprovider --no-cov`, then the Bitmappy
+test folders (`tests/canvas`, the controller tests — find them with `grep -rln "controllers" tests`),
+then the full suite. Expected: PASS, no warnings. Tests that patched `time.time` in a Bitmappy
+module (`grep -rn "time.time\|'time'" tests/ | grep -i bitmappy`) must patch the clock export the
+module now imports instead (`mocker.patch('glitchygames.bitmappy.<module>.elapsed_seconds',
+...)`); keep each test's assertion unchanged.
 
-```python
-        if frame_clock_seconds() % 1 > CURSOR_BLINK_HALF_SECOND and self.is_active:
-```
-
-`ui/text_widgets.py` keeps milliseconds: replace each `pygame.time.get_ticks()` with
-`round(frame_clock_seconds() * 1000)` through one helper in that module:
-
-```python
-def _frame_clock_milliseconds() -> int:
-    """The replayable frame clock in milliseconds (cursor blink timing)."""
-    return round(frame_clock_seconds() * 1000)
-```
-
-Golden harness: remove `(paddleslap, 'time', types.SimpleNamespace(time=clock.now))` from
-`deterministic_environment` and update its docstring ("Replace the save directory ... PaddleSlap's
-cooldown now uses Scene.game_time, which the harness's fixed dt drives"). If `clock` is then
-unused by `deterministic_environment`, keep the parameter only if other callers rely on it
-(`grep -rn deterministic_environment tests scripts`); otherwise remove it and update callers.
-
-- [ ] **Step 5: Golden check and the behaviour-fix rule**
-
-Run: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run pytest tests/world/test_golden_traces.py -q -p no:cacheprovider --no-cov`
-
-The harness's fake clock advanced `FRAME_SECONDS` every frame, including paused frames; game time
-does not advance while paused. If PaddleSlap's golden differs, every difference must be a spawn
-that happens one or more frames later than in the baseline because the cooldown was measured in
-wall time across the script's pause (`paddleslap_script` pauses; read it). Add one
-`ExpectedDifference` per class with a `rule` that proves it exactly: from the frame observer
-(Task 6 of the world-space plan added `frame_observer` sampling), record each frame's
-`scene.game_time` and the fake wall time (`FAKE_CLOCK_START_SECONDS + frame * FRAME_SECONDS`);
-the rule accepts a frame only if the baseline's ball count is explained by the wall-time cooldown
-and the current one by the game-time cooldown (`last_ball_spawn_time` from the observer). Never
-edit the baseline. If there is no difference, say so in the report (the script's spawns may all
-be outside the pause window).
-
-- [ ] **Step 6: Run the guard, every touched module's tests, `tests/world`, the full suite**
-
-Expected: PASS, no warnings.
-
-- [ ] **Step 7: Lint, type-check, vulture, commit**
+- [ ] **Step 5: Lint, type-check, vulture, commit**
 
 ```bash
-git add tests/ast_scanning.py tests/test_engine_doors.py tests/test_randomness.py scripts/record_golden_traces.py <every modified glitchygames file> <tests you changed>
-git commit -m "Move polled input and wall-clock reads behind the doors; guard the package"
+git add tests/ast_scanning.py tests/test_engine_doors.py tests/test_randomness.py glitchygames/clock.py glitchygames/ui/text_widgets.py <every modified glitchygames/bitmappy file> <tests you changed>
+git commit -m "Move Bitmappy onto the clock exports and guard the package's doors"
 ```
 
 ---
 
-### Task 8: Supervisor hook and control events
+### Task 9: Supervisor hook and control events
 
 **Files:**
-- Create: `glitchygames/engine/supervision.py`
+- Create: `glitchygames/supervision.py`
 - Modify: `glitchygames/scenes/scene.py` — `SceneManager.__init__`, `_run_frame`,
   `_run_scene_frame` (the slot after `_process_events`), new methods `add_supervisor`,
   `remove_supervisor`, `record_control_event`, `add_control_event_handler`
-- Modify: `glitchygames/engine/sources.py` (`control_events_for_frame`; `end_frame` gets
+- Modify: `glitchygames/sources.py` (`control_events_for_frame`; `end_frame` gets
   `control_events`)
 - Modify: `tests/engine/test_engine_sources.py` (`ScriptedSources.end_frame` takes the new
   `control_events` keyword)
@@ -2182,8 +2491,8 @@ class TestSupervisorHook:
 
 class TestControlEvents:
     def test_recorded_control_events_reach_handlers_and_end_frame(self, mocker):
-        from glitchygames.engine.sources import active_sources
-        from glitchygames.engine.supervision import BREAKPOINT_KIND, ControlEvent
+        from glitchygames.sources import active_sources
+        from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 
         handled: list[ControlEvent] = []
         with running_scene(CameraFreeScene) as manager:
@@ -2195,8 +2504,8 @@ class TestControlEvents:
         assert end_frame.call_args.kwargs['control_events'] == handled
 
     def test_scheduled_control_events_are_applied_at_the_slot(self, mocker):
-        from glitchygames.engine.sources import active_sources
-        from glitchygames.engine.supervision import BREAKPOINT_KIND, ControlEvent
+        from glitchygames.sources import active_sources
+        from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 
         scheduled = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'from recording'})
         handled: list[ControlEvent] = []
@@ -2209,7 +2518,7 @@ class TestControlEvents:
         assert handled == [scheduled]
 
     def test_control_event_json_round_trip(self):
-        from glitchygames.engine.supervision import ControlEvent
+        from glitchygames.supervision import ControlEvent
 
         event = ControlEvent(kind='breakpoint', data={'label': 'x'})
         assert event.to_json() == {'kind': 'breakpoint', 'label': 'x'}
@@ -2220,7 +2529,7 @@ class TestControlEvents:
 
 - [ ] **Step 3: Implement**
 
-`glitchygames/engine/supervision.py`:
+`glitchygames/supervision.py`:
 
 ```python
 """The supervisor hook and control events.
@@ -2282,7 +2591,7 @@ class ControlEvent:
 
 ```python
     def add_supervisor(self: Self, *, supervisor: Supervisor) -> None:
-        """Call ``supervisor`` once per frame at the supervisor slot (engine/supervision.py)."""
+        """Call ``supervisor`` once per frame at the supervisor slot (supervision.py)."""
         self._supervisors.append(supervisor)
 
     def remove_supervisor(self: Self, *, supervisor: Supervisor) -> None:
@@ -2325,13 +2634,13 @@ the `control_events` parameter to `end_frame` (Live ignores it).
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/engine/supervision.py glitchygames/scenes/scene.py glitchygames/engine/sources.py tests/world/test_frame_integration.py
+git add glitchygames/supervision.py glitchygames/scenes/scene.py glitchygames/sources.py tests/world/test_frame_integration.py
 git commit -m "Add the supervisor slot and recorded control events to the frame"
 ```
 
 ---
 
-### Task 9: `RecordingSources`
+### Task 10: `RecordingSources`
 
 **Files:**
 - Modify: `glitchygames/recording.py` (`RecordingSources`; `GameplayRecorder.record_frame` gains
@@ -2344,7 +2653,7 @@ git commit -m "Add the supervisor slot and recorded control events to the frame"
 - Test: `tests/world/test_gameplay_recording.py`, `tests/test_recording.py`
 
 **Interfaces:**
-- Consumes: Tasks 2–8.
+- Consumes: Tasks 2–9.
 - Produces:
 
 ```python
@@ -2375,7 +2684,8 @@ Rules:
   `devices_opened`.
 - `end_frame`: `recorder.record_frame(...)` with the frame's fields; then delegate to
   `inner.end_frame(...)`.
-- `frame_seconds`, `control_events_for_frame`, `stop_requested`, `random_seed`: delegate.
+- `frame_seconds`, `control_events_for_frame`, `stop_requested`, `random_seed`,
+  `wall_clock_time`, `elapsed_seconds`: delegate.
 
 - [ ] **Step 1: Write the failing tests** (append to `TestRecordingThroughTheEngine` in
   `tests/world/test_gameplay_recording.py`, using `engine_run_environment`, `run_engine` and
@@ -2383,7 +2693,7 @@ Rules:
 
 ```python
     def test_recording_holds_input_changes_and_control_events(self, mocker, tmp_path):
-        from glitchygames.engine.supervision import BREAKPOINT_KIND
+        from glitchygames.supervision import BREAKPOINT_KIND
         from glitchygames.recording import CONTROL_EVENTS_FIELD, INPUT_CHANGES_FIELD
 
         recording_path = tmp_path / 'session.jsonl.gz'
@@ -2425,7 +2735,7 @@ Rules:
         assert frames[0]['frame'] == 0 and 'saves_opened' in frames[0]
 
     def test_saves_opened_before_recording_are_in_the_header(self, mocker, tmp_path):
-        from glitchygames.engine.sources import active_sources
+        from glitchygames.sources import active_sources
         from glitchygames.state import SaveManager
 
         save_directory = tmp_path / 'saves'
@@ -2440,7 +2750,7 @@ Rules:
         assert active_sources() is not None
 
     def test_devices_opened_are_recorded(self, mocker, tmp_path):
-        from glitchygames.engine.sources import active_sources
+        from glitchygames.sources import active_sources
         from glitchygames.input import devices as devices_module
 
         fake_device = mocker.Mock(**{
@@ -2470,8 +2780,8 @@ In `tests/test_recording.py`:
 
 ```python
 def test_recording_sources_write_only_non_empty_fields(tmp_path, mocker):
-    from glitchygames.engine.sources import LiveSources
-    from glitchygames.engine.supervision import ControlEvent
+    from glitchygames.sources import LiveSources
+    from glitchygames.supervision import ControlEvent
     from glitchygames.recording import GameplayRecorder, RecordingSources
     from glitchygames.tracing import read_trace_result
 
@@ -2524,7 +2834,7 @@ git commit -m "Record through the doors: RecordingSources writes input, devices,
 
 ---
 
-### Task 10: `ReplaySources` and `--replay-trace`
+### Task 11: `ReplaySources` and `--replay-trace`
 
 **Files:**
 - Create: `glitchygames/replay/__init__.py` (exports), `glitchygames/replay/driver.py`
@@ -2621,7 +2931,13 @@ Replay rules (implement exactly; they are what makes the replay exact):
    difference only: a missing or extra sprite id → `field='present'`; else `rect` then `visible`);
    record `frames_replayed`; on a divergence or after the last recorded frame set
    `stop_requested` and `end_reason` (`'truncated'` when the file was cut off).
-9. **End of run**: `GameEngine._shutdown` logs `result.divergence.describe()` at ERROR or "Replay
+9. **Clocks** (`wall_clock_time`, `elapsed_seconds`, Task 7): `wall_clock_time()` is the
+   header's `recorded_at` (`datetime.datetime.fromisoformat`, made UTC-aware if the string has
+   no offset) plus `timedelta(seconds=frame_clock_seconds())`; `elapsed_seconds()` is
+   `frame_clock_seconds()`. Test: a recording whose scene stores
+   `wall_clock_epoch_seconds()` and `elapsed_seconds()` in a sprite's position on frame 3
+   replays without divergence, though the replay runs at a different real time.
+10. **End of run**: `GameEngine._shutdown` logs `result.divergence.describe()` at ERROR or "Replay
    matched N frames" at INFO, and stops tracking posts.
 
 `Divergence.describe()` format: `"frame 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got
@@ -2863,7 +3179,7 @@ git commit -m "Replay recordings exactly through the engine with --replay-trace"
 
 ---
 
-### Task 11: `--audit`
+### Task 12: `--audit`
 
 **Files:**
 - Create: `glitchygames/replay/audit.py`
@@ -3011,19 +3327,21 @@ git commit -m "Add --audit: two fresh-process replays with per-frame digests"
 
 ---
 
-### Task 12: Documentation
+### Task 13: Documentation
 
 **Files:**
-- Modify: `CLAUDE.md` (Gameplay Recording section → "Gameplay Recording and Replay"; doors,
+- Modify: `CLAUDE.md` (a "Clocks" paragraph: the four exports of `glitchygames/clock.py` and
+  `Scene.game_time`, which to use for what, and the raw-clock allow list; Gameplay Recording
+  section → "Gameplay Recording and Replay"; doors,
   `current_input()`/`GameEngine.input`, `Scene.game_time`, `frame_clock_seconds`, `open_saves`,
   the devices registry, supervisor hook, control events, `--replay-trace`, `--audit`, format 3)
-- Modify: `glitchygames/recording.py` module docstring (already updated in Task 9; check it
+- Modify: `glitchygames/recording.py` module docstring (already updated in Task 10; check it
   mentions replay as implemented, not planned)
 - Create or modify: a docs page — find where recording is documented under `docs/`
   (`grep -rln "record-trace" docs mkdocs.yml`); add a "Replay" page or section and its nav entry
 - Modify: `plans/future-work.md` — replace the "Gameplay replay" entry with a pointer to the
-  spec and these plans; keep and update: Bitmappy wall-clock reads (now listed as the guard
-  test's `bitmappy/` allowance), anything from the replay entry not done here
+  spec and these plans; keep anything from the replay entry not done here (Bitmappy's clocks
+  are migrated by Task 8, so no Bitmappy item remains)
 - Test: `uv run mkdocs build --strict -d <scratch>; echo EXIT=$?`
 
 - [ ] **Step 1:** Write the CLAUDE.md section (replace the "Replay (`--replay-trace`) is planned"
@@ -3041,7 +3359,7 @@ git commit -m "Document the engine doors and gameplay replay"
 
 ## Self-review notes (for the executor)
 
-- `EngineSources` grows across Tasks 2, 3, 5, 6, 8; the final shape is in the master plan's
+- `EngineSources` grows across Tasks 2, 3, 5, 6, 9; the final shape is in the master plan's
   Cross-part interfaces. Every implementation (`LiveSources`, `RecordingSources`,
   `ReplaySources`, and Part 3's scoped sources) must implement all of it.
 - The golden test runs after every task; it must never change except by Task 7's exact rule.

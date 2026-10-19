@@ -5,7 +5,7 @@
 **Goal:** Replay a `--record-trace` recording exactly through the real engine, and build replay tooling and in-game playback (demos, instant replays, ghosts) on top of it.
 
 **Architecture:** The engine reads the outside world only through a small set of swappable
-**doors** (`glitchygames/engine/sources.py`): event pump, frame time, polled input, devices, saves
+**doors** (`glitchygames/sources.py`): event pump, frame time, polled input, devices, saves
 and the random seed. Live play uses `LiveSources`; `--record-trace` wraps them in
 `RecordingSources`; `--replay-trace` installs `ReplaySources` built from a recording. Everything
 downstream of the doors (dispatch, transitions, frame order, rendering) runs unchanged, and the
@@ -18,7 +18,7 @@ replay compares each frame's sprites with the recording. Tooling and in-game pla
 
 **Sub-plans (execute in this order):**
 
-1. [Part 1 — Replay core](2026-10-19-gameplay-replay-core.md) (12 tasks)
+1. [Part 1 — Replay core](2026-10-19-gameplay-replay-core.md) (13 tasks)
 2. [Part 2 — Replay tooling](2026-10-19-gameplay-replay-tooling.md) (6 tasks)
 3. [Part 3 — In-game playback](2026-10-19-gameplay-replay-playback.md) (6 tasks)
 
@@ -29,6 +29,9 @@ first anyway: Part 3 Task 5 (instant replay) reuses the `presents_frames()` and
 ## Global Constraints
 
 - Python 3.14 target; manage everything with `uv` (`uv run ...`), never pip/venv/pyenv.
+- Every time read in `glitchygames/` comes from `glitchygames/clock.py` or `Scene.game_time`;
+  only the files in the guard test's allow list (`tests/test_engine_doors.py`) read the raw
+  clock. No directory (Bitmappy included) is exempt.
 - Exactness: same engine version + same recording → bit-identical sprite traces (every frame's
   sprite `rect` and `visible`, as `glitchygames.tracing.sample_scene_frame` samples them). Audio is
   played, never compared.
@@ -66,13 +69,13 @@ first anyway: Part 3 Task 5 (instant replay) reuses the `presents_frames()` and
 
 1. A replay started with a different game than the recording, a truncated file or a version-2
    recording: refused with exit 2 / replayed to the cut-off / replayed with one warning — never a
-   traceback (Part 1 Task 10, tests `test_wrong_game_is_refused`, `test_truncated_recording_*`,
+   traceback (Part 1 Task 11, tests `test_wrong_game_is_refused`, `test_truncated_recording_*`,
    `test_version_two_recording_replays_with_a_warning`).
 2. Real keyboard, mouse and window events arriving during a replay (the user touching the keyboard,
    the window losing focus): they must never reach the game, and the replay stays exact (Part 1
-   Task 10, `test_real_input_during_replay_never_reaches_the_game`).
+   Task 11, `test_real_input_during_replay_never_reaches_the_game`).
 3. A recorded internal event that the replayed code does not post again, or an extra one it posts:
-   reported as an event divergence at the right frame, not silently merged (Part 1 Task 10,
+   reported as an event divergence at the right frame, not silently merged (Part 1 Task 11,
    `test_missing_internal_event_is_a_divergence`).
 4. A controller present while recording and absent while replaying (and the reverse): stand-ins
    answer, nothing raises `pygame.error`, and a real device plugged in during the replay is
@@ -85,18 +88,19 @@ first anyway: Part 3 Task 5 (instant replay) reuses the `presents_frames()` and
 
 | File | Responsibility | Part |
 |---|---|---|
-| `glitchygames/engine/sources.py` (new) | `EngineSources` Protocol, `LiveSources`, the active-sources registry (`active_sources`, `install_sources`, `push_scoped_sources`, `pop_scoped_sources`), `frame_clock_seconds` | 1 |
+| `glitchygames/sources.py` (new) | `EngineSources` Protocol, `LiveSources`, the active-sources registry (`active_sources`, `install_sources`, `push_scoped_sources`, `pop_scoped_sources`), `frame_clock_seconds` | 1 |
+| `glitchygames/clock.py` (new) | the clock exports: `frame_clock_seconds`, `frame_clock_milliseconds`, `wall_clock_time`, `wall_clock_epoch_seconds`, `elapsed_seconds` (live and replay providers behind the doors) | 1 |
 | `glitchygames/input/state.py` (new) | `InputSnapshot`, `capture_live_snapshot`, `current_input`, snapshot diffs | 1 |
 | `glitchygames/input/devices.py` (new) | `DeviceRegistry`, `LiveDeviceRegistry`, `DeviceDescriptor`, `ReplayJoystick`, `ReplayController` | 1 |
 | `glitchygames/state/sandbox.py` (new) | `SaveStore` Protocol, `SandboxSaves`, `open_saves`, `save_namespace_snapshot` | 1 |
-| `glitchygames/engine/supervision.py` (new) | `Supervisor` Protocol, `ControlEvent`, control-event kinds | 1 |
+| `glitchygames/supervision.py` (new) | `Supervisor` Protocol, `ControlEvent`, control-event kinds | 1 |
 | `glitchygames/recording.py` | `RecordingSources`; `GameplayRecorder` records format-3 fields | 1 |
 | `glitchygames/tracing.py` | format version 3 (reads 2 and 3) | 1 |
 | `glitchygames/replay/__init__.py`, `glitchygames/replay/driver.py` (new) | `ReplaySources`, `Divergence`, frame comparison, `ReplayResult`, option override | 1 |
 | `glitchygames/replay/audit.py` (new) | `--audit`: two subprocess replays, per-frame digests | 1 |
 | `glitchygames/engine/game_engine.py` | doors in `_pump_events`, input capture, `--replay-trace`/`--audit` options, install sources | 1, 2 |
 | `glitchygames/scenes/scene.py` | `frame_number`, `Scene.game_time`, frame clock, supervisor slot, dt via doors, playback hooks | 1, 3 |
-| bypass sites (spec 3.4) | moved behind the doors | 1 |
+| bypass sites (spec 3.4) and every raw clock read in `glitchygames/` (Bitmappy's 74 included) | moved behind the doors / onto `glitchygames/clock.py` (Part 1 Tasks 7, 8) | 1 |
 | `glitchygames/replay/controls.py` (new) | watched-replay controls, status bar, step back, bookmarks | 2 |
 | `glitchygames/testing/__init__.py`, `glitchygames/testing/replays.py` (new) | pytest plugin | 2 |
 | `glitchygames/replay/rebaseline.py` (new) | `--rebaseline` | 2 |
@@ -106,7 +110,7 @@ first anyway: Part 3 Task 5 (instant replay) reuses the `presents_frames()` and
 ## Cross-part interfaces (exact names every part uses)
 
 ```python
-# glitchygames/engine/sources.py (Part 1 Task 2)
+# glitchygames/sources.py (Part 1 Task 2)
 class EngineSources(Protocol):
     random_seed: int
     @property
@@ -116,9 +120,11 @@ class EngineSources(Protocol):
     def input_snapshot(self) -> InputSnapshot: ...                          # Part 1 Task 3
     def devices(self) -> DeviceRegistry: ...                                # Part 1 Task 5
     def saves(self, *, namespace: str) -> SaveStore: ...                   # Part 1 Task 6
-    def control_events_for_frame(self, *, frame_number: int) -> list[ControlEvent]: ...  # Task 8
+    def wall_clock_time(self) -> datetime.datetime: ...                     # Part 1 Task 7
+    def elapsed_seconds(self) -> float: ...                                 # Part 1 Task 7
+    def control_events_for_frame(self, *, frame_number: int) -> list[ControlEvent]: ...  # Task 9
     def end_frame(self, *, frame_number: int, dt: float, scene: Scene | None,
-                  control_events: list[ControlEvent]) -> None: ...          # Part 1 Tasks 2, 8
+                  control_events: list[ControlEvent]) -> None: ...          # Part 1 Tasks 2, 9
     def paced_frame_seconds(self) -> float | None: ...                      # Part 2 Task 1
     def hold_frame(self) -> bool: ...                                        # Part 2 Task 2
     def draw_overlay(self, *, surface: pygame.Surface) -> None: ...        # Part 2 Task 2
@@ -131,6 +137,17 @@ def push_scoped_sources(*, sources: EngineSources) -> None: ...    # Part 3 Task
 def pop_scoped_sources() -> EngineSources: ...                      # Part 3 Task 2
 def frame_clock_seconds() -> float: ...    # sum of every frame's raw dt this run
 class SourcesAlreadyRunningError(RuntimeError): ...
+
+# glitchygames/clock.py (Part 1 Tasks 7, 8) — the only place code reads time from
+def frame_clock_seconds() -> float: ...        # blinks, animation, FPS events, "how long since"
+def frame_clock_milliseconds() -> int: ...     # the same, in ms (widget blink timers)
+def wall_clock_time() -> datetime.datetime: ...   # UTC-aware; timestamps
+def wall_clock_epoch_seconds() -> float: ...   # wall_clock_time().timestamp()
+def elapsed_seconds() -> float: ...            # durations, metrics, controller timing
+# live: now / time.monotonic(); replay: header recorded_at + frame clock / frame clock
+# Scene.game_time (gameplay timers) stays on the scene.
+# Raw clock only in: timing.py, SceneManager pacing (scenes/scene.py perf_counter),
+# performance/, debug/, audio/diagnostics.py, the recorded_at stamp, api/client.py.
 
 # glitchygames/input/state.py (Part 1 Task 3)
 @dataclasses.dataclass(frozen=True)
@@ -157,7 +174,7 @@ def apply_snapshot_changes(*, previous: InputSnapshot, changes: dict[str, Any]) 
 # Scene (Part 1 Task 4)
 Scene.game_time: float                          # property; logic seconds, stops while paused
 
-# glitchygames/engine/supervision.py (Part 1 Task 8)
+# glitchygames/supervision.py (Part 1 Task 9)
 class Supervisor(Protocol):
     def on_frame(self, *, frame_number: int, scene: Scene | None) -> None: ...
 SceneManager.add_supervisor(*, supervisor: Supervisor) -> None
@@ -179,7 +196,7 @@ TRACE_FORMAT_VERSION = 3; READABLE_FORMAT_VERSIONS = (2, 3)
 #   'devices_opened', 'saves_opened', 'scene_start' (Part 3)
 # header fields: 'saves' ({namespace: {slot: envelope}}), 'devices' ([descriptor, ...])
 
-# glitchygames/replay/driver.py (Part 1 Task 10; keywords added in Part 2)
+# glitchygames/replay/driver.py (Part 1 Task 11; keywords added in Part 2)
 class ReplaySources:   # implements EngineSources
     def __init__(self, *, header: dict[str, Any], frames: Sequence[dict[str, Any]],
                  format_version: int, is_truncated: bool = False,
@@ -218,6 +235,6 @@ SceneManager.instant_replay() -> bool
 ## After all three parts
 
 - Final whole-branch review (subagent-driven) against the spec and this plan.
-- Update `plans/future-work.md` (Part 1 Task 12 replaces the "Gameplay replay" entry; Part 3 adds
+- Update `plans/future-work.md` (Part 1 Task 13 replaces the "Gameplay replay" entry; Part 3 adds
   the state-snapshot and cheat-device follow-ups) and `CLAUDE.md`.
 - Never push; the user pushes.

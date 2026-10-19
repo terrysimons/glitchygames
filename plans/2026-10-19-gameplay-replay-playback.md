@@ -56,7 +56,7 @@ task's own failure cases.
 
 **Files:**
 - Modify: `glitchygames/randomness.py` (`capture_stream_states`, `restore_stream_states`)
-- Modify: `glitchygames/engine/sources.py` (`set_frame_clock_seconds`)
+- Modify: `glitchygames/sources.py` (`set_frame_clock_seconds`)
 - Modify: `glitchygames/scenes/scene.py` — `Scene.__init__` (capture streams first),
   `Scene.replay_arguments`, `SceneManager._setup_new_scene` (complete the start capture before
   `setup()`), `SceneManager.active_scene_start` (the active scene's capture)
@@ -218,7 +218,7 @@ scene, and the frame where the arrival scene starts holds its `scene_start`.
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/randomness.py glitchygames/engine/sources.py glitchygames/scenes/scene.py glitchygames/replay/scene_start.py glitchygames/examples/clockwork_keep/game.py glitchygames/recording.py tests/test_randomness.py tests/world/test_frame_integration.py tests/world/test_gameplay_recording.py <clockwork test file>
+git add glitchygames/randomness.py glitchygames/sources.py glitchygames/scenes/scene.py glitchygames/replay/scene_start.py glitchygames/examples/clockwork_keep/game.py glitchygames/recording.py tests/test_randomness.py tests/world/test_frame_integration.py tests/world/test_gameplay_recording.py <clockwork test file>
 git commit -m "Capture how each scene began so it can be rebuilt for playback"
 ```
 
@@ -228,7 +228,7 @@ git commit -m "Capture how each scene began so it can be rebuilt for playback"
 
 **Files:**
 - Create: `glitchygames/replay/playback.py`
-- Modify: `glitchygames/engine/sources.py` (`push_scoped_sources`, `pop_scoped_sources`)
+- Modify: `glitchygames/sources.py` (`push_scoped_sources`, `pop_scoped_sources`)
 - Modify: `glitchygames/scenes/scene.py` (`_enter_playback`, `_exit_playback`, the frame loop runs
   the playback scene; scope end checks after each frame)
 - Modify: `glitchygames/replay/driver.py` (`ReplaySources` can serve a recording from a given
@@ -309,7 +309,7 @@ import pygame
 import pytest
 from scripts.record_golden_traces import FRAME_SECONDS, GoldenTraceSceneManager, press, release
 
-from glitchygames.engine.sources import active_sources
+from glitchygames.sources import active_sources
 from glitchygames.randomness import random_stream
 from glitchygames.replay.playback import PlaybackSources, start_playback_from_recording
 from tests.world.test_frame_integration import running_scene, step
@@ -468,7 +468,7 @@ def start_playback_from_recording(*, manager: SceneManager, path: Path, then: Sc
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/replay/playback.py glitchygames/engine/sources.py glitchygames/scenes/scene.py glitchygames/replay/driver.py tests/replay/test_playback_scope.py tests/replay/playback_fixtures.py
+git add glitchygames/replay/playback.py glitchygames/sources.py glitchygames/scenes/scene.py glitchygames/replay/driver.py tests/replay/test_playback_scope.py tests/replay/playback_fixtures.py
 git commit -m "Add the playback scope: rebuilt scenes play recordings on scoped sources"
 ```
 
@@ -540,7 +540,7 @@ git commit -m "Add SceneManager.play_recording for attract-mode demos"
   `Scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS`; the manager keeps a journal for the active
   scene when it opts in)
 - Modify: `glitchygames/replay/playback.py` (`InstantReplayJournal`)
-- Modify: `glitchygames/engine/sources.py` (`LiveSources`: hand each frame's batches and snapshot
+- Modify: `glitchygames/sources.py` (`LiveSources`: hand each frame's batches and snapshot
   to the journal — through a small `FrameInputListener` Protocol the manager registers, so
   `RecordingSources` and `ReplaySources` feed it too)
 - Test: `tests/replay/test_instant_replay.py` (new)
@@ -629,7 +629,7 @@ here — it is one line returning `self._frames[frame_number]['dt']`.)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add glitchygames/scenes/scene.py glitchygames/replay/playback.py glitchygames/engine/sources.py glitchygames/recording.py tests/replay/test_instant_replay.py
+git add glitchygames/scenes/scene.py glitchygames/replay/playback.py glitchygames/sources.py glitchygames/recording.py tests/replay/test_instant_replay.py
 git commit -m "Keep an in-memory input journal for scenes that offer instant replay"
 ```
 
