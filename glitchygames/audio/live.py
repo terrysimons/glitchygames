@@ -32,6 +32,7 @@ from glitchygames.audio.synth import (
     to_sound,
     tremolo,
 )
+from glitchygames.randomness import numpy_stream
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -41,6 +42,8 @@ if TYPE_CHECKING:
 log: logging.Logger = logging.getLogger('game.audio.live')
 
 DEFAULT_CHUNK_DURATION = 0.1
+# The engine numpy stream a voice's noise comes from when none is given (glitchygames/randomness.py)
+LIVE_RANDOM_STREAM = 'audio.live'
 DEFAULT_FADE_OUT = 0.1
 
 
@@ -102,7 +105,9 @@ class LiveVoice:
         self._waveform = waveform
         self._sample_rate = sample_rate
         self._chunk_samples = sample_count(chunk_duration, sample_rate)
-        self._random_source = random_source or np.random.default_rng()
+        self._random_source = (
+            random_source if random_source is not None else numpy_stream(LIVE_RANDOM_STREAM)
+        )
         self._target_frequency = frequency
         self._rendered_frequency = frequency
         self._target_volume = volume

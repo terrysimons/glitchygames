@@ -7,8 +7,10 @@ import pytest
 from glitchygames.audio import synth
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.audio.synth import Envelope, Waveform
+from glitchygames.randomness import NUMPY_STREAM_KIND, reset_streams, stream_seed
 
 RATE = 44100
+NOISE_STREAM_TEST_SEED = 77
 
 
 def _peak_frequency(samples, sample_rate=RATE):
@@ -100,6 +102,21 @@ class TestOscillator:
             Waveform.NOISE, 0.0, 0.01, sample_rate=RATE, random_source=np.random.default_rng(9)
         )
         np.testing.assert_array_equal(first, second)
+
+    def test_noise_without_a_random_source_draws_from_the_synth_stream(self):
+        """Unseeded noise comes from numpy_stream('audio.synth') of the run's seed."""
+        reset_streams(seed=NOISE_STREAM_TEST_SEED)
+        samples, _ = synth.oscillator(Waveform.NOISE, 0.0, 0.01, sample_rate=RATE)
+
+        reference_generator = np.random.default_rng(
+            stream_seed(
+                kind=NUMPY_STREAM_KIND, master_seed=NOISE_STREAM_TEST_SEED, name='audio.synth'
+            )
+        )
+        expected, _ = synth.oscillator(
+            Waveform.NOISE, 0.0, 0.01, sample_rate=RATE, random_source=reference_generator
+        )
+        np.testing.assert_array_equal(samples, expected)
 
 
 class TestFrequencyCurve:

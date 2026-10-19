@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import logging
 import math
-import secrets
 from dataclasses import dataclass
 from enum import Enum, Flag, auto
 from typing import TYPE_CHECKING, NamedTuple, Self, override
@@ -25,6 +24,7 @@ from glitchygames.movement import Speed
 # only snap_to_pixel uses) so collision code can share them; importing them here keeps
 # `from glitchygames.game_objects.ball import PixelSnapMode, snap_to_pixel` working.
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+from glitchygames.randomness import random_stream
 from glitchygames.sprites import Sprite
 
 log: logging.Logger = logging.getLogger('game.objects.ball')
@@ -249,9 +249,10 @@ def speed_up_step_ratio(curve: SpeedUpCurve, multiplier: float, completed_steps:
             )
 
 
-# Single random source for serves (position, side, angle), so tests can pin them all.
-# SystemRandom draws from the OS entropy pool, like the secrets module.
-_SERVE_RANDOM = secrets.SystemRandom()
+# The engine random stream every serve draws from (position, side, angle), so a run's seed
+# reproduces serves and tests can pin them all. Looked up at each draw, never kept from import
+# time, so reset_streams() takes effect (glitchygames/randomness.py).
+SERVE_RANDOM_STREAM = 'ball.serve'
 
 
 class ServeHorizontalDirection(Enum):
@@ -508,7 +509,7 @@ class BallSprite(Sprite):
         highest = maximum_position - margin
         if lowest > highest:
             return max(maximum_position // 2, 0)
-        return _SERVE_RANDOM.randint(lowest, highest)
+        return random_stream(SERVE_RANDOM_STREAM).randint(lowest, highest)
 
     def serve(self: Self, serve_toward: ServeHorizontalDirection | None = None) -> None:
         """Set a serve velocity from serve_settings without moving the ball.
@@ -519,21 +520,22 @@ class BallSprite(Sprite):
 
         """
         settings = self.serve_settings
+        serve_random = random_stream(SERVE_RANDOM_STREAM)
         horizontal = serve_toward or settings.horizontal
         if horizontal is ServeHorizontalDirection.EITHER:
-            horizontal = _SERVE_RANDOM.choice((
+            horizontal = serve_random.choice((
                 ServeHorizontalDirection.LEFT,
                 ServeHorizontalDirection.RIGHT,
             ))
         vertical = settings.vertical
         if vertical is ServeVerticalDirection.EITHER:
-            vertical = _SERVE_RANDOM.choice((
+            vertical = serve_random.choice((
                 ServeVerticalDirection.UP,
                 ServeVerticalDirection.DOWN,
             ))
 
         angle_radians = math.radians(
-            _SERVE_RANDOM.uniform(settings.minimum_angle_degrees, settings.maximum_angle_degrees)
+            serve_random.uniform(settings.minimum_angle_degrees, settings.maximum_angle_degrees)
         )
         horizontal_sign = 1.0 if horizontal is ServeHorizontalDirection.RIGHT else -1.0
         vertical_sign = 1.0 if vertical is ServeVerticalDirection.DOWN else -1.0

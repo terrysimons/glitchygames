@@ -364,7 +364,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         group.add_argument(
             '--random-seed',
             type=int,
-            help='seed engine_random() (default: a random 64-bit seed, logged in recordings)',
+            help=(
+                'master seed for every engine random stream (default: a random 64-bit seed, '
+                'logged in recordings)'
+            ),
             default=None,
         )
         group.add_argument(
@@ -565,7 +568,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         self._active_scene: Scene | None = None
 
-        # Seed engine_random() before any game code runs (see glitchygames/randomness.py)
+        # Set the master seed of the engine random streams before any game code runs
+        # (see glitchygames/randomness.py)
         self.random_seed: int = seed_engine_random(seed=options.get('random_seed'))
         # Set while start_trace_recording's SIGTERM handler is installed
         self._installed_sigterm_handler: bool = False

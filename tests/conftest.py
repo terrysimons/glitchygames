@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Imported after the SDL environment is set up above
 import pygame
 
+from glitchygames import randomness
 from glitchygames.engine import GameEngine
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
@@ -194,6 +195,16 @@ def restore_game_engine_class_state(mocker):
     for attribute_name in ('game', 'icon', 'OPTIONS'):
         # Patched with its own value: whatever the test assigns is undone at teardown
         mocker.patch.object(GameEngine, attribute_name, getattr(GameEngine, attribute_name))
+
+
+@pytest.fixture(autouse=True)
+def fresh_random_streams(mocker):
+    """Give each test an unseeded set of engine random streams (glitchygames/randomness.py).
+
+    GameEngine and reset_streams() set the process-wide master seed and cache streams; without
+    this, one test's seed and half-used streams would carry into the next test on the worker.
+    """
+    mocker.patch.object(randomness, '_STATE', randomness.EngineRandomState())
 
 
 @pytest.fixture(autouse=True)

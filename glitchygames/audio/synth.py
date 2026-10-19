@@ -18,11 +18,14 @@ import pygame
 
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.effects.easing import get_easing
+from glitchygames.randomness import numpy_stream
 
 FloatArray = npt.NDArray[np.float64]
 
 # pygame's default mixer rate, which pygame.init() starts (BUGS.md #22)
 DEFAULT_SAMPLE_RATE = 44100
+# The engine numpy stream NOISE draws from when no random_source is given, see randomness.py
+SYNTH_RANDOM_STREAM = 'audio.synth'
 
 
 class Waveform(enum.Enum):
@@ -146,7 +149,9 @@ def oscillator(  # ruff: ignore[too-many-arguments] - mirrors the spec's signatu
     _validate_frequencies(frequencies, rate)
 
     if waveform is Waveform.NOISE:
-        generator = random_source if random_source is not None else np.random.default_rng()
+        generator = (
+            random_source if random_source is not None else numpy_stream(SYNTH_RANDOM_STREAM)
+        )
         return generator.uniform(-1.0, 1.0, count), phase % 1.0
 
     increments = frequencies / rate

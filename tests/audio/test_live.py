@@ -7,8 +7,10 @@ from glitchygames.audio import live
 from glitchygames.audio.live import LiveAudio, LiveVoice, VoiceState, reserve_live_voice_pool
 from glitchygames.audio.recipes import Tremolo
 from glitchygames.audio.synth import Waveform
+from glitchygames.randomness import numpy_stream, reset_streams
 
 RATE = 44100
+LIVE_STREAM_TEST_SEED = 78
 
 
 @pytest.fixture
@@ -75,6 +77,18 @@ class TestPoolReservation:
     def test_negative_pool_raises(self):
         with pytest.raises(ValueError, match='pool_size'):
             reserve_live_voice_pool(-1)
+
+
+class TestLiveVoiceRandomSource:
+    """Where a voice's noise comes from."""
+
+    def test_voice_without_a_random_source_uses_the_live_stream(self, channel):
+        """A voice created without random_source draws from numpy_stream('audio.live')."""
+        reset_streams(seed=LIVE_STREAM_TEST_SEED)
+
+        voice = _voice(channel, random_source=None)
+
+        assert voice._random_source is numpy_stream('audio.live')
 
 
 class TestLiveVoiceChunks:

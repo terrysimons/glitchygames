@@ -8,9 +8,9 @@ same scripts and fails on any difference that is not listed and justified there.
 
 Determinism:
     - Every frame runs with ``dt`` fixed at 1/60 second.
-    - Randomness the games use (``secrets.randbelow`` in PaddleSlap, the ball serve's
-      ``_SERVE_RANDOM``, and the shake effects' ``secrets.SystemRandom``) is replaced by one
-      ``random.Random`` seeded with ``RANDOM_SEED``.
+    - Every game is started with ``--random-seed RANDOM_SEED``: all the randomness the games
+      use (serves, PaddleSlap's spawn positions and colours, shakes) comes from the engine's
+      named streams (``glitchygames/randomness.py``), so the seed fixes it. Nothing is patched.
     - PaddleSlap's clock reads (``time.time`` for the ball spawn cooldown) come from a fake
       clock that advances exactly 1/60 second per frame.
     - Save files go to a fresh temporary directory, so high scores on disk cannot leak in.
@@ -40,7 +40,6 @@ from __future__ import annotations
 
 import contextlib
 import os
-import random
 import sys
 import tempfile
 import types
@@ -53,14 +52,12 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
-from glitchygames.effects import shake as shake_module
 from glitchygames.engine import GameEngine
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.examples import paddleslap
 from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
-from glitchygames.game_objects import ball as ball_module
 from glitchygames.scenes import SceneManager
 from glitchygames.state import manager as save_manager_module
 from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trace
@@ -440,7 +437,9 @@ SCRIPT_BUILDERS: dict[str, Callable[[], InputScript]] = {
 
 @contextlib.contextmanager
 def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator[None]:
-    """Replace every randomness and clock source the games read, then restore them.
+    """Replace the clock PaddleSlap reads and the save directory, then restore them.
+
+    Randomness needs no replacement: ``_start_game`` passes ``--random-seed``.
 
     Args:
         clock: The fake clock PaddleSlap's time reads come from.
@@ -450,19 +449,12 @@ def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator
         None, while the replacements are in place.
 
     """
-    seeded_random = random.Random(RANDOM_SEED)
-
-    def seeded_system_random() -> random.Random:
-        return seeded_random
 
     def temporary_save_directory(app_name: str) -> Path:
         return save_root / app_name
 
     replacements: list[tuple[object, str, object]] = [
-        (paddleslap, 'secrets', types.SimpleNamespace(randbelow=seeded_random.randrange)),
         (paddleslap, 'time', types.SimpleNamespace(time=clock.now)),
-        (ball_module, '_SERVE_RANDOM', seeded_random),
-        (shake_module, 'secrets', types.SimpleNamespace(SystemRandom=seeded_system_random)),
         (save_manager_module, 'get_save_directory', temporary_save_directory),
     ]
     originals = [(owner, name, getattr(owner, name)) for owner, name, _ in replacements]
@@ -556,11 +548,12 @@ class GoldenTraceEngine(GameEngine):
         self.scene_manager.switch_to_scene(game)
 
 
-def _start_game(game_key: str) -> GoldenTraceSceneManager:
+def _start_game(game_key: str, *, random_seed: int) -> GoldenTraceSceneManager:
     """Construct the game engine and install the game's scene.
 
     Args:
         game_key: Which game to start.
+        random_seed: The run's master seed (``--random-seed``).
 
     Returns:
         The scene manager with the game scene active.
@@ -576,6 +569,8 @@ def _start_game(game_key: str) -> GoldenTraceSceneManager:
         'warning',
         '--input-mode',
         'joystick',
+        '--random-seed',
+        str(random_seed),
     ]):
         engine = GoldenTraceEngine(game=scene_class)
     assert engine.scene_manager is manager
@@ -598,7 +593,11 @@ def discard_environment_events() -> None:
 
 
 def record_trace(
-    game_key: str, *, frame_count: int, recording_path: Path | None = None
+    game_key: str,
+    *,
+    frame_count: int,
+    recording_path: Path | None = None,
+    random_seed: int = RANDOM_SEED,
 ) -> dict[str, Any]:
     """Run a game headless with its scripted input and record every sprite each frame.
 
@@ -608,6 +607,7 @@ def record_trace(
         recording_path: If given, the engine also records the run there as ``--record-trace``
             would (GameEngine.start_trace_recording), for checking recordings against the
             harness's own frames.
+        random_seed: The run's master seed, passed as ``--random-seed``.
 
     Returns:
         The trace: game key, frame seconds and one record per frame.
@@ -621,7 +621,7 @@ def record_trace(
         tempfile.TemporaryDirectory(prefix='golden-trace-saves-') as save_directory,
         deterministic_environment(clock=clock, save_root=Path(save_directory)),
     ):
-        manager = _start_game(game_key)
+        manager = _start_game(game_key, random_seed=random_seed)
         engine = manager.game_engine
         assert engine is not None
         try:

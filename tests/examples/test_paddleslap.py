@@ -27,11 +27,26 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
     speed_up_step_ratio,
 )
+from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
 from tests.mocks.test_mock_factory import MockFactory
+
+PADDLESLAP_STREAM_TEST_SEED = 41
 
 # The class's autouse MockFactory patches replace pygame.sprite.LayeredDirty with a mock
 # group, so keep the real class for tests that need dt_tick to reach real sprites.
 _RealLayeredDirty = pygame.sprite.LayeredDirty
+
+
+def _reference_stream(name: str) -> random.Random:
+    """Return a fresh copy of what random_stream(name) is after PADDLESLAP_STREAM_TEST_SEED.
+
+    Returns:
+        A generator seeded as the named stream is.
+
+    """
+    return random.Random(
+        stream_seed(kind=RANDOM_STREAM_KIND, master_seed=PADDLESLAP_STREAM_TEST_SEED, name=name)
+    )
 
 
 class TestPaddleslapExample:
@@ -96,6 +111,34 @@ class TestPaddleslapExample:
 
         random_state_is_unchanged = random.getstate() == random_state_before
         assert random_state_is_unchanged, 'Game() reseeded the global random module'
+
+    def test_opening_ball_colors_come_from_the_colors_stream(self):
+        """The opening balls' colours are drawn from random_stream('paddleslap.colors')."""
+        reset_streams(seed=PADDLESLAP_STREAM_TEST_SEED)
+
+        game = Game(options=self.mock_options)
+
+        reference_generator = _reference_stream('paddleslap.colors')
+        assert game.balls[0].color == tuple(reference_generator.randrange(256) for _ in range(3))
+
+    def test_spawned_ball_position_and_color_come_from_their_streams(self):
+        """A random spawn's position is from 'paddleslap.spawn', its colour 'paddleslap.colors'."""
+        game = Game(options=self.mock_options)
+        game.ball_spawn_mode = BallSpawnMode.RANDOM_POSITION | BallSpawnMode.RANDOM_COLOR
+        # No ball to keep away from, so the first drawn position is used
+        game.balls = []
+        reset_streams(seed=PADDLESLAP_STREAM_TEST_SEED)
+
+        game._spawn_new_ball()
+
+        spawn_generator = _reference_stream('paddleslap.spawn')
+        color_generator = _reference_stream('paddleslap.colors')
+        new_ball = game.balls[-1]
+        assert (new_ball.world_x, new_ball.world_y) == (
+            float(spawn_generator.randrange(game.screen_width - 60) + 30),
+            float(spawn_generator.randrange(game.screen_height - 40) + 20),
+        )
+        assert new_ball.color == tuple(color_generator.randrange(256) for _ in range(3))
 
     def test_paddleslap_ball_speed_up_mechanism(self):
         """Test that the ball speeds up logarithmically on paddle bounces only."""

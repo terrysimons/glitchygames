@@ -151,9 +151,13 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   (the only reader of SDL's queue; each event tagged `external`/`internal`), sprites, and a header
   with versions, options and the random seed; off by default. Engine code posts events with
   `glitchygames.recording.post_event` so recordings can mark them internal
-- `--random-seed INT`: seed `engine_random()` (default: 64 random bits, kept in recordings); games
-  must draw from `engine_random()` for exact replay. Replay (`--replay-trace`) is planned
-  (`plans/future-work.md`)
+- `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
+  randomness draws from named streams seeded from it: `random_stream('name')` (`random.Random`) or
+  `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is
+  `random_stream('engine')`, `reset_streams(seed=...)` reseeds (tests, replay). Never use
+  `secrets`, `random.SystemRandom`, global `random.*` functions or an unseeded
+  `np.random.default_rng()` in gameplay (`tests/test_randomness.py` scans for them). Replay
+  (`--replay-trace`) is planned (`plans/future-work.md`)
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`

@@ -34,6 +34,9 @@ if TYPE_CHECKING:
 # Marks an ExpectedDifference without a pinned value (None is a real value, so it can't be used)
 NO_EXPECTED_VALUE: Any = object()
 MISSING_EXPECTATION_MESSAGE = 'An ExpectedDifference needs an expected value or a rule'
+# The seeded-reproducibility test: --random-seed value and frames per run
+SEEDED_TRACE_SEED = 123
+SEEDED_TRACE_FRAME_COUNT = 120
 
 
 @dataclass(frozen=True)
@@ -280,6 +283,26 @@ def test_game_matches_golden_trace(game_key):
             f'{game_key}: {len(stale)} expected difference(s) no longer occur; first: {stale[0]}',
             pytrace=False,
         )
+
+
+def test_same_random_seed_gives_identical_paddleslap_traces():
+    """--random-seed 123 twice plays PaddleSlap identically; seed 124 plays differently.
+
+    Every random draw (serves, spawn positions, colours, shakes) comes from the run's seeded
+    streams, so the harness needs no patching of the games' randomness.
+    """
+    first_run = record_trace(
+        'paddleslap', frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED
+    )
+    second_run = record_trace(
+        'paddleslap', frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED
+    )
+    other_seed_run = record_trace(
+        'paddleslap', frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED + 1
+    )
+
+    assert second_run == first_run
+    assert trace_differences(baseline=first_run, current=other_seed_run) != []
 
 
 @pytest.mark.parametrize('game_key', sorted(GAME_SCENES))

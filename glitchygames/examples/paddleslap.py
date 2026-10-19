@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import math
-import secrets
 import time
 from typing import TYPE_CHECKING, Self, cast, override
 
@@ -38,6 +37,7 @@ from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.game_objects.sounds import SFX
 from glitchygames.input import ActionMap
 from glitchygames.movement import Speed
+from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
@@ -60,6 +60,13 @@ MIN_TRAJECTORY_POSITIONS_FOR_CURVE = 5
 
 # Y trend threshold for detecting significant upward movement (negative = upward)
 UPWARD_CURVE_Y_TREND_THRESHOLD = -5
+
+# Engine random streams (glitchygames/randomness.py): spawn positions and ball colours draw
+# from separate streams, so a colour draw never moves where the next ball spawns
+SPAWN_RANDOM_STREAM = 'paddleslap.spawn'
+COLOR_RANDOM_STREAM = 'paddleslap.colors'
+# Each colour channel is drawn from range(COLOR_CHANNEL_LEVELS)
+COLOR_CHANNEL_LEVELS = 256
 
 # Paddle hits speed the ball up along a logarithmic curve: big early boosts that taper
 # off so long rallies stay playable, preserving the angle the paddle set, capped at 500.
@@ -226,6 +233,20 @@ class TextSprite(Sprite):
         self.text_box.print_text(self.image, f'{Game.NAME} version {Game.VERSION}')
 
 
+def _random_ball_color() -> tuple[int, int, int]:
+    """Draw a ball colour from the colour stream (red, then green, then blue).
+
+    Returns:
+        The (red, green, blue) colour, each channel in range(COLOR_CHANNEL_LEVELS).
+
+    """
+    color_random = random_stream(COLOR_RANDOM_STREAM)
+    red = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    green = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    blue = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    return (red, green, blue)
+
+
 class Game(Scene):
     """The main game class.  This is where the magic happens."""
 
@@ -319,10 +340,7 @@ class Game(Scene):
             self.balls.append(ball)
 
         for ball in self.balls:
-            red = secrets.randbelow(256)
-            green = secrets.randbelow(256)
-            blue = secrets.randbelow(256)
-            ball.color = (red, green, blue)
+            ball.color = _random_ball_color()
             self.collisions.get_layer('balls').add(ball)
 
         paddle_layer = self.collisions.get_layer('paddles')
@@ -558,12 +576,13 @@ class Game(Scene):
             max_attempts = 10
             spawn_x = self.screen_width // 2
             spawn_y = self.screen_height // 2
+            spawn_random = random_stream(SPAWN_RANDOM_STREAM)
             for _ in range(max_attempts):
                 spawn_x = (
-                    secrets.randbelow(self.screen_width - 60) + 30
+                    spawn_random.randrange(self.screen_width - 60) + 30
                 )  # Between paddles with margin
                 spawn_y = (
-                    secrets.randbelow(self.screen_height - 40) + 20
+                    spawn_random.randrange(self.screen_height - 40) + 20
                 )  # Within top/bottom boundaries
 
                 # Check if this location is far enough from existing balls
@@ -598,11 +617,7 @@ class Game(Scene):
 
         # Set color based on spawn mode
         if self.ball_spawn_mode & BallSpawnMode.RANDOM_COLOR:
-            new_ball.color = (
-                secrets.randbelow(256),
-                secrets.randbelow(256),
-                secrets.randbelow(256),
-            )
+            new_ball.color = _random_ball_color()
         else:
             new_ball.color = WHITE
         # Add collision cooldown tracking

@@ -13,13 +13,16 @@ from __future__ import annotations
 import dataclasses
 import enum
 import math
-import secrets
 from typing import TYPE_CHECKING
+
+from glitchygames.randomness import random_stream
 
 if TYPE_CHECKING:
     import random
 
 DEFAULT_MAXIMUM_OFFSET = 32.0
+# The engine random stream shakes draw from (glitchygames/randomness.py)
+SHAKE_RANDOM_STREAM = 'shake'
 # BOUNCE amplitude remaining at the end of its duration (1% of strength)
 BOUNCE_FINAL_AMPLITUDE_FRACTION = 0.01
 
@@ -220,7 +223,10 @@ class ScreenShake:
         Args:
             maximum_offset: Per-axis cap on the summed offset, in pixels (> 0).
             intensity: Player setting 0.0-1.0 multiplying every offset (0 disables).
-            random_source: Randomness for NOISE and JITTER; seed it in tests.
+            random_source: Randomness for NOISE and JITTER; seed it in tests. None (the
+                default) draws from the engine's ``random_stream(SHAKE_RANDOM_STREAM)``,
+                looked up when each shake starts so a ScreenShake created before the engine
+                seeded still follows the run's seed.
 
         Raises:
             ValueError: If maximum_offset is not positive.
@@ -232,9 +238,7 @@ class ScreenShake:
         self._maximum_offset = maximum_offset
         self._intensity = 1.0
         self.intensity = intensity
-        if random_source is None:
-            random_source = secrets.SystemRandom()
-        self._random_source: random.Random = random_source
+        self._random_source: random.Random | None = random_source
         self._active: list[_ActiveShake] = []
 
     @property
@@ -266,7 +270,10 @@ class ScreenShake:
             shake: The shake to start.
 
         """
-        self._active.append(_ActiveShake(shake=shake, random_source=self._random_source))
+        random_source = self._random_source
+        if random_source is None:
+            random_source = random_stream(SHAKE_RANDOM_STREAM)
+        self._active.append(_ActiveShake(shake=shake, random_source=random_source))
 
     def update(self, dt: float) -> None:
         """Advance every shake by game time and drop finished ones.

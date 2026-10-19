@@ -17,6 +17,7 @@ import pytest
 from scripts.record_golden_traces import (
     FAKE_CLOCK_START_SECONDS,
     FRAME_SECONDS,
+    RANDOM_SEED,
     SCREEN_RESOLUTION,
     FakeClock,
     GoldenTraceEngine,
@@ -171,6 +172,8 @@ def running_game(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager]
                 'warning',
                 '--input-mode',
                 'joystick',
+                '--random-seed',
+                str(RANDOM_SEED),
             ]):
                 engine = GoldenTraceEngine(game=scene_class)
             engine.install_game(scene_class=scene_class)

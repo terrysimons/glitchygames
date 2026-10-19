@@ -6,6 +6,7 @@ import random
 import pygame
 import pytest
 
+from glitchygames.effects import shake as shake_module
 from glitchygames.effects.shake import (
     RumbleSettings,
     ScreenShake,
@@ -13,6 +14,7 @@ from glitchygames.effects.shake import (
     ShakeAxis,
     ShakeStyle,
 )
+from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
 from glitchygames.scenes import SceneManager
 
 SEED = 1234
@@ -161,6 +163,30 @@ class TestShakeStyles:
             shaker.update(0.3)
             offsets.append(shaker.offset)
         assert offsets[0] == offsets[1]
+
+    def test_default_random_source_is_the_shake_stream(self, mocker):
+        """Without a random_source, a shake draws from random_stream('shake') of the run seed.
+
+        The stream is looked up when the shake starts, so a ScreenShake created before the
+        engine seeded (the SceneManager's) still follows the run's seed.
+        """
+        stream_lookup = mocker.patch(
+            'glitchygames.effects.shake.random_stream', wraps=shake_module.random_stream
+        )
+        shaker = ScreenShake()
+        reset_streams(seed=SEED)
+        shaker.add(Shake(style=ShakeStyle.JITTER, strength=10.0, duration=1.0, frequency=30.0))
+        shaker.update(0.01)
+
+        reference = ScreenShake(
+            random_source=random.Random(
+                stream_seed(kind=RANDOM_STREAM_KIND, master_seed=SEED, name='shake')
+            )
+        )
+        reference.add(Shake(style=ShakeStyle.JITTER, strength=10.0, duration=1.0, frequency=30.0))
+        reference.update(0.01)
+        assert shaker.offset == reference.offset
+        stream_lookup.assert_called_once_with('shake')
 
 
 class TestStackingAndLimits:

@@ -34,7 +34,7 @@ One line per item, with where it is detailed. Review, then promote items into
 ## Gameplay replay (follow-up to `--record-trace`, feature/engine-world-space Task 1d)
 
 - **`--replay-trace PATH`:** load a recording (`glitchygames/recording.py`, read with
-  `TraceReader`), seed `engine_random()` from its `random_seed` and apply its recorded options
+  `TraceReader`), `reset_streams(seed=...)` from its `random_seed` and apply its recorded options
   (screen size, input mode); each frame, set `dt` from the frame's `dt` instead of reading the
   clock, and at `GameEngine._pump_events` (the single seam) return recorded batch N for pump call
   N: the frame's external events, merged with the internal events (FPS, game, menu events, code
@@ -42,10 +42,13 @@ One line per item, with where it is detailed. Review, then promote items into
   internal entries verify. Sample the sprites as the recorder does, compare them with the
   recording's frames and report the first divergence (frame, sprite, field). Nothing pauses for
   wall-clock time.
-- **Move the games' randomness onto `engine_random()`** (PaddleSlap's `secrets.randbelow` and
-  `time.time` cooldown, the ball serve's `_SERVE_RANDOM`, the shake effects' `secrets.SystemRandom`)
-  so a recording's seed reproduces them; the golden harness's `deterministic_environment` patches
-  them today. Without this, replays of those games diverge at the first random draw.
+- ~~Move the games' randomness onto the seeded engine~~ **Done** (feature/engine-world-space
+  Task 1f): every random draw in the package comes from a named stream of the run's master seed
+  (`random_stream` / `numpy_stream` in `glitchygames/randomness.py`), the golden harness passes
+  `--random-seed` instead of patching, and `tests/test_randomness.py` rejects unseeded sources.
+- **Wall-clock reads in gameplay:** PaddleSlap's ball spawn cooldown reads `time.time`, which a
+  replay cannot reproduce (the golden harness's `deterministic_environment` still patches it with
+  a fake clock). Move it onto game time (accumulated `dt`).
 - **Polled input:** input read outside the event queue is not recorded (`pygame.key.get_pressed`,
   `pygame.key.get_mods`, `pygame.mouse.get_pos`, joystick and controller `get_axis`; the sites are
   listed in `glitchygames/recording.py`'s module docstring). Replay of code that polls needs a

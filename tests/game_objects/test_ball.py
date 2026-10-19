@@ -1,6 +1,7 @@
 """Tests for BallSprite game object."""
 
 import math
+import random
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -23,9 +24,16 @@ from glitchygames.game_objects.ball import (
 )
 from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.movement import Speed
+from glitchygames.randomness import (
+    RANDOM_STREAM_KIND,
+    random_stream,
+    reset_streams,
+    stream_seed,
+)
 from tests.mocks.test_mock_factory import MockFactory
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+SERVE_STREAM_TEST_SEED = 31
 SIZE_20 = 20
 SIZE_30 = 30
 DIRECTION_360 = 360
@@ -245,7 +253,9 @@ class TestBallSpriteReset:
         """Test ball reset places the ball at the random position it draws, inside the margin."""
         mocker.patch('pygame.draw.circle')
         ball = BallSprite()
-        randint = mocker.patch.object(ball_module._SERVE_RANDOM, 'randint', side_effect=[173, 70])
+        randint = mocker.patch.object(
+            random_stream(ball_module.SERVE_RANDOM_STREAM), 'randint', side_effect=[173, 70]
+        )
 
         ball.reset()
 
@@ -257,6 +267,26 @@ class TestBallSpriteReset:
             mocker.call(margin, ball.screen_height - ball.height - margin),
         ]
 
+    def test_ball_reset_draws_from_the_serve_stream(self, mocker):
+        """reset() draws its position from random_stream('ball.serve') of the run's seed."""
+        mocker.patch('pygame.draw.circle')
+        ball = BallSprite()
+        reset_streams(seed=SERVE_STREAM_TEST_SEED)
+
+        ball.reset()
+
+        reference_generator = random.Random(
+            stream_seed(
+                kind=RANDOM_STREAM_KIND, master_seed=SERVE_STREAM_TEST_SEED, name='ball.serve'
+            )
+        )
+        margin = ball.serve_settings.spawn_margin
+        assert ball.rect is not None
+        assert (ball.rect.x, ball.rect.y) == (
+            reference_generator.randint(margin, ball.screen_width - ball.width - margin),
+            reference_generator.randint(margin, ball.screen_height - ball.height - margin),
+        )
+
     def test_ball_reset_direction(self, mocker):
         """Test ball.direction reports the served heading (0 = right, 90 = down)."""
         mocker.patch('pygame.draw.circle')
@@ -266,7 +296,9 @@ class TestBallSpriteReset:
                 vertical=ServeVerticalDirection.UP,
             ),
         )
-        mocker.patch.object(ball_module._SERVE_RANDOM, 'uniform', return_value=30.0)
+        mocker.patch.object(
+            random_stream(ball_module.SERVE_RANDOM_STREAM), 'uniform', return_value=30.0
+        )
 
         ball.reset()
 
@@ -371,9 +403,11 @@ class TestServeSettings:
                 speed=SERVE_SPEED,
             ),
         )
-        mocker.patch.object(ball_module._SERVE_RANDOM, 'uniform', return_value=angle)
         mocker.patch.object(
-            ball_module._SERVE_RANDOM,
+            random_stream(ball_module.SERVE_RANDOM_STREAM), 'uniform', return_value=angle
+        )
+        mocker.patch.object(
+            random_stream(ball_module.SERVE_RANDOM_STREAM),
             'choice',
             side_effect=lambda options: (
                 horizontal_coin if options[0] in HORIZONTAL_COIN_OUTCOMES else vertical_coin
@@ -425,7 +459,9 @@ class TestServeSettings:
                 vertical=ServeVerticalDirection.DOWN,
             ),
         )
-        mocker.patch.object(ball_module._SERVE_RANDOM, 'uniform', return_value=angle)
+        mocker.patch.object(
+            random_stream(ball_module.SERVE_RANDOM_STREAM), 'uniform', return_value=angle
+        )
         ball.serve()
         expected = (250.0, 0.0) if angle == 0.0 else (0.0, 250.0)
         assert (ball.speed.x, ball.speed.y) == pytest.approx(expected, abs=1e-9)
@@ -440,7 +476,7 @@ class TestServeSettings:
         ball.screen_width = screen_width
         ball.screen_height = screen_height
         mocker.patch.object(
-            ball_module._SERVE_RANDOM,
+            random_stream(ball_module.SERVE_RANDOM_STREAM),
             'randint',
             side_effect=lambda low, high: low if pick == 'lowest' else high,
         )
