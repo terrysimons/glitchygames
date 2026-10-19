@@ -185,6 +185,10 @@ class Camera2D:
         # engine can warn when the game and the engine both move the camera in one frame
         self._updated_by_game_this_frame: bool = False
 
+        # Set whenever the WORLD shake advances (cleared by begin_frame()), so the engine
+        # advances it exactly once per frame whoever moves the camera, or when nobody does
+        self._shake_advanced_this_frame: bool = False
+
     @property
     def follow_target(self: Self) -> object | None:
         """The world sprite the engine aims the camera at, or None (manual camera)."""
@@ -219,12 +223,19 @@ class Camera2D:
         """Whether game code called update() since the last begin_frame()."""
         return self._updated_by_game_this_frame
 
+    @property
+    def shake_advanced_this_frame(self: Self) -> bool:
+        """Whether the WORLD shake advanced since the last begin_frame()."""
+        return self._shake_advanced_this_frame
+
     def aim_at(self: Self, *, target_x: float, target_y: float, dt: float) -> None:
         """Move toward a target on the followed axes only (the engine's camera aim).
 
         An axis not in follow_axes aims at the camera's current goal on that axis
         (world position plus lead offset), so smoothing leaves it where it is and only the
-        bounds clamp applies. Does not count as a game update().
+        bounds clamp applies. Does not count as a game update(). The WORLD shake is not
+        advanced again if game code already advanced it this frame (a camera.update() in
+        dt_tick while the engine also aims), so it advances once per frame.
 
         Args:
             target_x: Target X position in world coordinates.
@@ -236,11 +247,40 @@ class Camera2D:
             target_x = self.world_x + self.lead_x
         if FollowAxes.Y not in self._follow_axes:
             target_y = self.world_y + self.lead_y
-        self._engine_update(target_x=target_x, target_y=target_y, dt=dt)
+        self._engine_update(
+            target_x=target_x,
+            target_y=target_y,
+            dt=dt,
+            advance_shake=not self._shake_advanced_this_frame,
+        )
+
+    def advance_shake(self: Self, *, dt: float) -> None:
+        """Advance the WORLD shake without moving the camera (the engine's still-camera step).
+
+        The engine calls this at the end of a frame in which nothing moved the camera (no
+        engine aim, no game update()), so a shake on a camera that stands still (a scene that
+        never scrolls, or a follow game after game over) still decays and its rumble stops.
+        The camera position does not change, so parallax layers do not scroll; while a shake
+        is running they are redrawn from the same position with the new shake offset, so
+        their shake displacement follows the shake and returns to rest with it.
+
+        Args:
+            dt: Delta time in seconds (the scene's dt, as the engine aim would have used).
+
+        """
+        shake_was_active = self.shake_effect.is_active
+        self.shake_effect.update(dt)
+        self._shake_advanced_this_frame = True
+        if shake_was_active:
+            shake_x, shake_y = self.shake_effect.offset
+            self._update_parallax_layers(
+                camera_x=self.world_x + shake_x, camera_y=self.world_y + shake_y
+            )
 
     def begin_frame(self: Self) -> None:
-        """Start a new frame: forget whether game code called update() last frame."""
+        """Start a new frame: forget last frame's game update() and WORLD shake advance."""
         self._updated_by_game_this_frame = False
+        self._shake_advanced_this_frame = False
 
     @property
     def has_been_applied(self: Self) -> bool:
@@ -310,15 +350,20 @@ class Camera2D:
         self._updated_by_game_this_frame = True
         self._engine_update(target_x=target_x, target_y=target_y, dt=dt)
 
-    def _engine_update(self, *, target_x: float, target_y: float, dt: float) -> None:
+    def _engine_update(
+        self, *, target_x: float, target_y: float, dt: float, advance_shake: bool = True
+    ) -> None:
         """Move the camera exactly as update() does, without marking a game update.
 
-        Called by the engine's camera aim (glitchygames.world.aim_camera).
+        Called by update() and by aim_at() (the engine's camera aim,
+        glitchygames.world.aim_camera).
 
         Args:
             target_x: Target X position in world coordinates.
             target_y: Target Y position in world coordinates.
             dt: Delta time in seconds since last frame.
+            advance_shake: Whether to advance the WORLD shake by dt (False when it already
+                advanced this frame).
 
         """
         goal_x = target_x - self.lead_x
@@ -333,7 +378,9 @@ class Camera2D:
         # Clamp to world bounds
         self._clamp_to_bounds()
 
-        self.shake_effect.update(dt)
+        if advance_shake:
+            self.shake_effect.update(dt)
+            self._shake_advanced_this_frame = True
         shake_x, shake_y = self.shake_effect.offset
         # Layers scroll from the shaken position, so each shakes in proportion to its
         # scroll_factor: a static sky never shakes, distant scenery barely moves.

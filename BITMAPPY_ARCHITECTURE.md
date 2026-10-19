@@ -41,6 +41,7 @@ sequenceDiagram
         SM->>SM: _aim_active_camera() (camera_target / follow)
         SM->>SM: _position_active_world_sprites() (world sprites' rect, culling)
         SM->>SM: _render_scene() (Scene.update, then draw)
+        SM->>SM: _advance_still_camera_shake() (WORLD shake nothing advanced)
         SM->>SM: _present_frame() (overlay, display update)
         SM->>SM: _finish_frame() (pace, then set dt once from perf_counter)
     end
@@ -238,7 +239,7 @@ Bitmappy has no world-space sprites, so steps 5 and 6 leave its widgets alone.
 
 ```mermaid
 flowchart TD
-    BEGIN["1. camera.begin_frame()\nclear the manual camera-update flag"] --> LOGIC
+    BEGIN["1. camera.begin_frame()\nclear the camera's update and shake-advance flags"] --> LOGIC
     LOGIC["2. _update_scene()\nScene.dt_tick(dt): logic, animation, collision\n(dt capped by MAX_FRAME_SECONDS when set)"] --> EVENTS
     LOGIC --> FM["FrameManager.notify_observers\nFilmStripSprite.dirty = 1"]
     EVENTS["3. _process_events()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --> SERVICES
@@ -248,10 +249,11 @@ flowchart TD
     RENDER["7. _render_scene()\nScene.update() (visual only), LayeredDirty.draw"] --> CHECK{"sprite.dirty?"}
     CHECK -->|"dirty=0"| SKIP["Skip - no redraw"]
     CHECK -->|"dirty=1 or 2"| REDRAW["Blit sprite.image at sprite.rect\ncollect changed rects"]
-    SKIP --> PRESENT
-    REDRAW --> PRESENT
-    PRESENT["8. _present_frame()\ndebug overlay, pygame.display.update rects or flip"] --> FINISH
-    FINISH["9. _finish_frame()\npace, then one perf_counter reading sets the next dt"]
+    SKIP --> STILL
+    REDRAW --> STILL
+    STILL["8. _advance_still_camera_shake()\nadvance a WORLD shake nothing advanced this frame\n(no aim, no game camera.update())"] --> PRESENT
+    PRESENT["9. _present_frame()\ndebug overlay, pygame.display.update rects or flip"] --> FINISH
+    FINISH["10. _finish_frame()\npace, then one perf_counter reading sets the next dt"]
 ```
 
 ## 6. Undo/Redo & Operations

@@ -8,6 +8,7 @@ does, without pacing. Nothing in pygame is mocked: the rects asserted are the on
 from __future__ import annotations
 
 import contextlib
+import math
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
@@ -32,6 +33,7 @@ from scripts.record_golden_traces import (
 from glitchygames.camera import Camera2D
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset
+from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
 from glitchygames.examples import paddleslap
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.scenes import Scene
@@ -286,6 +288,101 @@ class FloorSnappingScene(Scene):
         self.transition_to(
             FollowingScene(options=self.options), FadeTransition(duration=TEST_FADE_SECONDS)
         )
+
+
+# A WORLD shake on a camera that nothing moves: one world sprite at a whole-pixel position
+STILL_SPRITE_POSITION = (50, 50)
+STILL_CAMERA_SHAKE = Shake(
+    style=ShakeStyle.JITTER,
+    strength=8.0,
+    duration=0.2,
+    frequency=30.0,
+    rumble=RumbleSettings(low_frequency=0.5, high_frequency=0.5),
+)
+# Every frame of the shake, plus two to see it finished
+STILL_CAMERA_SHAKE_FRAMES = math.ceil(STILL_CAMERA_SHAKE.duration / FRAME_SECONDS) + 2
+SHAKE_ADVANCE_FRAMES = 4
+
+
+class StillCameraScene(Scene):
+    """A scene with one world sprite and the identity camera, which nothing ever moves.
+
+    PaddleSlap is such a scene: its world-space balls are drawn from a camera that stays at
+    the origin.
+    """
+
+    NAME = 'Still Camera'
+    VERSION = '1.0'
+
+    @override
+    def setup(self: Self) -> None:
+        """Add one world sprite at STILL_SPRITE_POSITION."""
+        sprite_x, sprite_y = STILL_SPRITE_POSITION
+        self.world_sprite = WorldSprite(world_x=float(sprite_x), world_y=float(sprite_y))
+        self.all_sprites.add(self.world_sprite)
+
+
+class StoppedFollowScene(StillCameraScene):
+    """Follows its sprite, but camera_target() returns None, as a game does after game over."""
+
+    NAME = 'Stopped Follow'
+
+    @override
+    def setup(self: Self) -> None:
+        """Add the sprite and follow it."""
+        super().setup()
+        self.camera.follow(target=self.world_sprite)
+
+    @override
+    def camera_target(self: Self) -> tuple[float, float] | None:
+        """Aim nowhere: the camera stands still.
+
+        Returns:
+            None, always.
+
+        """
+        return None
+
+
+class AimedCameraScene(StillCameraScene):
+    """The engine aims the camera at the sprite every frame."""
+
+    NAME = 'Aimed Camera'
+
+    @override
+    def setup(self: Self) -> None:
+        """Add the sprite and follow it."""
+        super().setup()
+        self.camera.follow(target=self.world_sprite)
+
+
+class GameMovedCameraScene(StillCameraScene):
+    """A manual camera: the game moves it in dt_tick, with no follow target."""
+
+    NAME = 'Game Moved Camera'
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Move the camera towards the sprite.
+
+        Args:
+            dt: The frame's delta time in seconds.
+
+        """
+        super().dt_tick(dt)
+        self.camera.update(self.world_sprite.world_x, self.world_sprite.world_y, dt)
+
+
+class DoubleMovedCameraScene(GameMovedCameraScene):
+    """Misuse: the game moves the camera in dt_tick and the engine also aims it."""
+
+    NAME = 'Double Moved Camera'
+
+    @override
+    def setup(self: Self) -> None:
+        """Add the sprite and follow it."""
+        super().setup()
+        self.camera.follow(target=self.world_sprite)
 
 
 @contextlib.contextmanager
@@ -642,3 +739,69 @@ class TestPaddleSlapInTheFrame:
                     drawn_ball, drawn_ball.world_x, drawn_ball.world_y
                 )
             assert spawned_ball.rect.topleft != (0, 0)
+
+
+class TestWorldShakeOnAStillCamera:
+    """A WORLD shake decays even when nothing moves the camera (final review, Important 1).
+
+    Before the fix the shake advanced only when the camera moved (camera.update() or the
+    engine aim), so on a still camera it stayed at full strength forever: world sprites stayed
+    displaced and the rumble stayed on.
+    """
+
+    @pytest.mark.parametrize(
+        'scene_class', [StillCameraScene, StoppedFollowScene], ids=['no-target', 'target-none']
+    )
+    def test_world_shake_decays_and_the_sprite_returns(self, scene_class: type[Scene]):
+        """The sprite shakes, then is drawn at rest again, and the rumble stops."""
+        with running_scene(scene_class) as manager:
+            step(manager)
+            scene = manager.active_scene
+            assert isinstance(scene, StillCameraScene)
+            assert scene.world_sprite.rect.topleft == STILL_SPRITE_POSITION
+
+            scene.shake(STILL_CAMERA_SHAKE, targets=ShakeTarget.WORLD)
+            assert scene.camera.shake_effect.rumble_levels != (0.0, 0.0)
+            drawn_positions: list[tuple[int, int]] = []
+            for _frame in range(STILL_CAMERA_SHAKE_FRAMES):
+                step(manager)
+                drawn_positions.append(scene.world_sprite.rect.topleft)
+
+            assert any(position != STILL_SPRITE_POSITION for position in drawn_positions)
+            assert scene.camera.shake_effect.is_active is False
+            assert scene.camera.shake_effect.offset == (0.0, 0.0)
+            assert scene.world_sprite.rect.topleft == STILL_SPRITE_POSITION
+            assert scene.camera.shake_effect.rumble_levels == (0.0, 0.0)
+            assert scene.camera.shake_effect.rumble_remaining == 0.0
+            # Nothing moved the camera itself
+            assert (scene.camera.world_x, scene.camera.world_y) == (0.0, 0.0)
+
+    @pytest.mark.parametrize(
+        'scene_class',
+        [
+            StillCameraScene,
+            StoppedFollowScene,
+            AimedCameraScene,
+            GameMovedCameraScene,
+            DoubleMovedCameraScene,
+        ],
+        ids=['neither', 'target-none', 'aimed', 'game-moved', 'game-moved-and-aimed'],
+    )
+    def test_shake_advances_exactly_once_per_frame(
+        self, mocker: MockerFixture, scene_class: type[Scene]
+    ):
+        """Whoever moves the camera (nobody, the engine, the game, both), one advance a frame.
+
+        Each advance gets the scene's dt, the dt the engine aim would have used.
+        """
+        with running_scene(scene_class) as manager:
+            step(manager)
+            scene = manager.active_scene
+            assert isinstance(scene, StillCameraScene)
+            shake_update_spy = mocker.spy(scene.camera.shake_effect, 'update')
+
+            step(manager, frames=SHAKE_ADVANCE_FRAMES)
+
+            assert [call.args for call in shake_update_spy.call_args_list] == [
+                (FRAME_SECONDS,)
+            ] * SHAKE_ADVANCE_FRAMES

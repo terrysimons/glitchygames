@@ -107,7 +107,8 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
         raise TypeError(message)
 
     mode = resolve_snap_mode(sprite)
-    # The WORLD shake offset is read, never advanced: Camera2D.update() advances it
+    # The WORLD shake offset is read, never advanced here: the camera's update or aim, or the
+    # engine's still-camera step (SceneManager._advance_still_camera_shake), advances it
     shake_x, shake_y = camera.shake_effect.offset
     draw_offset_x, draw_offset_y = getattr(sprite, 'draw_offset', (0, 0))
     if not all(
@@ -175,8 +176,9 @@ def aim_camera(*, scene: object, camera: Camera2D, dt: float) -> None:
     """Move the camera toward the scene's camera target (the engine's camera aim step).
 
     The target comes from scene.camera_target() (an override, else the camera's follow target).
-    None means a manual camera: it is left alone. An axis the camera does not follow keeps the
-    camera's current goal on that axis (Camera2D.aim_at). If game code also called
+    None means a manual camera: it is left alone (its WORLD shake still advances, in the scene
+    manager's still-camera step at the end of the frame). An axis the camera does not follow
+    keeps the camera's current goal on that axis (Camera2D.aim_at). If game code also called
     camera.update() this frame, a warning is logged once per scene and the camera is still
     aimed.
 

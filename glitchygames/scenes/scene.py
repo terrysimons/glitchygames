@@ -893,11 +893,13 @@ class SceneManager(SceneInterface, events.EventManager):
         """Run one non-transition frame of the active scene.
 
         Starts the camera's frame, updates the scene, processes events, updates frame
-        services, aims the camera, positions world sprites, renders and presents the frame,
-        then starts a pending transition or performs a requested scene switch. ``self.dt``
-        must already hold this frame's delta time. The aim is skipped when the active scene
-        was switched mid-frame (during its logic or events, as resuming from the pause screen
-        does): that scene ran no logic this frame, so its camera waits for its first dt_tick.
+        services, aims the camera, positions world sprites, renders the frame, advances the
+        WORLD shake of a camera nothing moved, presents the frame, then starts a pending
+        transition or performs a requested scene switch. ``self.dt`` must already hold this
+        frame's delta time. The aim and the still-camera shake step are skipped when the
+        active scene was switched mid-frame (during its logic or events, as resuming from the
+        pause screen does): that scene ran no logic this frame, so its camera waits for its
+        first dt_tick.
         """
         # Order matters: begin_frame() first, so a camera.update() the game made last frame
         # does not count as this frame's (the double-update warning in aim_camera). Then
@@ -925,6 +927,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self.update_screen()
         self._position_active_world_sprites()
         self._render_scene()
+        # After the render phase, where game code may still call camera.update() (in update()):
+        # a WORLD shake that nothing advanced this frame advances now, once, so it decays on a
+        # camera that stands still (sprites drawn from it settle on the next frame)
+        if self.active_scene is logic_scene:
+            self._advance_still_camera_shake(scene_dt=scene_dt)
         self._present_frame(full_update=False)
 
         # Check for pending transition (set by Scene.transition_to)
@@ -975,6 +982,24 @@ class SceneManager(SceneInterface, events.EventManager):
         if camera is None:
             return
         aim_camera(scene=self.active_scene, camera=camera, dt=scene_dt)
+
+    def _advance_still_camera_shake(self: Self, *, scene_dt: float) -> None:
+        """Advance the active camera's WORLD shake if nothing advanced it this frame.
+
+        The shake advances when the camera moves (the engine aim or a game camera.update()).
+        A camera nobody moved this frame (no follow target and no game update, or
+        camera_target() returned None, as games do after game over) gets the advance here, with
+        the dt the aim would have used, so the shake decays and its rumble stops instead of
+        staying at full strength. Exactly one advance per frame in every case.
+
+        Args:
+            scene_dt: The scene's dt this frame (_scene_frame_seconds).
+
+        """
+        camera = self._active_camera()
+        if camera is None or camera.shake_advanced_this_frame:
+            return
+        camera.advance_shake(dt=scene_dt)
 
     def _position_active_world_sprites(self: Self) -> None:
         """Place the active scene's world sprites on screen from its camera, and cull them.
@@ -1553,6 +1578,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         It does when a sprite is positioned through Camera2D.apply(), when the camera scrolls
         background layers, or when the scene has world sprites (the engine places them from
         the camera, shake included, without apply()). Decided when shake() is called.
+
+        The warning only has to ask whether anything is drawn from the camera: whether the
+        camera moves does not matter, because the engine advances a WORLD shake every frame
+        even on a camera nothing moves (SceneManager._advance_still_camera_shake), so on a
+        scene with world sprites it always shakes them and then decays.
 
         Returns:
             True if anything is drawn from this scene's camera.

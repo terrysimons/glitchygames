@@ -126,7 +126,7 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 
 **SceneManager** (`glitchygames/scenes/__init__.py`)
 - Singleton running the main game loop; each frame (`_run_scene_frame`), in order:
-  1. **Begin**: `camera.begin_frame()` (clears the camera's manual-update flag)
+  1. **Begin**: `camera.begin_frame()` (clears the camera's manual-update and shake-advance flags)
   2. **Logic**: `Scene.dt_tick(dt)` (game logic, physics and collision)
   3. **Event Processing**: Route pygame events through GameEngine
   4. **Frame services**: shake and rumble (so positioning sees this frame's WORLD shake)
@@ -134,8 +134,11 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
      mid-frame, e.g. resuming from pause: that scene ran no logic this frame)
   6. **Position**: place world-space sprites from the camera and cull them (see World Space)
   7. **Render**: `Scene.update()` (visual-only work), then `LayeredDirty.draw()`
-  8. **Present**: debug overlay, `pygame.display.update()` or `flip()`
-  9. **Finish**: `_finish_frame` (see Frame Pacing)
+  8. **Still-camera shake**: if nothing advanced the camera's WORLD shake this frame (no aim, no
+     game `camera.update()`), `camera.advance_shake(dt=...)` advances it with the scene's dt, so it
+     decays on a camera that stands still (skipped like the aim when the scene was switched)
+  9. **Present**: debug overlay, `pygame.display.update()` or `flip()`
+  10. **Finish**: `_finish_frame` (see Frame Pacing)
 - Handles scene transitions and lifecycle (`setup()`, `cleanup()`, `load_resources()`)
 
 **Frame Pacing** (`glitchygames/timing.py`)
@@ -215,8 +218,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 - Styles: `NOISE` (trauma model), `JITTER`, `BOUNCE`; shakes stack and are capped
 - WORLD shakes world-space sprites and parallax layers (HUD stays still); SCREEN shifts the
   presented frame, survives `transition_to`, and is cleared by `switch_to_scene`. A WORLD shake
-  on a scene with nothing it could move (no world sprites, parallax or `camera.apply()` use) logs
-  a warning, decided at `shake()` time
+  advances exactly once per frame whether the engine aims the camera, the game moves it, or
+  nothing does (frame step 8), so it decays on a still camera too. A WORLD shake on a scene with
+  nothing it could move (no world sprites, parallax or `camera.apply()` use) logs a warning,
+  decided at `shake()` time
 - Optional `RumbleSettings` per shake; `SceneManager` sends combined rumble in controller and
   joystick modes
 - `--screen-shake-intensity`, `--rumble-intensity` (0.0-1.0)

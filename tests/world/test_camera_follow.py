@@ -365,6 +365,62 @@ class TestEngineUpdate:
         assert not camera.shake_effect.is_active
 
 
+class TestAdvanceShake:
+    """advance_shake() decays a still camera's WORLD shake; the shake advances once a frame."""
+
+    def test_advance_shake_decays_the_shake_without_moving_the_camera(self):
+        camera = make_camera()
+        camera.shake_effect.add(bounce_shake())
+        camera.advance_shake(dt=SHAKE_SECONDS)
+        assert not camera.shake_effect.is_active
+        assert (camera.world_x, camera.world_y) == CAMERA_START
+
+    def test_advance_shake_redraws_parallax_only_while_shaking(self, mocker: MockerFixture):
+        """The layer follows the shake back to rest, then is left alone (no camera move)."""
+        camera = make_camera()
+        layer_spy = add_recording_layer(camera=camera, mocker=mocker)
+        camera.shake_effect.add(bounce_shake())
+
+        camera.advance_shake(dt=FRAME_SECONDS)
+        shake_x, shake_y = camera.shake_effect.offset
+        assert (shake_x, shake_y) != (0.0, 0.0)
+        layer_spy.assert_called_once_with(
+            snap_to_pixel(CAMERA_START[0] + shake_x, PixelSnapMode.NEAREST_HALF_UP),
+            snap_to_pixel(CAMERA_START[1] + shake_y, PixelSnapMode.NEAREST_HALF_UP),
+        )
+
+        camera.advance_shake(dt=SHAKE_SECONDS)  # the shake ends: the layer returns to rest
+        assert layer_spy.call_args == mocker.call(
+            snap_to_pixel(CAMERA_START[0], PixelSnapMode.NEAREST_HALF_UP),
+            snap_to_pixel(CAMERA_START[1], PixelSnapMode.NEAREST_HALF_UP),
+        )
+        camera.advance_shake(dt=FRAME_SECONDS)  # no shake: nothing to redraw
+        assert layer_spy.call_count == 2
+
+    def test_shake_advanced_flag_is_set_by_every_advance_and_cleared_by_begin_frame(self):
+        camera = make_camera()
+        assert camera.shake_advanced_this_frame is False
+        camera.advance_shake(dt=FRAME_SECONDS)
+        assert camera.shake_advanced_this_frame is True
+        camera.begin_frame()
+        assert camera.shake_advanced_this_frame is False
+        camera.update(target_x=0.0, target_y=0.0, dt=FRAME_SECONDS)
+        assert camera.shake_advanced_this_frame is True
+        camera.begin_frame()
+        camera.aim_at(target_x=0.0, target_y=0.0, dt=FRAME_SECONDS)
+        assert camera.shake_advanced_this_frame is True
+
+    def test_aim_does_not_advance_a_shake_the_game_already_advanced(self, mocker: MockerFixture):
+        """A camera.update() in dt_tick and the engine aim in one frame: one shake advance."""
+        camera = make_camera()
+        camera.shake_effect.add(bounce_shake())
+        shake_update_spy = mocker.spy(camera.shake_effect, 'update')
+        camera.begin_frame()
+        camera.update(target_x=0.0, target_y=0.0, dt=FRAME_SECONDS)
+        camera.aim_at(target_x=0.0, target_y=0.0, dt=FRAME_SECONDS)
+        assert shake_update_spy.call_count == 1
+
+
 class TestSnappedParallax:
     """Parallax layers scroll from the snapped camera position (the active snap mode)."""
 
