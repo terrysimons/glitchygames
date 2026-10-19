@@ -142,6 +142,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   `glitchygames.engine`); `--target-fps 0` is uncapped for every game
 - A game scene may set `TARGET_FPS` (class attribute, like `NAME`/`VERSION`; `0.0` = uncapped,
   `None` = engine default). Resolution order: explicit `--target-fps` > scene `TARGET_FPS` > 60.01
+- After falling more than one frame behind, pacing re-anchors instead of bursting to catch up
+  (`next_frame_deadline_ns`; a slightly late frame is still caught up, so the average rate holds)
 - Configurable sleep granularity for tight frame pacing
 - Windows timer resolution control via WinMM
 

@@ -22,6 +22,18 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Resolved Bugs
 
+### 58. Frame Pacing Bursts to Catch Up After a Hitch
+- **Description**: After a long stall (a 2 s hitch, a window drag, a debugger pause) the main loop ran about 120-150 frames back to back without sleeping: a CPU spike, skewed FPS, frame-time and 1%-low statistics, uneven presentation, and anything counted per frame ran fast until the deadlines caught up
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found on feature/engine-world-space
+- **Date Reported**: 2026-10-18
+- **Date Resolved**: 2026-10-18
+- **Root Cause**: Both timer backends' `compute_deadline` returned `previous_deadline + period` unconditionally, so after a stall every missed deadline was already in the past and `sleep_until_next` returned immediately for each of them
+- **Solution**: A shared `next_frame_deadline_ns` in `glitchygames/timing.py` (used by `FastTimer` and `PygameTimer`) re-anchors to `now + period` when the loop is more than one full period behind (`now - (previous + period) > period`), dropping the backlog. Exactly one period behind still catches up, as does any normal jitter, so the long-run rate stays exactly at the target. The first frame and the uncapped (period 0) result are unchanged. PygameTimer's clock is whole milliseconds, so its lateness is measured to within 1 ms
+- **Files Modified**: `glitchygames/timing.py`, `tests/timing/test_timing.py`, `CLAUDE.md`
+- **Tests**: `TestDeadlineReanchorsAfterHitch` and `TestDeadlineReanchorBoundary` in `tests/timing/test_timing.py` (both backends on a fake clock: a 2 s hitch re-anchors and leaves no unslept frames (157 before the fix), a 2 ms late frame still catches up, both sides of the boundary, an exact average rate over 1,000 jittery frames, uncapped unchanged); existing `compute_deadline` tests now use an on-time previous deadline instead of a fixed 1 s one
+
 ### 57. PaddleSlap Reseeds Python's Global random Module at Startup
 - **Description**: Creating PaddleSlap's `Game` called `random.seed()` with a value from `time.perf_counter()`, under the comment "Set random seed for reproducible randomness". The seed was neither reproducible (it came from the clock) nor used by PaddleSlap (its randomness comes from `secrets` and the ball's `_SERVE_RANDOM`), but it reset the process-wide `random` module for every other user in the process (for example `glitchygames/audio/controller_audio.py`'s noise), and the golden-trace harness had to save and restore the global state around each run
 - **Status**: Resolved
