@@ -201,6 +201,11 @@ class Camera2D:
         The target needs world_x and world_y. The scene's camera_target() hook reads it, and
         the engine applies the axes to whichever point that hook supplies.
 
+        The camera holds the target strongly. A target that is killed or removed from its
+        groups keeps the camera aimed at its last position; call follow(target=...) again with
+        the new sprite on respawn. follow(target=None) also resets the axes to
+        FollowAxes.BOTH unless axes is passed.
+
         Args:
             target: The sprite to follow, or None to stop following (manual camera).
             axes: The axes that follow (FollowAxes.X, FollowAxes.Y or FollowAxes.BOTH).

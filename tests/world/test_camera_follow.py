@@ -19,7 +19,7 @@ from glitchygames.scenes import Scene
 from glitchygames.world import CoordinateSpace, aim_camera
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
+    from pytest_mock import MockerFixture, MockType
 
 SCREEN_WIDTH = 320
 SCREEN_HEIGHT = 240
@@ -136,7 +136,7 @@ def bounce_shake() -> Shake:
     )
 
 
-def add_recording_layer(*, camera: Camera2D, mocker: MockerFixture):
+def add_recording_layer(*, camera: Camera2D, mocker: MockerFixture) -> MockType:
     """Add a real scrolling parallax layer and record its update_scroll calls.
 
     Args:
@@ -174,12 +174,14 @@ class TestFollow:
         assert camera.follow_target is target
         assert camera.follow_axes is FollowAxes.X
 
-    def test_follow_target_and_axes_are_read_only(self):
+    @pytest.mark.parametrize(
+        ('attribute_name', 'new_value'),
+        [('follow_target', None), ('follow_axes', FollowAxes.Y)],
+    )
+    def test_follow_target_and_axes_are_read_only(self, attribute_name: str, new_value: object):
         camera = make_camera()
         with pytest.raises(AttributeError):
-            camera.follow_target = make_target()  # type: ignore[misc]
-        with pytest.raises(AttributeError):
-            camera.follow_axes = FollowAxes.Y  # type: ignore[misc]
+            setattr(camera, attribute_name, new_value)
 
     def test_follow_x_keeps_camera_y(self):
         camera = make_camera()

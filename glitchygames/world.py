@@ -50,7 +50,7 @@ class WorldPositioned(Protocol):
 
 
 class _CameraTargetScene(Protocol):
-    """The scene attributes the camera aim reads and writes."""
+    """The scene attribute the camera aim reads (it writes nothing on the scene)."""
 
     def camera_target(self) -> tuple[float, float] | None:
         """Return the world point to aim the camera at, or None for a manual camera."""
@@ -179,6 +179,11 @@ def aim_camera(*, scene: object, camera: Camera2D, dt: float) -> None:
     camera's current goal on that axis (Camera2D.aim_at). If game code also called
     camera.update() this frame, a warning is logged once per scene and the camera is still
     aimed.
+
+    The double-update warning is tracked per scene, but the manual-update flag it reads
+    (Camera2D.updated_by_game_this_frame) is per camera: the scene manager must call
+    camera.begin_frame() exactly once per frame, before scene logic, or the flag carries over
+    from an earlier frame.
 
     Args:
         scene: The active scene (a glitchygames Scene).
