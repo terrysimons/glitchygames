@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import Any, Self, override
 
 import pygame
 
@@ -12,11 +12,8 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     LAYER_ENEMIES,
     MAX_FALL_SPEED,
     PAPYRUS_COBRA_HEIGHT,
-    PAPYRUS_COBRA_WIDTH,
     PAPYRUS_SCARAB_HEIGHT,
-    PAPYRUS_SCARAB_WIDTH,
     PAPYRUS_SCORPION_HEIGHT,
-    PAPYRUS_SCORPION_WIDTH,
     SPRITES_DIR,
 )
 from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
@@ -24,16 +21,17 @@ from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
     prepare_papyrus_sprite,
 )
 from glitchygames.sprites import AnimatedSprite
-
-if TYPE_CHECKING:
-    from glitchygames.camera import Camera2D
+from glitchygames.world import CoordinateSpace
 
 
 class PapyrusCobra(AnimatedSprite):
     """Cobra enemy using TOML sprite animations.
 
-    Stationary cobra that bobs gently and periodically strikes.
+    Stationary cobra that bobs gently and periodically strikes. A world sprite: the
+    engine places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self,
@@ -60,8 +58,6 @@ class PapyrusCobra(AnimatedSprite):
         # Offset Y so the visible coiled body sits on the ground.
         cobra_visual_padding = 4
         self.world_y: float = GROUND_Y - PAPYRUS_COBRA_HEIGHT + cobra_visual_padding
-        self.rect.x = round(self.world_x)
-        self.rect.y = round(self.world_y)
 
         self.play('idle')
         self.is_looping = True
@@ -88,23 +84,6 @@ class PapyrusCobra(AnimatedSprite):
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, PAPYRUS_COBRA_WIDTH):
-            self.visible = True
-        else:
-            self.visible = False
-            self.dirty = 0
-
     @override
     def update(self: Self, dt: float = 0.016) -> None:
         """No-op. Animation is advanced in dt_tick() instead."""
@@ -113,8 +92,11 @@ class PapyrusCobra(AnimatedSprite):
 class PapyrusScarab(AnimatedSprite):
     """Scarab beetle enemy using TOML sprite animations.
 
-    Rolls across the ground at a constant speed.
+    Rolls across the ground at a constant speed. A world sprite: the engine places it
+    from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self,
@@ -140,8 +122,6 @@ class PapyrusScarab(AnimatedSprite):
 
         self.world_x: float = world_x
         self.world_y: float = GROUND_Y - PAPYRUS_SCARAB_HEIGHT
-        self.rect.x = round(self.world_x)
-        self.rect.y = round(self.world_y)
 
         self.roll_speed: float = speed
         self.velocity_y: float = 0.0
@@ -169,23 +149,6 @@ class PapyrusScarab(AnimatedSprite):
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)
 
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, PAPYRUS_SCARAB_WIDTH):
-            self.visible = True
-        else:
-            self.visible = False
-            self.dirty = 0
-
     @override
     def update(self: Self, dt: float = 0.016) -> None:
         """No-op. Animation is advanced in dt_tick() instead."""
@@ -194,8 +157,11 @@ class PapyrusScarab(AnimatedSprite):
 class PapyrusScorpion(AnimatedSprite):
     """Scorpion enemy using TOML sprite animations.
 
-    Patrols back and forth within a range, flipping direction at boundaries.
+    Patrols back and forth within a range, flipping direction at boundaries. A world
+    sprite: the engine places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     DEFAULT_PATROL_SPEED = 60.0
 
@@ -223,8 +189,6 @@ class PapyrusScorpion(AnimatedSprite):
 
         self.world_x: float = world_x
         self.world_y: float = GROUND_Y - PAPYRUS_SCORPION_HEIGHT
-        self.rect.x = round(self.world_x)
-        self.rect.y = round(self.world_y)
 
         self.origin_x: float = world_x
         self.patrol_range: float = patrol_range
@@ -262,23 +226,6 @@ class PapyrusScorpion(AnimatedSprite):
         self.hitbox_flip_x = not self.facing_right
         if not self.facing_right:
             self.image = pygame.transform.flip(self.image, flip_x=True, flip_y=False)
-
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, PAPYRUS_SCORPION_WIDTH):
-            self.visible = True
-        else:
-            self.visible = False
-            self.dirty = 0
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

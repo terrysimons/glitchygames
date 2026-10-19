@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import Any, Self, override
 
 import pygame
 
@@ -30,17 +30,18 @@ from glitchygames.physics import (
     PhysicsBody,
 )
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
-
-if TYPE_CHECKING:
-    from glitchygames.camera import Camera2D
+from glitchygames.world import CoordinateSpace
 
 
 class PapyrusPlayer(AnimatedSprite):
     """Adventurer character using TOML sprite animations with platformer physics.
 
     Extends AnimatedSprite for TOML rendering. Physics is delegated to a
-    composed PhysicsBody instance.
+    composed PhysicsBody instance. A world sprite: the engine places its screen
+    rect from the camera each frame, adding the anchored frame's draw_offset.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     IDLE = 'idle'
     RUNNING = 'running'
@@ -72,7 +73,7 @@ class PapyrusPlayer(AnimatedSprite):
         prepare_papyrus_sprite(self)
         # Frames are top-aligned with visible bottoms from 24 to 27 rows; anchor them at the
         # hitbox bottom so the feet always sit on the 27-row foot line PAPYRUS_PLAYER_HEIGHT
-        # stands on (apply_camera adds the per-frame draw_offset to rect)
+        # stands on (the engine adds the per-frame draw_offset when it places rect)
         self.frame_anchor = FrameAnchor.BOTTOM
 
         # Physics body handles position, velocity, gravity, acceleration, bounds.
@@ -95,9 +96,6 @@ class PapyrusPlayer(AnimatedSprite):
             ],
             constraints=[self._world_edge_bounds],
         )
-
-        self.rect.x = round(world_x)
-        self.rect.y = round(world_y)
 
         # Animation state
         self.state: str = self.IDLE
@@ -253,19 +251,6 @@ class PapyrusPlayer(AnimatedSprite):
         accel = self.physics.get_behavior(AccelerationBehavior)
         if accel:
             accel.target_velocity_x = 0.0
-
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update the screen-space rect from world coordinates using the camera.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        # Anchored frames are drawn at their draw_offset (the hitbox includes it too)
-        draw_offset_x, draw_offset_y = self.draw_offset
-        self.rect.x = screen_x + draw_offset_x
-        self.rect.y = screen_y + draw_offset_y
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Self, override
 from glitchygames.examples.brave_adventurer.terrain import GroundSegment, StoneWall
 from glitchygames.examples.brave_adventurer_papyrus.constants import (
     LAYER_COLLECTIBLES,
-    PAPYRUS_GOLD_SCARAB_SIZE,
     SPRITES_DIR,
 )
 from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
@@ -21,11 +20,10 @@ from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
     prepare_papyrus_sprite,
 )
 from glitchygames.sprites import AnimatedSprite
+from glitchygames.world import CoordinateSpace
 
 if TYPE_CHECKING:
     import pygame
-
-    from glitchygames.camera import Camera2D
 
 # Re-export terrain primitives for use by the level manager
 __all__ = ['GroundSegment', 'PapyrusGoldScarab', 'StoneWall']
@@ -34,8 +32,11 @@ __all__ = ['GroundSegment', 'PapyrusGoldScarab', 'StoneWall']
 class PapyrusGoldScarab(AnimatedSprite):
     """Collectible gold scarab using TOML shimmer animation.
 
-    Bobs up and down while shimmering. Awards bonus score when collected.
+    Bobs up and down while shimmering. Awards bonus score when collected. A world
+    sprite: the engine places it from the camera.
     """
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
 
     def __init__(
         self,
@@ -63,8 +64,6 @@ class PapyrusGoldScarab(AnimatedSprite):
         self.world_y: float = world_y
         self.base_world_y: float = world_y
         self.bob_timer: float = 0.0
-        self.rect.x = round(world_x)
-        self.rect.y = round(world_y)
 
         self.play('shimmer')
         self.is_looping = True
@@ -82,23 +81,6 @@ class PapyrusGoldScarab(AnimatedSprite):
         self.world_y = self.base_world_y + math.sin(self.bob_timer * 3.0) * 4.0
         AnimatedSprite.update(self, dt)
         apply_transparency_and_scale(self)
-
-    def apply_camera(self, camera: Camera2D) -> None:
-        """Update screen position from camera transform.
-
-        Args:
-            camera: The camera providing the world-to-screen transform.
-
-        """
-        screen_x, screen_y = camera.apply(self.world_x, self.world_y)
-        self.rect.x = screen_x
-        self.rect.y = screen_y
-
-        if camera.is_visible(self.world_x, PAPYRUS_GOLD_SCARAB_SIZE):
-            self.visible = True
-        else:
-            self.visible = False
-            self.dirty = 0
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

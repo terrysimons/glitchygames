@@ -68,6 +68,9 @@ class SpriteWorldSample:
         world_y: The sprite's world y.
         rect: The sprite's rect as [x, y, width, height] (as the trace records it).
         hidden: Whether the game hid the sprite (``hidden``).
+        draw_offset: The sprite's draw_offset (an anchored animation frame's offset, which the
+            engine adds to the snapped position, as Papyrus's old apply_camera did; (0, 0) for
+            sprites without one).
 
     """
 
@@ -75,6 +78,7 @@ class SpriteWorldSample:
     world_y: float
     rect: list[int]
     hidden: bool
+    draw_offset: tuple[int, int] = (0, 0)
 
 
 @dataclass(frozen=True)
@@ -161,6 +165,7 @@ class WorldSampler:
                     world_y=sprite.world_y,
                     rect=[sprite.rect.x, sprite.rect.y, sprite.rect.width, sprite.rect.height],
                     hidden=bool(getattr(sprite, 'hidden', False)),
+                    draw_offset=tuple(getattr(sprite, 'draw_offset', (0, 0))),
                 )
                 for sprite in scene.all_sprites.sprites()
                 if is_world_positioned(sprite)
@@ -274,11 +279,16 @@ class TraceDifference:
 # differently is caught rather than explained.
 SPEC_SNAP_MODE = PixelSnapMode.NEAREST_HALF_UP
 
+# A position's fractional part that NEAREST_HALF_UP rounds up and round() rounds to even
+EXACT_HALF_FRACTION = 0.5
+
 
 def engine_rect(
     sprite: SpriteWorldSample, frame: FrameWorldSample, *, mode: PixelSnapMode
 ) -> list[int]:
     """The rect the engine places a world sprite at: snap(world) - snap(camera) - snap(shake).
+
+    Plus the sprite's draw_offset, which the engine adds (world.screen_position_for).
 
     Args:
         sprite: The sprite's world sample.
@@ -290,13 +300,16 @@ def engine_rect(
 
     """
     shake_x, shake_y = frame.shake_offset
+    draw_offset_x, draw_offset_y = sprite.draw_offset
     return [
         snap_to_pixel(sprite.world_x, mode)
         - snap_to_pixel(frame.camera_x, mode)
-        - snap_to_pixel(shake_x, mode),
+        - snap_to_pixel(shake_x, mode)
+        + draw_offset_x,
         snap_to_pixel(sprite.world_y, mode)
         - snap_to_pixel(frame.camera_y, mode)
-        - snap_to_pixel(shake_y, mode),
+        - snap_to_pixel(shake_y, mode)
+        + draw_offset_y,
         *sprite.rect[2:],
     ]
 
@@ -305,6 +318,9 @@ def camera_apply_rect(
     sprite: SpriteWorldSample, frame: FrameWorldSample, *, world_y_offset: float = 0.0
 ) -> list[int]:
     """The rect the games' old apply_camera gave: Camera2D.apply, round(world - camera - shake).
+
+    Plus the sprite's draw_offset: Papyrus's old player apply_camera added it to the rounded
+    position. Every other old apply_camera ignored it, and those sprites' offset is (0, 0).
 
     Args:
         sprite: The sprite's world sample.
@@ -316,9 +332,10 @@ def camera_apply_rect(
 
     """
     shake_x, shake_y = frame.shake_offset
+    draw_offset_x, draw_offset_y = sprite.draw_offset
     return [
-        round(sprite.world_x - frame.camera_x - shake_x),
-        round(sprite.world_y + world_y_offset - frame.camera_y - shake_y),
+        round(sprite.world_x - frame.camera_x - shake_x) + draw_offset_x,
+        round(sprite.world_y + world_y_offset - frame.camera_y - shake_y) + draw_offset_y,
         *sprite.rect[2:],
     ]
 
@@ -411,15 +428,14 @@ def within_one_pixel_per_axis(*, baseline: list[int], current: list[int]) -> boo
     )
 
 
-def separately_snapped(difference: TraceDifference, frame: FrameWorldSample) -> bool:
-    """Spec 2.2: the same world and camera positions give the baseline by the old formula.
+def _old_and_engine_formulas_give(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """Whether this frame's positions give the baseline by the old formula, current by the engine.
 
-    The current rect is snap(world) - snap(camera); the baseline is round(world - camera) of
-    the very same positions. They differ by a pixel when the fractions of world and camera
-    positions straddle a half.
+    The current rect is snap(world) - snap(camera) (plus draw_offset); the baseline is
+    round(world - camera) of the very same positions, at most 1 px apart per axis.
 
     Returns:
-        True if both rects follow from this frame's positions, at most 1 px apart per axis.
+        True if both rects follow from this frame's positions.
 
     """
     sprite = _sprite_sample(difference, frame)
@@ -429,6 +445,71 @@ def separately_snapped(difference: TraceDifference, frame: FrameWorldSample) -> 
         and difference.current == engine_rect(sprite, frame, mode=SPEC_SNAP_MODE)
         and difference.baseline == camera_apply_rect(sprite, frame)
     )
+
+
+def _differs_only_by_rounding_an_exact_half(
+    difference: TraceDifference, frame: FrameWorldSample
+) -> bool:
+    """Whether every differing axis has a whole camera and shake and a world position at .5.
+
+    Then snap(world) - snap(camera) and round(world - camera) can differ only in how the exact
+    half is rounded: half up (the engine) or half to even (Python's round()).
+
+    Returns:
+        True if each axis whose position differs is such an exact half.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    if sprite is None:
+        return False
+    shake_x, shake_y = frame.shake_offset
+    axes = (
+        (sprite.world_x, frame.camera_x, shake_x),
+        (sprite.world_y, frame.camera_y, shake_y),
+    )
+    differing_axes = [
+        axis
+        for axis_index, axis in enumerate(axes)
+        if difference.baseline[axis_index] != difference.current[axis_index]
+    ]
+    return bool(differing_axes) and all(
+        camera % 1 == 0 and shake % 1 == 0 and world % 1 == EXACT_HALF_FRACTION
+        for world, camera, shake in differing_axes
+    )
+
+
+def rounded_half_up_at_exact_half(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """Spec 2.2's half-up rounding: a world position at exactly .5 under a whole camera.
+
+    Python's round() rounds an exact half to even (round(10292.5) = 10292); the engine's
+    NEAREST_HALF_UP rounds it up (10293). With a whole camera and shake that is the only
+    possible cause of the 1 px difference.
+
+    Returns:
+        True if both rects follow from this frame's positions and each differing axis is
+        such an exact half.
+
+    """
+    return _old_and_engine_formulas_give(
+        difference, frame
+    ) and _differs_only_by_rounding_an_exact_half(difference, frame)
+
+
+def separately_snapped(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """Spec 2.2: the same world and camera positions give the baseline by the old formula.
+
+    The current rect is snap(world) - snap(camera); the baseline is round(world - camera) of
+    the very same positions. They differ by a pixel when the fractions of world and camera
+    positions straddle a half. A difference that is only an exact half rounded under a whole
+    camera is rounded_half_up_at_exact_half's, not this rule's.
+
+    Returns:
+        True if both rects follow from this frame's positions, at most 1 px apart per axis.
+
+    """
+    return _old_and_engine_formulas_give(
+        difference, frame
+    ) and not _differs_only_by_rounding_an_exact_half(difference, frame)
 
 
 def _old_sprite_stood_higher_by(
@@ -745,17 +826,40 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
     'brave_adventurer_papyrus': [
         ExpectedDifference(
             frames=None,
-            sprite_pattern=sprite_pattern,
+            sprite_pattern='*',
             field='visible',
             world_rule=culled_outside_margin,
             reason=(
-                "Engine culling (spec 2.4): Papyrus shares Brave Adventurer's ground segments "
-                'and stone walls, which are engine world sprites now; the old culling kept '
-                'them up to 64 px beyond the screen sides, the engine hides them beyond '
+                'Engine culling (spec 2.4): the old per-sprite culling (Camera2D.is_visible) '
+                "kept Papyrus's sprites and Brave Adventurer's shared ground segments and walls "
+                'up to 64 px beyond the screen sides and never culled the adventurer (below the '
+                'screen after falling into a pit); the engine hides every world sprite beyond '
                 'CULL_MARGIN_PIXELS'
             ),
-        )
-        for sprite_pattern in ('GroundSegment#*', 'StoneWall#*')
+        ),
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='*',
+            field='rect',
+            world_rule=separately_snapped,
+            reason=(
+                'Spec 2.2: sprite and camera are snapped separately, snap(world) - '
+                'snap(camera), instead of round(world - camera); the running adventurer (plus '
+                "its anchored frame's draw_offset, before and after), the rolling scarabs and "
+                'the gliding camera all have fractions'
+            ),
+        ),
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='*',
+            field='rect',
+            world_rule=rounded_half_up_at_exact_half,
+            reason=(
+                'Spec 2.2 half-up rounding: a rolling scarab at exactly x.5 under the still '
+                'camera (x = 0 before it moves) was drawn by round(), half to even; the engine '
+                'snaps an exact half up'
+            ),
+        ),
     ],
     'paddleslap': [],
 }
@@ -1376,6 +1480,64 @@ class TestWorldRules:
             reason='test',
         )
         assert entry.world_rule is separately_snapped
+
+    @staticmethod
+    def _rolling_scarab_difference(*, camera_x: float) -> tuple[TraceDifference, FrameWorldSample]:
+        """A Papyrus scarab at x = 10292.5 (as in the real run) under a camera at camera_x.
+
+        Returns:
+            The difference (baseline by round(), current by the engine) and its frame.
+
+        """
+        sprite = SpriteWorldSample(
+            world_x=10292.5, world_y=386.0, rect=[0, 386, 10, 8], hidden=False
+        )
+        frame = FrameWorldSample(
+            camera_x=camera_x,
+            camera_y=0.0,
+            shake_offset=(0.0, 0.0),
+            snap_mode=PixelSnapMode.NEAREST_HALF_UP,
+            screen_size=(800, 480),
+            sprites={'PapyrusScarab#1': sprite},
+        )
+        difference = TraceDifference(
+            frame=2,
+            sprite_id='PapyrusScarab#1',
+            field='rect',
+            baseline=camera_apply_rect(sprite, frame),
+            current=engine_rect(sprite, frame, mode=PixelSnapMode.NEAREST_HALF_UP),
+        )
+        return difference, frame
+
+    def test_exact_half_with_a_whole_camera_is_the_half_up_rule_only(self):
+        """round(10292.5 - 0) = 10292 (half to even); the engine's half-up snap gives 10293."""
+        difference, frame = self._rolling_scarab_difference(camera_x=0.0)
+        assert difference.baseline[0] == 10292
+        assert difference.current[0] == 10293
+        assert rounded_half_up_at_exact_half(difference, frame)
+        assert not separately_snapped(difference, frame)
+
+    def test_exact_half_with_a_fractional_camera_is_separate_snapping(self):
+        """Camera 0.3: snap(10292.5) - snap(0.3) = 10293, round(10292.2) = 10292."""
+        difference, frame = self._rolling_scarab_difference(camera_x=0.3)
+        assert difference.baseline[0] != difference.current[0]
+        assert not rounded_half_up_at_exact_half(difference, frame)
+        assert separately_snapped(difference, frame)
+
+    def test_half_up_rule_needs_the_old_formula_for_the_baseline(self):
+        difference, frame = self._rolling_scarab_difference(camera_x=0.0)
+        wrong_baseline = dataclasses.replace(difference, baseline=[10291, 386, 10, 8])
+        assert not rounded_half_up_at_exact_half(wrong_baseline, frame)
+
+    def test_world_rules_add_the_anchored_frames_draw_offset(self):
+        """Papyrus's player is drawn at its frame's draw_offset, by the engine and the old code."""
+        sprite = SpriteWorldSample(
+            world_x=262.444, world_y=247.0, rect=[0, 0, 20, 28], hidden=False, draw_offset=(0, 6)
+        )
+        frame = self._world_frame(camera_y=0.0, sprite=sprite)
+        frame = dataclasses.replace(frame, camera_x=2.7106)
+        assert engine_rect(sprite, frame, mode=PixelSnapMode.NEAREST_HALF_UP)[:2] == [259, 253]
+        assert camera_apply_rect(sprite, frame)[:2] == [260, 253]
 
     @staticmethod
     def _settling_frame(*, tinker_baseline_y: int) -> FrameWorldSample:

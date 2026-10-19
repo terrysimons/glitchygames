@@ -1,6 +1,7 @@
 """Tests for the Brave Adventurer games: death and game-over rumble, terrain hitboxes."""
 
 import math
+import re
 import tomllib
 import types
 from pathlib import Path
@@ -13,6 +14,7 @@ from glitchygames.camera import FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.events.base import HashableEvent
 from glitchygames.examples import brave_adventurer as brave_adventurer_package
+from glitchygames.examples import brave_adventurer_papyrus as papyrus_package
 from glitchygames.examples.brave_adventurer.constants import (
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
@@ -35,15 +37,31 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     PAPYRUS_PLAYER_HEIGHT,
     SPRITES_DIR,
 )
+from glitchygames.examples.brave_adventurer_papyrus.enemies import (
+    PapyrusCobra,
+    PapyrusScarab,
+    PapyrusScorpion,
+)
 from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
 from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import apply_transparency_and_scale
-from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
+from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode, snap_to_pixel
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
-from glitchygames.world import CoordinateSpace, position_world_sprites
+from glitchygames.world import CoordinateSpace, position_world_sprites, screen_position_for
 
 FRAME_SECONDS = 1 / 60
 BRAVE_ADVENTURER_PACKAGE = Path(brave_adventurer_package.__file__).parent
 BRAVE_WORLD_SPRITE_CLASSES = (Player, GroundSegment, StoneWall, GoldScarab, Cobra, Scarab, Scorpion)
+PAPYRUS_PACKAGE = Path(papyrus_package.__file__).parent
+PAPYRUS_WORLD_SPRITE_CLASSES = (
+    PapyrusPlayer,
+    PapyrusCobra,
+    PapyrusScarab,
+    PapyrusScorpion,
+    PapyrusGoldScarab,
+)
+SCREEN_SIZE = (800, 480)
 
 
 @pytest.fixture(params=[BraveAdventurerScene, PapyrusBraveAdventurerScene])
@@ -583,8 +601,11 @@ class TestPapyrusFeetAnchoring:
             player.set_animation(animation_name)
             player.set_frame(frame_index)
             apply_transparency_and_scale(player)
-            player.apply_camera(scene.camera)
-            screen_ground = GROUND_Y - round(scene.camera.world_y)
+            # The engine places the player: snap(world) - snap(camera) plus the frame's offset
+            position_world_sprites(sprites=[player], camera=scene.camera, screen_size=SCREEN_SIZE)
+            screen_ground = GROUND_Y - snap_to_pixel(
+                scene.camera.world_y, PixelSnapMode.NEAREST_HALF_UP
+            )
             lowest_visible_row = (
                 player.rect.y
                 + player.image.get_bounding_rect().bottom
@@ -752,7 +773,10 @@ def _press_key(scene, key):
 
 
 class TestEngineWorldSpace:
-    """Brave Adventurer's sprites are world sprites; the engine aims the camera and places them."""
+    """Brave Adventurer's sprites are world sprites; the engine aims the camera and places them.
+
+    The scene-level tests run for both editions (Papyrus shares the scene logic's shape).
+    """
 
     @pytest.mark.parametrize(
         'sprite_class', BRAVE_WORLD_SPRITE_CLASSES, ids=lambda cls: cls.__name__
@@ -784,80 +808,191 @@ class TestEngineWorldSpace:
         )
         assert segment.world_y == GROUND_Y
 
-    def test_setup_follows_the_player_on_the_x_axis(self, brave_scene):
-        brave_scene.setup()
-        assert brave_scene.camera.follow_target is brave_scene.player
-        assert brave_scene.camera.follow_axes is FollowAxes.X
+    def test_setup_follows_the_player_on_the_x_axis(self, adventurer_scene):
+        adventurer_scene.setup()
+        assert adventurer_scene.camera.follow_target is adventurer_scene.player
+        assert adventurer_scene.camera.follow_axes is FollowAxes.X
 
-    def test_dt_tick_leaves_the_camera_to_the_engine(self, brave_scene):
+    def test_dt_tick_leaves_the_camera_to_the_engine(self, adventurer_scene):
         """The game no longer calls camera.update(); the engine aims the camera."""
-        brave_scene.camera.begin_frame()
-        camera_position = (brave_scene.camera.world_x, brave_scene.camera.world_y)
-        brave_scene.dt_tick(FRAME_SECONDS)
-        assert not brave_scene.camera.updated_by_game_this_frame
-        assert (brave_scene.camera.world_x, brave_scene.camera.world_y) == camera_position
+        adventurer_scene.camera.begin_frame()
+        camera_position = (adventurer_scene.camera.world_x, adventurer_scene.camera.world_y)
+        adventurer_scene.dt_tick(FRAME_SECONDS)
+        assert not adventurer_scene.camera.updated_by_game_this_frame
+        assert (adventurer_scene.camera.world_x, adventurer_scene.camera.world_y) == camera_position
 
-    def test_dt_tick_still_updates_the_distance_score(self, brave_scene):
-        brave_scene.player.world_x = 2000.0
-        brave_scene.dt_tick(FRAME_SECONDS)
-        assert brave_scene.player.max_distance >= 2000.0
-        assert brave_scene.player.score > 0
+    def test_dt_tick_still_updates_the_distance_score(self, adventurer_scene):
+        adventurer_scene.player.world_x = 2000.0
+        adventurer_scene.dt_tick(FRAME_SECONDS)
+        assert adventurer_scene.player.max_distance >= 2000.0
+        assert adventurer_scene.player.score > 0
 
-    def test_camera_aims_at_the_player(self, brave_scene):
-        brave_scene.setup()
-        player = brave_scene.player
-        assert brave_scene.camera_target() == (player.world_x, player.world_y)
+    def test_camera_aims_at_the_player(self, adventurer_scene):
+        adventurer_scene.setup()
+        player = adventurer_scene.player
+        assert adventurer_scene.camera_target() == (player.world_x, player.world_y)
 
-    def test_camera_stays_still_after_game_over(self, brave_scene):
+    def test_camera_stays_still_after_game_over(self, adventurer_scene):
         """dt_tick stops after game over, and so does the camera (it no longer moves)."""
-        brave_scene.setup()
-        brave_scene.game_over_triggered = True
-        assert brave_scene.camera_target() is None
+        adventurer_scene.setup()
+        adventurer_scene.game_over_triggered = True
+        assert adventurer_scene.camera_target() is None
 
-    def test_terrain_collision_snaps_with_the_scene_mode(self, brave_scene):
+    def test_terrain_collision_snaps_with_the_scene_mode(self, adventurer_scene):
         """Terrain edges are snapped as the engine draws them (FLOOR here), not with round()."""
         set_active_default_snap_mode(PixelSnapMode.FLOOR)
         segment_right = 300
         # A segment at 0.6 ends at 300 with FLOOR (300.6 floors to 300); round() gave 301
-        brave_scene.ground_sprites[:] = [
+        adventurer_scene.ground_sprites[:] = [
             types.SimpleNamespace(world_x=0.6, world_y=float(GROUND_Y), segment_width=segment_right)
         ]
-        brave_scene.wall_sprites[:] = []
-        player = _drawn_player(brave_scene)
+        adventurer_scene.wall_sprites[:] = []
+        player = _drawn_player(adventurer_scene)
         player.world_y = float(GROUND_Y - 20)
         player.velocity_y = 50.0
         player.velocity_x = 200.0
-        support_left, _ = brave_scene._player_support_span()
+        support_left, _ = adventurer_scene._player_support_span()
         player.world_x += segment_right - support_left
 
-        brave_scene._resolve_player_ground_collision()
+        adventurer_scene._resolve_player_ground_collision()
 
         assert not player.on_ground
 
-    def test_wall_collision_snaps_with_the_scene_mode(self, brave_scene):
+    def test_wall_collision_snaps_with_the_scene_mode(self, adventurer_scene):
         """A wall at 400.6 has its left face at 400 under FLOOR (round() put it at 401)."""
         set_active_default_snap_mode(PixelSnapMode.FLOOR)
         wall_x = 400.6
-        brave_scene.wall_sprites[:] = [
+        adventurer_scene.wall_sprites[:] = [
             types.SimpleNamespace(world_x=wall_x, world_y=GROUND_Y - 64.0, wall_height=64)
         ]
-        brave_scene.ground_sprites[:] = [
+        adventurer_scene.ground_sprites[:] = [
             types.SimpleNamespace(world_x=0.0, world_y=float(GROUND_Y), segment_width=2000)
         ]
-        player = _drawn_player(brave_scene)
+        player = _drawn_player(adventurer_scene)
         offset_x, _ = collision_rect_offset(player)
-        hitbox_width = _player_hitbox(brave_scene).width
+        hitbox_width = _player_hitbox(adventurer_scene).width
         player.world_x = float(400 - hitbox_width - offset_x + 3)  # 3 px into the wall
         player.world_y = float(GROUND_Y - 47)
         player.velocity_x = 200.0
 
-        brave_scene._resolve_player_wall_collision()
+        adventurer_scene._resolve_player_wall_collision()
 
-        assert _player_hitbox(brave_scene).right == 400
+        assert _player_hitbox(adventurer_scene).right == 400
+
+
+class TestPapyrusEngineWorldSpace:
+    """Papyrus's own sprites are world sprites too: no Papyrus sprite positions itself."""
+
+    @pytest.mark.parametrize(
+        'sprite_class', PAPYRUS_WORLD_SPRITE_CLASSES, ids=lambda cls: cls.__name__
+    )
+    def test_world_sprite_classes_declare_world_space(self, sprite_class):
+        assert sprite_class.COORDINATE_SPACE is CoordinateSpace.WORLD
+
+    @pytest.mark.parametrize(
+        'sprite_class', PAPYRUS_WORLD_SPRITE_CLASSES, ids=lambda cls: cls.__name__
+    )
+    def test_no_sprite_class_positions_itself_from_the_camera(self, sprite_class):
+        assert not hasattr(sprite_class, 'apply_camera')
+
+    @pytest.mark.parametrize(
+        'source_path', sorted(PAPYRUS_PACKAGE.glob('*.py')), ids=lambda path: path.name
+    )
+    def test_no_module_culls_positions_or_rounds_world_positions(self, source_path):
+        """Culling, positioning and snapping are the engine's (pit gaps use the drawn rects)."""
+        source = source_path.read_text(encoding='utf-8')
+        assert 'is_visible' not in source
+        assert 'apply_camera' not in source
+        assert 'camera.apply(' not in source
+        assert re.search(r'rect\.(x|y|topleft)\s*=', source) is None
+        assert re.search(r'round\([^()]*world_[xy]', source) is None
+
+    def test_scene_has_no_camera_loop(self):
+        assert '_follow_player_with_camera' not in vars(PapyrusBraveAdventurerScene)
+
+    def test_foot_line_snaps_with_the_scene_mode(self, mocker):
+        """The foot line is the snapped world y + PAPYRUS_PLAYER_HEIGHT, snapped as drawn.
+
+        At y = GROUND_Y - PAPYRUS_PLAYER_HEIGHT - 0.4, FLOOR puts the feet 1 px above the
+        ground (not landed yet); round() put them on it.
+        """
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode(SCREEN_SIZE)
+        scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
+        mocker.patch.object(scene, 'sounds')
+        scene.ground_sprites[:] = [
+            types.SimpleNamespace(world_x=0.0, world_y=float(GROUND_Y), segment_width=2000)
+        ]
+        scene.wall_sprites[:] = []
+        set_active_default_snap_mode(PixelSnapMode.FLOOR)
+        player = scene.player
+        player.world_x = 200.0
+        player.world_y = GROUND_Y - PAPYRUS_PLAYER_HEIGHT - 0.4
+        player.velocity_y = 10.0
+
+        scene._resolve_player_ground_collision()
+
+        assert not player.on_ground
+
+    def test_player_rect_is_the_engine_position_with_the_frame_draw_offset(self):
+        """The engine adds the anchored frame's draw_offset once; Papyrus adds nothing itself."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode(SCREEN_SIZE)
+        scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
+        player = scene.player
+        player.set_animation('running')
+        player.set_frame(1)
+        apply_transparency_and_scale(player)
+        draw_offset_x, draw_offset_y = player.draw_offset
+        assert draw_offset_y != 0  # a running frame is drawn lower than the idle one
+        player.world_x = 200.4
+        player.world_y = 312.5
+        scene.camera.world_x = 50.6
+
+        position_world_sprites(
+            sprites=scene.all_sprites, camera=scene.camera, screen_size=SCREEN_SIZE
+        )
+
+        mode = PixelSnapMode.NEAREST_HALF_UP
+        assert player.rect.topleft == screen_position_for(sprite=player, camera=scene.camera)
+        assert player.rect.topleft == (
+            snap_to_pixel(200.4, mode) - snap_to_pixel(50.6, mode) + draw_offset_x,
+            snap_to_pixel(312.5, mode) - snap_to_pixel(scene.camera.world_y, mode) + draw_offset_y,
+        )
+
+    def test_off_screen_enemy_is_culled_by_the_engine_and_keeps_redrawing(self):
+        """Engine culling hides an enemy beyond the margin and never sets dirty = 0."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode(SCREEN_SIZE)
+        scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
+        scarab = PapyrusScarab(world_x=1000.0, groups=scene.all_sprites)
+
+        scene.camera.world_x = scarab.world_x + 5000.0  # far off screen
+        position_world_sprites(
+            sprites=scene.all_sprites, camera=scene.camera, screen_size=SCREEN_SIZE
+        )
+        assert not scarab.visible
+        assert scarab.dirty == 2
+
+        scene.camera.world_x = scarab.world_x - 100.0  # back on screen
+        position_world_sprites(
+            sprites=scene.all_sprites, camera=scene.camera, screen_size=SCREEN_SIZE
+        )
+        assert scarab.visible
+        assert scarab.dirty == 2
 
 
 class TestPoseBeforeCollision:
     """The adventurer's pose (its hitbox) is final before collision runs: no one-frame wall lag.
+
+    Both editions: Brave Adventurer draws its pose in dt_tick, Papyrus advances its animation
+    frame there.
 
     Each frame runs as the engine runs it: scene logic (dt_tick), then input events, then
     the render phase (the sprite's update()). The hitbox is checked after logic (what
@@ -869,8 +1004,8 @@ class TestPoseBeforeCollision:
     WALL_HEIGHT = 64
 
     @pytest.fixture
-    def walled_scene(self, brave_scene, mocker):
-        """The scene with one long ground segment and one real stone wall, and no enemies.
+    def walled_scene(self, adventurer_scene, mocker):
+        """Each edition's scene with one long ground segment, one real stone wall, no enemies.
 
         Returns:
             The scene.
@@ -879,12 +1014,12 @@ class TestPoseBeforeCollision:
         wall = StoneWall(
             world_x=self.WALL_X, wall_height=self.WALL_HEIGHT, groups=pygame.sprite.LayeredDirty()
         )
-        brave_scene.wall_sprites[:] = [wall]
-        brave_scene.ground_sprites[:] = [
+        adventurer_scene.wall_sprites[:] = [wall]
+        adventurer_scene.ground_sprites[:] = [
             GroundSegment(world_x=0.0, segment_width=2000, groups=pygame.sprite.LayeredDirty())
         ]
-        mocker.patch.object(brave_scene, '_check_enemy_collisions')
-        return brave_scene
+        mocker.patch.object(adventurer_scene, '_check_enemy_collisions')
+        return adventurer_scene
 
     def _stand_flush_against_wall(self, scene, *, side, facing_right):
         """Stand the player on the ground with its hitbox flush against a side of the wall.
@@ -955,6 +1090,7 @@ class TestPoseBeforeCollision:
         assert not on_ground_by_frame[1]
         assert overlapping_frames == []
 
+    @pytest.mark.parametrize('adventurer_scene', [BraveAdventurerScene], indirect=True)
     def test_dt_tick_draws_the_pose_collision_uses(self, walled_scene):
         """The image after dt_tick already shows this frame's facing; update() keeps it."""
         scene = walled_scene
@@ -1016,14 +1152,14 @@ class TestPitGapsMatchTheGround:
     """Pit gaps are drawn between the ground segments' drawn rects, so no seam can open."""
 
     def test_pit_edges_coincide_with_the_drawn_segments_at_a_half_pixel_camera(
-        self, brave_scene, mocker
+        self, adventurer_scene, mocker
     ):
         """Camera at x.5: round(world - camera) and snap(world) - snap(camera) differ by 1 px.
 
         With the camera at 100.5, round(450 - 100.5) = 350 (half to even) while the engine
         draws the segment edge at 450 - 101 = 349.
         """
-        scene = brave_scene
+        scene = adventurer_scene
         sprite_group = pygame.sprite.LayeredDirty()
         left_segment = GroundSegment(world_x=0.0, segment_width=450, groups=sprite_group)
         right_segment = GroundSegment(world_x=550.0, segment_width=400, groups=sprite_group)
