@@ -910,21 +910,6 @@ class SceneManager(SceneInterface, events.EventManager):
             screen_size=self.screen.get_size(),
         )
 
-    def _update_timing(self, previous_time: float, current_time: float) -> tuple[float, float]:
-        """Update timing variables for the game loop.
-
-        Args:
-            previous_time: Previous frame time
-            current_time: Current frame time
-
-        Returns:
-            Tuple of (updated_previous_time, updated_current_time)
-
-        """
-        now: float = time.perf_counter()
-        self.dt = now - previous_time
-        return current_time, now
-
     def stop(self: Self) -> None:
         """Stop the game."""
         return self.terminate()
@@ -1130,8 +1115,11 @@ class SceneManager(SceneInterface, events.EventManager):
         )
 
     def _reset_scene_timers(self) -> None:
-        """Reset scene timers."""
-        self.dt = 0.0
+        """Reset the scene timer.
+
+        The manager's ``dt`` is left alone: _finish_frame is its only per-frame writer, and
+        _configure_active_scene seeds the new scene's own ``dt``.
+        """
         self.timer = 0
 
     def _log_scene_switch(self, next_scene: Scene | None) -> None:
@@ -1203,7 +1191,8 @@ class SceneManager(SceneInterface, events.EventManager):
     def _configure_active_scene(self) -> None:
         """Configure the active scene after switching."""
         if self.active_scene:
-            self.active_scene.dt = self.dt
+            # A new scene has not ticked yet; its first frame receives the real frame time
+            self.active_scene.dt = 0.0
             self.active_scene.timer = self.timer  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
             # Don't call setup() here - it's already called in _setup_new_scene()
 

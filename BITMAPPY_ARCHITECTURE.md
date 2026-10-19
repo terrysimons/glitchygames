@@ -30,7 +30,7 @@ sequenceDiagram
     GE->>SM: scene_manager.start()
 
     loop Main Game Loop (while active_scene is not None)
-        SM->>SM: dt = perf_counter delta
+        Note over SM: dt = the previous frame's start-to-start time
         SM->>BES: _update_scene()
         SM->>GE: _process_events()
         GE->>GE: pygame.event.get()
@@ -38,7 +38,7 @@ sequenceDiagram
         SM->>BES: on_*_event(event)
         SM->>SM: _render_scene()
         SM->>SM: _update_display()
-        SM->>SM: _handle_frame_pacing(timer)
+        SM->>SM: _finish_frame() (pace, then set dt once from perf_counter)
     end
 ```
 

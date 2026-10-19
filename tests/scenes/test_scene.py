@@ -1932,21 +1932,6 @@ class TestSceneManagerQuitGame:
         mock_post.assert_called_once()
 
 
-class TestSceneManagerUpdateTiming:
-    """Test SceneManager._update_timing() method."""
-
-    def test_update_timing_returns_updated_times(self, mock_pygame_patches, mocker):
-        """Test _update_timing returns tuple of updated times."""
-        manager = SceneManager()
-        mocker.patch('time.perf_counter', return_value=1.5)
-
-        result = manager._update_timing(previous_time=1.0, current_time=0.5)
-
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-        assert abs(manager.dt - 0.5) < 0.01
-
-
 class TestSceneManagerGetattrDeeper:
     """Test SceneManager.__getattr__ proxy method."""
 
@@ -2682,13 +2667,13 @@ class TestSceneManagerResetSceneTimers:
     """Test SceneManager._reset_scene_timers."""
 
     def test_reset_scene_timers(self, mock_pygame_patches):
-        """Test _reset_scene_timers zeroes dt and timer."""
+        """_reset_scene_timers zeroes the timer and leaves the manager's frame time alone."""
         manager = SceneManager()
         manager.dt = 0.5
         manager.timer = 10.0
 
         manager._reset_scene_timers()
-        assert manager.dt == 0
+        assert manager.dt == 0.5
         assert manager.timer == 0
 
 

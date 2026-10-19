@@ -17,6 +17,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Self, override
 
+import pygame
 import pytest
 
 from glitchygames.scenes import SceneManager
@@ -156,6 +157,7 @@ class FrameDriver:
         mocker: MockerFixture,
         target_fps: float,
         use_timer: bool = True,
+        log_timer_jitter: bool = False,
     ) -> None:
         """Build the manager, the fake clock and timer, and the performance-manager spy.
 
@@ -163,6 +165,7 @@ class FrameDriver:
             mocker: The pytest-mock fixture.
             target_fps: The manager's target FPS.
             use_timer: Whether the engine has a timer backend.
+            log_timer_jitter: The --log-timer-jitter option.
 
         """
         self.clock = FakeClock()
@@ -173,7 +176,7 @@ class FrameDriver:
         mocker.patch.object(
             SceneManager,
             'OPTIONS',
-            {'fps_log_interval_ms': FPS_LOG_INTERVAL_MS, 'log_timer_jitter': False},
+            {'fps_log_interval_ms': FPS_LOG_INTERVAL_MS, 'log_timer_jitter': log_timer_jitter},
         )
         self.performance_manager = mocker.Mock()
         mocker.patch(
@@ -324,6 +327,45 @@ class TestOneFrameTime:
         assert len(driver.manager.dt_writes) == FRAMES_TO_RUN + 1
         # Each frame body starts after exactly one more write than the frame before it
         assert driver.dt_writes_at_frame_start == list(range(1, FRAMES_TO_RUN + 1))
+
+    def test_dt_is_written_once_in_a_frame_that_switches_scenes(self, driver_factory, mocker):
+        """A scene switch seeds the new scene's dt without writing the manager's dt."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        manager = driver.manager
+        switch_frame_index = 3
+        # A scene stand-in without a camera, so the engine's camera steps are skipped
+        next_scene = mocker.Mock(camera=None)
+        next_scene.dt = 0.5
+        # The switch redraws the new scene's background onto the display
+        next_scene.background = pygame.Surface((1, 1))
+
+        def switch_in_one_frame() -> None:
+            if len(driver.logic_dts) == switch_frame_index + 1:
+                manager.switch_to_scene(next_scene)
+
+        driver.run(frame_count=FRAMES_TO_RUN, frame_body=switch_in_one_frame)
+
+        assert manager.active_scene is next_scene
+        assert len(manager.dt_writes) == FRAMES_TO_RUN + 1
+        assert driver.dt_writes_at_frame_start == list(range(1, FRAMES_TO_RUN + 1))
+        # The new scene starts from a zero dt, as before; its first frame gets the real one
+        assert next_scene.dt == 0.0
+        assert (
+            driver.logic_dts[switch_frame_index + 1] == _closing_samples(driver)[switch_frame_index]
+        )
+
+    def test_jitter_is_logged_with_the_deadline_and_wake_time(self, driver_factory, mocker):
+        """With --log-timer-jitter, each paced frame logs its wake time against its deadline."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS, log_timer_jitter=True)
+        log_jitter_stats = mocker.patch.object(driver.manager, '_log_jitter_stats')
+
+        driver.run(frame_count=3)
+
+        # The fake timer wakes exactly at each deadline
+        assert [call.args for call in log_jitter_stats.call_args_list] == [
+            (driver.timer, deadline_ns, deadline_ns) for deadline_ns in driver.timer.sleep_deadlines
+        ]
+        assert len(driver.timer.sleep_deadlines) == 3
 
     def test_processing_time_excludes_the_pacing_sleep(self, driver_factory):
         """The processing time given to the statistics is the frame's work, not its sleep."""

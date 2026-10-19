@@ -15,7 +15,6 @@ from tests.mocks.test_mock_factory import MockFactory
 
 # Constants for magic values
 FPS_REFRESH_RATE = 1000
-TWO_PIXELS = 2
 
 
 class TestSceneManager:
@@ -246,17 +245,6 @@ class TestSceneManager:
         # Test with a different event type that doesn't trigger the focused sprites logic
         mock_event.type = pygame.KEYUP
         scene_manager.handle_event(mock_event)
-
-    def test_scene_manager_update_timing(self):
-        """Test SceneManager _update_timing method."""
-        scene_manager = self.scene_manager
-
-        # Test timing update
-        previous_time = 0.0
-        current_time = 1.0
-        result = scene_manager._update_timing(previous_time, current_time)
-        assert isinstance(result, tuple)
-        assert len(result) == TWO_PIXELS
 
 
 class TestSceneManagerInternals:
