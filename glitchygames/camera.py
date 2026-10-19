@@ -10,6 +10,7 @@ engine so every game gets viewport support for free.
 
 from __future__ import annotations
 
+import enum
 import logging
 import math
 from typing import TYPE_CHECKING, Self, override
@@ -17,6 +18,7 @@ from typing import TYPE_CHECKING, Self, override
 import pygame
 
 from glitchygames.effects.shake import ScreenShake
+from glitchygames.pixel_snap import active_default_snap_mode, snap_to_pixel
 from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
@@ -35,6 +37,14 @@ DEFAULT_VISIBILITY_MARGIN = 64.0
 
 # Reference frame rate for frame-rate-independent smoothing
 REFERENCE_FPS = 60.0
+
+
+class FollowAxes(enum.Flag):
+    """Which camera axes follow the target; an unfollowed axis keeps the camera where it is."""
+
+    X = enum.auto()
+    Y = enum.auto()
+    BOTH = X | Y
 
 
 class ParallaxLayer(Sprite):
@@ -167,6 +177,66 @@ class Camera2D:
         # Set by apply(); WORLD shake only moves sprites positioned through apply()
         self._has_been_applied: bool = False
 
+        # Declared follow target (see follow()); the engine aims the camera at it each frame
+        self._follow_target: object | None = None
+        self._follow_axes: FollowAxes = FollowAxes.BOTH
+
+        # Set when game code calls update() this frame (cleared by begin_frame()), so the
+        # engine can warn when the game and the engine both move the camera in one frame
+        self._updated_by_game_this_frame: bool = False
+
+    @property
+    def follow_target(self: Self) -> object | None:
+        """The world sprite the engine aims the camera at, or None (manual camera)."""
+        return self._follow_target
+
+    @property
+    def follow_axes(self: Self) -> FollowAxes:
+        """The axes that follow the target; the others keep the camera where it is."""
+        return self._follow_axes
+
+    def follow(self: Self, *, target: object | None, axes: FollowAxes = FollowAxes.BOTH) -> None:
+        """Declare the world sprite the engine aims this camera at each frame.
+
+        The target needs world_x and world_y. The scene's camera_target() hook reads it, and
+        the engine applies the axes to whichever point that hook supplies.
+
+        Args:
+            target: The sprite to follow, or None to stop following (manual camera).
+            axes: The axes that follow (FollowAxes.X, FollowAxes.Y or FollowAxes.BOTH).
+
+        """
+        self._follow_target = target
+        self._follow_axes = axes
+
+    @property
+    def updated_by_game_this_frame(self: Self) -> bool:
+        """Whether game code called update() since the last begin_frame()."""
+        return self._updated_by_game_this_frame
+
+    def aim_at(self: Self, *, target_x: float, target_y: float, dt: float) -> None:
+        """Move toward a target on the followed axes only (the engine's camera aim).
+
+        An axis not in follow_axes aims at the camera's current goal on that axis
+        (world position plus lead offset), so smoothing leaves it where it is and only the
+        bounds clamp applies. Does not count as a game update().
+
+        Args:
+            target_x: Target X position in world coordinates.
+            target_y: Target Y position in world coordinates.
+            dt: Delta time in seconds since last frame.
+
+        """
+        if FollowAxes.X not in self._follow_axes:
+            target_x = self.world_x + self.lead_x
+        if FollowAxes.Y not in self._follow_axes:
+            target_y = self.world_y + self.lead_y
+        self._engine_update(target_x=target_x, target_y=target_y, dt=dt)
+
+    def begin_frame(self: Self) -> None:
+        """Start a new frame: forget whether game code called update() last frame."""
+        self._updated_by_game_this_frame = False
+
     @property
     def has_been_applied(self: Self) -> bool:
         """Whether apply() has ever been called (some sprite is positioned through this camera).
@@ -213,6 +283,23 @@ class Camera2D:
         offset is subtracted from the target so the tracked object
         appears at that offset from the viewport edge.
 
+        This is the manual-camera call for game code. A camera the engine aims (a follow
+        target or a camera_target() hook) should not also be updated by the game.
+
+        Args:
+            target_x: Target X position in world coordinates.
+            target_y: Target Y position in world coordinates.
+            dt: Delta time in seconds since last frame.
+
+        """
+        self._updated_by_game_this_frame = True
+        self._engine_update(target_x=target_x, target_y=target_y, dt=dt)
+
+    def _engine_update(self, *, target_x: float, target_y: float, dt: float) -> None:
+        """Move the camera exactly as update() does, without marking a game update.
+
+        Called by the engine's camera aim (glitchygames.world.aim_camera).
+
         Args:
             target_x: Target X position in world coordinates.
             target_y: Target Y position in world coordinates.
@@ -257,15 +344,22 @@ class Camera2D:
         self._update_parallax_layers(camera_x=self.world_x, camera_y=self.world_y)
 
     def _update_parallax_layers(self, *, camera_x: float, camera_y: float) -> None:
-        """Scroll every parallax layer to the given camera position.
+        """Scroll every parallax layer to the given camera position, snapped to whole pixels.
+
+        The position is snapped with the active default snap mode (the scene's
+        PIXEL_SNAP_MODE), the same snapped camera position world sprites are drawn from, so
+        the background never shimmers against them.
 
         Args:
             camera_x: Camera X used for the parallax offset.
             camera_y: Camera Y used for the parallax offset.
 
         """
+        mode = active_default_snap_mode()
+        snapped_camera_x = snap_to_pixel(camera_x, mode)
+        snapped_camera_y = snap_to_pixel(camera_y, mode)
         for layer in self._parallax_layers:
-            layer.update_scroll(camera_x, camera_y)
+            layer.update_scroll(snapped_camera_x, snapped_camera_y)
 
     def _clamp_to_bounds(self) -> None:
         """Clamp camera position to configured world bounds."""

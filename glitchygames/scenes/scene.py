@@ -19,6 +19,7 @@ from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
+from glitchygames.pixel_snap import PixelSnapMode
 from glitchygames.recording import post_event
 from glitchygames.timing import DEFAULT_TARGET_FPS
 
@@ -1136,6 +1137,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # A game's preferred default target FPS (0.0 = uncapped); None uses the engine default.
     # An explicit --target-fps on the command line always wins.
     TARGET_FPS: ClassVar[float | None] = None
+    # How sprites without their own pixel_snap_mode (and the camera and parallax layers) are
+    # snapped to whole pixels while this scene runs.
+    PIXEL_SNAP_MODE: ClassVar[PixelSnapMode] = PixelSnapMode.NEAREST_HALF_UP
 
     def __init__(
         self: Self,
@@ -1310,6 +1314,31 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 self._world_shake_warning_logged = True
         if ShakeTarget.SCREEN in targets:
             self.scene_manager.screen_shake.add(shake)
+
+    def camera_target(self: Self) -> tuple[float, float] | None:
+        """The world point the engine aims the camera at this frame, or None (manual camera).
+
+        Override to aim the camera anywhere (a point between two players, a cutscene focus).
+        The default returns the camera's follow target position (Camera2D.follow()). The
+        engine applies the camera's follow axes to whatever point this returns.
+
+        Returns:
+            tuple[float, float] | None: The target's (world_x, world_y), or None when the
+                camera follows nothing.
+
+        Raises:
+            TypeError: If the follow target has no world_x or world_y.
+
+        """
+        target = self.camera.follow_target
+        if target is None:
+            return None
+        world_x = getattr(target, 'world_x', None)
+        world_y = getattr(target, 'world_y', None)
+        if world_x is None or world_y is None:
+            message = f'Camera follow target {type(target).__name__} has no world_x/world_y'
+            raise TypeError(message)
+        return (float(world_x), float(world_y))
 
     def apply_camera_to_sprites(self: Self) -> None:
         """Reposition camera-relative sprites from the current camera.
