@@ -14,7 +14,7 @@ import random
 import pygame
 
 from glitchygames.game_objects.ball import BallSprite
-from tests.game_objects.test_ball import _drawn_position
+from tests.game_objects.ball_helpers import drawn_position
 
 # Number of frames to suppress re-detection of the same ball pair after a collision.
 # For clipping, this means we only count a crossing once, not every frame the
@@ -95,7 +95,7 @@ def _update_balls_and_count_wall_bounces(balls, dt):
             old_speed_x, old_speed_y = ball.speed.x, ball.speed.y
             ball.dt_tick(dt)
             # The engine positions world-space balls before each render
-            _drawn_position(ball)
+            drawn_position(ball)
 
             if old_speed_x * ball.speed.x < 0 and (
                 ball.rect.x <= 1 or ball.rect.x >= 800 - ball.width - 1

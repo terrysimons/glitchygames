@@ -591,7 +591,7 @@ class Game(Scene):
                 min_distance = 100  # Minimum distance from other balls
                 too_close = False
                 for existing_ball in self.balls:
-                    existing_center_x, existing_center_y = self._drawn_center(existing_ball)
+                    existing_center_x, existing_center_y = existing_ball.drawn_center()
                     dx = spawn_x - existing_center_x
                     dy = spawn_y - existing_center_y
                     distance = math.sqrt(dx * dx + dy * dy)
@@ -632,25 +632,6 @@ class Game(Scene):
         self.balls.append(new_ball)
         self.all_sprites.add(new_ball)
         self.collisions.get_layer('balls').add(new_ball)
-
-    @staticmethod
-    def _drawn_center(ball: BallSprite) -> tuple[int, int]:
-        """Return the centre of the ball's image at its current (snapped) world position.
-
-        A ball's rect is written by the engine before each render, so during dt_tick it still
-        holds where the ball was last drawn; this is where the ball will be drawn next.
-
-        Args:
-            ball: The ball.
-
-        Returns:
-            tuple[int, int]: The centre, as rect.center would give it after positioning.
-
-        """
-        drawn_rect = pygame.Rect(
-            snapped_world_position(ball, ball.world_x, ball.world_y), ball.rect.size
-        )
-        return drawn_rect.center
 
     def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
         """Count the rally hit and conditionally spawn a new ball.

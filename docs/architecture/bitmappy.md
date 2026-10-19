@@ -201,32 +201,26 @@ flowchart TB
 
 ## Rendering Pipeline
 
-The four phases of each frame tick. Dirty-rect optimization ensures only changed
-regions are redrawn and pushed to the display.
+The steps of each frame, in order (`SceneManager._run_scene_frame`, then `_finish_frame`).
+Bitmappy has no world-space sprites, so steps 5 and 6 leave its widgets alone. Dirty-rect
+optimization ensures only changed regions are redrawn and pushed to the display.
 
 ```mermaid
 flowchart TD
-    TICK["Frame Tick"] --> UPDATE["1. _update_scene()"]
-    UPDATE --> DT["Scene.update dt\naccumulate delta time"]
-    DT --> ANIM["AnimatedSprite.update dt\nadvance frame timers"]
-    ANIM --> FM["FrameManager.notify_observers\ntrigger frame change callbacks"]
-    FM --> DIRTY1["FilmStripSprite.dirty = 1\nanimation preview changed"]
-
-    TICK --> EVENTS["2. _process_events()"]
-    EVENTS --> ROUTE["GameEngine routes via\nEVENT_HANDLERS dict - O(1) lookup"]
-    ROUTE --> HANDLER["BitmapEditorScene handlers\nmodify sprites"]
-    HANDLER --> DIRTY2["Sprite.dirty = 1\npixel changed / slider moved / etc."]
-
-    TICK --> RENDER["3. _render_scene()"]
-    RENDER --> LDG["LayeredDirty.draw screen"]
-    LDG --> CHECK{"sprite.dirty?"}
+    BEGIN["1. camera.begin_frame()\nclear the manual camera-update flag"] --> LOGIC
+    LOGIC["2. _update_scene()\nScene.dt_tick(dt): logic, animation, collision\n(dt capped by MAX_FRAME_SECONDS when set)"] --> EVENTS
+    LOGIC --> FM["FrameManager.notify_observers\nFilmStripSprite.dirty = 1"]
+    EVENTS["3. _process_events()\nEVENT_HANDLERS dict - O(1) lookup\nBitmapEditorScene handlers modify sprites"] --> SERVICES
+    SERVICES["4. _update_frame_services()\nshake and rumble"] --> AIM
+    AIM["5. _aim_active_camera()\ncamera_target() / follow target\n(skipped when the scene was switched mid-frame)"] --> POSITION
+    POSITION["6. _position_active_world_sprites()\nworld sprites' rect from the camera, culling\n(screen-space sprites untouched)"] --> RENDER
+    RENDER["7. _render_scene()\nScene.update() (visual only), LayeredDirty.draw"] --> CHECK{"sprite.dirty?"}
     CHECK -->|"dirty=0"| SKIP["Skip - no redraw"]
-    CHECK -->|"dirty=1"| REDRAW["Blit sprite.image\nto screen at sprite.rect"]
-    CHECK -->|"dirty=2"| FORCE["Force full blit"]
-    REDRAW --> RECTS["Collect changed rects"]
-
-    TICK --> DISPLAY["4. _update_display()"]
-    DISPLAY --> PUPDATE["pygame.display.update rects\nonly repaint changed regions"]
+    CHECK -->|"dirty=1 or 2"| REDRAW["Blit sprite.image at sprite.rect\ncollect changed rects"]
+    SKIP --> PRESENT
+    REDRAW --> PRESENT
+    PRESENT["8. _present_frame()\ndebug overlay, pygame.display.update rects or flip"] --> FINISH
+    FINISH["9. _finish_frame()\npace, then one perf_counter reading sets the next dt"]
 ```
 
 ## Undo/Redo & Operations

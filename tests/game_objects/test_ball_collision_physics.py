@@ -10,7 +10,7 @@ from glitchygames.collision.layers import CollisionManager
 from glitchygames.examples.paddleslap import Game
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
-from tests.game_objects.test_ball import _drawn_position
+from tests.game_objects.ball_helpers import drawn_position
 
 LOG = logging.getLogger(__name__)
 
@@ -664,7 +664,7 @@ class _CollisionSweepHarness:
         ]
         # Then the engine positions the world sprites, as the frame loop does after dt_tick
         for _label, ball in balls:
-            _drawn_position(ball)
+            drawn_position(ball)
         return self.velocities() != velocities_before
 
 

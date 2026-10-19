@@ -16,7 +16,7 @@ import time
 import pygame
 
 from glitchygames.game_objects.ball import BallSprite
-from tests.game_objects.test_ball import _drawn_position
+from tests.game_objects.ball_helpers import drawn_position
 
 LOG = logging.getLogger(__name__)
 
@@ -240,7 +240,7 @@ class MultiBallTestBase:
                 ball.dt_tick(dt)
                 # The engine positions world-space balls before each render; the rect reads
                 # below see where the ball is drawn this frame
-                _drawn_position(ball)
+                drawn_position(ball)
 
                 # Detect wall bounces by speed direction flip at boundaries
                 if old_speed_x * ball.speed.x < 0 and (

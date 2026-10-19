@@ -569,3 +569,22 @@ class TestBallWorldSpace:
         assert ball.rect.topleft == expected_topleft
         assert ball.rect.topleft == snapped_world_position(ball, ball.world_x, ball.world_y)
         assert ball.visible
+
+    @pytest.mark.parametrize(
+        'ball_mode', [PixelSnapMode.NEAREST_HALF_UP, PixelSnapMode.FLOOR], ids=['half-up', 'floor']
+    )
+    def test_drawn_center_is_where_positioning_will_draw_the_ball(
+        self, ball_mode: PixelSnapMode
+    ) -> None:
+        """drawn_center() reads the world position, so it is current while rect is stale."""
+        identity_camera = Camera2D(*BALL_DISPLAY_SIZE)
+        ball = BallSprite(pixel_snap_mode=ball_mode)
+        ball.world_x, ball.world_y = BALL_HALF_POSITION
+        ball.rect.topleft = (-1000, -1000)  # last frame's place, not yet repositioned
+
+        drawn_center = ball.drawn_center()
+
+        position_world_sprites(
+            sprites=[ball], camera=identity_camera, screen_size=BALL_DISPLAY_SIZE
+        )
+        assert drawn_center == ball.rect.center

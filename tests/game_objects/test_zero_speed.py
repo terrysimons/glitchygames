@@ -17,7 +17,7 @@ from glitchygames.game_objects.ball import (
     SpeedUpTrigger,
 )
 from glitchygames.movement import Speed
-from tests.game_objects.test_ball import _drawn_position
+from tests.game_objects.ball_helpers import drawn_position
 from tests.mocks.test_mock_factory import MockFactory
 
 LOG = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ def _run_continuous_speedup_scenarios(ball):
             f' speed=({ball.speed.x}, {ball.speed.y})',
         )
 
-    assert _drawn_position(ball) == (100, 100)
+    assert drawn_position(ball) == (100, 100)
     assert (ball.speed.x, ball.speed.y) == (0.0, 0.0)
     LOG.debug('   Result: Position never changes (no movement with zero speed)\n')
 

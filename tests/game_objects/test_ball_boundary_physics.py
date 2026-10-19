@@ -17,7 +17,7 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
-from tests.game_objects.test_ball import _drawn_position
+from tests.game_objects.ball_helpers import drawn_position
 
 
 class TestBallBoundaryPhysics:
@@ -48,7 +48,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement that would go past top boundary
         ball.world_y = -5.0  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
-        _drawn_position(ball)
+        drawn_position(ball)
 
         # Ball should be repositioned and speed should be positive (downward)
         assert ball.rect.y >= 0
@@ -67,7 +67,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement that would go past bottom boundary
         ball.world_y = 600.0  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
-        _drawn_position(ball)
+        drawn_position(ball)
 
         # Ball should be repositioned and speed should be negative (upward)
         assert ball.rect.y + ball.rect.height <= 600
@@ -86,7 +86,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement that would go past left boundary
         ball.world_x = -5.0  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
-        _drawn_position(ball)
+        drawn_position(ball)
 
         # Ball should be repositioned and speed should be positive (rightward)
         assert ball.rect.x >= 0
@@ -105,7 +105,7 @@ class TestBallBoundaryPhysics:
         # Simulate movement that would go past right boundary
         ball.world_x = 800.0  # Past the boundary
         ball.dt_tick(0.016)  # 60 FPS
-        _drawn_position(ball)
+        drawn_position(ball)
 
         # Ball should be repositioned and speed should be negative (leftward)
         assert ball.rect.x + ball.rect.width <= 800
@@ -144,7 +144,7 @@ class TestBallBoundaryPhysics:
         ball.world_x = -5.0
         ball.world_y = -5.0
         ball.dt_tick(0.016)
-        _drawn_position(ball)
+        drawn_position(ball)
 
         # Both X and Y should be corrected
         assert ball.rect.x >= 0
@@ -165,7 +165,7 @@ class TestBallBoundaryPhysics:
         ball.speed = Speed(1000.0, 1000.0)  # Very fast movement
 
         ball.dt_tick(0.016)
-        _drawn_position(ball)
+        drawn_position(ball)
 
         # Ball should not clip through boundaries
         assert ball.rect.x >= 0
@@ -209,7 +209,7 @@ class TestBallBoundaryPhysics:
         for _ in range(10):
             ball.world_y = -5.0  # Past boundary
             ball.dt_tick(0.016)
-            _drawn_position(ball)
+            drawn_position(ball)
 
             # Ball should always be within bounds
             assert ball.rect.y >= 0
@@ -259,7 +259,7 @@ class TestBallBoundaryPhysics:
 
         ball.world_y = -5.0  # Past boundary
         ball.dt_tick(0.016)
-        _drawn_position(ball)
+        drawn_position(ball)
 
         # Ball should be repositioned but speed remains zero
         assert ball.rect.y >= 0

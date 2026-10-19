@@ -471,6 +471,22 @@ class BallSprite(Sprite):
         """Change the snap mode; collision uses it at once, drawing from the next positioning."""
         self._pixel_snap_mode = mode
 
+    def drawn_center(self: Self) -> tuple[int, int]:
+        """Return the centre of the ball's image at its current snapped world position.
+
+        This is where the engine's next positioning draws the ball (under an identity camera,
+        as in PaddleSlap; with a moving camera it is the drawn centre in world pixels). Unlike
+        rect.center it is current during dt_tick, before the engine has positioned the ball.
+
+        Returns:
+            tuple[int, int]: The centre, as rect.center reads after positioning.
+
+        """
+        drawn_rect = pygame.Rect(
+            snapped_world_position(self, self.world_x, self.world_y), self.rect.size
+        )
+        return drawn_rect.center
+
     @property
     def color(self: Self) -> tuple[int, int, int]:
         """The color of the ball.
