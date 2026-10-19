@@ -228,15 +228,27 @@ class TraceDifference:
         return (self.frame, self.sprite_id, self.field)
 
 
-def engine_rect(sprite: SpriteWorldSample, frame: FrameWorldSample) -> list[int]:
+# The snap mode the spec sets for every game (Scene.PIXEL_SNAP_MODE's default). The rules
+# compute expected rects with it, never with the mode the run reports, so a game that snaps
+# differently is caught rather than explained.
+SPEC_SNAP_MODE = PixelSnapMode.NEAREST_HALF_UP
+
+
+def engine_rect(
+    sprite: SpriteWorldSample, frame: FrameWorldSample, *, mode: PixelSnapMode
+) -> list[int]:
     """The rect the engine places a world sprite at: snap(world) - snap(camera) - snap(shake).
+
+    Args:
+        sprite: The sprite's world sample.
+        frame: The frame's world sample.
+        mode: The snap mode the expectation pins (not the run's).
 
     Returns:
         [x, y, width, height].
 
     """
     shake_x, shake_y = frame.shake_offset
-    mode = frame.snap_mode
     return [
         snap_to_pixel(sprite.world_x, mode)
         - snap_to_pixel(frame.camera_x, mode)
@@ -290,7 +302,29 @@ def tinker_feet_margin_pixels() -> int:
 def _sprite_sample(
     difference: TraceDifference, frame: FrameWorldSample
 ) -> SpriteWorldSample | None:
+    """The difference's sprite sample, or None if absent or the run is not in the spec mode.
+
+    Returns:
+        The sprite's world sample, or None.
+
+    """
+    if frame.snap_mode is not SPEC_SNAP_MODE:
+        return None
     return frame.sprites.get(difference.sprite_id)
+
+
+def within_one_pixel_per_axis(*, baseline: list[int], current: list[int]) -> bool:
+    """Whether two rects have the same size and positions at most 1 px apart on each axis.
+
+    Returns:
+        True if the rects differ by at most one pixel in x and in y, and not in size.
+
+    """
+    return (
+        abs(current[0] - baseline[0]) <= 1
+        and abs(current[1] - baseline[1]) <= 1
+        and current[2:] == baseline[2:]
+    )
 
 
 def separately_snapped(difference: TraceDifference, frame: FrameWorldSample) -> bool:
@@ -301,13 +335,14 @@ def separately_snapped(difference: TraceDifference, frame: FrameWorldSample) -> 
     positions straddle a half.
 
     Returns:
-        True if both rects follow from this frame's positions.
+        True if both rects follow from this frame's positions, at most 1 px apart per axis.
 
     """
     sprite = _sprite_sample(difference, frame)
     return (
         sprite is not None
-        and difference.current == engine_rect(sprite, frame)
+        and within_one_pixel_per_axis(baseline=difference.baseline, current=difference.current)
+        and difference.current == engine_rect(sprite, frame, mode=SPEC_SNAP_MODE)
         and difference.baseline == camera_apply_rect(sprite, frame)
     )
 
@@ -322,7 +357,7 @@ def stood_on_blank_image_hitbox(difference: TraceDifference, frame: FrameWorldSa
     sprite = _sprite_sample(difference, frame)
     return (
         sprite is not None
-        and difference.current == engine_rect(sprite, frame)
+        and difference.current == engine_rect(sprite, frame, mode=SPEC_SNAP_MODE)
         and difference.baseline
         == camera_apply_rect(sprite, frame, world_y_offset=-tinker_feet_margin_pixels())
     )
@@ -343,7 +378,7 @@ def settling_after_blank_image_hitbox(difference: TraceDifference, frame: FrameW
 
     """
     sprite = _sprite_sample(difference, frame)
-    if sprite is None or difference.current != engine_rect(sprite, frame):
+    if sprite is None or difference.current != engine_rect(sprite, frame, mode=SPEC_SNAP_MODE):
         return False
     old_rect = camera_apply_rect(sprite, frame)
     return (
@@ -902,12 +937,17 @@ class TestTraceComparison:
             ExpectedDifference(frames=range(1), sprite_pattern='*', field='rect', reason='test')
 
     @staticmethod
-    def _world_frame(*, camera_y: float, sprite: SpriteWorldSample) -> FrameWorldSample:
+    def _world_frame(
+        *,
+        camera_y: float,
+        sprite: SpriteWorldSample,
+        snap_mode: PixelSnapMode = PixelSnapMode.NEAREST_HALF_UP,
+    ) -> FrameWorldSample:
         return FrameWorldSample(
             camera_x=0.0,
             camera_y=camera_y,
             shake_offset=(0.0, 0.0),
-            snap_mode=PixelSnapMode.NEAREST_HALF_UP,
+            snap_mode=snap_mode,
             screen_size=(800, 480),
             sprites={'Cog#0': sprite},
         )
@@ -949,6 +989,28 @@ class TestTraceComparison:
             current=[0, 11, 16, 16],
         )
         assert not separately_snapped(difference, frame)
+
+    def test_separately_snapped_rejects_a_floor_snapped_run(self):
+        """The rules pin the spec's NEAREST_HALF_UP: a run snapping with FLOOR is not explained."""
+        # Camera 0.2, cog 10.9: FLOOR gives 10 - 0 = 10; round(10.9 - 0.2) = 11 before
+        sprite = SpriteWorldSample(world_x=0.0, world_y=10.9, rect=[0, 10, 16, 16], hidden=False)
+        frame = self._world_frame(camera_y=0.2, sprite=sprite, snap_mode=PixelSnapMode.FLOOR)
+        difference = TraceDifference(
+            frame=0,
+            sprite_id='Cog#0',
+            field='rect',
+            baseline=[0, 11, 16, 16],
+            current=[0, 10, 16, 16],
+        )
+        assert not separately_snapped(difference, frame)
+
+    @pytest.mark.parametrize(
+        ('current', 'within'),
+        [([1, 11, 16, 16], True), ([0, 12, 16, 16], False), ([2, 10, 16, 16], False)],
+        ids=['one_pixel_each_axis', 'two_pixels_in_y', 'two_pixels_in_x'],
+    )
+    def test_within_one_pixel_per_axis(self, current, within):
+        assert within_one_pixel_per_axis(baseline=[0, 10, 16, 16], current=current) is within
 
     @pytest.mark.parametrize(
         ('rect', 'hidden', 'explained'),
