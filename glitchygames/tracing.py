@@ -608,7 +608,7 @@ class TraceWriter:
         if self.flush_every_frame:
             self._gzip_file.flush()
 
-    def write_frame(self, frame_record: dict[str, Any], *, force_keyframe: bool = False) -> None:
+    def write_frame(self, *, frame_record: dict[str, Any], force_keyframe: bool = False) -> None:
         """Encode and write one full frame.
 
         The writer keeps its own copy of the frame to encode the next one against, so the
@@ -656,7 +656,7 @@ class TraceWriter:
         self.close()
 
 
-def write_trace(trace: dict[str, Any], *, path: Path) -> None:
+def write_trace(*, trace: dict[str, Any], path: Path) -> None:
     """Write a whole in-memory trace (header fields plus ``frames``) to a file.
 
     Args:
@@ -667,7 +667,7 @@ def write_trace(trace: dict[str, Any], *, path: Path) -> None:
     header = {field: value for field, value in trace.items() if field != FRAMES_FIELD}
     with TraceWriter(path=path, header=header, flush_every_frame=False) as writer:
         for frame_record in trace[FRAMES_FIELD]:
-            writer.write_frame(frame_record)
+            writer.write_frame(frame_record=frame_record)
 
 
 # How many compressed bytes TraceReader reads at a time

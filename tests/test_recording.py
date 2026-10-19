@@ -307,7 +307,7 @@ class TestEventRecords:
             pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='é', scancode=4, window=None
         )
 
-        record = event_to_record(event, origin=EXTERNAL_ORIGIN)
+        record = event_to_record(event=event, origin=EXTERNAL_ORIGIN)
 
         assert record == {
             'type': pygame.KEYDOWN,
@@ -337,7 +337,7 @@ class TestEventRecords:
     def test_event_round_trips_through_json(self, event):
         """Decoding the JSON record gives an equal event (same type and attribute values)."""
         record = json.loads(
-            json.dumps(event_to_record(event, origin=EXTERNAL_ORIGIN), allow_nan=False)
+            json.dumps(event_to_record(event=event, origin=EXTERNAL_ORIGIN), allow_nan=False)
         )
 
         decoded = event_from_record(record)
@@ -351,7 +351,7 @@ class TestEventRecords:
         """A MENUEVENT carrying sprite objects keeps the event; the sprites are marked."""
         event = pygame.event.Event(MENUEVENT, menu=Gamepad(), menu_item=Gamepad())
 
-        record = json.loads(json.dumps(event_to_record(event, origin=INTERNAL_ORIGIN)))
+        record = json.loads(json.dumps(event_to_record(event=event, origin=INTERNAL_ORIGIN)))
 
         assert event_from_record(record).dict == {
             'menu': UnrepresentableValue(type_name=GAMEPAD_TYPE_NAME),

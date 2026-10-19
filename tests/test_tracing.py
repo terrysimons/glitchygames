@@ -267,12 +267,12 @@ class TestTraceFiles:
     def test_round_trip_gives_every_frame_back(self, tmp_path):
         trace = self._example_trace()
         path = tmp_path / 'trace.jsonl.gz'
-        write_trace(trace, path=path)
+        write_trace(trace=trace, path=path)
         assert read_trace(path=path) == trace
 
     def test_file_is_header_then_one_line_per_frame(self, tmp_path):
         path = tmp_path / 'trace.jsonl.gz'
-        write_trace(self._example_trace(), path=path)
+        write_trace(trace=self._example_trace(), path=path)
         lines = _lines(path)
         assert lines[0] == {
             'format_version': TRACE_FORMAT_VERSION,
@@ -291,13 +291,13 @@ class TestTraceFiles:
     def test_writing_twice_gives_identical_bytes(self, tmp_path):
         first_path = tmp_path / 'first.jsonl.gz'
         second_path = tmp_path / 'second.jsonl.gz'
-        write_trace(self._example_trace(), path=first_path)
-        write_trace(self._example_trace(), path=second_path)
+        write_trace(trace=self._example_trace(), path=first_path)
+        write_trace(trace=self._example_trace(), path=second_path)
         assert first_path.read_bytes() == second_path.read_bytes()
 
     def test_gzip_header_has_no_time_or_file_name(self, tmp_path):
         path = tmp_path / 'trace.jsonl.gz'
-        write_trace(self._example_trace(), path=path)
+        write_trace(trace=self._example_trace(), path=path)
         header_bytes = path.read_bytes()[:10]
         flags = header_bytes[3]
         modification_time = int.from_bytes(header_bytes[4:8], 'little')
@@ -329,7 +329,7 @@ class TestTraceFiles:
 
     def test_complete_file_reports_nothing_dropped(self, tmp_path):
         path = tmp_path / 'trace.jsonl.gz'
-        write_trace(self._example_trace(), path=path)
+        write_trace(trace=self._example_trace(), path=path)
         result = read_trace_result(path=path)
         assert result.dropped_partial_line is None
         assert result.is_complete is True
@@ -338,7 +338,7 @@ class TestTraceFiles:
         """A recording cut off mid-line keeps every complete frame."""
         trace = self._example_trace()
         path = tmp_path / 'cut.jsonl.gz'
-        write_trace(trace, path=path)
+        write_trace(trace=trace, path=path)
         text = gzip.decompress(path.read_bytes()).decode('utf-8')
         cut_text = text[: text.rindex('\n', 0, len(text) - 1) + 12]
         path.write_bytes(gzip.compress(cut_text.encode('utf-8'), mtime=0))
@@ -349,7 +349,7 @@ class TestTraceFiles:
 
     def test_read_trace_logs_the_dropped_line(self, tmp_path, caplog):
         path = tmp_path / 'cut.jsonl.gz'
-        write_trace(self._example_trace(), path=path)
+        write_trace(trace=self._example_trace(), path=path)
         text = gzip.decompress(path.read_bytes()).decode('utf-8')
         path.write_bytes(gzip.compress(text[:-5].encode('utf-8'), mtime=0))
         with caplog.at_level('WARNING', logger='glitchygames.tracing'):
@@ -360,7 +360,7 @@ class TestTraceFiles:
 
     def test_corrupt_line_before_the_last_is_an_error(self, tmp_path):
         path = tmp_path / 'corrupt.jsonl.gz'
-        write_trace(self._example_trace(), path=path)
+        write_trace(trace=self._example_trace(), path=path)
         lines = gzip.decompress(path.read_bytes()).decode('utf-8').split('\n')
         lines[2] = lines[2][:-3]
         path.write_bytes(gzip.compress('\n'.join(lines).encode('utf-8'), mtime=0))
@@ -386,7 +386,7 @@ class TestTypeChangesRoundTrip:
         previous_sprite[field] = previous_value
         current_sprite = {**previous_sprite, field: current_value}
         path = tmp_path / 'types.jsonl.gz'
-        write_trace(_trace(_frame(0, previous_sprite), _frame(1, current_sprite)), path=path)
+        write_trace(trace=_trace(_frame(0, previous_sprite), _frame(1, current_sprite)), path=path)
 
         frames = read_trace(path=path)['frames']
 
@@ -458,7 +458,7 @@ class TestTraceReader:
     def test_header_and_frames_match_read_trace(self, tmp_path):
         trace = self._moving_trace(frame_count=50)
         path = tmp_path / 'trace.jsonl.gz'
-        write_trace(trace, path=path)
+        write_trace(trace=trace, path=path)
         with TraceReader(path=path) as reader:
             assert reader.header == {'game': 'example', 'frame_seconds': 1.0 / 60.0}
             frames = list(reader)
@@ -469,7 +469,7 @@ class TestTraceReader:
     def test_yields_frames_before_the_file_is_fully_read(self, tmp_path):
         """Frames come one at a time: the first arrives while most of the file is unread."""
         path = tmp_path / 'long.jsonl.gz'
-        write_trace(self._moving_trace(frame_count=2000), path=path)
+        write_trace(trace=self._moving_trace(frame_count=2000), path=path)
         file_size = path.stat().st_size
         with TraceReader(path=path, chunk_bytes=64) as reader:
             frame_iterator = iter(reader)
@@ -484,7 +484,7 @@ class TestTraceReader:
         """Changing a yielded frame cannot change the frames that follow it."""
         trace = self._moving_trace(frame_count=3)
         path = tmp_path / 'trace.jsonl.gz'
-        write_trace(trace, path=path)
+        write_trace(trace=trace, path=path)
         frames = []
         with TraceReader(path=path) as reader:
             for frame in reader:
@@ -499,7 +499,7 @@ class TestTraceReader:
     def test_truncated_file_reports_the_partial_line_after_iteration(self, tmp_path):
         trace = self._moving_trace(frame_count=5)
         path = tmp_path / 'cut.jsonl.gz'
-        write_trace(trace, path=path)
+        write_trace(trace=trace, path=path)
         text = gzip.decompress(path.read_bytes()).decode('utf-8')
         path.write_bytes(gzip.compress(text[:-4].encode('utf-8'), mtime=0))
         with TraceReader(path=path) as reader:
@@ -510,7 +510,7 @@ class TestTraceReader:
     def test_unclosed_writer_file_reads_as_incomplete(self, tmp_path):
         path = tmp_path / 'live.jsonl.gz'
         writer = TraceWriter(path=path, header={'source': 'recording'})
-        writer.write_frame(_frame(0, BALL))
+        writer.write_frame(frame_record=_frame(0, BALL))
         with TraceReader(path=path) as reader:
             assert list(reader) == [_frame(0, BALL)]
         assert reader.is_complete is False
@@ -518,7 +518,7 @@ class TestTraceReader:
 
     def test_frames_can_be_iterated_only_once(self, tmp_path):
         path = tmp_path / 'trace.jsonl.gz'
-        write_trace(self._moving_trace(frame_count=2), path=path)
+        write_trace(trace=self._moving_trace(frame_count=2), path=path)
         with TraceReader(path=path) as reader:
             list(reader)
             with pytest.raises(ValueError, match='once'):
@@ -538,7 +538,7 @@ class TestTraceWriter:
     def test_write_frame_rejects_reserved_frame_fields(self, tmp_path, reserved_field):
         with TraceWriter(path=tmp_path / 'trace.jsonl.gz', header={}) as writer:
             with pytest.raises(TraceFormatError, match=rf'reserved.*{reserved_field}'):
-                writer.write_frame({**_frame(0, BALL), reserved_field: 'data'})
+                writer.write_frame(frame_record={**_frame(0, BALL), reserved_field: 'data'})
             assert writer.frame_count == 0
 
     def test_streamed_frames_read_back_without_close(self, tmp_path):
@@ -547,7 +547,7 @@ class TestTraceWriter:
         writer = TraceWriter(path=path, header={'source': 'recording', 'frame_seconds': None})
         frames = [_frame(0, BALL), _frame(1, _sprite('Ball#0', [12, 20, 4, 4]))]
         for frame in frames:
-            writer.write_frame(frame)
+            writer.write_frame(frame_record=frame)
         result = read_trace_result(path=path)
         assert result.trace == {'source': 'recording', 'frame_seconds': None, 'frames': frames}
         assert result.is_complete is False
@@ -558,8 +558,8 @@ class TestTraceWriter:
     def test_context_manager_closes_and_counts_frames(self, tmp_path):
         path = tmp_path / 'trace.jsonl.gz'
         with TraceWriter(path=path, header={'game': 'example'}) as writer:
-            writer.write_frame(_frame(0, BALL))
-            writer.write_frame(_frame(1, BALL))
+            writer.write_frame(frame_record=_frame(0, BALL))
+            writer.write_frame(frame_record=_frame(1, BALL))
         assert writer.frame_count == 2
         assert read_trace_result(path=path).is_complete is True
 
@@ -567,17 +567,17 @@ class TestTraceWriter:
         writer = TraceWriter(path=tmp_path / 'trace.jsonl.gz', header={})
         writer.close()
         with pytest.raises(ValueError, match='closed'):
-            writer.write_frame(_frame(0, BALL))
+            writer.write_frame(frame_record=_frame(0, BALL))
 
     def test_writer_keeps_its_own_copy_of_the_previous_frame(self, tmp_path):
         """A caller that mutates a frame after writing it cannot corrupt the next delta."""
         path = tmp_path / 'trace.jsonl.gz'
         frame = _frame(0, _sprite('Ball#0', [10, 20, 4, 4]))
         with TraceWriter(path=path, header={}) as writer:
-            writer.write_frame(frame)
+            writer.write_frame(frame_record=frame)
             frame['sprites'][0]['rect'][0] = 99
             frame['frame'] = 1
-            writer.write_frame(frame)
+            writer.write_frame(frame_record=frame)
         frames = read_trace(path=path)['frames']
         assert frames[0]['sprites'][0]['rect'] == [10, 20, 4, 4]
         assert frames[1]['sprites'][0]['rect'] == [99, 20, 4, 4]
@@ -591,9 +591,9 @@ class TestTraceWriter:
             _frame(2, _sprite('Ball#1', [0, 0, 4, 4])),
         ]
         with TraceWriter(path=path, header={}) as writer:
-            writer.write_frame(frames[0])
-            writer.write_frame(frames[1])
-            writer.write_frame(frames[2], force_keyframe=True)
+            writer.write_frame(frame_record=frames[0])
+            writer.write_frame(frame_record=frames[1])
+            writer.write_frame(frame_record=frames[2], force_keyframe=True)
         assert [line['kind'] for line in _lines(path)[1:]] == ['keyframe', 'delta', 'keyframe']
         assert read_trace(path=path)['frames'] == frames
 

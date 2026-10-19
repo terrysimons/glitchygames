@@ -407,7 +407,7 @@ def value_from_json(encoded: object) -> object:
     return encoded
 
 
-def event_to_record(event: pygame.event.Event, *, origin: str) -> dict[str, Any]:
+def event_to_record(*, event: pygame.event.Event, origin: str) -> dict[str, Any]:
     """Describe a pygame event as a JSON-safe record, with every attribute.
 
     Args:
@@ -464,7 +464,7 @@ def _take_internal_post(
     return False
 
 
-def event_origin(event: pygame.event.Event, *, pending: list[tuple[int, dict[str, Any]]]) -> str:
+def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str, Any]]]) -> str:
     """Decide whether a pumped event came from SDL or from code (see the module docstring).
 
     Args:
@@ -530,7 +530,7 @@ class GameplayRecorder:
         """
         pending = _INTERNAL_POSTS.pending
         batch = [
-            event_to_record(event, origin=event_origin(event, pending=pending))
+            event_to_record(event=event, origin=event_origin(event=event, pending=pending))
             for event in raw_events
         ]
         if pending:
@@ -554,7 +554,7 @@ class GameplayRecorder:
         frame_record[DT_FIELD] = dt
         frame_record[EVENT_BATCHES_FIELD] = self._event_batches
         is_new_scene_object = self._writer.frame_count > 0 and scene is not self._previous_scene
-        self._writer.write_frame(frame_record, force_keyframe=is_new_scene_object)
+        self._writer.write_frame(frame_record=frame_record, force_keyframe=is_new_scene_object)
         self._previous_scene = scene
         self._event_batches = []
 

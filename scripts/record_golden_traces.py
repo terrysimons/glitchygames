@@ -700,7 +700,7 @@ def main() -> None:
     for game_key in GAME_SCENES:
         trace = record_trace(game_key, frame_count=DEFAULT_FRAME_COUNT)
         path = golden_path(game_key)
-        write_trace({'source': GOLDEN_TRACE_SOURCE, **trace}, path=path)
+        write_trace(trace={'source': GOLDEN_TRACE_SOURCE, **trace}, path=path)
         sys.stdout.write(f'{game_key}: {len(trace["frames"])} frames -> {path}\n')
 
 

@@ -1069,7 +1069,7 @@ def test_committed_trace_reencodes_to_identical_bytes(game_key, tmp_path):
     path = golden_path(game_key)
     baseline = read_trace(path=path)
     reencoded_path = tmp_path / path.name
-    write_trace(baseline, path=reencoded_path)
+    write_trace(trace=baseline, path=reencoded_path)
 
     assert read_trace(path=reencoded_path) == baseline
     assert reencoded_path.read_bytes() == path.read_bytes()
@@ -1108,7 +1108,7 @@ def test_altered_middle_frame_is_found_at_its_frame_and_sprite(game_key, tmp_pat
     altered_sprite = middle_frame['sprites'][len(middle_frame['sprites']) // 2]
     altered_sprite['rect'][0] += 1
     altered_path = tmp_path / 'altered.jsonl.gz'
-    write_trace(altered, path=altered_path)
+    write_trace(trace=altered, path=altered_path)
 
     differences = trace_differences(baseline=baseline, current=read_trace(path=altered_path))
 
