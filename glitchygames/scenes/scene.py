@@ -364,9 +364,12 @@ class SceneManager(SceneInterface, events.EventManager):
     def _capture_arriving_scene(self: Self) -> pygame.Surface:
         """Screenshot the scene being entered (already set up and active), without its player.
 
-        Snaps the camera to the player position (no lerp) and renders, so the screenshot
-        shows the correct view for the transition. The player sprite is hidden during the
-        capture (the transition draws its own player overlay) and restored afterwards.
+        Snaps the camera (no lerp) and renders, so the screenshot shows the correct view for
+        the transition: to the scene's camera target on the camera's followed axes only (an
+        unfollowed axis stays where setup() put it), or, when camera_target() is None, to the
+        player's position on both axes, as before follow targets existed. The player sprite
+        is hidden during the capture (the transition draws its own player overlay) and
+        restored afterwards.
 
         Returns:
             A copy of the screen showing the arriving scene.
@@ -384,10 +387,15 @@ class SceneManager(SceneInterface, events.EventManager):
                     player_was_visible = getattr(player, 'visible', True)
                     player.visible = False
                 player.dirty = 0
-                camera.snap_to(
-                    target_x=getattr(player, 'world_x', 0.0),
-                    target_y=getattr(player, 'world_y', 0.0),
-                )
+                camera_target = self.active_scene.camera_target()
+                if camera_target is None:
+                    camera.snap_to(
+                        target_x=getattr(player, 'world_x', 0.0),
+                        target_y=getattr(player, 'world_y', 0.0),
+                    )
+                else:
+                    target_x, target_y = camera_target
+                    camera.snap_followed_axes_to(target_x=target_x, target_y=target_y)
             self.active_scene.dt_tick(0.001)
             # Place the arriving scene's world sprites, so its screenshot shows them in place
             self._position_active_world_sprites()

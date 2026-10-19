@@ -30,7 +30,7 @@ from scripts.record_golden_traces import (
     release,
 )
 
-from glitchygames.camera import Camera2D
+from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
@@ -226,6 +226,23 @@ class CapturedPlayerScene(Scene):
         )
         self.all_sprites.add(self.player, self.landmark)
         self.camera.follow(target=self.player)
+
+
+# The camera's y before an X-only follow scene is entered (it must stay there)
+X_FOLLOW_CAMERA_Y = 0.0
+
+
+class XFollowScene(CapturedPlayerScene):
+    """CapturedPlayerScene whose camera follows the player on X only (a side-scroller)."""
+
+    NAME = 'X Follow'
+
+    @override
+    def setup(self: Self) -> None:
+        """Follow the player on X only; the camera's y stays where the scene put it."""
+        super().setup()
+        self.camera.world_y = X_FOLLOW_CAMERA_Y
+        self.camera.follow(target=self.player, axes=FollowAxes.X)
 
 
 OFF_SCREEN_PLAYER_POSITION = (5000.0, 5000.0)
@@ -680,6 +697,30 @@ class TestTransitionCapture:
             # Visibility is restored afterwards, as before
             assert departing_scene.player.visible
             assert arriving_scene.player.visible
+
+    def test_arriving_capture_snaps_only_the_followed_axes(self):
+        """An X-only follow scene entered through a transition keeps its camera's y.
+
+        The capture snaps the camera to its target so the screenshot shows the right view;
+        snapping y too would leave an X-only camera at the player's y for good (the aim never
+        moves an unfollowed axis).
+        """
+        with running_scene(CapturedPlayerScene) as manager:
+            step(manager)
+            departing_scene = manager.active_scene
+            assert isinstance(departing_scene, CapturedPlayerScene)
+
+            departing_scene.transition_to(
+                XFollowScene(options=departing_scene.options),
+                FadeTransition(duration=TEST_FADE_SECONDS),
+            )
+            step(manager)
+
+            arriving_scene = manager.active_scene
+            assert isinstance(arriving_scene, XFollowScene)
+            camera = arriving_scene.camera
+            assert camera.world_x == arriving_scene.player.world_x - camera.lead_x
+            assert camera.world_y == X_FOLLOW_CAMERA_Y
 
     @pytest.mark.parametrize(
         'scene_class', [OffScreenPlayerScene, HiddenOffScreenPlayerScene], ids=['shown', 'hidden']

@@ -243,16 +243,50 @@ class Camera2D:
             dt: Delta time in seconds since last frame.
 
         """
-        if FollowAxes.X not in self._follow_axes:
-            target_x = self.world_x + self.lead_x
-        if FollowAxes.Y not in self._follow_axes:
-            target_y = self.world_y + self.lead_y
+        target_x, target_y = self._target_on_followed_axes(target_x=target_x, target_y=target_y)
         self._engine_update(
             target_x=target_x,
             target_y=target_y,
             dt=dt,
             advance_shake=not self._shake_advanced_this_frame,
         )
+
+    def snap_followed_axes_to(self: Self, *, target_x: float, target_y: float) -> None:
+        """Instantly move to a target on the followed axes only (snap_to, honouring the axes).
+
+        An axis not in follow_axes keeps the camera where it is (only the bounds clamp
+        applies), as aim_at() does. The engine uses this for a transition's arriving-scene
+        screenshot, so a side-scroller's camera keeps its y.
+
+        Args:
+            target_x: Target X in world coordinates.
+            target_y: Target Y in world coordinates.
+
+        """
+        target_x, target_y = self._target_on_followed_axes(target_x=target_x, target_y=target_y)
+        self.snap_to(target_x=target_x, target_y=target_y)
+
+    def _target_on_followed_axes(
+        self: Self, *, target_x: float, target_y: float
+    ) -> tuple[float, float]:
+        """Replace the target on each unfollowed axis with the camera's current goal there.
+
+        The current goal is the world position plus the lead offset, so moving toward it
+        (smoothed or snapped) leaves the camera where it is on that axis.
+
+        Args:
+            target_x: Target X in world coordinates.
+            target_y: Target Y in world coordinates.
+
+        Returns:
+            tuple[float, float]: The target to move toward.
+
+        """
+        if FollowAxes.X not in self._follow_axes:
+            target_x = self.world_x + self.lead_x
+        if FollowAxes.Y not in self._follow_axes:
+            target_y = self.world_y + self.lead_y
+        return (target_x, target_y)
 
     def advance_shake(self: Self, *, dt: float) -> None:
         """Advance the WORLD shake without moving the camera (the engine's still-camera step).

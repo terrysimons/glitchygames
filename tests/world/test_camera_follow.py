@@ -224,6 +224,25 @@ class TestFollow:
         aim_camera(scene=make_scene(camera=camera), camera=camera, dt=FRAME_SECONDS)
         assert camera.world_x == TARGET_POSITION[0] / 2
 
+    @pytest.mark.parametrize(
+        ('axes', 'expected_position'),
+        [
+            (FollowAxes.X, (TARGET_POSITION[0] - LEAD_OFFSET[0], CAMERA_START[1])),
+            (FollowAxes.Y, (CAMERA_START[0], TARGET_POSITION[1] - LEAD_OFFSET[1])),
+            (
+                FollowAxes.BOTH,
+                (TARGET_POSITION[0] - LEAD_OFFSET[0], TARGET_POSITION[1] - LEAD_OFFSET[1]),
+            ),
+        ],
+    )
+    def test_snap_followed_axes_to_keeps_unfollowed_axes(
+        self, axes: FollowAxes, expected_position: tuple[float, float]
+    ):
+        camera = make_camera(smooth_factor=0.1, lead_x=LEAD_OFFSET[0], lead_y=LEAD_OFFSET[1])
+        camera.follow(target=make_target(), axes=axes)
+        camera.snap_followed_axes_to(target_x=TARGET_POSITION[0], target_y=TARGET_POSITION[1])
+        assert (camera.world_x, camera.world_y) == expected_position
+
 
 class TestCameraTargetHook:
     """Scene.camera_target(), Scene.PIXEL_SNAP_MODE and hook precedence."""

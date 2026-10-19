@@ -192,7 +192,9 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   only visual work (fades). Drawing the pose in `update()` makes collision use last frame's pose
   (the old one-frame wall lag). Likewise collision resolution belongs in `dt_tick` (PaddleSlap),
   so its result is positioned before the frame renders
-- Transition captures hide a world-space player with `hidden` and restore it afterwards
+- Transition captures hide a world-space player with `hidden` and restore it afterwards; the
+  arriving capture snaps the camera to `camera_target()` on its followed axes only
+  (`camera.snap_followed_axes_to`), or to the player on both axes when there is no target
 - Golden traces (`scripts/record_golden_traces.py`, `tests/world/test_golden_traces.py`) replay
   every example game and compare each sprite's rect and visibility, frame by frame, with
   baselines recorded before the world-space change. Every difference must be explained by
