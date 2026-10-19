@@ -124,6 +124,15 @@ RECORDING_SOURCE = 'recording'
 # Frame fields a recording adds to each sprite frame
 DT_FIELD = 'dt'
 EVENT_BATCHES_FIELD = 'event_batches'
+# Frame fields format version 3 adds (each written only on frames where it is not empty)
+INPUT_CHANGES_FIELD = 'input_changes'
+CONTROL_EVENTS_FIELD = 'control_events'
+DEVICES_OPENED_FIELD = 'devices_opened'
+SAVES_OPENED_FIELD = 'saves_opened'
+SCENE_START_FIELD = 'scene_start'
+# Header fields format version 3 adds
+SAVES_HEADER_FIELD = 'saves'
+DEVICES_HEADER_FIELD = 'devices'
 
 # Event record fields and origins
 EVENT_TYPE_FIELD = 'type'

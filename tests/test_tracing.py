@@ -526,8 +526,8 @@ class TestTraceReader:
 
     def test_unknown_format_version_is_rejected_on_open(self, tmp_path):
         path = tmp_path / 'future.jsonl.gz'
-        path.write_bytes(gzip.compress(b'{"format_version":3}\n', mtime=0))
-        with pytest.raises(TraceFormatError, match='format_version 3'):
+        path.write_bytes(gzip.compress(b'{"format_version":4}\n', mtime=0))
+        with pytest.raises(TraceFormatError, match='format_version 4'):
             TraceReader(path=path)
 
 
@@ -653,3 +653,42 @@ class TestSampleSceneFrame:
     def test_no_active_scene_records_no_sprites(self):
         frame = sample_scene_frame(frame_number=0, scene=None, sprite_ids=StableSpriteIds())
         assert frame == {'frame': 0, 'scene': None, 'sprites': []}
+
+
+class TestFormatVersionThree:
+    """Format version 3 adds recording fields; version 2 files still read."""
+
+    def test_writer_writes_version_three(self, tmp_path):
+        path = tmp_path / 'trace.jsonl.gz'
+        with TraceWriter(path=path, header={'game': 'demo', 'frame_seconds': None}) as writer:
+            writer.write_frame(frame_record={'frame': 0, 'scene': 'Demo', 'sprites': []})
+        with gzip.open(path, 'rt', encoding='utf-8') as trace_file:
+            header = json.loads(trace_file.readline())
+        assert header['format_version'] == 3
+
+    def test_reader_reports_the_file_version(self, tmp_path):
+        path = tmp_path / 'trace.jsonl.gz'
+        with TraceWriter(path=path, header={'game': 'demo', 'frame_seconds': None}) as writer:
+            writer.write_frame(frame_record={'frame': 0, 'scene': 'Demo', 'sprites': []})
+        result = read_trace_result(path=path)
+        assert result.format_version == 3
+
+    def test_version_two_file_still_reads(self, tmp_path):
+        path = tmp_path / 'old.jsonl.gz'
+        lines = [
+            {'format_version': 2, 'game': 'demo', 'frame_seconds': None},
+            {'frame': 0, 'kind': 'keyframe', 'scene': 'Demo', 'sprites': []},
+        ]
+        with gzip.open(path, 'wt', encoding='utf-8') as trace_file:
+            trace_file.writelines(json.dumps(line) + '\n' for line in lines)
+        with TraceReader(path=path) as reader:
+            frames = list(reader)
+        assert reader.format_version == 2
+        assert frames == [{'frame': 0, 'scene': 'Demo', 'sprites': []}]
+
+    def test_unknown_version_is_refused(self, tmp_path):
+        path = tmp_path / 'future.jsonl.gz'
+        with gzip.open(path, 'wt', encoding='utf-8') as trace_file:
+            trace_file.write(json.dumps({'format_version': 4, 'game': 'demo'}) + '\n')
+        with pytest.raises(TraceFormatError, match='format_version 4'):
+            TraceReader(path=path)

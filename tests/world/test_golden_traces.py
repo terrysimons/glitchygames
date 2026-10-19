@@ -35,7 +35,13 @@ from glitchygames.examples.clockwork_keep.constants import PLAYER_HEIGHT, PLAYER
 from glitchygames.examples.clockwork_keep.drawing import draw_tinker
 from glitchygames.examples.clockwork_keep.player import Tinker
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
-from glitchygames.tracing import TraceReader, decode_frame, read_trace, write_trace
+from glitchygames.tracing import (
+    TRACE_FORMAT_VERSION,
+    TraceReader,
+    decode_frame,
+    read_trace,
+    write_trace,
+)
 from glitchygames.world import CULL_MARGIN_PIXELS, is_world_positioned
 
 if TYPE_CHECKING:
@@ -1065,14 +1071,27 @@ def test_same_random_seed_gives_identical_paddleslap_traces():
 
 @pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
 def test_committed_trace_reencodes_to_identical_bytes(game_key, tmp_path):
-    """Decoding then encoding a committed trace gives back every frame and the same bytes."""
+    """Decoding then encoding a committed trace gives back every frame and the same lines.
+
+    The committed files are format version 2 and the writer writes version 3, so the header
+    line differs in its ``format_version`` alone; every frame line is identical.
+    """
     path = golden_path(game_key)
     baseline = read_trace(path=path)
     reencoded_path = tmp_path / path.name
     write_trace(trace=baseline, path=reencoded_path)
 
     assert read_trace(path=reencoded_path) == baseline
-    assert reencoded_path.read_bytes() == path.read_bytes()
+    with gzip.open(path, 'rt', encoding='utf-8') as committed_file:
+        committed_lines = committed_file.read().splitlines()
+    with gzip.open(reencoded_path, 'rt', encoding='utf-8') as reencoded_file:
+        reencoded_lines = reencoded_file.read().splitlines()
+    committed_header = json.loads(committed_lines[0])
+    reencoded_header = json.loads(reencoded_lines[0])
+    assert committed_header.pop('format_version') == 2
+    assert reencoded_header.pop('format_version') == TRACE_FORMAT_VERSION
+    assert reencoded_header == committed_header
+    assert reencoded_lines[1:] == committed_lines[1:]
 
 
 @pytest.mark.parametrize('game_key', sorted(GAME_SCENES))

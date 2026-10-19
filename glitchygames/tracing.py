@@ -18,9 +18,9 @@ A trace in memory is a dict of header fields plus ``frames``, a list of full fra
         ],
     }
 
-On disk (format version 2) a trace is gzip-compressed JSON Lines:
+On disk (format version 3, which reads version 2 files too) a trace is gzip-compressed JSON Lines:
 
-- Line 1 is the header: ``{"format_version": 2, ...}`` followed by the trace's header fields
+- Line 1 is the header: ``{"format_version": 3, ...}`` followed by the trace's header fields
   (``game`` or ``source``, ``frame_seconds`` or ``null`` for a live recording, and any other
   metadata the writer was given).
 - Then one line per frame. Frame 0, every frame whose scene differs from the previous
@@ -41,6 +41,10 @@ On disk (format version 2) a trace is gzip-compressed JSON Lines:
   ones", the delta also carries ``"order": [every id, in order]``.
 - Any other frame field (a recording's ``dt`` or input events, for example) is written to
   the frame's line unchanged, keyframe or delta.
+- Format version 3 adds the recording fields ``input_changes``, ``control_events``,
+  ``devices_opened``, ``saves_opened`` and ``scene_start`` on frames, and ``saves`` and
+  ``devices`` in the header (named in ``glitchygames/recording.py``). The encoding passes them
+  through like any other field; version 2 files simply lack them.
 
 Reserved names (the encoding owns them; ``TraceWriter.write_frame`` and ``encode_frame``
 reject a record that uses one, ``TraceWriter`` rejects a header that does):
@@ -86,7 +90,10 @@ if TYPE_CHECKING:
 
 LOG = logging.getLogger(__name__)
 
-TRACE_FORMAT_VERSION = 2
+TRACE_FORMAT_VERSION = 3
+# Versions this reader decodes: version 3 only adds frame and header fields a recording uses
+# (glitchygames/recording.py), so a version 2 file decodes exactly as before
+READABLE_FORMAT_VERSIONS = (2, 3)
 
 KEYFRAME_KIND = 'keyframe'
 DELTA_KIND = 'delta'
@@ -709,6 +716,7 @@ class TraceReader:
     Attributes:
         path: The trace file.
         header: The header fields, without ``format_version``.
+        format_version: The file's ``format_version`` (one of ``READABLE_FORMAT_VERSIONS``).
         bytes_read: Compressed bytes read from the file so far.
         dropped_partial_line: After iteration, the text after the last newline (a line cut
             off part way), or None if the file ended on a complete line.
@@ -737,6 +745,7 @@ class TraceReader:
         self._pending = b''
         self._line_number = 0
         self._has_iterated = False
+        self.format_version: int = TRACE_FORMAT_VERSION
         try:
             self.header = self._read_header()
         except BaseException:
@@ -757,12 +766,13 @@ class TraceReader:
             )
             raise TraceFormatError(message) from error
         format_version = header.pop(FORMAT_VERSION_FIELD, None)
-        if format_version != TRACE_FORMAT_VERSION:
+        if format_version not in READABLE_FORMAT_VERSIONS:
             message = (
                 f'{self.path}: unsupported trace format_version {format_version} '
-                f'(this reader understands {TRACE_FORMAT_VERSION})'
+                f'(this reader understands {list(READABLE_FORMAT_VERSIONS)})'
             )
             raise TraceFormatError(message)
+        self.format_version = cast('int', format_version)
         return header
 
     def _next_line(self) -> bytes | None:
@@ -854,6 +864,7 @@ class TraceReadResult:
 
     Attributes:
         trace: The header fields (without ``format_version``) plus the full ``frames``.
+        format_version: The file's ``format_version`` (2 or 3).
         dropped_partial_line: The text after the last newline (a frame line cut off part
             way), or None if the file ended on a complete line.
         is_complete: Whether the gzip stream ended properly (False for a recording whose
@@ -862,6 +873,7 @@ class TraceReadResult:
     """
 
     trace: dict[str, Any]
+    format_version: int
     dropped_partial_line: str | None
     is_complete: bool
 
@@ -880,6 +892,7 @@ def read_trace_result(*, path: Path) -> TraceReadResult:
         frames = list(reader)
     return TraceReadResult(
         trace={**reader.header, FRAMES_FIELD: frames},
+        format_version=reader.format_version,
         dropped_partial_line=reader.dropped_partial_line,
         is_complete=reader.is_complete,
     )
