@@ -6,6 +6,7 @@ positions asserted here are the ones the frame loop will produce once it calls a
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import pygame
@@ -13,7 +14,7 @@ import pytest
 
 from glitchygames import world
 from glitchygames.camera import Camera2D, FollowAxes
-from glitchygames.effects.shake import Shake, ShakeAxis, ShakeStyle
+from glitchygames.effects.shake import Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode, snap_to_pixel
 from glitchygames.scenes import Scene
 from glitchygames.world import CoordinateSpace, aim_camera
@@ -419,3 +420,61 @@ class TestSnapToThenAim:
         camera.begin_frame()
         aim_camera(scene=make_scene(camera=camera), camera=camera, dt=FRAME_SECONDS)
         assert (camera.world_x, camera.world_y) == snapped_position
+
+
+WORLD_SHAKE_WARNING_FRAGMENT = 'WORLD shake on'
+
+
+class TestWorldShakeWarning:
+    """Scene.shake warns that a WORLD shake moves nothing only when nothing uses the camera."""
+
+    @staticmethod
+    def _shake_world(*, scene: Scene, mocker: MockerFixture) -> None:
+        mocker.patch.object(scene.scene_manager, 'active_scene', scene)
+        scene.shake(bounce_shake(), targets=ShakeTarget.WORLD)
+
+    @staticmethod
+    def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+        return [
+            record.getMessage()
+            for record in caplog.records
+            if WORLD_SHAKE_WARNING_FRAGMENT in record.getMessage()
+        ]
+
+    def test_scene_with_world_sprites_does_not_warn(self, mocker, caplog):
+        """World sprites are placed from the camera by the engine, never through apply()."""
+        scene = make_scene(camera=Camera2D(screen_width=SCREEN_WIDTH, screen_height=SCREEN_HEIGHT))
+        scene.all_sprites.add(make_target())
+        with caplog.at_level(logging.WARNING):
+            self._shake_world(scene=scene, mocker=mocker)
+        assert self._warnings(caplog) == []
+
+    def test_scene_with_parallax_layers_does_not_warn(self, mocker, caplog):
+        camera = Camera2D(screen_width=SCREEN_WIDTH, screen_height=SCREEN_HEIGHT)
+        add_recording_layer(camera=camera, mocker=mocker)
+        scene = make_scene(camera=camera)
+        with caplog.at_level(logging.WARNING):
+            self._shake_world(scene=scene, mocker=mocker)
+        assert self._warnings(caplog) == []
+
+    def test_scene_whose_camera_was_applied_does_not_warn(self, mocker, caplog):
+        camera = Camera2D(screen_width=SCREEN_WIDTH, screen_height=SCREEN_HEIGHT)
+        camera.apply(0.0, 0.0)
+        scene = make_scene(camera=camera)
+        with caplog.at_level(logging.WARNING):
+            self._shake_world(scene=scene, mocker=mocker)
+        assert self._warnings(caplog) == []
+
+    def test_scene_where_nothing_uses_the_camera_still_warns_once(self, mocker, caplog):
+        scene = make_scene(camera=Camera2D(screen_width=SCREEN_WIDTH, screen_height=SCREEN_HEIGHT))
+        scene.all_sprites.add(PositionlessSprite())
+        with caplog.at_level(logging.WARNING):
+            self._shake_world(scene=scene, mocker=mocker)
+            self._shake_world(scene=scene, mocker=mocker)
+        assert len(self._warnings(caplog)) == 1
+
+    def test_camera_reports_its_parallax_layers(self, mocker):
+        camera = Camera2D(screen_width=SCREEN_WIDTH, screen_height=SCREEN_HEIGHT)
+        assert camera.has_parallax_layers is False
+        add_recording_layer(camera=camera, mocker=mocker)
+        assert camera.has_parallax_layers is True

@@ -22,7 +22,7 @@ from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.recording import post_event
 from glitchygames.timing import DEFAULT_TARGET_FPS
-from glitchygames.world import aim_camera, position_world_sprites
+from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -1478,7 +1478,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 message = f'{self.NAME} is not the active scene; use ShakeTarget.SCREEN'
                 raise RuntimeError(message)
             self.camera.shake_effect.add(shake)
-            if not self.camera.has_been_applied and not self._world_shake_warning_logged:
+            if not self._world_shake_warning_logged and not self._world_shake_moves_anything():
                 LOG.warning(
                     'WORLD shake on %s has no effect: no sprites are positioned through its '
                     'camera; use ShakeTarget.SCREEN',
@@ -1487,6 +1487,23 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
                 self._world_shake_warning_logged = True
         if ShakeTarget.SCREEN in targets:
             self.scene_manager.screen_shake.add(shake)
+
+    def _world_shake_moves_anything(self: Self) -> bool:
+        """Whether a WORLD shake on this scene's camera would move anything on screen.
+
+        It does when a sprite is positioned through Camera2D.apply(), when the camera scrolls
+        background layers, or when the scene has world sprites (the engine places them from
+        the camera, shake included, without apply()). Decided when shake() is called.
+
+        Returns:
+            True if anything is drawn from this scene's camera.
+
+        """
+        return (
+            self.camera.has_been_applied
+            or self.camera.has_parallax_layers
+            or any(is_world_positioned(sprite) for sprite in self.all_sprites)
+        )
 
     def camera_target(self: Self) -> tuple[float, float] | None:
         """The world point the engine aims the camera at this frame, or None (manual camera).

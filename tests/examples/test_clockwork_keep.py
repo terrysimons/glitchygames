@@ -1,5 +1,6 @@
 """Tests for the Clockwork Keep example game."""
 
+import logging
 import math
 import types
 
@@ -625,3 +626,12 @@ class TestPoseBeforeCollision:
         assert not player.facing_right
         assert player.image.get_bounding_rect() == bounds_after_logic
         assert bounds_after_logic.left == 0  # facing left: the transparent margin is on the right
+
+
+def test_world_shake_on_a_set_up_floor_does_not_warn(clockwork_scene, mocker, caplog):
+    """The floor's sprites are world sprites: a WORLD shake moves them, so no misuse warning."""
+    clockwork_scene.setup()
+    mocker.patch.object(clockwork_scene.scene_manager, 'active_scene', clockwork_scene)
+    with caplog.at_level(logging.WARNING):
+        clockwork_scene.shake(ELEVATOR_STOP_BOUNCE, targets=ShakeTarget.WORLD)
+    assert all('WORLD shake on' not in record.getMessage() for record in caplog.records)
