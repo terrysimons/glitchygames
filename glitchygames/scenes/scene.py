@@ -166,6 +166,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self._jitter_interval_start_ns: int = 0
         self._jitter_late_frames: int = 0
         self._timer_prev_deadline_ns: int | None = None
+        # When the last FPS event was posted (perf_counter seconds); start() sets it
+        self._previous_fps_event_seconds: float = 0.0
 
         # Mark as initialized to prevent re-initialization
         self._initialized: bool = True
@@ -669,15 +671,16 @@ class SceneManager(SceneInterface, events.EventManager):
         timer: object | None,
         period_ns: int,
         prev_deadline_ns: int | None,
-        frame_start_seconds: float,
     ) -> None:
         """Handle frame pacing via timer or fallback to pygame clock.
+
+        Only paces: the frame is measured afterwards, by _finish_frame, with
+        time.perf_counter().
 
         Args:
             timer: The timer backend instance (or None)
             period_ns: Frame period in nanoseconds (0 if no timer)
             prev_deadline_ns: Previous frame deadline in nanoseconds (or None)
-            frame_start_seconds: Frame start time from time.perf_counter() in seconds
 
         """
         if timer is not None and period_ns > 0:
@@ -686,11 +689,10 @@ class SceneManager(SceneInterface, events.EventManager):
             deadline_ns: int = timer_any.compute_deadline(prev_deadline_ns, period_ns)  # ty: ignore[unresolved-attribute]
             wake_ns: int = timer_any.sleep_until_next(deadline_ns)  # ty: ignore[unresolved-attribute]
             self._timer_prev_deadline_ns = deadline_ns
-            # Measure dt with time.perf_counter(), NOT the timer backend's clock. The pygame
+            # Deadlines use the timer's own clock; the frame is NOT measured with it. The pygame
             # backend's ns_now() is whole milliseconds (get_ticks() * 1_000_000), so a true
             # 16.67 ms cadence would be measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS).
-            # Deadlines above still use the timer's own clock; only the measurement changes.
-            self.dt = time.perf_counter() - frame_start_seconds
+            # _finish_frame measures with time.perf_counter() instead (BUGS.md #26).
             # Optional jitter logging
             if self.OPTIONS.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
@@ -716,17 +718,25 @@ class SceneManager(SceneInterface, events.EventManager):
             #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
             #   3. carries over from the previous scene (the clock is shared), so a new
             #      scene's first samples are stale.
-            # self.dt is the measured frame time from time.perf_counter() in the main loop.
+            # self.dt is the frame time _finish_frame measured with time.perf_counter(): the
+            # full start-to-start period of the frame just finished.
             current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
             performance_manager.track_fps_from_event(current_fps, processing_time)
         except ImportError:
             pass  # Performance module not available
 
     def start(self: Self) -> None:
-        """Start the scene manager."""
-        previous_time: float = time.perf_counter()
-        previous_fps_time: float = previous_time
-        current_time: float = previous_time
+        """Start the scene manager.
+
+        Each frame starts at the previous frame's closing perf_counter() reading and ends in
+        _finish_frame, which sets ``self.dt`` once, to that frame's start-to-start period, so
+        logic in frame N receives the time frame N-1 took (engine audit #15).
+        """
+        frame_start_seconds: float = time.perf_counter()
+        self._previous_fps_event_seconds = frame_start_seconds
+        # The first frame has no previous frame: its dt is the short time since the reading
+        # above, as before
+        self.dt = time.perf_counter() - frame_start_seconds
 
         while self.active_scene is not None and self.quit_requested is False:
             # Frame pacing using timer backend when available
@@ -735,36 +745,73 @@ class SceneManager(SceneInterface, events.EventManager):
             if timer is not None:
                 period_ns = timer.start_frame(self.target_fps)
 
-            prev_deadline_ns = getattr(self, '_timer_prev_deadline_ns', None)
-            now: float = time.perf_counter()
-            self.dt = now - previous_time
-            previous_time = now
-
-            # Start timing ONLY the actual processing (after tick_clock)
-            processing_start = time.perf_counter()
+            previous_deadline_ns = getattr(self, '_timer_prev_deadline_ns', None)
 
             self._run_frame()
 
-            self._handle_frame_pacing(
+            # The frame's processing time: its work, without the pacing sleep that follows
+            processing_seconds = time.perf_counter() - frame_start_seconds
+
+            frame_start_seconds = self._finish_frame(
+                frame_start_seconds=frame_start_seconds,
                 timer=timer,
                 period_ns=period_ns,
-                prev_deadline_ns=prev_deadline_ns,
-                frame_start_seconds=now,
+                previous_deadline_ns=previous_deadline_ns,
+                processing_seconds=processing_seconds,
             )
-
-            # End timing the actual processing
-            processing_end = time.perf_counter()
-            actual_processing_time = processing_end - processing_start
-
-            self._track_performance(processing_time=actual_processing_time)
-
-            if self._should_post_fps_event(current_time, previous_fps_time):
-                self._post_fps_event()
-                previous_fps_time = current_time
-            current_time = time.perf_counter()
 
         self._log_quit_info()
         return self.terminate()
+
+    def _finish_frame(
+        self: Self,
+        *,
+        frame_start_seconds: float,
+        timer: object | None,
+        period_ns: int,
+        previous_deadline_ns: int | None,
+        processing_seconds: float,
+    ) -> float:
+        """End the frame: pace, measure it once, then record that one frame time.
+
+        In order: pace (timer backend deadline on the timer's own clock, else the pygame
+        clock; target 0 never sleeps) and log timer jitter; read time.perf_counter() once,
+        which ends this frame and starts the next; set ``self.dt`` to the start-to-start
+        period; record it as the frame's FPS sample and post the FPS event when its
+        wall-clock interval has passed. Each frame's ``self.dt`` is set only here, so
+        recorded frames sum exactly to elapsed time, and logic and the debug overlay in the
+        next frame see the same value the statistics recorded (engine audit #15).
+
+        The statistics are recorded after the closing reading, so their (microseconds of)
+        work counts towards the next frame's period rather than going unmeasured.
+
+        Args:
+            frame_start_seconds: The perf_counter() reading this frame started at (the
+                previous frame's closing reading).
+            timer: The timer backend instance (or None).
+            period_ns: Frame period in nanoseconds (0 if no timer or uncapped).
+            previous_deadline_ns: The previous frame's deadline in nanoseconds (or None).
+            processing_seconds: The frame's processing time, without pacing, in seconds.
+
+        Returns:
+            The closing perf_counter() reading: the next frame's start.
+
+        """
+        self._handle_frame_pacing(
+            timer=timer,
+            period_ns=period_ns,
+            prev_deadline_ns=previous_deadline_ns,
+        )
+
+        closing_reading_seconds = time.perf_counter()
+        self.dt = closing_reading_seconds - frame_start_seconds
+
+        self._track_performance(processing_time=processing_seconds)
+        if self._should_post_fps_event(closing_reading_seconds, self._previous_fps_event_seconds):
+            self._post_fps_event()
+            self._previous_fps_event_seconds = closing_reading_seconds
+
+        return closing_reading_seconds
 
     def _run_frame(self: Self) -> None:
         """Run one frame (a transition frame or a scene frame), then record it if recording.
