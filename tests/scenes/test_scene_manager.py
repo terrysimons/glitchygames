@@ -292,8 +292,8 @@ class TestSceneManagerInternals:
         mock_scene = mocker.Mock()
         scene_manager.active_scene = mock_scene
 
-        scene_manager._update_scene()
-        mock_scene.dt_tick.assert_called_once_with(scene_manager.dt)
+        scene_manager._update_scene(scene_dt=0.025)
+        mock_scene.dt_tick.assert_called_once_with(0.025)
 
     def test_scene_manager_process_events(self):
         """Test SceneManager _process_events method."""

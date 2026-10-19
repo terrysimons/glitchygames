@@ -191,6 +191,9 @@ class ClockworkKeepScene(Scene):
 
     NAME = 'Clockwork Keep'
     VERSION = '1.0'
+    # Cap dt to prevent physics tunneling after focus loss (Cmd-Tab, etc.): 50 ms = 20 fps
+    # minimum. The engine caps the dt dt_tick and the camera aim receive.
+    MAX_FRAME_SECONDS = 0.05
 
     def __init__(
         self: Self,
@@ -411,10 +414,6 @@ class ClockworkKeepScene(Scene):
 
         if self.game_over_triggered:
             return
-
-        # Cap dt to prevent physics tunneling after focus loss (Cmd-Tab, etc.)
-        max_dt = 0.05  # 50ms = 20fps minimum
-        dt = min(dt, max_dt)
 
         self.floor_elapsed_time += dt
 

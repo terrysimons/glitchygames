@@ -324,9 +324,9 @@ class TestFloorThreeClock:
         clockwork_scene.dt_tick(0.02)
         assert clockwork_scene.floor_elapsed_time == pytest.approx(0.02)
 
-    def test_floor_elapsed_time_uses_capped_dt(self, clockwork_scene):
-        clockwork_scene.dt_tick(5.0)
-        assert clockwork_scene.floor_elapsed_time == pytest.approx(0.05)
+    def test_floor_caps_its_frame_time_through_the_engine(self):
+        """The engine hands dt_tick (and the camera aim) at most 50 ms after a hitch."""
+        assert math.isclose(ClockworkKeepScene.MAX_FRAME_SECONDS, 0.05)
 
     def test_floor_three_scene_renders_a_frame(self, mocker):
         if not pygame.get_init():

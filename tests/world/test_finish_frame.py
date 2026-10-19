@@ -534,3 +534,97 @@ class TestFrameServicesSeeTheSameFrameTime:
         recorded_dts = [call.kwargs['dt'] for call in recorder.record_frame.call_args_list]
         assert recorded_dts == driver.logic_dts
         assert len(recorded_dts) == FRAMES_TO_RUN
+
+
+SCENE_FRAME_CAP_SECONDS = 0.05
+
+
+class CappedSceneStandIn:
+    """A scene stand-in with MAX_FRAME_SECONDS, a following camera and recorded logic dts."""
+
+    MAX_FRAME_SECONDS = SCENE_FRAME_CAP_SECONDS
+
+    def __init__(self) -> None:
+        """Create the camera (following a still target) and an empty sprite group."""
+        from glitchygames.camera import Camera2D
+
+        self.camera = Camera2D(screen_width=800, screen_height=480)
+        self.target = SimpleNamespace(world_x=500.0, world_y=300.0)
+        self.camera.follow(target=self.target)
+        self.all_sprites: list[object] = []
+        self.logic_dts: list[float] = []
+
+    def dt_tick(self, dt: float) -> None:
+        """Record the dt logic received."""
+        self.logic_dts.append(dt)
+
+    def camera_target(self) -> tuple[float, float]:
+        """Aim at the target, as Scene.camera_target does for a follow target.
+
+        Returns:
+            The target's world position.
+
+        """
+        return (self.target.world_x, self.target.world_y)
+
+
+class TestSceneFrameCap:
+    """Scene.MAX_FRAME_SECONDS caps the dt logic and the camera aim receive, nothing else."""
+
+    def test_hitch_caps_logic_and_camera_but_records_one_long_frame(self, driver_factory, mocker):
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        manager = driver.manager
+        scene = CappedSceneStandIn()
+        manager.active_scene = scene
+        aim_spy = mocker.spy(scene.camera, 'aim_at')
+        for frame_step in ('update_screen', '_render_scene', '_present_frame'):
+            mocker.patch.object(manager, frame_step)
+        mocker.patch.object(manager, '_switch_to_requested_scene')
+        hitch_frame_index = 4
+
+        def work_seconds(frame_index: int) -> float:
+            return HITCH_SECONDS if frame_index == hitch_frame_index else FRAME_WORK_SECONDS
+
+        driver.run(
+            frame_count=FRAMES_TO_RUN,
+            frame_body=lambda: SceneManager._run_scene_frame(manager),
+            work_seconds=work_seconds,
+        )
+
+        samples = _closing_samples(driver)
+        hitch_sample = samples[hitch_frame_index]
+        # The hitch is still one long recorded frame: FPS statistics and the overlay see 2 s
+        assert hitch_sample == 2 * CLOCK_READING_SECONDS + HITCH_SECONDS
+        assert driver.fps_samples()[hitch_frame_index] == pytest.approx(1.0 / hitch_sample)
+        assert manager.debug_overlay.frame_times()[hitch_frame_index + 1] == hitch_sample
+        assert driver.logic_dts[hitch_frame_index + 1] == hitch_sample  # the manager's raw dt
+        # Logic and the camera aim in the next frame both receive the cap
+        aim_dts = [call.kwargs['dt'] for call in aim_spy.call_args_list]
+        assert scene.logic_dts[hitch_frame_index + 1] == SCENE_FRAME_CAP_SECONDS
+        assert aim_dts[hitch_frame_index + 1] == SCENE_FRAME_CAP_SECONDS
+        # Frames under the cap pass through unchanged
+        assert scene.logic_dts[: hitch_frame_index + 1] == driver.logic_dts[: hitch_frame_index + 1]
+        assert aim_dts == scene.logic_dts
+
+    def test_scene_without_a_cap_receives_the_raw_dt(self, driver_factory, mocker):
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        manager = driver.manager
+        scene = CappedSceneStandIn()
+        scene.MAX_FRAME_SECONDS = None
+        manager.active_scene = scene
+        for frame_step in ('update_screen', '_render_scene', '_present_frame'):
+            mocker.patch.object(manager, frame_step)
+        mocker.patch.object(manager, '_switch_to_requested_scene')
+
+        driver.run(
+            frame_count=FRAMES_TO_RUN,
+            frame_body=lambda: SceneManager._run_scene_frame(manager),
+            work_seconds=lambda frame_index: HITCH_SECONDS if frame_index == 2 else 0.0,
+        )
+
+        assert scene.logic_dts == driver.logic_dts
+
+    def test_scene_default_has_no_cap(self):
+        from glitchygames.scenes import Scene
+
+        assert Scene.MAX_FRAME_SECONDS is None

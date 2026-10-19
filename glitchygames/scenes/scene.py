@@ -855,10 +855,13 @@ class SceneManager(SceneInterface, events.EventManager):
         active_camera = self._active_camera()
         if active_camera is not None:
             active_camera.begin_frame()
-        self._update_scene()
+        # Logic and the camera aim share one (possibly capped) dt; self.dt stays the raw frame
+        # time for the frame services, pacing and FPS statistics
+        scene_dt = self._scene_frame_seconds()
+        self._update_scene(scene_dt=scene_dt)
         self._process_events()
         self._update_frame_services()
-        self._aim_active_camera()
+        self._aim_active_camera(scene_dt=scene_dt)
         # The display surface may appear only after startup; positioning needs its size
         self.update_screen()
         self._position_active_world_sprites()
@@ -886,12 +889,33 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         return cast('Camera2D | None', getattr(self.active_scene, 'camera', None))
 
-    def _aim_active_camera(self: Self) -> None:
-        """Aim the active scene's camera at its camera target (glitchygames.world.aim_camera)."""
+    def _scene_frame_seconds(self: Self) -> float:
+        """The dt the active scene's logic and camera aim receive this frame.
+
+        self.dt, capped at the scene's MAX_FRAME_SECONDS when it sets one (a scene stand-in
+        without the attribute is not capped). After a hitch the scene advances at most the
+        cap, while self.dt keeps the whole frame for pacing, FPS statistics and services.
+
+        Returns:
+            The scene's dt in seconds.
+
+        """
+        cap = getattr(self.active_scene, 'MAX_FRAME_SECONDS', None)
+        if cap is None:
+            return self.dt
+        return min(self.dt, cap)
+
+    def _aim_active_camera(self: Self, *, scene_dt: float) -> None:
+        """Aim the active scene's camera at its camera target (glitchygames.world.aim_camera).
+
+        Args:
+            scene_dt: The scene's dt this frame (_scene_frame_seconds).
+
+        """
         camera = self._active_camera()
         if camera is None:
             return
-        aim_camera(scene=self.active_scene, camera=camera, dt=self.dt)
+        aim_camera(scene=self.active_scene, camera=camera, dt=scene_dt)
 
     def _position_active_world_sprites(self: Self) -> None:
         """Place the active scene's world sprites on screen from its camera, and cull them.
@@ -1062,10 +1086,15 @@ class SceneManager(SceneInterface, events.EventManager):
 
         post_event(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
 
-    def _update_scene(self) -> None:
-        """Update the active scene."""
+    def _update_scene(self, *, scene_dt: float) -> None:
+        """Update the active scene.
+
+        Args:
+            scene_dt: The scene's dt this frame (_scene_frame_seconds).
+
+        """
         assert self.active_scene is not None
-        self.active_scene.dt_tick(self.dt)
+        self.active_scene.dt_tick(scene_dt)
 
     def _process_events(self) -> None:
         """Process game engine events."""
@@ -1276,6 +1305,11 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # A game's preferred default target FPS (0.0 = uncapped); None uses the engine default.
     # An explicit --target-fps on the command line always wins.
     TARGET_FPS: ClassVar[float | None] = None
+    # The longest frame time (seconds) this scene's dt_tick and camera aim receive; after a
+    # hitch (a window drag, focus loss) they advance at most this much, so physics cannot
+    # tunnel. None passes the real frame time. Pacing, FPS statistics and the frame services
+    # (shake, rumble, the debug overlay) always see the real frame time.
+    MAX_FRAME_SECONDS: ClassVar[float | None] = None
     # How sprites without their own pixel_snap_mode (and the camera and parallax layers) are
     # snapped to whole pixels while this scene runs.
     PIXEL_SNAP_MODE: ClassVar[PixelSnapMode] = PixelSnapMode.NEAREST_HALF_UP
