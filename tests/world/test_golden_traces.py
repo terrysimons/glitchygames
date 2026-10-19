@@ -79,6 +79,8 @@ class FrameWorldSample:
         snap_mode: The scene's PIXEL_SNAP_MODE.
         screen_size: The display surface size (what the engine culls against).
         sprites: Each world sprite's sample, by trace id.
+        baseline_rects: The baseline trace's rects for this frame, by sprite id (attached by
+            attach_baseline_rects before comparing; empty until then).
 
     """
 
@@ -88,6 +90,35 @@ class FrameWorldSample:
     snap_mode: PixelSnapMode
     screen_size: tuple[int, int]
     sprites: dict[str, SpriteWorldSample]
+    baseline_rects: dict[str, list[int]] = dataclasses.field(default_factory=dict)
+
+
+def attach_baseline_rects(
+    *, world_samples: Mapping[int, FrameWorldSample], baseline: dict[str, Any]
+) -> dict[int, FrameWorldSample]:
+    """Give each frame's world sample the baseline's rects for that frame.
+
+    Rules that prove a difference from a whole frame (settled_onto_floor) need every sprite's
+    baseline rect, not only the differing one's.
+
+    Args:
+        world_samples: The current run's world samples by frame.
+        baseline: The baseline trace.
+
+    Returns:
+        The world samples with baseline_rects filled in.
+
+    """
+    baseline_rects_by_frame = {
+        frame['frame']: {sprite['id']: sprite['rect'] for sprite in frame['sprites']}
+        for frame in baseline['frames']
+    }
+    return {
+        frame_number: dataclasses.replace(
+            sample, baseline_rects=baseline_rects_by_frame.get(frame_number, {})
+        )
+        for frame_number, sample in world_samples.items()
+    }
 
 
 class WorldSampler:
@@ -363,29 +394,68 @@ def stood_on_blank_image_hitbox(difference: TraceDifference, frame: FrameWorldSa
     )
 
 
-def settling_after_blank_image_hitbox(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+def _old_camera_y_interval(frame: FrameWorldSample) -> tuple[float, float] | None:
+    """The old camera y (plus WORLD shake) that gives every non-tinker baseline rect's y.
+
+    Each non-tinker world sprite stood where it stands now (platforms and elevators do not
+    move; cogs bob on game time, which the pose fix does not change), so its baseline y,
+    round(world_y - camera_y - shake_y), bounds the old camera to a 1 px window. The old
+    camera is also within half a pixel of the sampled one. Closed intervals accept an exact
+    rounding tie either way.
+
+    Returns:
+        (lowest, highest) old camera y, or None when no single camera explains the frame.
+
+    """
+    _, shake_y = frame.shake_offset
+    lowest = frame.camera_y - 0.5
+    highest = frame.camera_y + 0.5
+    for sprite_id, sprite in frame.sprites.items():
+        baseline_rect = frame.baseline_rects.get(sprite_id)
+        if baseline_rect is None or sprite_id.startswith(f'{Tinker.__name__}#'):
+            continue
+        lowest = max(lowest, sprite.world_y - shake_y - baseline_rect[1] - 0.5)
+        highest = min(highest, sprite.world_y - shake_y - baseline_rect[1] + 0.5)
+    if lowest > highest:
+        return None
+    return (lowest, highest)
+
+
+def settled_onto_floor(difference: TraceDifference, frame: FrameWorldSample) -> bool:
     """Pose fix, the frames after it: the old tinker was still dropping onto its floor.
 
     Standing too high (stood_on_blank_image_hitbox), the old tinker fell its last pixels over
-    the next frames, and the old camera, aimed at it, trailed by a fraction of a pixel. The
-    current rect is exactly the engine's; the baseline is one pixel off the old formula on
-    this run's positions, in y only. Not an exact proof: the old positions are not sampled.
-    Replaying the old pose order and round(world - camera) reproduces every baseline rect of
-    the trace exactly (see the Task 6 report).
+    the next frames, and the old camera, aimed at it, trailed the sampled one by a fraction of
+    a pixel. The proof: the current rect is exactly the engine's; one old camera y, within
+    half a pixel of the sampled one, gives every non-tinker sprite's baseline y in this frame
+    (_old_camera_y_interval); and under that same camera the baseline tinker is drawn from an
+    old world y at most tinker_feet_margin_pixels() above today's. x and size are unchanged.
 
     Returns:
-        True if the current rect is the engine's and the baseline is 1 px off in y only.
+        True if one old camera and an old tinker within the margin give the baseline frame.
 
     """
     sprite = _sprite_sample(difference, frame)
     if sprite is None or difference.current != engine_rect(sprite, frame, mode=SPEC_SNAP_MODE):
         return False
-    old_rect = camera_apply_rect(sprite, frame)
-    return (
-        difference.baseline[0] == old_rect[0]
-        and abs(difference.baseline[1] - old_rect[1]) == 1
-        and difference.baseline[2:] == old_rect[2:]
-    )
+    shake_x, shake_y = frame.shake_offset
+    baseline_x, baseline_y, *baseline_size = difference.baseline
+    if baseline_x != round(sprite.world_x - frame.camera_x - shake_x) or (
+        baseline_size != sprite.rect[2:]
+    ):
+        return False
+    camera_interval = _old_camera_y_interval(frame)
+    if camera_interval is None:
+        return False
+    if not difference.sprite_id.startswith(f'{Tinker.__name__}#'):
+        # Its own baseline y bounded the interval, so a non-empty interval explains it
+        return difference.sprite_id in frame.baseline_rects
+    lowest_camera_y, highest_camera_y = camera_interval
+    # Old world_y - camera_y - shake_y over old world_y in [world_y - margin, world_y] and
+    # camera_y in the interval; round() of it must reach the baseline y
+    lowest_offset = sprite.world_y - tinker_feet_margin_pixels() - highest_camera_y - shake_y
+    highest_offset = sprite.world_y - lowest_camera_y - shake_y
+    return lowest_offset <= baseline_y + 0.5 and highest_offset >= baseline_y - 0.5
 
 
 def culled_outside_margin(difference: TraceDifference, frame: FrameWorldSample) -> bool:
@@ -461,7 +531,7 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
             frames=range(1, 10),
             sprite_pattern='*',
             field='rect',
-            world_rule=settling_after_blank_image_hitbox,
+            world_rule=settled_onto_floor,
             reason=(
                 'Pose fix (spec 1): after standing 2 px high on frame 0 the old tinker fell '
                 'onto the floor and the old camera trailed it by a fraction of a pixel'
@@ -471,7 +541,7 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
             frames=range(595, 596),
             sprite_pattern='Tinker#1',
             field='rect',
-            world_rule=settling_after_blank_image_hitbox,
+            world_rule=settled_onto_floor,
             reason=(
                 'Pose fix (spec 1): on the first frame after the ride the old tinker dropped '
                 'its 2 px and the old camera followed it'
@@ -634,7 +704,7 @@ def test_game_matches_golden_trace(game_key):
     unexplained, stale = unexplained_and_stale(
         differences=trace_differences(baseline=baseline, current=current),
         expected=EXPECTED_DIFFERENCES[game_key],
-        world_samples=world_sampler.frames,
+        world_samples=attach_baseline_rects(world_samples=world_sampler.frames, baseline=baseline),
     )
     if unexplained:
         pytest.fail(
@@ -936,6 +1006,10 @@ class TestTraceComparison:
         with pytest.raises(ValueError, match='expected value or a rule'):
             ExpectedDifference(frames=range(1), sprite_pattern='*', field='rect', reason='test')
 
+
+class TestWorldRules:
+    """World rules: differences proven from the current run's world and camera positions."""
+
     @staticmethod
     def _world_frame(
         *,
@@ -1041,3 +1115,85 @@ class TestTraceComparison:
             reason='test',
         )
         assert entry.world_rule is separately_snapped
+
+    @staticmethod
+    def _settling_frame(*, tinker_baseline_y: int) -> FrameWorldSample:
+        """Frame 1 of the real run: camera 131.86, cogs bobbing, the tinker standing at 894.
+
+        Returns:
+            The world sample with its baseline rects attached.
+
+        """
+        cog = SpriteWorldSample(
+            world_x=400.0, world_y=860.2995, rect=[400, 728, 16, 16], hidden=False
+        )
+        platform = SpriteWorldSample(
+            world_x=100.0, world_y=936.0, rect=[100, 804, 600, 12], hidden=False
+        )
+        tinker = SpriteWorldSample(
+            world_x=400.0, world_y=894.0, rect=[400, 762, 28, 44], hidden=False
+        )
+        return FrameWorldSample(
+            camera_x=0.0,
+            camera_y=131.86,
+            shake_offset=(0.0, 0.0),
+            snap_mode=PixelSnapMode.NEAREST_HALF_UP,
+            screen_size=(800, 480),
+            sprites={'CogCollectible#0': cog, 'Platform#0': platform, 'Tinker#0': tinker},
+            baseline_rects={
+                'CogCollectible#0': [400, 729, 16, 16],
+                'Platform#0': [100, 804, 600, 12],
+                'Tinker#0': [400, tinker_baseline_y, 28, 44],
+            },
+        )
+
+    def test_settling_finds_one_old_camera_for_the_whole_frame(self):
+        # Cog 860.2995 -> 729 and platform 936 -> 804 put the old camera in [131.5, 131.7995];
+        # the old tinker, up to 2 px higher than 894, then drew at 761 or 762
+        frame = self._settling_frame(tinker_baseline_y=761)
+        cog_difference = TraceDifference(
+            frame=1,
+            sprite_id='CogCollectible#0',
+            field='rect',
+            baseline=[400, 729, 16, 16],
+            current=[400, 728, 16, 16],
+        )
+        tinker_difference = TraceDifference(
+            frame=1,
+            sprite_id='Tinker#0',
+            field='rect',
+            baseline=[400, 761, 28, 44],
+            current=[400, 762, 28, 44],
+        )
+        assert settled_onto_floor(cog_difference, frame)
+        assert settled_onto_floor(tinker_difference, frame)
+
+    def test_settling_rejects_a_tinker_no_old_position_explains(self):
+        """759 needs the tinker 2.7 px or more above 894 under that camera: more than the margin."""
+        frame = self._settling_frame(tinker_baseline_y=759)
+        tinker_difference = TraceDifference(
+            frame=1,
+            sprite_id='Tinker#0',
+            field='rect',
+            baseline=[400, 759, 28, 44],
+            current=[400, 762, 28, 44],
+        )
+        assert not settled_onto_floor(tinker_difference, frame)
+
+    def test_settling_rejects_sprites_no_single_old_camera_explains(self):
+        frame = dataclasses.replace(
+            self._settling_frame(tinker_baseline_y=761),
+            baseline_rects={
+                'CogCollectible#0': [400, 729, 16, 16],
+                'Platform#0': [100, 803, 600, 12],  # needs a camera of 132.5 or more
+                'Tinker#0': [400, 761, 28, 44],
+            },
+        )
+        cog_difference = TraceDifference(
+            frame=1,
+            sprite_id='CogCollectible#0',
+            field='rect',
+            baseline=[400, 729, 16, 16],
+            current=[400, 728, 16, 16],
+        )
+        assert not settled_onto_floor(cog_difference, frame)
