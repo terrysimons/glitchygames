@@ -53,3 +53,45 @@ def snap_to_pixel(value: float, mode: PixelSnapMode) -> int:
             return math.ceil(value)
         case PixelSnapMode.TRUNCATE:
             return math.trunc(value)
+
+
+class _ActiveSnapSettings:
+    """Holds the engine-wide default snap mode (the running scene's PIXEL_SNAP_MODE)."""
+
+    default_mode: PixelSnapMode = PixelSnapMode.NEAREST_HALF_UP
+
+
+def set_active_default_snap_mode(mode: PixelSnapMode) -> None:
+    """Set the snap mode used by sprites that do not choose their own.
+
+    Args:
+        mode: The new default (normally the active scene's PIXEL_SNAP_MODE).
+
+    """
+    _ActiveSnapSettings.default_mode = mode
+
+
+def active_default_snap_mode() -> PixelSnapMode:
+    """Return the snap mode used by sprites that do not choose their own.
+
+    Returns:
+        PixelSnapMode: The active default (initially NEAREST_HALF_UP).
+
+    """
+    return _ActiveSnapSettings.default_mode
+
+
+def resolve_snap_mode(sprite: object) -> PixelSnapMode:
+    """Pick the snap mode for a sprite: its own pixel_snap_mode, else the active default.
+
+    Args:
+        sprite: Any object; only a pixel_snap_mode that is a PixelSnapMode counts.
+
+    Returns:
+        PixelSnapMode: The mode to snap this sprite's positions with.
+
+    """
+    sprite_mode = getattr(sprite, 'pixel_snap_mode', None)
+    if isinstance(sprite_mode, PixelSnapMode):
+        return sprite_mode
+    return _ActiveSnapSettings.default_mode
