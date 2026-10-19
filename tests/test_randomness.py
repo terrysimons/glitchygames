@@ -45,11 +45,17 @@ UNSEEDED_RANDOMNESS_ALLOWED_MODULES: dict[str, str] = {
 }
 
 OFFENDING_RANDOMNESS_SOURCE = """\
+import os
 import random
+import random as r
 import secrets
-from random import SystemRandom, uniform
+import uuid
+from random import Random, SystemRandom, uniform
 
 import numpy as np
+import numpy.random as npr
+from numpy import random as nr
+from numpy.random import default_rng
 
 token = secrets.token_hex(8)
 system_random = random.SystemRandom()
@@ -57,8 +63,26 @@ unseeded_random = random.Random()
 global_draw = random.uniform(-1.0, 1.0)
 unseeded_generator = np.random.default_rng()
 legacy_draw = np.random.random()
+aliased_draw = r.uniform(0, 1)
+aliased_system_random = r.SystemRandom()
+aliased_module_generator = npr.default_rng()
+from_imported_module_generator = nr.default_rng()
+bare_generator = default_rng()
+bare_unseeded_random = Random()
+none_seeded_generator = default_rng(None)
+none_seeded_random = Random(x=None)
+entropy_bytes = os.urandom(4)
+random_identifier = uuid.uuid4()
+host_time_identifier = uuid.uuid1()
+dynamic_draw = __import__('random').random()
+bare_uniform = uniform(0, 1)
 seeded_random = random.Random(4)
 seeded_generator = np.random.default_rng(4)
+seeded_bare_random = Random(5)
+seeded_bare_generator = default_rng(seed=6)
+seeded_aliased_generator = npr.default_rng(7)
+name_based_identifier = uuid.uuid5(uuid.NAMESPACE_DNS, 'example')
+working_directory = os.getcwd()
 """
 
 
@@ -196,16 +220,87 @@ class TestMasterSeed:
         assert engine_random_seed() == 42
 
 
-def _is_name(node: ast.expr, *names: str) -> bool:
-    return isinstance(node, ast.Name) and node.id in names
+# Modules whose import bindings the scan follows (aliases, from-imports, __import__)
+WATCHED_MODULES = frozenset({'numpy', 'numpy.random', 'os', 'random', 'secrets', 'uuid'})
+# Fully qualified names that are unseeded wherever they are used (called or passed around)
+UNSEEDED_NAMES = frozenset({'os.urandom', 'uuid.uuid1', 'uuid.uuid4'})
+# Seedable constructors: unseeded when the seed is missing or a literal None
+SEEDABLE_CONSTRUCTORS = {'random.Random': 'x', 'numpy.random.default_rng': 'seed'}
 
 
-def _is_numpy_random(node: ast.expr) -> bool:
-    """Report whether a node is ``np.random`` or ``numpy.random``."""
-    return (
-        isinstance(node, ast.Attribute)
-        and node.attr == 'random'
-        and _is_name(node.value, 'np', 'numpy')
+def _import_bindings(tree: ast.Module) -> dict[str, str]:
+    """Map each local name bound to a watched module (or a name in one) to its qualified name.
+
+    ``import random as r`` binds ``r`` to ``random``; ``import numpy.random`` binds
+    ``numpy``; ``from numpy import random as nr`` binds ``nr`` to ``numpy.random``;
+    ``from random import Random`` binds ``Random`` to ``random.Random``. Bindings are
+    module-wide: an import inside a function counts too, and shadowing is ignored.
+
+    Returns:
+        Local name -> fully qualified name.
+
+    """
+    bindings: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname is not None and alias.name in WATCHED_MODULES:
+                    bindings[alias.asname] = alias.name
+                elif alias.asname is None and alias.name.split('.')[0] in WATCHED_MODULES:
+                    top_level_name = alias.name.split('.')[0]
+                    bindings[top_level_name] = top_level_name
+        elif isinstance(node, ast.ImportFrom) and node.module in WATCHED_MODULES:
+            for alias in node.names:
+                bindings[alias.asname or alias.name] = f'{node.module}.{alias.name}'
+    return bindings
+
+
+def _dynamic_import_name(node: ast.expr) -> str | None:
+    """Return the watched module ``__import__('<module>')`` imports, else None."""
+    is_dynamic_import = (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == '__import__'
+        and bool(node.args)
+    )
+    if not is_dynamic_import:
+        return None
+    assert isinstance(node, ast.Call)
+    module_argument = node.args[0]
+    if isinstance(module_argument, ast.Constant) and module_argument.value in WATCHED_MODULES:
+        return str(module_argument.value)
+    return None
+
+
+def _qualified_name(node: ast.expr, bindings: dict[str, str]) -> str | None:
+    """Resolve a name or attribute chain through the import bindings.
+
+    Returns:
+        The fully qualified name (``random.uniform``), or None if it is not from a watched module.
+
+    """
+    if isinstance(node, ast.Name):
+        return bindings.get(node.id)
+    if isinstance(node, ast.Attribute):
+        owner = _qualified_name(node.value, bindings)
+        return None if owner is None else f'{owner}.{node.attr}'
+    return _dynamic_import_name(node)
+
+
+def _is_unseeded_name(qualified_name: str) -> bool:
+    # random.Random is the seedable generator; every other random.<name> is the global
+    # generator or system entropy
+    if qualified_name.startswith('random.') and qualified_name != 'random.Random':
+        return True
+    return qualified_name in UNSEEDED_NAMES or qualified_name.endswith('.SystemRandom')
+
+
+def _has_seed(node: ast.Call, *, seed_keyword: str) -> bool:
+    """Report whether a call passes a seed that is not a literal None."""
+    seed_arguments = [*node.args[:1], *(k.value for k in node.keywords if k.arg == seed_keyword)]
+    return any(
+        not (isinstance(argument, ast.Constant) and argument.value is None)
+        for argument in seed_arguments
     )
 
 
@@ -214,55 +309,68 @@ def _unseeded_randomness_in_import(node: ast.Import | ast.ImportFrom) -> list[st
         return [f'import {alias.name}' for alias in node.names if alias.name == 'secrets']
     if node.module == 'secrets':
         return ['from secrets import']
-    if node.module == 'random':
-        # random.Random is the seedable generator; every other name is global or system state
-        return [
-            f'from random import {alias.name}' for alias in node.names if alias.name != 'Random'
-        ]
-    return []
+    if node.module not in WATCHED_MODULES:
+        return []
+    return [
+        f'from {node.module} import {alias.name}'
+        for alias in node.names
+        if _is_unseeded_name(f'{node.module}.{alias.name}')
+    ]
 
 
-def _unseeded_randomness_in_attribute(node: ast.Attribute) -> str | None:
-    # random.Random is the seedable generator; every other random.<name> is the global
-    # generator or system entropy (called or passed around)
-    if _is_name(node.value, 'random') and node.attr != 'Random':
-        return f'random.{node.attr}'
-    if node.attr == 'SystemRandom':
+def _unseeded_randomness_in_call(node: ast.Call, bindings: dict[str, str]) -> str | None:
+    dynamic_import_name = _dynamic_import_name(node)
+    if dynamic_import_name is not None:
+        return f"__import__('{dynamic_import_name}')"
+    function_name = _qualified_name(node.func, bindings)
+    if function_name is None:
+        return None
+    seed_keyword = SEEDABLE_CONSTRUCTORS.get(function_name)
+    if seed_keyword is not None:
+        if _has_seed(node, seed_keyword=seed_keyword):
+            return None
+        return f'{function_name}() without a seed'
+    if function_name.startswith('numpy.random.'):
+        return f'{function_name}()'
+    return None
+
+
+def _unseeded_randomness_in_reference(
+    node: ast.Name | ast.Attribute, bindings: dict[str, str]
+) -> str | None:
+    qualified_name = _qualified_name(node, bindings)
+    if qualified_name is not None:
+        return qualified_name if _is_unseeded_name(qualified_name) else None
+    if isinstance(node, ast.Attribute) and node.attr == 'SystemRandom':
         return ast.unparse(node)
     return None
 
 
-def _unseeded_randomness_in_call(node: ast.Call) -> str | None:
-    function = node.func
-    if not isinstance(function, ast.Attribute):
-        return None
-    has_arguments = bool(node.args or node.keywords)
-    if _is_name(function.value, 'random') and function.attr == 'Random' and not has_arguments:
-        return 'random.Random() without a seed'
-    if _is_numpy_random(function.value) and not (function.attr == 'default_rng' and has_arguments):
-        suffix = ' without a seed' if function.attr == 'default_rng' else ''
-        return f'np.random.{function.attr}(){suffix}'
-    return None
-
-
-def _unseeded_randomness_in_node(node: ast.AST) -> list[str]:
+def _unseeded_randomness_in_node(node: ast.AST, bindings: dict[str, str]) -> list[str]:
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         return _unseeded_randomness_in_import(node)
     offender = None
     if isinstance(node, ast.Call):
-        offender = _unseeded_randomness_in_call(node)
-    elif isinstance(node, ast.Attribute):
-        offender = _unseeded_randomness_in_attribute(node)
+        offender = _unseeded_randomness_in_call(node, bindings)
+    elif isinstance(node, (ast.Name, ast.Attribute)) and isinstance(node.ctx, ast.Load):
+        offender = _unseeded_randomness_in_reference(node, bindings)
     return [] if offender is None else [offender]
 
 
 def unseeded_randomness(source_path: Path) -> list[str]:
     """List each use of randomness that a run's master seed does not control.
 
-    Reports any ``secrets`` import, any ``random.<name>`` other than ``random.Random`` (the
-    global generator's functions, ``random.SystemRandom``), ``random.Random()`` without a
-    seed, any ``SystemRandom`` attribute, names imported from ``random`` other than
-    ``Random``, and any ``np.random`` call other than ``default_rng`` with a seed.
+    Names are resolved through the module's imports (``import random as r``, ``from
+    numpy.random import default_rng``, ``__import__('random')``), so aliases are caught.
+    Reports: any ``secrets`` import; any ``random.<name>`` other than ``random.Random``
+    (the global generator's functions, ``SystemRandom``), used or imported; any
+    ``SystemRandom`` attribute; ``os.urandom``, ``uuid.uuid1`` and ``uuid.uuid4``;
+    ``random.Random()`` and ``numpy.random.default_rng()`` with no seed or a literal None
+    seed; any other ``numpy.random`` call; and ``__import__`` of a watched module.
+
+    Not detected: generators seeded from something that is not reproducible, such as
+    ``random.Random(time.time())`` or ``default_rng(os.getpid())`` (the scan only checks
+    that a seed is given), and imports through ``importlib.import_module``.
 
     Args:
         source_path: The Python file to scan.
@@ -272,18 +380,19 @@ def unseeded_randomness(source_path: Path) -> list[str]:
 
     """
     tree = ast.parse(source_path.read_text(encoding='utf-8'), filename=str(source_path))
+    bindings = _import_bindings(tree)
     positioned_offenders = sorted(
         (node.lineno, node.col_offset, what)
         for node in ast.walk(tree)
         if isinstance(node, (ast.stmt, ast.expr))
-        for what in _unseeded_randomness_in_node(node)
+        for what in _unseeded_randomness_in_node(node, bindings)
     )
     return [f'{source_path}:{line} {what}' for line, _column, what in positioned_offenders]
 
 
 @pytest.fixture
 def offending_randomness_file(tmp_path) -> Path:
-    """A module using every kind of randomness the guard rejects, plus two seeded uses.
+    """A module using every kind of randomness the guard rejects, plus seeded and harmless uses.
 
     Returns:
         The path of the written file.
@@ -313,16 +422,31 @@ def test_package_draws_randomness_only_from_seeded_streams():
 
 
 def test_unseeded_randomness_scan_finds_every_kind(offending_randomness_file):
-    """The scan reports each unseeded use and neither seeded one (it is not vacuous)."""
+    """The scan reports each unseeded use, aliased or not, and no seeded one (not vacuous)."""
     path = offending_randomness_file
 
+    unseeded = 'without a seed'
     assert unseeded_randomness(path) == [
-        f'{path}:2 import secrets',
-        f'{path}:3 from random import SystemRandom',
-        f'{path}:3 from random import uniform',
-        f'{path}:8 random.SystemRandom',
-        f'{path}:9 random.Random() without a seed',
-        f'{path}:10 random.uniform',
-        f'{path}:11 np.random.default_rng() without a seed',
-        f'{path}:12 np.random.random()',
+        f'{path}:4 import secrets',
+        f'{path}:6 from random import SystemRandom',
+        f'{path}:6 from random import uniform',
+        f'{path}:14 random.SystemRandom',
+        f'{path}:15 random.Random() {unseeded}',
+        f'{path}:16 random.uniform',
+        f'{path}:17 numpy.random.default_rng() {unseeded}',
+        f'{path}:18 numpy.random.random()',
+        f'{path}:19 random.uniform',
+        f'{path}:20 random.SystemRandom',
+        f'{path}:21 numpy.random.default_rng() {unseeded}',
+        f'{path}:22 numpy.random.default_rng() {unseeded}',
+        f'{path}:23 numpy.random.default_rng() {unseeded}',
+        f'{path}:24 random.Random() {unseeded}',
+        f'{path}:25 numpy.random.default_rng() {unseeded}',
+        f'{path}:26 random.Random() {unseeded}',
+        f'{path}:27 os.urandom',
+        f'{path}:28 uuid.uuid4',
+        f'{path}:29 uuid.uuid1',
+        f"{path}:30 __import__('random')",
+        f'{path}:30 random.random',
+        f'{path}:31 random.uniform',
     ]
