@@ -19,6 +19,7 @@ from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
+from glitchygames.recording import post_event
 from glitchygames.timing import DEFAULT_TARGET_FPS
 
 if TYPE_CHECKING:
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
+    from glitchygames.recording import GameplayRecorder
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
@@ -103,6 +105,10 @@ class SceneManager(SceneInterface, events.EventManager):
     _instance: ClassVar[SceneManager | None] = None
     log: ClassVar[logging.Logger] = LOG
     OPTIONS: ClassVar[dict[str, Any]] = {}
+
+    # The --record-trace recorder (GameEngine.start_trace_recording sets it), else None; _run_frame
+    # records each frame with it. A class default so a frame can run without __init__.
+    trace_recorder: GameplayRecorder | None = None
 
     def __new__(cls) -> Self:
         """Create a new instance or return the existing singleton instance."""
@@ -700,17 +706,7 @@ class SceneManager(SceneInterface, events.EventManager):
             # Start timing ONLY the actual processing (after tick_clock)
             processing_start = time.perf_counter()
 
-            # During a transition, render the transition effect instead of the scene
-            if self._active_transition is not None:
-                transition_done = self._active_transition.update(self.dt)
-                self._process_transition_events()
-                self._update_frame_services()
-                self._active_transition.render(self.screen)
-                self._present_frame(full_update=True)
-                if transition_done:
-                    self._finalize_transition()
-            else:
-                self._run_scene_frame()
+            self._run_frame()
 
             self._handle_frame_pacing(
                 timer=timer,
@@ -732,6 +728,31 @@ class SceneManager(SceneInterface, events.EventManager):
 
         self._log_quit_info()
         return self.terminate()
+
+    def _run_frame(self: Self) -> None:
+        """Run one frame (a transition frame or a scene frame), then record it if recording.
+
+        ``self.dt`` must already hold this frame's delta time. It is read before the frame
+        runs, because a scene switch at the end of the frame resets ``self.dt``: the
+        recording gets the dt the frame's logic received. The recorder samples the sprites
+        after rendering, from the scene active at the end of the frame (after a switch, the
+        new scene as set up), exactly as the golden-trace harness does.
+        """
+        frame_dt = self.dt
+        # During a transition, render the transition effect instead of the scene
+        if self._active_transition is not None:
+            transition_done = self._active_transition.update(self.dt)
+            self._process_transition_events()
+            self._update_frame_services()
+            self._active_transition.render(self.screen)
+            self._present_frame(full_update=True)
+            if transition_done:
+                self._finalize_transition()
+        else:
+            self._run_scene_frame()
+
+        if self.trace_recorder is not None:
+            self.trace_recorder.record_frame(dt=frame_dt, scene=self.active_scene)
 
     def _run_scene_frame(self: Self) -> None:
         """Run one non-transition frame of the active scene.
@@ -788,7 +809,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """Quit the game."""
         # put a quit event in the event queue.
         self.log.info('POSTING QUIT EVENT')
-        pygame.event.post(pygame.event.Event(pygame.QUIT, {}))
+        post_event(pygame.event.Event(pygame.QUIT, {}))
 
     def on_quit_event(self: Self, event: events.HashableEvent) -> None:  # ruff: ignore[unused-method-argument]
         """Handle quit events.
@@ -921,7 +942,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # Prefer dt-derived FPS when available (fast timer path); fallback to clock
         fps_value = 1.0 / self.dt if hasattr(self, 'dt') and self.dt > 0 else self.clock.get_fps()
 
-        pygame.event.post(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
+        post_event(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
 
     def _update_scene(self) -> None:
         """Update the active scene."""
@@ -1456,7 +1477,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """Handle quit key press when no sprites are focused."""
         self.log.info('Quit requested')
         # Post a QUIT event to ensure proper cleanup
-        pygame.event.post(pygame.event.Event(pygame.QUIT))
+        post_event(pygame.event.Event(pygame.QUIT))
 
     @override
     def on_audio_device_added_event(self: Self, event: events.HashableEvent) -> None:

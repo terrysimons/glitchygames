@@ -582,6 +582,21 @@ class TestTraceWriter:
         assert frames[0]['sprites'][0]['rect'] == [10, 20, 4, 4]
         assert frames[1]['sprites'][0]['rect'] == [99, 20, 4, 4]
 
+    def test_force_keyframe_writes_a_keyframe_for_an_unchanged_scene_name(self, tmp_path):
+        """A forced keyframe holds every sprite and decodes like the delta would have."""
+        path = tmp_path / 'trace.jsonl.gz'
+        frames = [
+            _frame(0, BALL),
+            _frame(1, _sprite('Ball#0', [11, 20, 4, 4])),
+            _frame(2, _sprite('Ball#1', [0, 0, 4, 4])),
+        ]
+        with TraceWriter(path=path, header={}) as writer:
+            writer.write_frame(frames[0])
+            writer.write_frame(frames[1])
+            writer.write_frame(frames[2], force_keyframe=True)
+        assert [line['kind'] for line in _lines(path)[1:]] == ['keyframe', 'delta', 'keyframe']
+        assert read_trace(path=path)['frames'] == frames
+
 
 class TestStableSpriteIds:
     """Sprite ids count each class in order of first appearance and never renumber."""

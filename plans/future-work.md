@@ -31,6 +31,27 @@ One line per item, with where it is detailed. Review, then promote items into
   needs a brainstormed spec before implementation.
 - BUGS.md #19 (ruff PLW0717, 102 overly broad `try` blocks; rule temporarily disabled) is still active.
 
+## Gameplay replay (follow-up to `--record-trace`, feature/engine-world-space Task 1d)
+
+- **`--replay-trace PATH`:** load a recording (`glitchygames/recording.py`, read with
+  `TraceReader`), seed `engine_random()` from its `random_seed` and apply its recorded options
+  (screen size, input mode); each frame, set `dt` from the frame's `dt` instead of reading the
+  clock, and at `GameEngine._pump_events` (the single seam) return recorded batch N for pump call
+  N: the frame's external events, merged with the internal events (FPS, game, menu events, code
+  QUITs) the live queue holds, which the replayed code posts again and which the recording's
+  internal entries verify. Sample the sprites as the recorder does, compare them with the
+  recording's frames and report the first divergence (frame, sprite, field). Nothing pauses for
+  wall-clock time.
+- **Move the games' randomness onto `engine_random()`** (PaddleSlap's `secrets.randbelow` and
+  `time.time` cooldown, the ball serve's `_SERVE_RANDOM`, the shake effects' `secrets.SystemRandom`)
+  so a recording's seed reproduces them; the golden harness's `deterministic_environment` patches
+  them today. Without this, replays of those games diverge at the first random draw.
+- Recorded attributes come back as `RecordedReference` (a window or joystick, by id) or
+  `UnrepresentableValue` (any other object); replay must map references to live objects and
+  decide what an unrepresentable external value becomes. Games that post SDL-type events with raw
+  `pygame.event.post` are recorded as external and would be delivered twice: move them to
+  `post_event`.
+
 ## Bitmappy
 
 - All Galibmap/GEDIT-derived features (hitbox editor, mirror/rotate, replace colour, colour wells,

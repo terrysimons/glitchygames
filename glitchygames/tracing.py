@@ -23,8 +23,9 @@ On disk (format version 2) a trace is gzip-compressed JSON Lines:
 - Line 1 is the header: ``{"format_version": 2, ...}`` followed by the trace's header fields
   (``game`` or ``source``, ``frame_seconds`` or ``null`` for a live recording, and any other
   metadata the writer was given).
-- Then one line per frame. Frame 0 and every frame whose scene differs from the previous
-  frame's are keyframes, holding the full sprite list:
+- Then one line per frame. Frame 0, every frame whose scene differs from the previous
+  frame's, and any frame written with ``force_keyframe=True`` are keyframes, holding the
+  full sprite list:
   ``{"frame": n, "kind": "keyframe", "scene": ..., "sprites": [...]}``.
   Every other frame is a delta against the previous frame:
   ``{"frame": n, "kind": "delta", "changed": [...], "added": [...], "removed": [id, ...]}``,
@@ -558,7 +559,10 @@ def decode_frame(
 
 
 def _json_line(record: dict[str, Any]) -> bytes:
-    return (json.dumps(record, separators=_COMPACT_SEPARATORS) + '\n').encode('utf-8')
+    # ensure_ascii=False: text (an event's unicode) is written as is, in UTF-8
+    return (json.dumps(record, separators=_COMPACT_SEPARATORS, ensure_ascii=False) + '\n').encode(
+        'utf-8'
+    )
 
 
 class TraceWriter:
@@ -604,7 +608,7 @@ class TraceWriter:
         if self.flush_every_frame:
             self._gzip_file.flush()
 
-    def write_frame(self, frame_record: dict[str, Any]) -> None:
+    def write_frame(self, frame_record: dict[str, Any], *, force_keyframe: bool = False) -> None:
         """Encode and write one full frame.
 
         The writer keeps its own copy of the frame to encode the next one against, so the
@@ -612,10 +616,14 @@ class TraceWriter:
 
         Args:
             frame_record: The full frame record.
+            force_keyframe: Write a keyframe even if the scene name matches the previous
+                frame's (a recorder passes True when a new scene object of the same class
+                became active, such as the next floor of a game).
 
         """
         line_record = encode_frame(
-            frame_record=frame_record, previous_frame_record=self._previous_frame_record
+            frame_record=frame_record,
+            previous_frame_record=None if force_keyframe else self._previous_frame_record,
         )
         self._write_line(line_record)
         self._previous_frame_record = _copy_json(frame_record)

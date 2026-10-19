@@ -145,6 +145,16 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 - Configurable sleep granularity for tight frame pacing
 - Windows timer resolution control via WinMM
 
+**Gameplay Recording** (`glitchygames/recording.py`, `glitchygames/randomness.py`)
+- `--record-trace PATH`: record the session as a gzip JSON Lines trace (`glitchygames/tracing.py`
+  format), one line per frame, with `dt`, the raw `event_batches` read at `GameEngine._pump_events`
+  (the only reader of SDL's queue; each event tagged `external`/`internal`), sprites, and a header
+  with versions, options and the random seed; off by default. Engine code posts events with
+  `glitchygames.recording.post_event` so recordings can mark them internal
+- `--random-seed INT`: seed `engine_random()` (default: 64 random bits, kept in recordings); games
+  must draw from `engine_random()` for exact replay. Replay (`--replay-trace`) is planned
+  (`plans/future-work.md`)
+
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`
 - Styles: `NOISE` (trauma model), `JITTER`, `BOUNCE`; shakes stack and are capped

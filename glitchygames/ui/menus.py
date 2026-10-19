@@ -13,6 +13,7 @@ import pygame
 from glitchygames import events
 from glitchygames.color import WHITE
 from glitchygames.events.mouse import MousePointer
+from glitchygames.recording import post_event
 from glitchygames.sprites import (
     BitmappySprite,
     FocusableSingletonBitmappySprite,
@@ -790,7 +791,7 @@ class MenuItem(BitmappySprite):
                     menu_item_callback(self, event)
                 # Create a menu item clicked event.
                 # Emit it to the pygame event subsystem.
-                pygame.event.post(
+                post_event(
                     pygame.event.Event(events.MENUEVENT, {'menu': self, 'menu_item': sprite}),
                 )
 

@@ -23,9 +23,8 @@ class's sprites in order of first appearance over the whole run. Ids never renum
 sprite is removed (a collected coin, a dead ball).
 
 Scope and maintenance:
-    - ``GoldenTraceSceneManager.run_frame`` copies the transition branch of
-      ``SceneManager.start()`` (the non-transition branch is ``_run_scene_frame``, shared with
-      start()). Keep the copy in sync when start()'s transition branch changes.
+    - ``GoldenTraceSceneManager.run_frame`` runs ``SceneManager._run_frame``, the same frame
+      body ``SceneManager.start()`` runs (both branches, and the ``--record-trace`` hook).
     - Frame pacing, timing and the first frame's measured dt are out of scope: the harness
       fixes dt at 1/60 and never sleeps. Their tests live elsewhere (Task 5 of the plan).
 
@@ -523,17 +522,7 @@ class GoldenTraceSceneManager(SceneManager):
 
     def run_frame(self) -> None:
         """Run one frame the way SceneManager.start() does, without pacing or timing."""
-        # The transition branch mirrors SceneManager.start()
-        if self._active_transition is not None:
-            transition_done = self._active_transition.update(self.dt)
-            self._process_transition_events()
-            self._update_frame_services()
-            self._active_transition.render(self.screen)
-            self._present_frame(full_update=True)
-            if transition_done:
-                self._finalize_transition()
-        else:
-            self._run_scene_frame()
+        self._run_frame()
 
 
 class GoldenTraceEngine(GameEngine):
@@ -608,12 +597,17 @@ def discard_environment_events() -> None:
         pygame.event.post(event)
 
 
-def record_trace(game_key: str, *, frame_count: int) -> dict[str, Any]:
+def record_trace(
+    game_key: str, *, frame_count: int, recording_path: Path | None = None
+) -> dict[str, Any]:
     """Run a game headless with its scripted input and record every sprite each frame.
 
     Args:
         game_key: Which game (a key of GAME_SCENES).
         frame_count: How many frames to run.
+        recording_path: If given, the engine also records the run there as ``--record-trace``
+            would (GameEngine.start_trace_recording), for checking recordings against the
+            harness's own frames.
 
     Returns:
         The trace: game key, frame seconds and one record per frame.
@@ -628,7 +622,11 @@ def record_trace(game_key: str, *, frame_count: int) -> dict[str, Any]:
         deterministic_environment(clock=clock, save_root=Path(save_directory)),
     ):
         manager = _start_game(game_key)
+        engine = manager.game_engine
+        assert engine is not None
         try:
+            if recording_path is not None:
+                engine.start_trace_recording(path=recording_path)
             for frame_number in range(frame_count):
                 clock.advance(seconds=FRAME_SECONDS)
                 manager.dt = FRAME_SECONDS
@@ -650,6 +648,7 @@ def record_trace(game_key: str, *, frame_count: int) -> dict[str, Any]:
                     )
                 )
         finally:
+            engine.stop_trace_recording()
             pygame.event.clear()
             GoldenTraceSceneManager.uninstall()
     return {'game': game_key, 'frame_seconds': FRAME_SECONDS, 'frames': frames}
