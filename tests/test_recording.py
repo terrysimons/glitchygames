@@ -17,6 +17,7 @@ import types
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pygame
 import pytest
 
@@ -199,6 +200,26 @@ class TestJsonSafeValue:
 
         assert encoded == 3
         assert type(encoded) is int
+
+    @pytest.mark.parametrize(
+        ('value', 'expected', 'expected_type'),
+        [
+            (np.int64(7), 7, int),
+            (np.float32(0.5), 0.5, float),
+            (np.True_, True, bool),
+        ],
+    )
+    def test_numpy_scalar_is_stored_as_a_plain_json_value(self, value, expected, expected_type):
+        """A numpy scalar (a game's computed axis or index) is a plain number or bool."""
+        encoded = json_safe_value(value)
+
+        assert encoded == expected
+        assert type(encoded) is expected_type
+        assert json.loads(json.dumps(encoded, allow_nan=False)) == expected
+
+    def test_non_finite_numpy_float_is_tagged(self):
+        """A numpy infinity is tagged like a Python one."""
+        assert json_safe_value(np.float32(math.inf)) == {'__float__': 'inf'}
 
     def test_vector_is_stored_as_a_tuple(self):
         """A pygame Vector2 becomes a tuple of its components."""

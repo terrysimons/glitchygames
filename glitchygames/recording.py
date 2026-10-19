@@ -19,7 +19,8 @@ traces read recordings too. On top of the sprite fields it records what a later 
   (transitions) or unhandled-event reporting. Every pump's batch is kept, including empty
   ones, so a replay can hand batch N to pump call N without guessing. What was delivered,
   discarded or unhandled is a deterministic function of the batch and the game state, which
-  replay re-derives.
+  replay re-derives. Pumps after the final recorded frame (while the engine terminates and
+  shuts down) belong to no frame and are not recorded.
 - A frame whose active scene is a different scene object from the previous frame's is a
   keyframe, even when both scenes have the same class (two floors of one game).
 
@@ -49,6 +50,20 @@ apart only by count (the first match is the internal one; the two are indistingu
 Posts the next pump does not return (the queue was cleared, or the type is blocked) are
 forgotten at that pump. Events posted before recording started are classified by type alone.
 
+Polled input
+------------
+
+Input read by polling pygame's state, outside the event queue, is not in any batch and is not
+recorded: ``pygame.key.get_pressed`` (``bitmappy/editor.py``, ``bitmappy/film_strip_sprite.py``,
+``bitmappy/animated_canvas.py``, ``examples/dt_demo.py``), ``pygame.key.get_mods``
+(``ui/text_widgets.py``), ``pygame.mouse.get_pos`` (``ui/inputs.py``, ``ui/text_widgets.py``,
+``bitmappy/editor.py``, ``bitmappy/film_strip_sprite.py``, ``bitmappy/file_io.py``) and
+joystick or controller ``get_axis`` (``bitmappy/controllers/event_handler.py``,
+``events/joystick.py``, ``events/controller.py``, ``examples/joystick_demo.py``). An exact
+replay of code that polls needs a per-frame snapshot of the polled state (a follow-up in
+``plans/future-work.md``). The debug overlay's mouse poll (``scenes/scene.py``) only draws the
+overlay and does not affect the simulation.
+
 Attribute values
 ----------------
 
@@ -56,6 +71,9 @@ Stored JSON-safe by ``json_safe_value`` and read back by ``value_from_json``:
 
 - ``None``, ``bool``, ``str`` (any Unicode, written as is), ``int`` (int subclasses such as
   enums are stored as their int value) and finite ``float`` values are stored as themselves.
+  Other numbers (``numbers.Integral`` and ``numbers.Real``, such as numpy's ``int64`` and
+  ``float32``) and numpy scalars whose ``item()`` is a bool, int or float (``numpy.bool_``)
+  are stored as the plain JSON number or bool.
 - A ``tuple`` (and a pygame ``Vector2``/``Vector3``) is a JSON array, and every JSON array
   reads back as a tuple: pygame puts tuples on events (``pos``, ``rel``, ``buttons``, a hat's
   ``value``) and games compare them with tuples, so replay must restore the type.
@@ -80,8 +98,10 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
+import numbers
 from typing import TYPE_CHECKING, Any, Self, cast
 
+import numpy as np
 import pygame
 
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
@@ -214,6 +234,26 @@ def _json_safe_scalar(value: float | str | None) -> Any:
     return {FLOAT_TAG: _non_finite_float_name(value)}
 
 
+def _json_safe_number(value: numbers.Real | np.generic) -> Any:
+    """Store a number that is not a Python bool, int or float (a numpy scalar) as one.
+
+    ``numbers.Integral`` and ``numbers.Real`` cover numpy's integer and floating scalars;
+    ``numpy.bool_`` is neither, so any other numpy scalar is unwrapped with ``item()``.
+
+    Returns:
+        A plain JSON value, or an ``__unrepresentable__`` tag when the scalar has no plain form.
+
+    """
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real):
+        return _json_safe_scalar(float(value))
+    plain_value = value.item()
+    if isinstance(plain_value, (bool, int, float)):
+        return _json_safe_scalar(plain_value)
+    return _json_safe_object(value)
+
+
 def _json_safe_container(value: JsonSafeContainer) -> Any:
     if isinstance(value, list):
         return {LIST_TAG: [json_safe_value(item) for item in value]}
@@ -255,6 +295,8 @@ def json_safe_value(value: object) -> Any:
         return _json_safe_container(cast('JsonSafeContainer', value))
     if isinstance(value, (bytes, bytearray)):
         return {BYTES_TAG: bytes(value).hex()}
+    if isinstance(value, (numbers.Real, np.generic)):
+        return _json_safe_number(value)
     return _json_safe_object(value)
 
 

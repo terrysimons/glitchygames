@@ -46,6 +46,12 @@ One line per item, with where it is detailed. Review, then promote items into
   `time.time` cooldown, the ball serve's `_SERVE_RANDOM`, the shake effects' `secrets.SystemRandom`)
   so a recording's seed reproduces them; the golden harness's `deterministic_environment` patches
   them today. Without this, replays of those games diverge at the first random draw.
+- **Polled input:** input read outside the event queue is not recorded (`pygame.key.get_pressed`,
+  `pygame.key.get_mods`, `pygame.mouse.get_pos`, joystick and controller `get_axis`; the sites are
+  listed in `glitchygames/recording.py`'s module docstring). Replay of code that polls needs a
+  per-frame snapshot of the polled state, recorded next to the frame's event batches. The debug
+  overlay's mouse poll only draws the overlay. Pumps after the final recorded frame (during
+  terminate) are not recorded either.
 - Recorded attributes come back as `RecordedReference` (a window or joystick, by id) or
   `UnrepresentableValue` (any other object); replay must map references to live objects and
   decide what an unrepresentable external value becomes. Games that post SDL-type events with raw
