@@ -21,7 +21,9 @@ session again, and every frame's sprites are compared with the recorded frame. T
    warning per instance id), and each internal record is the live internal event the replayed
    code posted again (equal records). A recorded internal event nobody posted, a posted one the
    recording does not have, or a frame pumped more or fewer times than recorded is a
-   divergence of the frame.
+   divergence of the frame. Internal events are matched by encoded record
+   (``event_to_record``), so one carrying a window or joystick reference would compare the
+   recorded and live ids; none of the engine's posts carry one today.
 3. Frame indexes: the sources count their own ``end_frame`` calls; every recorded frame they
    serve is picked by that count, never by the scene manager's frame number.
 4. Frame time: the current frame's recorded ``dt``; past the end, the measurement.
@@ -50,6 +52,7 @@ from __future__ import annotations
 import dataclasses
 import importlib.metadata
 import itertools
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
@@ -797,8 +800,10 @@ class ReplaySources:
             for record in frame.get(CONTROL_EVENTS_FIELD, [])
             if record.get(KIND_FIELD) not in REAPPLIED_CONTROL_EVENT_KINDS
         ]
+        # Through JSON, as the recording wrote them: an integer key becomes a string and a
+        # tuple a list, so a marker is never compared with its recorded form falsely
         replayed_markers = [
-            control_event.to_json()
+            json.loads(json.dumps(control_event.to_json()))
             for control_event in control_events
             if control_event.kind not in REAPPLIED_CONTROL_EVENT_KINDS
         ]
@@ -870,14 +875,11 @@ class ReplaySources:
                     batch.append(event)
                     origins.append(EXTERNAL_ORIGIN)
                 continue
-            match_index = next(
-                (
-                    index
-                    for index, (_event, live_record) in enumerate(unmatched)
-                    if live_record == record
-                ),
-                None,
-            )
+            match_index: int | None = None
+            for index, (_unmatched_event, live_record) in enumerate(unmatched):
+                if live_record == record:
+                    match_index = index
+                    break
             if match_index is None:
                 self._note_frame_divergence(
                     kind=EVENT_DIVERGENCE,

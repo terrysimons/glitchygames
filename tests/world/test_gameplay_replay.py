@@ -581,6 +581,24 @@ class TestRefusals:
         assert engine.replay_sources.result.frames_replayed == 3
         assert engine.replay_sources.result.divergence is None
 
+    def test_version_two_recording_replays_every_frame_with_the_pump_count_check(
+        self, mocker, tmp_path
+    ):
+        """Version-2 frames have event batches but no input or control fields: still exact."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        downgrade_to_version_two(recording_path=recording_path)
+        frames = read_trace_result(path=recording_path).trace['frames']
+        assert all('event_batches' in frame for frame in frames)
+        assert not any(
+            field_name in frame for frame in frames for field_name in RECORDING_FORMAT_THREE_FIELDS
+        )
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        result = engine.replay_sources.result
+        assert result.divergence is None
+        assert result.end_reason == 'end_of_recording'
+        assert result.frames_replayed == len(frames)
+
     def test_version_two_recording_replays_with_a_warning(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         downgrade_to_version_two(recording_path=recording_path)
@@ -760,6 +778,7 @@ class TestEventMerge:
 
     def test_real_input_during_replay_never_reaches_the_game(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
         # A real key press, and the window losing focus, arrive during the replay: both dropped
         engine = replay_session(
             recording_path=recording_path,
@@ -773,6 +792,11 @@ class TestEventMerge:
         )
         assert engine.replay_sources is not None
         assert engine.replay_sources.result.divergence is None
+        delivered = [event for batch in pump_spy.spy_return_list for event in batch]
+        assert not any(
+            event.type == pygame.KEYDOWN and event.key == pygame.K_z for event in delivered
+        )
+        assert not any(event.type == pygame.WINDOWFOCUSLOST for event in delivered)
 
 
 class TestReferences:
@@ -843,6 +867,19 @@ class TestControlEventMarkers:
     def test_markers_recorded_again_by_the_code_match(self, mocker, tmp_path):
         def mark() -> None:
             SceneManager().record_control_event(kind='test-marker', data={'note': 'n'})
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker, action=mark)
+        engine = replay_session(recording_path=recording_path, mocker=mocker, action=mark)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+
+    def test_a_marker_with_integer_keys_matches_its_recording(self, mocker, tmp_path):
+        """JSON turns integer keys into strings; the replayed marker is compared in that form."""
+
+        def mark() -> None:
+            SceneManager().record_control_event(
+                kind='test-marker', data={'scores': {1: 'first'}, 'pair': (1, 2)}
+            )
 
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker, action=mark)
         engine = replay_session(recording_path=recording_path, mocker=mocker, action=mark)
