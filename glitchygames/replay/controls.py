@@ -10,7 +10,9 @@ hands every real key press and release to ``ReplayControls``; none reaches the g
   restarts the replay, which rebuilds up to that frame unpresented and pauses there
   (glitchygames/replay/rebuild.py). Held, it repeats like ``.``, but each repeat only moves the
   target back one more frame: the restart happens once, after the release
-  (``take_restart_request``), as each restart re-runs the replay from frame 0.
+  (``take_restart_request``), as each restart re-runs the replay from frame 0. Resuming drops a
+  pending step back, and a ``.`` step while ``,`` is held makes the target count back from the
+  frame the step reaches.
 - Home: restart at frame 0 (paused after frame 0, ``FIRST_PAUSED_FRAME``).
 - D: restart at the divergence frame, once the replay has found one (``divergence_frame``).
 - ``]`` / ``[``: double or halve the playback speed, within ``MIN_SPEED`` and ``MAX_SPEED``.
@@ -324,19 +326,29 @@ class ReplayControls:
             self.debug_overlay.handle_key(key=key)
         elif key == pygame.K_ESCAPE:
             self.quit_requested = True
-        elif key == pygame.K_SPACE and self.awaiting_start:
-            self.awaiting_start = False
         elif key == pygame.K_SPACE:
-            self.paused = not self.paused
-            self.step_requested = False
+            self._handle_space()
         elif key == pygame.K_PERIOD and self.paused:
             self.step_requested = True
+            # A held , counts back from the frame the step reaches, not the one before it
+            self.restart_request = None
         elif key in RESTART_KEYS:
             self._handle_restart_key(key=key)
         elif key == pygame.K_RIGHTBRACKET:
             self.speed = min(self.speed * SPEED_STEP_FACTOR, self.MAX_SPEED)
         elif key == pygame.K_LEFTBRACKET:
             self.speed = max(self.speed / SPEED_STEP_FACTOR, self.MIN_SPEED)
+
+    def _handle_space(self: Self) -> None:
+        """Start the replay from the start screen, else pause or resume it."""
+        if self.awaiting_start:
+            self.awaiting_start = False
+            return
+        self.paused = not self.paused
+        self.step_requested = False
+        if not self.paused:
+            # Resumed, the frame a step back counted from is gone
+            self.restart_request = None
 
     def _handle_restart_key(self: Self, *, key: int) -> None:
         """Act on ``,`` (while paused), Home or D (once the replay diverged).

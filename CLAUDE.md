@@ -335,10 +335,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   screen's `MessageScreen`, `glitchygames/ui/message_screen.py`) and pauses at a divergence or
   its end with the debug overlay on; Space pauses, `.` steps, `]`/`[` change speed, Esc quits.
   `,` (paused; held: one frame back per repeat, restarting on release), Home and D (divergence)
-  restart the replay process (`glitchygames/replay/rebuild.py`) with `--replay-pause-at-frame N`:
-  it rebuilds frames 0..N-1 unpresented, unpaced and muted, then pauses; the first process
-  supervises later restarts through `--replay-restart-handoff` (at most two processes), started
-  with `audit.run_command` (no `os.execv`: lint)
+  restart the replay process (`glitchygames/replay/rebuild.py`) with `--replay-pause-at-frame N`
+  and the viewer state (`--replay-viewer-state`: speed, panel, divergence frame): it rebuilds
+  frames 0..N-1 unpresented, unpaced and silent (sounds stopped after each frame, music paused),
+  then pauses; the first process supervises later restarts through `--replay-restart-handoff`
+  (at most two processes, signal handlers reinstalled, a divergence in any run kept in the exit
+  status), started with `audit.run_command` (no `os.execv`: lint)
   Its real KEYDOWN/KEYUP stay unblocked at SDL and go only to its controls (F3/F4 to the debug
   overlay), never to the game. The report
   (`ReplayResult.report()`: `Replay diverged at frame 6120: sprite Ball#2 rect expected [412,

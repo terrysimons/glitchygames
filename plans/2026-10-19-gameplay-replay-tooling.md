@@ -667,7 +667,9 @@ git commit -m "Step back, Home and jump to the divergence by re-running the repl
 **Files:**
 - Modify: `glitchygames/replay/controls.py` (B, S)
 - Modify: `glitchygames/replay/driver.py` (bookmarks as `breakpoint` control events; save copy;
-  a recorded breakpoint pauses a watched replay; restarts carry unsaved bookmarks)
+  a recorded breakpoint pauses a watched replay)
+- Modify: `glitchygames/engine/game_engine.py` (`_restart_replay`: restarts carry unsaved
+  bookmarks)
 - Test: `tests/replay/test_controls.py`, `tests/world/test_gameplay_replay.py`
 
 **Interfaces:**
@@ -679,9 +681,13 @@ def bookmarked_copy_path(*, recording_path: Path) -> Path   # x.jsonl.gz -> x.bo
 def write_bookmarked_copy(*, recording_path: Path, bookmarks: list[int],
                           destination: Path) -> None
 ReplaySources.save_bookmarked_copy(self) -> Path | None    # S; None (and a message) when empty
-ReplaySources.restart_at(self, *, pause_at_frame: int) -> None   # Task 3's re-exec; saves
-                                                                 # unsaved bookmarks first
 ```
+
+Restarts are Task 3's (glitchygames/replay/rebuild.py): a step back ends the run with
+`ReplayResult.restart_frame`, and after the teardown `GameEngine._restart_replay` builds
+`restart_command(original=sys.orig_argv, recording_path=..., pause_at_frame=...,
+debug_overlay_visible=..., viewer_state=...)` and calls `relaunch_replay` (the first process
+supervises; no `os.execv`, no `ReplaySources.restart_at`).
 
 Rules: B adds the current frame to `bookmarks` (no duplicates, kept sorted). S writes the
 recording with a `{'kind': 'breakpoint', 'label': 'bookmark'}` control event added to each
@@ -691,8 +697,9 @@ nothing and calls `controls.show_message(text='no bookmarks to save')` (120 pres
 Task 2). A watched replay pauses
 when it applies a recorded `breakpoint` control event (a `SceneManager.add_control_event_handler`
 registered by the driver for `BREAKPOINT_KIND`), so a saved copy reopens and stops at each
-bookmark. Before a restart (Task 3) with unsaved bookmarks, the driver writes the bookmarked copy
-first and restarts on it, so bookmarks survive step back.
+bookmark. Before a restart (Task 3) with unsaved bookmarks, `GameEngine._restart_replay` writes
+the bookmarked copy first (`save_bookmarked_copy`) and passes it as `restart_command`'s
+`recording_path`, so bookmarks survive step back (and later restarts replay the copy).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -709,21 +716,23 @@ def test_saving_with_no_bookmarks_writes_nothing_and_says_so(mocker, tmp_path):
 
 
 def test_restart_carries_unsaved_bookmarks(mocker, tmp_path):
-    from glitchygames.replay import driver
     from glitchygames.replay.driver import bookmarked_copy_path
 
-    execv = mocker.patch.object(driver.os, 'execv')
-    mocker.patch.object(driver.sys, 'orig_argv',
-                        ['python', 'game.py', '--replay-trace', 'session.jsonl.gz'])
+    # As TestStepBack.test_step_back_from_a_divergence_relaunches_the_replay: a full engine run
+    # (press_keys_while_held), with relaunch_replay mocked where the engine uses it
+    relaunch = mocker.patch.object(
+        game_engine_module, 'relaunch_replay', return_value=ExitCode.SUCCESS
+    )
     recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-    sources = ReplaySources.from_path(path=recording_path)
-    sources.controls.current_frame = 2
-    sources.controls.handle_key(key=pygame.K_b)
-    sources.restart_at(pause_at_frame=1)
+    tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+    # Space starts; paused after the divergent frame 3, B bookmarks frame 4, , steps back
+    press_keys_while_held(mocker=mocker, keys=(pygame.K_SPACE, pygame.K_b, pygame.K_COMMA))
+    with pytest.raises(SystemExit):
+        replay_session_with_arguments(recording_path=recording_path, mocker=mocker, arguments=())
     copy_path = bookmarked_copy_path(recording_path=recording_path)
     assert copy_path.exists()
-    (_, command), _ = execv.call_args
-    assert command[-4:] == ['--replay-trace', str(copy_path), '--replay-pause-at-frame', '1']
+    command = relaunch.call_args.kwargs['command']
+    assert command[-4:] == ['--replay-trace', str(copy_path), '--replay-pause-at-frame', '3']
 
 
 # tests/replay/test_controls.py

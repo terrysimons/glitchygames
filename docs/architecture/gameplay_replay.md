@@ -271,16 +271,21 @@ recording`); stepping past the end does nothing, and Esc ends the run with the r
 
 A replay cannot run backwards, and the engine cannot be rebuilt in-process, so these keys
 restart the replay in a fresh process (`glitchygames/replay/rebuild.py`) with the same command
-line (every option kept, `--replay-fps` included; `--debug-overlay` follows whether the overlay
-was shown) plus `--replay-pause-at-frame N`. The restarted replay skips the start screen and
-rebuilds: frames 0 to N - 1 run in full, unpresented, unpaced and muted, with `Rebuilding: frame
-k / N` printed and shown on a cleared window every 60 frames (Esc still quits). It then pauses with
-frame N next, showing frame N - 1's picture; frame 0 always runs, so Home pauses after it. The
-first replay process supervises the restarts: each later replay that steps back hands its restart
-command to it (`--replay-restart-handoff`, internal) instead of starting a process of its own,
-so there are never more than two, and the run exits with the last replay's status. Stepping back
-from far into a long recording takes as long as rebuilding up to there. `--replay-pause-at-frame`
-is ignored with `--headless` (nothing could unpause the replay).
+line (every option kept, `--replay-fps` included) plus `--replay-pause-at-frame N`, an explicit
+`--debug-overlay` or `--no-debug-overlay`, and the viewer's speed, debug panel and the divergence
+found so far (`--replay-viewer-state`, internal; D works at once after a restart). The window
+closes and a new one opens; the end-of-run performance reports wait for the last replay. The
+restarted replay skips the start screen and rebuilds: frames 0 to N - 1 run in full, unpresented
+and unpaced, in silence (each frame's sounds are stopped after it and music is paused until the
+rebuild ends), with `Rebuilding: frame k / N` shown on a cleared window every 0.1 s and printed
+every second (Esc still quits). It then pauses with frame N next, showing frame N - 1's picture;
+frame 0 always runs, so Home pauses after it. The first replay process supervises the restarts:
+each later replay that steps back hands its restart command to it (`--replay-restart-handoff`,
+internal) instead of starting a process of its own, so there are never more than two (the
+supervisor keeps the memory its own replay used). The run exits with the last replay's status,
+but `REPLAY_DIVERGED` once any of the runs diverged; SIGTERM or SIGHUP to the supervisor ends the
+child too. Stepping back from far into a long recording takes as long as rebuilding up to there.
+`--replay-pause-at-frame` is ignored with `--headless` (nothing could unpause the replay).
 
 ### `--replay-fps {recorded,real}`
 

@@ -165,6 +165,32 @@ def test_holding_step_back_accumulates_until_the_release():
     assert controls.take_restart_request() is None
 
 
+def test_resuming_drops_a_pending_restart():
+    """Space resumes the replay: a step back still held is forgotten."""
+    controls = ReplayControls(total_frames=100)
+    controls.paused = True
+    controls.current_frame = 20
+    controls.press_key(key=pygame.K_COMMA, now=0.0)
+    controls.handle_key(key=pygame.K_SPACE)
+    controls.release_key(key=pygame.K_COMMA)
+    assert controls.restart_request is None
+    assert controls.take_restart_request() is None
+
+
+def test_a_step_while_stepping_back_moves_the_base_to_the_new_frame():
+    """. while , is held: the target counts back from the frame the step reaches."""
+    controls = ReplayControls(total_frames=100)
+    controls.paused = True
+    controls.current_frame = 20
+    controls.press_key(key=pygame.K_COMMA, now=0.0)
+    assert controls.restart_request == 19
+    controls.handle_key(key=pygame.K_PERIOD)
+    assert controls.restart_request is None
+    controls.current_frame = 21  # the step ran
+    controls.handle_key(key=pygame.K_COMMA)  # the held , repeats
+    assert controls.restart_request == 20
+
+
 def test_holding_step_back_stops_at_the_first_paused_frame():
     """Repeats never move the target before the first paused frame."""
     controls = ReplayControls(total_frames=100)

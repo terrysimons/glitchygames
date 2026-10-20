@@ -104,11 +104,12 @@ session again, and every frame's sprites are compared with the recorded frame. T
     set and the end reason ``'restart'``, and the engine relaunches it once torn down. A replay
     given ``ReplayOptions.pause_at_frame`` N (watched only: a headless replay ignores it, as
     nobody could unpause it) rebuilds: without its start screen, frames run unpresented and
-    unpaced with the mixer muted (``hold_frame`` never holds, except once per
-    ``FAST_FORWARD_PROGRESS_INTERVAL_FRAMES`` frames to present the progress line, read the
-    viewer's keys and print the progress), until frame ``max(N, FIRST_PAUSED_FRAME)`` is the next
-    to run; there it pauses. A divergence or the end of the recording on the way pauses it there
-    instead (rule 14).
+    unpaced in silence (``Rebuild.silence_frame`` after each; ``hold_frame`` never holds, except
+    every ``REBUILD_PROGRESS_INTERVAL_SECONDS`` of real time to present the progress line and read
+    the viewer's keys), until frame ``max(N, FIRST_PAUSED_FRAME)`` is the next to run; there it
+    pauses. A divergence or the end of the recording on the way pauses it there instead (rule
+    14). ``ReplayOptions.viewer_state`` restores the viewer's speed, debug panel and the
+    divergence frame an earlier run found.
 """
 
 from __future__ import annotations
@@ -169,7 +170,7 @@ from glitchygames.recording import (
 from glitchygames.replay.audit import frame_digest, write_digest_file
 from glitchygames.replay.controls import FIRST_PAUSED_FRAME, ReplayControls
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
-from glitchygames.replay.rebuild import Rebuild
+from glitchygames.replay.rebuild import Rebuild, ViewerState
 from glitchygames.replay.viewer import ReplayViewer
 from glitchygames.sources import frame_clock_seconds
 from glitchygames.state.sandbox import MemorySaveManager
@@ -208,6 +209,7 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'rebaseline',
     'replay_pause_at_frame',
     'replay_restart_handoff',
+    'replay_viewer_state',
     'replay_fps',
     'profile',
     'log_level',
@@ -328,6 +330,8 @@ class ReplayOptions(BaseModel):
         restart_handoff_path: Where a restarted replay hands its own restart to the
             supervising process (``--replay-restart-handoff``; glitchygames/replay/rebuild.py),
             or None in the first replay process.
+        viewer_state: The viewer's state a restarted replay starts with
+            (``--replay-viewer-state``: speed, debug panel, divergence frame), or None.
 
     """
 
@@ -341,6 +345,7 @@ class ReplayOptions(BaseModel):
     wait_for_start: bool = False
     pause_at_frame: int | None = Field(default=None, ge=0)
     restart_handoff_path: Path | None = None
+    viewer_state: ViewerState | None = None
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -771,6 +776,12 @@ class ReplaySources:
         if options.pause_at_frame is not None and not options.headless:
             self._rebuild = Rebuild(target_frame=max(options.pause_at_frame, FIRST_PAUSED_FRAME))
             self.controls.rebuild_target_frame = self._rebuild.target_frame
+        if options.viewer_state is not None:
+            # What the viewer had set before the restart (the engine carries the panel over to
+            # the scene manager's debug overlay with the controls')
+            self.controls.speed = options.viewer_state.speed
+            self.controls.debug_overlay.panel = options.viewer_state.debug_panel
+            self.controls.divergence_frame = options.viewer_state.divergence_frame
         self._compares_control_events = format_version >= CONTROL_EVENTS_FORMAT_VERSION
         # Frames ended so far (end_frame calls): the index of the frame being served
         self._frame_index = 0
@@ -988,8 +999,8 @@ class ReplaySources:
         the viewer's accumulator (glitchygames/replay/viewer.py).
 
         While a restarted replay rebuilds (rule 15) no outer tick opens: frames run unheld,
-        but for one hold per ``FAST_FORWARD_PROGRESS_INTERVAL_FRAMES`` frames, which reads the
-        viewer's keys (Esc and the window's close still end the replay) and presents the
+        but for one hold every ``REBUILD_PROGRESS_INTERVAL_SECONDS`` of real time, which reads
+        the viewer's keys (Esc and the window's close still end the replay) and presents the
         progress line.
 
         Returns:
@@ -1002,10 +1013,10 @@ class ReplaySources:
         if self.options.headless:
             return False
         if self._rebuild is not None:
-            self._rebuild.begin()
-            if not self._rebuild.progress_is_due(frame_index=self._frame_index):
+            now = measured_seconds()
+            if not self._rebuild.progress_is_due(frame_index=self._frame_index, now=now):
                 return False
-            self._run_control_tick(now=measured_seconds())
+            self._run_control_tick(now=now)
             return True
         # Nothing has run since the last tick closed: its state decides how the viewer waits
         now = self.viewer.begin_tick(is_inner_running=self._is_inner_running())
@@ -1163,12 +1174,14 @@ class ReplaySources:
         self._pump_index = 0
         self._frame_divergence = None
         self.controls.current_frame = self._frame_index
-        if self._rebuild is not None and (
-            self._frame_index >= self._rebuild.target_frame
-            or self.controls.paused
-            or self._stop_requested
-        ):
-            self._finish_rebuild()
+        if self._rebuild is not None:
+            self._rebuild.silence_frame()
+            if (
+                self._frame_index >= self._rebuild.target_frame
+                or self.controls.paused
+                or self._stop_requested
+            ):
+                self._finish_rebuild()
         self._begin_frame()
 
     def finish_run(self: Self) -> None:
@@ -1545,7 +1558,7 @@ class ReplaySources:
         )
 
     def _finish_rebuild(self: Self) -> None:
-        """End a restarted replay's rebuild: pause it where it is, heard again (rule 15)."""
+        """End a restarted replay's rebuild: pause it where it is, its music resumed (rule 15)."""
         if self._rebuild is not None:
             self._rebuild.finish()
         self._rebuild = None
@@ -1666,8 +1679,9 @@ def start_replay(
             ``headless`` (local) whether frames are paced (rule 13) and whether the replay is
             watched, starting at its start screen (rule 14) unless ``replay_pause_at_frame``
             (local) restarts it at a pause frame (rule 15; ignored, with a warning, when
-            headless), and ``replay_restart_handoff`` (local) where a supervised restart hands
-            its own restart over (glitchygames/replay/rebuild.py).
+            headless), ``replay_restart_handoff`` (local) where a supervised restart hands its
+            own restart over (glitchygames/replay/rebuild.py), and ``replay_viewer_state``
+            (local) the viewer state it starts with.
         use_fastevents: Drain the real queue with pygame.fastevent (``GameEngine.USE_FASTEVENTS``).
 
     Returns:
@@ -1694,6 +1708,7 @@ def start_replay(
         wait_for_start=not headless and pause_at_frame is None,
         pause_at_frame=pause_at_frame,
         restart_handoff_path=None if restart_handoff is None else Path(restart_handoff),
+        viewer_state=options.get('replay_viewer_state'),
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(header=sources.header, game_class_name=game_class_name)

@@ -67,7 +67,12 @@ from glitchygames.replay.driver import (
     announce_replay,
     start_replay,
 )
-from glitchygames.replay.rebuild import relaunch_replay, restart_command
+from glitchygames.replay.rebuild import (
+    ViewerState,
+    parse_viewer_state,
+    relaunch_replay,
+    restart_command,
+)
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources, install_sources, reset_sources
 from glitchygames.sprites import Sprite
@@ -433,7 +438,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         diagnostics_group.add_argument(
             '--debug-overlay',
             help='show the debug overlay at startup (F3 toggles, F4 cycles panels)',
-            action='store_true',
+            action=argparse.BooleanOptionalAction,
             default=False,
         )
         diagnostics_group.add_argument(
@@ -494,6 +499,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             '--replay-restart-handoff',
             metavar='PATH',
             # Internal: the supervising replay process passes it to each replay it restarts,
+            # as glitchygames/replay/rebuild.py describes
+            help=argparse.SUPPRESS,
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--replay-viewer-state',
+            metavar='JSON',
+            type=parse_viewer_state,
+            # Internal: a restarted replay's viewer state (speed, debug panel, divergence frame),
             # as glitchygames/replay/rebuild.py describes
             help=argparse.SUPPRESS,
             default=None,
@@ -833,6 +847,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # A watched replay's F3/F4 (and its pause at a divergence) act on the scene manager's
         # debug overlay, the one drawn (glitchygames/replay/controls.py)
         if self.replay_sources is not None:
+            # With the panel a restarted replay's viewer had chosen (ReplayOptions.viewer_state)
+            self.scene_manager.debug_overlay.panel = (
+                self.replay_sources.controls.debug_overlay.panel
+            )
             self.replay_sources.controls.debug_overlay = self.scene_manager.debug_overlay
         # The singleton outlives an earlier engine in this process: number this run's frames
         # from 0, as reset_sources() above restarted the frame clock (glitchygames/sources.py)
@@ -1695,6 +1713,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # After closing: until then a repeated signal must stay ignored (exit_on_signal)
         self._restore_signal_handlers()
         self._report_replay_result(run_ended_by=run_ended_by)
+        # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
+        # run, so the end-of-run reports wait for the last replay
+        if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:
+            pygame.display.quit()
+            pygame.quit()
+            return
 
         # Print performance report before shutdown
         try:
@@ -1900,15 +1924,32 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         self.log.info(f'Restarting the replay at frame {restart_frame}')
-        status = relaunch_replay(
-            command=restart_command(
-                original=sys.orig_argv,
-                recording_path=Path(GameEngine.OPTIONS['replay_trace']),
-                pause_at_frame=restart_frame,
-                debug_overlay_visible=self.scene_manager.debug_overlay.is_visible,
+        debug_overlay = self.scene_manager.debug_overlay
+        controls = replay_sources.controls
+        command = restart_command(
+            original=sys.orig_argv,
+            recording_path=Path(GameEngine.OPTIONS['replay_trace']),
+            pause_at_frame=restart_frame,
+            debug_overlay_visible=debug_overlay.is_visible,
+            viewer_state=ViewerState(
+                speed=controls.speed,
+                debug_panel=debug_overlay.panel,
+                divergence_frame=controls.divergence_frame,
             ),
-            handoff_path=replay_sources.options.restart_handoff_path,
         )
+        # _shutdown put the default handling back: while supervising, SIGTERM and SIGHUP end the
+        # run with SystemExit again, so subprocess.run kills and reaps the child
+        self._install_signal_handlers()
+        try:
+            status = relaunch_replay(
+                command=command,
+                handoff_path=replay_sources.options.restart_handoff_path,
+                result_exit_code=replay_sources.result.exit_code(
+                    policy=replay_sources.options.exit_policy
+                ),
+            )
+        finally:
+            self._restore_signal_handlers()
         try:
             exit_code = ExitCode(status)
         except ValueError:

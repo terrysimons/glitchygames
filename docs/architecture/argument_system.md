@@ -293,7 +293,7 @@ recorded, replayed or diagnosed, whatever the game. They change no game settings
 | `--log-timer-jitter` | `store_true` | `False` | Log frame pacing jitter statistics periodically |
 | `--perf-trim-percent` | `float` | `5.0` | Percent of frames to trim from top and bottom in FPS report |
 | `--fps-histogram` | `choice` | `equal-range` | FPS histogram buckets in the shutdown report: `equal-range` or `target-relative` |
-| `--debug-overlay` | `store_true` | `False` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) |
+| `--debug-overlay` / `--no-debug-overlay` | `bool` | `False` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) |
 | `--record-trace` | `PATH` | `None` | Record the session to a gzip JSON Lines trace ([Gameplay Recording and Replay](gameplay_replay.md)) |
 | `--replay-trace` | `PATH` | `None` | Replay a recording exactly, reporting the first divergence |
 | `--replay-fps` | `choice` | `None` (read as `recorded`) | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
@@ -412,7 +412,8 @@ Diagnostics Options:
   --log-timer-jitter    log frame pacing jitter statistics periodically
   --perf-trim-percent   percent of frames to trim from top and bottom in global FPS report
   --fps-histogram       FPS histogram buckets in the shutdown report (...)
-  --debug-overlay       show the debug overlay at startup (F3 toggles, F4 cycles panels)
+  --debug-overlay, --no-debug-overlay
+                        show the debug overlay at startup (F3 toggles, F4 cycles panels)
   --record-trace PATH   record the session (...)
   --replay-trace PATH   replay a --record-trace recording exactly (...)
   --replay-fps, --audit, --no-audit, --replay-digest PATH, --replay-pause-at-frame N
