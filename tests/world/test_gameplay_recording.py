@@ -32,18 +32,30 @@ from scripts.record_golden_traces import (
 
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
+from glitchygames.examples import paddleslap
+from glitchygames.input import devices as devices_module
 from glitchygames.randomness import engine_random
 from glitchygames.recording import (
+    CONTROL_EVENTS_FIELD,
+    DEVICE_ENUMERATION_FIELD,
+    DEVICES_OPENED_FIELD,
     DT_FIELD,
     EVENT_BATCHES_FIELD,
     EXTERNAL_ORIGIN,
+    INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
     RECORDING_SOURCE,
+    SAVES_HEADER_FIELD,
+    SAVES_OPENED_FIELD,
     UnrepresentableValue,
     event_from_record,
 )
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
+from glitchygames.sources import active_sources
+from glitchygames.state import DiskSaveManager
+from glitchygames.state.sandbox import open_saves
+from glitchygames.supervision import BREAKPOINT_KIND
 from glitchygames.tracing import read_trace_result
 from glitchygames.transitions import FadeTransition
 
@@ -75,6 +87,17 @@ SCRIPTED_EVENT_TYPES = frozenset({
     pygame.MOUSEBUTTONDOWN,
     pygame.MOUSEBUTTONUP,
     pygame.QUIT,
+})
+
+# The fields a recording adds to each sprite frame (each format-3 field only where not empty)
+RECORDING_FRAME_FIELDS = frozenset({
+    DT_FIELD,
+    EVENT_BATCHES_FIELD,
+    INPUT_CHANGES_FIELD,
+    CONTROL_EVENTS_FIELD,
+    DEVICES_OPENED_FIELD,
+    SAVES_OPENED_FIELD,
+    DEVICE_ENUMERATION_FIELD,
 })
 
 # The whole Clockwork Keep golden script: the elevator ride (frames 352-592) and a pause (740-790)
@@ -567,6 +590,120 @@ class TestRecordingThroughTheEngine:
         assert observed_handlers == [game_handler]
         assert handler_after_run is game_handler
 
+    def test_recording_holds_input_changes_and_control_events(self, mocker, tmp_path):
+        """Control events land in their frame; polled input is recorded as changes."""
+        recording_path = tmp_path / 'session.jsonl.gz'
+        # engine_run_environment resets Script, so the script is set inside it
+        with engine_run_environment(mocker):
+            Script.events_by_frame = {
+                1: [_key(pygame.KEYDOWN, pygame.K_a, unicode='a')],
+                2: [_key(pygame.KEYUP, pygame.K_a)],
+            }
+            Script.action_frame = 1
+            Script.action = lambda: SceneManager().record_control_event(
+                kind=BREAKPOINT_KIND, data={'label': 'scripted'}
+            )
+            _schedule_quit_in_arrival()
+            run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        trace = read_trace_result(path=recording_path).trace
+        frames = trace['frames']
+        assert frames[1][CONTROL_EVENTS_FIELD] == [{'kind': 'breakpoint', 'label': 'scripted'}]
+        assert all(CONTROL_EVENTS_FIELD not in frame for frame in frames if frame['frame'] != 1)
+        # Keys posted to pygame's real queue update its key state at the pump; the dummy video
+        # driver may not, so only assert the field's form, not the scancode
+        assert all(isinstance(frame.get(INPUT_CHANGES_FIELD, {}), dict) for frame in frames)
+
+    def test_saves_opened_after_recording_started_are_snapshotted_in_their_frame(
+        self, mocker, tmp_path
+    ):
+        """A save namespace first opened during the run is recorded in that frame."""
+        save_directory = tmp_path / 'saves'
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: save_directory / app_name,
+        )
+        DiskSaveManager(app_name='recording-test').save('high_scores', {'scores': [{'score': 900}]})
+        recording_path = tmp_path / 'session.jsonl.gz'
+        with engine_run_environment(mocker):
+            Script.action_frame = 0
+            Script.action = lambda: open_saves(app_name='recording-test')
+            _schedule_quit_in_arrival()
+            run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        frames = read_trace_result(path=recording_path).trace['frames']
+        # Opened in frame 0, after recording started: snapshotted into that frame
+        (opened,) = [frame[SAVES_OPENED_FIELD] for frame in frames if SAVES_OPENED_FIELD in frame]
+        assert opened['recording-test']['high_scores']['data'] == {'scores': [{'score': 900}]}
+        assert frames[0]['frame'] == 0
+        assert SAVES_OPENED_FIELD in frames[0]
+
+    def test_saves_opened_before_recording_are_in_the_header(self, tmp_path):
+        """A store the game opened before recording started is snapshotted into the header."""
+        recording_path = tmp_path / 'session.jsonl.gz'
+
+        def write_a_score(scene: Scene) -> None:
+            # PaddleSlap opened its saves in __init__, before recording starts
+            assert isinstance(scene, paddleslap.Game)
+            scene.saves.save('high_scores', {'scores': [{'score': 7}]})
+
+        record_trace(
+            'paddleslap',
+            frame_count=2,
+            recording_path=recording_path,
+            before_recording=write_a_score,
+        )
+        header = read_trace_result(path=recording_path).trace
+        assert header[SAVES_HEADER_FIELD]['paddleslap']['high_scores']['data'] == {
+            'scores': [{'score': 7}]
+        }
+        assert all(SAVES_OPENED_FIELD not in frame for frame in header['frames'])
+
+    def test_devices_opened_are_recorded(self, mocker, tmp_path):
+        """A device opened during the run: its descriptor, its open answer and its positions."""
+        fake_device = mocker.Mock(**{
+            'get_instance_id.return_value': 5,
+            'get_name.return_value': 'Fake Pad',
+            'get_guid.return_value': 'guid',
+            'get_numaxes.return_value': 2,
+            'get_numbuttons.return_value': 4,
+            'get_numhats.return_value': 1,
+            'get_numballs.return_value': 0,
+            # Polled into the input snapshot every frame from the frame it was opened
+            'get_axis.return_value': 0.5,
+            'get_button.return_value': False,
+            'get_hat.return_value': (0, 1),
+        })
+        mocker.patch.object(devices_module.pygame.joystick, 'Joystick', return_value=fake_device)
+        recording_path = tmp_path / 'session.jsonl.gz'
+        with engine_run_environment(mocker):
+            Script.action_frame = 1
+            Script.action = lambda: active_sources().devices().open_joystick(device_index=0)
+            _schedule_quit_in_arrival()
+            run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        frames = read_trace_result(path=recording_path).trace['frames']
+        assert frames[1][DEVICES_OPENED_FIELD] == [
+            {
+                'kind': 'joystick',
+                'device_index': 0,
+                'instance_id': 5,
+                'name': 'Fake Pad',
+                'guid': 'guid',
+                'axis_count': 2,
+                'button_count': 4,
+                'hat_count': 1,
+                'ball_count': 0,
+            }
+        ]
+        assert frames[1][DEVICE_ENUMERATION_FIELD] == [
+            {'call': 'open_joystick', 'device_index': 0, 'value': 5, 'error': None}
+        ]
+        assert all(DEVICES_OPENED_FIELD not in frame for frame in frames if frame['frame'] != 1)
+        # Opened in frame 1's logic, before its pump: frame 1's snapshot holds its positions,
+        # and later frames, where nothing changed, record no change
+        frame_one_changes = frames[1][INPUT_CHANGES_FIELD]
+        assert frame_one_changes['device_axes'] == {'5': [0.5, 0.5]}
+        assert frame_one_changes['device_hats'] == {'5': [[0, 1]]}
+        assert all('device_axes' not in frame.get(INPUT_CHANGES_FIELD, {}) for frame in frames[2:])
+
 
 @contextlib.contextmanager
 def gzip_lines(path: Path) -> Generator[list[dict[str, Any]]]:
@@ -637,11 +774,7 @@ def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
     assert transition_frames.call_count > 0
     assert 'PauseScene' in {frame['scene'] for frame in recorded_frames}
     sprite_frames = [
-        {
-            field: value
-            for field, value in frame.items()
-            if field not in {DT_FIELD, EVENT_BATCHES_FIELD}
-        }
+        {field: value for field, value in frame.items() if field not in RECORDING_FRAME_FIELDS}
         for frame in recorded_frames
     ]
     assert sprite_frames == golden['frames']

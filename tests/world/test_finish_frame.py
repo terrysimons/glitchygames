@@ -21,6 +21,7 @@ import pygame
 import pytest
 
 from glitchygames.live_sources import LiveSources
+from glitchygames.recording import RecordingSources
 from glitchygames.scenes import SceneManager
 from glitchygames.sources import (
     SourcesAlreadyRunningError,
@@ -680,8 +681,12 @@ class TestFrameServicesSeeTheSameFrameTime:
     def test_trace_recorder_gets_the_dt_logic_received_once_per_frame(self, driver_factory, mocker):
         """The --record-trace recorder writes one line per frame with logic's dt."""
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
-        recorder = mocker.Mock()
-        driver.manager.trace_recorder = recorder
+        # An open recorder whose header holds no save namespaces yet
+        recorder = mocker.Mock(header={}, is_closed=False)
+        # The recorder is reached through the doors: RecordingSources.end_frame writes the frame
+        install_sources(
+            sources=RecordingSources(inner=LiveSources(random_seed=1), recorder=recorder)
+        )
 
         driver.run(frame_count=FRAMES_TO_RUN)
 

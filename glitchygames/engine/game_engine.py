@@ -40,10 +40,20 @@ from glitchygames.fonts import FontManager
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import seed_engine_random
-from glitchygames.recording import GameplayRecorder, json_safe_value, post_event
+from glitchygames.recording import (
+    DEVICE_ENUMERATION_FIELD,
+    DEVICES_HEADER_FIELD,
+    SAVES_HEADER_FIELD,
+    GameplayRecorder,
+    RecordingSources,
+    json_safe_value,
+    post_event,
+    reset_internal_post_tracking,
+)
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources, install_sources, reset_sources
 from glitchygames.sprites import Sprite
+from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
 
 if TYPE_CHECKING:
@@ -226,8 +236,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # These are wired up at the end of __init__()
     EVENT_HANDLERS: ClassVar[dict[int, Callable[..., Any]]] = {}
 
-    # The --record-trace recorder while recording (start_trace_recording), else None. A class
-    # default so process_events can check it on an engine whose __init__ did not run.
+    # The --record-trace recorder while recording (start_trace_recording), else None; the
+    # RecordingSources it installs write to it. A class default so it reads None on an engine
+    # whose __init__ did not run.
     trace_recorder: GameplayRecorder | None = None
 
     @classmethod
@@ -638,6 +649,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         reset_sources()
         # reset_sources() leaves the polled input alone (glitchygames/sources.py is a leaf)
         reset_current_input()
+        # ...and the internal-post tracker (glitchygames/recording.py): no owners, none pending
+        reset_internal_post_tracking()
         install_sources(
             sources=LiveSources(
                 random_seed=self.random_seed, use_fastevents=GameEngine.USE_FASTEVENTS
@@ -1156,13 +1169,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         }
 
     def start_trace_recording(self: Self, *, path: Path) -> GameplayRecorder:
-        """Start recording the session to a trace file.
+        """Start recording the session to a trace file (before the first frame).
 
-        The scene manager records one frame after each frame it runs, and process_events
-        records each frame's events. While recording, SIGTERM ends the run through the normal
-        teardown (``exit_on_signal``), unless the game installed its own SIGTERM handler;
-        SIGINT already does (KeyboardInterrupt). ``stop_trace_recording`` (called by
-        ``_shutdown``) closes the file.
+        The header also holds what the run took in before recording started: a snapshot of
+        every save store the doors opened (``saves``), the descriptors of devices opened
+        (``devices``) and the enumeration answers given (``device_enumeration``). Then
+        ``RecordingSources`` are installed around the active doors and record every frame
+        from what passes through them (glitchygames/recording.py). While recording, SIGTERM
+        ends the run through the normal teardown (``exit_on_signal``), unless the game
+        installed its own SIGTERM handler; SIGINT already does (KeyboardInterrupt).
+        ``stop_trace_recording`` (called by ``_shutdown``) closes the file.
 
         Args:
             path: The recording's file.
@@ -1171,7 +1187,28 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             The recorder.
 
         """
-        recorder = GameplayRecorder(path=path, header=self.trace_recording_header())
+        inner = active_sources()
+        registry = inner.devices()
+        # Only live doors open real stores; other doors (test stand-ins) contribute none.
+        # Part 2's --rebaseline copies these fields from the replayed recording instead
+        opened_stores = inner.opened_save_namespaces if isinstance(inner, LiveSources) else {}
+        header = {
+            **self.trace_recording_header(),
+            SAVES_HEADER_FIELD: {
+                namespace: save_namespace_snapshot(saves=store)
+                for namespace, store in opened_stores.items()
+            },
+            DEVICES_HEADER_FIELD: [
+                descriptor.to_json() for descriptor in registry.take_opened_descriptors()
+            ],
+            DEVICE_ENUMERATION_FIELD: [
+                answer.to_json() for answer in registry.take_enumeration_answers()
+            ],
+        }
+        recorder = GameplayRecorder(path=path, header=header)
+        # The module function, not self.install_sources: the doors read through stay the same,
+        # so the unhandled-event clock (_started_at_seconds) must not restart
+        install_sources(sources=RecordingSources(inner=inner, recorder=recorder))
         self.trace_recorder = recorder
         self.scene_manager.trace_recorder = recorder
         self._install_sigterm_handler()
@@ -1185,7 +1222,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.start_trace_recording(path=Path(record_trace_path))
 
     def stop_trace_recording(self: Self) -> None:
-        """Close the recording, if one is running, and restore the SIGTERM handling."""
+        """Close the recording, if one is running, and restore the SIGTERM handling.
+
+        The ``RecordingSources`` stay installed (the run is ending); with the recorder closed
+        they only delegate.
+        """
         recorder = self.trace_recorder
         if recorder is None:
             return
@@ -1435,19 +1476,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def _pump_events(self: Self) -> list[pygame.event.Event]:
         """Take the next batch from the active sources' event pump: the one place it is read.
 
-        A running recorder (``--record-trace``) records the batch here exactly as the pump
-        returned it, before any dispatch or discarding. Live sources read SDL's queue; a
-        replay's sources hand back a recorded batch instead (glitchygames/sources.py).
+        Live sources read SDL's queue; a replay's sources hand back a recorded batch instead;
+        ``--record-trace``'s ``RecordingSources`` record the batch exactly as the pump returned
+        it, before any dispatch or discarding (glitchygames/sources.py).
 
         Returns:
             The batch, in queue order.
 
         """
-        raw_events = active_sources().pump_events()
-        # The only per-frame cost of recording when it is off: this check
-        if self.trace_recorder is not None:
-            self.trace_recorder.record_event_batch(raw_events=raw_events)
-        return raw_events
+        return active_sources().pump_events()
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.

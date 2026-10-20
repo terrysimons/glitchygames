@@ -44,7 +44,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, override
+from typing import TYPE_CHECKING, Any, Protocol, TypedDict, Unpack, override
 
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
@@ -124,6 +124,22 @@ class FrameObserver(Protocol):
 
         """
         ...
+
+
+class RecordTraceHooks(TypedDict, total=False):
+    """Optional callbacks into a ``record_trace`` run, given to it by keyword.
+
+    Attributes:
+        frame_observer: Called after each frame is sampled, with the same scene and sprite ids
+            (the golden test reads world and camera positions through it).
+        before_recording: Called with the game scene after it is installed and before
+            recording starts (and before the first frame), e.g. to write a save the
+            recording's header must hold.
+
+    """
+
+    frame_observer: FrameObserver | None
+    before_recording: Callable[[Scene], None] | None
 
 
 def press(key: int) -> pygame.event.Event:
@@ -582,7 +598,7 @@ def record_trace(
     frame_count: int,
     recording_path: Path | None = None,
     random_seed: int = RANDOM_SEED,
-    frame_observer: FrameObserver | None = None,
+    **hooks: Unpack[RecordTraceHooks],
 ) -> dict[str, Any]:
     """Run a game headless with its scripted input and record every sprite each frame.
 
@@ -593,13 +609,14 @@ def record_trace(
             would (GameEngine.start_trace_recording), for checking recordings against the
             harness's own frames.
         random_seed: The run's master seed, passed as ``--random-seed``.
-        frame_observer: If given, called after each frame is sampled, with the same scene
-            and sprite ids (the golden test reads world and camera positions through it).
+        **hooks: Optional callbacks into the run, by keyword (``RecordTraceHooks``).
 
     Returns:
         The trace: game key, frame seconds and one record per frame.
 
     """
+    frame_observer = hooks.get('frame_observer')
+    before_recording = hooks.get('before_recording')
     script = SCRIPT_BUILDERS[game_key]()
     frames: list[dict[str, Any]] = []
     sprite_ids = StableSpriteIds()
@@ -611,6 +628,9 @@ def record_trace(
         engine = manager.game_engine
         assert engine is not None
         try:
+            if before_recording is not None:
+                assert manager.active_scene is not None
+                before_recording(manager.active_scene)
             if recording_path is not None:
                 engine.start_trace_recording(path=recording_path)
             for frame_number in range(frame_count):

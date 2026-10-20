@@ -117,8 +117,9 @@ class SceneManager(SceneInterface, events.EventManager):
     log: ClassVar[logging.Logger] = LOG
     OPTIONS: ClassVar[dict[str, Any]] = {}
 
-    # The --record-trace recorder (GameEngine.start_trace_recording sets it), else None; _run_frame
-    # records each frame with it. A class default so a frame can run without __init__.
+    # The --record-trace recorder (GameEngine.start_trace_recording sets it), else None. Frames
+    # reach it through the doors (RecordingSources.end_frame); this is for callers to inspect.
+    # A class default so it reads None without __init__.
     trace_recorder: GameplayRecorder | None = None
 
     def __new__(cls) -> Self:
@@ -961,16 +962,16 @@ class SceneManager(SceneInterface, events.EventManager):
         return closing_reading_seconds
 
     def _run_frame(self: Self) -> None:
-        """Run one frame (a transition frame or a scene frame), then record it if recording.
+        """Run one frame (a transition frame or a scene frame), then end it at the doors.
 
         ``self.dt`` must already hold this frame's delta time. It is read before the frame
         runs, because a scene switch at the end of the frame resets ``self.dt``: the
         recording gets the frame's raw dt. A transition's update receives it as is; scene
         logic and the camera aim receive it capped at the scene's MAX_FRAME_SECONDS
         (_scene_frame_seconds), which a replay re-derives from the scene class's attribute.
-        The recorder samples the sprites after rendering, from the scene active at the end of
-        the frame (after a switch, the new scene as set up), exactly as the golden-trace
-        harness does.
+        The doors' ``end_frame`` (a recording samples the sprites there) runs after rendering,
+        with the scene active at the end of the frame (after a switch, the new scene as set
+        up), exactly as the golden-trace harness samples it.
         """
         frame_dt = self.dt
         # During a transition, render the transition effect instead of the scene
@@ -986,8 +987,6 @@ class SceneManager(SceneInterface, events.EventManager):
         else:
             self._run_scene_frame()
 
-        if self.trace_recorder is not None:
-            self.trace_recorder.record_frame(dt=frame_dt, scene=self.active_scene)
         active_sources().end_frame(
             frame_number=self.frame_number,
             dt=frame_dt,

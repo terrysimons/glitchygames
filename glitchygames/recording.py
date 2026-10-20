@@ -3,12 +3,20 @@
 A recording is a trace in the format of ``glitchygames/tracing.py`` (gzip JSON Lines, a
 header line, then one keyframe or delta line per frame), so the tools that read golden
 traces read recordings too. On top of the sprite fields it records what a later exact replay
-(the planned ``--replay-trace``, see ``plans/future-work.md``) needs:
+(the planned ``--replay-trace``, see ``plans/future-work.md``) needs. ``GameEngine`` installs
+``RecordingSources`` around the run's doors (glitchygames/sources.py), so everything the run
+takes in is recorded where it passes through them.
 
 - Header: ``source: "recording"``, ``frame_seconds: null`` (frame times vary; each frame
   carries its own), plus what ``GameEngine`` adds: game and scene class names, engine,
   pygame and Python versions, every command-line option, the screen size, the start time
-  (ISO 8601, informational) and ``random_seed`` (see ``glitchygames/randomness.py``).
+  (``recorded_at``, ISO 8601; a replay's wall clock is this stamp plus its frame clock) and
+  ``random_seed`` (see ``glitchygames/randomness.py``). And what the run took in before
+  recording started (format version 3): ``saves``, a snapshot of every save store opened
+  so far (see Saves below); ``devices``, the descriptors of devices opened so far (``kind``,
+  ``device_index``, ``instance_id``, ``name``, ``guid`` and the axis, button, hat and ball
+  counts; glitchygames/input/devices.py); and ``device_enumeration``, the enumeration and
+  open answers given so far (``call``, ``device_index``, ``value``, ``error``), in order.
 - Exactly one frame line per main-loop frame, numbered 0, 1, 2, ... in order: transition
   frames, paused frames, frames where nothing changed, and a final frame whose active scene
   is None (``scene: null``, no sprites) included.
@@ -23,6 +31,16 @@ traces read recordings too. On top of the sprite fields it records what a later 
   discarded or unhandled is a deterministic function of the batch and the game state, which
   replay re-derives. Pumps after the final recorded frame (while the engine terminates and
   shuts down) belong to no frame and are not recorded.
+- Format version 3 adds five frame fields, each written only on frames where it is not
+  empty: ``input_changes``, the frame's polled input (see Polled input below) as the fields
+  that changed since the previous frame's snapshot (``glitchygames.input.state.
+  snapshot_changes``; the first frame's against ``IDLE_INPUT``); ``control_events``, the
+  supervisor actions recorded in the frame, in order (``ControlEvent.to_json``:
+  ``{"kind": ..., **data}``; glitchygames/supervision.py); ``devices_opened``, descriptors of
+  devices opened in the frame; ``saves_opened``, a snapshot of each save namespace first
+  opened in the frame, taken before the game could write to it; and
+  ``device_enumeration``, the enumeration and open answers given in the frame (failures
+  included, with their ``error``).
 - A frame whose active scene is a different scene object from the previous frame's is a
   keyframe, even when both scenes have the same class (two floors of one game).
 
@@ -56,20 +74,20 @@ Polled input
 ------------
 
 Input read by polling, outside the event queue (held keys, modifiers, the mouse, device axes,
-buttons and hats), is not in any batch. Code reads it from the frame's ``InputSnapshot``
-(``glitchygames.input.state.current_input()``), never from pygame; the snapshot is taken once
-per frame through the sources, so recording its per-frame changes (``RecordingSources``, Task 11
-of plans/2026-10-19-gameplay-replay-core.md) makes polled input replay exactly.
+buttons and hats on the joystick layer, and controller axes and buttons), is not in any batch.
+Code reads it from the frame's ``InputSnapshot`` (``glitchygames.input.state.current_input()``),
+never from pygame; the snapshot is taken once per frame through the doors, right after the
+frame's pump, and recorded as the frame's ``input_changes``, so polled input replays exactly.
 
 Saves
 -----
 
-The header's ``saves`` and a frame's ``saves_opened`` (written from Part 1 Task 11) map each
-save namespace (a game's app name) to ``glitchygames.state.sandbox.save_namespace_snapshot`` of
-its store: slot name -> the envelope ``load_raw`` returned, or ``{"__unreadable__": {"kind":
-"corrupt" | "os_error", "message": ...}}`` for a slot that could not be read, each with its
-``"__file_extension__"`` and an optional ``"__listing__"`` (what ``list_slots`` reported). The
-format is described in glitchygames/state/sandbox.py.
+The header's ``saves`` and a frame's ``saves_opened`` map each save namespace (a game's app
+name) to ``glitchygames.state.sandbox.save_namespace_snapshot`` of its store: slot name -> the
+envelope ``load_raw`` returned, or ``{"__unreadable__": {"kind": "corrupt" | "os_error",
+"message": ...}}`` for a slot that could not be read, each with its ``"__file_extension__"``
+and an optional ``"__listing__"`` (what ``list_slots`` reported). The format is described in
+glitchygames/state/sandbox.py.
 
 Attribute values
 ----------------
@@ -97,7 +115,8 @@ Stored JSON-safe by ``json_safe_value`` and read back by ``value_from_json``:
   ``UnrepresentableValue``. The event is never dropped and recording never fails on a value.
 
 The trace encoding reserves the frame fields ``kind``, ``changed``, ``added``, ``removed`` and
-``order``; the recorder's own fields (``dt``, ``event_batches``) avoid them.
+``order``; the recorder's own fields (``dt``, ``event_batches`` and the format-3 fields) avoid
+them.
 """
 
 from __future__ import annotations
@@ -106,19 +125,28 @@ import dataclasses
 import logging
 import math
 import numbers
-from typing import TYPE_CHECKING, Any, Self, cast
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Self, TypedDict, Unpack, cast
 
 import numpy as np
 import pygame
 
+from glitchygames.input.state import IDLE_INPUT, snapshot_changes
+from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Iterable, Mapping
+    from datetime import datetime
     from pathlib import Path
     from types import TracebackType
 
+    from glitchygames.input.devices import DeviceRegistry
+    from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
+    from glitchygames.sources import EngineSources
+    from glitchygames.state.manager import SaveManager
+    from glitchygames.supervision import ControlEvent
 
 LOG = logging.getLogger('game.recording')
 LOG.addHandler(logging.NullHandler())
@@ -204,16 +232,57 @@ class InternalEventPosts:
     """Events engine or game code posted (``post_event``) that no pump has returned yet.
 
     Attributes:
-        is_tracking: True while a ``GameplayRecorder`` is open.
+        owner_count: How many owners want posts tracked: each open ``GameplayRecorder``, and a
+            replay's sources while installed (``start_tracking_internal_posts``).
         pending: (type, attributes) of each tracked post, in posting order.
 
     """
 
-    is_tracking: bool = False
+    owner_count: int = 0
     pending: list[tuple[int, dict[str, Any]]] = dataclasses.field(default_factory=list)
+
+    @property
+    def is_tracking(self) -> bool:
+        """True while at least one owner holds the tracker."""
+        return self.owner_count > 0
 
 
 _INTERNAL_POSTS = InternalEventPosts()
+
+
+def start_tracking_internal_posts() -> None:
+    """Become one more owner of the internal-post tracker (tracking runs from the first owner).
+
+    A ``GameplayRecorder`` owns it while open, and a replay's sources while installed, so
+    closing a recorder never switches tracking off under a live replay.
+    """
+    _INTERNAL_POSTS.owner_count += 1
+
+
+def stop_tracking_internal_posts() -> None:
+    """Give up one ownership; at zero owners tracking stops and pending posts are forgotten."""
+    _INTERNAL_POSTS.owner_count = max(0, _INTERNAL_POSTS.owner_count - 1)
+    if _INTERNAL_POSTS.owner_count == 0:
+        _INTERNAL_POSTS.pending.clear()
+
+
+def reset_internal_post_tracking() -> None:
+    """Forget every owner and every pending post (a new run, or a test)."""
+    _INTERNAL_POSTS.owner_count = 0
+    _INTERNAL_POSTS.pending.clear()
+
+
+def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]:
+    """Return the tracker's posts no pump has returned yet: its own list, not a copy.
+
+    ``event_origin`` removes each match from it, so a pump classifying its batch with it
+    consumes the posts it matched.
+
+    Returns:
+        (type, attributes) of each pending post, in posting order.
+
+    """
+    return _INTERNAL_POSTS.pending
 
 
 def post_event(event: pygame.event.Event) -> bool:
@@ -498,15 +567,37 @@ def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str
     return EXTERNAL_ORIGIN
 
 
+class RecordedFrameFields(TypedDict, total=False):
+    """The format-3 frame fields ``GameplayRecorder.record_frame`` takes by keyword.
+
+    Each key is the frame field's name (the ``*_FIELD`` constants). Keyword arguments rather
+    than parameters, so ``record_frame`` keeps one parameter per concept (dt, scene, fields).
+
+    Attributes:
+        input_changes: The frame's polled-input changes (``snapshot_changes``).
+        control_events: The frame's control events (``ControlEvent.to_json``), in order.
+        devices_opened: Descriptors of devices opened in the frame (``to_json``).
+        saves_opened: Save namespaces first opened in the frame, each snapshotted.
+        device_enumeration: Enumeration answers given in the frame (``to_json``).
+
+    """
+
+    input_changes: dict[str, Any] | None
+    control_events: list[dict[str, Any]] | None
+    devices_opened: list[dict[str, Any]] | None
+    saves_opened: dict[str, Any] | None
+    device_enumeration: list[dict[str, Any]] | None
+
+
 class GameplayRecorder:
     """Write a live session to a trace file, one frame per ``record_frame()``.
 
-    ``GameEngine`` creates it for ``--record-trace``. ``GameEngine._pump_events`` hands it
-    every batch it reads from SDL's queue (``record_event_batch``), ``SceneManager`` calls
-    ``record_frame`` once per frame after rendering, and ``GameEngine._shutdown`` closes it.
-    Every frame is flushed to the file as it is written, so a killed process leaves every
-    finished frame readable. While open, it tracks ``post_event`` posts to tell internal
-    events from external ones.
+    ``GameEngine`` creates it for ``--record-trace`` and installs ``RecordingSources`` around
+    the run's doors: they hand it every batch the event pump returns (``record_event_batch``)
+    and, once per frame after rendering, the frame's fields (``record_frame``).
+    ``GameEngine._shutdown`` closes it. Every frame is flushed to the file as it is written, so
+    a killed process leaves every finished frame readable. While open, it owns the
+    internal-post tracker, to tell internal events from external ones.
     """
 
     def __init__(self, *, path: Path, header: dict[str, Any]) -> None:
@@ -517,16 +608,13 @@ class GameplayRecorder:
             header: Header fields to add to ``source`` and ``frame_seconds``.
 
         """
-        self._writer = TraceWriter(
-            path=path,
-            header={'source': RECORDING_SOURCE, 'frame_seconds': None, **header},
-        )
+        self._header = {'source': RECORDING_SOURCE, 'frame_seconds': None, **header}
+        self._writer = TraceWriter(path=path, header=self._header)
         self._sprite_ids = StableSpriteIds()
         self._event_batches: list[list[dict[str, Any]]] = []
         self._previous_scene: Scene | None = None
         self._is_closed = False
-        _INTERNAL_POSTS.is_tracking = True
-        _INTERNAL_POSTS.pending.clear()
+        start_tracking_internal_posts()
 
     @property
     def path(self) -> Path:
@@ -538,31 +626,58 @@ class GameplayRecorder:
         """How many frames have been written."""
         return self._writer.frame_count
 
-    def record_event_batch(self, *, raw_events: Iterable[pygame.event.Event]) -> None:
-        """Add one batch read from SDL's queue to the current frame, exactly as returned.
+    @property
+    def header(self) -> Mapping[str, Any]:
+        """The header written to the file (read-only)."""
+        return MappingProxyType(self._header)
+
+    @property
+    def is_closed(self) -> bool:
+        """True once ``close()`` has run."""
+        return self._is_closed
+
+    def record_event_batch(
+        self, *, raw_events: Iterable[pygame.event.Event], origins: list[str] | None = None
+    ) -> None:
+        """Add one batch the event pump returned to the current frame, exactly as returned.
 
         Args:
-            raw_events: The batch, in the order pygame returned it.
+            raw_events: The batch, in the order the pump returned it.
+            origins: Each event's origin, when the pump already knows it (a replay's merge:
+                served recorded events are external, passed-through live events internal);
+                None classifies the batch with the internal-post tracker.
 
         """
         pending = _INTERNAL_POSTS.pending
-        batch = [
-            event_to_record(event=event, origin=event_origin(event=event, pending=pending))
-            for event in raw_events
-        ]
-        if pending:
+        if origins is None:
+            batch = [
+                event_to_record(event=event, origin=event_origin(event=event, pending=pending))
+                for event in raw_events
+            ]
+        else:
+            batch = [
+                event_to_record(event=event, origin=origin)
+                for event, origin in zip(raw_events, origins, strict=True)
+            ]
+        if origins is None and pending:
             # Posted but not returned: the queue was cleared or the type is blocked
             LOG.debug('Forgetting %d posted events the pump did not return', len(pending))
             pending.clear()
         self._event_batches.append(batch)
 
-    def record_frame(self, *, dt: float, scene: Scene | None) -> None:
+    def record_frame(
+        self, *, dt: float, scene: Scene | None, **frame_fields: Unpack[RecordedFrameFields]
+    ) -> None:
         """Write the frame just finished: its dt, its event batches and the scene's sprites.
+
+        The format-3 fields (``RecordedFrameFields``, see the module docstring) are written
+        only when given and not empty, so idle frames stay small.
 
         Args:
             dt: The frame's raw delta time (scene logic received it capped at the scene's
                 MAX_FRAME_SECONDS, when the scene sets one).
             scene: The active scene at the end of the frame (None once the game has ended).
+            **frame_fields: The frame's format-3 fields, by keyword.
 
         """
         frame_record = sample_scene_frame(
@@ -570,18 +685,20 @@ class GameplayRecorder:
         )
         frame_record[DT_FIELD] = dt
         frame_record[EVENT_BATCHES_FIELD] = self._event_batches
+        for field_name, value in frame_fields.items():
+            if value:
+                frame_record[field_name] = value
         is_new_scene_object = self._writer.frame_count > 0 and scene is not self._previous_scene
         self._writer.write_frame(frame_record=frame_record, force_keyframe=is_new_scene_object)
         self._previous_scene = scene
         self._event_batches = []
 
     def close(self) -> None:
-        """Finish the file, stop tracking posts, and log the path and frame count (once)."""
+        """Finish the file, give up tracking posts, and log the path and frame count (once)."""
         if self._is_closed:
             return
         self._is_closed = True
-        _INTERNAL_POSTS.is_tracking = False
-        _INTERNAL_POSTS.pending.clear()
+        stop_tracking_internal_posts()
         self._writer.close()
         self._previous_scene = None
         LOG.info('Recorded %d frames to %s', self.frame_count, self.path)
@@ -603,3 +720,186 @@ class GameplayRecorder:
     ) -> None:
         """Close the recorder when the ``with`` block ends."""
         self.close()
+
+
+class RecordingSources:
+    """Doors that record everything passing through them (implements EngineSources).
+
+    ``GameEngine.start_trace_recording`` installs them around the run's doors (``inner``)
+    before the first frame. Every read is served by ``inner``; what the run takes in is written
+    to the recorder:
+
+    - ``pump_events``: each batch, raw, with its events' origins (``record_event_batch``).
+    - ``input_snapshot``: the frame's polled input, recorded at ``end_frame`` as its changes
+      from the snapshot recorded the frame before (``IDLE_INPUT`` before the first).
+    - ``saves``: a namespace first opened while recording is snapshotted into the frame's
+      ``saves_opened`` before the game can write to it (namespaces already in the header's
+      ``saves`` are not).
+    - ``devices``: the registry's opened-device descriptors and enumeration answers, taken at
+      ``end_frame`` into ``devices_opened`` and ``device_enumeration``.
+    - ``end_frame``: writes the frame (with its control events), then lets ``inner`` end it.
+
+    Once the recorder is closed (``GameEngine.stop_trace_recording``, as the run ends) they only
+    delegate.
+
+    Attributes:
+        inner: The doors read through.
+        random_seed: The run's master seed (``inner``'s).
+
+    """
+
+    def __init__(self, *, inner: EngineSources, recorder: GameplayRecorder) -> None:
+        """Wrap ``inner`` and record to ``recorder``.
+
+        Args:
+            inner: The doors to read through (the run's live doors).
+            recorder: The open recorder; its header's ``saves`` lists the namespaces already
+                recorded.
+
+        """
+        self.inner = inner
+        self.random_seed = inner.random_seed
+        self._recorder = recorder
+        self._recorded_save_namespaces: set[str] = set(recorder.header.get(SAVES_HEADER_FIELD, {}))
+        self._recorded_snapshot: InputSnapshot = IDLE_INPUT
+        self._frame_snapshot: InputSnapshot | None = None
+        self._frame_saves_opened: dict[str, Any] = {}
+
+    @property
+    def stop_requested(self) -> bool:
+        """Whether ``inner`` wants the run to end."""
+        return self.inner.stop_requested
+
+    def on_installed(self) -> None:
+        """Tell ``inner`` it is (again) the run's doors, behind these."""
+        self.inner.on_installed()
+
+    def on_uninstalled(self) -> None:
+        """Tell ``inner`` it stopped being the run's doors."""
+        self.inner.on_uninstalled()
+
+    def pump_events(self) -> list[pygame.event.Event]:
+        """Return ``inner``'s next batch, recorded exactly as returned.
+
+        Returns:
+            The batch, in queue order.
+
+        """
+        raw_events = self.inner.pump_events()
+        if not self._recorder.is_closed:
+            # Live inner doors: origins come from the internal-post tracker
+            self._recorder.record_event_batch(raw_events=raw_events)
+        return raw_events
+
+    def frame_seconds(self, *, measured: float) -> float:
+        """Return ``inner``'s frame time for logic.
+
+        Returns:
+            Seconds.
+
+        """
+        return self.inner.frame_seconds(measured=measured)
+
+    def input_snapshot(self) -> InputSnapshot:
+        """Return ``inner``'s polled input, remembered for this frame's ``input_changes``.
+
+        Returns:
+            The snapshot.
+
+        """
+        snapshot = self.inner.input_snapshot()
+        self._frame_snapshot = snapshot
+        return snapshot
+
+    def devices(self) -> DeviceRegistry:
+        """Return ``inner``'s device registry (its answers are taken at ``end_frame``).
+
+        Returns:
+            The registry.
+
+        """
+        return self.inner.devices()
+
+    def saves(self, *, namespace: str) -> SaveManager:
+        """Return ``inner``'s store, snapshotted first if recording has not seen it yet.
+
+        Args:
+            namespace: The game's app name.
+
+        Returns:
+            The store.
+
+        """
+        store = self.inner.saves(namespace=namespace)
+        if not self._recorder.is_closed and namespace not in self._recorded_save_namespaces:
+            self._recorded_save_namespaces.add(namespace)
+            self._frame_saves_opened[namespace] = save_namespace_snapshot(saves=store)
+        return store
+
+    def wall_clock_time(self) -> datetime:
+        """Return ``inner``'s wall-clock time.
+
+        Returns:
+            Timezone-aware UTC time.
+
+        """
+        return self.inner.wall_clock_time()
+
+    def elapsed_seconds(self) -> float:
+        """Return ``inner``'s monotonic reading.
+
+        Returns:
+            Seconds.
+
+        """
+        return self.inner.elapsed_seconds()
+
+    def control_events_for_frame(self, *, frame_number: int) -> list[ControlEvent]:
+        """Return the control events ``inner`` schedules for ``frame_number``.
+
+        Returns:
+            The control events.
+
+        """
+        return self.inner.control_events_for_frame(frame_number=frame_number)
+
+    def end_frame(
+        self,
+        *,
+        frame_number: int,
+        dt: float,
+        scene: Scene | None,
+        control_events: list[ControlEvent],
+    ) -> None:
+        """Write the frame with everything that passed through the doors, then end it inside.
+
+        The device answers are taken before ``inner.end_frame``, which discards untaken ones.
+        """
+        if not self._recorder.is_closed:
+            registry = self.inner.devices()
+            devices_opened = [
+                descriptor.to_json() for descriptor in registry.take_opened_descriptors()
+            ]
+            device_enumeration = [
+                answer.to_json() for answer in registry.take_enumeration_answers()
+            ]
+            input_changes: dict[str, Any] = {}
+            if self._frame_snapshot is not None:
+                input_changes = snapshot_changes(
+                    previous=self._recorded_snapshot, current=self._frame_snapshot
+                )
+                self._recorded_snapshot = self._frame_snapshot
+            self._recorder.record_frame(
+                dt=dt,
+                scene=scene,
+                input_changes=input_changes,
+                control_events=[control_event.to_json() for control_event in control_events],
+                devices_opened=devices_opened,
+                saves_opened=self._frame_saves_opened,
+                device_enumeration=device_enumeration,
+            )
+        self._frame_snapshot = None
+        self._frame_saves_opened = {}
+        self.inner.end_frame(
+            frame_number=frame_number, dt=dt, scene=scene, control_events=control_events
+        )
