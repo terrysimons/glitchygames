@@ -263,6 +263,23 @@ class TestListSlots:
         )
         assert [slot.name for slot in saves.list_slots()] == ['slot_1']
 
+    @pytest.mark.parametrize(
+        ('file_name', 'content'),
+        [
+            ('stray.json', '{"_meta": {"version": Infinity}, "data": {}}'),
+            ('stray.json', '{"_meta": {"version": 1e999}, "data": {}}'),
+            ('stray.toml', '[_meta]\nversion = inf\n[data]\n'),
+        ],
+    )
+    def test_skips_files_with_an_infinite_version(
+        self, tmp_path: Path, file_name: str, content: str
+    ) -> None:
+        """list_slots() skips a file whose metadata version is infinite."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / file_name).write_text(content, encoding='utf-8')
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+
     def test_sorts_timestamps_with_and_without_a_time_zone(self, tmp_path: Path) -> None:
         """A timestamp without a time zone is sorted as UTC instead of raising TypeError."""
         saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)

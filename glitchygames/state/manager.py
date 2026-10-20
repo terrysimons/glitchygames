@@ -361,7 +361,7 @@ class SaveManager(abc.ABC):
 
     @staticmethod
     def _metadata_version(*, meta: dict[str, Any]) -> int | None:
-        """Return the metadata's save format version, or None if it is not a number.
+        """Return the metadata's save format version, or None if it is not a finite number.
 
         Returns:
             The version (0 when missing), or None.
@@ -369,7 +369,8 @@ class SaveManager(abc.ABC):
         """
         try:
             return int(meta.get('version', 0))
-        except ValueError, TypeError:
+        except ValueError, TypeError, OverflowError:
+            # Not a number, or an infinite float (JSON Infinity/1e999, TOML inf)
             return None
 
     def _slot_info_from_content(

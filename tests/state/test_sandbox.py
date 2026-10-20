@@ -99,6 +99,14 @@ def write_naive_timestamp_beside_valid_slot(*, save_directory: Path) -> None:
     (save_directory / 'naive.json').write_text(json.dumps(envelope), encoding='utf-8')
 
 
+def write_infinite_version_slot(*, save_directory: Path) -> None:
+    """Write a slot whose metadata version is infinite (JSON's non-standard Infinity)."""
+    content = (
+        '{"_meta": {"version": Infinity, "timestamp": "2026-01-02T03:04:05+00:00"}, "data": {}}'
+    )
+    (save_directory / f'{SLOT_NAME}.json').write_text(content, encoding='utf-8')
+
+
 SLOT_WRITERS: dict[str, Callable[..., None]] = {
     'valid': write_valid_slot,
     'old_version': write_old_version_slot,
@@ -110,6 +118,7 @@ SLOT_WRITERS: dict[str, Callable[..., None]] = {
     'non_object': write_non_object_slot,
     'bad_utf8': write_bad_utf8_slot,
     'non_numeric_version': write_non_numeric_version_slot,
+    'inf_version': write_infinite_version_slot,
     'naive_timestamp_beside_valid': write_naive_timestamp_beside_valid_slot,
 }
 
