@@ -968,6 +968,43 @@ class TestRealInputBlocking:
         assert engine.replay_sources.result.divergence is not None
         assert blocked_states() == states_before
 
+    def test_an_event_manager_made_mid_replay_does_not_unblock_input(self, mocker, tmp_path):
+        """Event managers call set_allowed when made (a scene's widgets make them mid-run)."""
+        from glitchygames.events.joystick import JoystickEventManager
+
+        observed: dict[str, Any] = {'after_pumps': []}
+        original_pump_events = ReplaySources.pump_events
+
+        def observing_pump_events(
+            sources: ReplaySources, *, real_events: list[pygame.event.Event] | None = None
+        ) -> list[pygame.event.Event]:
+            batch = original_pump_events(sources, real_events=real_events)
+            observed['after_pumps'].append(pygame.event.get_blocked(pygame.JOYAXISMOTION))
+            return batch
+
+        def make_event_manager() -> None:
+            JoystickEventManager(game=SceneManager().active_scene)
+            observed['right_after_manager'] = pygame.event.get_blocked(pygame.JOYAXISMOTION)
+            observed['pumps_before_manager'] = len(observed['after_pumps'])
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        states_before = blocked_states()
+        mocker.patch.object(ReplaySources, 'pump_events', new=observing_pump_events)
+        engine = replay_session(
+            recording_path=recording_path,
+            mocker=mocker,
+            action=make_event_manager,
+            action_frame=ACTION_FRAME,
+        )
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        # The manager allowed joystick events again; the next pump blocked them again
+        assert observed['right_after_manager'] is False
+        pumps_after_manager = observed['after_pumps'][observed['pumps_before_manager'] :]
+        assert pumps_after_manager
+        assert all(pumps_after_manager)
+        assert blocked_states() == states_before
+
     def test_a_type_blocked_before_the_replay_stays_blocked(self):
         pygame.event.set_blocked(pygame.MOUSEWHEEL)
         try:
@@ -1015,6 +1052,26 @@ class TestRealInputBlocking:
             pygame.event.set_blocked(pygame.KEYDOWN)
             block.restore()
             assert pygame.event.get_blocked(pygame.KEYDOWN)
+        finally:
+            pygame.event.set_allowed([pygame.KEYDOWN, pygame.KEYUP])
+
+    def test_reasserting_blocks_again_and_keeps_the_first_snapshot(self):
+        block = EventTypeBlock(event_types=(pygame.KEYDOWN, pygame.KEYUP))
+        pygame.event.set_blocked(pygame.KEYUP)
+        try:
+            block.block()
+            # Something allows both in between (an event manager made mid-replay)
+            pygame.event.set_allowed([pygame.KEYDOWN, pygame.KEYUP])
+            block.reassert()
+            assert pygame.event.get_blocked(pygame.KEYDOWN)
+            assert pygame.event.get_blocked(pygame.KEYUP)
+            block.restore()
+            # The state at block() time: KEYUP was blocked then, KEYDOWN was not
+            assert not pygame.event.get_blocked(pygame.KEYDOWN)
+            assert pygame.event.get_blocked(pygame.KEYUP)
+            # Not active: reassert changes nothing
+            block.reassert()
+            assert not pygame.event.get_blocked(pygame.KEYDOWN)
         finally:
             pygame.event.set_allowed([pygame.KEYDOWN, pygame.KEYUP])
 

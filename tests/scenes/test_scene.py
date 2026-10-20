@@ -7,6 +7,7 @@ import pygame
 import pytest
 
 from glitchygames.color import BLUE, RED
+from glitchygames.events import ALL_EVENTS
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 from glitchygames.sources import advance_frame_clock
@@ -2577,6 +2578,35 @@ class TestSceneManagerLogBlockedEvents:
         scene = mocker.Mock()
         scene.name = 'TestScene'
         manager._log_blocked_events(scene)  # Should not raise
+
+    def test_blocked_events_are_logged_on_one_line(self, mocker):
+        """A replay blocks dozens of types: one INFO line names them all, not one line each."""
+        manager = SceneManager()
+        scene = mocker.Mock()
+        scene.name = 'TestScene'
+        blocked_types = {pygame.KEYDOWN, pygame.MOUSEMOTION}
+        mocker.patch.object(
+            pygame.event, 'get_blocked', side_effect=lambda event_type: event_type in blocked_types
+        )
+        info = mocker.patch.object(manager.log, 'info')
+        manager._log_blocked_events(scene)
+        # In ALL_EVENTS order
+        expected_names = [
+            pygame.event.event_name(event_type)
+            for event_type in ALL_EVENTS
+            if event_type in blocked_types
+        ]
+        assert len(expected_names) == len(blocked_types)
+        info.assert_called_once_with(f'Scene TestScene blocked events: {", ".join(expected_names)}')
+
+    def test_no_blocked_events_are_logged_as_none(self, mocker):
+        manager = SceneManager()
+        scene = mocker.Mock()
+        scene.name = 'TestScene'
+        mocker.patch.object(pygame.event, 'get_blocked', return_value=False)
+        info = mocker.patch.object(manager.log, 'info')
+        manager._log_blocked_events(scene)
+        info.assert_called_once_with('Scene TestScene blocked events: None')
 
     def test_log_blocked_events_none(self, mock_pygame_patches):
         """Test _log_blocked_events with None scene does nothing."""

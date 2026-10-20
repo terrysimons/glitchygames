@@ -15,7 +15,8 @@ session again, and every frame's sprites are compared with the recorded frame. T
 2. Pump: the real queue is drained (through the live doors' pump) and each event classified
    with the internal-post tracker. From the first pump on, real input, device and window events
    are blocked at SDL (``REAL_INPUT_EVENT_TYPES``, glitchygames/replay/input_blocking.py), so
-   they never enter the queue; the blocked state each type had before comes back when the
+   they never enter the queue (each pump blocks them again, as an event manager made mid-run
+   allows its types); the blocked state each type had before comes back when the
    replay ends (``finish_run``, normally or after an error) or is uninstalled. QUIT, the
    window's close event and the custom range are never blocked. Blocking also refuses posts of
    those types: game code that fakes input by posting, say, KEYDOWN loses the post, which
@@ -385,7 +386,8 @@ def _take_live_match(
     """
     recorded_type = record.get(EVENT_TYPE_FIELD)
     for index, (live_event, live_record) in enumerate(unmatched):
-        if live_record == record if is_compared else live_event.type == recorded_type:
+        matches = (live_record == record) if is_compared else (live_event.type == recorded_type)
+        if matches:
             del unmatched[index]
             return live_event
     return None
@@ -474,7 +476,8 @@ class ReplaySources:
         # Only its event pump is used: the one place the real queue is read (rule 2)
         self._live_queue = LiveSources(random_seed=self.random_seed, use_fastevents=use_fastevents)
         # Real input blocked at SDL from the first pump that drains the queue until the replay
-        # ends or is uninstalled (rule 2); blocked once, so a pump after the end does not again
+        # ends or is uninstalled (rule 2); the snapshot is taken once, so a pump after the end
+        # does not block again
         self._real_input_block = EventTypeBlock(event_types=REAL_INPUT_EVENT_TYPES)
         self._has_blocked_real_input = False
         self._sprite_ids = StableSpriteIds()
@@ -577,8 +580,9 @@ class ReplaySources:
     ) -> list[pygame.event.Event]:
         """Serve the recording's batch for this pump, merged with live internal events (rule 2).
 
-        The first pump that drains the real queue blocks real input at SDL (rule 2); a pump
-        given ``real_events`` does not own the queue, so it blocks nothing.
+        The first pump that drains the real queue blocks real input at SDL (rule 2), and every
+        later one blocks it again (event managers made mid-run allow their types); a pump given
+        ``real_events`` does not own the queue, so it blocks nothing.
 
         Args:
             real_events: The real batch to filter instead of draining the real queue (a Part 3
@@ -596,6 +600,10 @@ class ReplaySources:
             if not self._has_blocked_real_input:
                 self._has_blocked_real_input = True
                 self._real_input_block.block()
+            else:
+                # An event manager made since the last pump (a scene's widgets) called
+                # set_allowed; block again without a new snapshot
+                self._real_input_block.reassert()
         else:
             live_events = real_events
         pending = pending_internal_posts()

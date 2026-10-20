@@ -3,8 +3,9 @@
 A replay (glitchygames/replay/driver.py) serves every external event from its recording, so
 real input, device and window events are blocked at SDL (``pygame.event.set_blocked``): they
 never enter the queue. ``EventTypeBlock`` records each type's blocked state before blocking it
-and restores exactly that state, so a type a game had already blocked stays blocked. Part 3's
-playback scope can reuse it.
+and restores exactly that state, so a type a game had already blocked stays blocked. Event
+managers made mid-run (a scene's widgets) call ``pygame.event.set_allowed``, so the replay
+blocks the types again on every pump (``reassert``). Part 3's playback scope can reuse it.
 
 Blocking a type also refuses posts of it (``pygame.event.post`` returns False), including the
 game's own: game code that fakes input by posting, say, KEYDOWN loses those posts during a
@@ -26,6 +27,15 @@ if TYPE_CHECKING:
 # MENUEVENT, pygame.event.custom_type() types), so the game's own posts keep arriving. Left
 # unblocked as well, being neither input nor the window's: app lifecycle (APP_*), locale,
 # clipboard and renderer resets; the replay's pump drops them as real external events.
+#
+# Blocking the window types does not starve SDL or pygame of size changes. Source: pygame-ce
+# 2.5.8 src_c/event.c (https://github.com/pygame-community/pygame-ce/blob/2.5.8/src_c/event.c):
+# on SDL2, pg_event_set_blocked re-enables the raw SDL_WINDOWEVENT after every call ("Never
+# block SDL_WINDOWEVENT on SDL2, we need them for translation"), pg_event_filter does not filter
+# window events (it still turns SDL_WINDOWEVENT_RESIZED into VIDEORESIZE), and blocked PGE_WINDOW*
+# types are "pseudo-blocked": _pg_event_pump removes them from the queue with
+# _pg_filter_blocked_events. SDL3 builds of pygame-ce have their own window event types without
+# that SDL2 special case: check this again when moving to SDL3.
 REAL_INPUT_EVENT_TYPES: tuple[int, ...] = (
     # Keyboard and text input (IME)
     pygame.KEYDOWN,
@@ -96,7 +106,10 @@ REAL_INPUT_EVENT_TYPES: tuple[int, ...] = (
 
 
 class EventTypeBlock:
-    """Blocks event types at SDL and restores each one's earlier blocked state.
+    """Blocks event types at SDL and restores each one's blocked state at ``block()`` time.
+
+    ``restore()`` returns every type to the state it had when ``block()`` ran, overriding any
+    ``pygame.event.set_allowed`` or ``set_blocked`` calls made for those types in between.
 
     Attributes:
         event_types: The types ``block()`` blocks.
@@ -128,10 +141,19 @@ class EventTypeBlock:
         }
         pygame.event.set_blocked(list(self.event_types))
 
-    def restore(self: Self) -> None:
-        """Unblock the types that were not blocked before ``block()`` (a no-op unless active).
+    def reassert(self: Self) -> None:
+        """Block every type again, keeping the snapshot ``block()`` took (a no-op unless active).
 
-        Types already blocked before stay blocked.
+        Undoes ``pygame.event.set_allowed`` calls made since (an event manager made mid-run).
+        """
+        if self._blocked_before is None:
+            return
+        pygame.event.set_blocked(list(self.event_types))
+
+    def restore(self: Self) -> None:
+        """Return each type to its state at ``block()`` time (a no-op unless active).
+
+        Types blocked then stay blocked; the others are unblocked, whatever was set in between.
         """
         if self._blocked_before is None:
             return

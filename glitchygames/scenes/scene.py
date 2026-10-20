@@ -995,8 +995,9 @@ class SceneManager(SceneInterface, events.EventManager):
         """Run one frame (a transition frame or a scene frame), then end it at the doors.
 
         ``self.dt`` must already hold this frame's delta time. It is read before the frame
-        runs, because a scene switch at the end of the frame resets ``self.dt``: the
-        recording gets the frame's raw dt. A transition's update receives it as is; scene
+        runs and handed to the doors' ``end_frame`` as the frame's raw dt (a scene switch
+        leaves the manager's ``self.dt`` alone: _reset_scene_timers resets only the scene
+        timer). A transition's update receives it as is; scene
         logic and the camera aim receive it capped at the scene's MAX_FRAME_SECONDS
         (_scene_frame_seconds), which a replay re-derives from the scene class's attribute.
         The doors' ``end_frame`` (a recording samples the sprites there) runs after rendering,
@@ -1378,7 +1379,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def _reset_scene_timers(self) -> None:
         """Reset the scene timer.
 
-        The manager's ``dt`` is left alone: _finish_frame is its only per-frame writer, and
+        The manager's ``dt`` is left alone: _set_frame_time is its only per-frame writer, and
         _configure_active_scene seeds the new scene's own ``dt``.
         """
         self.timer = 0
@@ -1432,22 +1433,20 @@ class SceneManager(SceneInterface, events.EventManager):
         set_active_default_snap_mode(scene_mode)
 
     def _log_blocked_events(self, next_scene: Scene | None) -> None:
-        """Log blocked events for the scene."""
+        """Log the event types blocked when switching to the scene, on one line.
+
+        One line, not one per type: a replay blocks dozens (glitchygames/replay/input_blocking.py).
+        """
         if next_scene:
-            self.log.info(f'Scene {next_scene.name} event block list: ')
-
-            blocked_events: list[int] = []
-
-            [
-                blocked_events.append(event) if pygame.event.get_blocked(event) else None
-                for event in events.ALL_EVENTS
+            blocked_event_names = [
+                pygame.event.event_name(event_type)
+                for event_type in events.ALL_EVENTS
+                if pygame.event.get_blocked(event_type)
             ]
-
-            if not blocked_events:
-                self.log.info('None')
-
-            for event in blocked_events:
-                self.log.info(f'{pygame.event.event_name(event)}: Blocked')
+            self.log.info(
+                f'Scene {next_scene.name} blocked events: '
+                f'{", ".join(blocked_event_names) if blocked_event_names else "None"}'
+            )
 
     def _configure_active_scene(self) -> None:
         """Configure the active scene after switching."""

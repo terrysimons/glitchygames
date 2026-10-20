@@ -224,7 +224,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   this machine's measured ones (FPS events then not compared); logic always gets the recorded
   `dt`. Real input, device and window events are blocked at SDL during a replay
   (`glitchygames/replay/input_blocking.py`; never QUIT, the window close event or custom types;
-  each type's prior blocked state is restored when the replay ends). Caveat: posts of a blocked
+  re-blocked every pump, as event managers made mid-run allow their types; each type's prior
+  blocked state is restored when the replay ends). Caveat: posts of a blocked
   type are refused too, so game code that fakes input by posting e.g. KEYDOWN shows a "missing
   internal event" divergence in a replay
 
