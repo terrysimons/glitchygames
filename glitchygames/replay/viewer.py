@@ -16,12 +16,12 @@ Two loops share the frame loop of ``SceneManager.start`` while a replay is watch
 The contract between them, asked through ``EngineSources.hold_frame`` before each inner frame:
 
 1. No tick open: sleep until the next tick is due (while inner frames run, ``sleep_for``: the
-   engine's high-resolution sleep-then-spin timer, glitchygames/timing.py ``FastTimer``;
-   paused, at the start screen or over, ``sleep_coarsely``, which never spins), open it, let
-   the doors run the tick's work (keys), then add the real time since the last tick, times the
-   speed, to the accumulator. A tick within ``TICK_SNAP_WINDOW_SECONDS`` of one period counts as exactly one
-   period, the error carried to the next tick, so wake-up jitter does not turn 1x into ticks of
-   0 and 2 frames. Only while the inner game is running: paused, at the start screen or over,
+   engine's high-resolution sleep-then-spin timer, glitchygames/timing.py ``FastTimer``; paused,
+   at the start screen or over, ``sleep_coarsely``, which never spins), open it, let the doors
+   run the tick's work (keys), then add the real time since the last tick, times the speed, to
+   the accumulator. A tick within ``TICK_SNAP_WINDOW_SECONDS`` of one period counts as exactly
+   one period, the error carried to the next tick, so wake-up jitter does not turn 1x into ticks
+   of 0 and 2 frames. Only while the inner game is running: paused, at the start screen or over,
    the accumulator empties, and a restart seeds it with half a frame (so frame boundaries never
    sit on a tick boundary).
 2. Tick open: run one more inner frame (``should_run_inner_frame`` True) while the accumulator
