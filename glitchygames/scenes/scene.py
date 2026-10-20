@@ -33,7 +33,7 @@ from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
@@ -455,12 +455,37 @@ class SceneManager(SceneInterface, events.EventManager):
         """Call ``handler`` for every control event of ``kind`` (live or replayed)."""
         self._control_event_handlers.setdefault(kind, []).append(handler)
 
-    def record_control_event(self: Self, *, kind: str, data: dict[str, Any]) -> None:
-        """Record a supervisor action in this frame and hand it to its handlers."""
+    def reset_supervision(self: Self) -> None:
+        """Forget every supervisor, control event handler and pending control event.
+
+        GameEngine.__init__ calls it, so a run never inherits an earlier run's supervision
+        from this singleton.
+        """
+        self._supervisors.clear()
+        self._control_event_handlers.clear()
+        self._frame_control_events = []
+
+    def record_control_event(self: Self, *, kind: str, data: Mapping[str, Any]) -> None:
+        """Record a supervisor action in this frame and hand it to its handlers.
+
+        The event is recorded (with a read-only copy of ``data``) before any handler runs.
+        Every handler for ``kind`` runs, in registration order, even when an earlier one
+        raises; then the first handler exception is re-raised, and any later ones are logged,
+        so a broken handler fails loudly without silently skipping the others.
+        """
         control_event = ControlEvent(kind=kind, data=data)
         self._frame_control_events.append(control_event)
-        for handler in self._control_event_handlers.get(kind, []):
-            handler(control_event)
+        first_error: Exception | None = None
+        for handler in list(self._control_event_handlers.get(kind, [])):
+            try:
+                handler(control_event)
+            except Exception as error:
+                if first_error is None:
+                    first_error = error
+                else:
+                    LOG.exception('Another %r control event handler failed', kind)
+        if first_error is not None:
+            raise first_error
 
     def _run_supervisor_slot(self: Self) -> None:
         """Apply this frame's scheduled control events, then call every supervisor.

@@ -30,8 +30,11 @@ from glitchygames.sources import (
     mark_frames_started,
     reset_sources,
 )
+from glitchygames.supervision import BREAKPOINT_KIND
 
 if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
+
     from glitchygames.supervision import ControlEvent
 
 SCRIPTED_KEY = pygame.K_x
@@ -86,6 +89,19 @@ class ScriptedSources(LiveSources):
         control_events: list[ControlEvent],
     ) -> None:
         self.ended_frames.append(frame_number)
+
+
+class FrameCountingSupervisor:
+    """A supervisor that records the frame number of each call."""
+
+    def __init__(self: Self) -> None:
+        """Create the supervisor with no calls recorded yet."""
+        self.frame_numbers: list[int] = []
+
+    def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
+        """Record the frame number."""
+        del scene  # Supervisor signature; only the frame number is recorded
+        self.frame_numbers.append(frame_number)
 
 
 def start_engine(*, scene_class: type[Scene]) -> GoldenTraceSceneManager:
@@ -228,5 +244,35 @@ class TestFrameLoopUsesTheDoors:
 
             assert manager.frame_number == 0
             assert frame_clock_seconds() == 0.0
+        finally:
+            GoldenTraceSceneManager.uninstall()
+
+    def test_a_second_engine_starts_with_no_supervision(self, mocker: MockerFixture):
+        manager = start_engine(scene_class=KeyCountingScene)
+        try:
+            supervisor = FrameCountingSupervisor()
+            handled: list[ControlEvent] = []
+            manager.add_supervisor(supervisor=supervisor)
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=handled.append)
+            manager.dt = FRAME_SECONDS
+            manager.run_frame()
+            # Recorded after run 1's last frame ended: pending, never handed to an end_frame
+            manager.record_control_event(kind=BREAKPOINT_KIND, data={'label': 'run 1'})
+            assert supervisor.frame_numbers == [0]
+            assert len(handled) == 1
+
+            # The same SceneManager singleton serves the next engine in this process
+            with command_line(['--windowed', '--resolution', '320x240', '--log-level', 'warning']):
+                engine = GoldenTraceEngine(game=KeyCountingScene)
+            engine.install_game(scene_class=KeyCountingScene)
+            end_frame = mocker.spy(active_sources(), 'end_frame')
+            manager.dt = FRAME_SECONDS
+            manager.run_frame()
+            manager.record_control_event(kind=BREAKPOINT_KIND, data={'label': 'run 2'})
+
+            assert end_frame.call_args.kwargs['frame_number'] == 0
+            assert end_frame.call_args.kwargs['control_events'] == []
+            assert supervisor.frame_numbers == [0]
+            assert len(handled) == 1
         finally:
             GoldenTraceSceneManager.uninstall()

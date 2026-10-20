@@ -658,6 +658,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # The singleton outlives an earlier engine in this process: number this run's frames
         # from 0, as reset_sources() above restarted the frame clock (glitchygames/sources.py)
         self.scene_manager.frame_number = 0
+        # ...and with no supervisors, handlers or control events left from an earlier run
+        self.scene_manager.reset_supervision()
 
         # Update the scene manager's update_type from the engine's options
         self.scene_manager.update_type = self.update_type

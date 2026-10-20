@@ -14,7 +14,9 @@ exactly.
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING, Any, Protocol, Self
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Protocol, Self, cast
 
 if TYPE_CHECKING:
     from glitchygames.scenes import Scene
@@ -32,28 +34,80 @@ class Supervisor(Protocol):
     """Called once per frame at the supervisor slot."""
 
     def on_frame(self, *, frame_number: int, scene: Scene | None) -> None:
-        """Inspect or act on the frame ``frame_number`` of ``scene`` (None between scenes)."""
+        """Inspect or act on frame ``frame_number``.
+
+        Args:
+            frame_number: The frame being run (SceneManager.frame_number).
+            scene: SceneManager.active_scene at the slot. In a scene frame it is the scene
+                whose logic and events just ran, or the scene they switched to (a switch
+                during events, as resuming from the pause screen does, takes effect at once).
+                In a transition frame it is the arriving scene: SceneManager._start_transition
+                sets it up and makes it active before the effect plays, while the outgoing
+                scene is already cleaned up. It is None only when no scene is active (before
+                the first scene is installed, or after the last one ended).
+
+        """
         ...
+
+
+def _frozen(value: Any) -> Any:
+    """Return a read-only copy of JSON-shaped ``value``: mappings and lists, recursively.
+
+    Returns:
+        A MappingProxyType over a copy for a mapping, a tuple for a list or tuple, else value.
+
+    """
+    if isinstance(value, Mapping):
+        mapping = cast('Mapping[Any, Any]', value)
+        return MappingProxyType({key: _frozen(item) for key, item in mapping.items()})
+    if isinstance(value, list | tuple):
+        return tuple(_frozen(item) for item in cast('list[Any] | tuple[Any, ...]', value))
+    return value
+
+
+def _thawed(value: Any) -> Any:
+    """Return plain JSON types for a value made by ``_frozen`` (dicts and lists).
+
+    Returns:
+        A dict for a mapping, a list for a tuple or list, else value.
+
+    """
+    if isinstance(value, Mapping):
+        mapping = cast('Mapping[Any, Any]', value)
+        return {key: _thawed(item) for key, item in mapping.items()}
+    if isinstance(value, list | tuple):
+        return [_thawed(item) for item in cast('list[Any] | tuple[Any, ...]', value)]
+    return value
 
 
 @dataclasses.dataclass(frozen=True)
 class ControlEvent:
-    """A recorded supervisor action: its kind and JSON-safe data."""
+    """A recorded supervisor action: its kind and JSON-safe data.
+
+    ``data`` is a read-only copy of the mapping given (nested mappings become read-only
+    mappings and lists become tuples), so nobody can change, after the fact, what the frame's
+    handlers, ``end_frame`` and the recording see. ``to_json`` gives plain dicts and lists.
+    """
 
     kind: str
-    data: dict[str, Any]
+    data: Mapping[str, Any]
+
+    def __post_init__(self: Self) -> None:
+        """Replace ``data`` with its read-only copy."""
+        # The dataclass is frozen, so the field is set the way dataclasses set it
+        object.__setattr__(self, 'data', _frozen(self.data))
 
     def to_json(self: Self) -> dict[str, Any]:
-        """Return ``{'kind': kind, **data}``.
+        """Return ``{'kind': kind, **data}`` as plain JSON types.
 
         Returns:
             The JSON-safe record.
 
         """
-        return {KIND_FIELD: self.kind, **self.data}
+        return {KIND_FIELD: self.kind, **_thawed(self.data)}
 
     @classmethod
-    def from_json(cls, record: dict[str, Any]) -> ControlEvent:
+    def from_json(cls, record: Mapping[str, Any]) -> ControlEvent:
         """Read a record written by ``to_json``.
 
         Args:

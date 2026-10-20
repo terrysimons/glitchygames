@@ -8,6 +8,7 @@ does, without pacing. Nothing in pygame is mocked: the rects asserted are the on
 from __future__ import annotations
 
 import contextlib
+import json
 import math
 import tempfile
 from pathlib import Path
@@ -1046,6 +1047,61 @@ class TestControlEvents:
             )
             step(manager, frames=3)
         assert handled == [scheduled]
+
+    def test_a_failing_handler_still_lets_the_others_run_then_fails_loudly(
+        self, mocker: MockerFixture
+    ) -> None:
+        handled: list[ControlEvent] = []
+
+        def broken_handler(control_event: ControlEvent) -> None:
+            message = f'broken handler got {control_event.kind}'
+            raise ValueError(message)
+
+        def also_broken_handler(control_event: ControlEvent) -> None:
+            message = f'second broken handler got {control_event.kind}'
+            raise KeyError(message)
+
+        with running_scene(CameraFreeScene) as manager:
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=broken_handler)
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=also_broken_handler)
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=handled.append)
+            end_frame = mocker.spy(active_sources(), 'end_frame')
+            with pytest.raises(ValueError, match='broken handler got breakpoint'):
+                manager.record_control_event(kind=BREAKPOINT_KIND, data={'label': 'here'})
+            step(manager, frames=1)
+        recorded = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'here'})
+        assert handled == [recorded]
+        assert end_frame.call_args.kwargs['control_events'] == [recorded]
+
+    def test_recorded_data_is_a_read_only_copy(self, mocker: MockerFixture) -> None:
+        data: dict[str, Any] = {'label': 'here', 'path': {'steps': [1, 2]}}
+        with running_scene(CameraFreeScene) as manager:
+            end_frame = mocker.spy(active_sources(), 'end_frame')
+            manager.record_control_event(kind=BREAKPOINT_KIND, data=data)
+            data['label'] = 'changed'
+            data['path']['steps'].append(3)
+            step(manager, frames=1)
+        (recorded,) = end_frame.call_args.kwargs['control_events']
+        assert recorded.to_json() == {
+            'kind': 'breakpoint',
+            'label': 'here',
+            'path': {'steps': [1, 2]},
+        }
+        recorded_data = recorded.data
+        with pytest.raises(TypeError):
+            recorded_data['label'] = 'changed'
+        with pytest.raises(TypeError):
+            recorded_data['path']['steps'] = []
+        with pytest.raises(AttributeError):
+            recorded_data['path']['steps'].append(3)
+
+    def test_to_json_returns_plain_json_types(self) -> None:
+        event = ControlEvent(kind=BREAKPOINT_KIND, data={'path': {'steps': [1, 2]}})
+        record = event.to_json()
+        assert type(record) is dict
+        assert type(record['path']) is dict
+        assert type(record['path']['steps']) is list
+        assert json.loads(json.dumps(record)) == record
 
     def test_control_event_json_round_trip(self) -> None:
         event = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'x'})
