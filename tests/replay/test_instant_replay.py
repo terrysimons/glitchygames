@@ -19,6 +19,8 @@ from scripts.record_golden_traces import (
     release,
 )
 
+from glitchygames.audio.live import VoiceState
+from glitchygames.audio.synth import Waveform
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events import FPSEVENT
 from glitchygames.input import devices as devices_module
@@ -68,6 +70,7 @@ from tests.replay.playback_fixtures import (
     record_counting_scene,
     step_finishing,
 )
+from tests.replay.test_playback_scope import LivePostingSupervisor
 from tests.world.test_frame_integration import CameraFreeScene, running_scene, step
 
 if TYPE_CHECKING:
@@ -398,6 +401,16 @@ class GoalInUpdateScene(KeyReleaseCountingScene):
 
 class GoalInUpdatePostingScene(GoalInUpdateScene, PostingCountingScene):
     """A goal scene that also posts an internal event every tick (matched in a playback)."""
+
+
+class InstantUserEventScene(InstantCountingScene):
+    """Moves its marker for every user event it is handed (a lost or extra one diverges)."""
+
+    @override
+    def on_user_event(self: Self, event: HashableEvent) -> None:
+        """Move the marker down a pixel."""
+        super().on_user_event(event)
+        self.marker.rect.y += 1
 
 
 class HandlerAddingScene(InstantCountingScene):
@@ -798,6 +811,34 @@ class TestThePauseScreen:
             play_journal(
                 manager=manager, recording=journal_of(manager).as_recording(), then=live_scene
             )
+
+    def test_the_paused_games_voice_survives_an_instant_replay_from_the_pause_screen(self):
+        """The paused game waits behind the scope too, when its playback switches scenes."""
+        with running_scene(InstantCountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            voice = manager.live_audio.create_voice(
+                owner=live_scene, waveform=Waveform.SAWTOOTH, frequency=220.0, volume=0.1
+            )
+            voice.start()
+            step(manager, frames=2)
+            # A paused and resumed stretch: the playback switches to its pause screen and back
+            step(manager, press(pygame.K_p))
+            step(manager, release(pygame.K_p), frames=2)
+            step(manager, press(pygame.K_SPACE))
+            step(manager, release(pygame.K_SPACE), frames=2)
+            step(manager, press(pygame.K_p))
+            step(manager, release(pygame.K_p))
+            pause_scene = manager.active_scene
+            assert isinstance(pause_scene, PauseScene)
+            assert manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            assert manager.active_scene is pause_scene
+            assert manager.previous_scene is live_scene
+            step(manager)
+            # A released voice is stopped for good (LiveAudio.release_voice)
+            assert voice.state is not VoiceState.STOPPED
 
 
 class TestPlaybackScopesAndTheJournal:
@@ -1599,6 +1640,34 @@ class TestScopePostsAndTheJournal:
             step(manager)
             assert manager.playback_session is not None
             step_until_the_scope_ends(manager=manager, stepper=step)
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None, result.report()
+            assert result.end_reason == 'end_of_recording'
+
+    @pytest.mark.parametrize('ends_the_scope', [True, False])
+    def test_a_later_replay_across_a_scope_with_a_live_supervisors_post_matches(
+        self, ends_the_scope
+    ):
+        """The live supervisor's post reaches the live scene after the scope, as journaled."""
+        with running_scene(InstantUserEventScene) as manager:
+            step(manager, frames=JOURNALED_FRAMES)
+            live_scene = active_counting_scene(manager)
+            supervisor = LivePostingSupervisor(ends_the_scope=ends_the_scope)
+            manager.add_supervisor(supervisor=supervisor)
+            assert manager.instant_replay()
+            step(manager)
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            marker_before = live_scene.marker.rect.y
+            step(manager, frames=JOURNALED_FRAMES)
+            # Delivered once, to the live scene
+            assert live_scene.marker.rect.y == marker_before + 1
+            # A second instant replay plays the journal across the first one
+            assert manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            manager.remove_supervisor(supervisor=supervisor)
             result = manager.last_playback_result
             assert result is not None
             assert result.divergence is None, result.report()

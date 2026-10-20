@@ -419,8 +419,9 @@ class LiveAudio:
             active_transitions: The running transition and the pending one (either may be
                 None); a voice created for a ride is owned by its transition.
             paused_owners: Other owners whose voices pause rather than end: the live scene a
-                playback scope stashed, and the scene it returns to
-                (glitchygames/replay/playback.py), so their voices play on after it.
+                playback scope stashed, the scene it returns to and the previous scene as it
+                began (the game behind a pause screen; glitchygames/replay/playback.py), so
+                their voices play on after it.
 
         """
         live_transitions = [transition for transition in active_transitions if transition]

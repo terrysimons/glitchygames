@@ -538,8 +538,11 @@ What belongs to the scope ends with it: supervisors and control event handlers i
 (in `setup()`, `cleanup()` or an event handler; a live supervisor's additions stay), and the
 playback scene's own events still queued when it ends (posted in `update()` or an event handler
 after its last pump: the live game never receives them, so a goal posted there cannot start a
-second instant replay). A playback never rumbles the player's controllers, and the live scene's
-synth voices pause behind it and play on after. Inside a scope, a replay of the session still
+second instant replay). What the live game's own supervisors and handlers post while it plays
+stays the live game's: a supervisor that calls `end_playback()` and then posts an event has it
+delivered to the live game after the scope. A playback never rumbles the player's controllers,
+and the live scene's synth voices (and those of the game behind a pause screen the instant
+replay began from) pause behind it and play on after. Inside a scope, a replay of the session still
 applies the session's breakpoints (a bookmark on a frame a demo played pauses there); the
 played recording's own breakpoints are never applied again. A `--record-trace` recording of a
 session that played a scope replays exactly, but cannot itself be played in-game from a frame

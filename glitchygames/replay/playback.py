@@ -63,11 +63,17 @@ Demos and instant replays run inside a playback scope, not a new engine run
    the live polled input (the installed doors' latest snapshot), posts again the live game's
    posts the scope drained and hands back the player's held events (rule 5), drops the
    playback scene's own posts still queued (made after its frame's last pump: in
-   ``update()``, an event handler, a supervisor, its cleanup; ``sources.discard_scope_posts``:
-   they stop being pending posts, and the live doors' next read of SDL's queue loses them
-   before a recording, the instant-replay journal or the game sees the batch; a replay of the
-   session drops them the same way as its playback scene posts them again), then makes the
-   live scene active again
+   ``update()``, an event handler, a supervisor or handler the scope owns, its cleanup;
+   ``sources.discard_scope_posts``: they stop being pending posts, and the live doors' next
+   read of SDL's queue loses them before a recording, the instant-replay journal or the game
+   sees the batch; a replay of the session drops them the same way as its playback scene posts
+   them again), posts again, in posting order, the posts the live game's own supervisors and
+   handlers made while it played (``held_live_game_posts`` and those still queued, made in its
+   last frame: a supervisor that calls ``end_playback()`` and then posts for the live game,
+   say; the queued copies are dropped as the scope's are, so each arrives once, after the
+   held events, at the live doors' next pump; pending then, a later instant replay across the
+   scope serves them uncompared as its resume bridge's earlier events), then makes the live
+   scene active again
    exactly as it was (no ``setup()`` again: only its snap mode, event proxies, caption and a
    full redraw), or switches to ``then`` when that is another scene. The frame that ends the
    scope still finishes afterwards, so the restored live frame clock resumes one frame later
@@ -89,7 +95,11 @@ Demos and instant replays run inside a playback scope, not a new engine run
      be redelivered when a scope begins (a demo that ended into a scene starting the next
      one) are taken into the new scope's list first, so they reach the live game, never a
      playback scene. When the run ends during a scope (``terminate``) they are dropped: no
-     frame follows to deliver them. External events reach only the exit check, never the
+     frame follows to deliver them. The posts the live game's own supervisors and control
+     event handlers make while the scope plays (``recording.live_game_posts``: ``post_event``
+     marks them while ``SceneManager`` runs live code in a scope, rule 4; the played
+     recording never held them) are held apart (``held_live_game_posts``) and posted again as
+     the scope ends (rule 4). External events reach only the exit check, never the
      scene; presses and motion are dropped. The batch is the
      replay's (recorded external events, matched internal ones) without any QUIT (a QUIT in
      it ends the scope: ``recording_quit``), then the kept QUIT.
@@ -150,9 +160,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    rumble controller of its own (the playback scene's pulses, sustained levels and shakes go
    there and reach no device); the live game's controller waits untouched and is back when the
    scope ends, so a playback's pulse never carries into live play. The live scene's synth
-   voices (and those of the scene the scope returns to) pause behind the scope and play on
-   after it (``LiveAudio.update``'s ``paused_owners``); the playback scene's own voices end
-   with it.
+   voices (and those of the scene the scope returns to, and of the previous scene as it began:
+   the game behind a pause screen an instant replay began from) pause behind the scope and
+   play on after it (``LiveAudio.update``'s ``paused_owners``), even when the playback's own
+   scene switches change ``previous_scene``; the playback scene's own voices end with it.
 
 Limits: a scope that fast-forwards inside a restarted replay's rebuild silences on top of the
 rebuild's silence: the end of its fast-forward may resume music during the rebuild (which
@@ -192,6 +203,8 @@ from glitchygames.recording import (
     INTERNAL_ORIGIN,
     SCENE_START_FIELD,
     event_origin,
+    is_live_game_post,
+    live_game_posts,
     pending_internal_posts,
     take_internal_post,
 )
@@ -324,10 +337,15 @@ class PlaybackSources:
             with its origin, in pump order: its own posts made before the scope (internal) and
             the player's releases, device and window events (external,
             ``PLAYBACK_HELD_EVENT_TYPES``). Delivered before the first pump after the scope.
+        held_live_game_posts: The posts the live game's own supervisors and handlers made
+            during the scope (``recording.live_game_posts``) that the scope's pumps drained, in
+            pump order. Posted again as the scope ends (``SceneManager._exit_playback``).
         live_posts_before_scope: The live game's posts no pump had returned yet as the scope
             began (its first pump holds them; rule 5).
         has_pumped: True once the scope's doors pumped: from then on every post still pending
-            is the scope's own (``SceneManager._exit_playback`` drops those as it ends).
+            is the scope's own (``SceneManager._exit_playback`` drops those as it ends), but
+            for the live game's supervisors' and handlers' (``recording.live_game_posts``,
+            posted again as it ends).
 
     """
 
@@ -366,6 +384,7 @@ class PlaybackSources:
         self.end_reason: PlaybackEndReason | None = None
         self.last_base_snapshot: InputSnapshot = current_input()
         self.held_live_events: list[RedeliveredEvent] = []
+        self.held_live_game_posts: list[pygame.event.Event] = []
         self.live_posts_before_scope: list[tuple[int, dict[str, Any]]] = []
         self.has_pumped = False
 
@@ -428,10 +447,18 @@ class PlaybackSources:
         is_first_pump = not self.has_pumped
         self.has_pumped = True
         live_post_count = len(self.live_posts_before_scope) if is_first_pump else 0
-        scope_posts = posted_before_pump[live_post_count:]
+        posts_since_scope = posted_before_pump[live_post_count:]
+        # The live game's own supervisors and handlers posted some since: theirs, not the scope's
+        live_game_posts_since_scope = [
+            post for post in posts_since_scope if is_live_game_post(post=post)
+        ]
+        scope_posts = [post for post in posts_since_scope if not is_live_game_post(post=post)]
+        # This pump returns every one of them (or none ever will): sorted out from here on
+        live_game_posts().clear()
         internal_events, quit_events = self._sort_base_events(
             base_events=base_events,
             live_posts=posted_before_pump[:live_post_count],
+            live_game_posts=live_game_posts_since_scope,
             scope_posts=list(scope_posts),
             is_first_pump=is_first_pump,
         )
@@ -452,17 +479,21 @@ class PlaybackSources:
         *,
         base_events: list[pygame.event.Event],
         live_posts: list[tuple[int, dict[str, Any]]],
+        live_game_posts: list[tuple[int, dict[str, Any]]],
         scope_posts: list[tuple[int, dict[str, Any]]],
         is_first_pump: bool,
     ) -> tuple[list[pygame.event.Event], list[pygame.event.Event]]:
         """Sort the installed doors' batch for the replay, the game and the exit check (rule 5).
 
-        Holds the live game's posts and the events it must not lose (``held_live_events``).
+        Holds the live game's posts and the events it must not lose (``held_live_events``,
+        ``held_live_game_posts``).
 
         Args:
             base_events: The installed doors' batch.
             live_posts: Posts the live game made before the scope (matches are removed).
-            scope_posts: Posts made since the scope began (matches are removed).
+            live_game_posts: Posts the live game's own supervisors and handlers made during
+                the scope (``recording.live_game_posts``; matches are removed).
+            scope_posts: Posts the scope's code made since it began (matches are removed).
             is_first_pump: True for the scope's first pump, whose untracked internal events
                 were posted before the scope.
 
@@ -477,12 +508,16 @@ class PlaybackSources:
                 event=event, pending=scope_posts
             ):
                 # The player's (or the live game's own) quit request still quits the game
-                take_internal_post(event=event, pending=live_posts)
+                self._take_live_post(
+                    event=event, live_posts=live_posts, live_game_posts=live_game_posts
+                )
                 quit_events.append(event)
             elif event.type == pygame.QUIT:
                 internal_events.append(event)
-            elif take_internal_post(event=event, pending=live_posts):
-                self.held_live_events.append((event, INTERNAL_ORIGIN))
+            elif self._hold_live_post(
+                event=event, live_posts=live_posts, live_game_posts=live_game_posts
+            ):
+                continue
             elif take_internal_post(event=event, pending=scope_posts):
                 internal_events.append(event)
             elif event_origin(event=event, pending=[]) == INTERNAL_ORIGIN:
@@ -497,6 +532,48 @@ class PlaybackSources:
                 self.exit_requested = True
                 self._note_end(reason='exit_input')
         return internal_events, quit_events
+
+    @staticmethod
+    def _take_live_post(
+        *,
+        event: pygame.event.Event,
+        live_posts: list[tuple[int, dict[str, Any]]],
+        live_game_posts: list[tuple[int, dict[str, Any]]],
+    ) -> bool:
+        """Remove the live game's post that ``event`` is, if it is one (``_sort_base_events``).
+
+        Returns:
+            True when it was a post the live game made before the scope or during it.
+
+        """
+        return take_internal_post(event=event, pending=live_posts) or take_internal_post(
+            event=event, pending=live_game_posts
+        )
+
+    def _hold_live_post(
+        self: Self,
+        *,
+        event: pygame.event.Event,
+        live_posts: list[tuple[int, dict[str, Any]]],
+        live_game_posts: list[tuple[int, dict[str, Any]]],
+    ) -> bool:
+        """Hold ``event`` for the live game if it is one of its posts (``_sort_base_events``).
+
+        One made before the scope joins ``held_live_events`` (redelivered as the scope ends);
+        one its supervisors and handlers made during it joins ``held_live_game_posts`` (posted
+        again as the scope ends).
+
+        Returns:
+            True when it was held.
+
+        """
+        if take_internal_post(event=event, pending=live_posts):
+            self.held_live_events.append((event, INTERNAL_ORIGIN))
+            return True
+        if take_internal_post(event=event, pending=live_game_posts):
+            self.held_live_game_posts.append(event)
+            return True
+        return False
 
     def frame_seconds(self: Self, *, measured: float) -> float:
         """Return the recording's dt, after asking the installed doors as always.

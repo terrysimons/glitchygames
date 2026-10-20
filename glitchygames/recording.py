@@ -146,7 +146,10 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
   (glitchygames/replay/driver.py, rule 18). The playback scene's own posts still queued as the
   scope ended are not in any batch: the live doors drop them as they read the queue
   (``sources.discard_scope_posts``), so the recording never holds them, and a replay of the
-  session drops them the same way.
+  session drops them the same way. The posts the live game's own supervisors and handlers made
+  during the scope (``live_game_posts``) are posted again as it ends, so the next frame's
+  ``event_batches`` hold them as internal events, once each; a replay of the session posts
+  them again the same way.
 
 Polled input
 ------------
@@ -343,11 +346,19 @@ class InternalEventPosts:
         owner_count: How many owners want posts tracked: each open ``GameplayRecorder``, and a
             replay's sources while installed (``start_tracking_internal_posts``).
         pending: (type, attributes) of each tracked post, in posting order.
+        live_game_code_running: True while a supervisor or control event handler the live
+            game added runs inside a playback scope (``SceneManager._run_live_or_scope_code``):
+            what it posts is the live game's, not the scope's (glitchygames/replay/playback.py,
+            rule 4).
+        live_game_posts: The very entries of ``pending`` (the same tuple objects) posted while
+            ``live_game_code_running``, until the scope's next pump or its end sorts them out.
 
     """
 
     owner_count: int = 0
     pending: list[tuple[int, dict[str, Any]]] = dataclasses.field(default_factory=list)
+    live_game_code_running: bool = False
+    live_game_posts: list[tuple[int, dict[str, Any]]] = dataclasses.field(default_factory=list)
 
     @property
     def is_tracking(self) -> bool:
@@ -372,12 +383,15 @@ def stop_tracking_internal_posts() -> None:
     _INTERNAL_POSTS.owner_count = max(0, _INTERNAL_POSTS.owner_count - 1)
     if _INTERNAL_POSTS.owner_count == 0:
         _INTERNAL_POSTS.pending.clear()
+        _INTERNAL_POSTS.live_game_posts.clear()
 
 
 def reset_internal_post_tracking() -> None:
     """Forget every owner and every pending post (a new run, or a test)."""
     _INTERNAL_POSTS.owner_count = 0
     _INTERNAL_POSTS.pending.clear()
+    _INTERNAL_POSTS.live_game_code_running = False
+    _INTERNAL_POSTS.live_game_posts.clear()
 
 
 def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]:
@@ -391,6 +405,57 @@ def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]:
 
     """
     return _INTERNAL_POSTS.pending
+
+
+def live_game_code_running() -> bool:
+    """Report whether the live game's own supervisor or handler runs inside a playback scope.
+
+    Returns:
+        ``InternalEventPosts.live_game_code_running``.
+
+    """
+    return _INTERNAL_POSTS.live_game_code_running
+
+
+def set_live_game_code_running(*, running: bool) -> None:
+    """Note whether the live game's own code runs inside a playback scope (its posts are its).
+
+    ``SceneManager._run_live_or_scope_code`` sets it around each supervisor and control event
+    handler, and restores what it was after.
+
+    Args:
+        running: True while a supervisor or handler the live game added runs in a scope.
+
+    """
+    _INTERNAL_POSTS.live_game_code_running = running
+
+
+def live_game_posts() -> list[tuple[int, dict[str, Any]]]:
+    """Return the pending posts the live game's code made inside a playback scope (its own list).
+
+    Each is the very entry of ``pending_internal_posts()`` (the same object, so ``is`` tells
+    it from an equal post the scope made). The scope's pumps hold the ones they return for the
+    live game, and its end leaves the rest pending for the live game's next pump
+    (glitchygames/replay/playback.py, rules 4 and 5); both take them off this list.
+
+    Returns:
+        The entries, in posting order.
+
+    """
+    return _INTERNAL_POSTS.live_game_posts
+
+
+def is_live_game_post(*, post: tuple[int, dict[str, Any]]) -> bool:
+    """Report whether a pending post is one the live game's code made inside a playback scope.
+
+    Args:
+        post: An entry of ``pending_internal_posts()`` (or a copy of that list).
+
+    Returns:
+        True when it is one of ``live_game_posts()`` (by identity, not equality).
+
+    """
+    return any(post is live_game_post for live_game_post in _INTERNAL_POSTS.live_game_posts)
 
 
 def post_event(event: pygame.event.Event) -> bool:
@@ -408,7 +473,10 @@ def post_event(event: pygame.event.Event) -> bool:
     """
     was_posted = bool(pygame.event.post(event))
     if was_posted and _INTERNAL_POSTS.is_tracking:
-        _INTERNAL_POSTS.pending.append((event.type, dict(event.dict)))
+        post = (event.type, dict(event.dict))
+        _INTERNAL_POSTS.pending.append(post)
+        if _INTERNAL_POSTS.live_game_code_running:
+            _INTERNAL_POSTS.live_game_posts.append(post)
     return was_posted
 
 

@@ -803,8 +803,129 @@ class LiveUserEventScene(CountingScene):
         })
 
 
+class LivePostingSupervisor:
+    """A live game's supervisor: posts once in the scope's first frame, and may end the scope.
+
+    Ending the scope then posting for the live game is the documented way to end an instant
+    replay early (glitchygames/replay/playback.py, rule 7).
+    """
+
+    def __init__(self, *, ends_the_scope: bool) -> None:
+        """Post nothing yet.
+
+        Args:
+            ends_the_scope: True to call ``end_playback()`` before posting.
+
+        """
+        self.ends_the_scope = ends_the_scope
+        self.posted_frame_number: int | None = None
+
+    def on_frame(self, *, frame_number: int, scene: Any) -> None:
+        """Post (after ending the scope, if asked) in the first frame a scope plays."""
+        manager = SceneManager()
+        if manager.playback_session is None or self.posted_frame_number is not None:
+            return
+        self.posted_frame_number = frame_number
+        if self.ends_the_scope:
+            manager.end_playback()
+        post_event(pygame.event.Event(pygame.USEREVENT, {'from_live_supervisor': frame_number}))
+
+
 class TestScopePostsNeverReachTheLiveGame:
     """A playback scene's posts still queued when its scope ends are dropped (never live)."""
+
+    def test_a_live_supervisors_post_in_the_exit_frame_reaches_the_live_game(self, tmp_path):
+        """A supervisor ends the scope, then posts for the live game: the post is the live one's."""
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
+        )
+        with running_scene(LiveUserEventScene) as manager:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, LiveUserEventScene)
+            supervisor = LivePostingSupervisor(ends_the_scope=True)
+            manager.add_supervisor(supervisor=supervisor)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'ended_by_game'
+            step(manager, frames=LIVE_FRAMES_AFTER)
+            manager.remove_supervisor(supervisor=supervisor)
+            # Only the supervisor's post: the playback scene's update() post is still dropped
+            assert live_scene.user_events == [
+                {'from_live_supervisor': supervisor.posted_frame_number}
+            ]
+
+    def test_a_live_supervisors_post_during_the_scope_reaches_the_live_game_after_it(
+        self, tmp_path
+    ):
+        """It is not the played recording's (no divergence): it is held and delivered after."""
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
+        )
+        with running_scene(LiveUserEventScene) as manager:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, LiveUserEventScene)
+            supervisor = LivePostingSupervisor(ends_the_scope=False)
+            manager.add_supervisor(supervisor=supervisor)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert manager.last_playback_result is not None
+            assert manager.last_playback_result.divergence is None
+            assert live_scene.user_events == []
+            step(manager, frames=LIVE_FRAMES_AFTER)
+            manager.remove_supervisor(supervisor=supervisor)
+            assert live_scene.user_events == [
+                {'from_live_supervisor': supervisor.posted_frame_number}
+            ]
+
+    @pytest.mark.parametrize('ends_the_scope', [True, False])
+    def test_a_session_with_a_live_supervisors_scope_post_replays_exactly(
+        self, tmp_path, ends_the_scope
+    ):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
+        )
+        session_path = tmp_path / 'session.jsonl.gz'
+
+        def play_in_the_session(manager: Any) -> list[dict[str, Any]]:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, LiveUserEventScene)
+            supervisor = LivePostingSupervisor(ends_the_scope=ends_the_scope)
+            manager.add_supervisor(supervisor=supervisor)
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES + LIVE_FRAMES_AFTER)
+            assert manager.playback_session is None
+            manager.remove_supervisor(supervisor=supervisor)
+            return live_scene.user_events
+
+        with running_scene(LiveUserEventScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            engine.start_trace_recording(path=session_path)
+            live_user_events = play_in_the_session(manager)
+            engine.stop_trace_recording()
+        assert len(live_user_events) == 1
+        _header, session_frames = recorded_trace(path=session_path)
+        with running_scene(
+            LiveUserEventScene,
+            extra_arguments=['--replay-trace', str(session_path), '--headless'],
+        ) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            replay_sources = engine.replay_sources
+            assert replay_sources is not None
+            replayed_user_events = play_in_the_session(manager)
+            replay_sources.finish_run()
+            assert replay_sources.result.divergence is None
+            assert replay_sources.result.frames_replayed == len(session_frames)
+        assert replayed_user_events == live_user_events
 
     def test_a_post_made_in_update_in_the_last_frame_is_dropped(self, tmp_path):
         recording_path = record_counting_scene(
@@ -841,7 +962,7 @@ class TestScopePostsNeverReachTheLiveGame:
             assert manager.active_scene is live_scene
 
     def test_a_session_with_dropped_scope_posts_replays_exactly(self, tmp_path):
-        """The dropped posts pass the doors (recorded as internal), so the session replays."""
+        """The live doors drop the posts before the recorder sees them; a replay drops them too."""
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
         )

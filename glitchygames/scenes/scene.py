@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 import time
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
@@ -31,7 +32,14 @@ from glitchygames.instant_replay import InstantReplayJournal
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
-from glitchygames.recording import pending_internal_posts, post_event
+from glitchygames.recording import (
+    is_live_game_post,
+    live_game_code_running,
+    live_game_posts,
+    pending_internal_posts,
+    post_event,
+    set_live_game_code_running,
+)
 from glitchygames.scene_start import (
     ResumeBridge,
     SceneStartCapture,
@@ -251,9 +259,10 @@ class SceneManager(SceneInterface, events.EventManager):
         self._scope_control_event_handlers: list[tuple[str, Callable[[ControlEvent], None]]] = []
         # This frame's control events; end_frame receives them, then the list starts over
         self._frame_control_events: list[ControlEvent] = []
-        # True while a supervisor or control event handler the live game added runs inside a
-        # playback scope: what it adds is the live game's, not the scope's
-        self._live_supervision_running = False
+        # Whether a supervisor or control event handler the live game added runs inside a
+        # playback scope (what it adds or posts is the live game's, not the scope's) is kept by
+        # the internal-post tracker, so post_event can tell its posts apart:
+        # recording.live_game_code_running
 
     @classmethod
     def _reset(cls) -> None:
@@ -923,7 +932,7 @@ class SceneManager(SceneInterface, events.EventManager):
             added is running (what live code adds is the live game's).
 
         """
-        return self.in_playback_scope and not self._live_supervision_running
+        return self.in_playback_scope and not live_game_code_running()
 
     def add_supervisor(self: Self, *, supervisor: Supervisor) -> None:
         """Call ``supervisor`` once per frame at the supervisor slot (supervision.py).
@@ -973,17 +982,23 @@ class SceneManager(SceneInterface, events.EventManager):
     ) -> None:
         """Run a supervisor or handler, noting whether the live game's code is running.
 
+        Inside a playback scope, what the live game's own supervisor or handler adds is the
+        live game's (``_added_by_scope_code``), and so is what it posts: ``post_event`` marks
+        those posts (``recording.live_game_posts``) so the scope delivers them to the live game
+        instead of dropping them or handing them to its replay (glitchygames/replay/playback.py,
+        rules 4 and 5). A scope's handler run from a live supervisor is the scope's again.
+
         Args:
             is_scope_code: True for one a playback scope's code added.
             call: Runs it.
 
         """
-        was_running = self._live_supervision_running
-        self._live_supervision_running = self.in_playback_scope and not is_scope_code
+        was_running = live_game_code_running()
+        set_live_game_code_running(running=self.in_playback_scope and not is_scope_code)
         try:
             call()
         finally:
-            self._live_supervision_running = was_running
+            set_live_game_code_running(running=was_running)
 
     def reset_supervision(self: Self) -> None:
         """Forget every supervisor, control event handler and pending control event.
@@ -1098,14 +1113,25 @@ class SceneManager(SceneInterface, events.EventManager):
             pending_transition = (
                 self._pending_transition[1] if self._pending_transition is not None else None
             )
-            # A playback scope's stashed live scene (and the scene it returns to) wait behind it:
-            # their voices pause, then play on (never released for good)
+            # A playback scope's stashed live scene, the scene it returns to and the live
+            # previous scene (the game behind a pause screen the scope began from) wait behind
+            # it: their voices pause, then play on (never released for good). The playback's own
+            # scene switches set previous_scene to playback scenes, so the live one is the saved
             session = self._playback_session
+            paused_owners = (
+                []
+                if session is None
+                else [
+                    owner
+                    for owner in (session.live_scene, session.then, session.saved_previous_scene)
+                    if owner is not None
+                ]
+            )
             self._live_audio.update(
                 active_scene=self.active_scene,
                 previous_scene=self.previous_scene,
                 active_transitions=(self._active_transition, pending_transition),
-                paused_owners=() if session is None else (session.live_scene, session.then),
+                paused_owners=paused_owners,
             )
 
     @staticmethod
@@ -1983,35 +2009,59 @@ class SceneManager(SceneInterface, events.EventManager):
                 # The live doors' next read drops them, and they are no longer pending, so
                 # nothing counts them as posted (a scene start's or resume bridge's earlier
                 # events)
-                discard_scope_posts(posts=self._forget_scope_posts_still_pending(session=session))
+                scope_posts, queued_live_game_posts = self._forget_posts_still_pending(
+                    session=session
+                )
+                # The live game's own supervisors' and handlers' posts are posted again, in
+                # posting order: those the scope's pumps held, then those still queued (whose
+                # queued copies are dropped like the scope's, so each arrives once). Pending
+                # as the live scene resumes, they are what its journal's resume bridge counts
+                # as earlier events (a later instant replay serves them, as no code of it
+                # posts them)
+                discard_scope_posts(posts=[*scope_posts, *queued_live_game_posts])
+                live_game_posts().clear()
+                for event in [
+                    *session.sources.held_live_game_posts,
+                    *itertools.starmap(pygame.event.Event, queued_live_game_posts),
+                ]:
+                    post_event(event)
+            # Outside a scope every post is the live game's
+            live_game_posts().clear()
             self._resume_live_scene(scene=session.live_scene)
         if switches_to_then and session.then is not session.live_scene:
             self.switch_to_scene(session.then)
 
     @staticmethod
-    def _forget_scope_posts_still_pending(
+    def _forget_posts_still_pending(
         *, session: PlaybackSession
-    ) -> list[tuple[int, dict[str, Any]]]:
-        """Take the posts a playback scope's code made that no pump returned yet off the tracker.
+    ) -> tuple[list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]]]:
+        """Take the posts made inside a playback scope that no pump returned yet off the tracker.
 
-        After the scope's first pump every pending post is the scope's (its pumps hold the live
-        game's and hand the rest to its replay); before it, the live game's posts from before
-        the scope come first and stay pending, to arrive as usual.
+        After the scope's first pump every pending post was made inside it (its pumps hold the
+        live game's earlier posts and hand the rest to its replay): the scope's code's, or the
+        live game's own supervisors' and handlers' (``recording.live_game_posts``: made in the
+        frame that ends it, say right after ``end_playback()``). Before it, the live game's
+        posts from before the scope come first; they stay pending, to arrive as usual.
 
         Args:
             session: The scope ending.
 
         Returns:
-            The posts taken, each as (type, attributes), in posting order.
+            The scope's code's posts and the live game's supervisors' and handlers' posts, each
+            as (type, attributes), in posting order.
 
         """
         pending = pending_internal_posts()
         live_post_count = (
             0 if session.sources.has_pumped else len(session.sources.live_posts_before_scope)
         )
-        scope_posts = pending[live_post_count:]
+        posts_since_scope = pending[live_post_count:]
         del pending[live_post_count:]
-        return scope_posts
+        scope_posts = [post for post in posts_since_scope if not is_live_game_post(post=post)]
+        queued_live_game_posts = [
+            post for post in posts_since_scope if is_live_game_post(post=post)
+        ]
+        return scope_posts, queued_live_game_posts
 
     def _resume_live_scene(self: Self, *, scene: Scene) -> None:
         """Make a stashed scene active again as it was: no setup(), only what is drawn anew.

@@ -483,10 +483,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   budget, `scene_manager.instant_replay() -> bool` plays it; end it early only from a
   supervisor with `end_playback()` (reading `playback_player_input`). Supervisors and handlers
   the scope's code adds (not live supervisors' additions) are removed when it ends
-  (`SceneManager.in_playback_scope` is the one "in a scope" answer); its posts still queued at
-  its end are dropped from the next pump (`sources.discard_scope_posts`); inside a scope the
-  installed doors' re-applied control events apply, the played recording's never; a playback
-  never rumbles real devices, and the live scene's voices pause behind it
+  (`SceneManager.in_playback_scope` is the one "in a scope" answer); the scope's code's posts
+  still queued at its end are dropped from the next pump (`sources.discard_scope_posts`), while
+  live supervisors' and handlers' posts during it (`recording.live_game_posts`, e.g. one made
+  right after `end_playback()`) reach the live game after it; inside a scope the installed
+  doors' re-applied control events apply, the played recording's never; a playback never
+  rumbles real devices, and the voices of the live scene (and of the game behind a pause
+  screen it began from) pause behind it
 - Ghosts (contract: `glitchygames/replay/ghosts.py`): `GhostRecorder(sprite=..., scene=...)`
   (a supervisor; `finish()` -> frozen pydantic `GhostTrack`, `to_json`/`from_json`, store in
   saves), `GhostSprite(track=..., image_for=images_from_animated_sprite(sprite))` with

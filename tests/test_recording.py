@@ -48,10 +48,13 @@ from glitchygames.recording import (
     event_from_record,
     event_origin,
     event_to_record,
+    is_live_game_post,
     json_safe_value,
+    live_game_posts,
     pending_internal_posts,
     post_event,
     reset_internal_post_tracking,
+    set_live_game_code_running,
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
     value_from_json,
@@ -480,6 +483,23 @@ class TestEventOrigin:
 
         assert was_posted is False
         assert pending_after_post == []
+
+    def test_a_live_game_post_is_told_from_an_equal_scope_post(self, tmp_path, event_queue):
+        """Posts made while the live game's code runs in a scope are marked, by identity."""
+        with GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={}):
+            post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+            set_live_game_code_running(running=True)
+            try:
+                post_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+            finally:
+                set_live_game_code_running(running=False)
+            scope_post, live_post = pending_internal_posts()
+            assert scope_post == live_post
+            assert is_live_game_post(post=live_post) is True
+            assert is_live_game_post(post=scope_post) is False
+        # Closing the last recorder forgets them, as it forgets the pending posts
+        assert live_game_posts() == []
+        pygame.event.clear()
 
     def test_posts_are_not_tracked_without_a_recorder(self, event_queue):
         """With no recording open, post_event only posts."""
