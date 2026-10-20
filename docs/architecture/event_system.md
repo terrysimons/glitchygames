@@ -12,6 +12,12 @@ alongside the GlitchyGames `on_*_event()` handlers. This makes porting
 incremental: start with your existing code, then adopt GlitchyGames handlers one
 event at a time as you need their benefits.
 
+!!! note "Replay"
+    Code that polls pygame directly cannot be replayed exactly. For sessions that
+    replay (`--replay-trace`), read polled input from `current_input()` and take
+    events through the engine; see [Gameplay Recording and Replay](gameplay_replay.md).
+    Code inside the `glitchygames` package must always do so (`tests/test_engine_doors.py`).
+
 **What GlitchyGames adds on top of raw pygame:**
 
 - **Named handlers** — override `on_key_down_event()` instead of writing

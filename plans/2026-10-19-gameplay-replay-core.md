@@ -237,6 +237,9 @@ GameEngine.install_sources(self, *, sources: EngineSources) -> None
 SceneManager.frame_number: int     # frames finished so far this run
 ```
 
+> Superseded in part by Task 12b: `GameEngine.install_sources` was removed; callers use
+> `glitchygames.sources.install_sources(sources=...)` directly.
+
 - [ ] **Step 1: Write the failing tests** (`tests/engine/test_engine_sources.py`)
 
 ```python
@@ -646,7 +649,7 @@ block below it if it is not already below; read the order first):
                                             use_fastevents=GameEngine.USE_FASTEVENTS))
 ```
 
-and add:
+and add (superseded by Task 12b, which removed this pass-through):
 
 ```python
     def install_sources(self: Self, *, sources: EngineSources) -> None:

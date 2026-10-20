@@ -217,6 +217,25 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Recently Completed Features
 
+### 40. Gameplay Replay Core ✅ COMPLETED (Part 1 of 3)
+- **Description**: Replay a `--record-trace` recording exactly through the real engine
+  (`--replay-trace PATH`), comparing every frame's sprites with the recording and reporting the
+  first divergence; audit determinism in two fresh processes (`--audit`)
+- **Use Case**: Bug reproduction from a recording, regression tests from real play, finding
+  nondeterminism; the base for replay tooling (Part 2) and in-game playback (Part 3, pending)
+- **Status**: ✅ COMPLETED (branch `feature/gameplay-replay`, 2026-10-19); Parts 2 and 3 pending
+- **Priority**: High
+- **Implementation**:
+  - The doors: `glitchygames/sources.py` (leaf registry), `LiveSources`, `RecordingSources`,
+    `ReplaySources`; `tests/test_engine_doors.py` guards them
+  - Clocks (`glitchygames/clock.py`, `Scene.game_time`), input snapshots (`current_input()`),
+    the devices door with replay stand-ins, saves through `open_saves` (`DiskSaveManager` /
+    `MemorySaveManager`), the supervisor hook and control events
+  - Trace format 3, `--replay-fps {recorded,real}`, real input blocked at SDL during a replay,
+    golden replay fixtures (`tests/fixtures/replays/`, `scripts/record_scripted_session.py`)
+- **Docs**: CLAUDE.md (Clocks, Gameplay Recording and Replay),
+  `docs/architecture/gameplay_replay.md`, `plans/2026-10-19-gameplay-replay.md`
+
 ### 39. Engine World Space and One End-of-Frame Call ✅ COMPLETED
 - **Description**: Sprites declare `CoordinateSpace.WORLD` and the engine positions, snaps and
   culls them from the scene's camera every frame; the camera follows a target on chosen axes;

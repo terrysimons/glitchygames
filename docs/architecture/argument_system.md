@@ -251,6 +251,12 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 | `--log-timer-jitter` | `store_true` | `False` | Log frame pacing jitter statistics periodically |
 | `--perf-trim-percent` | `float` | `5.0` | Percent of frames to trim from top and bottom in FPS report |
 | `--video-driver` | `choice` | `None` | Platform-specific video driver (see below) |
+| `--record-trace` | `PATH` | `None` | Record the session to a gzip JSON Lines trace ([Gameplay Recording and Replay](gameplay_replay.md)) |
+| `--replay-trace` | `PATH` | `None` | Replay a recording exactly, reporting the first divergence |
+| `--replay-fps` | `choice` | `recorded` | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
+| `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0 or 1) |
+| `--replay-digest` | `PATH` | `None` | With `--replay-trace`: write a SHA-256 per replayed frame (used by `--audit`) |
+| `--random-seed` | `int` | random 64-bit | Master seed for every engine random stream |
 
 **`--video-driver` choices by platform:**
 

@@ -75,6 +75,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Not fixed here: correcting the case would turn event debug logging on for `--log-level error` and `critical` runs too, which looks unintended (the set probably meant `debug` only); the intended levels need deciding first
 - **Files**: `glitchygames/engine/game_engine.py`, `glitchygames/events/game.py`, `glitchygames/events/base.py`
 
+### 75. `pygame_needs_fastevents` Compares the Major and Minor Versions Separately
+- **Description**: `pygame_needs_fastevents()` (`glitchygames/engine/game_engine.py`, around line 107) returns `vernum[0] < 2 and vernum[1] < 2`, so it is True only when both the major and the minor version are below 2. pygame 1.9 (major 1, minor 9) gets False and would not read events with `pygame.fastevent`, although its docstring says "True for pygame < 2.2". The intended test is `(vernum[0], vernum[1]) < (PYGAME_MIN_MAJOR_VERSION, PYGAME_MIN_MINOR_VERSION)`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 12 review)
+- **Date Reported**: 2026-10-19
+- **Details**: Harmless today: the project runs on pygame-ce 2.x, where both forms give False. The existing `test_use_fastevents_with_old_pygame` mocks pygame 1.1, which both forms treat as old, so it does not catch the bug; a fix should add a 1.9 case
+- **Files**: `glitchygames/engine/game_engine.py`
+
 ## Resolved Bugs
 
 ### 69. The Live Device Registry Keeps Every Enumeration Answer and Opened Descriptor Until a Recorder Takes Them

@@ -3,8 +3,9 @@
 A supervisor is called once per frame at a fixed place in the frame (after logic and events,
 before frame services, camera aim and positioning — see SceneManager._run_scene_frame), so what
 it reads is the frame's final logic state and what it changes is drawn this frame and seen by
-collision next frame. Replay controls and recorded breakpoints use it today; a future cheat device
-plugs in here (plans/2026-10-19-gameplay-replay.md, section 2).
+collision next frame. Today scripts/record_scripted_session.py uses it to play a golden input
+script. The watched-replay controls and recorded breakpoints (Part 2) and a future cheat device
+plug in here too (plans/2026-10-19-gameplay-replay.md, section 2).
 
 A control event is a supervisor action recorded with the frame it happened in; a replay
 re-applies recorded control events on the same frame, so sessions with supervisor actions replay

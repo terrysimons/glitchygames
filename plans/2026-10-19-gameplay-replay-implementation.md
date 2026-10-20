@@ -102,7 +102,7 @@ doors and unpaced pacing path, and its journal test uses `recorded_dt`.
 | `glitchygames/clock.py` (new, leaf) | the clock exports: `frame_clock_seconds`, `frame_clock_milliseconds`, `wall_clock_time`, `wall_clock_epoch_seconds`, `elapsed_seconds`, `measured_seconds` | 1 |
 | `glitchygames/input/state.py` (new) | `InputSnapshot`, `capture_live_snapshot`, `current_input`, snapshot diffs | 1 |
 | `glitchygames/input/devices.py` (new) | `DeviceRegistry` (enumeration, opening, polling), `LiveDeviceRegistry`, `ReplayDeviceRegistry`, `DeviceDescriptor`, `EnumerationAnswer`, `ReplayJoystick`, `ReplayController` | 1 |
-| `glitchygames/state/sandbox.py` (new) | `SaveStore` Protocol, `SandboxSaves`, `open_saves`, `save_namespace_snapshot` | 1 |
+| `glitchygames/state/sandbox.py` (new) | `MemorySaveManager`, `open_saves`, `save_namespace_snapshot` (as built: core Task 7 replaced the planned `SaveStore` Protocol and `SandboxSaves` with a `SaveManager` base class and `DiskSaveManager` / `MemorySaveManager`, user decision) | 1 |
 | `glitchygames/supervision.py` (new) | `Supervisor` Protocol, `ControlEvent`, control-event kinds | 1 |
 | `glitchygames/recording.py` | `RecordingSources`; `GameplayRecorder` records format-3 fields; internal-post tracker with owners | 1 |
 | `glitchygames/tracing.py` | format version 3 (reads 2 and 3) | 1 |

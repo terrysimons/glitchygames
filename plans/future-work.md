@@ -58,45 +58,65 @@ to 2026-10-18) and not done yet. One line per item, with where it is detailed. R
   double-update warning (the aim ran first and saw no game update). Calls in `dt_tick` are
   handled (one advance, one warning). Remove such calls; consider warning from `update()` itself.
 
-## Gameplay replay (follow-up to `--record-trace`, feature/engine-world-space Task 1d)
+## Gameplay replay
 
+Design: `plans/2026-10-19-gameplay-replay.md`. Master plan:
+`plans/2026-10-19-gameplay-replay-implementation.md`, with one sub-plan per part. User docs:
+`docs/architecture/gameplay_replay.md`; engine summary in CLAUDE.md ("Clocks", "Gameplay Recording
+and Replay").
+
+- ~~**Part 1, replay core**~~ **Done** on `feature/gameplay-replay`
+  (`plans/2026-10-19-gameplay-replay-core.md`): the doors (`glitchygames/sources.py`,
+  `live_sources.py`, `RecordingSources`, `ReplaySources`), the clocks (`glitchygames/clock.py`,
+  `Scene.game_time`), input snapshots, the devices and saves doors, the supervisor hook and
+  control events, trace format 3, `--replay-trace`, `--replay-fps`, `--audit`, golden replay
+  fixtures and the doors guard (`tests/test_engine_doors.py`). This replaces the old "Gameplay
+  replay" entry; its items (wall-clock reads in gameplay, polled input, reference mapping) are all
+  done.
+- **Part 2, replay tooling** (pending, `plans/2026-10-19-gameplay-replay-tooling.md`): watched
+  replay controls (starts paused with a "Press Spacebar to Start Game Replay" overlay that also
+  shows how to turn on the debug overlay), `--headless` (replaces the private `--replay-unpaced`),
+  `--rebaseline`, and the pytest plugin for recordings. While watched controls are active,
+  KEYDOWN/KEYUP stay unblocked at SDL and reach only the replay controls.
+- **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
+  starts, the playback scope (does not block real input at SDL; real input reaches only its "exit
+  playback" check), demos (the bundled PaddleSlap demo), instant replay and ghosts.
 - **Recording over a replay (`--record-trace` with `--replay-trace`) is refused** (exit 2,
   `GameEngine._start_requested_replay`): the recorder would classify the replay's batches with the
   internal-post tracker, whose pending posts the replay's pump already consumed, and would not
   copy the source recording's saves and device fields. Part 2 Task 6 (`--rebaseline`) lifts the
   refusal by wiring `ReplaySources.last_batch_origins()` and `recorded_frame_fields()` into
-  `RecordingSources` (plans/2026-10-19-gameplay-replay-tooling.md).
-- **`--replay-trace PATH`:** load a recording (`glitchygames/recording.py`, read with
-  `TraceReader`), `reset_streams(seed=...)` from its `random_seed` and apply its recorded options
-  (screen size, input mode); each frame, set `dt` from the frame's `dt` instead of reading the
-  clock, and at `GameEngine._pump_events` (the single seam) return recorded batch N for pump call
-  N: the frame's external events, merged with the internal events (FPS, game, menu events, code
-  QUITs) the live queue holds, which the replayed code posts again and which the recording's
-  internal entries verify. Sample the sprites as the recorder does, compare them with the
-  recording's frames and report the first divergence (frame, sprite, field). Nothing pauses for
-  wall-clock time.
-- ~~Move the games' randomness onto the seeded engine~~ **Done** (feature/engine-world-space
-  Task 1f): every random draw in the package comes from a named stream of the run's master seed
-  (`random_stream` / `numpy_stream` in `glitchygames/randomness.py`), the golden harness passes
-  `--random-seed` instead of patching, and `tests/test_randomness.py` rejects unseeded sources.
-- **Wall-clock reads in gameplay:** PaddleSlap's ball spawn cooldown reads `time.time`, which a
-  replay cannot reproduce (the golden harness's `deterministic_environment` still patches it with
-  a fake clock). Move it onto game time (accumulated `dt`).
-- **Polled input:** input read outside the event queue is not recorded (`pygame.key.get_pressed`,
-  `pygame.key.get_mods`, `pygame.mouse.get_pos`, joystick and controller `get_axis`; the sites are
-  listed in `glitchygames/recording.py`'s module docstring). Replay of code that polls needs a
-  per-frame snapshot of the polled state, recorded next to the frame's event batches. The debug
-  overlay's mouse poll only draws the overlay. Pumps after the final recorded frame (during
-  terminate) are not recorded either.
-- Recorded attributes come back as `RecordedReference` (a window or joystick, by id) or
-  `UnrepresentableValue` (any other object); replay must map references to live objects and
-  decide what an unrepresentable external value becomes. Games that post SDL-type events with raw
-  `pygame.event.post` are recorded as external and would be delivered twice: move them to
-  `post_event`.
+  `RecordingSources`.
+
+Follow-ups (not in any plan yet):
+
+- **State snapshots:** serialize game state for fast step-back and instant replay of long
+  scenes; today both re-simulate from the scene's start (spec, out of scope).
+- **Cheat device spec:** cheatable-field declarations, codes and UI; it plugs into the supervisor
+  hook and records its actions as control events (spec section 2, out of scope).
+- **"Take over" handover:** let the player take control part way through a replay. It must end or
+  suspend the SDL input block at the handover and switch the doors from recorded to live input.
+- **Divergence exit status:** a diverged `--replay-trace` run logs the divergence but still exits
+  0; Part 2's `--headless` exits 1 on a divergence (spec 3.3).
+- **Audit test helper suppressions:** the end-to-end audit test helper should start its children
+  through `glitchygames/replay/audit.py`'s launcher, so the only `subprocess` suppression pair is
+  the one in engine code (user decision, queued after the core documentation task).
+- Deferred review notes: `reset_sources` would call `on_uninstalled` twice for an object that is
+  both scoped and installed (`push_scoped_sources` should refuse it; Part 3);
+  `start_trace_recording` wraps `active_sources()`, which returns scoped sources first, so
+  recording inside a playback scope must wrap the installed doors (Part 3); no test pins the first
+  FPS log waiting one interval; `selection.get_state_summary` can return `-inf` for
+  `last_update_time` (not strict JSON); `ControlEvent` is unhashable.
+- Bugs found during the replay core and not fixed (BUGS.md, Active): #67 (Bitmappy's
+  joystick-event trigger conversion assumes pygame 1's integer axis scale), #68
+  (`ControllerEventManager` keys controllers by device index but routes events by instance id),
+  #72 (`MultiControllerEnhancements` stores a duration where a timestamp is expected), #73
+  (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False),
+  #75 (`pygame_needs_fastevents` compares major and minor separately).
 
 ## Trace format ideas (pending a user decision)
 
-- **Trace format v3:** record each world sprite's world position and snap mode, and the camera
+- **A later trace format version (v4; v3 is the replay format):** record each world sprite's world position and snap mode, and the camera
   position and WORLD shake offset, in every frame. Today traces hold only rect and visibility, and
   the golden test samples world and camera positions from the live run (`WorldSampler` in
   `tests/world/test_golden_traces.py`), so a baseline cannot be checked against its own world

@@ -2,7 +2,9 @@
 
 - **Date:** 2026-10-19
 - **Branch:** `feature/gameplay-replay` (from `feature/engine-world-space`, which added `--record-trace`)
-- **Status:** Design approved in conversation; spec awaiting review
+- **Status:** Design approved in conversation. Amended 2026-10-19 (core Task 15) to match what
+  Part 1 (the replay core) built: sections 1, 1.1, 1.3, 1.4, 3.1, 3.2, 3.4, 3.5, 6 and 7 carry
+  the amendments, each marked "Amended". User docs: `docs/architecture/gameplay_replay.md`
 - **Builds on:** `glitchygames/recording.py` (`--record-trace`), `glitchygames/tracing.py` (trace
   format v2), `glitchygames/randomness.py` (named seeded streams), the "Gameplay replay" entry in
   `plans/future-work.md` (replaced by this spec)
@@ -63,6 +65,13 @@ class EngineSources(Protocol):
     random_seed: int
 ```
 
+> Amended (as built): the protocol lives in `glitchygames/sources.py` and grew while Part 1 was
+> built: `saves()` returns a `SaveManager` (section 1.4), and the doors also answer
+> `performance_frame_seconds` (`--replay-fps`, section 3.2), `wall_clock_time` (the clocks,
+> section 3.4), `control_events_for_frame` (section 2), `opened_save_namespaces` (the recording
+> header), `stop_requested`, `on_installed` / `on_uninstalled` and `end_frame`. The module
+> docstring of `glitchygames/sources.py` is the reference.
+
 | Door | `LiveSources` (default) | `ReplaySources` |
 |---|---|---|
 | Event pump | `pygame.event.get()` | recorded batch N for pump call N |
@@ -70,6 +79,7 @@ class EngineSources(Protocol):
 | Polled input | captured from pygame once per frame | the recorded snapshot |
 | Devices | real joysticks/controllers | stand-ins built from the recording |
 | Saves | files on disk | sandbox from the recorded snapshot |
+| Wall clock (amended) | the real time | the recording's `recorded_at` plus the frame clock |
 | Random seed | `--random-seed` or 64 random bits | the recorded seed |
 
 - `RecordingSources` wraps `LiveSources` and writes everything passing through to the recorder.
@@ -102,6 +112,13 @@ engine.input.button(device_id=0, button=3)     # bool
 `InputSnapshot` is immutable. Recordings store only what changed from the previous frame
 (`input_changes`); idle frames add nothing.
 
+> Amended (as built): code reads the snapshot with `glitchygames.input.state.current_input()`
+> (`GameEngine.input` returns the same); widgets and games have no engine reference. Devices are
+> keyed by instance id, and a game controller is polled on two layers every frame: the joystick
+> layer above (`axis`, `button`, `hat`) and the controller layer (`controller_axis`,
+> `controller_button` by `CONTROLLER_AXIS_*` / `CONTROLLER_BUTTON_*` id, on pygame's int scale),
+> so each replay stand-in answers exactly as its live counterpart.
+
 ### 1.2 Game time
 
 `Scene.game_time` (float seconds): the sum of the `dt` the scene's `dt_tick` received
@@ -113,13 +130,25 @@ scene is paused (it gets no `dt_tick`).
 A controller present while recording is usually absent while replaying. `ReplaySources` registers a
 stand-in for each recorded device that answers name, GUID and id queries from the recording; rumble
 requests are accepted and dropped. Stick, hat and button positions come from the input snapshot.
-Window references in recorded events map to the current window.
+Enumeration is part of the door too: joystick and controller counts, `is_controller` and names by
+device index are answered live and recorded (failures included, re-raised as `pygame.error` in a
+replay), and a replay answers them from the recording, so it never sees real hardware.
+Window references in recorded events map to None (amended: live events of the display window
+always carry `window=None`, so None is exact and needs no deprecated pygame call).
 
 ### 1.4 Saves
 
 When recording starts, the recorder stores the game's save namespace (`self.saves`) in the header.
 `ReplaySources.saves(...)` returns a `SandboxSaves` seeded from it: reads see what the original
 session saw, writes stay in memory and are discarded at exit.
+
+> Amended (as built, user decision): games open their store with
+> `glitchygames.state.open_saves(app_name=...)`. There is no separate `SaveStore` protocol or
+> `SandboxSaves`: `SaveManager` is a base class holding every rule of the save format, with
+> `DiskSaveManager` (live) and `MemorySaveManager` (replay, `glitchygames/state/sandbox.py`)
+> storing slots. The header holds every store opened before recording started; a store first
+> opened later is snapshotted in that frame's `saves_opened`. Unreadable slots are recorded as
+> such and fail the same way in a replay.
 
 ## 2. The frame, supervisor hook and control events
 
@@ -146,6 +175,9 @@ begin_frame → dt_tick → events → SUPERVISOR → frame services → aim →
 - Seed the random streams with the recorded seed; apply the recorded options that affect play
   (screen size, input mode, target FPS); install `ReplaySources`; start the game as it started when
   recording began.
+- Amended (as built): every recorded option is applied except `REPLAY_LOCAL_OPTIONS`
+  (`glitchygames/replay/driver.py`). `--record-trace` with `--replay-trace` is refused (exit 2) until
+  Part 2's `--rebaseline` wires the replay's event origins and recorded fields into the recorder.
 
 ### 3.2 Each frame
 
@@ -154,10 +186,18 @@ begin_frame → dt_tick → events → SUPERVISOR → frame services → aim →
    menu events, the QUIT `quit_game()` posts) are not injected: the replayed code posts them again;
    the recording's internal entries are only used to check they were.
 3. Real keyboard and mouse input reach only the replay controls (section 4) and the window's close
-   button.
+   button. Amended (as built, user direction): real input, device and window events are blocked at
+   SDL (`glitchygames/replay/input_blocking.py`), re-blocked on every pump and restored exactly to
+   their earlier state when the replay ends; QUIT, the close event and custom types are never
+   blocked. Part 2's watched controls leave KEYDOWN/KEYUP unblocked and route them only to the
+   controls.
 4. The input snapshot is the recorded frame's.
 5. After rendering, the frame's sprites (sampled as the recorder samples them) are compared with the
    recorded frame.
+6. Amended (user request): `--replay-fps {recorded,real}`, default `recorded`. FPS events, the
+   performance statistics and the debug overlay's performance panel use the recorded frame times
+   (exact; FPS events compared) or this machine's measured ones (FPS events not compared). Logic
+   always receives the recorded `dt`.
 
 ### 3.3 Divergence and end
 
@@ -184,6 +224,16 @@ begin_frame → dt_tick → events → SUPERVISOR → frame services → aim →
 - Wall clock → `scene.game_time`: PaddleSlap's ball-spawn cooldown (`time.time()`), the cursor
   blinks in `ui/inputs.py` (`time.time()`) and `ui/text_widgets.py` (`pygame.time.get_ticks()`).
   Behaviour fix: these no longer advance while the game is paused.
+  Amended (ruling, core Task 8): the cursor blinks read `frame_clock_seconds()` /
+  `frame_clock_milliseconds()`, not `Scene.game_time`: widgets have no scene reference, and a paused
+  scene's widgets are neither updated nor drawn (the pause scene is active), so no blink is seen
+  advancing while paused and the blink stays replay-exact. A blink's phase can differ by up to one
+  blink period after resume.
+- Amended (as built): every time read in `glitchygames/` goes through `glitchygames/clock.py` or
+  `Scene.game_time`. `elapsed_seconds()` (throttles, debounces, timeouts) is the frame clock live
+  and replayed (ruling, core Task 12b: a live monotonic clock would let replays decide timers
+  differently near thresholds); `measured_seconds()` is real monotonic time for logs and metrics
+  only and is never replayed.
 - FPS events: posted from engine frame time instead of wall-clock intervals.
 - Raw `pygame.event.post` of SDL-type events → `glitchygames.recording.post_event` (otherwise replay
   delivers them twice).
@@ -191,11 +241,22 @@ begin_frame → dt_tick → events → SUPERVISOR → frame services → aim →
   pygame input or reads the wall clock outside the doors. Allowed by file: the doors themselves,
   pacing (`timing.py`), performance statistics, the debug HUD's timing, the recording's start-time
   stamp, `api/client.py` request timestamps.
+  Amended (as built): the allow list is `ALLOWED_BYPASSES` in `tests/test_engine_doors.py`: the
+  doors (`input/state.py`, `input/devices.py`, `live_sources.py`, `recording.py`'s `post_event`),
+  pacing (`timing.py`, `SceneManager.start` / `_finish_frame` in `scenes/scene.py`),
+  `performance/`, `debug/`, `audio/diagnostics.py` (measures real audio timing), the recording's
+  start stamp (`engine/game_engine.py`) and `api/client.py`; plus, by function,
+  `clock.measured_seconds` (`ALLOWED_FUNCTION_BYPASSES`). Device enumeration and construction are
+  watched as well, and no directory (Bitmappy included) is exempt.
 
 ### 3.5 Determinism audit (`--audit`)
 
-Replays twice in one process with fresh state, comparing both runs with the recording and with each
-other. A mismatch between the two runs is reported as nondeterminism that slipped past the doors.
+Replays twice in two fresh subprocesses with different PYTHONHASHSEED values (amended; user
+approved), comparing both runs with the recording and with each other through per-frame digests.
+A mismatch between the two runs is reported as nondeterminism that slipped past the doors. As
+built (`glitchygames/replay/audit.py`): it compares what the replay samples (scene class, each
+sprite's `rect`, `visible` and draw order), exits 0 or 1, and is refused (exit 2) with
+`--replay-fps real` or under `python -E` / `-I`.
 
 ## 4. Replay tooling
 
@@ -296,22 +357,41 @@ logging the report in debug runs; a replay test per bundled demo catches this in
   benchmarks.
 - Trace format version 3: per frame `input_changes` and `control_events`; header `saves` and the
   scene-start captures. Version 2 recordings still replay (3.3).
+  Amended (as built in Part 1): frames also carry `devices_opened`, `saves_opened` and
+  `device_enumeration`, and the header `devices` and `device_enumeration`; each frame field is
+  written only when not empty. Scene-start captures come with Part 3. The format is documented in
+  the `glitchygames/recording.py` module docstring.
 
 ## 7. Modules
 
 | Module | Holds |
 |---|---|
-| `glitchygames/engine/sources.py` (new) | `EngineSources`, `LiveSources`, `RecordingSources` |
-| `glitchygames/input/state.py` (new) | `InputSnapshot`, `engine.input` |
+| `glitchygames/sources.py` (new, leaf) | `EngineSources`, the active-sources registry, the frame clock |
+| `glitchygames/live_sources.py` (new) | `LiveSources` |
+| `glitchygames/clock.py` (new, leaf) | the clock exports (section 3.4) |
+| `glitchygames/supervision.py` (new) | `Supervisor`, `ControlEvent` |
+| `glitchygames/input/state.py` (new) | `InputSnapshot`, `current_input` |
+| `glitchygames/input/devices.py` (new) | the devices door: live and replay registries, stand-ins |
+| `glitchygames/state/sandbox.py` (new) | `MemorySaveManager`, `open_saves`, save snapshots |
 | `glitchygames/replay/driver.py` (new) | `ReplaySources`, the replay loop, comparison and report |
+| `glitchygames/replay/input_blocking.py` (new) | blocking real input at SDL during a replay |
+| `glitchygames/replay/audit.py` (new) | `--audit`: two subprocess replays, per-frame digests |
+| `glitchygames/replay/rebaseline.py` (new, Part 2) | `--rebaseline` |
+| `glitchygames/replay/scene_start.py` (new, Part 3) | scene-start captures, `rebuild_scene` |
 | `glitchygames/replay/controls.py` (new) | watched-replay controls, status bar, step back, bookmarks |
 | `glitchygames/replay/playback.py` (new) | playback scope, `play_recording`, instant replay |
 | `glitchygames/replay/ghosts.py` (new) | `GhostRecorder`, `GhostTrack`, `GhostSprite` |
 | `glitchygames/testing/replays.py` (new) | pytest plugin (collects `tests/fixtures/replays/`) |
 | `scripts/record_scripted_session.py` (new) | records golden replay fixtures through the real engine |
-| `recording.py`, `tracing.py` | recorder moved into `RecordingSources`; format v3 |
+| `recording.py`, `tracing.py` | `RecordingSources` (in `recording.py`); format v3 |
 | `engine/game_engine.py`, `scenes/scene.py` | doors, supervisor hook, `game_time`, `replay_arguments`, `INSTANT_REPLAY_SECONDS` |
 | bypass sites (3.4) | moved behind the doors |
+
+Amended (ruling 27): the plan's layout wins over this table's first draft. The registry lives in
+`glitchygames/sources.py`, not `glitchygames/engine/sources.py`, because it has no engine
+dependency: inside the engine package it would make an engine ↔ scenes import cycle. The live
+providers are in `glitchygames/live_sources.py` and `RecordingSources` in
+`glitchygames/recording.py`, all importing the leaf, never the reverse.
 
 ## Testing
 
