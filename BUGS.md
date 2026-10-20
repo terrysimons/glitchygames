@@ -93,6 +93,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Not fixed here (documentation task). The help text is a one-line fix; `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
 - **Files**: `glitchygames/engine/game_engine.py`, `docs/architecture/argument_system.md`
 
+### 77. Multi-Controller Stress Tests Time Themselves With the Wall Clock
+- **Description**: `tests/tools/test_multi_controller_stress.py` asserts elapsed `time.time()` differences (e.g. `test_concurrent_operations_stress`: `< 10.0` seconds), so a wall-clock jump fails it: one full-suite run measured 732 s inside a 68 s run
+- **Status**: Active (flaky; passes when re-run)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay tooling, Task 4: full-suite run)
+- **Date Reported**: 2026-10-20
+- **Details**: Not fixed here (unrelated to the task). Measure with `time.perf_counter()` (monotonic), or drop the timing assertions in favour of the benchmark suite
+- **Files**: `tests/tools/test_multi_controller_stress.py`
+
 ## Resolved Bugs
 
 ### 69. The Live Device Registry Keeps Every Enumeration Answer and Opened Descriptor Until a Recorder Takes Them

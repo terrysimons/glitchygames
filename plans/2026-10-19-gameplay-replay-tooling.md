@@ -677,6 +677,17 @@ git commit -m "Step back, Home and jump to the divergence by re-running the repl
 
 ### Task 4: Bookmarks and saving a copy
 
+> **As built.** Bookmarks use the viewer's frame numbering (`current_frame`, the status line,
+> `--replay-pause-at-frame`): bookmark N means paused with frame N next, so its breakpoint goes in
+> frame N - 1 (the frame whose picture is shown). That way a saved copy reopens showing the same
+> `frame N` (the tests below use `bookmarks=[3]` for a breakpoint in frame 2). Saving lives in the
+> `ReplaySources.bookmarks` collaborator (`BookmarkedCopy.save()`), because `ReplaySources` was at
+> the public-method limit. `ReplayOptions.recording_path` (set by `start_replay`) names the file
+> to copy. The copy is written aside and then moved into place. `bookmarked_copy_path` of a copy
+> is the copy itself, so restarts never chain names. The breakpoint handler is
+> `ReplayControls.pause_at_breakpoint`, registered by the engine for watched replays only and
+> ignored while a rebuild runs.
+
 **Files:**
 - Modify: `glitchygames/replay/controls.py` (B, S)
 - Modify: `glitchygames/replay/driver.py` (bookmarks as `breakpoint` control events; save copy;

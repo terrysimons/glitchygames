@@ -16,6 +16,10 @@ hands every real key press and release to ``ReplayControls``; none reaches the g
 - Home: restart at frame 0 (paused after frame 0, ``FIRST_PAUSED_FRAME``).
 - D: restart at the divergence frame, once the replay has found one (``divergence_frame``).
 - ``]`` / ``[``: double or halve the playback speed, within ``MIN_SPEED`` and ``MAX_SPEED``.
+- B: bookmark the current frame (``bookmarks``: the frame the status line shows, the one to be
+  served next; kept sorted, once each). S asks the driver to save a copy of the recording with
+  the bookmarks as ``breakpoint`` control events (``take_save_request``); a replay of the copy
+  pauses at each (``pause_at_breakpoint``, glitchygames/replay/driver.py, rule 16).
 - Esc: quit the replay (the driver ends it with ``end_reason = 'quit'``; no event is posted, as
   a code-posted QUIT would be an internal event the recording does not have).
 - F3 / F4: the debug overlay's keys (``OVERLAY_KEYS``), handed to the overlay.
@@ -39,7 +43,8 @@ a screenshot or a trace.
 
 from __future__ import annotations
 
-from typing import ClassVar, Self, override
+import bisect
+from typing import TYPE_CHECKING, ClassVar, Self, override
 
 import pygame
 
@@ -53,6 +58,9 @@ from glitchygames.debug.overlay import (
 )
 from glitchygames.debug.panels import HUD_LINE_HEIGHT, HUD_MARGIN, HUD_TEXT_COLOR, blit_text
 from glitchygames.ui.message_screen import MessageScreen
+
+if TYPE_CHECKING:
+    from glitchygames.supervision import ControlEvent
 
 # Status line: 'frame 6120 / 9800 · 1:42.0 · x1 · paused · diverged at 6120', where the x
 # before the speed is a multiplication sign
@@ -76,6 +84,10 @@ STEP_REPEAT_INTERVAL_SECONDS = 0.1
 FIRST_PAUSED_FRAME = 1
 # Step back, Home and jump to the divergence: each asks for a restart (restart_request)
 RESTART_KEYS: frozenset[int] = frozenset({pygame.K_COMMA, pygame.K_HOME, pygame.K_d})
+# B bookmarks the current frame, S saves the bookmarks into a copy of the recording
+BOOKMARK_KEYS: frozenset[int] = frozenset({pygame.K_b, pygame.K_s})
+# A breakpoint control event's optional label (shown when it pauses the replay)
+BREAKPOINT_LABEL_FIELD = 'label'
 # The keys that act while a restarted replay rebuilds
 REBUILD_KEYS: frozenset[int] = OVERLAY_KEYS | {pygame.K_ESCAPE}
 REBUILD_BACKGROUND_COLOR: tuple[int, int, int] = (0, 0, 0)
@@ -226,6 +238,9 @@ class ReplayControls:
             (``take_restart_request``).
         rebuild_target_frame: The frame a restarted replay is rebuilding up to, or None once
             it is there (the driver keeps it).
+        bookmarks: The frames B marked, sorted, each once (in ``current_frame``'s numbering:
+            a bookmark N pauses a replay of the saved copy with frame N next).
+        save_requested: True when S asked for a saved copy (``take_save_request``).
 
     """
 
@@ -253,6 +268,8 @@ class ReplayControls:
         self.divergence_frame: int | None = None
         self.restart_request: int | None = None
         self.rebuild_target_frame: int | None = None
+        self.bookmarks: list[int] = []
+        self.save_requested = False
         self._message: str | None = None
         self._message_ticks_left = 0
         # Each key held down -> when it repeats next (step keys) or None (acts once per press)
@@ -338,6 +355,55 @@ class ReplayControls:
             self.speed = min(self.speed * SPEED_STEP_FACTOR, self.MAX_SPEED)
         elif key == pygame.K_LEFTBRACKET:
             self.speed = max(self.speed / SPEED_STEP_FACTOR, self.MIN_SPEED)
+        elif key in BOOKMARK_KEYS:
+            self._handle_bookmark_key(key=key)
+
+    def _handle_bookmark_key(self: Self, *, key: int) -> None:
+        """Act on B (bookmark the current frame) or S (ask for a saved copy).
+
+        A bookmark is at least ``FIRST_PAUSED_FRAME``: frame 0 always runs.
+
+        Args:
+            key: One of ``BOOKMARK_KEYS``.
+
+        """
+        if key == pygame.K_s:
+            self.save_requested = True
+            return
+        frame_index = max(self.current_frame, FIRST_PAUSED_FRAME)
+        if frame_index not in self.bookmarks:
+            bisect.insort(self.bookmarks, frame_index)
+        self.show_message(text=f'bookmarked frame {frame_index}')
+
+    def take_save_request(self: Self) -> bool:
+        """Consume the request S made for a saved copy.
+
+        Returns:
+            True once per S press.
+
+        """
+        save_requested = self.save_requested
+        self.save_requested = False
+        return save_requested
+
+    def pause_at_breakpoint(self: Self, control_event: ControlEvent) -> None:
+        """Pause at a recorded ``breakpoint`` control event, unless a restart is rebuilding.
+
+        A ``SceneManager`` control event handler (``Callable[[ControlEvent], None]``, so the
+        event is positional): the engine registers it for a watched replay. It runs at the
+        frame's supervisor slot, so the replay pauses once that frame ends. A rebuild runs past
+        breakpoints to its own pause frame.
+
+        Args:
+            control_event: The breakpoint (its ``label``, if any, is shown).
+
+        """
+        if self.rebuild_target_frame is not None:
+            return
+        self.paused = True
+        self.step_requested = False
+        label = control_event.data.get(BREAKPOINT_LABEL_FIELD)
+        self.show_message(text='breakpoint' if label is None else f'breakpoint: {label}')
 
     def _handle_space(self: Self) -> None:
         """Start the replay from the start screen, else pause or resume it."""

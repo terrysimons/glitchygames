@@ -77,6 +77,7 @@ from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources, install_sources, reset_sources
 from glitchygames.sprites import Sprite
 from glitchygames.state.sandbox import save_namespace_snapshot
+from glitchygames.supervision import BREAKPOINT_KIND
 from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
 from glitchygames.tracing import TraceFormatError
 
@@ -857,6 +858,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.scene_manager.frame_number = 0
         # ...and with no supervisors, handlers or control events left from an earlier run
         self.scene_manager.reset_supervision()
+        # A watched replay pauses at each recorded breakpoint, such as a saved bookmark (rule 16
+        # of glitchygames/replay/driver.py); nobody could unpause a headless one
+        if self.replay_sources is not None and not self.replay_sources.options.headless:
+            self.scene_manager.add_control_event_handler(
+                kind=BREAKPOINT_KIND, handler=self.replay_sources.controls.pause_at_breakpoint
+            )
 
         # Update the scene manager's update_type from the engine's options
         self.scene_manager.update_type = self.update_type
@@ -1913,7 +1920,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         The restart (glitchygames/replay/rebuild.py) runs this process's own command line with
         the pause frame, keeping whether the debug overlay was shown; this process either hands
-        it to the supervising replay process or supervises the restarted replays itself.
+        it to the supervising replay process or supervises the restarted replays itself. With
+        bookmarks, the bookmarked copy is saved first and the restart replays it, so the
+        bookmarks survive (rule 16 of glitchygames/replay/driver.py); if it cannot be saved,
+        the restart replays this run's recording without them.
 
         Args:
             replay_sources: The torn-down replay's sources.
@@ -1926,9 +1936,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.log.info(f'Restarting the replay at frame {restart_frame}')
         debug_overlay = self.scene_manager.debug_overlay
         controls = replay_sources.controls
+        recording_path = Path(GameEngine.OPTIONS['replay_trace'])
+        if controls.bookmarks:
+            bookmarked_copy = replay_sources.bookmarks.save()
+            if bookmarked_copy is not None:
+                recording_path = bookmarked_copy
         command = restart_command(
             original=sys.orig_argv,
-            recording_path=Path(GameEngine.OPTIONS['replay_trace']),
+            recording_path=recording_path,
             pause_at_frame=restart_frame,
             debug_overlay_visible=debug_overlay.is_visible,
             viewer_state=ViewerState(

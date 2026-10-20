@@ -110,6 +110,23 @@ session again, and every frame's sprites are compared with the recorded frame. T
     pauses. A divergence or the end of the recording on the way pauses it there instead (rule
     14). ``ReplayOptions.viewer_state`` restores the viewer's speed, debug panel and the
     divergence frame an earlier run found.
+16. Bookmarks (watched): B bookmarks the frame the status line shows (``ReplayControls.bookmarks``,
+    frame N meaning paused with frame N next). S (``ReplaySources.bookmarks``, saved by the
+    control tick) writes a copy of the recording (``write_bookmarked_copy``) to
+    ``bookmarked_copy_path``, with a ``{'kind': 'breakpoint', 'label': 'bookmark'}`` control
+    event appended to frame N - 1 (the frame whose picture was shown) for each bookmark N
+    (one already there is not added again; other control events are kept). The original
+    recording is never written: the copy is written aside and moved into place, so a copy
+    saved again from itself (a restarted replay of it, as below) is replaced whole. With no
+    bookmarks nothing is written and the viewer is told so. A breakpoint is re-applied on its
+    frame (glitchygames/supervision.py) and is not compared, so the copy replays exactly as
+    the original; a watched replay pauses when it applies one
+    (``ReplayControls.pause_at_breakpoint``, a control event handler the engine registers),
+    except while rebuilding, so a saved copy reopens and stops at each bookmark. A restart
+    (rule 15) with bookmarks saves the copy first and replays the copy
+    (``GameEngine._restart_replay``), so bookmarks survive step back. The copy holds the
+    recording's complete frames at format version 3: a truncated recording's copy ends
+    normally after its last complete frame.
 """
 
 from __future__ import annotations
@@ -174,7 +191,12 @@ from glitchygames.replay.rebuild import Rebuild, ViewerState
 from glitchygames.replay.viewer import ReplayViewer
 from glitchygames.sources import frame_clock_seconds
 from glitchygames.state.sandbox import MemorySaveManager
-from glitchygames.supervision import KIND_FIELD, REAPPLIED_CONTROL_EVENT_KINDS, ControlEvent
+from glitchygames.supervision import (
+    BREAKPOINT_KIND,
+    KIND_FIELD,
+    REAPPLIED_CONTROL_EVENT_KINDS,
+    ControlEvent,
+)
 from glitchygames.tracing import (
     FRAMES_FIELD,
     RECT_FIELD,
@@ -186,6 +208,7 @@ from glitchygames.tracing import (
     TraceFormatError,
     read_trace_result,
     sample_scene_frame,
+    write_trace,
 )
 
 if TYPE_CHECKING:
@@ -287,6 +310,17 @@ TRUNCATED_RECORDING_BANNER = 'End of recording (the file is truncated)'
 # The frame fields a recording made over a replay copies from it (recorded_frame_fields)
 REBASELINE_FRAME_FIELDS = (SAVES_OPENED_FIELD, DEVICES_OPENED_FIELD, DEVICE_ENUMERATION_FIELD)
 
+# Bookmarks (rule 16): the control event each bookmark adds to the saved copy, and the copy's name
+# (x.jsonl.gz -> x.bookmarked.jsonl.gz)
+BOOKMARK_LABEL = 'bookmark'
+BOOKMARK_CONTROL_EVENT = ControlEvent(kind=BREAKPOINT_KIND, data={'label': BOOKMARK_LABEL})
+RECORDING_FILE_SUFFIX = '.jsonl.gz'
+BOOKMARKED_COPY_MARK = '.bookmarked'
+# The file a copy is written to before it is moved into place
+PARTIAL_COPY_SUFFIX = '.partial'
+NO_BOOKMARKS_MESSAGE = 'no bookmarks to save'
+NO_RECORDING_FILE_MESSAGE = 'no recording file to copy the bookmarks into'
+
 VERSION_TWO_INPUT_WARNING = (
     'The recording is format version %d, recorded before input-state capture; polled input '
     'will read as idle'
@@ -332,6 +366,8 @@ class ReplayOptions(BaseModel):
             or None in the first replay process.
         viewer_state: The viewer's state a restarted replay starts with
             (``--replay-viewer-state``: speed, debug panel, divergence frame), or None.
+        recording_path: The recording's file, which a saved bookmarked copy is copied from
+            (rule 16; ``start_replay`` sets it), or None (nothing can be saved).
 
     """
 
@@ -346,6 +382,7 @@ class ReplayOptions(BaseModel):
     pause_at_frame: int | None = Field(default=None, ge=0)
     restart_handoff_path: Path | None = None
     viewer_state: ViewerState | None = None
+    recording_path: Path | None = None
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -420,6 +457,58 @@ class RecordedFrames:
             for field_name in REBASELINE_FRAME_FIELDS
             if field_name in frame
         }
+
+
+class BookmarkedCopy:
+    """Saves the viewer's bookmarks into a copy of the recording (``ReplaySources.bookmarks``).
+
+    Rule 16: S asks for a save (the control tick calls ``save``), and
+    ``GameEngine._restart_replay`` saves before a restart with bookmarks.
+    """
+
+    def __init__(self: Self, *, controls: ReplayControls, recording_path: Path | None) -> None:
+        """Keep what a save needs.
+
+        Args:
+            controls: The watched replay's controls (their ``bookmarks``, and where the outcome
+                is shown).
+            recording_path: The file the recording was read from
+                (``ReplayOptions.recording_path``), or None.
+
+        """
+        self._controls = controls
+        self._recording_path = recording_path
+
+    def save(self: Self) -> Path | None:
+        """Save a copy of the recording with the bookmarks as breakpoints.
+
+        The viewer is told the outcome (``ReplayControls.show_message``), and it is logged.
+
+        Returns:
+            The copy's path, or None when nothing was written: no bookmarks, no recording file
+            (sources made from frames in memory), or the copy could not be written.
+
+        """
+        bookmarks = list(self._controls.bookmarks)
+        if not bookmarks:
+            self._controls.show_message(text=NO_BOOKMARKS_MESSAGE)
+            return None
+        if self._recording_path is None:
+            self._controls.show_message(text=NO_RECORDING_FILE_MESSAGE)
+            return None
+        destination = bookmarked_copy_path(recording_path=self._recording_path)
+        try:
+            write_bookmarked_copy(
+                recording_path=self._recording_path, bookmarks=bookmarks, destination=destination
+            )
+        # A TraceFormatError (the file changed since it was read) is a ValueError
+        except (OSError, ValueError) as error:
+            LOG.exception('Could not save bookmarks %s to %s', bookmarks, destination)
+            self._controls.show_message(text=f'could not save bookmarks: {error}')
+            return None
+        LOG.info('Saved bookmarks %s to %s', bookmarks, destination)
+        self._controls.show_message(text=f'bookmarks saved to {destination.name}')
+        return destination
 
 
 @dataclasses.dataclass(frozen=True)
@@ -730,6 +819,7 @@ class ReplaySources:
         random_seed: The recorded master seed.
         controls: The watched replay's controls (rule 14; unused by a headless replay).
         viewer: The watched replay's outer loop (rule 14, glitchygames/replay/viewer.py).
+        bookmarks: Saves the viewer's bookmarks into a copy of the recording (rule 16).
         draws_overlay: True for a watched replay, which draws its status bar
             (``draw_overlay``).
         presents_frames: False for a watched replay, whose viewer presents the latest frame
@@ -771,6 +861,9 @@ class ReplaySources:
             awaiting_start=options.wait_for_start and not options.headless,
         )
         self.viewer = ReplayViewer(controls=self.controls)
+        self.bookmarks = BookmarkedCopy(
+            controls=self.controls, recording_path=options.recording_path
+        )
         # A restarted watched replay rebuilds up to its pause frame (rule 15)
         self._rebuild: Rebuild | None = None
         if options.pause_at_frame is not None and not options.headless:
@@ -1546,6 +1639,8 @@ class ReplaySources:
         if window_closes or self.controls.quit_requested:
             self._stop(end_reason=QUIT_END_REASON)
             return
+        if self.controls.take_save_request():
+            self.bookmarks.save()
         restart_frame = self.controls.take_restart_request()
         if restart_frame is not None:
             # The engine relaunches the replay at the frame once the run is torn down (rule 15)
@@ -1625,6 +1720,69 @@ class ReplaySources:
         if self.result.end_reason == RUNNING_END_REASON:
             self.result.end_reason = end_reason
         self._stop_requested = True
+
+
+def bookmarked_copy_path(*, recording_path: Path) -> Path:
+    """Name the bookmarked copy of a recording (rule 16), next to it.
+
+    Args:
+        recording_path: The recording.
+
+    Returns:
+        ``x.bookmarked.jsonl.gz`` for ``x.jsonl.gz`` (``x.bookmarked.trace`` for another
+        suffix such as ``x.trace``); a bookmarked copy is its own copy, so saving again from a
+        copy (a restarted replay replays one) updates it rather than naming a copy of a copy.
+
+    """
+    name = recording_path.name
+    suffix = (
+        RECORDING_FILE_SUFFIX if name.endswith(RECORDING_FILE_SUFFIX) else recording_path.suffix
+    )
+    stem = name.removesuffix(suffix)
+    if stem.endswith(BOOKMARKED_COPY_MARK):
+        return recording_path
+    return recording_path.with_name(f'{stem}{BOOKMARKED_COPY_MARK}{suffix}')
+
+
+def write_bookmarked_copy(*, recording_path: Path, bookmarks: list[int], destination: Path) -> None:
+    """Write a copy of a recording with a breakpoint for each bookmark (rule 16).
+
+    The recording's header and complete frames are copied as read; for each bookmark N, frame
+    N - 1 gets ``BOOKMARK_CONTROL_EVENT`` appended to its control events, unless it already has
+    it. The copy is written to ``destination`` plus ``PARTIAL_COPY_SUFFIX``, then moved into
+    place, so ``destination`` is never left half written, even when it is ``recording_path``.
+
+    Args:
+        recording_path: The recording to copy (never written, unless it is ``destination``).
+        bookmarks: The bookmarked frames (``ReplayControls.bookmarks``), each 1 to the
+            recording's frame count.
+        destination: The copy's path (``bookmarked_copy_path``).
+
+    Raises:
+        ValueError: If a bookmark is outside the recording (nothing is written).
+
+    """
+    trace = read_trace_result(path=recording_path).trace
+    frames: list[dict[str, Any]] = trace[FRAMES_FIELD]
+    bookmark_record = BOOKMARK_CONTROL_EVENT.to_json()
+    for bookmark in bookmarks:
+        if not 1 <= bookmark <= len(frames):
+            message = (
+                f'Bookmark {bookmark} is outside the recording {recording_path} '
+                f'(frames 1 to {len(frames)} can be bookmarked)'
+            )
+            raise ValueError(message)
+        frame = frames[bookmark - 1]
+        control_events = list(frame.get(CONTROL_EVENTS_FIELD, []))
+        if bookmark_record not in control_events:
+            control_events.append(bookmark_record)
+        frame[CONTROL_EVENTS_FIELD] = control_events
+    partial_path = destination.with_name(destination.name + PARTIAL_COPY_SUFFIX)
+    try:
+        write_trace(trace=trace, path=partial_path)
+        partial_path.replace(destination)
+    finally:
+        partial_path.unlink(missing_ok=True)
 
 
 def _installed_engine_version() -> str | None:
@@ -1716,6 +1874,7 @@ def start_replay(
         pause_at_frame=pause_at_frame,
         restart_handoff_path=None if restart_handoff is None else Path(restart_handoff),
         viewer_state=options.get('replay_viewer_state'),
+        recording_path=path,
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(header=sources.header, game_class_name=game_class_name)

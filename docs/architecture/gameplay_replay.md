@@ -4,10 +4,9 @@ GlitchyGames can record a play session and replay it exactly through the real en
 engine version and same recording give bit-identical sprite traces: every frame's sprite
 `rect` and `visible` match the recording. Audio is played during a replay but is not compared.
 
-This page covers the replay core: recording, exact replay, watching a replay, headless runs, the
-determinism audit, and the rules game code follows so its sessions replay. More watched-replay
-controls (stepping back, bookmarks), rebaselining and in-game playback (demos, instant replay,
-ghosts) are planned. See
+This page covers the replay core: recording, exact replay, watching a replay (with step back
+and bookmarks), headless runs, the determinism audit, and the rules game code follows so its
+sessions replay. Rebaselining and in-game playback (demos, instant replay, ghosts) are planned. See
 `plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for what is
 pending.
 
@@ -258,6 +257,8 @@ then after 300 ms ten times a second:
 | Home | Restart at the beginning, paused after frame 0 |
 | D | Restart just before the divergence, once the replay has found one |
 | `]` / `[` | Double or halve the playback speed (0.25 to 8) |
+| B | Bookmark the frame shown in the status bar |
+| S | Save a copy of the recording with the bookmarks as breakpoints |
 | Esc | Quit the replay |
 | F3 / F4 | Toggle the debug overlay / show its next panel |
 
@@ -287,6 +288,22 @@ but `REPLAY_DIVERGED` once any of the runs diverged; SIGTERM or SIGHUP to the su
 child too (killed with SIGKILL, without its teardown: a replay never records, so nothing is
 lost). Stepping back from far into a long recording takes as long as rebuilding up to there.
 `--replay-pause-at-frame` is ignored with `--headless` (nothing could unpause the replay).
+
+#### Bookmarks (B and S)
+
+B bookmarks the frame the status bar shows (`frame N`: paused with frame N next). S writes a
+copy of the recording next to it, `x.bookmarked.jsonl.gz` for `x.jsonl.gz`, with a
+`{"kind": "breakpoint", "label": "bookmark"}` control event added to frame N - 1 (the frame whose
+picture was shown) for each bookmark, and logs where. With no bookmarks it writes nothing and
+says `no bookmarks to save`. The original recording is never written; the copy is written aside
+and then moved into place. Breakpoints are applied again on their frame and never compared, so
+the copy replays exactly like the original, headless included. A watched replay of the copy
+pauses at each breakpoint, showing `frame N` again with `breakpoint: bookmark`. A rebuild after
+a restart runs past breakpoints to its own pause frame. Stepping back (or Home, or D) with
+bookmarks saves the copy first and restarts on the copy, so bookmarks survive restarts. Saving
+from a copy updates that copy in place rather than making a copy of a copy. The copy holds the
+recording's complete frames, so a truncated recording's copy ends normally after its last
+complete frame.
 
 ### `--replay-fps {recorded,real}`
 

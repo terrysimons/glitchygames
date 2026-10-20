@@ -23,6 +23,7 @@ from glitchygames.replay.controls import (
     overlay_key_label,
     rebuild_progress_text,
 )
+from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 from glitchygames.ui.message_screen import MessageScreen
 
 # A surface the size of the recording tests' window (tests/world/test_gameplay_recording.py)
@@ -209,9 +210,18 @@ class TestRebuilding:
         controls.rebuild_target_frame = 50
         controls.current_frame = 30
         controls.divergence_frame = 10
-        for key in (pygame.K_SPACE, pygame.K_HOME, pygame.K_d, pygame.K_RIGHTBRACKET):
+        for key in (
+            pygame.K_SPACE,
+            pygame.K_HOME,
+            pygame.K_d,
+            pygame.K_RIGHTBRACKET,
+            pygame.K_b,
+            pygame.K_s,
+        ):
             controls.handle_key(key=key)
         assert (controls.paused, controls.restart_request, controls.speed) == (False, None, 1.0)
+        assert controls.bookmarks == []
+        assert not controls.take_save_request()
         controls.handle_key(key=TOGGLE_KEY)
         controls.handle_key(key=pygame.K_ESCAPE)
         assert controls.debug_overlay.is_visible
@@ -238,6 +248,56 @@ class TestRebuilding:
         # The display is cleared around the one line
         assert surface.get_at((2, 2)) == pygame.Color(0, 0, 0)
         assert surface.get_at((2, SURFACE_SIZE[1] - 2)) == pygame.Color(0, 0, 0)
+
+
+class TestBookmarks:
+    """B bookmarks the frame, S asks for a saved copy, and a recorded breakpoint pauses."""
+
+    def test_bookmarks_are_unique_and_sorted(self):
+        controls = ReplayControls(total_frames=100)
+        for frame in (30, 10, 30):
+            controls.current_frame = frame
+            controls.handle_key(key=pygame.K_b)
+        assert controls.bookmarks == [10, 30]
+
+    def test_a_bookmark_says_which_frame_it_marked(self):
+        controls = ReplayControls(total_frames=100)
+        controls.current_frame = 30
+        controls.handle_key(key=pygame.K_b)
+        assert controls.message_for_control_tick() == 'bookmarked frame 30'
+
+    def test_a_bookmark_before_frame_zero_ran_marks_the_first_paused_frame(self):
+        controls = ReplayControls(total_frames=100)
+        controls.handle_key(key=pygame.K_b)
+        assert controls.bookmarks == [FIRST_PAUSED_FRAME]
+
+    def test_save_is_requested_once_per_press(self):
+        controls = ReplayControls(total_frames=100)
+        assert not controls.take_save_request()
+        controls.handle_key(key=pygame.K_s)
+        assert controls.take_save_request()
+        assert not controls.take_save_request()
+
+    def test_a_breakpoint_pauses_and_names_its_label(self):
+        controls = ReplayControls(total_frames=100)
+        controls.step_requested = True
+        controls.pause_at_breakpoint(ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'bookmark'}))
+        assert controls.paused
+        assert not controls.step_requested
+        assert controls.message_for_control_tick() == 'breakpoint: bookmark'
+
+    def test_a_breakpoint_without_a_label_pauses(self):
+        controls = ReplayControls(total_frames=100)
+        controls.pause_at_breakpoint(ControlEvent(kind=BREAKPOINT_KIND, data={}))
+        assert controls.paused
+        assert controls.message_for_control_tick() == 'breakpoint'
+
+    def test_a_breakpoint_does_not_pause_a_rebuild(self):
+        controls = ReplayControls(total_frames=100)
+        controls.rebuild_target_frame = 50
+        controls.pause_at_breakpoint(ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'bookmark'}))
+        assert not controls.paused
+        assert controls.message_for_control_tick() is None
 
 
 def test_other_keys_do_nothing():

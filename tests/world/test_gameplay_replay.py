@@ -73,6 +73,8 @@ from glitchygames.replay.driver import (
     ReplayResult,
     ReplaySources,
     apply_recorded_options,
+    bookmarked_copy_path,
+    write_bookmarked_copy,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.replay.rebuild import REBUILD_PROGRESS_INTERVAL_SECONDS, Rebuild, ViewerState
@@ -2576,6 +2578,207 @@ class TestStepBack:
         sources = harness_replay_sources(manager=manager)
         assert sources.options.restart_handoff_path == handoff_path
         GoldenTraceSceneManager.uninstall()
+
+
+BOOKMARK_RECORD = {'kind': 'breakpoint', 'label': 'bookmark'}
+
+
+class TestBookmarks:
+    """B bookmarks frames, S saves them as breakpoints in a copy, a breakpoint pauses."""
+
+    def test_saving_with_no_bookmarks_writes_nothing_and_says_so(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        sources = ReplaySources.from_path(path=recording_path)
+        assert sources.bookmarks.save() is None
+        assert not bookmarked_copy_path(recording_path=recording_path).exists()
+        assert sources.controls.message_for_control_tick() == 'no bookmarks to save'
+
+    @pytest.mark.parametrize(
+        ('name', 'copy_name'),
+        [
+            ('session.jsonl.gz', 'session.bookmarked.jsonl.gz'),
+            ('my.session.jsonl.gz', 'my.session.bookmarked.jsonl.gz'),
+            ('session.trace', 'session.bookmarked.trace'),
+            # A copy is its own copy: saving again (or after a restart) updates it in place
+            ('session.bookmarked.jsonl.gz', 'session.bookmarked.jsonl.gz'),
+        ],
+    )
+    def test_the_bookmarked_copy_path(self, tmp_path, name, copy_name):
+        assert bookmarked_copy_path(recording_path=tmp_path / name) == tmp_path / copy_name
+
+    def test_bookmarked_copy_adds_breakpoints(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        original_bytes = recording_path.read_bytes()
+        destination = bookmarked_copy_path(recording_path=recording_path)
+        # Bookmark 3 pauses with frame 3 next: the breakpoint is in frame 2, the one shown
+        write_bookmarked_copy(recording_path=recording_path, bookmarks=[3], destination=destination)
+        original = read_trace_result(path=recording_path).trace
+        copy = read_trace_result(path=destination).trace
+        # The session records no control events of its own
+        assert 'control_events' not in original['frames'][2]
+        assert copy['frames'][2].pop('control_events') == [BOOKMARK_RECORD]
+        assert copy == original
+        assert destination.name == 'session.bookmarked.jsonl.gz'
+        # The original recording is never written
+        assert recording_path.read_bytes() == original_bytes
+
+    def test_existing_control_events_are_kept_and_a_bookmark_is_added_once(self, tmp_path):
+        recording_path = tmp_path / 'session.jsonl.gz'
+        marker = {'kind': 'playback', 'scope': 'demo'}
+        frames = [recorded_frame(frame_number=index) for index in range(4)]
+        frames[1]['control_events'] = [marker]
+        write_trace(trace={'game_class': 'SomeGame', 'frames': frames}, path=recording_path)
+        destination = bookmarked_copy_path(recording_path=recording_path)
+        write_bookmarked_copy(
+            recording_path=recording_path, bookmarks=[2, 4], destination=destination
+        )
+        # The copy saved again from itself, with one more bookmark
+        write_bookmarked_copy(
+            recording_path=destination, bookmarks=[1, 2, 4], destination=destination
+        )
+        copy_frames = read_trace_result(path=destination).trace['frames']
+        assert [frame.get('control_events') for frame in copy_frames] == [
+            [BOOKMARK_RECORD],
+            [marker, BOOKMARK_RECORD],
+            None,
+            [BOOKMARK_RECORD],
+        ]
+        assert not list(tmp_path.glob('*.partial'))
+
+    @pytest.mark.parametrize('bookmark', [0, 5])
+    def test_a_bookmark_outside_the_recording_is_refused(self, tmp_path, bookmark):
+        recording_path = tmp_path / 'session.jsonl.gz'
+        frames = [recorded_frame(frame_number=index) for index in range(4)]
+        write_trace(trace={'game_class': 'SomeGame', 'frames': frames}, path=recording_path)
+        destination = bookmarked_copy_path(recording_path=recording_path)
+        with pytest.raises(ValueError, match='outside the recording'):
+            write_bookmarked_copy(
+                recording_path=recording_path, bookmarks=[bookmark], destination=destination
+            )
+        assert not destination.exists()
+
+    def test_a_bookmarked_copy_replays_without_divergence(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        frame_count = len(read_trace_result(path=recording_path).trace['frames'])
+        destination = bookmarked_copy_path(recording_path=recording_path)
+        write_bookmarked_copy(
+            recording_path=recording_path,
+            bookmarks=[1, 3, frame_count],
+            destination=destination,
+        )
+        engine = replay_session(recording_path=destination, mocker=mocker)
+        assert engine.replay_sources is not None
+        result = engine.replay_sources.result
+        assert result.divergence is None
+        assert result.end_reason == 'end_of_recording'
+        assert result.frames_replayed == frame_count
+
+    def test_watched_replay_pauses_at_a_recorded_breakpoint(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        bookmarked_path = tmp_path / 'bookmarked.jsonl.gz'
+        write_bookmarked_copy(
+            recording_path=recording_path, bookmarks=[3], destination=bookmarked_path
+        )
+        manager = start_replay_in_harness(recording_path=bookmarked_path)
+        sources = harness_replay_sources(manager=manager)
+        frame_number = 0
+        while not sources.controls.paused:
+            manager.dt = sources.frame_seconds(measured=0.0)
+            manager.run_frame()
+            frame_number += 1
+        # Frame 2 ran and its breakpoint paused the replay: paused at bookmark 3
+        assert frame_number == 3
+        assert sources.controls.current_frame == 3
+        assert sources.result.divergence is None
+        GoldenTraceSceneManager.uninstall()
+
+    def test_a_rebuild_runs_past_a_recorded_breakpoint(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        bookmarked_path = tmp_path / 'bookmarked.jsonl.gz'
+        write_bookmarked_copy(
+            recording_path=recording_path, bookmarks=[2], destination=bookmarked_path
+        )
+        manager = start_replay_in_harness(
+            recording_path=bookmarked_path, extra_arguments=('--replay-pause-at-frame', '4')
+        )
+        sources = harness_replay_sources(manager=manager)
+        while not sources.controls.paused:
+            manager.dt = sources.frame_seconds(measured=0.0)
+            manager.run_frame()
+        assert sources.controls.current_frame == 4
+        GoldenTraceSceneManager.uninstall()
+
+    def test_b_then_s_writes_the_copy_and_says_where(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        FakeMeasuredClock(mocker=mocker)
+        sources = ReplaySources.from_path(
+            path=recording_path, options=ReplayOptions(recording_path=recording_path)
+        )
+        reset_sources()
+        install_sources(sources=sources)
+        sources.hold_frame()  # the first drain
+        sources.controls.current_frame = 3
+        for key in (pygame.K_b, pygame.K_s):
+            pygame.event.post(_key(pygame.KEYDOWN, key))
+            pygame.event.post(_key(pygame.KEYUP, key))
+        caplog.set_level('INFO', logger='game.replay')
+        run_next_viewer_tick(sources=sources)
+        copy_path = bookmarked_copy_path(recording_path=recording_path)
+        assert read_trace_result(path=copy_path).trace['frames'][2]['control_events'] == [
+            BOOKMARK_RECORD
+        ]
+        assert f'Saved bookmarks [3] to {copy_path}' in caplog.text
+        assert sources.controls.message_for_control_tick() == (
+            'bookmarks saved to session.bookmarked.jsonl.gz'
+        )
+
+    def test_without_a_recording_file_nothing_is_saved(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        sources = ReplaySources.from_path(path=recording_path)
+        sources.controls.current_frame = 3
+        sources.controls.handle_key(key=pygame.K_b)
+        sources.controls.message_for_control_tick()
+        assert sources.bookmarks.save() is None
+        assert not bookmarked_copy_path(recording_path=recording_path).exists()
+        assert sources.controls.message_for_control_tick() == (
+            'no recording file to copy the bookmarks into'
+        )
+
+    def test_a_save_that_cannot_be_written_says_so(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        mocker.patch.object(
+            driver_module, 'write_bookmarked_copy', side_effect=OSError('disk full')
+        )
+        sources = ReplaySources.from_path(
+            path=recording_path, options=ReplayOptions(recording_path=recording_path)
+        )
+        sources.controls.current_frame = 3
+        sources.controls.handle_key(key=pygame.K_b)
+        sources.controls.message_for_control_tick()
+        assert sources.bookmarks.save() is None
+        assert sources.controls.message_for_control_tick() == (
+            'could not save bookmarks: disk full'
+        )
+        assert 'Could not save bookmarks' in caplog.text
+
+    def test_restart_carries_unsaved_bookmarks(self, mocker, tmp_path):
+        relaunch = mocker.patch.object(
+            game_engine_module, 'relaunch_replay', return_value=ExitCode.SUCCESS
+        )
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+        # Space starts; paused after the divergent frame 3, B bookmarks frame 4, , steps back
+        press_keys_while_held(mocker=mocker, keys=(pygame.K_SPACE, pygame.K_b, pygame.K_COMMA))
+        with pytest.raises(SystemExit):
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=()
+            )
+        copy_path = bookmarked_copy_path(recording_path=recording_path)
+        assert read_trace_result(path=copy_path).trace['frames'][3]['control_events'] == [
+            BOOKMARK_RECORD
+        ]
+        command = relaunch.call_args.kwargs['command']
+        assert command[-4:] == ['--replay-trace', str(copy_path), '--replay-pause-at-frame', '3']
 
 
 class TestSaves:

@@ -84,8 +84,9 @@ and Replay").
   and reach only the replay controls and the debug overlay); step back (Task 3: `,`, Home and D
   restart the replay process at a pause frame, `--replay-pause-at-frame N` rebuilding there
   unpresented and muted, the first process supervising later restarts through a handoff file).
-  Pending: B, S (Task 4),
-  `--rebaseline`, and the pytest plugin for recordings.
+  bookmarks (Task 4: B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz` with
+  `breakpoint` control events that pause a watched replay of the copy; a restart with bookmarks
+  saves and replays the copy). Pending: `--rebaseline`, and the pytest plugin for recordings.
 - **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
   starts, the playback scope (does not block real input at SDL; real input reaches only its "exit
   playback" check), demos (the bundled PaddleSlap demo), instant replay and ghosts.
