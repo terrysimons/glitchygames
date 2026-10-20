@@ -215,8 +215,11 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is
   `random_stream('engine')`, `reset_streams(seed=...)` reseeds (tests, replay). Never use
   `secrets`, `random.SystemRandom`, global `random.*` functions or an unseeded
-  `np.random.default_rng()` in gameplay (`tests/test_randomness.py` scans for them). Replay
-  (`--replay-trace`) is planned (`plans/future-work.md`)
+  `np.random.default_rng()` in gameplay (`tests/test_randomness.py` scans for them)
+- `--replay-trace PATH` (`glitchygames/replay/driver.py`): replay a recording exactly through the
+  engine (`ReplaySources` serve its events, dt, polled input, devices, sandboxed saves, clocks and
+  seed), compare every frame's sprites and log the first divergence; a recording of another game
+  exits 2
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`

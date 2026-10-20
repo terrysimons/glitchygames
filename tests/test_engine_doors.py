@@ -103,7 +103,6 @@ ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
         'time.monotonic',
         'datetime.datetime.now',
     }),
-    'replay/driver.py': frozenset({'pygame.event.get'}),  # drains the real queue during replay
     'recording.py': frozenset({'pygame.event.post'}),  # post_event, the one poster
     # Pacing measures the real run; logic gets frame time only through the frame-time door
     'timing.py': RAW_CLOCK_READS,
@@ -120,9 +119,9 @@ ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
 }
 
 
-# Allow-list entries whose file a later task creates. Pending until Task 12 of the gameplay
-# replay plan creates replay/driver.py; that task removes it from here
-PENDING_ALLOWED_PATHS = frozenset({'replay/driver.py'})
+# Allow-list entries whose file a later task creates (none now: the replay's doors read the real
+# queue through LiveSources.pump_events, so replay/driver.py needs no entry)
+PENDING_ALLOWED_PATHS: frozenset[str] = frozenset()
 
 
 def _allowed(relative_path: str) -> frozenset[str]:

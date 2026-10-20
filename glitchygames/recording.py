@@ -2,8 +2,8 @@
 
 A recording is a trace in the format of ``glitchygames/tracing.py`` (gzip JSON Lines, a
 header line, then one keyframe or delta line per frame), so the tools that read golden
-traces read recordings too. On top of the sprite fields it records what a later exact replay
-(the planned ``--replay-trace``, see ``plans/future-work.md``) needs. ``GameEngine`` installs
+traces read recordings too. On top of the sprite fields it records what an exact replay
+(``--replay-trace``, glitchygames/replay/driver.py) needs. ``GameEngine`` installs
 ``RecordingSources`` around the run's doors (glitchygames/sources.py), so everything the run
 takes in is recorded where it passes through them.
 
@@ -167,6 +167,15 @@ SCENE_START_FIELD = 'scene_start'
 # Device enumeration answers (glitchygames/input/devices.py): a header field for answers given
 # before recording started, and a frame field for answers given during that frame
 DEVICE_ENUMERATION_FIELD = 'device_enumeration'
+# The frame fields format version 3 adds, in RecordedFrameFields order (a version-2 frame has
+# none of them)
+RECORDING_FORMAT_THREE_FIELDS = (
+    INPUT_CHANGES_FIELD,
+    CONTROL_EVENTS_FIELD,
+    DEVICES_OPENED_FIELD,
+    SAVES_OPENED_FIELD,
+    DEVICE_ENUMERATION_FIELD,
+)
 # Header fields format version 3 adds
 SAVES_HEADER_FIELD = 'saves'
 DEVICES_HEADER_FIELD = 'devices'

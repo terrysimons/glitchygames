@@ -64,6 +64,7 @@ from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trac
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    from glitchygames.replay import ReplayResult
     from glitchygames.scenes import Scene
 
 # Project root (scripts/ is one level below project root)
@@ -548,12 +549,15 @@ class GoldenTraceEngine(GameEngine):
         self.scene_manager.switch_to_scene(game)
 
 
-def _start_game(game_key: str, *, random_seed: int) -> GoldenTraceSceneManager:
+def _start_game(
+    game_key: str, *, random_seed: int, extra_arguments: list[str] | None = None
+) -> GoldenTraceSceneManager:
     """Construct the game engine and install the game's scene.
 
     Args:
         game_key: Which game to start.
         random_seed: The run's master seed (``--random-seed``).
+        extra_arguments: More command-line arguments (``--replay-trace PATH``).
 
     Returns:
         The scene manager with the game scene active.
@@ -571,11 +575,42 @@ def _start_game(game_key: str, *, random_seed: int) -> GoldenTraceSceneManager:
         'joystick',
         '--random-seed',
         str(random_seed),
+        *(extra_arguments or []),
     ]):
         engine = GoldenTraceEngine(game=scene_class)
     assert engine.scene_manager is manager
     engine.install_game(scene_class=scene_class)
     return manager
+
+
+@contextlib.contextmanager
+def _golden_game(
+    game_key: str, *, random_seed: int, extra_arguments: list[str] | None = None
+) -> Generator[GoldenTraceSceneManager]:
+    """Start a game in the harness with temporary saves; tear it all down afterwards.
+
+    Args:
+        game_key: Which game (a key of GAME_SCENES).
+        random_seed: The run's master seed (``--random-seed``).
+        extra_arguments: More command-line arguments (``--replay-trace PATH``).
+
+    Yields:
+        The scene manager with the game scene active.
+
+    """
+    with (
+        tempfile.TemporaryDirectory(prefix='golden-trace-saves-') as save_directory,
+        deterministic_environment(save_root=Path(save_directory)),
+    ):
+        manager = _start_game(game_key, random_seed=random_seed, extra_arguments=extra_arguments)
+        try:
+            yield manager
+        finally:
+            engine = manager.game_engine
+            if engine is not None:
+                engine.stop_trace_recording()
+            pygame.event.clear()
+            GoldenTraceSceneManager.uninstall()
 
 
 def discard_environment_events() -> None:
@@ -620,49 +655,77 @@ def record_trace(
     script = SCRIPT_BUILDERS[game_key]()
     frames: list[dict[str, Any]] = []
     sprite_ids = StableSpriteIds()
-    with (
-        tempfile.TemporaryDirectory(prefix='golden-trace-saves-') as save_directory,
-        deterministic_environment(save_root=Path(save_directory)),
-    ):
-        manager = _start_game(game_key, random_seed=random_seed)
+    with _golden_game(game_key, random_seed=random_seed) as manager:
         engine = manager.game_engine
         assert engine is not None
-        try:
-            if before_recording is not None:
-                assert manager.active_scene is not None
-                before_recording(manager.active_scene)
-            if recording_path is not None:
-                engine.start_trace_recording(path=recording_path)
-            for frame_number in range(frame_count):
-                manager.dt = FRAME_SECONDS
-                discard_environment_events()
-                assert manager.active_scene is not None
-                for placement in script.placements.get(frame_number, []):
-                    placement(manager.active_scene)
-                if script.per_frame is not None:
-                    for event in script.per_frame(manager.active_scene):
-                        pygame.event.post(event)
-                for event in script.key_events.get(frame_number, []):
+        if before_recording is not None:
+            assert manager.active_scene is not None
+            before_recording(manager.active_scene)
+        if recording_path is not None:
+            engine.start_trace_recording(path=recording_path)
+        for frame_number in range(frame_count):
+            manager.dt = FRAME_SECONDS
+            discard_environment_events()
+            assert manager.active_scene is not None
+            for placement in script.placements.get(frame_number, []):
+                placement(manager.active_scene)
+            if script.per_frame is not None:
+                for event in script.per_frame(manager.active_scene):
                     pygame.event.post(event)
-                manager.run_frame()
-                frames.append(
-                    sample_scene_frame(
-                        frame_number=frame_number,
-                        scene=manager.active_scene,
-                        sprite_ids=sprite_ids,
-                    )
+            for event in script.key_events.get(frame_number, []):
+                pygame.event.post(event)
+            manager.run_frame()
+            frames.append(
+                sample_scene_frame(
+                    frame_number=frame_number,
+                    scene=manager.active_scene,
+                    sprite_ids=sprite_ids,
                 )
-                if frame_observer is not None:
-                    frame_observer(
-                        frame_number=frame_number,
-                        scene=manager.active_scene,
-                        sprite_ids=sprite_ids,
-                    )
-        finally:
-            engine.stop_trace_recording()
-            pygame.event.clear()
-            GoldenTraceSceneManager.uninstall()
+            )
+            if frame_observer is not None:
+                frame_observer(
+                    frame_number=frame_number,
+                    scene=manager.active_scene,
+                    sprite_ids=sprite_ids,
+                )
     return {'game': game_key, 'frame_seconds': FRAME_SECONDS, 'frames': frames}
+
+
+def replay_golden_recording(*, game_key: str, path: Path) -> ReplayResult:
+    """Replay a recording made by record_trace(recording_path=...) through the harness.
+
+    Key events and per-frame input come from the recording (the replay's event pump), so they
+    are not posted again. The script's placements are not input: they move sprites directly,
+    like a supervisor, so they are applied again on the same frames, before the frame runs, as
+    record_trace applies them. (A placement that posts events, such as PaddleSlap's key
+    release before its pause, posts real events the replay drops: the recording serves them.)
+
+    Args:
+        game_key: Which game (a key of GAME_SCENES).
+        path: The recording.
+
+    Returns:
+        The replay's result.
+
+    """
+    script = SCRIPT_BUILDERS[game_key]()
+    with _golden_game(
+        game_key, random_seed=RANDOM_SEED, extra_arguments=['--replay-trace', str(path)]
+    ) as manager:
+        engine = manager.game_engine
+        assert engine is not None
+        sources = engine.replay_sources
+        assert sources is not None
+        frame_number = 0
+        while not sources.stop_requested and manager.active_scene is not None:
+            # The harness steps frames without start()/_finish_frame, so it asks the frame-time
+            # door itself: the first call returns frame 0's dt, each later call the next frame's
+            manager.dt = sources.frame_seconds(measured=FRAME_SECONDS)
+            for placement in script.placements.get(frame_number, []):
+                placement(manager.active_scene)
+            manager.run_frame()
+            frame_number += 1
+    return sources.result
 
 
 def golden_path(game_key: str) -> Path:

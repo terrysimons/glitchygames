@@ -51,11 +51,18 @@ from glitchygames.recording import (
     post_event,
     reset_internal_post_tracking,
 )
+from glitchygames.replay.driver import (
+    REPLAY_UNUSABLE_EXIT_CODE,
+    ReplayRefusedError,
+    ReplaySources,
+    start_replay,
+)
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources, install_sources, reset_sources
 from glitchygames.sprites import Sprite
 from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, create_timer
+from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
     from collections import OrderedDict
@@ -241,6 +248,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # RecordingSources it installs write to it. A class default so it reads None on an engine
     # whose __init__ did not run.
     trace_recorder: GameplayRecorder | None = None
+    # The --replay-trace doors while replaying (installed in __init__ before the first frame),
+    # else None. A class default so it reads None on an engine whose __init__ did not run.
+    replay_sources: ReplaySources | None = None
 
     @classmethod
     def initialize_icon(cls: Any, icon: pygame.Surface | Path | str | None = None) -> None:
@@ -377,6 +387,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             help=(
                 'record the session (sprites, frame times, input events, random seed) to a '
                 'gzip JSON Lines trace for inspection and later replay (default: off)'
+            ),
+            default=None,
+        )
+        group.add_argument(
+            '--replay-trace',
+            metavar='PATH',
+            help=(
+                'replay a --record-trace recording exactly through the engine, comparing every '
+                'frame with it and reporting the first divergence (default: off)'
             ),
             default=None,
         )
@@ -587,9 +606,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         self._active_scene: Scene | None = None
 
+        # A replay's recorded options and seed are in place from here on (start_replay), so
+        # everything below reads the options as the recorded run did
+        self.replay_sources = self._start_requested_replay(game=game, options=options)
         # Set the master seed of the engine random streams before any game code runs
-        # (see glitchygames/randomness.py)
-        self.random_seed: int = seed_engine_random(seed=options.get('random_seed'))
+        # (see glitchygames/randomness.py); start_replay already seeded them with the recorded
+        # seed
+        self.random_seed: int = (
+            self.replay_sources.random_seed
+            if self.replay_sources is not None
+            else seed_engine_random(seed=options.get('random_seed'))
+        )
         # Set while start_trace_recording's SIGTERM handler is installed
         self._installed_sigterm_handler: bool = False
 
@@ -645,17 +672,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # pygame.event doesn't have an init() method, so nothing to do.
             self.log.info(f'Using pygame.events for pygame version {pygame.version.ver}')
 
-        # Fresh doors for this run (glitchygames/sources.py). Task 12 makes this install the
-        # replay's sources instead when --replay-trace is given
+        # Fresh doors for this run (glitchygames/sources.py): the replay's when --replay-trace
+        # is given, else live ones
         reset_sources()
         # reset_sources() leaves the polled input alone (glitchygames/sources.py is a leaf)
         reset_current_input()
         # ...and the internal-post tracker (glitchygames/recording.py): no owners, none pending
         reset_internal_post_tracking()
         install_sources(
-            sources=LiveSources(
-                random_seed=self.random_seed, use_fastevents=GameEngine.USE_FASTEVENTS
-            )
+            sources=self.replay_sources
+            or LiveSources(random_seed=self.random_seed, use_fastevents=GameEngine.USE_FASTEVENTS)
         )
         # Read from the doors just installed, so every unhandled event's first-seen time comes
         # from the same elapsed-seconds clock (a replay's is its frame clock, restarted above)
@@ -666,6 +692,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # The scene will start once .start() is called on the GameEngine
         # object
         GameEngine.game = game
+        # ResourceManager makes each engine class a singleton, so a second engine in one process
+        # (a recording and then its replay) is the same object, whose start() set self.game to
+        # the earlier run's game instance: drop it, so self.game reads this run's game above
+        vars(self).pop('game', None)
 
         # SceneManager is a singleton.
         self.scene_manager: SceneManager = SceneManager()
@@ -1262,10 +1292,53 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self._installed_sigterm_handler = False
         signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
+    def _start_requested_replay(
+        self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
+    ) -> ReplaySources | None:
+        """Prepare the replay if --replay-trace was given (rule 1 of glitchygames/replay/driver.py).
+
+        Args:
+            game: The game scene class or instance (its class name must match the recording's).
+            options: The parsed options; a replay puts the recorded ones in place.
+
+        Returns:
+            The replay's sources (not installed yet), or None when not replaying.
+
+        Raises:
+            SystemExit: With REPLAY_UNUSABLE_EXIT_CODE when the recording cannot be replayed (a
+                recording of another game, or an unreadable or missing file).
+
+        """
+        replay_trace_path = options.get('replay_trace')
+        if replay_trace_path is None:
+            return None
+        game_class_name = game.__name__ if isinstance(game, type) else type(game).__name__
+        try:
+            return start_replay(
+                path=Path(replay_trace_path), game_class_name=game_class_name, options=options
+            )
+        except (ReplayRefusedError, TraceFormatError, OSError) as error:
+            refusal = error
+        # Logged without a traceback: the message says what is wrong with the recording
+        self.log.error(f'Cannot replay {replay_trace_path}: {refusal}')
+        raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE) from refusal
+
+    def _log_replay_result(self: Self) -> None:
+        """Settle and log the replay's result, if replaying (rule 11)."""
+        if self.replay_sources is None:
+            return
+        self.replay_sources.finish_run()
+        result = self.replay_sources.result
+        if result.divergence is not None:
+            self.log.error(f'Replay diverged: {result.divergence.describe()}')
+        else:
+            self.log.info(f'Replay matched {result.frames_replayed} frames ({result.end_reason})')
+
     def _shutdown(self: Self) -> None:
-        """Close any recording, print performance reports and shut down pygame."""
+        """Close any recording, report any replay, print performance reports, shut down pygame."""
         # First, so the recording is complete even if a report below fails
         self.stop_trace_recording()
+        self._log_replay_result()
 
         # Print performance report before shutdown
         try:

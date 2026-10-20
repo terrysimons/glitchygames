@@ -27,6 +27,7 @@ DOOR_MODULES = (
     'glitchygames.state.manager',
     'glitchygames.recording',
     'glitchygames.supervision',
+    'glitchygames.replay.driver',
 )
 
 # How long one import-alone child may take before it is killed and the test fails
