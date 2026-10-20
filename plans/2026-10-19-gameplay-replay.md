@@ -75,8 +75,8 @@ class EngineSources(Protocol):
 - `RecordingSources` wraps `LiveSources` and writes everything passing through to the recorder.
   The recorder's current hooks in `GameEngine._pump_events` and `SceneManager._run_frame` move into
   it.
-- `GameEngine.install_sources(*, sources: EngineSources) -> None` may only be called before the
-  first frame; a later call raises. A run never mixes live and recorded input. (In-game playback
+- `glitchygames.sources.install_sources(*, sources: EngineSources) -> None` may only be called
+  before the first frame; a later call raises (core Task 12b removed the `GameEngine` pass-through). A run never mixes live and recorded input. (In-game playback
   uses scoped sources, section 5.2, not a mid-run swap.)
 - `GameEngine._pump_events` asks `sources.pump_events()`. Dispatch, transition discarding, the
   unhandled-event table and everything else downstream are unchanged.

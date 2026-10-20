@@ -326,14 +326,14 @@ class OptimizedVisualCollisionManager:
             position: New position
 
         """
-        start_time = measured_seconds()
-
         # Throttle updates
         current_time = elapsed_seconds()
         if current_time - self.last_update_time < self.update_throttle:
             # Store pending update
             self.pending_updates[controller_id] = position
             return
+
+        start_time = measured_seconds()
 
         # Process pending updates
         if self.pending_updates:

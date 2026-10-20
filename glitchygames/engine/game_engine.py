@@ -70,7 +70,6 @@ if TYPE_CHECKING:
     from types import FrameType
 
     from glitchygames.input.state import InputSnapshot
-    from glitchygames.sources import EngineSources
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
@@ -1562,15 +1561,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 every_event_was_handled = False
 
         return dispatched_event_count > 0 and every_event_was_handled
-
-    def install_sources(self: Self, *, sources: EngineSources) -> None:
-        """Make ``sources`` this run's doors (before the first frame; glitchygames/sources.py).
-
-        Args:
-            sources: The doors to read events, frame time and the rest from.
-
-        """
-        install_sources(sources=sources)
 
     def _pump_events(self: Self) -> list[pygame.event.Event]:
         """Take the next batch from the active sources' event pump: the one place it is read.

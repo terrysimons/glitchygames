@@ -2311,6 +2311,8 @@ git commit -m "Add the saves door: games open saves through the sources; replay 
 
 ### Task 8: Clock exports; polled input, engine, UI and game clock sites
 
+> Superseded in part by Task 12b: `elapsed_seconds()` is the frame clock live and replayed; there is no `EngineSources.elapsed_seconds` door.
+
 **Files:**
 - Create: `glitchygames/clock.py` (the public clock exports)
 - Modify: `glitchygames/sources.py` (Protocol `wall_clock_time`, `elapsed_seconds`),
@@ -2656,6 +2658,8 @@ git commit -m "Add the engine's clock exports; move polled input and engine/UI/g
 ---
 
 ### Task 9: Bitmappy onto the clock exports, and the guard test
+
+> Superseded in part by Task 12b: `elapsed_seconds()` is the frame clock live and replayed; there is no `EngineSources.elapsed_seconds` door (diagnostic durations use `measured_seconds()`).
 
 **Files:**
 - Modify (every Bitmappy clock site, table below): `glitchygames/bitmappy/history/commands.py`,

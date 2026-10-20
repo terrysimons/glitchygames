@@ -1,7 +1,5 @@
 """Tests for multi-controller manager functionality and coverage."""
 
-import time
-
 import pytest
 
 from glitchygames.bitmappy.controllers.manager import (
@@ -262,15 +260,14 @@ class TestControllerSelection:
         assert target_frame == 1  # 2 - 1 = 1 (last available frame)
 
     def test_activity_tracking(self):
-        """Test activity tracking."""
-        initial_time = self.controller_selection.state.last_update_time
+        """Activity times are elapsed_seconds() readings: the frame clock."""
+        self.controller_selection.update_activity()
+        first_activity_time = self.controller_selection.state.last_update_time
 
-        # Update activity
-        time.sleep(0.01)  # Small delay
+        advance_frame_clock(seconds=0.25)
         self.controller_selection.update_activity()
 
-        # Check that time was updated
-        assert self.controller_selection.state.last_update_time > initial_time
+        assert self.controller_selection.state.last_update_time - first_activity_time == 0.25
 
     def test_navigation_history(self):
         """Test navigation history tracking."""

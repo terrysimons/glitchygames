@@ -56,7 +56,7 @@ from glitchygames.recording import (
 )
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
-from glitchygames.sources import active_sources
+from glitchygames.sources import active_sources, install_sources
 from glitchygames.state import DiskSaveManager, MemorySaveManager
 from glitchygames.state.sandbox import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND
@@ -885,7 +885,7 @@ class TestRecordingEdgeCases:
         )
         path = tmp_path / 'session.jsonl.gz'
         with constructed_engine() as engine:
-            engine.install_sources(sources=other_sources)
+            install_sources(sources=other_sources)
             engine.start_trace_recording(path=path)
             engine.stop_trace_recording()
 

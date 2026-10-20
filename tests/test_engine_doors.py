@@ -149,6 +149,9 @@ def _allowed_inside_functions(
 ) -> dict[int, frozenset[str]]:
     """Map each node inside an allowed function (by ``id``) to the bypasses it may use.
 
+    Functions match by name anywhere in the file (a method or nested function of that name
+    counts too), which is why the allowance is given per file.
+
     Returns:
         ``id(node)`` -> the bypasses allowed there.
 
