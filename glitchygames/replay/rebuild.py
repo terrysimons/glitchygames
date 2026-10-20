@@ -16,7 +16,8 @@ and singletons hold the state of every frame run so far). So ``,`` (step back), 
    ``ViewerState``). They are appended, the last occurrence of an option winning (an earlier
    abbreviation such as ``--debug`` included), before any bare ``--``.
 3. ``relaunch_replay`` runs it, with the engine's signal handlers installed again (a SIGTERM or
-   SIGHUP raises SystemExit, and ``subprocess.run`` then kills and reaps the child). The first
+   SIGHUP raises SystemExit, and ``subprocess.run`` then kills the child with SIGKILL, without
+   its teardown, and reaps it: acceptable, as a replay never records). The first
    replay process becomes the supervisor: it runs each restarted replay as a child with
    ``audit.run_command`` (the engine's one child-process launcher), adding
    ``--replay-restart-handoff PATH``. A child that steps back again does not start a grandchild:
@@ -35,8 +36,10 @@ and singletons hold the state of every frame run so far). So ``,`` (step back), 
    already started it) and rebuilds: frames 0 to N - 1 run in full but unpresented and unpaced,
    in silence (``Rebuild.silence_frame``: every sound a frame started is stopped after it, as
    ``Sound.play()`` gives its channel full volume again, and music is paused until the rebuild
-   ends), presenting ``Rebuilding: frame k / N`` every ``REBUILD_PROGRESS_INTERVAL_SECONDS`` of
-   real time and printing it every ``REBUILD_PROGRESS_PRINT_INTERVAL_SECONDS``
+   ends; ``Rebuild.begin`` follows the game's own music pauses, so music the game paused itself
+   stays paused), presenting ``Rebuilding: frame k / N`` every
+   ``REBUILD_PROGRESS_INTERVAL_SECONDS`` of real time and printing it every
+   ``REBUILD_PROGRESS_PRINT_INTERVAL_SECONDS``
    (``Rebuild.progress_is_due``), so the window does not look frozen. At frame N it pauses,
    showing frame N - 1's picture. Frame 0 always runs first (``FIRST_PAUSED_FRAME``), so a pause
    frame of 0 (Home) pauses after it. A game that asks the mixer what is playing
@@ -67,7 +70,7 @@ from glitchygames.replay.audit import run_command
 from glitchygames.replay.controls import ReplayControls, rebuild_progress_text
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 LOG = logging.getLogger('game.replay')
 LOG.addHandler(logging.NullHandler())
@@ -267,15 +270,21 @@ def relaunch_replay(
         handed its restart over; for the supervisor, the last restarted replay's status (128 +
         N for one killed by signal N) or, when that is ``SUCCESS``, the first non-success result
         of an earlier run; ``ExitCode.INTERRUPTED`` after Ctrl-C, ``ExitCode.INTERNAL_ERROR``
-        when a child cannot start or its handoff cannot be read.
+        when a child cannot start or its handoff cannot be read, or when this supervised
+        child cannot write its handoff.
 
     """
     handoff = RestartHandoff(command=list(command), result_exit_code=result_exit_code)
     if handoff_path is not None:
         partial_path = handoff_path.with_name(handoff_path.name + PARTIAL_HANDOFF_SUFFIX)
-        partial_path.write_text(handoff.model_dump_json(), encoding='utf-8')
-        # Moved into place whole: the supervisor never reads half a handoff
-        partial_path.replace(handoff_path)
+        try:
+            partial_path.write_text(handoff.model_dump_json(), encoding='utf-8')
+            # Moved into place whole: the supervisor never reads half a handoff
+            partial_path.replace(handoff_path)
+        except OSError:
+            # Not exit 1 (REPLAY_DIVERGED), which the supervisor would report as a divergence
+            LOG.exception('Cannot hand the restart over to the supervising replay')
+            return ExitCode.INTERNAL_ERROR
         return ExitCode.SUCCESS
     # The children write to the same streams: this process's output comes first
     sys.stdout.flush()
@@ -328,7 +337,7 @@ def _supervise(*, first_handoff: RestartHandoff, handoff_path: Path) -> int:
                 if handoff_path.exists()
                 else None
             )
-        except ValidationError:
+        except ValidationError, UnicodeDecodeError:
             LOG.exception('Cannot restart the replay: the restart handoff is unusable')
             return ExitCode.INTERNAL_ERROR
         except OSError:
@@ -340,6 +349,20 @@ def _supervise(*, first_handoff: RestartHandoff, handoff_path: Path) -> int:
     if returncode == ExitCode.SUCCESS:
         return earlier_result
     return returncode
+
+
+def _set_music_controls(*, pause: Callable[[], None], unpause: Callable[[], None]) -> None:
+    """Put ``pause`` and ``unpause`` in place of ``pygame.mixer.music``'s (``Rebuild.begin``).
+
+    Set by name: the type checkers type the module's functions as those exact functions.
+
+    Args:
+        pause: The function ``pygame.mixer.music.pause`` is to be.
+        unpause: The function ``pygame.mixer.music.unpause`` is to be.
+
+    """
+    for name, function in (('pause', pause), ('unpause', unpause)):
+        setattr(pygame.mixer.music, name, function)
 
 
 class Rebuild:
@@ -361,7 +384,44 @@ class Rebuild:
         # When the progress is next shown and printed (set by the first question)
         self._next_progress_seconds: float | None = None
         self._next_print_seconds: float | None = None
+        # True while music is paused by the rebuild (silence_frame), not by the game
         self._paused_music = False
+        # The game's own music.pause() and music.unpause() calls during the rebuild: whether
+        # its last one paused the music (begin), and pygame's functions while followed
+        self._game_paused_music = False
+        self._followed_music_controls: tuple[Callable[[], None], Callable[[], None]] | None = None
+
+    def begin(self: Self) -> None:
+        """Follow the game's own ``pygame.mixer.music.pause()`` and ``unpause()`` calls.
+
+        Until ``finish`` (or ``stop_following_music``), the two module functions are replaced
+        by ones that note the call and then call pygame's, so ``finish`` resumes music only when
+        the game did not pause it itself. A game that bound the functions before (``from
+        pygame.mixer.music import pause``) is not followed. Again: nothing.
+        """
+        if self._followed_music_controls is not None:
+            return
+        music = pygame.mixer.music
+        pygame_pause, pygame_unpause = music.pause, music.unpause
+
+        def game_pause() -> None:
+            self._game_paused_music = True
+            pygame_pause()
+
+        def game_unpause() -> None:
+            self._game_paused_music = False
+            pygame_unpause()
+
+        self._followed_music_controls = (pygame_pause, pygame_unpause)
+        _set_music_controls(pause=game_pause, unpause=game_unpause)
+
+    def stop_following_music(self: Self) -> None:
+        """Give ``pygame.mixer.music`` its own pause and unpause back (``begin``)."""
+        if self._followed_music_controls is None:
+            return
+        pygame_pause, pygame_unpause = self._followed_music_controls
+        _set_music_controls(pause=pygame_pause, unpause=pygame_unpause)
+        self._followed_music_controls = None
 
     def progress_is_due(self: Self, *, frame_index: int, now: float) -> bool:
         """Report whether the rebuild shows its progress before ``frame_index`` runs.
@@ -407,11 +467,22 @@ class Rebuild:
             return
         pygame.mixer.stop()
         if pygame.mixer.music.get_busy():
-            pygame.mixer.music.pause()
+            pause = (
+                pygame.mixer.music.pause
+                if self._followed_music_controls is None
+                else self._followed_music_controls[0]
+            )
+            # pygame's own pause: the rebuild's, not the game's
+            pause()
             self._paused_music = True
 
     def finish(self: Self) -> None:
-        """End the rebuild: music the rebuild paused plays on."""
-        if self._paused_music and pygame.mixer.get_init() is not None:
+        """End the rebuild: music the rebuild paused plays on, unless the game paused it last."""
+        self.stop_following_music()
+        if (
+            self._paused_music
+            and not self._game_paused_music
+            and pygame.mixer.get_init() is not None
+        ):
             pygame.mixer.music.unpause()
         self._paused_music = False

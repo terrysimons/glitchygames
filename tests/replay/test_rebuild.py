@@ -367,6 +367,29 @@ class TestRelaunch:
         assert status == ExitCode.INTERNAL_ERROR
         assert 'Cannot restart the replay: the restart handoff' in caplog.text
 
+    def test_a_handoff_that_is_not_text_is_an_internal_error(self, mocker, caplog):
+        def fake_run(*, command, environment, timeout_seconds):
+            del environment, timeout_seconds
+            handoff_path_of(command=command).write_bytes(b'\xff\xfe\xfa')
+            return completed(returncode=ExitCode.SUCCESS)
+
+        mocker.patch.object(rebuild, 'run_command', side_effect=fake_run)
+        status = relaunch_replay(
+            command=['python', 'game.py'], handoff_path=None, result_exit_code=ExitCode.SUCCESS
+        )
+        assert status == ExitCode.INTERNAL_ERROR
+        assert 'Cannot restart the replay: the restart handoff' in caplog.text
+
+    def test_a_handoff_that_cannot_be_written_is_an_internal_error(self, tmp_path, caplog):
+        """Not exit 1, which the supervisor would read as a divergence."""
+        status = relaunch_replay(
+            command=['python', 'game.py'],
+            handoff_path=tmp_path / 'missing-directory' / 'restart.json',
+            result_exit_code=ExitCode.SUCCESS,
+        )
+        assert status == ExitCode.INTERNAL_ERROR
+        assert 'Cannot hand the restart over' in caplog.text
+
     def test_a_child_that_cannot_start_is_an_internal_error(self, mocker, caplog):
         mocker.patch.object(rebuild, 'run_command', side_effect=OSError('no such interpreter'))
         status = relaunch_replay(
@@ -494,6 +517,36 @@ class TestRebuildSilence:
         progress.silence_frame()
         progress.finish()
         unpause.assert_not_called()
+
+    def test_music_the_game_paused_during_the_rebuild_stays_paused(self, dummy_mixer, tmp_path):
+        music_path = tmp_path / 'music.wav'
+        write_silent_wave(path=music_path)
+        pygame.mixer.music.load(str(music_path))
+        pygame.mixer.music.play(loops=-1)
+        original_pause = pygame.mixer.music.pause
+        progress = Rebuild(target_frame=10)
+        progress.begin()
+        progress.silence_frame()  # the rebuild pauses it
+        pygame.mixer.music.unpause()  # a frame's game code resumes it...
+        pygame.mixer.music.pause()  # ...and a later one pauses it itself
+        progress.silence_frame()
+        progress.finish()
+        assert not pygame.mixer.music.get_busy()
+        # The game's own music calls are no longer followed
+        assert pygame.mixer.music.pause is original_pause
+
+    def test_music_the_game_resumed_during_the_rebuild_plays_on(self, dummy_mixer, tmp_path):
+        music_path = tmp_path / 'music.wav'
+        write_silent_wave(path=music_path)
+        pygame.mixer.music.load(str(music_path))
+        pygame.mixer.music.play(loops=-1)
+        progress = Rebuild(target_frame=10)
+        progress.begin()
+        pygame.mixer.music.pause()
+        pygame.mixer.music.unpause()
+        progress.silence_frame()
+        progress.finish()
+        assert pygame.mixer.music.get_busy()
 
     def test_without_a_mixer_nothing_happens(self, mocker):
         mocker.patch.object(pygame.mixer, 'get_init', return_value=None)

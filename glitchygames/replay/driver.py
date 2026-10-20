@@ -890,9 +890,14 @@ class ReplaySources:
         start_tracking_internal_posts()
 
     def on_uninstalled(self: Self) -> None:
-        """Give up the internal-post tracker and restore the blocked state of real input."""
+        """Give up the internal-post tracker and restore the blocked state of real input.
+
+        A rebuild still running stops following the game's music calls (rule 15).
+        """
         stop_tracking_internal_posts()
         self._real_input_block.restore()
+        if self._rebuild is not None:
+            self._rebuild.stop_following_music()
 
     def pump_events(
         self: Self, *, real_events: list[pygame.event.Event] | None = None
@@ -1013,6 +1018,8 @@ class ReplaySources:
         if self.options.headless:
             return False
         if self._rebuild is not None:
+            # Before frame 0's game code: the game's own music pauses are followed from it
+            self._rebuild.begin()
             now = measured_seconds()
             if not self._rebuild.progress_is_due(frame_index=self._frame_index, now=now):
                 return False

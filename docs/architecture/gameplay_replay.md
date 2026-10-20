@@ -277,14 +277,15 @@ found so far (`--replay-viewer-state`, internal; D works at once after a restart
 closes and a new one opens; the end-of-run performance reports wait for the last replay. The
 restarted replay skips the start screen and rebuilds: frames 0 to N - 1 run in full, unpresented
 and unpaced, in silence (each frame's sounds are stopped after it and music is paused until the
-rebuild ends), with `Rebuilding: frame k / N` shown on a cleared window every 0.1 s and printed
+rebuild ends, unless the game paused it itself), with `Rebuilding: frame k / N` shown on a cleared window every 0.1 s and printed
 every second (Esc still quits). It then pauses with frame N next, showing frame N - 1's picture;
 frame 0 always runs, so Home pauses after it. The first replay process supervises the restarts:
 each later replay that steps back hands its restart command to it (`--replay-restart-handoff`,
 internal) instead of starting a process of its own, so there are never more than two (the
 supervisor keeps the memory its own replay used). The run exits with the last replay's status,
 but `REPLAY_DIVERGED` once any of the runs diverged; SIGTERM or SIGHUP to the supervisor ends the
-child too. Stepping back from far into a long recording takes as long as rebuilding up to there.
+child too (killed with SIGKILL, without its teardown: a replay never records, so nothing is
+lost). Stepping back from far into a long recording takes as long as rebuilding up to there.
 `--replay-pause-at-frame` is ignored with `--headless` (nothing could unpause the replay).
 
 ### `--replay-fps {recorded,real}`
