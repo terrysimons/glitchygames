@@ -855,13 +855,19 @@ class TestRecordingSources:
         assert DEVICE_ENUMERATION_FIELD not in second
         assert inner_end_frame.call_count == 2
 
-    def test_everything_else_is_delegated(self, tmp_path):
-        """Seed, stop request, frame time, clocks and scheduled control events come from inner."""
+    def test_everything_else_is_delegated(self, tmp_path, mocker):
+        """Seed, opened stores, stop request, frame time, clocks and control events: inner's."""
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: tmp_path / 'saves' / app_name,
+        )
         sources, recorder, inner = _recording_sources(path=tmp_path / 'unit.jsonl.gz')
         recorder.close()
+        opened_by_inner = inner.saves(namespace='opened-inside')
 
         assert sources.inner is inner
         assert sources.random_seed == 1
+        assert dict(sources.opened_save_namespaces) == {'opened-inside': opened_by_inner}
         assert sources.stop_requested is False
         assert sources.frame_seconds(measured=0.25) == 0.25
         assert sources.control_events_for_frame(frame_number=3) == []

@@ -34,6 +34,8 @@ from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
 from glitchygames.examples import paddleslap
 from glitchygames.input import devices as devices_module
+from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
+from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import engine_random
 from glitchygames.recording import (
     CONTROL_EVENTS_FIELD,
@@ -47,13 +49,15 @@ from glitchygames.recording import (
     RECORDING_SOURCE,
     SAVES_HEADER_FIELD,
     SAVES_OPENED_FIELD,
+    RecordingSources,
+    TraceRecordingAlreadyStartedError,
     UnrepresentableValue,
     event_from_record,
 )
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
 from glitchygames.sources import active_sources
-from glitchygames.state import DiskSaveManager
+from glitchygames.state import DiskSaveManager, MemorySaveManager
 from glitchygames.state.sandbox import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND
 from glitchygames.tracing import read_trace_result
@@ -406,7 +410,6 @@ class TestRecordingThroughTheEngine:
             result = read_trace_result(path=path)
 
         assert result.is_complete
-        assert engine.scene_manager.trace_recorder is None
         header = result.trace
         _assert_recording_header(header)
 
@@ -593,6 +596,7 @@ class TestRecordingThroughTheEngine:
     def test_recording_holds_input_changes_and_control_events(self, mocker, tmp_path):
         """Control events land in their frame; polled input is recorded as changes."""
         recording_path = tmp_path / 'session.jsonl.gz'
+        served_snapshots = mocker.spy(LiveSources, 'input_snapshot')
         # engine_run_environment resets Script, so the script is set inside it
         with engine_run_environment(mocker):
             Script.events_by_frame = {
@@ -609,9 +613,18 @@ class TestRecordingThroughTheEngine:
         frames = trace['frames']
         assert frames[1][CONTROL_EVENTS_FIELD] == [{'kind': 'breakpoint', 'label': 'scripted'}]
         assert all(CONTROL_EVENTS_FIELD not in frame for frame in frames if frame['frame'] != 1)
-        # Keys posted to pygame's real queue update its key state at the pump; the dummy video
-        # driver may not, so only assert the field's form, not the scancode
-        assert all(isinstance(frame.get(INPUT_CHANGES_FIELD, {}), dict) for frame in frames)
+        # Folding each frame's input_changes onto the previous frame's snapshot (IDLE_INPUT
+        # before the first) rebuilds exactly the snapshot the doors served in that frame.
+        # (Posted keys do not change the dummy driver's key state, so which fields change is
+        # up to the environment, e.g. mouse focus in frame 0; the fold must hold either way.)
+        rebuilt_snapshot = IDLE_INPUT
+        for frame, served_snapshot in zip(
+            frames, served_snapshots.spy_return_list[: len(frames)], strict=True
+        ):
+            rebuilt_snapshot = apply_snapshot_changes(
+                previous=rebuilt_snapshot, changes=frame.get(INPUT_CHANGES_FIELD, {})
+            )
+            assert rebuilt_snapshot == served_snapshot
 
     def test_saves_opened_after_recording_started_are_snapshotted_in_their_frame(
         self, mocker, tmp_path
@@ -843,6 +856,41 @@ class TestRecordingEdgeCases:
 
         assert exit_info.value.code == 128 + signal.SIGTERM
         assert handler_after_signal == signal.SIG_IGN
+
+    def test_starting_a_second_recording_is_refused(self, tmp_path):
+        """A second start_trace_recording would wrap the doors twice: it raises instead."""
+        with constructed_engine() as engine:
+            engine.start_trace_recording(path=tmp_path / 'first.jsonl.gz')
+            try:
+                with pytest.raises(TraceRecordingAlreadyStartedError):
+                    engine.start_trace_recording(path=tmp_path / 'second.jsonl.gz')
+                installed_sources = active_sources()
+            finally:
+                engine.stop_trace_recording()
+
+        assert isinstance(installed_sources, RecordingSources)
+        assert isinstance(installed_sources.inner, LiveSources)
+        assert not (tmp_path / 'second.jsonl.gz').exists()
+
+    def test_recording_records_saves_opened_by_any_doors(self, tmp_path, mocker):
+        """Header saves come from the doors' opened_save_namespaces, whatever doors they are."""
+        # Doors that are not LiveSources (a replay's hand out memory stores)
+        store = MemorySaveManager(app_name='other-doors', snapshot={})
+        store.save('progress', {'level': 4})
+        live_sources = LiveSources(random_seed=RANDOM_SEED)
+        other_sources = mocker.Mock(
+            wraps=live_sources,
+            random_seed=RANDOM_SEED,
+            opened_save_namespaces={'other-doors': store},
+        )
+        path = tmp_path / 'session.jsonl.gz'
+        with constructed_engine() as engine:
+            engine.install_sources(sources=other_sources)
+            engine.start_trace_recording(path=path)
+            engine.stop_trace_recording()
+
+        header = read_trace_result(path=path).trace
+        assert header[SAVES_HEADER_FIELD]['other-doors']['progress']['data'] == {'level': 4}
 
     def test_stop_without_a_recording_does_nothing(self):
         """stop_trace_recording is safe to call when nothing is recording (every teardown)."""

@@ -46,6 +46,7 @@ from glitchygames.recording import (
     SAVES_HEADER_FIELD,
     GameplayRecorder,
     RecordingSources,
+    TraceRecordingAlreadyStartedError,
     json_safe_value,
     post_event,
     reset_internal_post_tracking,
@@ -1180,23 +1181,33 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         installed its own SIGTERM handler; SIGINT already does (KeyboardInterrupt).
         ``stop_trace_recording`` (called by ``_shutdown``) closes the file.
 
+        Recording must start before the first frame: afterwards installing its doors raises
+        ``SourcesAlreadyRunningError`` (from ``install_sources``; glitchygames/sources.py).
+
         Args:
             path: The recording's file.
 
         Returns:
             The recorder.
 
+        Raises:
+            TraceRecordingAlreadyStartedError: If this engine is already recording.
+
         """
+        if self.trace_recorder is not None:
+            message = (
+                f'start_trace_recording() was called while recording to '
+                f'{self.trace_recorder.path}; one run records once'
+            )
+            raise TraceRecordingAlreadyStartedError(message)
         inner = active_sources()
         registry = inner.devices()
-        # Only live doors open real stores; other doors (test stand-ins) contribute none.
         # Part 2's --rebaseline copies these fields from the replayed recording instead
-        opened_stores = inner.opened_save_namespaces if isinstance(inner, LiveSources) else {}
         header = {
             **self.trace_recording_header(),
             SAVES_HEADER_FIELD: {
                 namespace: save_namespace_snapshot(saves=store)
-                for namespace, store in opened_stores.items()
+                for namespace, store in inner.opened_save_namespaces.items()
             },
             DEVICES_HEADER_FIELD: [
                 descriptor.to_json() for descriptor in registry.take_opened_descriptors()
@@ -1210,7 +1221,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # so the unhandled-event clock (_started_at_seconds) must not restart
         install_sources(sources=RecordingSources(inner=inner, recorder=recorder))
         self.trace_recorder = recorder
-        self.scene_manager.trace_recorder = recorder
         self._install_sigterm_handler()
         self.log.info(f'Recording gameplay to {path} (random seed {self.random_seed})')
         return recorder
@@ -1231,7 +1241,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if recorder is None:
             return
         self.trace_recorder = None
-        self.scene_manager.trace_recorder = None
         recorder.close()
         # After closing: until then a repeated SIGTERM must stay ignored (exit_on_signal)
         self._restore_sigterm_handler()

@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Protocol
 from glitchygames.randomness import engine_random_seed
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import datetime
 
     import pygame
@@ -56,6 +57,11 @@ class EngineSources(Protocol):
     """The doors (see the module docstring)."""
 
     random_seed: int
+
+    @property
+    def opened_save_namespaces(self) -> Mapping[str, SaveManager]:
+        """Every save store these doors opened so far, by namespace (a recording's header)."""
+        ...
 
     @property
     def stop_requested(self) -> bool:

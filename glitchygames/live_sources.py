@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Self
 
 import pygame
@@ -17,6 +18,8 @@ from glitchygames.input.state import capture_live_snapshot
 from glitchygames.state.manager import DiskSaveManager
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
     from glitchygames.state.manager import SaveManager
@@ -38,8 +41,13 @@ class LiveSources:
         self.random_seed = random_seed
         self._use_fastevents = use_fastevents
         self._devices = LiveDeviceRegistry()
-        # Stores games opened, by namespace; RecordingSources snapshots them
-        self.opened_save_namespaces: dict[str, DiskSaveManager] = {}
+        # Stores games opened, by namespace (opened_save_namespaces)
+        self._opened_save_namespaces: dict[str, DiskSaveManager] = {}
+
+    @property
+    def opened_save_namespaces(self: Self) -> Mapping[str, SaveManager]:
+        """Every store opened so far, by namespace (read-only; a recording's header)."""
+        return MappingProxyType(self._opened_save_namespaces)
 
     @property
     def stop_requested(self: Self) -> bool:
@@ -110,10 +118,10 @@ class LiveSources:
             The DiskSaveManager for ``namespace``.
 
         """
-        store = self.opened_save_namespaces.get(namespace)
+        store = self._opened_save_namespaces.get(namespace)
         if store is None:
             store = DiskSaveManager(app_name=namespace)
-            self.opened_save_namespaces[namespace] = store
+            self._opened_save_namespaces[namespace] = store
         return store
 
     def wall_clock_time(self: Self) -> datetime:

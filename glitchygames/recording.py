@@ -125,6 +125,7 @@ import dataclasses
 import logging
 import math
 import numbers
+from collections.abc import Sized
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self, TypedDict, Unpack, cast
 
@@ -567,6 +568,10 @@ def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str
     return EXTERNAL_ORIGIN
 
 
+class TraceRecordingAlreadyStartedError(RuntimeError):
+    """GameEngine.start_trace_recording() was called while the engine was already recording."""
+
+
 class RecordedFrameFields(TypedDict, total=False):
     """The format-3 frame fields ``GameplayRecorder.record_frame`` takes by keyword.
 
@@ -686,7 +691,11 @@ class GameplayRecorder:
         frame_record[DT_FIELD] = dt
         frame_record[EVENT_BATCHES_FIELD] = self._event_batches
         for field_name, value in frame_fields.items():
-            if value:
+            # Omitted: a field not given or None, and an empty container (every format-3 field
+            # is a dict or list). Any other value is written, so a future scalar field's 0 or
+            # False is kept, not dropped as "empty"
+            is_empty_container = isinstance(value, Sized) and len(value) == 0
+            if value is not None and not is_empty_container:
                 frame_record[field_name] = value
         is_new_scene_object = self._writer.frame_count > 0 and scene is not self._previous_scene
         self._writer.write_frame(frame_record=frame_record, force_keyframe=is_new_scene_object)
@@ -764,6 +773,11 @@ class RecordingSources:
         self._recorded_snapshot: InputSnapshot = IDLE_INPUT
         self._frame_snapshot: InputSnapshot | None = None
         self._frame_saves_opened: dict[str, Any] = {}
+
+    @property
+    def opened_save_namespaces(self) -> Mapping[str, SaveManager]:
+        """Every save store ``inner`` opened so far, by namespace."""
+        return self.inner.opened_save_namespaces
 
     @property
     def stop_requested(self) -> bool:

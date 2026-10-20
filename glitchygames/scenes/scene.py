@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
-    from glitchygames.recording import GameplayRecorder
     from glitchygames.supervision import Supervisor
 
 LOG = logging.getLogger('game.scenes')
@@ -116,11 +115,6 @@ class SceneManager(SceneInterface, events.EventManager):
     _instance: ClassVar[SceneManager | None] = None
     log: ClassVar[logging.Logger] = LOG
     OPTIONS: ClassVar[dict[str, Any]] = {}
-
-    # The --record-trace recorder (GameEngine.start_trace_recording sets it), else None. Frames
-    # reach it through the doors (RecordingSources.end_frame); this is for callers to inspect.
-    # A class default so it reads None without __init__.
-    trace_recorder: GameplayRecorder | None = None
 
     def __new__(cls) -> Self:
         """Create a new instance or return the existing singleton instance."""
