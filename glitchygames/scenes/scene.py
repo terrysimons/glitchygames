@@ -42,6 +42,7 @@ from glitchygames.world import aim_camera, is_world_positioned, position_world_s
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+    from pathlib import Path
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
@@ -332,6 +333,39 @@ class SceneManager(SceneInterface, events.EventManager):
             self._scene_in_setup if self._scene_in_setup is not None else self.active_scene
         )
         return True
+
+    def play_recording(self: Self, *, path: Path, then: Scene) -> None:
+        """Play a recording as an attract-mode demo, then return to ``then``.
+
+        The demo plays in a playback scope (glitchygames/replay/playback.py) from the start of
+        the next frame, at the game's speed, and ends at the recording's end, at the first key
+        or button press (``exit_on_input``), at a divergence (logged at WARNING, ``demo
+        diverged: <description>``) or at the recording's own quit. A recording cut off part
+        way plays to its last complete frame and ends as ``truncated``. A recording that
+        cannot be played (missing, unreadable, of another game, with no scene start to
+        begin at) is logged at WARNING, naming the demo and the reason, and nothing starts;
+        so is a request while another playback is starting or playing. How it ended:
+        ``last_playback_outcome``.
+
+        Args:
+            path: The recording.
+            then: The scene to make active when the demo ends (usually the scene asking).
+
+        """
+        # Function-level import: glitchygames.replay.playback imports glitchygames.scenes (it
+        # needs Scene), so a module-level import here would be a cycle.
+        from glitchygames.replay.playback import (
+            DEMO_PLAYBACK,
+            PlaybackOptions,
+            start_playback_from_recording,
+        )
+
+        start_playback_from_recording(
+            manager=self,
+            path=path,
+            then=then,
+            options=PlaybackOptions(exit_on_input=True, kind=DEMO_PLAYBACK),
+        )
 
     def request_transition(
         self: Self,
@@ -1382,6 +1416,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self._last_playback_outcome = session.outcome(reason=reason)
         LOG.info('The %s playback ended: %s', session.kind, reason)
         LOG.debug('%s', result.report())
+        if reason == 'diverged' and result.divergence is not None:
+            LOG.warning('%s diverged: %s', session.kind, result.divergence.describe())
         try:
             # The live scene is active only when the scope failed before its scene was
             if self.active_scene is not None and self.active_scene is not session.live_scene:

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import logging
 import random
 from typing import TYPE_CHECKING, Any
 
@@ -50,6 +51,7 @@ from tests.replay.playback_fixtures import (
     active_counting_scene,
     record_counting_scene,
     step_finishing,
+    tamper_sprite_in_frame,
 )
 from tests.world.test_frame_integration import (
     TEST_FADE_SECONDS,
@@ -1054,3 +1056,101 @@ class TestScopeHousekeeping:
             step(manager, frames=SHORT_RECORDED_FRAMES)
             assert manager.playback_session is None
             assert outcome_reason(manager) == 'truncated'
+
+
+class TestPlayRecordingDemos:
+    """SceneManager.play_recording: an attract-mode demo that returns to a scene."""
+
+    def test_a_demo_runs_and_returns(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            title_scene = manager.active_scene
+            manager.play_recording(path=recording_path, then=title_scene)
+            step(manager)
+            assert manager.playback_session is not None
+            step(manager, frames=SHORT_RECORDED_FRAMES + 1)
+            assert manager.active_scene is title_scene
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+
+    def test_any_key_ends_the_demo(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            title_scene = manager.active_scene
+            manager.play_recording(path=recording_path, then=title_scene)
+            step(manager, frames=2)
+            assert manager.playback_session is not None
+            step(manager, press(pygame.K_SPACE))
+            assert manager.playback_session is None
+            assert manager.active_scene is title_scene
+            assert outcome_reason(manager) == 'exit_input'
+
+    def test_an_unusable_demo_is_logged_and_nothing_starts(self, tmp_path, caplog):
+        broken_path = tmp_path / 'broken.jsonl.gz'
+        broken_path.write_bytes(b'not a trace')
+        with running_scene(CountingScene) as manager:
+            manager.play_recording(path=broken_path, then=manager.active_scene)
+            manager.play_recording(path=tmp_path / 'missing.jsonl.gz', then=manager.active_scene)
+            step(manager)
+            assert manager.playback_session is None
+            assert manager.last_playback_outcome is None
+        assert 'demo' in caplog.text
+        assert 'cannot be read' in caplog.text
+        assert {record.levelname for record in caplog.records if 'demo' in record.message} == {
+            'WARNING'
+        }
+
+    def test_a_recording_of_another_game_is_logged_and_nothing_starts(self, tmp_path, caplog):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        header, frames = recorded_trace(path=recording_path)
+        frames[0][SCENE_START_FIELD]['scene_class'] = 'NoSuchScene'
+        with running_scene(CountingScene) as manager:
+            assert not start_playback(
+                manager=manager,
+                header=header,
+                frames=frames,
+                then=manager.active_scene,
+            )
+            step(manager)
+            assert manager.playback_session is None
+        assert 'No demo: no scene class named NoSuchScene' in caplog.text
+
+    def test_a_diverging_demo_ends_early_and_says_so(self, tmp_path, caplog):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=20)
+        tamper_sprite_in_frame(recording_path=recording_path, frame_number=TAMPERED_FRAME + 1)
+        with running_scene(CountingScene) as manager:
+            title_scene = manager.active_scene
+            manager.play_recording(path=recording_path, then=title_scene)
+            step(manager, frames=TAMPERED_FRAME + 4)
+            assert manager.active_scene is title_scene
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'diverged'
+        assert 'demo diverged: frame' in caplog.text
+        assert any(
+            record.levelname == 'WARNING' and 'demo diverged' in record.message
+            for record in caplog.records
+        )
+
+    def test_a_cut_off_demo_plays_to_its_cut_off_and_logs_at_info(self, tmp_path, caplog):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        cut_off_after_frame(recording_path=recording_path, frame_number=SHORT_RECORDED_FRAMES - 1)
+        with caplog.at_level(logging.INFO), running_scene(CountingScene) as manager:
+            manager.play_recording(path=recording_path, then=manager.active_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES + 1)
+            assert outcome_reason(manager) == 'truncated'
+        assert 'truncated' in caplog.text
+        assert not [
+            record
+            for record in caplog.records
+            if record.levelname == 'WARNING'
+            and record.name.startswith(('game.replay', 'game.scenes'))
+        ]
+
+    def test_a_demo_asked_for_during_a_demo_is_refused(self, tmp_path, caplog):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            manager.play_recording(path=recording_path, then=manager.active_scene)
+            manager.play_recording(path=recording_path, then=manager.active_scene)
+            step(manager)
+            assert manager.playback_session is not None
+        assert 'already starting or playing' in caplog.text

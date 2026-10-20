@@ -340,6 +340,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   propagate); `terminate()` ends it first. `last_playback_result` / `last_playback_outcome`
   (frozen pydantic: kind, reason, frames played). A `--record-trace` session records the live
   session through a scope (`recording.py`, Playback scopes) and replays it
+- Demos (Part 3 Task 3): `SceneManager.play_recording(path=..., then=scene)` plays a recording
+  as an attract-mode demo (`exit_on_input=True`, kind `demo`); a recording that cannot play is
+  logged at WARNING ("No demo: ...") and nothing starts; a divergence ends it and logs WARNING
+  `demo diverged: <describe()>`; a cut-off file plays to its cut-off and ends `truncated`
+  (INFO). Check `last_playback_outcome` for how it ended
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
   randomness draws from named streams seeded from it: `random_stream('name')` (`random.Random`) or
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is

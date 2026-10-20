@@ -14,6 +14,7 @@ from glitchygames.recording import post_event
 from glitchygames.replay.playback import start_playback_from_recording
 from glitchygames.scenes import SceneManager
 from glitchygames.state import open_saves
+from glitchygames.tracing import FRAMES_FIELD, read_trace_result, write_trace
 from glitchygames.transitions import FadeTransition
 from tests.world.test_frame_integration import (
     TEST_FADE_SECONDS,
@@ -267,3 +268,18 @@ def active_counting_scene(manager: Any) -> CountingScene:
     scene: Scene | None = manager.active_scene
     assert isinstance(scene, CountingScene)
     return scene
+
+
+def tamper_sprite_in_frame(*, recording_path: Path, frame_number: int) -> None:
+    """Move the counting scene's marker 1 px down from ``frame_number`` on, in the file.
+
+    Args:
+        recording_path: The recording to change (rewritten).
+        frame_number: The first frame whose marker moves.
+
+    """
+    trace = read_trace_result(path=recording_path).trace
+    for frame in trace[FRAMES_FIELD][frame_number:]:
+        if frame['sprites']:
+            frame['sprites'][0]['rect'][1] += 1
+    write_trace(trace=trace, path=recording_path)
