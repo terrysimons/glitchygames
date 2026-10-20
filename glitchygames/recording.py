@@ -69,11 +69,12 @@ overlay and does not affect the simulation.
 Saves
 -----
 
-The header's ``saves`` and a frame's ``saves_opened`` map each save namespace (a game's app
-name) to ``glitchygames.state.sandbox.save_namespace_snapshot`` of its store: slot name -> the
-envelope ``load_raw`` returned, or ``{"__unreadable__": {"kind": "corrupt" | "os_error",
-"message": ...}}`` for a slot that could not be read, either with an optional ``"__listing__"``
-(what ``list_slots`` reported). The format is described in glitchygames/state/sandbox.py.
+The header's ``saves`` and a frame's ``saves_opened`` (written from Part 1 Task 11) map each
+save namespace (a game's app name) to ``glitchygames.state.sandbox.save_namespace_snapshot`` of
+its store: slot name -> the envelope ``load_raw`` returned, or ``{"__unreadable__": {"kind":
+"corrupt" | "os_error", "message": ...}}`` for a slot that could not be read, each with its
+``"__file_extension__"`` and an optional ``"__listing__"`` (what ``list_slots`` reported). The
+format is described in glitchygames/state/sandbox.py.
 
 Attribute values
 ----------------

@@ -35,8 +35,9 @@ if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
-    # Type only: glitchygames.state.manager comes to import glitchygames.clock, which imports
-    # this module, so a runtime import here would be a cycle (this module is a leaf)
+    # Type only: glitchygames.state's package __init__ imports state.sandbox, which imports
+    # this module, so a runtime import here would be a cycle (this module is a leaf); Task 8
+    # also makes state.manager import glitchygames.clock, which imports this module
     from glitchygames.state.manager import SaveManager
 
 

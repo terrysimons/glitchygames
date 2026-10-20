@@ -78,6 +78,27 @@ def write_non_object_slot(*, save_directory: Path) -> None:
     (save_directory / f'{SLOT_NAME}.json').write_text('[1, 2, 3]', encoding='utf-8')
 
 
+def write_bad_utf8_slot(*, save_directory: Path) -> None:
+    """Write a slot file that is not valid UTF-8 (a stray file in the save folder)."""
+    (save_directory / f'{SLOT_NAME}.json').write_bytes(b'\xff\xfe{')
+
+
+def write_non_numeric_version_slot(*, save_directory: Path) -> None:
+    """Write a slot whose metadata version is not a number."""
+    envelope = {'_meta': {'version': 'x', 'timestamp': '2026-01-02T03:04:05+00:00'}, 'data': {}}
+    (save_directory / f'{SLOT_NAME}.json').write_text(json.dumps(envelope), encoding='utf-8')
+
+
+def write_naive_timestamp_beside_valid_slot(*, save_directory: Path) -> None:
+    """Write a valid slot and another whose timestamp has no time zone (sorted together)."""
+    write_valid_slot(save_directory=save_directory)
+    envelope = {
+        '_meta': {'version': SAVE_FORMAT_VERSION, 'timestamp': '2026-01-02T03:04:05'},
+        'data': {'value': 1},
+    }
+    (save_directory / 'naive.json').write_text(json.dumps(envelope), encoding='utf-8')
+
+
 SLOT_WRITERS: dict[str, Callable[..., None]] = {
     'valid': write_valid_slot,
     'old_version': write_old_version_slot,
@@ -87,6 +108,9 @@ SLOT_WRITERS: dict[str, Callable[..., None]] = {
     'missing_data': write_slot_without_data,
     'toml_in_json_store': write_toml_slot,
     'non_object': write_non_object_slot,
+    'bad_utf8': write_bad_utf8_slot,
+    'non_numeric_version': write_non_numeric_version_slot,
+    'naive_timestamp_beside_valid': write_naive_timestamp_beside_valid_slot,
 }
 
 
@@ -104,14 +128,14 @@ def outcome_of(*, action: Callable[[], Any]) -> tuple[str, Any]:
 
 
 def listing_of(*, saves: SaveManager) -> list[tuple[Any, ...]]:
-    """Return what list_slots reports, without the path (a memory store has no files).
+    """Return what list_slots reports, with the file name (a memory store has no directory).
 
     Returns:
         One tuple per slot.
 
     """
     return [
-        (slot.name, slot.timestamp, slot.version, slot.app_name, slot.size_bytes)
+        (slot.name, slot.path.name, slot.timestamp, slot.version, slot.app_name, slot.size_bytes)
         for slot in saves.list_slots()
     ]
 
@@ -139,6 +163,7 @@ def test_memory_store_answers_exactly_like_the_disk_store(case, tmp_path):
         lambda saves: saves.load_raw(SLOT_NAME),
         lambda saves: listing_of(saves=saves),
         lambda saves: saves.slot_names(),
+        lambda saves: saves.find_slot_path(SLOT_NAME).name,
         lambda saves: saves.delete(SLOT_NAME),
         lambda saves: saves.exists(SLOT_NAME),
     ):
@@ -162,9 +187,33 @@ def test_writes_answer_exactly_like_the_disk_store(tmp_path):
         saves.save(SLOT_NAME, {'position': (1, 2), 'name': 'café'})
     assert memory.load(SLOT_NAME) == disk.load(SLOT_NAME) == {'position': [1, 2], 'name': 'café'}
     # Timestamps are the write times, so compare everything else
-    assert [entry[:1] + entry[2:] for entry in listing_of(saves=memory)] == [
-        entry[:1] + entry[2:] for entry in listing_of(saves=disk)
+    assert [entry[:2] + entry[3:] for entry in listing_of(saves=memory)] == [
+        entry[:2] + entry[3:] for entry in listing_of(saves=disk)
     ]
+
+
+def test_writes_with_another_serializer_answer_exactly_like_the_disk_store(tmp_path):
+    """A TOML write is a .toml slot: listed as such, and unloadable with the default JSON."""
+    disk = DiskSaveManager(app_name=APP_NAME, save_dir=tmp_path)
+    memory = MemorySaveManager(app_name=APP_NAME, snapshot={})
+    for saves in (disk, memory):
+        saves.save(SLOT_NAME, {'value': 1}, serializer=TomlSerializer())
+    for saves_action in (
+        lambda saves: saves.exists(SLOT_NAME),
+        lambda saves: saves.load(SLOT_NAME),
+        lambda saves: saves.load(SLOT_NAME, serializer=TomlSerializer()),
+        lambda saves: saves.find_slot_path(SLOT_NAME).name,
+        lambda saves: [entry[:2] + entry[3:] for entry in listing_of(saves=saves)],
+    ):
+        disk_outcome = outcome_of(action=lambda action=saves_action: action(disk))
+        memory_outcome = outcome_of(action=lambda action=saves_action: action(memory))
+        assert memory_outcome == disk_outcome
+    # A recording made over the memory store records the slot as the disk store's would
+    disk_snapshot = save_namespace_snapshot(saves=disk)
+    memory_snapshot = save_namespace_snapshot(saves=memory)
+    del disk_snapshot[SLOT_NAME]['__listing__']['timestamp']
+    del memory_snapshot[SLOT_NAME]['__listing__']['timestamp']
+    assert memory_snapshot == disk_snapshot
 
 
 def test_unserializable_data_raises_the_same_error(tmp_path):

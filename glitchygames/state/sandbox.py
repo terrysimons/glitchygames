@@ -14,15 +14,20 @@ Snapshot format (slot name -> entry, JSON-safe):
 - A slot it could not read: ``{"__unreadable__": {"kind": "corrupt" | "os_error", "message":
   "<the error's message>"}}``. In replay ``exists()`` is True and ``load``/``load_raw`` raise
   ``SaveCorruptedError`` (``corrupt``) or ``OSError`` (``os_error``) with that message.
-- Either may hold ``"__listing__": {"timestamp": <ISO 8601>, "version": n, "app_name": "...",
+- Every entry holds ``"__file_extension__": ".json" | ".toml"``, the extension of the file
+  ``load`` reads, so paths (``find_slot_path``, ``list_slots``) name the same file.
+- An entry may hold ``"__listing__": {"timestamp": <ISO 8601>, "version": n, "app_name": "...",
   "size_bytes": n}``, what ``list_slots`` reported for the slot; a slot without it is one
   ``list_slots`` skipped (unreadable metadata).
 
-The keys ``__unreadable__`` and ``__listing__`` are reserved: ``load_raw`` never returns them.
-Limits: a slot stored as both ``.json`` and ``.toml`` is recorded once (the file ``load`` reads,
-``.json``), while the disk store lists both; ``load(..., serializer=...)`` in replay reads the
-recorded envelope whatever the serializer; ``list_slots`` errors other than unreadable slots (a
-non-numeric version) are raised while snapshotting.
+The keys ``__unreadable__``, ``__file_extension__`` and ``__listing__`` are reserved:
+``load_raw`` never returns them. A slot the memory store writes keeps its serialized text
+instead (an internal key, never in a snapshot) and is read back through the serializer exactly
+as the file would be. Limits: a slot stored as both ``.json`` and ``.toml`` is recorded once (the
+file ``load`` reads, ``.json``), while the disk store lists both (and writing a slot with another
+serializer replaces the memory store's slot, while the disk store keeps both files);
+``load(..., serializer=...)`` of a recorded slot reads the recorded envelope whatever the
+serializer.
 """
 
 from __future__ import annotations
@@ -41,8 +46,16 @@ if TYPE_CHECKING:
 
 # Reserved snapshot entry keys (see the module docstring)
 UNREADABLE_SLOT_KEY = '__unreadable__'
+FILE_EXTENSION_KEY = '__file_extension__'
 LISTING_KEY = '__listing__'
-RESERVED_SNAPSHOT_KEYS = frozenset({UNREADABLE_SLOT_KEY, LISTING_KEY})
+# The serialized text of a slot the memory store wrote (internal: never in a snapshot)
+WRITTEN_CONTENT_KEY = '__written_content__'
+RESERVED_SNAPSHOT_KEYS = frozenset({
+    UNREADABLE_SLOT_KEY,
+    FILE_EXTENSION_KEY,
+    LISTING_KEY,
+    WRITTEN_CONTENT_KEY,
+})
 # Kinds of unreadable slot
 CORRUPT_SLOT_KIND = 'corrupt'
 OS_ERROR_SLOT_KIND = 'os_error'
@@ -97,17 +110,20 @@ class MemorySaveManager(SaveManager):
         return Path('<replay save snapshot>') / self.app_name
 
     def _slot_path(self, *, slot_name: str) -> Path:
-        """Return the stand-in path of a slot (for errors and return values).
+        """Return the stand-in path of a stored slot (for errors and return values).
 
         Returns:
-            ``<storage location>/<slot_name><default extension>``.
+            ``<storage location>/<slot_name><the slot's file extension>``.
 
         """
-        return self._storage_location / f'{slot_name}{self._default_serializer.file_extension}'
+        extension = self._entries[slot_name].get(
+            FILE_EXTENSION_KEY, self._default_serializer.file_extension
+        )
+        return self._storage_location / f'{slot_name}{extension}'
 
     @override
     def _existing_slot_path(self, *, slot_name: str) -> Path | None:
-        """Return the slot's stand-in path, or None if the snapshot has no such slot.
+        """Return the slot's stand-in path, or None if the store has no such slot.
 
         Returns:
             The path, or None.
@@ -129,7 +145,7 @@ class MemorySaveManager(SaveManager):
 
     @override
     def _read_slot(self, *, slot_name: str, path: Path, serializer: Serializer) -> dict[str, Any]:
-        """Return the recorded envelope, or raise the error reading it raised when recorded.
+        """Return the slot's envelope, or raise what reading it raised when recorded.
 
         Returns:
             A copy of the envelope, without the snapshot's reserved keys.
@@ -139,8 +155,16 @@ class MemorySaveManager(SaveManager):
             OSError: If the slot was recorded as unreadable.
 
         """
-        del serializer  # The recorded envelope is already parsed (SaveManager signature)
         entry = self._entries[slot_name]
+        written_content = entry.get(WRITTEN_CONTENT_KEY)
+        if written_content is not None:
+            # Written here: parsed with the active serializer, as the file would be
+            return self._parse_slot_content(
+                slot_name=slot_name,
+                path=path,
+                read_content=lambda: str(written_content),
+                serializer=serializer,
+            )
         unreadable = entry.get(UNREADABLE_SLOT_KEY)
         if unreadable is not None:
             message = str(unreadable['message'])
@@ -155,23 +179,17 @@ class MemorySaveManager(SaveManager):
 
     @override
     def _write_slot(self, *, slot_name: str, content: str, serializer: Serializer) -> Path:
-        """Keep the slot in memory, read back through the serializer as a file would be.
+        """Keep the slot's serialized text in memory, as its file would hold it.
 
         Returns:
             The slot's stand-in path.
 
         """
-        path = self._storage_location / f'{slot_name}{serializer.file_extension}'
-        envelope = serializer.deserialize(content)
-        slot_info = self._slot_info_from_envelope(
-            envelope=envelope,
-            path=path,
-            size_bytes=len(content.encode('utf-8')),
-            # A file just written has the current modification time
-            fallback_timestamp=lambda: datetime.now(tz=UTC),
-        )
-        self._entries[slot_name] = {**envelope, LISTING_KEY: _listing_record(slot_info=slot_info)}
-        return path
+        self._entries[slot_name] = {
+            WRITTEN_CONTENT_KEY: content,
+            FILE_EXTENSION_KEY: serializer.file_extension,
+        }
+        return self._slot_path(slot_name=slot_name)
 
     @override
     def _delete_slot(self, *, slot_name: str, path: Path) -> None:
@@ -181,7 +199,7 @@ class MemorySaveManager(SaveManager):
 
     @override
     def _read_slot_info(self, *, path: Path) -> SaveSlotInfo:
-        """Return what list_slots reported for the slot when recorded.
+        """Return the slot's SaveSlotInfo: read from its text if written here, else as recorded.
 
         Returns:
             The SaveSlotInfo (with the stand-in path).
@@ -190,7 +208,18 @@ class MemorySaveManager(SaveManager):
             SaveCorruptedError: If list_slots skipped the slot when recorded.
 
         """
-        record = self._entries[path.stem].get(LISTING_KEY)
+        entry = self._entries[path.stem]
+        written_content = entry.get(WRITTEN_CONTENT_KEY)
+        if written_content is not None:
+            content = str(written_content)
+            return self._slot_info_from_content(
+                path=path,
+                read_content=lambda: content,
+                size_bytes=lambda: len(content.encode('utf-8')),
+                # A file just written has the current modification time
+                fallback_timestamp=lambda: datetime.now(tz=UTC),
+            )
+        record = entry.get(LISTING_KEY)
         if record is None:
             message = f'Save file at {path} had unreadable metadata when recorded'
             raise SaveCorruptedError(message=message, path=path)
@@ -225,7 +254,9 @@ def save_namespace_snapshot(*, saves: SaveManager) -> dict[str, dict[str, Any]]:
             entry = {UNREADABLE_SLOT_KEY: {'kind': CORRUPT_SLOT_KIND, 'message': str(error)}}
         except OSError as error:
             entry = {UNREADABLE_SLOT_KEY: {'kind': OS_ERROR_SLOT_KIND, 'message': str(error)}}
-        slot_info = listings.get(saves.find_slot_path(slot_name))
+        slot_path = saves.find_slot_path(slot_name)
+        entry[FILE_EXTENSION_KEY] = slot_path.suffix
+        slot_info = listings.get(slot_path)
         if slot_info is not None:
             entry[LISTING_KEY] = _listing_record(slot_info=slot_info)
         snapshot[slot_name] = entry

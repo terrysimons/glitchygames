@@ -119,6 +119,15 @@ class TestLoadErrors:
         assert exc_info.value.file_version == 999
         assert exc_info.value.expected_version == SAVE_FORMAT_VERSION
 
+    def test_load_non_numeric_version_raises(self, tmp_path: Path) -> None:
+        """Loading a file whose metadata version is not a number raises SaveCorruptedError."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        (tmp_path / 'slot_1.json').write_text(
+            '{"_meta": {"version": "x"}, "data": {}}', encoding='utf-8'
+        )
+        with pytest.raises(SaveCorruptedError, match='invalid version'):
+            saves.load('slot_1')
+
 
 class TestLoadRaw:
     """Tests for load_raw() which returns the full envelope."""
@@ -237,6 +246,32 @@ class TestListSlots:
         (tmp_path / 'broken.json').write_text('{{{{not valid json}}}', encoding='utf-8')
         assert [slot.name for slot in saves.list_slots()] == ['slot_1']
         assert saves.slot_names() == ['broken', 'slot_1']
+
+    def test_skips_files_that_are_not_utf8(self, tmp_path: Path) -> None:
+        """list_slots() skips a file that is not valid UTF-8 instead of raising."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / 'stray.json').write_bytes(b'\xff\xfe{')
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+
+    def test_skips_files_with_a_non_numeric_version(self, tmp_path: Path) -> None:
+        """list_slots() skips a file whose metadata version is not a number."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / 'stray.json').write_text(
+            '{"_meta": {"version": "x"}, "data": {}}', encoding='utf-8'
+        )
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+
+    def test_sorts_timestamps_with_and_without_a_time_zone(self, tmp_path: Path) -> None:
+        """A timestamp without a time zone is sorted as UTC instead of raising TypeError."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        (tmp_path / 'old.json').write_text(
+            '{"_meta": {"version": 1, "timestamp": "2000-01-01T00:00:00"}, "data": {}}',
+            encoding='utf-8',
+        )
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1', 'old']
 
 
 class TestTomlSerializer:

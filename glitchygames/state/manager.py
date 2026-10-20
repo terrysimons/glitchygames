@@ -188,7 +188,13 @@ class SaveManager(abc.ABC):
             )
         meta = cast('dict[str, Any]', meta_raw)
 
-        file_version: int = int(meta.get('version', 0))
+        file_version = self._metadata_version(meta=meta)
+        if file_version is None:
+            msg = f"Save file for slot '{slot_name}' has an invalid version"
+            raise SaveCorruptedError(
+                message=msg,
+                path=self.find_slot_path(slot_name),
+            )
         if file_version != SAVE_FORMAT_VERSION:
             msg = (
                 f"Save file for slot '{slot_name}' has version {file_version}, "
@@ -277,8 +283,14 @@ class SaveManager(abc.ABC):
 
             slots.append(slot_info)
 
-        # Sort newest first
-        slots.sort(key=lambda slot: slot.timestamp, reverse=True)
+        # Sort newest first (a timestamp without a time zone sorts as UTC, so a hand-written
+        # file beside engine-written ones cannot make the comparison raise)
+        slots.sort(
+            key=lambda slot: (
+                slot.timestamp if slot.timestamp.tzinfo else slot.timestamp.replace(tzinfo=UTC)
+            ),
+            reverse=True,
+        )
         return slots
 
     def slot_names(self) -> list[str]:
@@ -292,6 +304,9 @@ class SaveManager(abc.ABC):
 
     def find_slot_path(self, slot_name: str) -> Path:
         """Find an existing save file for a slot, checking all extensions.
+
+        Public because a recording's save snapshot (glitchygames/state/sandbox.py) records which
+        file ``load`` reads (its extension), which list_slots alone cannot tell.
 
         Args:
             slot_name: Slot name to search for.
@@ -313,25 +328,29 @@ class SaveManager(abc.ABC):
 
     @staticmethod
     def _parse_slot_content(
-        *, slot_name: str, path: Path, content: str, serializer: Serializer
+        *, slot_name: str, path: Path, read_content: Callable[[], str], serializer: Serializer
     ) -> dict[str, Any]:
-        """Deserialize a slot file's content.
+        """Read and deserialize a slot file's content.
 
         Args:
             slot_name: Slot name (for the error message).
             path: The slot's file (for the error).
-            content: The file's text.
+            read_content: Returns the file's text (decoding it as UTF-8).
             serializer: The serializer to parse with.
 
         Returns:
             The envelope.
 
         Raises:
-            SaveCorruptedError: If the content can't be parsed.
+            SaveCorruptedError: If the content can't be decoded or parsed.
+            OSError: If the file can't be read (passed through: not a corrupt save).
 
         """
         try:
-            return serializer.deserialize(content)
+            return serializer.deserialize(read_content())
+        except OSError:
+            # The file could not be read at all: not a corrupt save
+            raise
         except Exception as error:
             msg = f"Failed to parse save file for slot '{slot_name}': {error}"
             raise SaveCorruptedError(
@@ -341,7 +360,55 @@ class SaveManager(abc.ABC):
             ) from error
 
     @staticmethod
+    def _metadata_version(*, meta: dict[str, Any]) -> int | None:
+        """Return the metadata's save format version, or None if it is not a number.
+
+        Returns:
+            The version (0 when missing), or None.
+
+        """
+        try:
+            return int(meta.get('version', 0))
+        except ValueError, TypeError:
+            return None
+
+    def _slot_info_from_content(
+        self,
+        *,
+        path: Path,
+        read_content: Callable[[], str],
+        size_bytes: Callable[[], int],
+        fallback_timestamp: Callable[[], datetime],
+    ) -> SaveSlotInfo:
+        """Build a slot file's SaveSlotInfo, parsing it with the serializer its extension names.
+
+        Args:
+            path: The slot's file.
+            read_content: Returns the file's text.
+            size_bytes: Returns the file's size.
+            fallback_timestamp: See _slot_info_from_envelope.
+
+        Returns:
+            SaveSlotInfo with metadata from the file.
+
+        """
+        # Pick serializer based on file extension
+        active_serializer: Serializer = (
+            TomlSerializer() if path.suffix == '.toml' else JsonSerializer()
+        )
+        envelope = self._parse_slot_content(
+            slot_name=path.stem, path=path, read_content=read_content, serializer=active_serializer
+        )
+        return self._slot_info_from_envelope(
+            envelope=envelope,
+            path=path,
+            size_bytes=size_bytes(),
+            fallback_timestamp=fallback_timestamp,
+        )
+
+    @classmethod
     def _slot_info_from_envelope(
+        cls,
         *,
         envelope: dict[str, Any],
         path: Path,
@@ -376,7 +443,10 @@ class SaveManager(abc.ABC):
         except ValueError, TypeError:
             timestamp = fallback_timestamp()
 
-        version: int = int(meta.get('version', 0))
+        version = cls._metadata_version(meta=meta)
+        if version is None:
+            msg = f'Save file at {path} has an invalid version'
+            raise SaveCorruptedError(message=msg, path=path)
         app_name: str = str(meta.get('app_name', ''))
 
         return SaveSlotInfo(
@@ -508,9 +578,11 @@ class DiskSaveManager(SaveManager):
             The envelope.
 
         """
-        content = path.read_text(encoding='utf-8')
         return self._parse_slot_content(
-            slot_name=slot_name, path=path, content=content, serializer=serializer
+            slot_name=slot_name,
+            path=path,
+            read_content=lambda: path.read_text(encoding='utf-8'),
+            serializer=serializer,
         )
 
     @override
@@ -547,19 +619,10 @@ class DiskSaveManager(SaveManager):
             SaveSlotInfo with metadata from the file.
 
         """
-        # Pick serializer based on file extension
-        active_serializer: Serializer = (
-            TomlSerializer() if path.suffix == '.toml' else JsonSerializer()
-        )
-
-        content = path.read_text(encoding='utf-8')
-        envelope = self._parse_slot_content(
-            slot_name=path.stem, path=path, content=content, serializer=active_serializer
-        )
-        return self._slot_info_from_envelope(
-            envelope=envelope,
+        return self._slot_info_from_content(
             path=path,
-            size_bytes=path.stat().st_size,
+            read_content=lambda: path.read_text(encoding='utf-8'),
+            size_bytes=lambda: path.stat().st_size,
             fallback_timestamp=lambda: datetime.fromtimestamp(path.stat().st_mtime, tz=UTC),
         )
 
