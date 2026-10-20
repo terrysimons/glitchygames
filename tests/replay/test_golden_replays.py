@@ -58,3 +58,30 @@ def test_a_tampered_golden_replay_is_reported_at_its_frame(mocker, capsys, tmp_p
     assert divergence is not None
     assert divergence.frame_number == TAMPERED_FRAME
     assert divergence.kind == SPRITE_DIVERGENCE
+
+
+def test_a_rebaselined_golden_replay_names_the_tampered_frames_and_replays_clean(
+    mocker, capsys, tmp_path
+):
+    """--rebaseline of a tampered fixture reports the change, and its output replays exactly."""
+    path = REPLAY_FIXTURE_DIRECTORY / 'paddleslap' / f'golden{REPLAY_FIXTURE_SUFFIX}'
+    tampered_path = tmp_path / path.name
+    tampered_path.write_bytes(path.read_bytes())
+    tamper_first_sprite_rect(recording_path=tampered_path, frame_number=TAMPERED_FRAME)
+    rebaselined_path = tmp_path / f'rebaselined{REPLAY_FIXTURE_SUFFIX}'
+
+    rebaseline = replay_through_engine(
+        mocker=mocker,
+        game_key='paddleslap',
+        path=tampered_path,
+        extra_arguments=('--rebaseline', str(rebaselined_path)),
+    )
+
+    summary = capsys.readouterr().out
+    assert rebaseline.exit_status == ExitCode.SUCCESS, summary
+    assert f'frames differ (first at {TAMPERED_FRAME}: sprite ' in summary
+    assert 'sprites affected: ' in summary
+    replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=rebaselined_path)
+    report = capsys.readouterr().out
+    assert replay.exit_status == ExitCode.SUCCESS, report
+    assert replay.result.divergence is None

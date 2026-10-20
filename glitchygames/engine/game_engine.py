@@ -67,6 +67,7 @@ from glitchygames.replay.driver import (
     announce_replay,
     start_replay,
 )
+from glitchygames.replay.rebaseline import Rebaseline, rebaseline_refusal
 from glitchygames.replay.rebuild import (
     ViewerState,
     parse_viewer_state,
@@ -310,6 +311,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # The --replay-trace doors while replaying (installed in __init__ before the first frame),
     # else None. A class default so it reads None on an engine whose __init__ did not run.
     replay_sources: ReplaySources | None = None
+    # The --rebaseline writer while rebaselining (glitchygames/replay/rebaseline.py), else None.
+    # A class default so it reads None on an engine whose __init__ did not run.
+    rebaseline: Rebaseline | None = None
 
     @classmethod
     def initialize_icon(cls: Any, icon: pygame.Surface | Path | str | None = None) -> None:
@@ -511,6 +515,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # Internal: a restarted replay's viewer state (speed, debug panel, divergence frame),
             # as glitchygames/replay/rebuild.py describes
             help=argparse.SUPPRESS,
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--rebaseline',
+            metavar='NEW',
+            help=(
+                'with --replay-trace OLD and --headless: replay OLD on the current code without '
+                "stopping at divergences, write the run's recording (OLD's inputs, the current "
+                'sprites) to NEW, print a summary of the frames and sprites that changed and '
+                f'exit {ExitCode.SUCCESS:d}'
+            ),
             default=None,
         )
         diagnostics_group.add_argument(
@@ -747,6 +762,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # A replay's recorded options and seed are in place from here on (start_replay), so
         # everything below reads the options as the recorded run did
         self.replay_sources = self._start_requested_replay(game=game, options=options)
+        # --rebaseline NEW records the replay into NEW (glitchygames/replay/rebaseline.py); its
+        # options were checked with the replay's
+        rebaseline_path = options.get('rebaseline')
+        self.rebaseline = (
+            None
+            if self.replay_sources is None or rebaseline_path is None
+            else Rebaseline(
+                replay_sources=self.replay_sources,
+                source_path=Path(options['replay_trace']),
+                destination=Path(rebaseline_path),
+            )
+        )
         # Set the master seed of the engine random streams before any game code runs
         # (see glitchygames/randomness.py); start_replay already seeded them with the recorded
         # seed
@@ -1392,7 +1419,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             raise TraceRecordingAlreadyStartedError(message)
         inner = active_sources()
         registry = inner.devices()
-        # Part 2's --rebaseline copies these fields from the replayed recording instead
+        # A rebaseline copies these fields from the replayed recording instead (rebaseline.py)
         header = {
             **self.trace_recording_header(),
             SAVES_HEADER_FIELD: {
@@ -1413,7 +1440,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         return recorder
 
     def _start_requested_trace_recording(self: Self) -> None:
-        """Start recording if --record-trace was given (recording is off by default)."""
+        """Start recording if --record-trace or --rebaseline was given (off by default).
+
+        A rebaseline records over the replay (glitchygames/replay/rebaseline.py), with the
+        replayed recording's header; ``stop_trace_recording`` closes it like any recording.
+        """
+        if self.rebaseline is not None:
+            self.trace_recorder = self.rebaseline.start_recording()
+            return
         record_trace_path = GameEngine.OPTIONS.get('record_trace')
         if record_trace_path is not None:
             self.start_trace_recording(path=Path(record_trace_path))
@@ -1469,9 +1503,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         be replayed (a recording of another game, an unsupported format version, an unreadable
         file), ``ExitCode.MISSING_INPUT`` when it does not exist, and
         ``ExitCode.OPTIONS_REFUSED`` when --record-trace is given too (recording over a replay
-        is not supported yet) or --audit is given without --replay-trace, with --replay-fps
-        real or to an interpreter started with -E or -I. Auditing a truncated recording exits
-        with ``ExitCode.UNUSABLE_INPUT`` too (an audit needs the whole recording).
+        is --rebaseline's job), --rebaseline's options are unsound (``rebaseline_refusal``) or
+        it or --audit is given without --replay-trace, or --audit with --replay-fps real or
+        to an interpreter started with -E or -I. Auditing a truncated recording exits with
+        ``ExitCode.UNUSABLE_INPUT`` too (an audit needs the whole recording).
 
         Args:
             game: The game scene class or instance (its class name must match the recording's).
@@ -1483,25 +1518,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
-            if options.get('audit'):
-                self.log.error('--audit needs --replay-trace PATH: the recording to audit')
-                exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
-            for option_name, flag in (
-                ('replay_fps', '--replay-fps'),
-                ('replay_digest', '--replay-digest'),
-                ('replay_pause_at_frame', '--replay-pause-at-frame'),
-            ):
-                if options.get(option_name) is not None:
-                    self.log.warning(f'{flag} is ignored without --replay-trace')
+            self._check_replay_options_without_a_recording(options=options)
             return None
-        if options.get('record_trace') is not None:
-            # A recording over a replay needs the replay's event origins and recorded fields
-            # (Part 2's --rebaseline wires them); until then it would record wrong origins
-            self.log.error(
-                f'Cannot replay {replay_trace_path} with --record-trace: recording over a replay '
-                'is not supported yet (see plans/future-work.md)'
-            )
-            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        self._refuse_an_unsound_recording_over_the_replay(
+            replay_trace_path=replay_trace_path, options=options
+        )
         if options.get('audit'):
             self._refuse_an_unsound_audit(replay_trace_path=replay_trace_path, options=options)
         game_class_name = game.__name__ if isinstance(game, type) else type(game).__name__
@@ -1536,6 +1557,56 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             cause=refusal,
         )
+
+    def _check_replay_options_without_a_recording(self: Self, *, options: dict[str, Any]) -> None:
+        """Refuse --audit and --rebaseline without --replay-trace; warn about ignored options.
+
+        Exits (``exit_with``) with ``ExitCode.OPTIONS_REFUSED`` for --audit or --rebaseline;
+        --replay-fps, --replay-digest and --replay-pause-at-frame are only warned about.
+
+        Args:
+            options: The parsed options (no ``replay_trace``).
+
+        """
+        if options.get('audit'):
+            self.log.error('--audit needs --replay-trace PATH: the recording to audit')
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        if options.get('rebaseline') is not None:
+            self.log.error('--rebaseline needs --replay-trace OLD: the recording to rebaseline')
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        for option_name, flag in (
+            ('replay_fps', '--replay-fps'),
+            ('replay_digest', '--replay-digest'),
+            ('replay_pause_at_frame', '--replay-pause-at-frame'),
+        ):
+            if options.get(option_name) is not None:
+                self.log.warning(f'{flag} is ignored without --replay-trace')
+
+    def _refuse_an_unsound_recording_over_the_replay(
+        self: Self, *, replay_trace_path: str, options: dict[str, Any]
+    ) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for a recording over the replay that cannot run.
+
+        That is --rebaseline with unsound options (``rebaseline_refusal``), or --record-trace:
+        a recording over a replay takes the replay's event origins and recorded fields, which
+        only --rebaseline (headless, never stopping at a divergence) wires.
+
+        Args:
+            replay_trace_path: The recording to replay.
+            options: The parsed options.
+
+        """
+        if options.get('rebaseline') is not None:
+            refusal_reason = rebaseline_refusal(options=options)
+            if refusal_reason is not None:
+                self.log.error(f'Cannot rebaseline {replay_trace_path}: {refusal_reason}')
+                exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        elif options.get('record_trace') is not None:
+            self.log.error(
+                f'Cannot replay {replay_trace_path} with --record-trace: record over a replay '
+                'with --rebaseline NEW --headless'
+            )
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_an_unsound_audit(
         self: Self, *, replay_trace_path: str, options: dict[str, Any]
@@ -1626,6 +1697,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         its result (a late crash or signal, during the teardown of the last scene), that result
         and then ``then the run ended with ...`` on the next line.
 
+        A rebaseline (glitchygames/replay/rebaseline.py) that ended normally writes its new
+        recording and reports its summary instead; one that ended early writes nothing and
+        says so after the report.
+
         Args:
             run_ended_by: What ended the run early (an exit status as
                 ``ExitCode.describe_status`` gives it), or None when the run ended normally.
@@ -1649,6 +1724,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         else:
             report = result.report()
             is_failure = result.divergence is not None
+        if self.rebaseline is not None:
+            if run_ended_by is None:
+                # The divergences are what the rebaseline reports, not a failure
+                report = self.rebaseline.write(result=result)
+                is_failure = False
+            else:
+                self.rebaseline.discard()
+                report = f'{report}\n{self.rebaseline.destination} was not written'
         if self.replay_sources.options.headless:
             sys.stdout.write(f'{report}\n')
             sys.stdout.flush()

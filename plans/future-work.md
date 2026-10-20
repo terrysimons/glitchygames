@@ -86,18 +86,20 @@ and Replay").
   unpresented and muted, the first process supervising later restarts through a handoff file).
   bookmarks (Task 4: B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz` with
   `breakpoint` control events that pause a watched replay of the copy; a restart with bookmarks
-  saves and replays the copy). Pending: `--rebaseline`, and the pytest plugin for recordings.
+  saves and replays the copy); the pytest plugin for recordings (Task 5:
+  `glitchygames/testing/replays.py`); `--rebaseline` (Task 6: `--replay-trace OLD --rebaseline NEW
+  --headless` replays OLD's inputs on the current code without stopping at divergences, writes
+  NEW atomically with OLD's inputs and the current sprites, prints a summary of the frames and
+  sprites that changed and exits `SUCCESS`; `glitchygames/replay/rebaseline.py`).
 - **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
   starts, the playback scope (does not block real input at SDL; real input reaches only its "exit
   playback" check), demos (the bundled PaddleSlap demo), instant replay and ghosts.
-- **Recording over a replay (`--record-trace` with `--replay-trace`) is refused**
-  (`ExitCode.OPTIONS_REFUSED`, 64; `GameEngine._start_requested_replay`): the recorder would
-  classify the replay's batches with the internal-post tracker, whose pending posts the replay's
-  pump already consumed, and would not copy the source recording's saves and device fields. Part 2
-  Task 6 (`--rebaseline`) lifts the refusal by wiring `ReplaySources.last_batch_origins()` and
-  `ReplaySources.recording.recorded_frame_fields()` into `RecordingSources`. A rebaseline replay
-  must be headless (or pass its controls' keys through the recorder): a watched replay holds
-  frames and routes real keys to its controls.
+- **Plain recording over a replay (`--record-trace` with `--replay-trace`) stays refused**
+  (`ExitCode.OPTIONS_REFUSED`, 64; `GameEngine._refuse_an_unsound_recording_over_the_replay`),
+  pointing at `--rebaseline NEW --headless`, which wires `ReplaySources.last_batch_origins()` and
+  `ReplaySources.recording.recorded_frame_fields()` into `RecordingSources` (`replayed=`). A
+  watched rebaseline (or `--record-trace` over a watched replay) would need the viewer's held
+  frames and keys kept out of the recording; open it only if a use appears.
 
 Follow-ups (not in any plan yet):
 

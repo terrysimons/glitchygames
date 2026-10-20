@@ -40,7 +40,13 @@ class EngineReplay:
     result: ReplayResult
 
 
-def replay_through_engine(*, mocker: MockerFixture, game_key: str, path: Path) -> EngineReplay:
+def replay_through_engine(
+    *,
+    mocker: MockerFixture,
+    game_key: str,
+    path: Path,
+    extra_arguments: tuple[str, ...] = (),
+) -> EngineReplay:
     """Replay a recording through the real engine loop with ``--replay-trace PATH --headless``.
 
     The replay is started the normal way (GameEngine.__init__ installs the ReplaySources,
@@ -52,6 +58,7 @@ def replay_through_engine(*, mocker: MockerFixture, game_key: str, path: Path) -
         mocker: pytest-mock's fixture.
         game_key: The game (a key of GAME_SCENES).
         path: The recording.
+        extra_arguments: More command-line arguments (``--rebaseline NEW``).
 
     Returns:
         The exit status and the result.
@@ -64,7 +71,14 @@ def replay_through_engine(*, mocker: MockerFixture, game_key: str, path: Path) -
     mocker.patch.dict(os.environ)
     GoldenTraceSceneManager.install()
     try:
-        with command_line(['--log-level', 'warning', '--replay-trace', str(path), '--headless']):
+        with command_line([
+            '--log-level',
+            'warning',
+            '--replay-trace',
+            str(path),
+            '--headless',
+            *extra_arguments,
+        ]):
             engine = GoldenTraceEngine(game=GAME_SCENES[game_key])
         with pytest.raises(SystemExit) as exit_info:
             engine.start()

@@ -60,11 +60,16 @@ session again, and every frame's sprites are compared with the recorded frame. T
    are compared with the recorded ones, in order; then the scene's sprites are sampled as the
    recorder samples them and compared with the recorded frame (scene class, then each sprite:
    present, ``rect``, ``visible``). The first difference stops a headless replay, as does
-   the last recorded frame; a watched replay pauses there instead (rule 14).
+   the last recorded frame; a watched replay pauses there instead (rule 14). Under
+   ``ReplayOptions.stop_on_divergence`` False (``--rebaseline``, rule 17) a difference stops
+   nothing: the result keeps the first one, counts the frames that differ
+   (``ReplayResult.differing_frame_count``) and names every sprite that differs in them
+   (``ReplayResult.affected_sprite_ids``), and the replay runs on to the last recorded frame.
 9. Clocks: the wall clock is the recording's ``recorded_at`` plus the frame clock; elapsed
    seconds are the frame clock, live and replayed alike (glitchygames/clock.py).
-10. ``recorded_frame_fields`` hands a recording made over the replay (Part 2's rebaseline) the
-    frame's recorded saves and device fields.
+10. ``recorded_frame_fields`` hands a recording made over the replay (``--rebaseline``, rule 17)
+    the frame's recorded saves and device fields, and ``last_batch_origins`` each event's origin
+    in the batch the last pump returned.
 11. ``GameEngine._shutdown`` calls ``finish_run`` and reports the result (``ReplayResult.report``:
     printed to stdout under ``--headless``, logged otherwise); ``GameEngine.start`` then ends the
     run with ``ReplayResult.exit_code(policy=options.exit_policy)``.
@@ -131,6 +136,11 @@ session again, and every frame's sprites are compared with the recorded frame. T
     (rule 15) with bookmarks saves the copy first and replays the copy
     (``GameEngine._restart_replay``, which warns naming the bookmarks if the copy cannot be
     saved), so bookmarks survive step back.
+17. Rebaseline (``--replay-trace OLD --rebaseline NEW --headless``; glitchygames/replay/
+    rebaseline.py, whose docstring is the contract): ``start_replay`` gives the replay
+    ``stop_on_divergence=False`` and ``ReplayExitPolicy.SUCCESS_AFTER_WRITING``, and the engine
+    records the run over it into NEW (``RecordingSources`` with ``replayed`` set: origins and
+    the saves and device fields come from this replay, never from the live trackers).
 """
 
 from __future__ import annotations
@@ -222,7 +232,7 @@ from glitchygames.tracing import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
@@ -364,8 +374,7 @@ class ReplayOptions(BaseModel):
     """How a replay is run: everything ``ReplaySources`` is configured with but the recording.
 
     Read-only; ``start_replay`` builds it from the run's local options (``REPLAY_LOCAL_OPTIONS``,
-    never the recording's). Later replay tasks add their fields here (a playback start frame,
-    whether a divergence stops the replay).
+    never the recording's). Later replay tasks add their fields here (a playback start frame).
 
     Attributes:
         headless: True under ``--headless``: frames are not paced (rule 13) and the engine prints
@@ -388,6 +397,9 @@ class ReplayOptions(BaseModel):
             (``--replay-viewer-state``: speed, debug panel, divergence frame), or None.
         recording_path: The recording's file, which a saved bookmarked copy is copied from
             (rule 16; ``start_replay`` sets it), or None (nothing can be saved).
+        stop_on_divergence: True (the default) to end the comparison at the first difference
+            (rule 8); False to note every differing frame and run on to the end
+            (``--rebaseline``, rule 17).
 
     """
 
@@ -403,6 +415,7 @@ class ReplayOptions(BaseModel):
     restart_handoff_path: Path | None = None
     viewer_state: ViewerState | None = None
     recording_path: Path | None = None
+    stop_on_divergence: bool = True
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -468,10 +481,13 @@ class RecordedFrames:
 
         Returns:
             Whichever of ``saves_opened``, ``devices_opened`` and ``device_enumeration`` the
-            frame has.
+            frame has; none past the end of the recording (a frame the recording does not have
+            took nothing in from it).
 
         """
-        frame = self._frames[frame_index]
+        frame = self.frame(frame_index=frame_index)
+        if frame is None:
+            return {}
         return {
             field_name: frame[field_name]
             for field_name in REBASELINE_FRAME_FIELDS
@@ -590,11 +606,20 @@ class Divergence:
             ArrivalScene, got PauseScene``.
 
         """
+        return f'frame {self.frame_number}: {self.describe_difference()}'
+
+    def describe_difference(self: Self) -> str:
+        """Describe what differed, without the frame.
+
+        Returns:
+            For example ``sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16,
+            16]``, or ``scene expected ArrivalScene, got PauseScene``.
+
+        """
         if self.kind == SCENE_DIVERGENCE:
-            return f'frame {self.frame_number}: scene expected {self.expected}, got {self.actual}'
+            return f'scene expected {self.expected}, got {self.actual}'
         return (
-            f'frame {self.frame_number}: {self.kind} {self.subject} {self.field} '
-            f'expected {self.expected}, got {self.actual}'
+            f'{self.kind} {self.subject} {self.field} expected {self.expected}, got {self.actual}'
         )
 
 
@@ -640,6 +665,10 @@ class ReplayResult:
             sprites), up to ``REPORT_HISTORY_FRAMES`` + 1, ending with the divergent frame once
             the replay diverged (``ReplaySources.end_frame`` adds each compared frame).
         replayed_history: The same frames as the replay sampled them.
+        differing_frame_count: How many compared frames differed from the recording (at most 1
+            unless ``ReplayOptions.stop_on_divergence`` is False).
+        affected_sprite_ids: Every sprite that differed in those frames, in the order first
+            found (``differing_sprite_ids``).
 
     """
 
@@ -653,6 +682,22 @@ class ReplayResult:
     replayed_history: collections.deque[tuple[int, list[dict[str, Any]]]] = dataclasses.field(
         default_factory=_new_frame_history, repr=False
     )
+    differing_frame_count: int = 0
+    affected_sprite_ids: list[str] = dataclasses.field(default_factory=list[str])
+
+    def note_differing_frame(self: Self, *, sprite_ids: Sequence[str]) -> None:
+        """Count one more differing frame and add the sprites that differ in it.
+
+        Args:
+            sprite_ids: The frame's differing sprites (``differing_sprite_ids``), any order.
+
+        """
+        self.differing_frame_count += 1
+        known_sprite_ids = set(self.affected_sprite_ids)
+        for sprite_id in sprite_ids:
+            if sprite_id not in known_sprite_ids:
+                known_sprite_ids.add(sprite_id)
+                self.affected_sprite_ids.append(sprite_id)
 
     def exit_code(self: Self, *, policy: ReplayExitPolicy) -> ExitCode:
         """Return the exit code the replay's run ends with (glitchygames/exit_codes.py).
@@ -752,13 +797,17 @@ def _recorded_seed(*, header: dict[str, Any]) -> int:
     return random_seed
 
 
-def _sprite_difference(
+def _sprite_differences(
     *, frame_index: int, recorded: dict[str, Any], replayed: dict[str, Any]
-) -> Divergence | None:
-    """Return the first sprite difference between two sampled frames, or None.
+) -> Iterator[Divergence]:
+    """Yield the sprite differences between two sampled frames, at most one per sprite.
 
-    Recorded sprites are checked in recorded (draw) order: a missing one first, else its rect,
-    then its visibility; then a replayed sprite the recording does not have.
+    Recorded sprites are checked in recorded (draw) order: a missing one, else its rect, else
+    its visibility; then each replayed sprite the recording does not have.
+
+    Yields:
+        Each sprite's first difference.
+
     """
     replayed_by_id = {sprite[SPRITE_ID_FIELD]: sprite for sprite in replayed[SPRITES_FIELD]}
     recorded_ids: set[str] = set()
@@ -767,7 +816,7 @@ def _sprite_difference(
         recorded_ids.add(sprite_id)
         replayed_sprite = replayed_by_id.get(sprite_id)
         if replayed_sprite is None:
-            return Divergence(
+            yield Divergence(
                 frame_number=frame_index,
                 kind=SPRITE_DIVERGENCE,
                 subject=sprite_id,
@@ -775,9 +824,10 @@ def _sprite_difference(
                 expected=True,
                 actual=False,
             )
+            continue
         for field_name in (RECT_FIELD, VISIBLE_FIELD):
             if recorded_sprite[field_name] != replayed_sprite[field_name]:
-                return Divergence(
+                yield Divergence(
                     frame_number=frame_index,
                     kind=SPRITE_DIVERGENCE,
                     subject=sprite_id,
@@ -785,10 +835,11 @@ def _sprite_difference(
                     expected=recorded_sprite[field_name],
                     actual=replayed_sprite[field_name],
                 )
+                break
     for replayed_sprite in replayed[SPRITES_FIELD]:
         sprite_id = replayed_sprite[SPRITE_ID_FIELD]
         if sprite_id not in recorded_ids:
-            return Divergence(
+            yield Divergence(
                 frame_number=frame_index,
                 kind=SPRITE_DIVERGENCE,
                 subject=sprite_id,
@@ -796,7 +847,24 @@ def _sprite_difference(
                 expected=False,
                 actual=True,
             )
-    return None
+
+
+def differing_sprite_ids(*, recorded: dict[str, Any], replayed: dict[str, Any]) -> list[str]:
+    """Name every sprite that differs between a recorded frame and its replay (rule 8).
+
+    Args:
+        recorded: The recorded frame (decoded: every sprite listed).
+        replayed: The replayed frame, sampled by ``sample_scene_frame``.
+
+    Returns:
+        The sprite ids: recorded sprites that are missing or changed (rect or visibility), in
+        recorded order, then replayed sprites the recording does not have.
+
+    """
+    return [
+        divergence.subject
+        for divergence in _sprite_differences(frame_index=0, recorded=recorded, replayed=replayed)
+    ]
 
 
 def _take_live_match(
@@ -850,7 +918,9 @@ def first_frame_difference(
             expected=recorded[SCENE_FIELD],
             actual=replayed[SCENE_FIELD],
         )
-    return _sprite_difference(frame_index=frame_index, recorded=recorded, replayed=replayed)
+    return next(
+        _sprite_differences(frame_index=frame_index, recorded=recorded, replayed=replayed), None
+    )
 
 
 class ReplaySources:
@@ -1091,9 +1161,9 @@ class ReplaySources:
     def last_batch_origins(self: Self) -> list[str]:
         """Return each event's origin in the batch the last pump returned.
 
-        For a recording made over the replay (Part 2's rebaseline), which must record these
+        For a recording made over the replay (``--rebaseline``, rule 17), which records these
         rather than classify the batch with the internal-post tracker (the pump above has
-        already consumed its pending posts). RecordingSources does not ask for them yet.
+        already consumed its pending posts).
 
         Returns:
             ``'external'`` for served recorded events and a window close, ``'internal'`` for
@@ -1305,13 +1375,10 @@ class ReplaySources:
             )
             self.result.frames_replayed = self._frame_index + 1
             if divergence is not None:
-                LOG.debug(
-                    'Replay diverged at recorded frame %d (run frame %d)',
-                    divergence.frame_number,
-                    frame_number,
+                self._note_divergence(
+                    divergence=divergence, frame=frame, replayed=replayed, frame_number=frame_number
                 )
-                self.result.divergence = divergence
-                self.controls.divergence_frame = divergence.frame_number
+            if divergence is not None and self.options.stop_on_divergence:
                 self._end_replay(
                     end_reason=DIVERGED_END_REASON,
                     banner=f'Diverged at {divergence.describe()}',
@@ -1345,19 +1412,22 @@ class ReplaySources:
         """Settle the result when the run ends (``GameEngine._shutdown``).
 
         A run that ended while the replay was still running (the game quit or failed before
-        the recording's last frame) diverged in length. Either way the blocked state of real
-        input is restored (rule 2), and the digest file written when asked for (rule 12).
+        the recording's last frame) diverged in length, unless an earlier frame already
+        differed (a replay that does not stop at a divergence, rule 8): the first difference is
+        kept. Either way the blocked state of real input is restored (rule 2), and the digest
+        file written when asked for (rule 12).
         """
         self._real_input_block.restore()
         if self.result.end_reason == RUNNING_END_REASON:
-            self.result.divergence = Divergence(
-                frame_number=self.result.frames_replayed,
-                kind=LENGTH_DIVERGENCE,
-                subject=RECORDING_SUBJECT,
-                field=FRAME_COUNT_FIELD,
-                expected=self.recording.frame_count,
-                actual=self.result.frames_replayed,
-            )
+            if self.result.divergence is None:
+                self.result.divergence = Divergence(
+                    frame_number=self.result.frames_replayed,
+                    kind=LENGTH_DIVERGENCE,
+                    subject=RECORDING_SUBJECT,
+                    field=FRAME_COUNT_FIELD,
+                    expected=self.recording.frame_count,
+                    actual=self.result.frames_replayed,
+                )
             self._stop(end_reason=DIVERGED_END_REASON)
         if self.options.digest_path is not None:
             divergence = self.result.divergence
@@ -1369,6 +1439,36 @@ class ReplaySources:
 
     def _current_frame(self: Self) -> dict[str, Any] | None:
         return self.recording.frame(frame_index=self._frame_index)
+
+    def _note_divergence(
+        self: Self,
+        *,
+        divergence: Divergence,
+        frame: dict[str, Any],
+        replayed: dict[str, Any],
+        frame_number: int,
+    ) -> None:
+        """Keep a differing frame in the result: the first divergence, the count, its sprites.
+
+        Args:
+            divergence: The frame's first difference.
+            frame: The recorded frame.
+            replayed: The replayed frame, sampled by ``sample_scene_frame``.
+            frame_number: The scene manager's frame number (the log message only: rule 3).
+
+        """
+        self.result.note_differing_frame(
+            sprite_ids=differing_sprite_ids(recorded=frame, replayed=replayed)
+        )
+        if self.result.divergence is not None:
+            return
+        LOG.debug(
+            'Replay diverged at recorded frame %d (run frame %d)',
+            divergence.frame_number,
+            frame_number,
+        )
+        self.result.divergence = divergence
+        self.controls.divergence_frame = divergence.frame_number
 
     def _frame_difference(
         self: Self,
@@ -1970,7 +2070,8 @@ def start_replay(
             (local) restarts it at a pause frame (rule 15; ignored, with a warning, when
             headless), ``replay_restart_handoff`` (local) where a supervised restart hands its
             own restart over (glitchygames/replay/rebuild.py), and ``replay_viewer_state``
-            (local) the viewer state it starts with.
+            (local) the viewer state it starts with. ``rebaseline`` (local) makes the replay
+            run on past divergences and exit ``SUCCESS`` once over (rule 17).
         use_fastevents: Drain the real queue with pygame.fastevent (``GameEngine.USE_FASTEVENTS``).
 
     Returns:
@@ -1987,8 +2088,13 @@ def start_replay(
         )
         pause_at_frame = None
     restart_handoff = options.get('replay_restart_handoff')
+    is_rebaseline = options.get('rebaseline') is not None
     replay_options = ReplayOptions(
         headless=headless,
+        # A rebaseline writes the new recording whatever the result (rule 17)
+        exit_policy=(
+            ReplayExitPolicy.SUCCESS_AFTER_WRITING if is_rebaseline else ReplayExitPolicy.RESULT
+        ),
         fps_source=options.get('replay_fps') or RECORDED_REPLAY_FPS,
         digest_path=None if replay_digest is None else Path(replay_digest),
         use_fastevents=use_fastevents,
@@ -1999,6 +2105,8 @@ def start_replay(
         restart_handoff_path=None if restart_handoff is None else Path(restart_handoff),
         viewer_state=options.get('replay_viewer_state'),
         recording_path=path,
+        # A rebaseline summarizes every frame that changed, so it never stops at the first
+        stop_on_divergence=not is_rebaseline,
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(header=sources.header, game_class_name=game_class_name)

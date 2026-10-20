@@ -5,8 +5,9 @@ engine version and same recording give bit-identical sprite traces: every frame'
 `rect` and `visible` match the recording. Audio is played during a replay but is not compared.
 
 This page covers the replay core: recording, exact replay, watching a replay (with step back
-and bookmarks), headless runs, the determinism audit, and the rules game code follows so its
-sessions replay. Rebaselining and in-game playback (demos, instant replay, ghosts) are planned. See
+and bookmarks), headless runs, the determinism audit, golden replays and rebaselining them,
+and the rules game code follows so its sessions replay. In-game playback (demos, instant
+replay, ghosts) is planned. See
 `plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for what is
 pending.
 
@@ -25,6 +26,10 @@ uv run paddleslap --replay-trace session.jsonl.gz --headless
 
 # Check that it replays the same way twice, in fresh processes with different hash seeds
 uv run paddleslap --replay-trace session.jsonl.gz --audit
+
+# After an intentional change: replay the same inputs on the current code, write what it does
+# to a new recording and print what changed
+uv run paddleslap --replay-trace session.jsonl.gz --rebaseline new-session.jsonl.gz --headless
 ```
 
 ## The doors
@@ -175,8 +180,8 @@ streams with its seed. It refuses, logging the reason and exiting with one of th
 - the recording is of another game, cannot be read (not gzip, no permission, a directory) or
   has an unsupported format version: `UNUSABLE_INPUT` (65);
 - the file does not exist: `MISSING_INPUT` (66);
-- `--record-trace` is given too (recording over a replay is not supported yet):
-  `OPTIONS_REFUSED` (64).
+- `--record-trace` is given too: `OPTIONS_REFUSED` (64). Recording over a replay is what
+  [`--rebaseline`](#rebaselining-rebaseline-new) does, and only it.
 
 A recording made by a different engine version replays with one warning. A version-2 recording
 replays with one warning too: it has no input snapshots, so polled input reads as idle.
@@ -369,7 +374,7 @@ the code it exits with as `Exiting with OPTIONS_REFUSED (64)`.
 
 | Code | `ExitCode` member | Meaning |
 |---|---|---|
-| 0 | `SUCCESS` | Success; the replay matched; the audit is deterministic |
+| 0 | `SUCCESS` | Success; the replay matched; the audit is deterministic; the rebaseline was written |
 | 1 | `REPLAY_DIVERGED` | A replay's frames differ from the recording |
 | 2 | `ARGUMENT_PARSER_ERROR` | A usage error from argparse; the engine never exits with it itself |
 | 3 | `AUDIT_NONDETERMINISTIC` | `--audit`'s two runs differ from each other or from the recording |
@@ -411,4 +416,40 @@ replays it headless in a child process through the console script's entry point
 divergence report), unless it exits `ExitCode.SUCCESS`. A directory that is not a console script
 is a collection error. Another project's games can use the plugin the same way
 (`pytest_plugins = ['glitchygames.testing.replays']`). Re-record a fixture only deliberately,
-after finding out why it stopped replaying; the commands are in the script's docstring.
+after finding out why it stopped replaying; the commands are in the script's docstring. After
+an intentional change, rebaseline it instead (below), so it keeps its recorded inputs.
+
+## Rebaselining (`--rebaseline NEW`)
+
+`--replay-trace OLD --rebaseline NEW --headless` replays OLD's inputs on the current code and
+writes what that code did to NEW: the same inputs and a new picture. The contract is
+`glitchygames/replay/rebaseline.py`'s docstring.
+
+- The replay does not stop at a divergence: it runs to OLD's last frame (or until the game
+  ends), counting every frame that differs and naming every sprite that differs in them.
+- NEW holds OLD's inputs as the replay served them: the event batches with their origins
+  (code-posted events stay `internal`, so replaying NEW delivers nothing twice), `dt`,
+  `input_changes`, re-applied control events, and each frame's `saves_opened`,
+  `devices_opened` and `device_enumeration` copied from OLD. Its sprites and markers are the
+  current code's. Its header is OLD's (seed, start time, options, saves, devices) with
+  `rebaselined_from` naming OLD and this run's engine, pygame and Python versions; a cut-off
+  OLD gives `source_truncated`, so NEW ends as truncated too.
+- NEW is written to `NEW.partial` and moved into place only when the run ends normally; a run
+  that crashes or is interrupted writes nothing. NEW is never OLD.
+- It prints one line to stdout and exits `SUCCESS` (0):
+
+```text
+Rebaselined 9800 frames to NEW: 412 frames differ (first at 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]); sprites affected: Ball#2, Ball#3
+```
+
+  or `Rebaselined 9800 frames to NEW: no frames differ`.
+
+It is refused (`OPTIONS_REFUSED`, 64) without `--replay-trace` or without `--headless` (a watched
+replay holds frames and takes the viewer's keys, so it is refused rather than made headless
+quietly), when NEW is OLD's file, and with `--record-trace`, `--audit` or `--replay-fps real`
+(FPS events from this machine's frame times would become the baseline). An unusable OLD is
+refused like any replay (`UNUSABLE_INPUT`, `MISSING_INPUT`).
+
+NEW replays on the current code with no divergence. Replacing a golden fixture with it stays a
+deliberate, reviewed step: read the summary, check the change is the intended one, then move
+NEW over the fixture yourself.

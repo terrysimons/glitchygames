@@ -316,8 +316,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   with the recorded frame. Refusals log the reason and exit with an `ExitCode` (see Exit Codes):
   `UNUSABLE_INPUT` (65) for a recording of another game, an unreadable file or an unsupported
   format version, `MISSING_INPUT` (66) for a missing file, and `OPTIONS_REFUSED` (64) for
-  `--record-trace` given too (refused until Part 2's `--rebaseline` wires recording over a
-  replay). A different engine version only warns. Recorded options apply except
+  `--record-trace` given too (recording over a replay is `--rebaseline`'s job only). A
+  different engine version only warns. Recorded options apply except
   `REPLAY_LOCAL_OPTIONS`. The first divergence (kinds `scene`, `sprite`, `event`, `length`)
   stops a `--headless` replay, as does the last recorded frame; closing the window stops any
   replay. A watched replay (no `--headless`) is a read-only game inside a game
@@ -392,10 +392,24 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   what the replay samples: the scene class and each sprite's `rect`, `visible` and draw order, not
   pixels, audio or unsampled game state. Children run through `subprocess.run` (argument list, no shell; the
   one authorised subprocess suppression), with a timeout
-- Pending: Part 2 (watched replay controls, `--rebaseline`, the pytest plugin; `--headless` is
-  done) and
-  Part 3 (in-game playback: demos, instant replay, ghosts); see `plans/future-work.md`. User docs:
-  `docs/architecture/gameplay_replay.md`
+- Bookmarks (watched replay): B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz`
+  (header `bookmarked_copy_of`; only such a file is updated in place) with a
+  `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a
+  watched replay of the copy pauses at each, and a step back with bookmarks saves and replays the
+  copy (rule 16 of `glitchygames/replay/driver.py`)
+- `--replay-trace OLD --rebaseline NEW --headless` (`glitchygames/replay/rebaseline.py`, whose
+  docstring is the contract): replays OLD on the current code without stopping at divergences
+  (`ReplayOptions.stop_on_divergence=False`), records the run into NEW through
+  `RecordingSources(..., replayed=<the ReplaySources>)` (origins from `last_batch_origins()`,
+  per-frame saves/device fields from `recording.recorded_frame_fields()`; header = OLD's +
+  `rebaselined_from` + current versions, `source_truncated` for a cut-off OLD), written to
+  `NEW.partial` and moved into place only on a normal end, prints `Rebaselined N frames to NEW:
+  K frames differ (first at F: ...); sprites affected: ...` (or `no frames differ`) and exits
+  `SUCCESS` (`ReplayExitPolicy.SUCCESS_AFTER_WRITING`). Refused (`OPTIONS_REFUSED`) without
+  `--replay-trace` or `--headless`, with NEW == OLD, `--record-trace`, `--audit` or
+  `--replay-fps real`. NEW replays clean; replacing a golden fixture with it stays a reviewed step
+- Pending: Part 3 (in-game playback: demos, instant replay, ghosts); see `plans/future-work.md`.
+  User docs: `docs/architecture/gameplay_replay.md`
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`

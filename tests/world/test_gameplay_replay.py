@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import collections
 import gzip
+import importlib.metadata
 import json
 import os
 import re
@@ -962,6 +963,39 @@ class TestReplayDoors:
         assert [(event.type, event.key) for event in batch] == [(pygame.KEYDOWN, pygame.K_z)]
         assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
 
+    def test_a_recording_over_a_replay_copies_its_origins_and_frame_fields(self, mocker, tmp_path):
+        """Over a replay, origins come from its merge and saves/device fields from its frames."""
+        enumeration = [{'call': 'joystick_count', 'device_index': None, 'value': 0, 'error': None}]
+        frame = {
+            **recorded_frame(frame_number=0),
+            'saves_opened': {'game': {}},
+            'device_enumeration': enumeration,
+        }
+        sources = minimal_sources(frames=[frame])
+        install_sources(sources=sources)
+        key_press = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_z)
+        mocker.patch.object(sources, 'pump_events', return_value=[key_press])
+        # The replay served the press as a recorded external event
+        mocker.patch.object(sources, 'last_batch_origins', return_value=['external'])
+        recording_path = tmp_path / 'rebaseline.jsonl.gz'
+        recorder = GameplayRecorder(path=recording_path, header={})
+        recording_sources = RecordingSources(inner=sources, recorder=recorder, replayed=sources)
+        try:
+            # The live tracker would call it internal
+            post_event(key_press)
+            recording_sources.pump_events()
+            # Not snapshotted: the frame's recorded saves_opened is copied instead
+            recording_sources.saves(namespace='other')
+            recording_sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        finally:
+            recorder.close()
+            pygame.event.clear()
+        (recorded,) = read_trace_result(path=recording_path).trace['frames']
+        assert [record['origin'] for record in recorded['event_batches'][0]] == ['external']
+        assert recorded['saves_opened'] == {'game': {}}
+        assert recorded['device_enumeration'] == enumeration
+        assert 'devices_opened' not in recorded
+
 
 class TestReplayFps:
     """--replay-fps: FPS events from the recorded frame times (default) or this machine's."""
@@ -1146,7 +1180,7 @@ class TestRefusals:
                 str(tmp_path / 'over-the-replay.jsonl.gz'),
             )
         assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
-        assert 'recording over a replay is not supported yet' in caplog.text
+        assert 'record over a replay with --rebaseline NEW --headless' in caplog.text
         assert not (tmp_path / 'over-the-replay.jsonl.gz').exists()
 
     def test_truncated_recording_replays_to_the_cut_off(self, mocker, tmp_path, caplog):
@@ -3650,3 +3684,321 @@ class TestAuditOption:
         )
         assert audit_run.returncode == ExitCode.AUDIT_NONDETERMINISTIC, audit_run.stdout
         assert 'diverged' in audit_run.stdout
+
+
+def rebaseline_session(
+    *,
+    recording_path: Path,
+    new_path: Path,
+    mocker,
+    action: Callable[[], None] | None = None,
+    action_frame: int = 1,
+) -> object:
+    """Rebaseline the scripted session (``--rebaseline NEW --headless``) through the engine.
+
+    Returns:
+        The status the run exited with.
+
+    """
+    with pytest.raises(SystemExit) as exit_info:
+        replay_session_with_arguments(
+            recording_path=recording_path,
+            mocker=mocker,
+            arguments=('--rebaseline', str(new_path), '--headless'),
+            action=action,
+            action_frame=action_frame,
+        )
+    return exit_info.value.code
+
+
+class TestRebaseline:
+    """--replay-trace OLD --rebaseline NEW: OLD's inputs on the current code, written to NEW."""
+
+    def test_rebaseline_writes_a_recording_that_then_matches(self, mocker, tmp_path, capsys):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        exit_status = rebaseline_session(
+            recording_path=recording_path, new_path=new_path, mocker=mocker
+        )
+        assert exit_status == ExitCode.SUCCESS
+        output = capsys.readouterr().out
+        frame_count = len(read_trace_result(path=recording_path).trace['frames'])
+        assert output.startswith(f'Rebaselined {frame_count} frames to {new_path}: ')
+        assert 'frames differ (first at 3: sprite ' in output
+        assert 'sprites affected: ' in output
+        assert not new_path.with_name(new_path.name + '.partial').exists()
+        engine = replay_session(recording_path=new_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        assert engine.replay_sources.result.end_reason == 'end_of_recording'
+
+    def test_an_unchanged_recording_rebaselines_to_the_same_frames(self, mocker, tmp_path, capsys):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        exit_status = rebaseline_session(
+            recording_path=recording_path, new_path=new_path, mocker=mocker
+        )
+        assert exit_status == ExitCode.SUCCESS
+        assert capsys.readouterr().out.rstrip().endswith(': no frames differ')
+        old_trace = read_trace_result(path=recording_path).trace
+        new_trace = read_trace_result(path=new_path).trace
+        # Same inputs (batches with their origins, dt, input changes, control events) and sprites
+        assert new_trace['frames'] == old_trace['frames']
+        assert new_trace['rebaselined_from'] == str(recording_path)
+        for field_name in ('random_seed', 'recorded_at', 'options', 'saves', 'devices'):
+            assert new_trace[field_name] == old_trace[field_name]
+
+    def test_rebaselined_header_keeps_the_seed_and_names_the_original(self, tmp_path):
+        from glitchygames.replay.rebaseline import rebaseline_header
+
+        header = rebaseline_header(
+            original_header={'random_seed': 5, 'engine_version': 'old'},
+            original_path=tmp_path / 'old.jsonl.gz',
+        )
+        assert header['random_seed'] == 5
+        assert header['rebaselined_from'] == str(tmp_path / 'old.jsonl.gz')
+        assert header['engine_version'] == importlib.metadata.version('glitchygames')
+        assert 'source_truncated' not in header
+
+    def test_a_rebaselined_header_marks_a_cut_off_source_and_drops_the_v2_marker(self, tmp_path):
+        from glitchygames.replay.rebaseline import rebaseline_header
+
+        header = rebaseline_header(
+            original_header={'random_seed': 5, 'input_capture_format_version': 2},
+            original_path=tmp_path / 'old.jsonl.gz',
+            source_truncated=True,
+        )
+        assert header['source_truncated'] is True
+        # The new recording captures polled input and markers itself (format 3)
+        assert 'input_capture_format_version' not in header
+
+    def test_rebaseline_keeps_internal_origins_and_late_saves(self, mocker, tmp_path):
+        from glitchygames.state.sandbox import open_saves
+
+        save_directory = tmp_path / 'saves'
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: save_directory / app_name,
+        )
+
+        def post_and_save() -> None:
+            post_event(pygame.event.Event(pygame.USEREVENT + 43, {}))
+            open_saves(app_name='rebaseline-late').save('slot', {'value': 1})
+
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, action=post_and_save, action_frame=1
+        )
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        exit_status = rebaseline_session(
+            recording_path=recording_path,
+            new_path=new_path,
+            mocker=mocker,
+            action=post_and_save,
+            action_frame=1,
+        )
+        assert exit_status == ExitCode.SUCCESS
+        old_frames = read_trace_result(path=recording_path).trace['frames']
+        new_frames = read_trace_result(path=new_path).trace['frames']
+        assert old_frames[1].get('saves_opened') is not None
+        assert new_frames[1].get('saves_opened') == old_frames[1].get('saves_opened')
+
+        def posted_origins(frames: list[dict[str, Any]]) -> list[tuple[int, str]]:
+            return [
+                (frame_index, record['origin'])
+                for frame_index, frame in enumerate(frames)
+                for batch in frame['event_batches']
+                for record in batch
+                if record['type'] == pygame.USEREVENT + 43
+            ]
+
+        # Posted by the action in frame 1, before that frame's pump
+        assert posted_origins(old_frames) == [(1, 'internal')]
+        assert posted_origins(new_frames) == [(1, 'internal')]
+        engine = replay_session(
+            recording_path=new_path, mocker=mocker, action=post_and_save, action_frame=1
+        )
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+
+    def test_a_crashed_rebaseline_writes_nothing(self, mocker, tmp_path, capsys):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+
+        def crash() -> None:
+            message = 'the game broke'
+            raise RuntimeError(message)
+
+        exit_status = rebaseline_session(
+            recording_path=recording_path, new_path=new_path, mocker=mocker, action=crash
+        )
+        assert exit_status == ExitCode.INTERNAL_ERROR
+        assert not new_path.exists()
+        assert not new_path.with_name(new_path.name + '.partial').exists()
+        output = capsys.readouterr().out
+        assert 'Replay stopped at frame 1' in output
+        assert f'{new_path} was not written' in output
+
+    @pytest.mark.parametrize(
+        ('arguments', 'message'),
+        [
+            (('--rebaseline', '{new}'), 'needs --headless'),
+            (('--rebaseline', '{old}', '--headless'), 'would overwrite the recording'),
+            (
+                ('--rebaseline', '{new}', '--headless', '--record-trace', '{other}'),
+                'not with --record-trace',
+            ),
+            (('--rebaseline', '{new}', '--headless', '--audit'), 'not with --audit'),
+            (
+                ('--rebaseline', '{new}', '--headless', '--replay-fps', 'real'),
+                'not with --replay-fps real',
+            ),
+        ],
+    )
+    def test_an_unsound_rebaseline_is_refused(self, mocker, tmp_path, caplog, arguments, message):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        recording_bytes = recording_path.read_bytes()
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        other_path = tmp_path / 'other.jsonl.gz'
+        filled_arguments = tuple(
+            argument.format(new=new_path, old=recording_path, other=other_path)
+            for argument in arguments
+        )
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=filled_arguments
+            )
+        assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
+        assert message in caplog.text
+        assert not new_path.exists()
+        assert not other_path.exists()
+        assert recording_path.read_bytes() == recording_bytes
+
+    def test_rebaseline_needs_a_recording_to_replay(self, mocker, tmp_path, caplog):
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        with engine_run_environment(mocker), pytest.raises(SystemExit) as exit_info:
+            run_engine('--rebaseline', str(new_path), '--headless')
+        assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
+        assert '--rebaseline needs --replay-trace' in caplog.text
+        assert not new_path.exists()
+
+    def test_an_unusable_recording_is_refused(self, mocker, tmp_path):
+        recording_path = tmp_path / 'not-a-recording.jsonl.gz'
+        recording_path.write_text('nonsense', encoding='utf-8')
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        exit_status = rebaseline_session(
+            recording_path=recording_path, new_path=new_path, mocker=mocker
+        )
+        assert exit_status == ExitCode.UNUSABLE_INPUT
+        assert not new_path.exists()
+
+    def test_a_replay_that_does_not_stop_compares_every_frame(self):
+        frames = [{**recorded_frame(frame_number=index), 'scene': 'Recorded'} for index in range(3)]
+        sources = minimal_sources(
+            frames=frames, options=ReplayOptions(headless=True, stop_on_divergence=False)
+        )
+        for frame_number in range(3):
+            sources.end_frame(frame_number=frame_number, dt=0.25, scene=None, control_events=[])
+            assert not sources.stop_requested or frame_number == 2
+        result = sources.result
+        assert result.frames_replayed == 3
+        assert result.differing_frame_count == 3
+        assert result.divergence is not None
+        assert result.divergence.frame_number == 0
+        assert result.divergence.kind == SCENE_DIVERGENCE
+        assert result.end_reason == 'end_of_recording'
+
+    def test_a_run_that_ends_early_keeps_the_first_divergence(self):
+        frames = [
+            {**recorded_frame(frame_number=0), 'scene': 'Recorded'},
+            recorded_frame(frame_number=1),
+            recorded_frame(frame_number=2),
+        ]
+        sources = minimal_sources(
+            frames=frames, options=ReplayOptions(headless=True, stop_on_divergence=False)
+        )
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        sources.finish_run()
+        divergence = sources.result.divergence
+        assert divergence is not None
+        assert divergence.kind == SCENE_DIVERGENCE
+        assert sources.result.end_reason == 'diverged'
+
+    def test_every_differing_sprite_of_a_frame_is_named(self):
+        recorded = {
+            'scene': 'Game',
+            'sprites': [
+                {'id': 'Ball#1', 'rect': [0, 0, 4, 4], 'visible': True},
+                {'id': 'Ball#2', 'rect': [8, 0, 4, 4], 'visible': True},
+                {'id': 'Paddle#1', 'rect': [0, 9, 4, 4], 'visible': True},
+            ],
+        }
+        replayed = {
+            'scene': 'Game',
+            'sprites': [
+                {'id': 'Ball#1', 'rect': [0, 1, 4, 4], 'visible': True},
+                {'id': 'Paddle#1', 'rect': [0, 9, 4, 4], 'visible': False},
+                {'id': 'Spark#1', 'rect': [3, 3, 1, 1], 'visible': True},
+            ],
+        }
+        assert driver_module.differing_sprite_ids(recorded=recorded, replayed=replayed) == [
+            'Ball#1',
+            'Ball#2',
+            'Paddle#1',
+            'Spark#1',
+        ]
+
+    def test_the_summary_describes_what_changed(self, tmp_path):
+        from glitchygames.replay.rebaseline import RebaselineSummary
+
+        new_path = tmp_path / 'new.jsonl.gz'
+        divergence = Divergence(
+            frame_number=6120,
+            kind=SPRITE_DIVERGENCE,
+            subject='Ball#2',
+            field='rect',
+            expected=[412, 300, 16, 16],
+            actual=[412, 301, 16, 16],
+        )
+        summary = RebaselineSummary(
+            path=new_path,
+            first_divergence=divergence,
+            frames_differing=412,
+            sprites_affected=['Ball#2', 'Ball#3'],
+            frames_replayed=9800,
+        )
+        assert summary.describe() == (
+            f'Rebaselined 9800 frames to {new_path}: 412 frames differ (first at 6120: sprite '
+            'Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]); sprites '
+            'affected: Ball#2, Ball#3'
+        )
+        one_frame = summary.model_copy(update={'frames_differing': 1})
+        assert '1 frame differs (first at 6120' in one_frame.describe()
+        unchanged = RebaselineSummary(
+            path=new_path,
+            first_divergence=None,
+            frames_differing=0,
+            sprites_affected=[],
+            frames_replayed=9800,
+        )
+        assert unchanged.describe() == f'Rebaselined 9800 frames to {new_path}: no frames differ'
+        ended_early = RebaselineSummary(
+            path=new_path,
+            first_divergence=Divergence(
+                frame_number=7,
+                kind=LENGTH_DIVERGENCE,
+                subject='recording',
+                field='frames',
+                expected=10,
+                actual=7,
+            ),
+            frames_differing=0,
+            sprites_affected=[],
+            frames_replayed=7,
+        )
+        assert ended_early.describe() == (
+            f'Rebaselined 7 frames to {new_path}: the run differs (at 7: length recording '
+            'frames expected 10, got 7)'
+        )
+        with pytest.raises(ValidationError):
+            summary.frames_differing = 3

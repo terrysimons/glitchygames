@@ -63,6 +63,10 @@ where the code that posted them posts them again. The rule:
   attributes) to the batch.
 - Anything else is external.
 
+A recording made over a replay (``--rebaseline``, glitchygames/replay/rebaseline.py) takes each
+event's origin from the replay's merge instead (``ReplayedRecording.last_batch_origins``): served
+recorded events are external, the replayed code's posts internal, so nothing is classified again.
+
 Limits: an SDL-type event a game posts with ``pygame.event.post`` directly (not
 ``post_event``) is recorded as external, so replay would deliver it twice; games should post
 through ``post_event``. A posted event identical to an SDL event in the same batch is told
@@ -127,7 +131,7 @@ import math
 import numbers
 from collections.abc import Sized
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Self, TypedDict, Unpack, cast
+from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
 
 import numpy as np
 import pygame
@@ -603,6 +607,40 @@ class RecordedFrameFields(TypedDict, total=False):
     device_enumeration: list[dict[str, Any]] | None
 
 
+class RecordedFrameFieldSource(Protocol):
+    """A recording's frames, as a recording made over its replay copies them."""
+
+    def recorded_frame_fields(self, *, frame_index: int) -> dict[str, Any]:
+        """Return a frame's recorded saves and device fields (whichever it has; none past the end).
+
+        Args:
+            frame_index: The recording's frame index.
+
+        Returns:
+            Its ``saves_opened``, ``devices_opened`` and ``device_enumeration``.
+
+        """
+        ...
+
+
+class ReplayedRecording(Protocol):
+    """Doors that serve a recording (a replay's), which a recording made over them copies.
+
+    ``RecordingSources`` given one (``--rebaseline``) record what these doors served instead of
+    asking the live trackers: each event's origin from the replay's merge, and each frame's
+    saves and device fields from the recording being replayed.
+    """
+
+    @property
+    def recording(self) -> RecordedFrameFieldSource:
+        """The recording being replayed."""
+        ...
+
+    def last_batch_origins(self) -> list[str]:
+        """Return each event's origin in the batch the last pump returned."""
+        ...
+
+
 class GameplayRecorder:
     """Write a live session to a trace file, one frame per ``record_frame()``.
 
@@ -757,6 +795,13 @@ class RecordingSources:
       ``end_frame`` into ``devices_opened`` and ``device_enumeration``.
     - ``end_frame``: writes the frame (with its control events), then lets ``inner`` end it.
 
+    Over a replay (``replayed`` given: ``--rebaseline``), what the replay served is recorded
+    as served: each batch's origins come from ``replayed.last_batch_origins()``, and each
+    frame's ``saves_opened``, ``devices_opened`` and ``device_enumeration`` are copied from the
+    replayed recording's frame (``replayed.recording.recorded_frame_fields``), not snapshotted
+    or taken from the registry. Frames are matched by count: both start at frame 0 and end one
+    frame per ``end_frame``.
+
     Once the recorder is closed (``GameEngine.stop_trace_recording``, as the run ends) they only
     delegate.
 
@@ -766,16 +811,25 @@ class RecordingSources:
 
     """
 
-    def __init__(self, *, inner: EngineSources, recorder: GameplayRecorder) -> None:
+    def __init__(
+        self,
+        *,
+        inner: EngineSources,
+        recorder: GameplayRecorder,
+        replayed: ReplayedRecording | None = None,
+    ) -> None:
         """Wrap ``inner`` and record to ``recorder``.
 
         Args:
-            inner: The doors to read through (the run's live doors).
+            inner: The doors to read through (the run's live doors, or a replay's).
             recorder: The open recorder; its header's ``saves`` lists the namespaces already
                 recorded.
+            replayed: The replay ``inner`` is when recording over a replay (``--rebaseline``):
+                origins and saves and device fields are copied from it. None for live doors.
 
         """
         self.inner = inner
+        self._replayed = replayed
         self.random_seed = inner.random_seed
         self._recorder = recorder
         self._recorded_save_namespaces: set[str] = set(recorder.header.get(SAVES_HEADER_FIELD, {}))
@@ -809,9 +863,16 @@ class RecordingSources:
 
         """
         raw_events = self.inner.pump_events()
-        if not self._recorder.is_closed:
+        if self._recorder.is_closed:
+            return raw_events
+        if self._replayed is None:
             # Live inner doors: origins come from the internal-post tracker
             self._recorder.record_event_batch(raw_events=raw_events)
+        else:
+            # A replay's merge already knows them (its pump consumed the tracker's posts)
+            self._recorder.record_event_batch(
+                raw_events=raw_events, origins=self._replayed.last_batch_origins()
+            )
         return raw_events
 
     def frame_seconds(self, *, measured: float) -> float:
@@ -895,7 +956,12 @@ class RecordingSources:
 
         """
         store = self.inner.saves(namespace=namespace)
-        if not self._recorder.is_closed and namespace not in self._recorded_save_namespaces:
+        # Over a replay, the frame's recorded saves_opened is copied at end_frame instead
+        if (
+            self._replayed is None
+            and not self._recorder.is_closed
+            and namespace not in self._recorded_save_namespaces
+        ):
             self._recorded_save_namespaces.add(namespace)
             self._frame_saves_opened[namespace] = save_namespace_snapshot(saves=store)
         return store
@@ -929,15 +995,26 @@ class RecordingSources:
         """Write the frame with everything that passed through the doors, then end it inside.
 
         The device answers are taken before ``inner.end_frame``, which discards untaken ones.
+        Over a replay, the saves and device fields are the replayed recording's frame's.
         """
         if not self._recorder.is_closed:
-            registry = self.inner.devices()
-            devices_opened = [
-                descriptor.to_json() for descriptor in registry.take_opened_descriptors()
-            ]
-            device_enumeration = [
-                answer.to_json() for answer in registry.take_enumeration_answers()
-            ]
+            if self._replayed is None:
+                registry = self.inner.devices()
+                devices_opened = [
+                    descriptor.to_json() for descriptor in registry.take_opened_descriptors()
+                ]
+                device_enumeration = [
+                    answer.to_json() for answer in registry.take_enumeration_answers()
+                ]
+                saves_opened = self._frame_saves_opened
+            else:
+                # The frame being recorded is the replay's current one: both count from 0
+                recorded_fields = self._replayed.recording.recorded_frame_fields(
+                    frame_index=self._recorder.frame_count
+                )
+                devices_opened = recorded_fields.get(DEVICES_OPENED_FIELD, [])
+                device_enumeration = recorded_fields.get(DEVICE_ENUMERATION_FIELD, [])
+                saves_opened = recorded_fields.get(SAVES_OPENED_FIELD, {})
             input_changes: dict[str, Any] = {}
             if self._frame_snapshot is not None:
                 input_changes = snapshot_changes(
@@ -950,7 +1027,7 @@ class RecordingSources:
                 input_changes=input_changes,
                 control_events=[control_event.to_json() for control_event in control_events],
                 devices_opened=devices_opened,
-                saves_opened=self._frame_saves_opened,
+                saves_opened=saves_opened,
                 device_enumeration=device_enumeration,
             )
         self._frame_snapshot = None

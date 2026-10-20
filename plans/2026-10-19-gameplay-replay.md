@@ -177,8 +177,9 @@ begin_frame → dt_tick → events → SUPERVISOR → frame services → aim →
   (screen size, input mode, target FPS); install `ReplaySources`; start the game as it started when
   recording began.
 - Amended (as built): every recorded option is applied except `REPLAY_LOCAL_OPTIONS`
-  (`glitchygames/replay/driver.py`). `--record-trace` with `--replay-trace` is refused (exit 64, `OPTIONS_REFUSED`) until
-  Part 2's `--rebaseline` wires the replay's event origins and recorded fields into the recorder.
+  (`glitchygames/replay/driver.py`). `--record-trace` with `--replay-trace` is refused (exit 64,
+  `OPTIONS_REFUSED`); Part 2's `--rebaseline NEW --headless` is the one way to record over a
+  replay (it wires the replay's event origins and recorded fields into the recorder).
 
 ### 3.2 Each frame
 

@@ -1056,3 +1056,15 @@ class TestRebaseline:
 git add glitchygames/replay/rebaseline.py glitchygames/replay/driver.py glitchygames/engine/game_engine.py glitchygames/recording.py tests/world/test_gameplay_replay.py CLAUDE.md docs/<the replay page from Part 1 Task 15>
 git commit -m "Add --rebaseline: replay old inputs on new code and summarize what changed"
 ```
+
+As built (Task 6): `--rebaseline` requires `--headless` (refused without it, explicit rather than
+implied) and is refused with NEW == OLD, `--record-trace`, `--audit` and `--replay-fps real`;
+plain `--record-trace` over a replay stays refused, pointing at `--rebaseline`.
+`RebaselineSummary` is a frozen pydantic model with a `path` field;
+`rebaseline_header(..., source_truncated=False)` also sets this run's pygame and Python versions
+and drops `input_capture_format_version` (NEW records format 3 itself). `RecordingSources` takes
+`replayed=` (a `ReplayedRecording` protocol in `glitchygames/recording.py`) instead of detecting
+a replay. The counting lives on `ReplayResult` (`differing_frame_count`, `affected_sprite_ids`,
+`note_differing_frame`; `driver.differing_sprite_ids`), not on `ReplaySources`. NEW is written to
+`NEW.partial` and moved into place on a normal end only. The brief's origin test expected the
+posted event in frame 2; an action in frame N posts before that frame's pump, so it is frame 1.
