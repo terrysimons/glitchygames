@@ -73,7 +73,7 @@ and Replay").
   fixtures and the doors guard (`tests/test_engine_doors.py`). This replaces the old "Gameplay
   replay" entry; its items (wall-clock reads in gameplay, polled input, reference mapping) are all
   done.
-- **Part 2, replay tooling** (in progress, `plans/2026-10-19-gameplay-replay-tooling.md`): done:
+- ~~**Part 2, replay tooling**~~ **Done** (`plans/2026-10-19-gameplay-replay-tooling.md`):
   `--headless` (Task 1: any run on SDL's dummy drivers; replays then run unpaced, print the
   divergence report and exit with `ExitCode` members; it replaced the private `--replay-unpaced`);
   watched replays (Task 2: the `ReplayViewer` outer loop at 60 Hz real time running the recorded
@@ -91,10 +91,14 @@ and Replay").
   --headless` replays OLD's inputs on the current code without stopping at divergences, writes
   NEW atomically with OLD's inputs and the current sprites, prints a summary of the frames and
   sprites that changed and exits `SUCCESS`; `glitchygames/replay/rebaseline.py`).
-- **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
-  starts, the playback scope (does not block real input at SDL; real input reaches only its "exit
-  playback" check), demos (done: `play_recording` and the bundled PaddleSlap demo, played by its
-  game-over screen when idle), instant replay and ghosts.
+- ~~**Part 3, in-game playback**~~ **Done** (`plans/2026-10-19-gameplay-replay-playback.md`):
+  scene starts (`glitchygames/scene_start.py`, `replay_arguments`, `CAPTURES_SCENE_START`), the
+  playback scope (`glitchygames/replay/playback.py`; does not block real input at SDL; real
+  input reaches only its "exit playback" check), demos (`play_recording` and the bundled
+  PaddleSlap demo, played by its game-over screen when idle, replay-tested by
+  `tests/replay/test_bundled_demos.py`), instant replay (`glitchygames/instant_replay.py`,
+  `INSTANT_REPLAY_SECONDS`, `end_playback` from a supervisor, repeated replays through the
+  resume bridge) and ghosts (`glitchygames/replay/ghosts.py`).
 - **Plain recording over a replay (`--record-trace` with `--replay-trace`) stays refused**
   (`ExitCode.OPTIONS_REFUSED`, 64; `GameEngine._refuse_an_unsound_recording_over_the_replay`),
   pointing at `--rebaseline NEW --headless`, which wires `ReplaySources.last_batch_origins()` and
@@ -105,9 +109,19 @@ and Replay").
 Follow-ups (not in any plan yet):
 
 - **State snapshots:** serialize game state for fast step-back and instant replay of long
-  scenes; today both re-simulate from the scene's start (spec, out of scope).
-- **Cheat device spec:** cheatable-field declarations, codes and UI; it plugs into the supervisor
-  hook and records its actions as control events (spec section 2, out of scope).
+  scenes; today both re-simulate from the scene's start (spec, out of scope). A watched replay's
+  step back restarts the process and rebuilds every frame up to the pause frame; an instant
+  replay re-simulates the whole scene, so it is refused past
+  `MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` (60 s) and its journal (about 0.5-1.5 MB per minute)
+  is dropped then. Snapshots every N seconds would bound both to N seconds of re-simulation and
+  let the journal drop frames before the latest snapshot; rollback netcode needs the same.
+- **Cheat device spec:** cheatable-field declarations, codes and UI. It plugs into the supervisor
+  hook (`SceneManager.add_supervisor`: it runs after the frame's logic and events, so a change
+  is drawn that frame and seen by collision on the next) and records each action as a control
+  event (`record_control_event(kind='cheat', data=...)`), which a replay must re-apply on the
+  same frame: add its kind to `REAPPLIED_CONTROL_EVENT_KINDS` (glitchygames/supervision.py),
+  as `breakpoint` is, and apply it in a control event handler. Its reads should go through the
+  same named fields the external control API would expose (spec section 2, out of scope).
 - **"Take over" handover:** let the player take control part way through a replay. It must end or
   suspend the SDL input block at the handover and switch the doors from recorded to live input.
 - **Audit test helper suppressions:** the end-to-end audit test helper should start its children

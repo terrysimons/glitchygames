@@ -91,7 +91,7 @@ from glitchygames.sources import (
     reset_sources,
 )
 from glitchygames.timing import FastTimer
-from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace_result, write_trace
+from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
 from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
@@ -216,6 +216,9 @@ ACTION_FRAME = 2
 UNLISTED_EXIT_STATUS = 9
 # The status a probe child exits with when its interpreter ignores the environment
 ENVIRONMENT_IGNORED_EXIT_STATUS = 7
+# A saved ghost track: one sample per recorded frame time, moving this far each sample
+GHOST_TRACK_SAMPLES = 30
+GHOST_STEP_PIXELS = 10
 
 
 def record_session(
@@ -3056,6 +3059,61 @@ class TestSaves:
         assert slot_file.read_bytes() == bytes_before
         replayed_store = engine.replay_sources.opened_save_namespaces['replay-test']
         assert replayed_store.load('slot') == {'value': 2}
+
+
+class TestGhosts:
+    """A ghost is a sampled sprite like any other: a session with one replays exactly."""
+
+    def test_a_session_with_a_ghost_replays_without_divergence(self, mocker, tmp_path):
+        from glitchygames.replay.ghosts import GhostSample, GhostSprite, GhostTrack
+        from glitchygames.state import DiskSaveManager
+        from glitchygames.state.sandbox import open_saves
+
+        save_directory = tmp_path / 'saves'
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: save_directory / app_name,
+        )
+        track = GhostTrack(
+            samples=tuple(
+                GhostSample(
+                    game_seconds=index * FAKE_CLOCK_STEP_SECONDS,
+                    world_x=float(index * GHOST_STEP_PIXELS),
+                    world_y=5.0,
+                    appearance={},
+                    visible=True,
+                )
+                for index in range(GHOST_TRACK_SAMPLES)
+            )
+        )
+        DiskSaveManager(app_name='ghost-test').save('best_run', track.to_json())
+
+        def add_ghost_from_saves() -> None:
+            scene = SceneManager().active_scene
+            assert scene is not None
+            saved = GhostTrack.from_json(open_saves(app_name='ghost-test').load('best_run'))
+            ghost = GhostSprite(track=saved, image_for=lambda _sample: pygame.Surface((4, 4)))
+            ghost.scene = scene
+            scene.all_sprites.add(ghost)
+
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, action=add_ghost_from_saves, action_frame=1
+        )
+        ghost_rects = [
+            sprite['rect']
+            for frame in read_trace(path=recording_path)['frames']
+            for sprite in frame['sprites']
+            if sprite['id'].startswith('GhostSprite')
+        ]
+        # The ghost was drawn, and moved with the scene's game time
+        assert len({tuple(rect) for rect in ghost_rects}) > 1
+        # The replay reads the recording's copy of the saves, not the real slot
+        DiskSaveManager(app_name='ghost-test').delete('best_run')
+        engine = replay_session(
+            recording_path=recording_path, mocker=mocker, action=add_ghost_from_saves
+        )
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
 
 
 class TestEventMerge:

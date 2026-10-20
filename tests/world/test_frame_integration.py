@@ -42,6 +42,7 @@ from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.process import run_command
 from glitchygames.randomness import capture_stream_states, random_stream
+from glitchygames.replay.ghosts import GhostRecorder, GhostSample, GhostSprite, GhostTrack
 from glitchygames.scene_start import SceneStart, rebuild_scene, scene_start_capture_enabled
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
@@ -1394,3 +1395,96 @@ class TestControlEvents:
         event = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'x'})
         assert event.to_json() == {'kind': 'breakpoint', 'label': 'x'}
         assert ControlEvent.from_json(event.to_json()) == event
+
+
+# A ghost of the player is recorded over this many frames, then played beside a new live run
+GHOST_RECORDED_FRAMES = 8
+
+
+def ghost_square(_sample: GhostSample) -> pygame.Surface:
+    """Draw any ghost sample as a square the player's size.
+
+    Returns:
+        A new surface.
+
+    """
+    return pygame.Surface((SPRITE_SIZE, SPRITE_SIZE))
+
+
+class TestGhostsInTheFrame:
+    """Ghosts are recorded at the supervisor slot and positioned by the engine like any sprite."""
+
+    def test_recorder_samples_once_per_frame_and_stops_on_finish(self):
+        with running_scene(FollowingScene) as manager:
+            scene = active_following_scene(manager)
+            recorder = GhostRecorder(sprite=scene.player)
+            step(manager, frames=4)
+            track = recorder.finish()
+            step(manager, frames=2)
+        assert len(track.samples) == 4
+        assert [recorded.game_seconds for recorded in track.samples] == pytest.approx([
+            FRAME_SECONDS * index for index in range(1, 5)
+        ])
+        # Sampled after the frame's logic: the player had moved PLAYER_STEP_X each frame
+        assert [recorded.world_x for recorded in track.samples] == pytest.approx([
+            PLAYER_START[0] + PLAYER_STEP_X * index for index in range(1, 5)
+        ])
+
+    def test_recorder_skips_the_frames_its_scene_is_paused(self):
+        """Behind the pause screen the scene's game time stands still: nothing is sampled."""
+        with running_scene(FollowingScene) as manager:
+            game_scene = active_following_scene(manager)
+            recorder = GhostRecorder(sprite=game_scene.player)
+            step(manager, frames=2)
+            game_scene.pause()
+            step(manager)
+            assert isinstance(manager.active_scene, PauseScene)
+            step(manager, frames=PAUSE_FRAMES)
+            step(manager, press(pygame.K_SPACE))
+            step(manager, release(pygame.K_SPACE))
+            assert manager.active_scene is game_scene
+            step(manager, frames=2)
+            track = recorder.finish()
+        game_seconds = [recorded.game_seconds for recorded in track.samples]
+        assert game_seconds == sorted(set(game_seconds))
+        assert game_seconds[-1] == pytest.approx(game_scene.game_time)
+        # Frames 1-3 ran the scene's logic (pause() switches at the end of the third),
+        # the resume frame ran none, the two after it did
+        assert len(track.samples) == 5
+
+    def test_a_ghost_lines_up_with_a_live_run_of_the_same_scene(self):
+        """Drawn where the player is, each frame: the ghost lags no frame behind."""
+        with running_scene(FollowingScene) as manager:
+            recorder = GhostRecorder(sprite=active_following_scene(manager).player)
+            step(manager, frames=GHOST_RECORDED_FRAMES)
+            track = recorder.finish()
+        with running_scene(FollowingScene) as manager:
+            scene = active_following_scene(manager)
+            ghost = GhostSprite(track=track, image_for=ghost_square)
+            ghost.scene = scene
+            scene.all_sprites.add(ghost)
+            drawn: list[tuple[tuple[int, int], tuple[int, int]]] = []
+            for _frame in range(GHOST_RECORDED_FRAMES):
+                step(manager)
+                drawn.append((ghost.rect.topleft, scene.player.rect.topleft))
+        assert all(ghost_topleft == player_topleft for ghost_topleft, player_topleft in drawn)
+        assert ghost.visible
+        assert ghost.hidden is False
+
+    def test_ghost_is_culled_like_any_world_sprite(self):
+        far_away = GhostTrack(
+            samples=(
+                GhostSample(
+                    game_seconds=0.0, world_x=100_000.0, world_y=0.0, appearance={}, visible=True
+                ),
+            )
+        )
+        with running_scene(CameraFreeScene) as manager:
+            scene = manager.active_scene
+            assert scene is not None
+            ghost = GhostSprite(track=far_away, image_for=ghost_square)
+            ghost.scene = scene
+            scene.all_sprites.add(ghost)
+            step(manager, frames=1)
+        assert ghost.visible == 0  # outside the screen plus CULL_MARGIN_PIXELS
+        assert ghost.hidden is False  # culled by the engine, not hidden by the track

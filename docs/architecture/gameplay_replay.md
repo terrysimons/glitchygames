@@ -4,12 +4,11 @@ GlitchyGames can record a play session and replay it exactly through the real en
 engine version and same recording give bit-identical sprite traces: every frame's sprite
 `rect` and `visible` match the recording. Audio is played during a replay but is not compared.
 
-This page covers the replay core: recording, exact replay, watching a replay (with step back
-and bookmarks), headless runs, the determinism audit, golden replays and rebaselining them,
-and the rules game code follows so its sessions replay. In-game playback (demos, instant
-replay, ghosts) is planned. See
-`plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for what is
-pending.
+This page covers recording, exact replay, watching a replay (with step back and bookmarks),
+headless runs, the determinism audit, golden replays and rebaselining them, in-game playback
+(demos, instant replay, ghosts), and the rules game code follows so its sessions replay. See
+`plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for the
+follow-ups.
 
 ## Quick start
 
@@ -499,3 +498,112 @@ refused like any replay (`UNUSABLE_INPUT`, `MISSING_INPUT`).
 NEW replays on the current code with no divergence. Replacing a golden fixture with it stays a
 deliberate, reviewed step: read the summary, check the change is the intended one, then move
 NEW over the fixture yourself.
+
+## In-game playback
+
+A running game can play a recording to a rebuilt scene and then go on: attract-mode demos,
+instant replays and ghosts. Demos and instant replays run in a **playback scope**, not a new
+engine run (`glitchygames/replay/playback.py`'s docstring is the contract): the scene is
+rebuilt from its start (see Scene starts above) on scoped doors that serve the recording, the
+live scene is stashed untouched, saves are a sandbox, the random streams, clocks and FPS timer
+are put back afterwards, and the live game's own posts and the player's releases, device and
+window events are held and handed back when the scope ends. A `--record-trace` session that
+plays a scope records it, and replays it exactly. An error inside the scope ends the scope
+(logged) and the live game goes on. `scene_manager.last_playback_outcome` says how the last
+scope ended (its kind, reason and frames played).
+
+### Demos
+
+```python
+scene_manager.play_recording(path=DEMO_PATH, then=self)   # any key or button returns to `then`
+```
+
+A demo plays at the game's speed from the start of the next frame and ends at the recording's
+end, at the player's first press (consumed: it never reaches `then`), at the recording's own
+quit, or at a divergence (logged at WARNING as `demo diverged: ...`, then back to `then`). A
+recording that cannot be played (missing, unreadable, another game's, no scene start) is logged
+at WARNING and nothing starts. Record a demo with
+`scripts/record_scripted_session.py --output PATH` (it runs `--record-trace`, so its first
+frame holds the scene start).
+
+Bundled demos are recordings shipped in the game's package,
+`glitchygames/examples/<game>_demos/<name>.jsonl.gz`. PaddleSlap's game-over screen plays
+`rally.jsonl.gz` after 10 seconds without a press. `tests/replay/test_bundled_demos.py` replays
+every bundled demo headless, so a change that makes a demo diverge fails in CI before it ships.
+
+### Instant replay
+
+```python
+class Match(Scene):
+    INSTANT_REPLAY_SECONDS = 5.0                       # opt in: show the last 5 seconds
+    MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS = 60.0     # the default budget
+
+    def on_goal(self):
+        self.scene_manager.instant_replay()            # False (logged) when it cannot play
+```
+
+A scene class that sets `INSTANT_REPLAY_SECONDS` keeps, in memory, the recording of every frame
+since its first logic frame (`glitchygames/instant_replay.py`), sprites included: about 0.5 MB
+per minute for one sprite moving every frame, about 1.5 MB per minute for PaddleSlap. The
+journal ends when another scene is presented, and once it holds more frame time than
+`MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` (paused frames count: all are re-simulated), after
+which `instant_replay()` returns `False`; longer scenes would need state snapshots.
+
+`instant_replay()` rebuilds the scene from its start, runs the frames before the last
+`INSTANT_REPLAY_SECONDS` of frame time unseen, unpaced and silent, shows the rest at the game's
+pace with their sounds, then the live scene goes on exactly where it was. The player's presses
+do not end it. To let the player skip it, read the player's input in a supervisor and end the
+playback there (`end_playback()` is honoured only from a supervisor or between frames):
+
+```python
+class SkipReplayOnPress:
+    def on_frame(self, *, frame_number, scene):
+        player_input = scene_manager.playback_player_input   # None outside a playback
+        if player_input is not None and player_input.key_pressed(pygame.K_SPACE):
+            scene_manager.end_playback()
+```
+
+Instant replays can follow one another (a replay after every goal): a playback suspends the
+journal, which resumes afterwards, and a request the scene's own code makes while its journal
+plays back gets the answer it got live.
+
+### Ghosts
+
+A ghost is a recorded sprite's path and looks drawn beside live play, a time-trial ghost
+(`glitchygames/replay/ghosts.py`'s docstring is the contract). Ghosts are appearance, not
+play: they have no hitbox and change nothing the game does.
+
+```python
+from glitchygames.replay.ghosts import (
+    GhostRecorder, GhostSprite, GhostTrack, images_from_animated_sprite,
+)
+
+# Recording: from the scene's start until the lap ends
+recorder = GhostRecorder(sprite=self.player)
+...
+track = recorder.finish()
+saves.save('best_lap', track.to_json())
+
+# Playing it in the next run of the scene (in setup())
+track = GhostTrack.from_json(saves.load('best_lap'))
+ghost = GhostSprite(track=track, image_for=images_from_animated_sprite(self.player))
+ghost.scene = self                     # the ghost follows this scene's game_time
+self.all_sprites.add(ghost)            # never to a collision group
+```
+
+- `GhostRecorder` is a supervisor: once per frame, after the frame's logic, it samples the
+  scene's `game_time`, the sprite's `world_x`/`world_y`, its appearance (animation, frame,
+  horizontal flip and draw offset of an `AnimatedSprite`; pass `appearance=` for anything else)
+  and whether the game shows it (`not hidden`). It samples only live frames of the first scene
+  it sees, and only when that scene's game time advanced: not behind the pause screen, not in a
+  demo or instant replay. It reads game state only, so recording a ghost changes nothing.
+- Samples are keyed by `Scene.game_time`, which stops while the scene is paused. The ghost
+  shows the last sample not after the current `game_time`, so it lines up with the live run
+  from the scene's start at any frame rate, and waits while the game is paused.
+- `GhostSprite` is a world-space sprite: the engine positions and culls it. Its position is
+  read from the track whenever the engine reads it, so it is drawn in this frame's place, not
+  last frame's. Its image is `image_for(sample)` drawn translucent (`alpha`, default 96).
+  Hide it with `ghost.hidden = True`; it is also hidden before the track's first sample.
+- A ghost in `all_sprites` is in a recording's sprite trace like any sprite. Store tracks in
+  saves: a replay serves the saves the recording saw, so a session with a ghost replays
+  exactly.
