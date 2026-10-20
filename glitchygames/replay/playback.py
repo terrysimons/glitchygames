@@ -16,7 +16,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    rebuilt scene's first frame is a whole frame, as recorded, and the frame that asked ends on
    the live doors. A request made while a transition plays waits for its end. A request made
    in a frame whose end switches scenes (``next_scene``) is dropped, logged: the scene to
-   return to has gone. Scopes do not nest.
+   return to has gone. Scopes do not nest: inside a scope, a request is answered with the
+   answer the frame being played recorded (an instant-replay journal's ``playback_answers``)
+   and requests nothing, or, without one, refused (``answered_playback_request``;
+   glitchygames/instant_replay.py, rule 8).
 2. Entering (``SceneManager._enter_playback``): the random streams, the frame clock, the FPS
    event timer and the scene manager's ``previous_scene`` are saved
    (``PlaybackRequest.begin_session``); the live scene is stashed without ``cleanup()``;
