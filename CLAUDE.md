@@ -147,6 +147,7 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   `ARGUMENT_PARSER_ERROR` (argparse's own; the engine never exits with it), 3
   `AUDIT_NONDETERMINISTIC`, 4 `GENERATION_REJECTED` / 5 `EXTRACTION_REJECTED` (API client: the
   server refused a generation / a frame extraction; a 503 is `SERVICE_UNAVAILABLE`),
+  6 `AUDIO_DROPOUT_RISK` (`scripts/audio_glitch_probe.py` found a risk of audio dropouts),
   64 `OPTIONS_REFUSED` (option combinations the engine won't run), 65 `UNUSABLE_INPUT` (wrong
   game, unsupported format, corrupt or unreadable file, bad server response), 66 `MISSING_INPUT`
   (the file does not exist), 69 `SERVICE_UNAVAILABLE` (API server unreachable), 70

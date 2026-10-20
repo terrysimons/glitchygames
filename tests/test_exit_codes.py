@@ -25,6 +25,7 @@ FAILED_CHECKS = (
     ExitCode.AUDIT_NONDETERMINISTIC,
     ExitCode.GENERATION_REJECTED,
     ExitCode.EXTRACTION_REJECTED,
+    ExitCode.AUDIO_DROPOUT_RISK,
 )
 # sysexits.h codes run from EX_USAGE (64) to EX_CONFIG (78)
 SYSEXITS_FIRST = ExitCode.OPTIONS_REFUSED
@@ -48,6 +49,8 @@ def test_each_sysexits_member_equals_the_os_constant(exit_code, os_name):
 def test_every_code_has_exactly_one_name():
     """No aliases: ExitCode(value).name always names the one meaning of that value."""
     assert len(ExitCode.__members__) == len(ExitCode)
+    assert len({exit_code.value for exit_code in ExitCode}) == len(ExitCode)
+    assert ExitCode(ExitCode.AUDIO_DROPOUT_RISK.value).name == 'AUDIO_DROPOUT_RISK'
 
 
 @pytest.mark.parametrize('exit_code', FAILED_CHECKS, ids=lambda exit_code: exit_code.name)

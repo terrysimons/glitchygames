@@ -18,6 +18,8 @@ Code  Member                       Meaning
 4     ``GENERATION_REJECTED``      The API server rejected the client's sprite generation (an
                                    error status, or a response that says it failed)
 5     ``EXTRACTION_REJECTED``      The API server rejected the client's frame extraction
+6     ``AUDIO_DROPOUT_RISK``       ``scripts/audio_glitch_probe.py`` found a risk of audio
+                                   dropouts
 64    ``OPTIONS_REFUSED``          The engine refuses the options given (a combination it will not
                                    run)
 65    ``UNUSABLE_INPUT``           The recording or input data is unusable (another game's
@@ -50,7 +52,7 @@ code around it) is not mapped: each game has its own entry point (``GameEngine(g
 .start()`` in its ``main``), so there is no single place to wrap, and Python exits with its
 default 1 and a traceback.
 
-Every code has exactly one name. The engine's own failed checks (1, 3, 4, 5) avoid 2
+Every code has exactly one name. The engine's own failed checks (1, 3-6) avoid 2
 (argparse's), 64-78 (``sysexits.h``) and 126 and up (the shell's and signal exits).
 
 The codes 0, 64-70 and 73 have the values of BSD ``sysexits.h``, which Python exposes as
@@ -96,6 +98,9 @@ class ExitCode(enum.IntEnum):
     # The API server rejected the client's frame extraction (an error status, or a response that
     # says it failed)
     EXTRACTION_REJECTED = 5
+
+    # scripts/audio_glitch_probe.py found a risk of audio dropouts
+    AUDIO_DROPOUT_RISK = 6
 
     # The engine refuses the options given (a combination it will not run). Same value as
     # Python's os.EX_USAGE (sysexits.h EX_USAGE)

@@ -12,8 +12,9 @@ Two independent checks, because they find different problems:
   realtime  Measures how late a background thread gets the GIL while the main thread runs a
             game-like frame loop. pygame's channel-finished callback needs the GIL to queue the
             next live-voice chunk, so a wait approaching the mixer buffer (512 samples at
-            44100 Hz = 11.6 ms) is an audible click. Exits with status 1 when the p99 wait
-            reaches half the buffer (the max is shown but includes OS scheduling noise).
+            44100 Hz = 11.6 ms) is an audible click. Exits with ``ExitCode.AUDIO_DROPOUT_RISK``
+            (6) when the p99 wait reaches half the buffer (the max is shown but includes OS
+            scheduling noise).
 
 Note: the 5 ms comparison is indicative; on a quiet machine the old setting can land just
 under the 5.8 ms threshold.
@@ -48,6 +49,7 @@ from glitchygames.audio.diagnostics import (
     find_silent_gaps,
     measure_lock_wait,
 )
+from glitchygames.exit_codes import ExitCode
 from glitchygames.timing import DEFAULT_TARGET_FPS, GIL_SWITCH_INTERVAL_SECONDS, FastTimer
 
 DSP_WORKER_FLAG = '--dsp-worker'
@@ -237,19 +239,20 @@ def main() -> int:
     """Run the requested modes.
 
     Returns:
-        1 when the realtime check finds dropout risk, otherwise 0.
+        ``ExitCode.AUDIO_DROPOUT_RISK`` when the realtime check finds dropout risk, otherwise
+        ``ExitCode.SUCCESS``.
 
     """
     arguments = parse_arguments()
     if arguments.dsp_worker is not None:
         run_dsp_worker(arguments)
-        return 0
+        return ExitCode.SUCCESS
     at_risk = False
     if arguments.mode in {'dsp', 'both'}:
         run_dsp_mode()
     if arguments.mode in {'realtime', 'both'}:
         at_risk = run_realtime_mode(arguments)
-    return 1 if at_risk else 0
+    return ExitCode.AUDIO_DROPOUT_RISK if at_risk else ExitCode.SUCCESS
 
 
 if __name__ == '__main__':

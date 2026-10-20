@@ -235,6 +235,7 @@ the code it exits with as `Exiting with OPTIONS_REFUSED (64)`.
 | 3 | `AUDIT_NONDETERMINISTIC` | `--audit`'s two runs differ from each other or from the recording |
 | 4 | `GENERATION_REJECTED` | The API server rejected the sprite client's generation request |
 | 5 | `EXTRACTION_REJECTED` | The API server rejected the sprite client's frame extraction |
+| 6 | `AUDIO_DROPOUT_RISK` | `scripts/audio_glitch_probe.py` found a risk of audio dropouts |
 | 64 | `OPTIONS_REFUSED` | The engine refuses the options given (a combination it will not run) |
 | 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a bad server response) |
 | 66 | `MISSING_INPUT` | The input file does not exist |
