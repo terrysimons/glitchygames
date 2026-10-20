@@ -146,7 +146,7 @@ class ScriptedInputSupervisor:
         )
         if placed_frames and game_key not in INPUT_ONLY_PLACEMENT_GAMES:
             message = (
-                f'{game_key} script places sprites directly before frame {placed_frames[0]}; it '
+                f'{game_key} script places sprites directly at frame {placed_frames[0]}; it '
                 f'cannot be recorded as input past frame {placed_frames[0] - 1} (record at most '
                 f'{placed_frames[0]} frames; games allowed to: '
                 f'{sorted(INPUT_ONLY_PLACEMENT_GAMES)})'
@@ -175,6 +175,7 @@ class ScriptedInputSupervisor:
         if scene is not None:
             for placement in self.script.placements.get(next_frame, []):
                 placement(scene)
+            # Per-frame input for frame 0 is never posted: no supervisor slot runs before it
             if self.script.per_frame is not None:
                 for event in self.script.per_frame(scene):
                     pygame.event.post(event)

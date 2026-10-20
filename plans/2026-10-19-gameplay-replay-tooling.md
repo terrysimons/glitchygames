@@ -40,7 +40,7 @@ an empty bookmark list on save).
 | 2 | Watched pacing, status bar, pause / step / speed | `hold_frame`, `draw_overlay`, `ReplayControls` |
 | 3 | Step back, Home and jump to divergence | `--replay-pause-at-frame`, re-exec |
 | 4 | Bookmarks and saving a copy | `B` / `S`, breakpoints pause the watched replay |
-| 5 | Recordings as pytest regression tests | `glitchygames/testing/replays.py`, `tests/replays/` |
+| 5 | Recordings as pytest regression tests | `glitchygames/testing/replays.py` collecting `tests/fixtures/replays/` (recorder and fixtures from core Task 13c) |
 | 6 | `--rebaseline` | `glitchygames/replay/rebaseline.py`, change summary |
 
 ---
@@ -742,38 +742,59 @@ git commit -m "Bookmark replay frames and save them as breakpoints in a copy of 
 
 ### Task 5: Recordings as pytest regression tests
 
+**Already built (Part 1, core Task 13c, commit 19ce99a):** `scripts/record_scripted_session.py`
+(records a game's golden input script through the real engine, `GameEngine.start`, with a
+supervisor posting each frame's input one frame ahead; Part 3 Task 4 reuses it for the bundled
+demo), its tests `tests/replay/test_record_scripted_session.py`, the golden replay fixtures
+`tests/fixtures/replays/<console-script>/golden.jsonl.gz` (paddleslap, clockwork-keep,
+brave-adventurer, brave-adventurer-papyrus; each < 100 KB), and
+`tests/replay/test_golden_replays.py`, which replays every fixture in process through the real
+loop (shared helpers in `tests/replay/replay_helpers.py`). This task reuses all of that; it does not
+create the script or record a fixture of its own.
+
 **Files:**
 - Create: `glitchygames/testing/__init__.py`, `glitchygames/testing/replays.py`
 - Modify: `conftest.py` (root: `pytest_plugins = ['pytester', 'glitchygames.testing.replays']`)
-- Create: `scripts/record_scripted_session.py` (records a scripted session through the real
-  engine; Part 3 Task 4 reuses it for the bundled demo)
-- Create: `tests/replays/paddleslap/scripted-rally.jsonl.gz` (a recorded fixture, < 100 KB)
-- Test: `tests/replay/test_replay_plugin.py`, `tests/replay/test_record_scripted_session.py`
+- Modify: `tests/replay/test_golden_replays.py` (drop `test_golden_replay_matches_every_frame`
+  once the plugin collects the same fixtures, so each fixture is not replayed twice; keep the
+  non-empty and console-script directory checks and the tamper test)
+- Reuse: `scripts/record_scripted_session.py`, `tests/fixtures/replays/` (from core Task 13c)
+- Test: `tests/replay/test_replay_plugin.py`
 
 **Interfaces:**
-- Produces:
+- Consumes (from core Task 13c, `scripts/record_scripted_session.py`):
 
 ```python
-REPLAYS_DIRECTORY_NAME = 'replays'
-def game_entry_point(*, console_script: str) -> str        # 'module:function' from metadata
-class ReplayFile(pytest.File): ...                          # one item per recording
-class ReplayItem(pytest.Item): ...                          # runs the headless replay subprocess
-def pytest_collect_file(file_path: Path, parent: pytest.Collector) -> ReplayFile | None
-# scripts/record_scripted_session.py
 INPUT_ONLY_PLACEMENT_GAMES = frozenset({'paddleslap'})   # placements that only steer input
+REPLAY_FIXTURE_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
+REPLAY_FIXTURE_SUFFIX = '.jsonl.gz'
+CONSOLE_SCRIPT_GAME_KEYS: dict[str, str]                 # console script -> game key
+def fixture_path(*, game_key: str, name: str = 'golden') -> Path
 class ScriptedInputSupervisor:   # a glitchygames.supervision.Supervisor
-    def __init__(self, *, script: InputScript, game_key: str, frame_count: int) -> None: ...
+    def __init__(self, *, script: InputScript, game_key: str, frame_count: int,
+                 scene_manager: SceneManager) -> None: ...
     def on_frame(self, *, frame_number: int, scene: Scene | None) -> None: ...
 def record_scripted_session(*, game_key: str, frame_count: int, path: Path,
                             random_seed: int = RANDOM_SEED) -> None: ...
 ```
 
+- Produces:
+
+```python
+REPLAY_FIXTURES_PATH_PARTS = ('fixtures', 'replays')       # collected under tests/fixtures/replays
+def game_entry_point(*, console_script: str) -> str        # 'module:function' from metadata
+class ReplayFile(pytest.File): ...                          # one item per recording
+class ReplayItem(pytest.Item): ...                          # runs the headless replay subprocess
+def pytest_collect_file(file_path: Path, parent: pytest.Collector) -> ReplayFile | None
+```
+
 `pytest_collect_file` keeps pytest's hook signature (interface conformance, positional).
 
-Rules: a file `tests/replays/<console-script>/<name>.jsonl.gz` (the directory name is the game's
-console script from `[project.scripts]`, e.g. `paddleslap`, `clockwork-keep`) becomes one test
-item, id `<console-script>/<name>`. Running it executes, in a subprocess with
-`SDL_VIDEODRIVER=dummy` and `SDL_AUDIODRIVER=dummy`:
+Rules: the plugin collects from `tests/fixtures/replays/`: a file
+`.../fixtures/replays/<console-script>/<name>.jsonl.gz` (the directory name is the game's console
+script from `[project.scripts]`, e.g. `paddleslap`, `clockwork-keep`) becomes one test item, id
+`<console-script>/<name>`. Running it executes, in a subprocess with `SDL_VIDEODRIVER=dummy` and
+`SDL_AUDIODRIVER=dummy`:
 `[sys.executable, '-c', f'from {module} import {function}; {function}()', '--replay-trace', path,
 '--headless']` (where `module:function` comes from `importlib.metadata.entry_points(
 group='console_scripts')[console_script].value`; `sys.argv` in the child is `['-c', ...]` — set
@@ -782,183 +803,68 @@ it properly by passing the arguments after `-c` code, which Python places in `sy
 exit 2 fails with "unusable recording" plus stdout; any other code fails with stderr. A directory
 name that is not a console script fails at collection with a clear message.
 
-The fixture must be recorded through the real engine (`GameEngine.start`), not the golden harness:
-the harness steps frames without `_finish_frame`, so its recordings hold no FPS events and its frame
-clock never moves, while the plugin's replay runs the real loop, which posts FPS events — the
-replay would report each as an unexpected internal event. `scripts/record_scripted_session.py`
-runs a game's golden input script for real:
-
-```python
-"""Record a scripted session of a game through the real engine (GameEngine.start).
-
-Used for test fixtures under tests/replays/ and for bundled demos. The game's golden input script
-(scripts/record_golden_traces.py: SCRIPT_BUILDERS) is played by a supervisor
-(glitchygames/supervision.py): at the supervisor slot of frame N it posts the script's key events
-and per-frame input for frame N + 1 with pygame.event.post, so the next pump returns them as
-external events — exactly what a player's keys are — and at frame `frame_count - 1` it asks the
-engine to quit. Script placements move sprites directly (they are not input); only games whose
-placements merely steer the script's own input tracker are allowed (INPUT_ONLY_PLACEMENT_GAMES).
-
-    uv run python scripts/record_scripted_session.py --game paddleslap --frames 600 \
-        --output tests/replays/paddleslap/scripted-rally.jsonl.gz
-"""
-
-INPUT_ONLY_PLACEMENT_GAMES = frozenset({'paddleslap'})
-
-
-class ScriptedInputSupervisor:
-    """Posts a golden input script into the real event queue, one frame ahead."""
-
-    def __init__(self, *, script: InputScript, game_key: str, frame_count: int) -> None:
-        if script.placements and game_key not in INPUT_ONLY_PLACEMENT_GAMES:
-            message = (f'{game_key} script places sprites directly; it cannot be recorded as '
-                       f'input (allowed: {sorted(INPUT_ONLY_PLACEMENT_GAMES)})')
-            raise ValueError(message)
-        self._script = script
-        self._frame_count = frame_count
-
-    def on_frame(self, *, frame_number: int, scene: Scene | None) -> None:
-        next_frame = frame_number + 1
-        if scene is not None:
-            for placement in self._script.placements.get(next_frame, []):
-                placement(scene)
-            if self._script.per_frame is not None:
-                for event in self._script.per_frame(scene):
-                    pygame.event.post(event)
-        for event in self._script.key_events.get(next_frame, []):
-            pygame.event.post(event)
-        if frame_number == self._frame_count - 1:
-            GameEngine.quit_game()
-
-
-def record_scripted_session(*, game_key: str, frame_count: int, path: Path,
-                            random_seed: int = RANDOM_SEED) -> None:
-    """Run the game for real with its script and --record-trace, in temporary saves."""
-    script = SCRIPT_BUILDERS[game_key]()
-    with (
-        tempfile.TemporaryDirectory(prefix='scripted-session-saves-') as save_directory,
-        deterministic_environment(clock=FakeClock(start_seconds=FAKE_CLOCK_START_SECONDS),
-                                  save_root=Path(save_directory)),
-        command_line(['--windowed', '--resolution', SCREEN_RESOLUTION, '--log-level', 'warning',
-                      '--input-mode', 'joystick', '--target-fps', '0',
-                      '--random-seed', str(random_seed), '--record-trace', str(path)]),
-    ):
-        engine = GoldenTraceEngine(game=GAME_SCENES[game_key])
-        SceneManager().add_supervisor(supervisor=ScriptedInputSupervisor(
-            script=script, game_key=game_key, frame_count=frame_count))
-        with contextlib.suppress(SystemExit):
-            engine.start()
-
-
-def main() -> None:
-    """Command line: --game KEY --frames N --output PATH."""
-    parser = argparse.ArgumentParser(description='Record a scripted session through the engine')
-    parser.add_argument('--game', required=True, choices=sorted(GAME_SCENES))
-    parser.add_argument('--frames', required=True, type=int)
-    parser.add_argument('--output', required=True, type=Path)
-    arguments = parser.parse_args()
-    record_scripted_session(game_key=arguments.game, frame_count=arguments.frames,
-                            path=arguments.output)
-
-
-if __name__ == '__main__':
-    main()
-```
-
-(`GoldenTraceEngine` only drops the SCALED flag for the dummy driver; `engine.start()` is the real
-loop. Use the harness's `discard_environment_events` idea if host window events would end up in
-the recording as external events — they are external and replay serves them, so they are harmless;
-note it. If Task 8 of Part 1 removed `deterministic_environment`'s `clock` parameter, drop it here.)
-Its test, `tests/replay/test_record_scripted_session.py`:
-
-```python
-def test_scripted_session_records_and_replays(tmp_path):
-    import os, subprocess, sys
-    from scripts.record_scripted_session import record_scripted_session
-
-    path = tmp_path / 'rally.jsonl.gz'
-    record_scripted_session(game_key='paddleslap', frame_count=120, path=path)
-    environment = {**os.environ, 'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
-    replay = subprocess.run(
-        [sys.executable, '-c', 'from glitchygames.examples.paddleslap import main; main()',
-         '--replay-trace', str(path), '--headless'],
-        env=environment, capture_output=True, text=True, check=False, timeout=240)
-    assert replay.returncode == 0, replay.stdout + replay.stderr
-
-
-def test_games_with_sprite_placements_are_refused():
-    from scripts.record_golden_traces import SCRIPT_BUILDERS
-    from scripts.record_scripted_session import ScriptedInputSupervisor
-
-    with pytest.raises(ValueError, match='places sprites directly'):
-        ScriptedInputSupervisor(script=SCRIPT_BUILDERS['clockwork_keep'](),
-                                game_key='clockwork_keep', frame_count=10)
-```
-
-Record the fixture once (and commit it; it is test data, not a scratch file):
-
-```bash
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
-    --game paddleslap --frames 600 --output tests/replays/paddleslap/scripted-rally.jsonl.gz
-ls -l tests/replays/paddleslap/scripted-rally.jsonl.gz   # must be < 100 KB
-```
+Fixtures must be recorded through the real engine (`scripts/record_scripted_session.py`), never
+the golden harness: the harness steps frames without `_finish_frame`, so its recordings hold no FPS
+events and its frame clock never moves, while the plugin's replay runs the real loop, which posts
+FPS events — the replay would report each as an unexpected internal event. The script's module
+docstring holds the one-command-per-game regeneration commands and the rule (regenerate only
+deliberately, after reviewing why a golden replay changed).
 
 - [ ] **Step 1: Write the failing tests** (`tests/replay/test_replay_plugin.py`, with pytester)
 
 ```python
-"""Recordings under tests/replays/<game>/ become pytest items (glitchygames/testing/replays.py)."""
+"""Recordings under tests/fixtures/replays/<game>/ become pytest items (glitchygames/testing/replays.py)."""
 
 import shutil
-from pathlib import Path
 
-REPO_FIXTURE = Path(__file__).resolve().parents[1] / 'replays' / 'paddleslap' / 'scripted-rally.jsonl.gz'
+from scripts.record_scripted_session import fixture_path
+
+REPO_FIXTURE = fixture_path(game_key='paddleslap')
 
 
 def test_matching_recording_passes(pytester):
-    target = pytester.path / 'replays' / 'paddleslap'
+    target = pytester.path / 'fixtures' / 'replays' / 'paddleslap'
     target.mkdir(parents=True)
     shutil.copy(REPO_FIXTURE, target / 'rally.jsonl.gz')
-    result = pytester.runpytest('-p', 'glitchygames.testing.replays', 'replays')
+    result = pytester.runpytest('-p', 'glitchygames.testing.replays', 'fixtures')
     result.assert_outcomes(passed=1)
 
 
 def test_unknown_game_directory_fails_at_collection(pytester):
-    target = pytester.path / 'replays' / 'no-such-game'
+    target = pytester.path / 'fixtures' / 'replays' / 'no-such-game'
     target.mkdir(parents=True)
     shutil.copy(REPO_FIXTURE, target / 'rally.jsonl.gz')
-    result = pytester.runpytest('-p', 'glitchygames.testing.replays', 'replays')
+    result = pytester.runpytest('-p', 'glitchygames.testing.replays', 'fixtures')
     result.assert_outcomes(errors=1)
     result.stdout.fnmatch_lines(['*no-such-game*not a console script*'])
 
 
 def test_tampered_recording_fails_with_the_report(pytester):
-    from glitchygames.tracing import read_trace_result, write_trace
+    from tests.replay.replay_helpers import tamper_first_sprite_rect
 
-    target = pytester.path / 'replays' / 'paddleslap'
+    target = pytester.path / 'fixtures' / 'replays' / 'paddleslap'
     target.mkdir(parents=True)
-    trace = read_trace_result(path=REPO_FIXTURE).trace
-    trace['frames'][10]['sprites'][0]['rect'][1] += 1
-    for later_frame in trace['frames'][11:]:
-        if later_frame['sprites']:
-            later_frame['sprites'][0]['rect'][1] += 1
-    write_trace(trace=trace, path=target / 'tampered.jsonl.gz')
-    result = pytester.runpytest('-p', 'glitchygames.testing.replays', 'replays')
+    tampered_path = target / 'tampered.jsonl.gz'
+    shutil.copy(REPO_FIXTURE, tampered_path)
+    tamper_first_sprite_rect(recording_path=tampered_path, frame_number=10)
+    result = pytester.runpytest('-p', 'glitchygames.testing.replays', 'fixtures')
     result.assert_outcomes(failed=1)
     result.stdout.fnmatch_lines(['*Replay diverged at frame 10*'])
 ```
 
-(The root `conftest.py` loads the plugin for the real suite, so `tests/replays/` runs with the
-normal `pytest`; pytester runs need `-p` because they have their own config.)
+(The root `conftest.py` loads the plugin for the real suite, so `tests/fixtures/replays/` runs with
+the normal `pytest`; pytester runs need `-p` because they have their own config.)
 
-- [ ] **Step 2–4:** fail; implement the plugin; record the fixture; run
-  `uv run pytest tests/replays tests/replay -q -p no:cacheprovider --no-cov` and the full suite
-  (the new item must pass in the full run and with `-n auto`).
+- [ ] **Step 2–4:** fail; implement the plugin; drop the duplicate parametrized test from
+  `tests/replay/test_golden_replays.py`; run
+  `uv run pytest tests/fixtures/replays tests/replay -q -p no:cacheprovider --no-cov` and the full
+  suite (the fixture items must pass in the full run and with `-n auto`).
 
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/testing/__init__.py glitchygames/testing/replays.py conftest.py scripts/record_scripted_session.py tests/replays/paddleslap/scripted-rally.jsonl.gz tests/replay/test_replay_plugin.py tests/replay/test_record_scripted_session.py
-git commit -m "Run recordings under tests/replays as pytest regression tests"
+git add glitchygames/testing/__init__.py glitchygames/testing/replays.py conftest.py tests/replay/test_replay_plugin.py tests/replay/test_golden_replays.py
+git commit -m "Run recordings under tests/fixtures/replays as pytest regression tests"
 ```
 
 ---

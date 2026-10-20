@@ -225,8 +225,9 @@ other. A mismatch between the two runs is reported as nondeterminism that slippe
 
 ### 4.3 Recordings as regression tests
 
-- Pytest plugin `glitchygames.testing.replays`: every `.jsonl.gz` under `tests/replays/<game>/` is
-  a test that replays headless and fails with the divergence report.
+- Pytest plugin `glitchygames.testing.replays`: every `.jsonl.gz` under
+  `tests/fixtures/replays/<console-script>/` is a test that replays headless and fails with the
+  divergence report.
 - `--replay-trace OLD --rebaseline NEW` replays the same inputs on the current code and writes a new
   recording (same inputs, new sprites), printing a summary of what changed (first divergence, frames
   and sprites affected). Replacing a test recording is a deliberate, reviewed step.
@@ -306,7 +307,8 @@ logging the report in debug runs; a replay test per bundled demo catches this in
 | `glitchygames/replay/controls.py` (new) | watched-replay controls, status bar, step back, bookmarks |
 | `glitchygames/replay/playback.py` (new) | playback scope, `play_recording`, instant replay |
 | `glitchygames/replay/ghosts.py` (new) | `GhostRecorder`, `GhostTrack`, `GhostSprite` |
-| `glitchygames/testing/replays.py` (new) | pytest plugin |
+| `glitchygames/testing/replays.py` (new) | pytest plugin (collects `tests/fixtures/replays/`) |
+| `scripts/record_scripted_session.py` (new) | records golden replay fixtures through the real engine |
 | `recording.py`, `tracing.py` | recorder moved into `RecordingSources`; format v3 |
 | `engine/game_engine.py`, `scenes/scene.py` | doors, supervisor hook, `game_time`, `replay_arguments`, `INSTANT_REPLAY_SECONDS` |
 | bypass sites (3.4) | moved behind the doors |

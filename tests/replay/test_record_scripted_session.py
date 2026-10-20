@@ -20,7 +20,7 @@ from scripts.record_scripted_session import (
 
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN
 from glitchygames.tracing import read_trace_result
-from tests.replay.test_golden_replays import replay_through_engine
+from tests.replay.replay_helpers import replay_through_engine
 
 # Long enough for both PaddleSlap paddles to start tracking a served ball
 RECORDED_FRAME_COUNT = 120

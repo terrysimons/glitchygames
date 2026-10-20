@@ -46,6 +46,7 @@ from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventType
 from glitchygames.scenes import SceneManager
 from glitchygames.sources import frame_clock_seconds, install_sources, reset_sources
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace_result, write_trace
+from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
     FAKE_CLOCK_STEP_SECONDS,
@@ -145,13 +146,6 @@ def replay_session(
     return engine
 
 
-def rewrite_recording(*, recording_path: Path, change: Callable[[dict[str, Any]], None]) -> None:
-    """Read a recording, let `change` edit the in-memory trace, write it back (format 3)."""
-    trace = read_trace_result(path=recording_path).trace
-    change(trace)
-    write_trace(trace=trace, path=recording_path)
-
-
 def add_recorded_internal_event(*, recording_path: Path, frame_number: int) -> None:
     """Add an internal event the replayed code never posts to the frame's first batch."""
 
@@ -230,17 +224,6 @@ def blocked_states() -> dict[int, bool]:
     return {
         event_type: pygame.event.get_blocked(event_type) for event_type in REAL_INPUT_EVENT_TYPES
     }
-
-
-def tamper_first_sprite_rect(*, recording_path: Path, frame_number: int) -> None:
-    """Move the first sprite 1 px down from `frame_number` on."""
-
-    def move(trace: dict[str, Any]) -> None:
-        for frame in trace['frames'][frame_number:]:
-            if frame['sprites']:
-                frame['sprites'][0]['rect'][1] += 1
-
-    rewrite_recording(recording_path=recording_path, change=move)
 
 
 def gzip_lines(*, recording_path: Path) -> list[bytes]:
