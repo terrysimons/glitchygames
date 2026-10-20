@@ -401,3 +401,20 @@ def test_descriptors_sharing_a_device_index_are_all_kept_in_order(caplog):
     assert registry.joystick_count() == 2
     assert registry.open_joystick(device_index=0).get_instance_id() == 7
     assert registry.open_joystick(device_index=0).get_instance_id() == 8
+
+
+def test_a_controller_whose_joystick_view_fails_is_closed_again(mocker):
+    """A controller that opens but cannot be described is quit before the failure is raised."""
+    fake_controller = mocker.Mock(**{
+        'as_joystick.side_effect': pygame.error('Controller not attached'),
+    })
+    mocker.patch('pygame._sdl2.controller.Controller', return_value=fake_controller)
+    registry = LiveDeviceRegistry()
+    with pytest.raises(pygame.error, match='Controller not attached'):
+        registry.open_controller(device_index=0)
+    fake_controller.quit.assert_called_once_with()
+    assert registry.take_enumeration_answers() == [
+        EnumerationAnswer(
+            call='open_controller', device_index=0, value=None, error='Controller not attached'
+        )
+    ]

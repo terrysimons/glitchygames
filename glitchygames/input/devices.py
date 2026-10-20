@@ -423,11 +423,19 @@ class LiveDeviceRegistry:
         """
         try:
             controller = pygame._sdl2.controller.Controller(device_index)
+        except pygame.error as error:
+            self._remember_failure(
+                call=OPEN_CONTROLLER_CALL, device_index=device_index, error=error
+            )
+            raise
+        try:
             joystick_view = controller.as_joystick()
             descriptor = _describe(
                 kind=CONTROLLER_KIND, device_index=device_index, device=joystick_view
             )
         except pygame.error as error:
+            # Opened but unusable (gone in between): close it so no SDL handle leaks
+            controller.quit()
             self._remember_failure(
                 call=OPEN_CONTROLLER_CALL, device_index=device_index, error=error
             )
@@ -1069,6 +1077,10 @@ class ReplayDeviceRegistry:
     def _descriptor_for_index(self: Self, *, device_index: int) -> DeviceDescriptor | None:
         """Return the first recorded device at ``device_index`` not opened yet, else the last.
 
+        Only the fallback for calls without a recorded answer (each of which already warned, or
+        an open recorded before opens were answers): it describes the next unopened device at
+        that index.
+
         Returns:
             The descriptor, or None when the recording has no device there.
 
@@ -1087,6 +1099,10 @@ class ReplayDeviceRegistry:
         self: Self, *, call: str, device_index: int | None
     ) -> EnumerationAnswer | None:
         """Return the next recorded answer for the call, the last one once used up, else None.
+
+        Once a call's recorded answers are used up, the last one repeats, a recorded error
+        included (so a device count asked every frame stays constant). Asking more often than
+        the recording did only happens after a replay has already diverged.
 
         Returns:
             The answer, or None when the call was never recorded.
