@@ -245,3 +245,25 @@ only replays; Part 2 Task 1).
 - Optional: lazy-import `speech_recognition` so the audio import chain doesn't load `aifc` (its
   deprecation warning is already filtered in `pyproject.toml`).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
+
+## Code quality
+
+- **Audit dataclasses for conversion to pydantic** (user request, 2026-10-20; lean yes unless there's
+  a good reason not to). `glitchygames/` has ~49 `@dataclasses.dataclass` structures across ~30 files
+  (`git grep -n "@dataclasses.dataclass\|@dataclass" -- glitchygames`). New data classes already use
+  pydantic `BaseModel` (frozen where immutable, `extra='forbid'`; house style in
+  `glitchygames/api/models/sprite_models.py` and `glitchygames/bitmappy/models.py`). For each existing
+  one, decide convert or keep and record why:
+  - Convert by default — validation at construction and JSON serialization for free; highest value
+    first: replay and recording data (`glitchygames/replay/`, `recording.py`, `input/state.py`
+    `InputSnapshot`, `input/devices.py` descriptors and enumeration answers, `supervision.py`
+    `ControlEvent`), configuration (`services/config.py`), save data (`state/`).
+  - Good reasons to keep a dataclass: a per-frame hot path where pydantic construction cost is
+    measurable (benchmark first — `InputSnapshot` is built once per frame; `effects/shake.py` and
+    `input/action_map.py` run per frame); identity/mutation semantics pydantic would change (custom
+    `__eq__`/`__hash__`, `cached_property`, deliberately mutable state); trivial private helpers.
+  - Keep behaviour identical: equality, hashing, ordering, defaults, immutability, and any JSON shapes
+    already written to recordings or saves (golden traces and golden replay fixtures must stay
+    unchanged).
+  - Output: a short table (class, file, decision, reason, benchmark if any) in this file or the task
+    report, then the conversions in reviewed commits.
