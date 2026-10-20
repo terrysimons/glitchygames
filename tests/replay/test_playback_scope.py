@@ -1073,8 +1073,9 @@ class TestPlayRecordingDemos:
             assert manager.playback_session is None
             assert outcome_reason(manager) == 'end_of_recording'
 
-    def test_any_key_ends_the_demo(self, tmp_path):
+    def test_any_key_ends_the_demo(self, tmp_path, mocker: MockerFixture):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        key_down = mocker.spy(CountingScene, 'on_key_down_event')
         with running_scene(CountingScene) as manager:
             title_scene = manager.active_scene
             manager.play_recording(path=recording_path, then=title_scene)
@@ -1084,6 +1085,9 @@ class TestPlayRecordingDemos:
             assert manager.playback_session is None
             assert manager.active_scene is title_scene
             assert outcome_reason(manager) == 'exit_input'
+            # The press that ended the demo is not delivered to the scene it returns to
+            step(manager)
+            key_down.assert_not_called()
 
     def test_an_unusable_demo_is_logged_and_nothing_starts(self, tmp_path, caplog):
         broken_path = tmp_path / 'broken.jsonl.gz'
@@ -1126,10 +1130,12 @@ class TestPlayRecordingDemos:
             assert manager.playback_session is None
             assert outcome_reason(manager) == 'diverged'
         assert 'demo diverged: frame' in caplog.text
-        assert any(
-            record.levelname == 'WARNING' and 'demo diverged' in record.message
+        diverged_warnings = [
+            record
             for record in caplog.records
-        )
+            if record.levelname == 'WARNING' and 'demo diverged' in record.message
+        ]
+        assert len(diverged_warnings) == 1
 
     def test_a_cut_off_demo_plays_to_its_cut_off_and_logs_at_info(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)

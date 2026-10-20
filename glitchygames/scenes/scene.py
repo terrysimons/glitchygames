@@ -352,8 +352,9 @@ class SceneManager(SceneInterface, events.EventManager):
             then: The scene to make active when the demo ends (usually the scene asking).
 
         """
-        # Function-level import: glitchygames.replay.playback imports glitchygames.scenes (it
-        # needs Scene), so a module-level import here would be a cycle.
+        # Function-level import, for layering: glitchygames.replay.playback imports
+        # glitchygames.scenes (it needs Scene), and scenes must not import replay at runtime, so
+        # a module-level import here would be a cycle.
         from glitchygames.replay.playback import (
             DEMO_PLAYBACK,
             PlaybackOptions,
