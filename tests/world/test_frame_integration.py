@@ -10,6 +10,8 @@ from __future__ import annotations
 import contextlib
 import json
 import math
+import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
@@ -38,11 +40,12 @@ from glitchygames.engine import GameEngine
 from glitchygames.examples import paddleslap
 from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
+from glitchygames.process import run_command
 from glitchygames.randomness import random_stream
-from glitchygames.replay.scene_start import SceneStart, rebuild_scene
+from glitchygames.scene_start import SceneStart, rebuild_scene, scene_start_capture_enabled
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.sources import active_sources, frame_clock_seconds
+from glitchygames.sources import active_sources, advance_frame_clock, frame_clock_seconds
 from glitchygames.state import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 from glitchygames.transitions import FadeTransition
@@ -711,10 +714,18 @@ class TestGameTime:
 
 
 START_CAPTURE_SAVE_NAMESPACE = 'start-capture-test'
+SHARED_STREAM_NAME = 'test.shared'
+# Prints the replay package's modules loaded by importing glitchygames.scenes
+REPLAY_MODULES_AFTER_IMPORTING_SCENES = (
+    'import sys, glitchygames.scenes\n'
+    "print(sorted(name for name in sys.modules if name.startswith('glitchygames.replay')))"
+)
+# Frame time that passes between building a scene and setting it up (a floor built a frame early)
+FRAME_SECONDS_BEFORE_SETUP = 0.5
 
 
 class StartCapturedScene(CameraFreeScene):
-    """Draws from a stream as it is built, carries a level and saves before its first setup."""
+    """Draws as it is built and as it is set up, carries a level and saves while it is built."""
 
     NAME = 'Start Captured'
 
@@ -724,7 +735,7 @@ class StartCapturedScene(CameraFreeScene):
         groups: pygame.sprite.LayeredDirty[Any] | None = None,
         level: int = 1,
     ) -> None:
-        """Draw the spawn position and write a save slot before setup().
+        """Draw the spawn position, then write a save slot (before setup()).
 
         Args:
             options: The game's options.
@@ -736,7 +747,17 @@ class StartCapturedScene(CameraFreeScene):
         self.level = level
         self.spawn_x = random_stream('test.spawn').randrange(0, 100)
         self.saves = open_saves(app_name=START_CAPTURE_SAVE_NAMESPACE)
+        self.saves_seen_while_built = self.saves.slot_names()
         self.saves.save('progress', {'level': level})
+        self.setup_draw: float | None = None
+        self.setup_frame_clock: float | None = None
+
+    @override
+    def setup(self: Self) -> None:
+        """Draw from a stream other code shares and read the frame clock."""
+        super().setup()
+        self.setup_draw = random_stream(SHARED_STREAM_NAME).random()
+        self.setup_frame_clock = frame_clock_seconds()
 
     @override
     def replay_arguments(self: Self) -> dict[str, Any]:
@@ -749,22 +770,58 @@ class StartCapturedScene(CameraFreeScene):
         return {'level': self.level}
 
 
+class UncapturedScene(StartCapturedScene):
+    """A scene that cannot be rebuilt on its own opts out of start capture."""
+
+    CAPTURES_SCENE_START: ClassVar[bool] = False
+
+
+def _built_early(*, options: dict[str, Any]) -> StartCapturedScene:
+    """Build a scene, then let other code draw and frame time pass before it is set up.
+
+    Args:
+        options: The scene's options.
+
+    Returns:
+        The scene, not set up.
+
+    """
+    scene = StartCapturedScene(options=options, level=2)
+    random_stream(SHARED_STREAM_NAME).random()
+    advance_frame_clock(seconds=FRAME_SECONDS_BEFORE_SETUP)
+    return scene
+
+
 class TestSceneStart:
     """A scene's start capture holds what rebuilding it as it began needs."""
 
     def test_start_capture_holds_arguments_streams_clock_and_saves(self, mocker):
-        """The start names the class, its arguments, the frame clock and the save view."""
+        """The start names the class, its arguments, both moments and the saves before __init__."""
         mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
         with running_scene(StartCapturedScene) as manager:
             start = manager.active_scene_start
             assert start is not None
             assert start.scene_class == 'StartCapturedScene'
             assert start.arguments == {'level': 1}
-            assert start.frame_clock_seconds == 0.0
-            assert start.random_states['seed'] == RANDOM_SEED
-            saved_slot = start.saves[START_CAPTURE_SAVE_NAMESPACE]['progress']
-            assert saved_slot['data'] == {'level': 1}
+            assert start.construction_frame_clock_seconds == 0.0
+            assert start.setup_frame_clock_seconds == 0.0
+            assert start.construction_random_states['seed'] == RANDOM_SEED
+            # First opened inside __init__: snapshotted when opened, before __init__ wrote to it
+            assert start.saves == {START_CAPTURE_SAVE_NAMESPACE: {}}
             assert SceneStart.from_json(json.loads(json.dumps(start.to_json()))) == start
+
+    def test_stores_open_before_construction_are_seen_as_they_were(self, mocker):
+        """A store already open when the scene is built is snapshotted before __init__ writes."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with running_scene(CameraFreeScene) as manager:
+            assert manager.active_scene is not None
+            open_saves(app_name=START_CAPTURE_SAVE_NAMESPACE).save('progress', {'level': 7})
+            scene = StartCapturedScene(options=manager.active_scene.options, level=3)
+            manager.switch_to_scene(scene)
+            start = manager.active_scene_start
+            assert start is not None
+            progress = start.saves[START_CAPTURE_SAVE_NAMESPACE]['progress']
+            assert progress['data'] == {'level': 7}
 
     def test_rebuilt_scene_draws_the_same_randomness(self, mocker):
         """A rebuild restores the streams and frame clock the original began with."""
@@ -783,7 +840,49 @@ class TestSceneStart:
             assert isinstance(rebuilt, StartCapturedScene)
             assert rebuilt.spawn_x == original.spawn_x
             assert rebuilt.level == 1
-            assert frame_clock_seconds() == start.frame_clock_seconds
+            assert frame_clock_seconds() == start.setup_frame_clock_seconds
+
+    def test_a_scene_built_early_rebuilds_exactly(self, mocker):
+        """Draws and frame time between building and setting up a scene are restored too."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with running_scene(CameraFreeScene) as manager:
+            assert manager.active_scene is not None
+            original = _built_early(options=manager.active_scene.options)
+            manager.switch_to_scene(original)
+            start = manager.active_scene_start
+            assert start is not None
+            assert start.setup_frame_clock_seconds == pytest.approx(
+                start.construction_frame_clock_seconds + FRAME_SECONDS_BEFORE_SETUP
+            )
+            original_next_draw = random_stream(SHARED_STREAM_NAME).random()
+            rebuilt = rebuild_scene(
+                start=start, scene_class=StartCapturedScene, options=original.options
+            )
+            assert isinstance(rebuilt, StartCapturedScene)
+            manager.switch_to_scene(rebuilt)
+            assert rebuilt.spawn_x == original.spawn_x
+            assert rebuilt.setup_draw == original.setup_draw
+            assert rebuilt.setup_frame_clock == original.setup_frame_clock
+            # The save view is the one the original's __init__ saw, before its own write (the
+            # playback scope sandboxes it for the rebuilt scene; here the real store has the write)
+            assert original.saves_seen_while_built == []
+            assert start.saves == {START_CAPTURE_SAVE_NAMESPACE: {}}
+            assert random_stream(SHARED_STREAM_NAME).random() == original_next_draw
+
+    def test_the_start_shares_no_mutable_state(self, mocker):
+        """Changing what to_json returned, or the record read, never changes the start."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with running_scene(StartCapturedScene) as manager:
+            start = manager.active_scene_start
+            assert start is not None
+            record = start.to_json()
+            record['arguments']['level'] = 99
+            record['construction_random_states']['seed'] = 0
+            assert start.arguments == {'level': 1}
+            assert start.construction_random_states['seed'] == RANDOM_SEED
+            read_back = SceneStart.from_json(record)
+            record['arguments']['level'] = 5
+            assert read_back.arguments == {'level': 99}
 
     def test_non_json_arguments_are_refused(self, mocker):
         """replay_arguments() that would not read back from JSON is a TypeError naming the scene."""
@@ -818,6 +917,17 @@ class TestSceneStartCaptureScope:
         with running_scene(StartCapturedScene) as manager:
             assert manager.active_scene_start is None
 
+    def test_a_scene_that_opts_out_captures_nothing(self, mocker):
+        """CAPTURES_SCENE_START = False wins over instant replay and capturing doors."""
+        mocker.patch.object(UncapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with running_scene(UncapturedScene) as manager:
+            assert manager.active_scene_start is None
+
+    def test_the_pause_screen_opts_out(self):
+        """PauseScene presents another scene, so it cannot be rebuilt on its own."""
+        assert PauseScene.CAPTURES_SCENE_START is False
+        assert scene_start_capture_enabled(scene_class=PauseScene) is False
+
     def test_resume_from_pause_keeps_the_first_capture(self, mocker):
         """Resuming runs the scene's setup again but keeps the start of its first setup."""
         mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
@@ -834,6 +944,21 @@ class TestSceneStartCaptureScope:
             step(manager, release(pygame.K_SPACE))
             assert manager.active_scene is game_scene
             assert manager.active_scene_start is first
+
+    def test_scenes_do_not_import_the_replay_driver(self):
+        """glitchygames.scenes stays light: start capture lives in a leaf module."""
+        completed = run_command(
+            command=[
+                sys.executable,
+                '-c',
+                REPLAY_MODULES_AFTER_IMPORTING_SCENES,
+            ],
+            environment=dict(os.environ),
+            timeout_seconds=60.0,
+            capture_output=True,
+        )
+        assert completed.returncode == 0, completed.stdout
+        assert completed.stdout.strip().splitlines()[-1] == '[]'
 
 
 class TestTransitionCapture:

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
@@ -42,6 +42,9 @@ class PauseOverlay(Sprite):
 
 class PauseScene(Scene):
     """Pause scene that shows a semi-transparent overlay over the game."""
+
+    # It presents the paused scene, so it cannot be rebuilt on its own (glitchygames/scene_start.py)
+    CAPTURES_SCENE_START: ClassVar[bool] = False
 
     def __init__(self: Self, **kwargs: Any) -> None:
         """Initialize the pause scene.

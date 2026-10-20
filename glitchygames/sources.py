@@ -22,6 +22,7 @@ glitchygames.randomness.
 from __future__ import annotations
 
 import dataclasses
+import weakref
 from typing import TYPE_CHECKING, Protocol
 
 from glitchygames.randomness import engine_random_seed
@@ -65,7 +66,7 @@ class EngineSources(Protocol):
 
     @property
     def captures_scene_starts(self) -> bool:
-        """True when scenes constructed now capture their starts (replay/scene_start.py).
+        """True when scenes constructed now capture their starts (glitchygames/scene_start.py).
 
         Only while a start can be used: a run recorded with ``--record-trace`` from its start
         (so the first scene's start is in frame 0) and while recording, a ``--rebaseline``
@@ -191,12 +192,30 @@ class EngineSources(Protocol):
         ...
 
 
+class SaveStoreOpenedObserver(Protocol):
+    """Told each time a game opens a save store (``open_saves``), before it can write to it."""
+
+    def on_save_store_opened(self, *, namespace: str, store: SaveManager) -> None:
+        """Look at ``store`` as opened (a scene start in capture snapshots it; scene_start.py).
+
+        Args:
+            namespace: The store's namespace (the game's app name).
+            store: The store the doors returned.
+
+        """
+        ...
+
+
 @dataclasses.dataclass
 class _SourcesRegistry:
     installed: EngineSources | None = None
     scoped: list[EngineSources] = dataclasses.field(default_factory=list)
     frames_started: bool = False
     frame_clock_seconds: float = 0.0
+    # Weak: an observer nobody else keeps (a scene built and dropped before its setup) goes away
+    save_store_observers: weakref.WeakSet[SaveStoreOpenedObserver] = dataclasses.field(
+        default_factory=weakref.WeakSet
+    )
 
 
 _REGISTRY = _SourcesRegistry()
@@ -265,8 +284,41 @@ def advance_frame_clock(*, seconds: float) -> None:
     _REGISTRY.frame_clock_seconds += seconds
 
 
+def observe_save_store_openings(*, observer: SaveStoreOpenedObserver) -> None:
+    """Tell ``observer`` of every save store opened from now on (held weakly).
+
+    Args:
+        observer: The observer.
+
+    """
+    _REGISTRY.save_store_observers.add(observer)
+
+
+def stop_observing_save_store_openings(*, observer: SaveStoreOpenedObserver) -> None:
+    """Stop telling ``observer`` of save stores opened (nothing if it was not observing).
+
+    Args:
+        observer: The observer.
+
+    """
+    _REGISTRY.save_store_observers.discard(observer)
+
+
+def notify_save_store_opened(*, namespace: str, store: SaveManager) -> None:
+    """Tell every observer a save store was opened (glitchygames.state.open_saves calls it).
+
+    Args:
+        namespace: The store's namespace.
+        store: The store the doors returned.
+
+    """
+    # A copy: an observer may stop observing while it is told
+    for observer in list(_REGISTRY.save_store_observers):
+        observer.on_save_store_opened(namespace=namespace, store=store)
+
+
 def set_frame_clock_seconds(*, seconds: float) -> None:
-    """Set the frame clock (a scene rebuilt from its start; glitchygames/replay/scene_start.py).
+    """Set the frame clock (a scene rebuilt from its start; glitchygames/scene_start.py).
 
     Args:
         seconds: The frame clock's new reading.
@@ -301,3 +353,4 @@ def reset_sources() -> None:
     _REGISTRY.scoped.clear()
     _REGISTRY.frames_started = False
     _REGISTRY.frame_clock_seconds = 0.0
+    _REGISTRY.save_store_observers.clear()

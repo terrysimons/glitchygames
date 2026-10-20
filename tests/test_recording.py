@@ -39,6 +39,7 @@ from glitchygames.recording import (
     RECORDING_SOURCE,
     SAVES_HEADER_FIELD,
     SAVES_OPENED_FIELD,
+    SCENE_START_FIELD,
     GameplayRecorder,
     RecordedReference,
     RecordingSources,
@@ -881,6 +882,18 @@ class TestRecordingSources:
         assert sources.captures_scene_starts is True
         recorder.close()
         assert sources.captures_scene_starts is False
+
+    def test_a_scene_stand_in_has_no_scene_start(self, tmp_path):
+        """A SceneInterface stand-in without a start capture is recorded without scene_start."""
+        path = tmp_path / 'unit.jsonl.gz'
+        sources, recorder, _inner = _recording_sources(path=path)
+        sources.end_frame(
+            frame_number=0, dt=0.016, scene=_scene(FakeSprite(x=0, y=0)), control_events=[]
+        )
+        recorder.close()
+
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert SCENE_START_FIELD not in frame
 
     def test_a_closed_recorder_records_nothing_more(self, tmp_path, event_queue):
         """After stop_trace_recording closes the recorder, the doors only delegate."""

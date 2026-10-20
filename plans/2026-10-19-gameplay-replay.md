@@ -380,7 +380,7 @@ logging the report in debug runs; a replay test per bundled demo catches this in
 | `glitchygames/replay/input_blocking.py` (new) | blocking real input at SDL during a replay |
 | `glitchygames/replay/audit.py` (new) | `--audit`: two subprocess replays, per-frame digests |
 | `glitchygames/replay/rebaseline.py` (new, Part 2) | `--rebaseline` |
-| `glitchygames/replay/scene_start.py` (new, Part 3) | scene-start captures, `rebuild_scene` |
+| `glitchygames/scene_start.py` (new, leaf, Part 3) | scene-start captures, `rebuild_scene` (amended in Part 3 Task 1: a leaf outside the replay package, so `glitchygames.scenes` never imports the replay driver) |
 | `glitchygames/replay/controls.py` (new) | watched-replay controls, status bar, step back, bookmarks |
 | `glitchygames/replay/playback.py` (new) | playback scope, `play_recording`, instant replay |
 | `glitchygames/replay/ghosts.py` (new) | `GhostRecorder`, `GhostTrack`, `GhostSprite` |

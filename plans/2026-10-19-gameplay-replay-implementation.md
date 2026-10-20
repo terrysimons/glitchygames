@@ -117,7 +117,7 @@ doors and unpaced pacing path, and its journal test uses `recording.recorded_dt`
 | `glitchygames/testing/__init__.py`, `glitchygames/testing/replays.py` (new) | pytest plugin; `bundled_demo_paths`, `replay_recording_headless` | 2, 3 |
 | `scripts/record_scripted_session.py` (new) | records a golden input script through the real engine (fixtures, bundled demos) | 2 |
 | `glitchygames/replay/rebaseline.py` (new) | `--rebaseline` | 2 |
-| `glitchygames/replay/scene_start.py` (new) | `SceneStart`, `rebuild_scene`, `scene_start_capture_enabled` | 3 |
+| `glitchygames/scene_start.py` (new, leaf; was `replay/scene_start.py`, moved so scenes never import the replay driver) | `SceneStart`, `rebuild_scene`, `scene_start_capture_enabled` | 3 |
 | `glitchygames/replay/playback.py` (new) | playback scope, `start_playback`, demos, instant-replay journal | 3 |
 | `glitchygames/examples/paddleslap_demos/rally.jsonl.gz` (new) | the bundled PaddleSlap demo | 3 |
 | `glitchygames/replay/ghosts.py` (new) | `GhostRecorder`, `GhostTrack`, `GhostSprite` | 3 |

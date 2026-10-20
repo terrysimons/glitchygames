@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
 
 from glitchygames.clock import wall_clock_time
-from glitchygames.sources import active_sources
+from glitchygames.sources import active_sources, notify_save_store_opened
 from glitchygames.state.exceptions import SaveCorruptedError
 from glitchygames.state.manager import SaveManager, SaveSlotInfo
 
@@ -274,4 +274,8 @@ def open_saves(*, app_name: str) -> SaveManager:
         The store: a DiskSaveManager live, a MemorySaveManager in a replay.
 
     """
-    return active_sources().saves(namespace=app_name)
+    store = active_sources().saves(namespace=app_name)
+    # Before the game can write to it: a scene start in capture snapshots a store first opened
+    # while its scene is built (glitchygames/scene_start.py)
+    notify_save_store_opened(namespace=app_name, store=store)
+    return store

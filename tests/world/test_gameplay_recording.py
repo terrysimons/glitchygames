@@ -59,7 +59,7 @@ from glitchygames.recording import (
     UnrepresentableValue,
     event_from_record,
 )
-from glitchygames.replay.scene_start import SceneStart
+from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
 from glitchygames.sources import active_sources, install_sources
@@ -772,7 +772,7 @@ class TestRecordingThroughTheEngine:
         frames = read_trace_result(path=recording_path).trace['frames']
         first_start = SceneStart.from_json(frames[0][SCENE_START_FIELD])
         assert first_start.scene_class == 'DepartureRecordedScene'
-        assert first_start.random_states['seed'] == RANDOM_SEED
+        assert first_start.construction_random_states['seed'] == RANDOM_SEED
         starts_by_frame = {
             frame['frame']: frame[SCENE_START_FIELD]['scene_class']
             for frame in frames

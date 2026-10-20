@@ -19,7 +19,7 @@ created), not keep one from import time. ``engine_random()`` is ``random_stream(
 ``capture_stream_states()``/``restore_stream_states(states=...)`` save and restore every stream
 exactly (in-game playback, plans/2026-10-19-gameplay-replay-playback.md): the master seed and
 each created stream's state, JSON-safe, so a scene rebuilt from its start
-(glitchygames/replay/scene_start.py) draws the numbers it drew when it began. A restore drops
+(glitchygames/scene_start.py) draws the numbers it drew when it began. A restore drops
 the streams the capture did not hold; they are created from the seed on first use, exactly as
 they would have been at capture time. Like ``reset_streams``, a restore replaces the stream
 objects, so code that kept a stream draws from a stale one.

@@ -305,18 +305,21 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   random seed and, since format 3, the `saves`, `devices` and `device_enumeration` taken in before
   recording started. Engine code posts events with `glitchygames.recording.post_event` so
   recordings can mark them internal. The format is described in `glitchygames/recording.py`
-- Scene starts (`glitchygames/replay/scene_start.py`, Part 3 Task 1): while the active doors'
-  `captures_scene_starts` is True (`--record-trace` runs from their start, `--rebaseline`, the
-  playback scope) or the scene class sets `INSTANT_REPLAY_SECONDS`, `Scene.__init__` first
-  captures every random stream's state (`capture_stream_states()`, glitchygames/randomness.py) and
-  the frame clock, and `SceneManager._setup_new_scene` completes the `SceneStart` (frozen pydantic:
-  class name, `Scene.replay_arguments()` (JSON-safe, default `{}`; Clockwork Keep returns its
-  floor, score and lives), the saves) before the scene's FIRST setup only (resume keeps it).
-  `SceneManager.active_scene_start`, `Scene.scene_start`; recordings write it as the frame
-  field `scene_start` on the frame the scene began (frame 0 for the first scene).
-  `rebuild_scene(start=..., scene_class=..., options=...)` restores the streams
-  (`restore_stream_states`) and frame clock (`sources.set_frame_clock_seconds`) and constructs
-  the scene (no `setup()`). Live play captures nothing
+- Scene starts (`glitchygames/scene_start.py`, a leaf: scenes never import the replay package;
+  Part 3 Task 1): while the active doors' `captures_scene_starts` is True (`--record-trace` runs
+  from their start, `--rebaseline`, the playback scope) or the class sets
+  `INSTANT_REPLAY_SECONDS`, and unless it sets `CAPTURES_SCENE_START = False` (`PauseScene`),
+  `Scene.__init__` first captures every random stream's state (`capture_stream_states()`) and the
+  frame clock, plus the open save stores (stores opened before setup are snapshotted as
+  `open_saves` opens them, via `sources.observe_save_store_openings`), and
+  `SceneManager._setup_new_scene` completes the frozen pydantic `SceneStart` before the scene's
+  FIRST setup only (resume keeps it): `Scene.replay_arguments()` (JSON round-trip exact, default
+  `{}`; Clockwork Keep returns its floor, score and lives) and the streams and frame clock again.
+  `SceneManager.active_scene_start`, `Scene.scene_start`; recordings write it as the frame field
+  `scene_start` on the first frame the scene ends active (frame 0 for the first scene; a scene
+  switched away within its first frame has none). `rebuild_scene(start=..., scene_class=...,
+  options=...)` restores the construction streams and clock, constructs, then restores the setup
+  ones (no `setup()`); it sets global state the caller must restore. Live play captures nothing
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
   randomness draws from named streams seeded from it: `random_stream('name')` (`random.Random`) or
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is

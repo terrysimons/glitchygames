@@ -44,7 +44,7 @@ class LiveSources:
             captures_scene_starts: True when the run will be recorded (``--record-trace``):
                 recording starts after the first scene is built and set up, so the live doors
                 capture scene starts from the run's start and frame 0 holds the first scene's
-                (glitchygames/replay/scene_start.py). False for live play.
+                (glitchygames/scene_start.py). False for live play.
 
         """
         self.random_seed = random_seed

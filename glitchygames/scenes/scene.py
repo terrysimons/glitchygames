@@ -24,7 +24,7 @@ from glitchygames.input.state import current_input
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.recording import post_event
-from glitchygames.replay.scene_start import SceneStartCapture, begin_scene_start_capture
+from glitchygames.scene_start import SceneStartCapture, begin_scene_start_capture
 from glitchygames.sources import (
     active_sources,
     advance_frame_clock,
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
-    from glitchygames.replay.scene_start import SceneStart
+    from glitchygames.scene_start import SceneStart
     from glitchygames.supervision import Supervisor
 
 LOG = logging.getLogger('game.scenes')
@@ -258,7 +258,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
     @property
     def active_scene_start(self: Self) -> SceneStart | None:
-        """How the active scene began (glitchygames/replay/scene_start.py), if captured.
+        """How the active scene began (glitchygames/scene_start.py), if captured.
 
         None without an active scene, when its start was not captured, or for a scene stand-in
         (a SceneInterface that is not a Scene).
@@ -1493,7 +1493,7 @@ class SceneManager(SceneInterface, events.EventManager):
             if forget_key_presses is not None:
                 forget_key_presses()
             # Complete the scene's start before its first setup() (a later setup, resuming it
-            # from the pause screen, keeps the first); glitchygames/replay/scene_start.py.
+            # from the pause screen, keeps the first); glitchygames/scene_start.py.
             # Looked up by name: a SceneInterface stand-in has no capture
             start_capture = getattr(next_scene, 'scene_start_capture', None)
             if isinstance(start_capture, SceneStartCapture):
@@ -1630,6 +1630,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # How sprites without their own pixel_snap_mode (and the camera and parallax layers) are
     # snapped to whole pixels while this scene runs.
     PIXEL_SNAP_MODE: ClassVar[PixelSnapMode] = PixelSnapMode.NEAREST_HALF_UP
+    # False for a scene that cannot be rebuilt on its own from replay_arguments() (PauseScene
+    # presents another scene): its start is never captured (glitchygames/scene_start.py)
+    CAPTURES_SCENE_START: ClassVar[bool] = True
 
     def __init__(
         self: Self,
@@ -1645,7 +1648,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         # First, before anything (a subclass's body after super().__init__() included) draws
         # random numbers: the streams and frame clock this scene began with, when its start is
-        # captured (None otherwise; glitchygames/replay/scene_start.py)
+        # captured (None otherwise; glitchygames/scene_start.py)
         self.scene_start_capture: SceneStartCapture | None = begin_scene_start_capture(
             scene_class=type(self)
         )
@@ -1730,7 +1733,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
     @property
     def scene_start(self: Self) -> SceneStart | None:
-        """How this scene began, once set up (glitchygames/replay/scene_start.py).
+        """How this scene began, once set up (glitchygames/scene_start.py).
 
         None when its start was not captured (live play without recording, playback or
         instant replay) or before its first setup.
@@ -1743,7 +1746,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """Return the constructor arguments that rebuild this scene as it began (besides options).
 
         A scene rebuilt for playback is ``type(scene)(**replay_arguments(), options=...)``
-        (glitchygames/replay/scene_start.py), so a scene built with arguments carried from the
+        (glitchygames/scene_start.py), so a scene built with arguments carried from the
         previous scene (a floor's score and lives) returns them as they were when it was built.
         They must read back from JSON exactly as returned. Asked once, before the scene's first
         setup, and only while its start is captured.

@@ -64,7 +64,7 @@ task's own failure cases.
   `Scene.replay_arguments`, `SceneManager._setup_new_scene` (complete the start capture before
   `setup()`), `SceneManager.active_scene_start` (the active scene's capture)
 - Modify: `glitchygames/examples/clockwork_keep/game.py` (`replay_arguments` for floors)
-- Create: `glitchygames/replay/scene_start.py` (`SceneStart`, `rebuild_scene`,
+- Create: `glitchygames/scene_start.py` (as built: a leaf outside the replay package) (`SceneStart`, `rebuild_scene`,
   `scene_start_capture_enabled`)
 - Modify: `glitchygames/recording.py` (`RecordingSources` writes `scene_start` on the frame a
   scene started, and the active scene's start on frame 0; `captures_scene_starts` is True)
@@ -99,7 +99,7 @@ EngineSources.captures_scene_starts -> bool          # property: True while reco
 EngineSources.opened_save_stores(self) -> dict[str, SaveStore]   # namespace -> store opened
 ```
 
-`SceneStart` lives in a new `glitchygames/replay/scene_start.py`. Capture happens only while it
+`SceneStart` lives in a new `glitchygames/scene_start.py` (as built; a leaf, so scenes never import the replay driver). Capture happens only while it
 can be used (spec 5.1): `scene_start_capture_enabled(scene_class=...)` is True while the active
 sources record (`captures_scene_starts`), while a playback scope is active (scoped sources pushed),
 or when the scene class opts into instant replay (`INSTANT_REPLAY_SECONDS` is not None, Task 5);
@@ -281,7 +281,7 @@ In `tests/world/test_gameplay_recording.py`:
 - [ ] **Step 5: Lint, type-check, commit**
 
 ```bash
-git add glitchygames/randomness.py glitchygames/sources.py glitchygames/live_sources.py glitchygames/replay/driver.py glitchygames/scenes/scene.py glitchygames/replay/scene_start.py glitchygames/examples/clockwork_keep/game.py glitchygames/recording.py tests/test_randomness.py tests/world/test_frame_integration.py tests/world/test_gameplay_recording.py tests/examples/test_clockwork_keep.py
+git add glitchygames/randomness.py glitchygames/sources.py glitchygames/live_sources.py glitchygames/replay/driver.py glitchygames/scenes/scene.py glitchygames/scene_start.py glitchygames/examples/clockwork_keep/game.py glitchygames/recording.py tests/test_randomness.py tests/world/test_frame_integration.py tests/world/test_gameplay_recording.py tests/examples/test_clockwork_keep.py
 git commit -m "Capture how each scene began so it can be rebuilt for playback"
 ```
 

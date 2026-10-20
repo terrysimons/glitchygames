@@ -408,7 +408,7 @@ class ReplayOptions(BaseModel):
             (rule 8); False to note every differing frame and run on to the end
             (``--rebaseline``, rule 17).
         captures_scene_starts: True when scenes the replayed code builds capture their starts
-            (``EngineSources.captures_scene_starts``; glitchygames/replay/scene_start.py): a
+            (``EngineSources.captures_scene_starts``; glitchygames/scene_start.py): a
             rebaseline's new recording holds them (rule 17). False (the default) for a replay
             that records nothing.
 
