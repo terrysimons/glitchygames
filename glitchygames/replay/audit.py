@@ -10,28 +10,36 @@ hash seeds, so set and dict ordering bugs show up. Each child replays as usual (
 (``write_digest_file``): one SHA-256 per replayed frame (``frame_digest`` of the frame as the
 replay sampled it), then its divergence summary.
 
+What is compared: the sampled frame only (the active scene's class, and each sprite's ``rect``,
+``visible`` and draw order), as the recording comparison samples it. Pixels, audio and game state
+that is not sampled are not compared, so nondeterminism that never moves, hides or reorders a
+sprite goes unnoticed.
+
 The audit fails if either run diverged from the recording, exited with a nonzero status, or the
 two digest streams differ (the first differing frame is reported: nondeterminism that slipped past
-the doors, glitchygames/sources.py). A child that writes no readable digest file is an
-``AuditRunError``. ``GameEngine`` exits with 0 when the audit passes and 1 when it fails.
+the doors, glitchygames/sources.py). A child that cannot be started, runs longer than
+``AUDIT_REPLAY_TIMEOUT_SECONDS`` or writes no readable digest file is an ``AuditRunError``.
+``GameEngine`` exits with 0 when the audit passes and 1 when it fails.
 
-Child processes are started with ``asyncio.create_subprocess_exec``: an argument list, never a
-shell, with the environment set before the child's interpreter starts (PYTHONHASHSEED is read
-only then).
+Children are started with ``subprocess.run``: an argument list, never a shell, with the
+environment set before the child's interpreter starts (PYTHONHASHSEED is read only then). An
+interpreter started with ``-E`` or ``-I`` would pass that option on to its children, which would
+then ignore PYTHONHASHSEED; ``environment_reaches_children`` tells the engine to refuse.
 
 The plan: plans/2026-10-19-gameplay-replay.md, section 3.5.
 """
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import hashlib
 import json
 import os
+import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs this game's own command again (argument list, no shell)
 import sys
 import tempfile
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
@@ -51,11 +59,15 @@ AUDIT_CHILD_ARGUMENTS = ('--no-audit', '--replay-unpaced')
 # The child's option that names its digest file
 REPLAY_DIGEST_ARGUMENT = '--replay-digest'
 
-# Each child runs headless
-HEADLESS_ENVIRONMENT_VARIABLES: Mapping[str, str] = {
+# Each child runs headless (read-only: the audit's children all use it)
+HEADLESS_ENVIRONMENT_VARIABLES: Mapping[str, str] = MappingProxyType({
     'SDL_VIDEODRIVER': 'dummy',
     'SDL_AUDIODRIVER': 'dummy',
-}
+})
+
+# A replay child still running after this long is killed and fails the audit (unpaced replays run
+# far faster than real time, so this only catches a hung child)
+AUDIT_REPLAY_TIMEOUT_SECONDS = 3600.0
 
 # Digest file fields: one {"frame": n, "digest": "..."} line per frame, then
 # {"divergence": <Divergence.describe() or null>}
@@ -65,7 +77,7 @@ DIGEST_DIVERGENCE_FIELD = 'divergence'
 
 
 class AuditRunError(RuntimeError):
-    """A replay child of the audit wrote no readable digest file (it failed before the end)."""
+    """A replay child of the audit could not be started, hung, or wrote no readable digests."""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -143,20 +155,6 @@ class AuditResult:
         return None
 
 
-@dataclasses.dataclass(frozen=True)
-class ProcessResult:
-    """A finished child process.
-
-    Attributes:
-        exit_code: Its exit status.
-        output: Its standard output and standard error, interleaved ('' when not captured).
-
-    """
-
-    exit_code: int
-    output: str
-
-
 def frame_digest(*, frame_record: dict[str, Any]) -> str:
     """Return the SHA-256 of a frame record's canonical JSON (sorted keys, compact).
 
@@ -197,93 +195,32 @@ def read_digest_file(*, path: Path) -> tuple[list[str], str | None]:
     Returns:
         The digests in frame order, and the divergence summary (None when the replay matched).
 
-    Reading a missing or unreadable file raises OSError.
-
     Raises:
-        ValueError: If it is not a complete digest file (frames out of order, no divergence
-            line last).
+        ValueError: If the file cannot be read or is not a complete digest file (a line that is
+            not JSON, frames out of order or without a digest, no divergence line last).
 
     """
-    records = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]
+    try:
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except OSError as error:
+        message = f'cannot read {path}: {error}'
+        raise ValueError(message) from error
+    try:
+        records = [json.loads(line) for line in lines]
+    except json.JSONDecodeError as error:
+        message = f'{path} is not JSON lines: {error}'
+        raise ValueError(message) from error
     if not records or DIGEST_DIVERGENCE_FIELD not in records[-1]:
         message = f'{path} does not end with a {DIGEST_DIVERGENCE_FIELD!r} line'
         raise ValueError(message)
     digests: list[str] = []
     for frame_number, record in enumerate(records[:-1]):
-        if record.get(DIGEST_FRAME_FIELD) != frame_number:
-            message = f'{path}: line {frame_number + 1} is not frame {frame_number}'
+        if record.get(DIGEST_FRAME_FIELD) != frame_number or DIGEST_FIELD not in record:
+            message = f'{path}: line {frame_number + 1} is not the digest of frame {frame_number}'
             raise ValueError(message)
         digests.append(str(record[DIGEST_FIELD]))
     divergence = records[-1][DIGEST_DIVERGENCE_FIELD]
     return digests, None if divergence is None else str(divergence)
-
-
-async def _run_process_async(
-    *,
-    command: Sequence[str],
-    environment: Mapping[str, str],
-    capture_output: bool,
-    timeout_seconds: float | None,
-) -> ProcessResult:
-    """Run a child process to its end (``run_process``).
-
-    Returns:
-        Its exit status and captured output.
-
-    Raises:
-        TimeoutError: If it runs longer than ``timeout_seconds`` (it is killed first).
-
-    """
-    output_pipe = asyncio.subprocess.PIPE if capture_output else None
-    process = await asyncio.create_subprocess_exec(
-        *command,
-        env=dict(environment),
-        stdout=output_pipe,
-        stderr=asyncio.subprocess.STDOUT if capture_output else None,
-    )
-    try:
-        output, _ = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
-    except TimeoutError:
-        process.kill()
-        await process.wait()
-        raise
-    # Already finished (communicate waits for it): wait() returns its exit status at once
-    exit_code = await process.wait()
-    # Without a pipe communicate returns None for the output (typeshed types it as bytes)
-    return ProcessResult(
-        exit_code=exit_code,
-        output=output.decode('utf-8', errors='replace') if capture_output else '',
-    )
-
-
-def run_process(
-    *,
-    command: Sequence[str],
-    environment: Mapping[str, str],
-    capture_output: bool = False,
-    timeout_seconds: float | None = None,
-) -> ProcessResult:
-    """Run a command (an argument list, never a shell) as a child process and wait for it.
-
-    Args:
-        command: The program and its arguments.
-        environment: The child's whole environment, in place before its interpreter starts.
-        capture_output: True to capture standard output and error (interleaved); False to let
-            the child write to this process's.
-        timeout_seconds: Kill the child and raise TimeoutError after this long (None: wait).
-
-    Returns:
-        Its exit status and captured output.
-
-    """
-    return asyncio.run(
-        _run_process_async(
-            command=command,
-            environment=environment,
-            capture_output=capture_output,
-            timeout_seconds=timeout_seconds,
-        )
-    )
 
 
 def audit_command(*, original_argv: Sequence[str]) -> list[str]:
@@ -302,36 +239,68 @@ def audit_command(*, original_argv: Sequence[str]) -> list[str]:
     return [sys.executable, *original_argv[1:], *AUDIT_CHILD_ARGUMENTS]
 
 
+def environment_reaches_children() -> bool:
+    """Return whether this interpreter's children will read PYTHONHASHSEED.
+
+    ``audit_command`` runs the interpreter's own options again, so a parent started with ``-E``
+    or ``-I`` (``sys.flags.ignore_environment``) would start children that ignore it.
+
+    Returns:
+        False when the interpreter ignores the environment (the audit must refuse to run).
+
+    """
+    return not sys.flags.ignore_environment
+
+
 def _run_replay_subprocess(
-    *, command: list[str], hash_seed: str, digest_path: Path
+    *,
+    command: list[str],
+    hash_seed: str,
+    digest_path: Path,
+    timeout_seconds: float = AUDIT_REPLAY_TIMEOUT_SECONDS,
 ) -> ReplayDigestRun:
     """Replay in a child process with ``PYTHONHASHSEED`` set and read back its digest file.
+
+    The child writes to this process's standard output and error.
 
     Args:
         command: The replay command (``audit_command``).
         hash_seed: The child's ``PYTHONHASHSEED``.
         digest_path: Where the child writes its digests (``--replay-digest``).
+        timeout_seconds: Kill the child after this long.
 
     Returns:
         The finished run.
 
     Raises:
-        AuditRunError: If the child wrote no readable digest file.
+        AuditRunError: If the child could not be started, ran longer than ``timeout_seconds``
+            or wrote no readable digest file.
 
     """
+    run_name = f'The replay with PYTHONHASHSEED={hash_seed}'
     environment = {**os.environ, **HEADLESS_ENVIRONMENT_VARIABLES, 'PYTHONHASHSEED': hash_seed}
-    process = run_process(
-        command=[*command, REPLAY_DIGEST_ARGUMENT, str(digest_path)], environment=environment
-    )
+    try:
+        process = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with the user's own command line plus fixed flags, as an argument list (no shell)
+            [*command, REPLAY_DIGEST_ARGUMENT, str(digest_path)],
+            env=environment,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        message = f'{run_name} was still running after {timeout_seconds} seconds; killed'
+        raise AuditRunError(message) from error
+    except OSError as error:
+        message = f'{run_name} could not be started: {error}'
+        raise AuditRunError(message) from error
     try:
         digests, divergence = read_digest_file(path=digest_path)
-    except (OSError, ValueError) as error:
+    except ValueError as error:
         message = (
-            f'The replay with PYTHONHASHSEED={hash_seed} exited with status {process.exit_code} '
-            f'without writing its digests ({error})'
+            f'{run_name} exited with status {process.returncode} without writing its digests '
+            f'({error})'
         )
         raise AuditRunError(message) from error
-    return ReplayDigestRun(digests=digests, divergence=divergence, exit_code=process.exit_code)
+    return ReplayDigestRun(digests=digests, divergence=divergence, exit_code=process.returncode)
 
 
 def _first_mismatch_frame(*, first_digests: list[str], second_digests: list[str]) -> int | None:
@@ -371,21 +340,26 @@ def audit_recording(*, command: list[str], path: Path) -> AuditResult:
 
     Args:
         command: The replay command (``audit_command``), which names the recording itself.
-        path: The recording (names the temporary digest files' directory).
-
-    A child that writes no readable digest file raises AuditRunError.
+        path: The recording (names the temporary digest files' directory and any error).
 
     Returns:
         The audit's result.
 
+    Raises:
+        AuditRunError: If a child could not be started, hung or wrote no readable digest file.
+
     """
     with tempfile.TemporaryDirectory(prefix=f'{path.name}-audit-') as digest_directory:
-        first_run, second_run = (
-            _run_replay_subprocess(
-                command=command,
-                hash_seed=hash_seed,
-                digest_path=Path(digest_directory) / f'replay-{hash_seed}.jsonl',
+        try:
+            first_run, second_run = (
+                _run_replay_subprocess(
+                    command=command,
+                    hash_seed=hash_seed,
+                    digest_path=Path(digest_directory) / f'replay-{hash_seed}.jsonl',
+                )
+                for hash_seed in AUDIT_HASH_SEEDS
             )
-            for hash_seed in AUDIT_HASH_SEEDS
-        )
+        except AuditRunError as error:
+            message = f'{path}: {error}'
+            raise AuditRunError(message) from error
     return compare_runs(first_run=first_run, second_run=second_run)

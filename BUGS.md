@@ -57,6 +57,24 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Keep the last reading and the last duration under separate keys (or separate dicts), so each call subtracts the previous reading. The readings come from `measured_seconds()` (real time, diagnostics only) since Task 12b
 - **Files**: `glitchygames/bitmappy/controllers/enhancements.py`
 
+### 73. PaddleSlap Sets the `game` Logger to INFO at Import, Overriding `--log-level`
+- **Description**: `glitchygames/examples/paddleslap.py:46-47` calls `logging.getLogger('game').setLevel(logging.INFO)` when the module is imported (and `glitchygames/game_objects/paddle.py:18-19` does the same for `game.paddle`). The level set on the `game` logger wins over the root level `--log-level` configures, so `--log-level warning` or `error` still prints every `game.*` INFO line when PaddleSlap runs
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 14: the `--audit` children of the PaddleSlap golden replay printed INFO lines under `--log-level error`)
+- **Date Reported**: 2026-10-19
+- **Details**: Not fixed here: removing the module-level `setLevel` calls changes what PaddleSlap logs by default for other `game.*` loggers if anything else lowers the root level, and needs checking against the other examples that may do the same. `--log-level` defaults to `info`, so only runs that ask for a quieter level are affected
+- **Files**: `glitchygames/examples/paddleslap.py`, `glitchygames/game_objects/paddle.py`
+
+### 74. `debug_events` Is Always False: `--log-level` Is Compared With Upper-Case Names
+- **Description**: `GameEngine.initialize_arguments` (`glitchygames/engine/game_engine.py`, around line 634) sets `OPTIONS['debug_events']` from `OPTIONS['log_level'] in {'DEBUG', 'CRITICAL', 'ERROR'}`, but `--log-level` (`glitchygames/events/game.py`) is lower-cased by `type=str.lower` and its choices are lower case, so the test never matches and unhandled events are never logged through `debug_events`
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 14)
+- **Date Reported**: 2026-10-19
+- **Details**: Not fixed here: correcting the case would turn event debug logging on for `--log-level error` and `critical` runs too, which looks unintended (the set probably meant `debug` only); the intended levels need deciding first
+- **Files**: `glitchygames/engine/game_engine.py`, `glitchygames/events/game.py`, `glitchygames/events/base.py`
+
 ## Resolved Bugs
 
 ### 69. The Live Device Registry Keeps Every Enumeration Answer and Opened Descriptor Until a Recorder Takes Them

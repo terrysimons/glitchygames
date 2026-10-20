@@ -57,6 +57,7 @@ from glitchygames.replay.audit import (
     AuditRunError,
     audit_command,
     audit_recording,
+    environment_reaches_children,
 )
 from glitchygames.replay.driver import (
     REAL_REPLAY_FPS,
@@ -1364,8 +1365,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             SystemExit: With REPLAY_UNUSABLE_EXIT_CODE when the recording cannot be replayed (a
                 recording of another game, or an unreadable or missing file), when
                 --record-trace is given too (recording over a replay is not supported yet), or
-                when --audit is given without --replay-trace or with --replay-fps real; with the
-                audit's outcome (0 or 1) after an audit.
+                when --audit is given without --replay-trace, with --replay-fps real or to an
+                interpreter started with -E or -I; with the audit's outcome (0 or 1) after an
+                audit.
 
         """
         replay_trace_path = options.get('replay_trace')
@@ -1391,13 +1393,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 'is not supported yet (see plans/future-work.md)'
             )
             raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE)
-        if options.get('audit') and options.get('replay_fps') == REAL_REPLAY_FPS:
-            # FPS events from measured frame times differ between the runs
-            self.log.error(
-                f'Cannot audit {replay_trace_path} with --replay-fps {REAL_REPLAY_FPS}: --audit '
-                'compares recorded FPS events'
-            )
-            raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE)
+        if options.get('audit'):
+            self._refuse_an_unsound_audit(replay_trace_path=replay_trace_path, options=options)
         game_class_name = game.__name__ if isinstance(game, type) else type(game).__name__
         try:
             sources = start_replay(
@@ -1417,6 +1414,34 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Logged without a traceback: the message says what is wrong with the recording
         self.log.error(f'Cannot replay {replay_trace_path}: {refusal}')
         raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE) from refusal
+
+    def _refuse_an_unsound_audit(
+        self: Self, *, replay_trace_path: str, options: dict[str, Any]
+    ) -> None:
+        """Exit with REPLAY_UNUSABLE_EXIT_CODE if an audit's two runs could not be compared.
+
+        Args:
+            replay_trace_path: The recording to audit.
+            options: The parsed options.
+
+        Raises:
+            SystemExit: Under --replay-fps real (FPS events from measured frame times differ
+                between the runs), or when Python was started with -E or -I (the children run
+                this interpreter's options again, so they would ignore PYTHONHASHSEED).
+
+        """
+        if options.get('replay_fps') == REAL_REPLAY_FPS:
+            self.log.error(
+                f'Cannot audit {replay_trace_path} with --replay-fps {REAL_REPLAY_FPS}: --audit '
+                'compares recorded FPS events'
+            )
+            raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE)
+        if not environment_reaches_children():
+            self.log.error(
+                f'Cannot audit {replay_trace_path}: Python was started with -E or -I, so the '
+                'audit replays would ignore their PYTHONHASHSEED; run without those options'
+            )
+            raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE)
 
     def _audit_replay(self: Self, *, path: Path) -> NoReturn:
         """Audit the recording in two child replays and exit with the outcome (--audit).

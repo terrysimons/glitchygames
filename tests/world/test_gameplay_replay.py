@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import subprocess  # ruff: ignore[suspicious-subprocess-import] — the end-to-end audit tests run games as child processes (argument lists, no shell)
 import sys
 import zlib
 from datetime import UTC, datetime, timedelta
@@ -35,13 +36,14 @@ from glitchygames.recording import (
 from glitchygames.replay import audit
 from glitchygames.replay.audit import (
     AUDIT_HASH_SEEDS,
+    HEADLESS_ENVIRONMENT_VARIABLES,
     AuditRunError,
     ReplayDigestRun,
     audit_command,
     compare_runs,
+    environment_reaches_children,
     frame_digest,
     read_digest_file,
-    run_process,
 )
 from glitchygames.replay.driver import (
     EVENT_DIVERGENCE,
@@ -86,7 +88,7 @@ EARLY_STOP_FRAME_LIMIT = 10
 CLOCK_ACTION_FRAME = 2
 
 # Child processes of the end-to-end audit tests run headless, and are killed if they hang
-HEADLESS_ENVIRONMENT = {**os.environ, 'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
+HEADLESS_ENVIRONMENT = {**os.environ, **HEADLESS_ENVIRONMENT_VARIABLES}
 RECORD_TIMEOUT_SECONDS = 120.0
 AUDIT_TIMEOUT_SECONDS = 240.0
 
@@ -1380,6 +1382,19 @@ def fake_run(*, digests: list[str], divergence: str | None) -> ReplayDigestRun:
     )
 
 
+def run_child(*, command: list[str], timeout_seconds: float) -> subprocess.CompletedProcess[str]:
+    """Run a command headless as a child process; its output (stdout and stderr) is captured."""
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with fixed test arguments, as an argument list (no shell)
+        command,
+        env=HEADLESS_ENVIRONMENT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+        timeout=timeout_seconds,
+    )
+
+
 def sampled_part(*, frame: dict[str, Any]) -> dict[str, Any]:
     """Return the fields of a recorded frame that the replay samples (sample_scene_frame)."""
     return {'frame': frame['frame'], 'scene': frame['scene'], 'sprites': frame['sprites']}
@@ -1490,28 +1505,79 @@ class TestAuditReplayRuns:
                 digest_path=tmp_path / 'digests.jsonl',
             )
 
-    def test_a_child_that_runs_too_long_is_killed(self):
-        with pytest.raises(TimeoutError):
-            run_process(
+    def test_a_replay_subprocess_that_runs_too_long_is_killed_and_an_audit_error(self, tmp_path):
+        with pytest.raises(AuditRunError, match=r'still running after 0\.5 seconds'):
+            audit._run_replay_subprocess(
                 command=[sys.executable, '-c', 'import time; time.sleep(60)'],
-                environment=HEADLESS_ENVIRONMENT,
+                hash_seed='1',
+                digest_path=tmp_path / 'digests.jsonl',
                 timeout_seconds=0.5,
             )
+
+    def test_a_replay_subprocess_that_cannot_start_is_an_audit_error(self, tmp_path):
+        with pytest.raises(AuditRunError, match='could not be started'):
+            audit._run_replay_subprocess(
+                command=[str(tmp_path / 'no-such-program')],
+                hash_seed='1',
+                digest_path=tmp_path / 'digests.jsonl',
+            )
+
+    def test_an_audit_run_error_names_the_recording(self, tmp_path, mocker):
+        mocker.patch.object(
+            audit, '_run_replay_subprocess', side_effect=AuditRunError('the replay hung')
+        )
+        with pytest.raises(AuditRunError, match=r'r\.jsonl\.gz: the replay hung'):
+            audit.audit_recording(command=['game'], path=tmp_path / 'r.jsonl.gz')
 
     @pytest.mark.parametrize(
         'lines',
         [
             ['{"frame": 0, "digest": "a"}'],
             ['{"frame": 1, "digest": "a"}', '{"divergence": null}'],
+            ['{"frame": 0}', '{"divergence": null}'],
+            ['not json', '{"divergence": null}'],
             [],
+            None,
         ],
-        ids=['no divergence line', 'frames out of order', 'empty'],
+        ids=[
+            'no divergence line',
+            'frames out of order',
+            'no digest',
+            'not JSON',
+            'empty',
+            'missing file',
+        ],
     )
     def test_an_incomplete_digest_file_is_refused(self, tmp_path, lines):
         digest_path = tmp_path / 'digests.jsonl'
-        digest_path.write_text(''.join(f'{line}\n' for line in lines), encoding='utf-8')
+        if lines is not None:
+            digest_path.write_text(''.join(f'{line}\n' for line in lines), encoding='utf-8')
         with pytest.raises(ValueError, match=r'digests\.jsonl'):
             read_digest_file(path=digest_path)
+
+    @pytest.mark.parametrize(
+        ('interpreter_options', 'reaches'),
+        [((), True), (('-E',), False), (('-I',), False)],
+        ids=['plain', '-E', '-I'],
+    )
+    def test_the_environment_reaches_children_unless_python_ignores_it(
+        self, interpreter_options, reaches
+    ):
+        """Asked in a real interpreter started with each option (sys.flags cannot be faked)."""
+        child = run_child(
+            command=[
+                sys.executable,
+                *interpreter_options,
+                '-c',
+                (
+                    'from glitchygames.replay.audit import environment_reaches_children; '
+                    'raise SystemExit(0 if environment_reaches_children() else 7)'
+                ),
+            ],
+            timeout_seconds=RECORD_TIMEOUT_SECONDS,
+        )
+        assert child.returncode == (0 if reaches else 7), child.stdout
+        assert environment_reaches_children()
 
     def test_the_audit_command_is_the_same_command_replayed_unpaced_without_the_audit(self):
         command = audit_command(
@@ -1641,10 +1707,25 @@ class TestAuditOption:
     def test_a_recording_cannot_override_the_audit_options(self):
         assert {'audit', 'replay_digest', 'replay_unpaced'} <= REPLAY_LOCAL_OPTIONS
 
+    def test_audit_under_an_interpreter_that_ignores_the_environment_is_refused(
+        self, mocker, tmp_path, caplog
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        mocker.patch.object(game_engine_module, 'environment_reaches_children', return_value=False)
+        audit_spy = mocker.patch.object(game_engine_module, 'audit_recording')
+        with (
+            pytest.raises(SystemExit) as exit_info,
+            constructed_engine('--replay-trace', str(recording_path), '--audit'),
+        ):
+            pass
+        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert 'started with -E or -I' in caplog.text
+        audit_spy.assert_not_called()
+
     def test_a_golden_recording_passes_the_real_audit(self):
         """End to end: a deterministic game's recording passes --audit (two child replays)."""
         recording_path = REPLAY_FIXTURE_DIRECTORY / 'paddleslap' / f'golden{REPLAY_FIXTURE_SUFFIX}'
-        audit_run = run_process(
+        audit_run = run_child(
             command=[
                 sys.executable,
                 '-m',
@@ -1655,11 +1736,9 @@ class TestAuditOption:
                 str(recording_path),
                 '--audit',
             ],
-            environment=HEADLESS_ENVIRONMENT,
-            capture_output=True,
             timeout_seconds=AUDIT_TIMEOUT_SECONDS,
         )
-        assert audit_run.exit_code == 0, audit_run.output
+        assert audit_run.returncode == 0, audit_run.stdout
 
     def test_unseeded_randomness_makes_the_real_audit_fail(self, tmp_path):
         """End to end: a game drawing from an unseeded source is caught by --audit."""
@@ -1676,18 +1755,14 @@ class TestAuditOption:
             '--resolution',
             '320x240',
         ]
-        record_run = run_process(
+        record_run = run_child(
             command=[*common, '--record-trace', str(recording_path)],
-            environment=HEADLESS_ENVIRONMENT,
-            capture_output=True,
             timeout_seconds=RECORD_TIMEOUT_SECONDS,
         )
-        assert record_run.exit_code == 0, record_run.output
-        audit_run = run_process(
+        assert record_run.returncode == 0, record_run.stdout
+        audit_run = run_child(
             command=[*common, '--replay-trace', str(recording_path), '--audit'],
-            environment=HEADLESS_ENVIRONMENT,
-            capture_output=True,
             timeout_seconds=AUDIT_TIMEOUT_SECONDS,
         )
-        assert audit_run.exit_code == 1, audit_run.output
-        assert 'diverged' in audit_run.output
+        assert audit_run.returncode == 1, audit_run.stdout
+        assert 'diverged' in audit_run.stdout

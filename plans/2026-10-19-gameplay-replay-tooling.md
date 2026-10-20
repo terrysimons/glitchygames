@@ -47,6 +47,14 @@ an empty bookmark list on save).
 
 ### Task 1: `--headless`, exit codes and the divergence report
 
+> **Replaces `--replay-unpaced`.** Part 1 Task 14 added a hidden, private `--replay-unpaced`
+> option (`help=argparse.SUPPRESS`, in `REPLAY_LOCAL_OPTIONS`) that `--audit` passes to its child
+> replays, and an early return for it in `SceneManager._handle_frame_pacing`. This task must remove
+> it: `audit.AUDIT_CHILD_ARGUMENTS` passes `--headless` instead, and the option, its
+> `REPLAY_LOCAL_OPTIONS` entry, its "ignored without --replay-trace" warning, the early return and
+> their tests (`test_handle_frame_pacing_never_waits_in_an_unpaced_replay`, the audit option tests in
+> `tests/world/test_gameplay_replay.py`) go, with the unpaced path coming from `paced_frame_seconds`.
+
 **Files:**
 - Modify: `glitchygames/sources.py` (Protocol `paced_frame_seconds`),
   `glitchygames/live_sources.py` (`LiveSources.paced_frame_seconds` returns None)
