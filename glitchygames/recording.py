@@ -832,6 +832,15 @@ class RecordingSources:
         """
         return self.inner.performance_frame_seconds(measured=measured, frame_seconds=frame_seconds)
 
+    def paced_frame_seconds(self) -> float | None:
+        """Return how ``inner`` paces the frame starting now (not recorded: it changes no input).
+
+        Returns:
+            Seconds, or None for the target FPS.
+
+        """
+        return self.inner.paced_frame_seconds()
+
     def input_snapshot(self) -> InputSnapshot:
         """Return ``inner``'s polled input, remembered for this frame's ``input_changes``.
 

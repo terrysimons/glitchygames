@@ -277,13 +277,11 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 | `--replay-fps` | `choice` | `None` (read as `recorded`) | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
 | `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0, 3 when nondeterministic, 70 when a run could not finish; see [exit codes](gameplay_replay.md#exit-codes)) |
 | `--replay-digest` | `PATH` | `None` | With `--replay-trace`: write a SHA-256 per replayed frame (used by `--audit`) |
+| `--headless` | `store_true` | `False` | Run on SDL's dummy video and audio drivers (no window, no sound); a replay also runs unpaced and prints its report to stdout ([headless runs](gameplay_replay.md#headless-runs-headless)) |
 | `--random-seed` | `int` | random 64-bit | Master seed for every engine random stream |
 | `--screen-shake-intensity` | `float` | `1.0` | Screen shake strength, 0.0 (off) to 1.0 |
 | `--rumble-intensity` | `float` | `1.0` | Controller rumble strength, 0.0 (off) to 1.0 |
 | `--live-voice-pool` | `int` | `4` | Mixer channels reserved for real-time synth voices |
-
-`--replay-unpaced` also exists but is hidden (`argparse.SUPPRESS`): `--audit` adds it to its
-child replays.
 
 **`--video-driver` choices by platform:**
 

@@ -1,11 +1,11 @@
 """The determinism audit (``--audit``): replay a recording twice in fresh processes and compare.
 
 ``--replay-trace PATH --audit`` does not replay in-process. It runs the same command again
-(``audit_command``: this interpreter, ``sys.orig_argv`` with ``--no-audit`` and
-``--replay-unpaced`` added) as two child processes, each with ``--replay-digest <temp file>``,
-``SDL_VIDEODRIVER=dummy``, ``SDL_AUDIODRIVER=dummy`` and ``PYTHONHASHSEED`` set to one of
-``AUDIT_HASH_SEEDS``. Fresh processes are the point: they give fresh engine state and different
-hash seeds, so set and dict ordering bugs show up. Each child replays as usual (with
+(``audit_command``: this interpreter, ``sys.orig_argv`` with ``--no-audit`` and ``--headless``
+added: no window, no sound, no pacing) as two child processes, each with
+``--replay-digest <temp file>`` and ``PYTHONHASHSEED`` set to one of ``AUDIT_HASH_SEEDS``.
+Fresh processes are the point: they give fresh engine state and different hash seeds, so set and
+dict ordering bugs show up. Each child replays as usual (with
 ``--replay-fps recorded``: the audit refuses ``real``) and writes its digest file
 (``write_digest_file``): one SHA-256 per replayed frame (``frame_digest`` of the frame as the
 replay sampled it), then its divergence summary.
@@ -42,7 +42,6 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs this ga
 import sys
 import tempfile
 from pathlib import Path
-from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
 
 from glitchygames.exit_codes import ExitCode
@@ -53,18 +52,13 @@ if TYPE_CHECKING:
 # PYTHONHASHSEED per run, so set/dict-order bugs show up
 AUDIT_HASH_SEEDS = ('1', '2')
 
-# Added to the audited command for each child: replay instead of auditing again, and never pace
-# (the recorded frame times are served anyway; pacing would only make the audit take real time)
-AUDIT_CHILD_ARGUMENTS = ('--no-audit', '--replay-unpaced')
+# Added to the audited command for each child: replay instead of auditing again, headless (no
+# window, no sound, and never paced: the recorded frame times are served anyway, so pacing would
+# only make the audit take real time)
+AUDIT_CHILD_ARGUMENTS = ('--no-audit', '--headless')
 
 # The child's option that names its digest file
 REPLAY_DIGEST_ARGUMENT = '--replay-digest'
-
-# Each child runs headless (read-only: the audit's children all use it)
-HEADLESS_ENVIRONMENT_VARIABLES: Mapping[str, str] = MappingProxyType({
-    'SDL_VIDEODRIVER': 'dummy',
-    'SDL_AUDIODRIVER': 'dummy',
-})
 
 # A replay child still running after this long is killed and fails the audit (unpaced replays run
 # far faster than real time, so this only catches a hung child)
@@ -310,7 +304,7 @@ def _run_replay_subprocess(
 
     """
     run_name = f'The replay with PYTHONHASHSEED={hash_seed}'
-    environment = {**os.environ, **HEADLESS_ENVIRONMENT_VARIABLES, 'PYTHONHASHSEED': hash_seed}
+    environment = {**os.environ, 'PYTHONHASHSEED': hash_seed}
     try:
         process = run_command(
             command=[*command, REPLAY_DIGEST_ARGUMENT, str(digest_path)],

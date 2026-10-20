@@ -25,6 +25,7 @@ from glitchygames.recording import RecordingSources
 from glitchygames.scenes import SceneManager
 from glitchygames.sources import (
     SourcesAlreadyRunningError,
+    active_sources,
     frame_clock_seconds,
     install_sources,
 )
@@ -566,6 +567,48 @@ class TestPacing:
             (60.01,)
         ] * 3
         assert len(_closing_samples(driver)) == 3
+
+    def test_sources_pacing_override_replaces_the_target(self, driver_factory, mocker):
+        """A door that paces a frame to 0.0 seconds (a headless replay) never sleeps."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=0.0)
+
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        assert driver.timer.sleep_deadlines == []
+        assert driver.timer.compute_deadline_calls == []
+        driver.manager.clock.tick.assert_not_called()
+
+    def test_unpaced_frames_without_a_timer_never_tick_the_clock(self, driver_factory, mocker):
+        """Without a timer backend, an unpaced frame skips the pygame clock (it would sleep)."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS, use_timer=False)
+        mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=0.0)
+
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        driver.manager.clock.tick.assert_not_called()
+
+    def test_a_positive_paced_period_replaces_the_target(self, driver_factory, mocker):
+        """Without a timer backend, a paced period of 0.05 s ticks the pygame clock at 20 FPS."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS, use_timer=False)
+        mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=0.05)
+
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        assert driver.manager.clock.tick.call_count == FRAMES_TO_RUN
+        driver.manager.clock.tick.assert_called_with(pytest.approx(20.0))
+
+    def test_a_positive_paced_period_sets_the_timer_deadlines(self, driver_factory, mocker):
+        """With a timer backend, a paced period of 1/32 s is the deadline period (not 1/64 s)."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        mocker.patch.object(active_sources(), 'paced_frame_seconds', return_value=1 / 32)
+
+        driver.run(frame_count=3)
+
+        assert [period for _, period in driver.timer.compute_deadline_calls] == [
+            2 * EXACT_PERIOD_NS
+        ] * 3
+        assert len(driver.timer.sleep_deadlines) == 3
 
     def test_hitch_records_one_long_frame(self, driver_factory):
         """A 2 s hitch is one 2 s sample; the next deadline comes from compute_deadline."""

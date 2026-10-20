@@ -803,22 +803,28 @@ class SceneManager(SceneInterface, events.EventManager):
         timer: object | None,
         period_ns: int,
         prev_deadline_ns: int | None,
+        *,
+        paced_seconds: float | None,
     ) -> None:
         """Handle frame pacing via timer or fallback to pygame clock.
 
         Only paces: the frame is measured afterwards, by _finish_frame, with
-        time.perf_counter(). An unpaced replay (``--replay-unpaced``) never waits.
+        time.perf_counter().
 
         Args:
             timer: The timer backend instance (or None)
             period_ns: Frame period in nanoseconds (0 if no timer)
             prev_deadline_ns: Previous frame deadline in nanoseconds (or None)
+            paced_seconds: The doors' pacing for this frame (``paced_frame_seconds``): None
+                paces to the target FPS, 0.0 (or less) never waits (no timer deadline and no
+                clock tick: a headless replay), a positive period paces to it (``period_ns``
+                already holds it for the timer backend; the pygame clock ticks at
+                ``1 / paced_seconds``).
 
         """
-        # The replay children of --audit (glitchygames/replay/audit.py) run as fast as they can:
-        # a replay's frame times come from the recording, so pacing would only take real time.
-        # GameEngine clears the option when not replaying.
-        if self.OPTIONS.get('replay_unpaced', False):
+        # Unpaced: a headless replay's frame times come from the recording, so waiting would
+        # only take real time. Even the clock fallback below would wait (tick(target_fps) sleeps)
+        if paced_seconds is not None and paced_seconds <= 0.0:
             return
         if timer is not None and period_ns > 0:
             # Cast timer to Any since it has dynamic methods (compute_deadline, etc.)
@@ -834,6 +840,8 @@ class SceneManager(SceneInterface, events.EventManager):
             if self.OPTIONS.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
         # Fallback to pygame clock for FPS measurement if no timer
+        elif paced_seconds is not None:
+            self.clock.tick(1 / paced_seconds)
         elif self.target_fps > 0:
             self.clock.tick(self.target_fps)
         else:
@@ -887,11 +895,15 @@ class SceneManager(SceneInterface, events.EventManager):
         ):
             # Frame pacing using timer backend when available
             timer = getattr(self.game_engine, 'timer', None)
+            # The doors may pace the frame themselves (0.0: not at all, in a headless replay)
+            paced_seconds = active_sources().paced_frame_seconds()
             period_ns = 0
             if timer is not None:
-                period_ns = timer.start_frame(self.target_fps)
-
-            previous_deadline_ns = getattr(self, '_timer_prev_deadline_ns', None)
+                period_ns = (
+                    timer.start_frame(self.target_fps)
+                    if paced_seconds is None
+                    else round(paced_seconds * 1_000_000_000)
+                )
 
             self._run_frame()
 
@@ -902,7 +914,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 frame_start_seconds=frame_start_seconds,
                 timer=timer,
                 period_ns=period_ns,
-                previous_deadline_ns=previous_deadline_ns,
+                paced_seconds=paced_seconds,
                 processing_seconds=processing_seconds,
             )
 
@@ -915,22 +927,22 @@ class SceneManager(SceneInterface, events.EventManager):
         frame_start_seconds: float,
         timer: object | None,
         period_ns: int,
-        previous_deadline_ns: int | None,
+        paced_seconds: float | None,
         processing_seconds: float,
     ) -> float:
         """End the frame: pace, measure it once, then record that one frame time.
 
         In order: pace (timer backend deadline on the timer's own clock, else the pygame
-        clock; target 0 never sleeps) and log timer jitter; read time.perf_counter() once,
-        which ends this frame and starts the next; set ``self.dt`` to the start-to-start
-        period as the frame-time door returns it: the measurement when live, the recorded dt
-        in a replay; add it to the frame clock; record it as the frame's FPS sample and post
-        the FPS event when its interval of frame-clock time has passed (the frame clock replays
-        exactly). Each frame's ``self.dt`` is set only here (_set_frame_time), so recorded
-        frames sum exactly to elapsed time, and logic and the debug overlay in the next frame
-        see the same value the statistics recorded (engine audit #15); the statistics take
-        their frame time from _performance_frame_seconds, which is ``self.dt`` except in a
-        ``--replay-fps real`` replay (this machine's measurement).
+        clock; target 0 never sleeps, nor does a frame the doors leave unpaced) and log timer
+        jitter; read time.perf_counter() once, which ends this frame and starts the next; set
+        ``self.dt`` to the start-to-start period as the frame-time door returns it: the
+        measurement when live, the recorded dt in a replay; add it to the frame clock; record
+        it as the frame's FPS sample and post the FPS event when its interval of frame-clock
+        time has passed (the frame clock replays exactly). Each frame's ``self.dt`` is set only
+        here (_set_frame_time), so recorded frames sum exactly to elapsed time, and logic and the
+        debug overlay in the next frame see the same value the statistics recorded (engine audit
+        #15); the statistics take their frame time from _performance_frame_seconds, which is
+        ``self.dt`` except in a ``--replay-fps real`` replay (this machine's measurement).
 
         The statistics are recorded after the closing reading, so their (microseconds of)
         work counts towards the next frame's period rather than going unmeasured.
@@ -940,7 +952,8 @@ class SceneManager(SceneInterface, events.EventManager):
                 previous frame's closing reading).
             timer: The timer backend instance (or None).
             period_ns: Frame period in nanoseconds (0 if no timer or uncapped).
-            previous_deadline_ns: The previous frame's deadline in nanoseconds (or None).
+            paced_seconds: The doors' pacing for this frame (``paced_frame_seconds``, read when
+                the frame started): None for the target FPS, 0.0 for none, else a period.
             processing_seconds: The frame's processing time, without pacing, in seconds.
 
         Returns:
@@ -950,7 +963,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self._handle_frame_pacing(
             timer=timer,
             period_ns=period_ns,
-            prev_deadline_ns=previous_deadline_ns,
+            # The previous frame's deadline: only pacing sets it, after each frame's work
+            prev_deadline_ns=getattr(self, '_timer_prev_deadline_ns', None),
+            paced_seconds=paced_seconds,
         )
 
         closing_reading_seconds = time.perf_counter()

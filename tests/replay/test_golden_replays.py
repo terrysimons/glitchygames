@@ -2,8 +2,9 @@
 
 A fixture is ``tests/fixtures/replays/<console-script>/<name>.jsonl.gz``, recorded through the
 real engine by scripts/record_scripted_session.py. Each is replayed with the normal
-``--replay-trace`` startup path (GameEngine + SceneManager.start, not the golden harness) and must
-match its recording on every frame.
+``--replay-trace PATH --headless`` startup path (GameEngine + SceneManager.start, not the golden
+harness), must match its recording on every frame and exit ``ExitCode.SUCCESS``; a failure shows
+the printed divergence report.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from scripts.record_scripted_session import (
     REPLAY_FIXTURE_SUFFIX,
 )
 
+from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import SPRITE_DIVERGENCE
 from glitchygames.tracing import read_trace_result
 from tests.replay.replay_helpers import replay_through_engine, tamper_first_sprite_rect
@@ -59,29 +61,33 @@ def test_every_fixture_directory_is_a_game_console_script():
 
 
 @pytest.mark.parametrize('path', REPLAY_FIXTURES, ids=fixture_id)
-def test_golden_replay_matches_every_frame(mocker, path):
-    """The fixture replays through the real loop to its end with no divergence."""
+def test_golden_replay_matches_every_frame(mocker, capsys, path):
+    """The fixture replays headless through the real loop to its end and exits SUCCESS."""
     recorded_frame_count = len(read_trace_result(path=path).trace['frames'])
 
-    result = replay_through_engine(
+    replay = replay_through_engine(
         mocker=mocker, game_key=CONSOLE_SCRIPT_GAME_KEYS[path.parent.name], path=path
     )
 
-    assert result.divergence is None, result.divergence
-    assert result.end_reason == 'end_of_recording'
-    assert result.frames_replayed == recorded_frame_count
+    report = capsys.readouterr().out
+    assert replay.exit_status == ExitCode.SUCCESS, report
+    assert report == f'Replay matched {recorded_frame_count} frames (end of recording)\n'
+    assert replay.result.frames_replayed == recorded_frame_count
 
 
-def test_a_tampered_golden_replay_is_reported_at_its_frame(mocker, tmp_path):
+def test_a_tampered_golden_replay_is_reported_at_its_frame(mocker, capsys, tmp_path):
     """The golden replays really compare: a fixture moved by one pixel diverges there."""
     path = REPLAY_FIXTURE_DIRECTORY / 'paddleslap' / f'golden{REPLAY_FIXTURE_SUFFIX}'
     tampered_path = tmp_path / path.name
     tampered_path.write_bytes(path.read_bytes())
     tamper_first_sprite_rect(recording_path=tampered_path, frame_number=TAMPERED_FRAME)
 
-    result = replay_through_engine(mocker=mocker, game_key='paddleslap', path=tampered_path)
+    replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=tampered_path)
 
-    assert result.divergence is not None
-    assert result.divergence.frame_number == TAMPERED_FRAME
-    assert result.divergence.kind == SPRITE_DIVERGENCE
-    assert result.end_reason == 'diverged'
+    report = capsys.readouterr().out
+    assert replay.exit_status == ExitCode.REPLAY_DIVERGED, report
+    assert report.startswith(f'Replay diverged at frame {TAMPERED_FRAME}: sprite ')
+    divergence = replay.result.divergence
+    assert divergence is not None
+    assert divergence.frame_number == TAMPERED_FRAME
+    assert divergence.kind == SPRITE_DIVERGENCE

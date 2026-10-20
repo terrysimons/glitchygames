@@ -57,7 +57,7 @@ from glitchygames.recording import (
     UnrepresentableValue,
     event_from_record,
 )
-from glitchygames.replay.audit import HEADLESS_ENVIRONMENT_VARIABLES, run_command
+from glitchygames.replay.audit import run_command
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
 from glitchygames.sources import active_sources, install_sources
@@ -68,7 +68,7 @@ from glitchygames.tracing import read_trace_result
 from glitchygames.transitions import FadeTransition
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable, Generator, Sequence
     from pathlib import Path
 
 # Each perf_counter() read advances the fake clock by this much, so frame times differ by
@@ -280,7 +280,7 @@ SIGNAL_CHILD_TIMEOUT_SECONDS = 120.0
 
 
 def run_self_terminating_game(*, game_file: Path, extra_arguments: tuple[str, ...]):
-    """Run SELF_TERMINATING_GAME_SOURCE headless as a child, without a preset SDL signal hint.
+    """Run SELF_TERMINATING_GAME_SOURCE --headless as a child, with no preset SDL signal hint.
 
     Returns:
         The finished process (subprocess.CompletedProcess, output captured).
@@ -299,9 +299,10 @@ def run_self_terminating_game(*, game_file: Path, extra_arguments: tuple[str, ..
             'error',
             '--resolution',
             '320x240',
+            '--headless',
             *extra_arguments,
         ],
-        environment={**environment, **HEADLESS_ENVIRONMENT_VARIABLES},
+        environment=environment,
         timeout_seconds=SIGNAL_CHILD_TIMEOUT_SECONDS,
         capture_output=True,
     )
@@ -351,12 +352,44 @@ def engine_run_environment(mocker) -> Generator[FakePerfCounter]:
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch.object(pygame, 'quit')
     mocker.patch.object(pygame.display, 'quit')
+    # --headless sets the SDL driver variables; the test's own values come back afterwards
+    mocker.patch.dict(os.environ)
     GoldenTraceSceneManager.install()
     try:
         yield fake_perf_counter
     finally:
         pygame.event.clear()
         GoldenTraceSceneManager.uninstall()
+
+
+# The command line run_engine gives every engine before its own arguments
+RUN_ENGINE_ARGUMENTS = (
+    '--resolution',
+    RECORDING_RESOLUTION,
+    '--log-level',
+    'warning',
+    '--input-mode',
+    'joystick',
+    '--target-fps',
+    '0',
+    '--fps-log-interval-ms',
+    '1000000000',
+)
+
+
+def build_engine(*, scene_class: type[Scene], arguments: Sequence[str]) -> GoldenTraceEngine:
+    """Construct (not start) the engine with a game scene, on a given command line.
+
+    Args:
+        scene_class: The game scene.
+        arguments: The whole command line (RUN_ENGINE_ARGUMENTS and any extra arguments).
+
+    Returns:
+        The engine, constructed.
+
+    """
+    with command_line(list(arguments)):
+        return GoldenTraceEngine(game=scene_class)
 
 
 def run_engine(*arguments: str) -> GoldenTraceEngine:
@@ -369,20 +402,9 @@ def run_engine(*arguments: str) -> GoldenTraceEngine:
         The engine, after GameEngine.start() returned (shut down).
 
     """
-    with command_line([
-        '--resolution',
-        RECORDING_RESOLUTION,
-        '--log-level',
-        'warning',
-        '--input-mode',
-        'joystick',
-        '--target-fps',
-        '0',
-        '--fps-log-interval-ms',
-        '1000000000',
-        *arguments,
-    ]):
-        engine = GoldenTraceEngine(game=DepartureRecordedScene)
+    engine = build_engine(
+        scene_class=DepartureRecordedScene, arguments=(*RUN_ENGINE_ARGUMENTS, *arguments)
+    )
     engine.start()
     return engine
 

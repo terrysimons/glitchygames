@@ -73,20 +73,22 @@ and Replay").
   fixtures and the doors guard (`tests/test_engine_doors.py`). This replaces the old "Gameplay
   replay" entry; its items (wall-clock reads in gameplay, polled input, reference mapping) are all
   done.
-- **Part 2, replay tooling** (pending, `plans/2026-10-19-gameplay-replay-tooling.md`): watched
-  replay controls (starts paused with a "Press Spacebar to Start Game Replay" overlay that also
-  shows how to turn on the debug overlay), `--headless` (replaces the private `--replay-unpaced`),
-  `--rebaseline`, and the pytest plugin for recordings. While watched controls are active,
+- **Part 2, replay tooling** (in progress, `plans/2026-10-19-gameplay-replay-tooling.md`): done:
+  `--headless` (Task 1: any run on SDL's dummy drivers; replays then run unpaced, print the
+  divergence report and exit with `ExitCode` members; it replaced the private `--replay-unpaced`).
+  Pending: watched replay controls (starts paused with a "Press Spacebar to Start Game Replay"
+  overlay that also shows how to turn on the debug overlay), `--rebaseline`, and the pytest plugin
+  for recordings. While watched controls are active,
   KEYDOWN/KEYUP stay unblocked at SDL and reach only the replay controls.
 - **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
   starts, the playback scope (does not block real input at SDL; real input reaches only its "exit
   playback" check), demos (the bundled PaddleSlap demo), instant replay and ghosts.
-- **Recording over a replay (`--record-trace` with `--replay-trace`) is refused** (exit 2,
-  `GameEngine._start_requested_replay`): the recorder would classify the replay's batches with the
-  internal-post tracker, whose pending posts the replay's pump already consumed, and would not
-  copy the source recording's saves and device fields. Part 2 Task 6 (`--rebaseline`) lifts the
-  refusal by wiring `ReplaySources.last_batch_origins()` and `recorded_frame_fields()` into
-  `RecordingSources`.
+- **Recording over a replay (`--record-trace` with `--replay-trace`) is refused**
+  (`ExitCode.OPTIONS_REFUSED`, 64; `GameEngine._start_requested_replay`): the recorder would
+  classify the replay's batches with the internal-post tracker, whose pending posts the replay's
+  pump already consumed, and would not copy the source recording's saves and device fields. Part 2
+  Task 6 (`--rebaseline`) lifts the refusal by wiring `ReplaySources.last_batch_origins()` and
+  `recorded_frame_fields()` into `RecordingSources`.
 
 Follow-ups (not in any plan yet):
 
@@ -96,8 +98,6 @@ Follow-ups (not in any plan yet):
   hook and records its actions as control events (spec section 2, out of scope).
 - **"Take over" handover:** let the player take control part way through a replay. It must end or
   suspend the SDL input block at the handover and switch the doors from recorded to live input.
-- **Divergence exit status:** a diverged `--replay-trace` run logs the divergence but still exits
-  0; Part 2's `--headless` exits 1 on a divergence (spec 3.3).
 - **Audit test helper suppressions:** the end-to-end audit test helper should start its children
   through `glitchygames/replay/audit.py`'s launcher, so the only `subprocess` suppression pair is
   the one in engine code (user decision, queued after the core documentation task).
@@ -129,8 +129,7 @@ candidate ticket.
   the latch section below for why a tap alone is not enough in lockstep mode).
 - To consider: aligning the two streams by frame number; disk size (a 640×480 RGBA frame is
   about 1.2 MB, so about 74 MB per second at 60 FPS); frame-skip and downscale options.
-- Builds on the planned general `--headless` (any run, not only replays; Part 2 of the replay
-  plans adds the replay form).
+- Builds on `--headless` (any run, not only replays; Part 2 Task 1 of the replay plans).
 
 ### One ready latch per frame (the frame is a packet)
 
@@ -190,8 +189,8 @@ and "audio buffer ready" flags.
 ### Prerequisites already built (replay Part 1)
 
 The doors, deterministic simulation, recordings, the supervisor hook, the input-blocking helper
-(`glitchygames/replay/input_blocking.py`) and the golden fixtures. Still needed: the planned
-general `--headless` (any run, not only replays).
+(`glitchygames/replay/input_blocking.py`), the golden fixtures and `--headless` (any run, not
+only replays; Part 2 Task 1).
 
 ## Trace format ideas (pending a user decision)
 

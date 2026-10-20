@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
+import os
 from typing import TYPE_CHECKING, Any
 
 import pygame
+import pytest
 from scripts.record_golden_traces import (
     GAME_SCENES,
     GoldenTraceEngine,
@@ -12,7 +15,6 @@ from scripts.record_golden_traces import (
     command_line,
 )
 
-from glitchygames.scenes import SceneManager
 from glitchygames.tracing import read_trace_result, write_trace
 
 if TYPE_CHECKING:
@@ -24,13 +26,27 @@ if TYPE_CHECKING:
     from glitchygames.replay import ReplayResult
 
 
-def replay_through_engine(*, mocker: MockerFixture, game_key: str, path: Path) -> ReplayResult:
-    """Replay a recording headless through the real engine loop and return its result.
+@dataclasses.dataclass(frozen=True)
+class EngineReplay:
+    """How a replay through the engine ended.
 
-    The replay is started the normal way, with ``--replay-trace`` (GameEngine.__init__ installs
-    the ReplaySources, GameEngine.start runs SceneManager.start). Frame pacing is switched off:
-    it only sleeps (the replay's frame times come from the recording), so the replay runs as fast
-    as it can instead of in real time. pygame is left initialized for later tests on the worker.
+    Attributes:
+        exit_status: The status GameEngine.start() exited with (SystemExit's code).
+        result: The replay's result, settled by GameEngine._shutdown.
+
+    """
+
+    exit_status: object
+    result: ReplayResult
+
+
+def replay_through_engine(*, mocker: MockerFixture, game_key: str, path: Path) -> EngineReplay:
+    """Replay a recording through the real engine loop with ``--replay-trace PATH --headless``.
+
+    The replay is started the normal way (GameEngine.__init__ installs the ReplaySources,
+    GameEngine.start runs SceneManager.start), headless: unpaced, on SDL's dummy drivers, the
+    report printed to stdout and the run ended with the replay's exit code. pygame is left
+    initialized for later tests on the worker, and the SDL driver variables are restored.
 
     Args:
         mocker: pytest-mock's fixture.
@@ -38,24 +54,26 @@ def replay_through_engine(*, mocker: MockerFixture, game_key: str, path: Path) -
         path: The recording.
 
     Returns:
-        The replay's result, settled by GameEngine._shutdown.
+        The exit status and the result.
 
     """
-    mocker.patch.object(SceneManager, '_handle_frame_pacing')
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch('pygame.quit')
     mocker.patch('pygame.display.quit')
+    # --headless sets the SDL driver variables; the test's own values come back afterwards
+    mocker.patch.dict(os.environ)
     GoldenTraceSceneManager.install()
     try:
-        with command_line(['--log-level', 'warning', '--replay-trace', str(path)]):
+        with command_line(['--log-level', 'warning', '--replay-trace', str(path), '--headless']):
             engine = GoldenTraceEngine(game=GAME_SCENES[game_key])
-        engine.start()
+        with pytest.raises(SystemExit) as exit_info:
+            engine.start()
     finally:
         pygame.event.clear()
         GoldenTraceSceneManager.uninstall()
     sources = engine.replay_sources
     assert sources is not None
-    return sources.result
+    return EngineReplay(exit_status=exit_info.value.code, result=sources.result)
 
 
 def rewrite_recording(*, recording_path: Path, change: Callable[[dict[str, Any]], None]) -> None:

@@ -18,6 +18,7 @@ from scripts.record_scripted_session import (
     record_scripted_session,
 )
 
+from glitchygames.exit_codes import ExitCode
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN
 from glitchygames.tracing import read_trace_result
 from tests.replay.replay_helpers import replay_through_engine
@@ -75,11 +76,11 @@ def test_scripted_session_records_and_replays(mocker, tmp_path):
     assert key_events
     assert {origin for _type, _key, origin in key_events} == {EXTERNAL_ORIGIN}
 
-    result = replay_through_engine(mocker=mocker, game_key='paddleslap', path=path)
+    replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=path)
 
-    assert result.divergence is None, result.divergence
-    assert result.end_reason == 'end_of_recording'
-    assert result.frames_replayed == RECORDED_FRAME_COUNT
+    assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
+    assert replay.result.end_reason == 'end_of_recording'
+    assert replay.result.frames_replayed == RECORDED_FRAME_COUNT
 
 
 def test_games_with_sprite_placements_are_refused(scene_manager):

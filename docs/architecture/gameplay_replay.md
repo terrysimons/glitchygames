@@ -4,8 +4,8 @@ GlitchyGames can record a play session and replay it exactly through the real en
 engine version and same recording give bit-identical sprite traces: every frame's sprite
 `rect` and `visible` match the recording. Audio is played during a replay but is not compared.
 
-This page covers the replay core: recording, exact replay, the determinism audit, and the rules
-game code follows so its sessions replay. Watched-replay controls, headless replay, rebaselining
+This page covers the replay core: recording, exact replay, headless runs, the determinism audit,
+and the rules game code follows so its sessions replay. Watched-replay controls, rebaselining
 and in-game playback (demos, instant replay, ghosts) are planned. See
 `plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for what is
 pending.
@@ -18,6 +18,10 @@ uv run paddleslap --record-trace session.jsonl.gz
 
 # Replay it exactly, comparing every frame with the recording
 uv run paddleslap --replay-trace session.jsonl.gz
+
+# The same with no window, no sound and no pacing; the report goes to stdout, and the exit
+# code says whether it matched (0) or diverged (1)
+uv run paddleslap --replay-trace session.jsonl.gz --headless
 
 # Check that it replays the same way twice, in fresh processes with different hash seeds
 uv run paddleslap --replay-trace session.jsonl.gz --audit
@@ -39,6 +43,7 @@ talking to, so a replay runs the real engine and the real game code again.
 | Saves | files on disk (`DiskSaveManager`) | in memory (`MemorySaveManager`), seeded from the recording |
 | Wall clock | the real time | the recording's start time plus the frame clock |
 | Random seed | `--random-seed` or 64 random bits | the recorded seed |
+| Pacing | the target FPS | the target FPS; none under `--headless` |
 
 The modules:
 
@@ -179,14 +184,28 @@ replays with one warning too: it has no input snapshots, so polled input reads a
 Each frame, the replay serves the recorded events, `dt`, input, devices, saves and clocks. Then
 it compares the frame with the recording: the active scene's class, then each recorded sprite in
 draw order (present, `rect`, `visible`), along with the frame's internal events, control events
-and pump count. The first difference stops the replay and is logged on one line:
+and pump count. The first difference stops the replay. The replay also stops at the last
+recorded frame or when the window is closed. Then it reports how it went (logged, or printed to
+stdout under [`--headless`](#headless-runs-headless)). A sprite divergence lists that sprite in
+the last 20 frames up to the divergent one, as recorded and as replayed:
 
 ```text
-Replay diverged: frame 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]
+Replay diverged at frame 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]
+Ball#2, last 20 frames (expected | got):
+  6100: [400, 290, 16, 16] visible | [400, 290, 16, 16] visible
+  ...
+  6120: [412, 300, 16, 16] visible | [412, 301, 16, 16] visible
 ```
 
-The replay also stops at the last recorded frame (`Replay matched N frames`) or when the window
-is closed.
+Other divergences (the scene, an event, the frame or pump count) are reported on their one line.
+A replay that matched reports `Replay matched 9800 frames (end of recording)` (or `(the window
+was closed)`), and one that matched up to the cut-off of a truncated recording `Replay ended
+early at frame 4312: the recording is truncated`.
+
+Every replay that ends normally, watched or headless, exits with its result: `SUCCESS` (0) when
+it matched or the window was closed, `REPLAY_DIVERGED` (1) when it diverged, `UNUSABLE_INPUT`
+(65) for a truncated recording. A crash or a signal exits as for any run (see
+[exit codes](#exit-codes)).
 
 While a replay runs, real keyboard, mouse, touch, joystick, controller, device and window events
 are blocked at SDL, so they never reach the game. The block is applied again on every pump
@@ -204,11 +223,24 @@ performance panel use the recorded frame times, and FPS events are compared exac
 `real`, they use this machine's measured frame times and FPS events are not compared; sprites
 that draw the FPS value may then diverge. Logic always receives the recorded `dt`.
 
+## Headless runs (`--headless`)
+
+`--headless` runs any game on SDL's dummy video and audio drivers: no window and no sound. It sets
+`SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` as soon as the options are read, before
+pygame starts its display and mixer. If pygame was already started before the engine (by code
+run at import), a display or mixer on another driver is restarted on the dummy one, with a
+warning.
+
+A live headless run is paced to the target FPS as usual (an unpaced live frame would last about
+a millisecond of game time) and ends however the game ends. A headless replay is not paced at
+all, since its frame times come from the recording, prints its report to stdout instead of
+logging it, and exits with its result as above.
+
 ## The determinism audit (`--audit`)
 
-`--replay-trace PATH --audit` does not replay in-process. It runs the same command again as two
-headless child processes, with `PYTHONHASHSEED` set to 1 and 2, and each child writes a SHA-256
-digest of every replayed frame. The audit passes (exit `SUCCESS`, 0) when both runs match the
+`--replay-trace PATH --audit` does not replay in-process. It runs the same command again, with
+`--headless` added, as two child processes, with `PYTHONHASHSEED` set to 1 and 2, and each child
+writes a SHA-256 digest of every replayed frame. The audit passes (exit `SUCCESS`, 0) when both runs match the
 recording and their digests match each other; otherwise it reports the first differing frame
 and exits `AUDIT_NONDETERMINISTIC` (3). A child that cannot start, hangs, crashes (exits with any
 status but 0, or 1 with a recorded divergence) or writes no digests means the audit could not

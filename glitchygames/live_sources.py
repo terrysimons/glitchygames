@@ -92,6 +92,15 @@ class LiveSources:
         del measured
         return frame_seconds
 
+    def paced_frame_seconds(self: Self) -> float | None:
+        """Live play paces to the target FPS (``--headless`` included).
+
+        Returns:
+            None.
+
+        """
+        return None
+
     def input_snapshot(self: Self) -> InputSnapshot:
         """Read pygame's polled input and every opened device's positions (both layers) now.
 

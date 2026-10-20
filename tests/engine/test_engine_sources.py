@@ -216,7 +216,7 @@ class TestFrameLoopUsesTheDoors:
                 frame_start_seconds=0.0,
                 timer=None,
                 period_ns=0,
-                previous_deadline_ns=None,
+                paced_seconds=None,
                 processing_seconds=0.0,
             )
             assert manager.dt == 0.25

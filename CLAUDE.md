@@ -317,10 +317,14 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   format version, `MISSING_INPUT` (66) for a missing file, and `OPTIONS_REFUSED` (64) for
   `--record-trace` given too (refused until Part 2's `--rebaseline` wires recording over a
   replay). A different engine version only warns. Recorded options apply except
-  `REPLAY_LOCAL_OPTIONS`. The first divergence (kinds `scene`, `sprite`, `event`, `length`) is
-  logged on one line, e.g. `frame 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412,
-  301, 16, 16]`, and stops the replay. So do the last recorded frame and closing the window.
-  Recorded window references map to None (live events of the display window carry None).
+  `REPLAY_LOCAL_OPTIONS`. The first divergence (kinds `scene`, `sprite`, `event`, `length`)
+  stops the replay, as do the last recorded frame and closing the window. The report
+  (`ReplayResult.report()`: `Replay diverged at frame 6120: sprite Ball#2 rect expected [412,
+  300, 16, 16], got [412, 301, 16, 16]`, then that sprite's last 20 frames, expected | got; or
+  `Replay matched N frames (end of recording)`) is logged, and every replay that ends normally
+  exits with `ReplaySources.run_exit_code()`: `SUCCESS` (0) matched or window closed,
+  `REPLAY_DIVERGED` (1), `UNUSABLE_INPUT` (65) for a truncated recording that matched to its
+  cut-off. Recorded window references map to None (live events of the display window carry None).
   Version-2 recordings replay with one warning (polled input reads as idle)
 - `--replay-fps {recorded,real}` (default `recorded`): FPS events, the performance stats and the
   overlay's performance panel use the recorded frame times (exact, compared) or this machine's
@@ -331,24 +335,30 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   blocked state is restored exactly when the replay ends, normally or after an error). Caveat:
   posts of a blocked type are refused too, so game code that fakes input by posting e.g. KEYDOWN
   shows a "missing internal event" divergence in a replay
+- `--headless` (any run): `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` set to `dummy` right after the
+  options are read (a display or mixer pygame already started on another driver is restarted on
+  the dummy one, with a warning). Live headless runs pace normally and end as the game ends; a
+  headless replay is unpaced (`EngineSources.paced_frame_seconds()` returns 0.0: no timer
+  deadline, no clock tick) and prints its report to stdout instead of logging it
 - Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
-  `tests/replay/test_golden_replays.py` replays each with `--replay-trace` and requires an exact
-  match; re-record only deliberately (commands in the script's docstring)
+  `tests/replay/test_golden_replays.py` replays each with `--replay-trace PATH --headless` and
+  requires exit `SUCCESS` (failing with the printed report); re-record only deliberately (commands
+  in the script's docstring)
 - `--replay-trace PATH --audit` (`glitchygames/replay/audit.py`): instead of replaying, runs the
-  same command twice as headless child processes (`--no-audit --replay-unpaced --replay-digest
-  <temp>`, `PYTHONHASHSEED` 1 and 2) and compares each run with the recording and the two
+  same command twice as child processes (`--no-audit --headless --replay-digest <temp>`,
+  `PYTHONHASHSEED` 1 and 2) and compares each run with the recording and the two
   per-frame digest streams (`--replay-digest PATH`: a SHA-256 per replayed frame, then the
   divergence); exits `SUCCESS` (0) when deterministic, `AUDIT_NONDETERMINISTIC` (3) otherwise,
   `INTERNAL_ERROR` (70) when a child could not finish (did not start, hung, crashed, wrote no
   digests); refused with `OPTIONS_REFUSED` (64) under `--replay-fps real` or `python -E`/`-I`,
   which would keep PYTHONHASHSEED from the children. It compares only
   what the replay samples: the scene class and each sprite's `rect`, `visible` and draw order, not
-  pixels, audio or unsampled game state. `--replay-unpaced` is private (no pacing; Part 2's
-  `--headless` replaces it). Children run through `subprocess.run` (argument list, no shell; the
+  pixels, audio or unsampled game state. Children run through `subprocess.run` (argument list, no shell; the
   one authorised subprocess suppression), with a timeout
-- Pending: Part 2 (watched replay controls, `--headless`, `--rebaseline`, the pytest plugin) and
+- Pending: Part 2 (watched replay controls, `--rebaseline`, the pytest plugin; `--headless` is
+  done) and
   Part 3 (in-game playback: demos, instant replay, ghosts); see `plans/future-work.md`. User docs:
   `docs/architecture/gameplay_replay.md`
 

@@ -97,6 +97,8 @@ MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
 DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
+# The SDL video and audio driver --headless runs on (no window, no sound)
+HEADLESS_SDL_DRIVER = 'dummy'
 
 # The signals that end a run through the normal teardown (exit_on_signal), by name:
 # SIGHUP exists only on Unix and SIGBREAK only on Windows, so each is looked up where it runs.
@@ -482,11 +484,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             default=None,
         )
         group.add_argument(
-            # Private: added by --audit to its replay children (glitchygames/replay/audit.py),
-            # which must not pace. Part 2's --headless (no pacing) supersedes it
-            '--replay-unpaced',
+            '--headless',
             action='store_true',
-            help=argparse.SUPPRESS,
+            help=(
+                "run on SDL's dummy video and audio drivers: no window, no sound. With "
+                '--replay-trace the replay also runs unpaced and prints its report to stdout '
+                f'(exit {ExitCode.SUCCESS:d} when it matches, {ExitCode.REPLAY_DIVERGED:d} '
+                f'when it diverges, {ExitCode.UNUSABLE_INPUT:d} for a truncated recording)'
+            ),
             default=False,
         )
         group.add_argument(
@@ -689,6 +694,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.initialize_icon(icon=icon)
 
         options = self.initialize_arguments(game=game)
+        # Before anything starts the display or the mixer (pygame.init() below)
+        if options.get('headless'):
+            self._enter_headless_mode()
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
@@ -1426,12 +1434,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             for option_name, flag in (
                 ('replay_fps', '--replay-fps'),
                 ('replay_digest', '--replay-digest'),
-                ('replay_unpaced', '--replay-unpaced'),
             ):
-                if options.get(option_name) not in {None, False}:
+                if options.get(option_name) is not None:
                     self.log.warning(f'{flag} is ignored without --replay-trace')
-            # Read by SceneManager._handle_frame_pacing: live play is always paced
-            options['replay_unpaced'] = False
             return None
         if options.get('record_trace') is not None:
             # A recording over a replay needs the replay's event origins and recorded fields
@@ -1526,16 +1531,50 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.log.error(f'Audit could not run: {run_error}')
         exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=run_error)
 
-    def _log_replay_result(self: Self) -> None:
-        """Settle and log the replay's result, if replaying (rule 11)."""
+    def _report_replay_result(self: Self) -> None:
+        """Settle the replay's result and report it, if replaying (rule 11).
+
+        The report (``ReplayResult.report``) is printed to stdout under ``--headless``, where it
+        is the run's output, and logged otherwise (as an error when the replay diverged).
+        """
         if self.replay_sources is None:
             return
         self.replay_sources.finish_run()
         result = self.replay_sources.result
-        if result.divergence is not None:
-            self.log.error(f'Replay diverged: {result.divergence.describe()}')
+        report = result.report()
+        if self.replay_sources.headless:
+            sys.stdout.write(f'{report}\n')
+            sys.stdout.flush()
+        elif result.divergence is not None:
+            self.log.error(report)
         else:
-            self.log.info(f'Replay matched {result.frames_replayed} frames ({result.end_reason})')
+            self.log.info(report)
+
+    def _enter_headless_mode(self: Self) -> None:
+        """--headless: run on SDL's dummy video and audio drivers (no window, no sound).
+
+        Called right after the options are read, before ``pygame.init()`` and the display. If
+        pygame was started before the engine (at import, by a game's own code), its display and
+        mixer already run on the drivers chosen then: each that is not on the dummy driver is
+        stopped here, so ``pygame.init()`` starts it again on the dummy one (the display is
+        opened by the engine anyway; sounds loaded before keep playing, silently), with one
+        warning naming what was restarted.
+        """
+        os.environ['SDL_VIDEODRIVER'] = HEADLESS_SDL_DRIVER
+        os.environ['SDL_AUDIODRIVER'] = HEADLESS_SDL_DRIVER
+        restarted: list[str] = []
+        if pygame.display.get_init() and pygame.display.get_driver() != HEADLESS_SDL_DRIVER:
+            restarted.append(f'the display (video driver {pygame.display.get_driver()!r})')
+            pygame.display.quit()
+        if pygame.mixer.get_init() is not None and pygame.mixer.get_driver() != HEADLESS_SDL_DRIVER:
+            restarted.append(f'the mixer (audio driver {pygame.mixer.get_driver()!r})')
+            pygame.mixer.quit()
+        if restarted:
+            self.log.warning(
+                f'--headless: pygame was started before the engine; restarting '
+                f'{" and ".join(restarted)} on the dummy driver, so there is no window and '
+                'audio is muted'
+            )
 
     def _shutdown(self: Self) -> None:
         """Close any recording, report any replay, print performance reports, shut down pygame."""
@@ -1543,7 +1582,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.stop_trace_recording()
         # After closing: until then a repeated signal must stay ignored (exit_on_signal)
         self._restore_signal_handlers()
-        self._log_replay_result()
+        self._report_replay_result()
 
         # Print performance report before shutdown
         try:
@@ -1633,14 +1672,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         teardown itself raises, the run exits ``ExitCode.INTERNAL_ERROR`` (both errors logged).
         An exception raised before start(), in ``__init__``, is not mapped: it exits with
         Python's default 1 (each game has its own entry point, so there is no one place to wrap;
-        see glitchygames/exit_codes.py).
+        see glitchygames/exit_codes.py). A replay (``--replay-trace``) that ends normally exits
+        with its own code (``ReplaySources.run_exit_code``), watched or headless.
 
         Raises:
             RuntimeError: If the game is not initialized.
             SystemExit: With ``ExitCode.INTERNAL_ERROR`` after an uncaught exception (logged
                 with its traceback), ``ExitCode.INTERRUPTED`` after Ctrl-C (KeyboardInterrupt),
                 or whatever status a SystemExit raised during the run carries (a signal
-                handler's, a game's own).
+                handler's, a game's own); at the normal end of a replay, with the replay's
+                exit code (``ExitCode.SUCCESS``, ``ExitCode.REPLAY_DIVERGED`` or
+                ``ExitCode.UNUSABLE_INPUT`` for a truncated recording).
 
         """
         # This ensures that logging is enabled as soon as the game object is created.
@@ -1695,6 +1737,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if exit_code is not None:
             # After the teardown, so the recording is closed before the process ends
             exit_with(exit_code=exit_code, cause=run_error)
+        if self.replay_sources is not None:
+            # The run ended normally: a replay exits with its own code (a divergence is
+            # REPLAY_DIVERGED; never the INTERNAL_ERROR or INTERRUPTED of the paths above)
+            exit_with(exit_code=self.replay_sources.run_exit_code())
 
     @classmethod
     def quit_game(cls) -> None:

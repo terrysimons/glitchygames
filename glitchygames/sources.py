@@ -93,6 +93,16 @@ class EngineSources(Protocol):
         """
         ...
 
+    def paced_frame_seconds(self) -> float | None:
+        """Return how long the frame starting now is paced to, asked once per frame.
+
+        ``None`` paces to the target FPS as always (live play, a watched replay); ``0.0`` does
+        not pace at all (a headless replay: its frame times come from the recording, so waiting
+        would only take real time); a positive number of seconds paces to that period instead
+        of the target's (SceneManager._handle_frame_pacing).
+        """
+        ...
+
     def input_snapshot(self) -> InputSnapshot:
         """Return this frame's polled input, asked once per frame right after the first pump."""
         ...

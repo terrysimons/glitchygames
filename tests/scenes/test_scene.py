@@ -1519,6 +1519,7 @@ class TestHandleFramePacing:
             timer=mock_timer,
             period_ns=16_666_667,
             prev_deadline_ns=1_000_000,
+            paced_seconds=None,
         )
 
         mock_timer.compute_deadline.assert_called_once()
@@ -1542,6 +1543,7 @@ class TestHandleFramePacing:
             timer=mock_timer,
             period_ns=16_666_667,
             prev_deadline_ns=1_000_000,
+            paced_seconds=None,
         )
 
         mock_log_jitter.assert_called_once_with(mock_timer, 2_000_100, 2_000_000)
@@ -1557,6 +1559,7 @@ class TestHandleFramePacing:
             timer=None,
             period_ns=0,
             prev_deadline_ns=None,
+            paced_seconds=None,
         )
 
         mock_clock_tick.assert_called_once_with(60)
@@ -1572,30 +1575,47 @@ class TestHandleFramePacing:
             timer=None,
             period_ns=0,
             prev_deadline_ns=None,
+            paced_seconds=None,
         )
 
         mock_clock_tick.assert_called_once_with()
 
-    def test_handle_frame_pacing_never_waits_in_an_unpaced_replay(
+    def test_handle_frame_pacing_never_waits_for_an_unpaced_frame(
         self, mock_pygame_patches, mocker
     ):
-        """--replay-unpaced (an audit's child replays): no timer deadline and no clock tick."""
+        """paced_seconds 0.0 (a headless replay): no timer deadline and no clock tick."""
         manager = SceneManager()
         manager.target_fps = 60
-        mocker.patch.object(SceneManager, 'OPTIONS', {'replay_unpaced': True})
         mock_timer = mocker.Mock()
         mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
 
         manager._handle_frame_pacing(
             timer=mock_timer,
-            period_ns=16_666_667,
+            period_ns=0,
             prev_deadline_ns=1_000_000,
+            paced_seconds=0.0,
         )
-        manager._handle_frame_pacing(timer=None, period_ns=0, prev_deadline_ns=None)
+        manager._handle_frame_pacing(
+            timer=None, period_ns=0, prev_deadline_ns=None, paced_seconds=0.0
+        )
 
         mock_timer.compute_deadline.assert_not_called()
         mock_timer.sleep_until_next.assert_not_called()
         mock_clock_tick.assert_not_called()
+
+    def test_handle_frame_pacing_without_a_timer_ticks_at_the_paced_period(
+        self, mock_pygame_patches, mocker
+    ):
+        """A positive paced period replaces the target FPS for the pygame clock."""
+        manager = SceneManager()
+        manager.target_fps = 60
+        mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
+
+        manager._handle_frame_pacing(
+            timer=None, period_ns=0, prev_deadline_ns=None, paced_seconds=0.25
+        )
+
+        mock_clock_tick.assert_called_once_with(4.0)
 
 
 class TestFinishFrameMeasurement:
@@ -1633,7 +1653,7 @@ class TestFinishFrameMeasurement:
             frame_start_seconds=10.0,
             timer=mock_timer,
             period_ns=16_666_667,
-            previous_deadline_ns=None,
+            paced_seconds=None,
             processing_seconds=0.001,
         )
 
@@ -1659,7 +1679,7 @@ class TestFinishFrameMeasurement:
                 frame_start_seconds=frame_start_seconds,
                 timer=mock_timer,
                 period_ns=16_666_667,
-                previous_deadline_ns=None,
+                paced_seconds=None,
                 processing_seconds=0.001,
             )
 
@@ -1686,7 +1706,7 @@ class TestFinishFrameMeasurement:
             frame_start_seconds=5.0,
             timer=mock_timer,
             period_ns=16_528_926,
-            previous_deadline_ns=None,
+            paced_seconds=None,
             processing_seconds=0.001,
         )
 
@@ -1701,7 +1721,9 @@ class TestFinishFrameMeasurement:
         mock_timer.compute_deadline.return_value = 2_000_000
         mock_timer.sleep_until_next.return_value = 2_000_100
 
-        manager._handle_frame_pacing(timer=mock_timer, period_ns=16_666_667, prev_deadline_ns=None)
+        manager._handle_frame_pacing(
+            timer=mock_timer, period_ns=16_666_667, prev_deadline_ns=None, paced_seconds=None
+        )
 
         assert manager.dt == 0.25
 

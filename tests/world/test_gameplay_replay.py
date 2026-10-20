@@ -37,7 +37,6 @@ from glitchygames.recording import (
 from glitchygames.replay import audit
 from glitchygames.replay.audit import (
     AUDIT_HASH_SEEDS,
-    HEADLESS_ENVIRONMENT_VARIABLES,
     AuditRunError,
     ReplayDigestRun,
     audit_command,
@@ -53,9 +52,12 @@ from glitchygames.replay.driver import (
     REAL_REPLAY_FPS,
     RECORDED_REPLAY_FPS,
     REPLAY_LOCAL_OPTIONS,
+    REPORT_HISTORY_FRAMES,
     SCENE_DIVERGENCE,
     SPRITE_DIVERGENCE,
     Divergence,
+    ReplayExitPolicy,
+    ReplayResult,
     ReplaySources,
     apply_recorded_options,
 )
@@ -68,9 +70,12 @@ from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
     FAKE_CLOCK_STEP_SECONDS,
     RANDOM_SEED,
+    RUN_ENGINE_ARGUMENTS,
+    DepartureRecordedScene,
     Script,
     _key,
     _schedule_quit_in_arrival,
+    build_engine,
     constructed_engine,
     engine_run_environment,
     run_engine,
@@ -88,8 +93,7 @@ EARLY_STOP_FRAME_LIMIT = 10
 # active at the frame's end (its transition starts in frame 3), so the placement is compared
 CLOCK_ACTION_FRAME = 2
 
-# Child processes of the end-to-end audit tests run headless, and are killed if they hang
-HEADLESS_ENVIRONMENT = {**os.environ, **HEADLESS_ENVIRONMENT_VARIABLES}
+# Child processes of the end-to-end audit tests are killed if they hang
 RECORD_TIMEOUT_SECONDS = 120.0
 AUDIT_TIMEOUT_SECONDS = 240.0
 
@@ -138,16 +142,15 @@ if __name__ == '__main__':
     GameEngine(game=UnseededGame).start()
 """
 
-# A stand-in replay child for _run_replay_subprocess: writes its PYTHONHASHSEED and SDL drivers
-# as its digests to the --replay-digest path (the last argument), then a clean summary line
+# A stand-in replay child for _run_replay_subprocess: writes its PYTHONHASHSEED as its one
+# digest to the --replay-digest path (the last argument), then a clean summary line
 DIGEST_WRITING_CHILD_SOURCE = """\
 import json
 import os
 import sys
 
 with open(sys.argv[-1], 'w', encoding='utf-8') as digest_file:
-    for frame_number, name in enumerate(('PYTHONHASHSEED', 'SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')):
-        digest_file.write(json.dumps({'frame': frame_number, 'digest': os.environ[name]}) + '\\n')
+    digest_file.write(json.dumps({'frame': 0, 'digest': os.environ['PYTHONHASHSEED']}) + '\\n')
     digest_file.write(json.dumps({'divergence': None}) + '\\n')
 """
 
@@ -229,22 +232,59 @@ def replay_session(
     action: Callable[[], None] | None = None,
     action_frame: int = 1,
 ) -> GoldenTraceEngine:
-    """Replay through the real engine.
+    """Replay headless (``--headless``) through the real engine.
 
     The test scenes post their scripted input with raw pygame.event.post, so the recording holds
     it as external events and the replay serves it from the recording: by default the scenes post
     nothing during the replay. `events_by_frame` makes them post real events anyway (they must be
     dropped); `action` repeats a scripted action that is not input (a save write, a clock read).
 
+    Every replay ends GameEngine.start() with SystemExit carrying its own exit code
+    (``ReplaySources.run_exit_code``); that exit is expected here. Any other exit (a crash's
+    ``ExitCode.INTERNAL_ERROR``, a refusal in ``__init__``) propagates.
+
     Returns:
         The engine, after the replay ran.
+
+    Raises:
+        SystemExit: A refusal, or an exit other than the replay's own.
 
     """
     with engine_run_environment(mocker):
         Script.events_by_frame = events_by_frame or {}
         Script.action, Script.action_frame = action, action_frame
-        engine = run_engine('--replay-trace', str(recording_path))
+        engine = build_engine(
+            scene_class=DepartureRecordedScene,
+            arguments=(*RUN_ENGINE_ARGUMENTS, '--replay-trace', str(recording_path), '--headless'),
+        )
+        try:
+            engine.start()
+        except SystemExit as exit_request:
+            assert engine.replay_sources is not None
+            if exit_request.code != engine.replay_sources.run_exit_code():
+                raise
+        else:
+            pytest.fail('A replay must end GameEngine.start() with SystemExit')
     return engine
+
+
+def replay_session_with_arguments(
+    *,
+    recording_path: Path,
+    mocker,
+    arguments: tuple[str, ...],
+    action: Callable[[], None] | None = None,
+    action_frame: int = 1,
+) -> GoldenTraceEngine:
+    """Replay through the real engine with extra command-line arguments; the exit propagates.
+
+    Returns:
+        The engine (only if start() returned, which a replay never does).
+
+    """
+    with engine_run_environment(mocker):
+        Script.action, Script.action_frame = action, action_frame
+        return run_engine('--replay-trace', str(recording_path), *arguments)
 
 
 def add_recorded_internal_event(*, recording_path: Path, frame_number: int) -> None:
@@ -505,23 +545,38 @@ class TestDivergence:
         assert result.end_reason == 'diverged'
         assert result.frames_replayed == 4
 
-    def test_divergence_is_logged_at_shutdown(self, mocker, tmp_path, caplog):
+    def test_a_watched_divergence_is_logged_and_exits_as_diverged(
+        self, mocker, tmp_path, caplog, capsys
+    ):
+        """A replay without --headless logs its report (stdout stays clean) and still exits."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
-        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        shutdown_spy = mocker.spy(GoldenTraceEngine, '_shutdown')
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=()
+            )
+        assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
+        engine = shutdown_spy.call_args.args[0]
         assert engine.replay_sources is not None
         divergence = engine.replay_sources.result.divergence
         assert divergence is not None
         assert divergence.describe().startswith('frame 3: sprite ')
-        assert f'Replay diverged: {divergence.describe()}' in caplog.text
+        assert engine.replay_sources.result.report() in caplog.text
+        assert f'Replay diverged at {divergence.describe()}' in caplog.text
+        assert f'Exiting with {ExitCode.REPLAY_DIVERGED.describe()}' in caplog.text
+        assert 'Replay diverged' not in capsys.readouterr().out
 
-    def test_matching_replay_is_logged_at_shutdown(self, mocker, tmp_path, caplog):
+    def test_a_watched_match_is_logged_and_exits_as_success(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        recorded_frame_count = len(read_trace_result(path=recording_path).trace['frames'])
         caplog.set_level('INFO', logger='game.engine')
-        engine = replay_session(recording_path=recording_path, mocker=mocker)
-        assert engine.replay_sources is not None
-        frames_replayed = engine.replay_sources.result.frames_replayed
-        assert f'Replay matched {frames_replayed} frames' in caplog.text
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=()
+            )
+        assert exit_info.value.code == ExitCode.SUCCESS
+        assert f'Replay matched {recorded_frame_count} frames (end of recording)' in caplog.text
 
     def test_describe_format(self):
         divergence = Divergence(
@@ -746,10 +801,15 @@ class TestReplayFps:
         )
         pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
         performance_spy = mocker.spy(ReplaySources, 'performance_frame_seconds')
-        with engine_run_environment(mocker):
-            engine = run_engine(
-                '--replay-trace', str(recording_path), '--replay-fps', REAL_REPLAY_FPS
+        shutdown_spy = mocker.spy(GoldenTraceEngine, '_shutdown')
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--replay-fps', REAL_REPLAY_FPS),
             )
+        assert exit_info.value.code == ExitCode.SUCCESS
+        engine = shutdown_spy.call_args.args[0]
         assert engine.replay_sources is not None
         assert engine.replay_sources.fps_source == REAL_REPLAY_FPS
         assert engine.replay_sources.result.divergence is None
@@ -910,6 +970,321 @@ class TestRefusals:
         assert engine.replay_sources.result.divergence is None
         warnings = [record for record in caplog.records if '0.0.1' in record.getMessage()]
         assert len(warnings) == 1
+
+
+# SDL driver names no SDL has: what the driver variables hold before the engine starts, in tests
+# whose pygame.init is a stub (pygame is already started on the worker, so nothing reads them)
+UNUSED_VIDEO_DRIVER = 'unused-video-driver'
+UNUSED_AUDIO_DRIVER = 'unused-audio-driver'
+
+
+def pygame_init_noting_drivers(mocker) -> list[tuple[str | None, str | None]]:
+    """Replace pygame.init with a stub that notes the SDL driver variables when called.
+
+    pygame is already started on the test worker (tests/conftest.py), so the stub starts nothing:
+    the variables it notes are never read by SDL.
+
+    Returns:
+        The (SDL_VIDEODRIVER, SDL_AUDIODRIVER) pairs seen, one per call, filled in as it is called.
+
+    """
+    drivers_at_init: list[tuple[str | None, str | None]] = []
+
+    def init_noting_drivers() -> tuple[int, int]:
+        drivers_at_init.append((
+            os.environ.get('SDL_VIDEODRIVER'),
+            os.environ.get('SDL_AUDIODRIVER'),
+        ))
+        return (0, 0)
+
+    mocker.patch.object(pygame, 'init', side_effect=init_noting_drivers)
+    return drivers_at_init
+
+
+class QuittingSupervisor:
+    """Quits the game at frame ``quit_frame``'s supervisor slot, noting the video driver.
+
+    A glitchygames.supervision.Supervisor.
+    """
+
+    def __init__(self, *, quit_frame: int) -> None:
+        """Quit at the slot of frame ``quit_frame``."""
+        self.quit_frame = quit_frame
+        self.frames_seen: list[int] = []
+        self.video_drivers: set[str] = set()
+
+    def on_frame(self, *, frame_number: int, scene: object) -> None:
+        """Note the frame and the video driver; post QUIT at ``quit_frame``."""
+        del scene
+        self.frames_seen.append(frame_number)
+        self.video_drivers.add(pygame.display.get_driver())
+        if frame_number == self.quit_frame:
+            GameEngine.quit_game()
+
+
+class TestHeadless:
+    """--headless: dummy SDL drivers for any run; replays then run unpaced and print a report."""
+
+    def test_matching_replay_exits_zero_and_reports(self, mocker, tmp_path, capsys):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        recorded_frame_count = len(read_trace_result(path=recording_path).trace['frames'])
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=('--headless',)
+            )
+        assert exit_info.value.code == ExitCode.SUCCESS
+        assert capsys.readouterr().out == (
+            f'Replay matched {recorded_frame_count} frames (end of recording)\n'
+        )
+
+    def test_divergence_exits_one_with_the_sprite_history(self, mocker, tmp_path, capsys):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=('--headless',)
+            )
+        output_lines = capsys.readouterr().out.splitlines()
+        assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
+        assert output_lines[0].startswith('Replay diverged at frame 3: sprite ')
+        sprite_id = output_lines[0].split()[6]
+        assert output_lines[1] == (
+            f'{sprite_id}, last {REPORT_HISTORY_FRAMES} frames (expected | got):'
+        )
+        # Frames 0 to 3 (fewer than REPORT_HISTORY_FRAMES were replayed); the last one differs
+        assert [line.split(':')[0] for line in output_lines[2:]] == ['  0', '  1', '  2', '  3']
+        expected_part, got_part = output_lines[-1].split(': ', 1)[1].split(' | ')
+        assert expected_part != got_part
+        for line in output_lines[2:-1]:
+            expected_part, got_part = line.split(': ', 1)[1].split(' | ')
+            assert expected_part == got_part
+
+    def test_truncated_recording_exits_as_unusable_input(self, mocker, tmp_path, capsys):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        cut_off_after_frame(recording_path=recording_path, frame_number=2)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=('--headless',)
+            )
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        assert capsys.readouterr().out == (
+            'Replay ended early at frame 3: the recording is truncated\n'
+        )
+
+    def test_headless_never_sleeps(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        engine_sources = ReplaySources.from_path(path=recording_path, headless=True)
+        assert engine_sources.paced_frame_seconds() == 0.0
+        # A watched replay paces to the target FPS as live play does (Task 2 changes this)
+        assert ReplaySources.from_path(path=recording_path).paced_frame_seconds() is None
+        assert LiveSources(random_seed=RANDOM_SEED).paced_frame_seconds() is None
+
+    def test_a_headless_replay_runs_every_frame_unpaced(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        pacing_spy = mocker.spy(SceneManager, '_handle_frame_pacing')
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.headless
+        paced_seconds = {call.kwargs['paced_seconds'] for call in pacing_spy.call_args_list}
+        assert paced_seconds == {0.0}
+        assert len(pacing_spy.call_args_list) == engine.replay_sources.result.frames_replayed
+
+    def test_a_live_headless_run_starts_runs_paced_and_quits(self, mocker, tmp_path, capsys):
+        """--headless without a replay: dummy drivers, normal pacing, and the game's own end."""
+        pacing_spy = mocker.spy(SceneManager, '_handle_frame_pacing')
+        supervisor = QuittingSupervisor(quit_frame=3)
+        with engine_run_environment(mocker):
+            engine = build_engine(
+                scene_class=DepartureRecordedScene, arguments=(*RUN_ENGINE_ARGUMENTS, '--headless')
+            )
+            assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
+                'dummy',
+                'dummy',
+            )
+            engine.scene_manager.add_supervisor(supervisor=supervisor)
+            # A live run ends however the game ends: here start() returns
+            engine.start()
+        assert engine.replay_sources is None
+        assert supervisor.frames_seen[:4] == [0, 1, 2, 3]
+        assert supervisor.video_drivers == {'dummy'}
+        paced_seconds = {call.kwargs['paced_seconds'] for call in pacing_spy.call_args_list}
+        assert paced_seconds == {None}
+        assert not capsys.readouterr().out
+
+    def test_headless_sets_the_dummy_drivers_before_pygame_starts(self, mocker, monkeypatch):
+        monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+        monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
+        drivers_at_init = pygame_init_noting_drivers(mocker)
+        with constructed_engine('--headless'):
+            pass
+        assert drivers_at_init == [('dummy', 'dummy')]
+
+    def test_without_headless_the_drivers_are_left_alone(self, mocker, monkeypatch):
+        monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+        monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
+        drivers_at_init = pygame_init_noting_drivers(mocker)
+        with constructed_engine():
+            pass
+        assert drivers_at_init == [(UNUSED_VIDEO_DRIVER, UNUSED_AUDIO_DRIVER)]
+
+    def test_headless_restarts_a_display_and_mixer_pygame_already_started(
+        self, mocker, monkeypatch, caplog
+    ):
+        """Pygame started before the engine on real drivers: both restart on the dummy ones."""
+        monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+        monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
+        pygame_init_noting_drivers(mocker)
+        mocker.patch.object(pygame.display, 'get_init', return_value=True)
+        mocker.patch.object(pygame.display, 'get_driver', return_value='cocoa')
+        display_quit = mocker.patch.object(pygame.display, 'quit')
+        mocker.patch.object(pygame.mixer, 'get_init', return_value=(44100, -16, 2))
+        mocker.patch.object(pygame.mixer, 'get_driver', return_value='coreaudio')
+        mixer_quit = mocker.patch.object(pygame.mixer, 'quit')
+        with constructed_engine('--headless'):
+            pass
+        display_quit.assert_called_once_with()
+        mixer_quit.assert_called_once_with()
+        restarts = [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith('--headless: pygame was started before the engine')
+        ]
+        assert len(restarts) == 1
+        assert "video driver 'cocoa'" in restarts[0]
+        assert "audio driver 'coreaudio'" in restarts[0]
+
+    def test_headless_leaves_a_display_and_mixer_already_on_dummy_drivers(self, mocker, caplog):
+        # --headless sets the SDL driver variables; the test's own values come back afterwards
+        mocker.patch.dict(os.environ)
+        mocker.patch.object(pygame.display, 'get_init', return_value=True)
+        mocker.patch.object(pygame.display, 'get_driver', return_value='dummy')
+        display_quit = mocker.patch.object(pygame.display, 'quit')
+        mocker.patch.object(pygame.mixer, 'get_init', return_value=(44100, -16, 2))
+        mocker.patch.object(pygame.mixer, 'get_driver', return_value='dummy')
+        mixer_quit = mocker.patch.object(pygame.mixer, 'quit')
+        with constructed_engine('--headless'):
+            pass
+        display_quit.assert_not_called()
+        mixer_quit.assert_not_called()
+        assert '--headless: pygame was started before the engine' not in caplog.text
+
+
+def sprite_frame(*, frame_number: int, rect: list[int]) -> dict[str, Any]:
+    """Return a recorded frame of a Mock scene holding one sprite, Mock#0, at ``rect``.
+
+    Returns:
+        The frame record.
+
+    """
+    frame = recorded_frame(frame_number=frame_number)
+    frame['scene'] = 'Mock'
+    frame['sprites'] = [{'id': 'Mock#0', 'rect': rect, 'visible': True}]
+    return frame
+
+
+class TestReplayReport:
+    """ReplayResult.report() and exit_code, and ReplaySources.run_exit_code()."""
+
+    def test_a_sprite_divergence_lists_the_last_frames_of_that_sprite(self, mocker):
+        diverging_frame = REPORT_HISTORY_FRAMES + 5
+        frames = [
+            sprite_frame(frame_number=frame_number, rect=[frame_number, 0, 4, 4])
+            for frame_number in range(diverging_frame + 1)
+        ]
+        sources = minimal_sources(frames=frames)
+        sprite = mocker.Mock(visible=True)
+        scene = mocker.Mock()
+        scene.all_sprites.sprites.return_value = [sprite]
+        for frame_number in range(diverging_frame + 1):
+            # One pixel down in the last frame only
+            sprite.rect = pygame.Rect(frame_number, int(frame_number == diverging_frame), 4, 4)
+            sources.end_frame(frame_number=frame_number, dt=0.25, scene=scene, control_events=[])
+        result = sources.result
+        first_history_frame = diverging_frame - REPORT_HISTORY_FRAMES
+        assert result.report().splitlines() == [
+            (
+                f'Replay diverged at frame {diverging_frame}: sprite Mock#0 rect expected '
+                f'[{diverging_frame}, 0, 4, 4], got [{diverging_frame}, 1, 4, 4]'
+            ),
+            f'Mock#0, last {REPORT_HISTORY_FRAMES} frames (expected | got):',
+            *[
+                f'  {frame_number}: [{frame_number}, 0, 4, 4] visible | '
+                f'[{frame_number}, 0, 4, 4] visible'
+                for frame_number in range(first_history_frame, diverging_frame)
+            ],
+            (
+                f'  {diverging_frame}: [{diverging_frame}, 0, 4, 4] visible | '
+                f'[{diverging_frame}, 1, 4, 4] visible'
+            ),
+        ]
+        assert result.exit_code == ExitCode.REPLAY_DIVERGED
+        assert sources.run_exit_code() == ExitCode.REPLAY_DIVERGED
+
+    def test_hidden_and_absent_sprites_are_named_in_the_history(self, mocker):
+        frames = [
+            sprite_frame(frame_number=0, rect=[0, 0, 4, 4]),
+            sprite_frame(frame_number=1, rect=[0, 0, 4, 4]),
+        ]
+        frames[0]['sprites'][0]['visible'] = False
+        sources = minimal_sources(frames=frames)
+        scene = mocker.Mock()
+        scene.all_sprites.sprites.return_value = [
+            mocker.Mock(rect=pygame.Rect(0, 0, 4, 4), visible=False)
+        ]
+        sources.end_frame(frame_number=0, dt=0.25, scene=scene, control_events=[])
+        scene.all_sprites.sprites.return_value = []
+        sources.end_frame(frame_number=1, dt=0.25, scene=scene, control_events=[])
+        assert sources.result.report().splitlines()[2:] == [
+            '  0: [0, 0, 4, 4] hidden | [0, 0, 4, 4] hidden',
+            '  1: [0, 0, 4, 4] visible | absent',
+        ]
+
+    def test_a_divergence_that_is_not_a_sprite_has_no_history(self):
+        sources = minimal_sources(
+            frames=[recorded_frame(frame_number=0), recorded_frame(frame_number=1)]
+        )
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        sources.finish_run()
+        assert sources.result.report() == (
+            'Replay diverged at frame 1: length recording frames expected 2, got 1'
+        )
+        assert sources.result.exit_code == ExitCode.REPLAY_DIVERGED
+
+    @pytest.mark.parametrize(
+        ('end_reason', 'report', 'exit_code'),
+        [
+            ('end_of_recording', 'Replay matched 7 frames (end of recording)', ExitCode.SUCCESS),
+            ('quit', 'Replay matched 7 frames (the window was closed)', ExitCode.SUCCESS),
+            (
+                'truncated',
+                'Replay ended early at frame 7: the recording is truncated',
+                ExitCode.UNUSABLE_INPUT,
+            ),
+            (
+                'running',
+                'Replay still running after 7 frames',
+                ExitCode.REPLAY_DIVERGED,
+            ),
+        ],
+    )
+    def test_each_ending_without_a_divergence(self, end_reason, report, exit_code):
+        result = ReplayResult(frames_replayed=7, end_reason=end_reason)
+        assert result.report() == report
+        assert result.exit_code == exit_code
+
+    def test_the_exit_policy_picks_the_run_exit_code(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=1)
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.run_exit_code() == ExitCode.REPLAY_DIVERGED
+        rebaseline_sources = ReplaySources.from_path(
+            path=recording_path, exit_policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING
+        )
+        rebaseline_sources.result.divergence = engine.replay_sources.result.divergence
+        rebaseline_sources.result.end_reason = 'diverged'
+        assert rebaseline_sources.result.exit_code == ExitCode.REPLAY_DIVERGED
+        assert rebaseline_sources.run_exit_code() == ExitCode.SUCCESS
 
 
 class TestRealInput:
@@ -1426,7 +1801,9 @@ def fake_run(*, digests: list[str], divergence: str | None) -> ReplayDigestRun:
 
 
 def run_child(*, command: list[str], timeout_seconds: float):
-    """Run a command headless through the audit's launcher, capturing stdout and stderr together.
+    """Run a command through the audit's launcher, capturing stdout and stderr together.
+
+    Commands that start the engine pass ``--headless`` themselves.
 
     Returns:
         The finished process (subprocess.CompletedProcess).
@@ -1434,7 +1811,7 @@ def run_child(*, command: list[str], timeout_seconds: float):
     """
     return run_command(
         command=command,
-        environment=HEADLESS_ENVIRONMENT,
+        environment=os.environ,
         timeout_seconds=timeout_seconds,
         capture_output=True,
     )
@@ -1525,14 +1902,14 @@ class TestAuditReplayRuns:
         assert [call.kwargs['command'] for call in calls] == [['game'], ['game']]
         assert calls[0].kwargs['digest_path'] != calls[1].kwargs['digest_path']
 
-    def test_a_replay_subprocess_runs_headless_with_its_hash_seed(self, tmp_path):
+    def test_a_replay_subprocess_runs_with_its_hash_seed(self, tmp_path):
         """The child's environment is set before its interpreter starts (PYTHONHASHSEED)."""
         run = audit._run_replay_subprocess(
             command=[sys.executable, '-c', DIGEST_WRITING_CHILD_SOURCE],
             hash_seed='7',
             digest_path=tmp_path / 'digests.jsonl',
         )
-        assert run == ReplayDigestRun(digests=['7', 'dummy', 'dummy'], divergence=None)
+        assert run == ReplayDigestRun(digests=['7'], divergence=None)
 
     @pytest.mark.parametrize(
         'exit_status',
@@ -1654,7 +2031,7 @@ class TestAuditReplayRuns:
         assert child.returncode == expected_status, child.stdout
         assert environment_reaches_children()
 
-    def test_the_audit_command_is_the_same_command_replayed_unpaced_without_the_audit(self):
+    def test_the_audit_command_is_the_same_command_replayed_headless_without_the_audit(self):
         command = audit_command(
             original_argv=['python3', 'game.py', '--replay-trace', 'r.jsonl.gz', '--audit']
         )
@@ -1665,14 +2042,19 @@ class TestAuditReplayRuns:
             'r.jsonl.gz',
             '--audit',
             '--no-audit',
-            '--replay-unpaced',
+            '--headless',
         ]
 
     def test_the_digest_file_lists_every_replayed_frame_then_no_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         digest_path = tmp_path / 'digests.jsonl'
-        with engine_run_environment(mocker):
-            run_engine('--replay-trace', str(recording_path), '--replay-digest', str(digest_path))
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--replay-digest', str(digest_path)),
+            )
+        assert exit_info.value.code == ExitCode.SUCCESS
         digests, divergence = read_digest_file(path=digest_path)
         recorded_frames = read_trace_result(path=recording_path).trace['frames']
         assert digests == [
@@ -1684,10 +2066,15 @@ class TestAuditReplayRuns:
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=1)
         digest_path = tmp_path / 'digests.jsonl'
-        with engine_run_environment(mocker):
-            engine = run_engine(
-                '--replay-trace', str(recording_path), '--replay-digest', str(digest_path)
+        shutdown_spy = mocker.spy(GoldenTraceEngine, '_shutdown')
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--replay-digest', str(digest_path)),
             )
+        assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
+        engine = shutdown_spy.call_args.args[0]
         assert engine.replay_sources is not None
         expected_divergence = engine.replay_sources.result.divergence
         assert expected_divergence is not None
@@ -1776,15 +2163,13 @@ class TestAuditOption:
         assert '--audit compares recorded FPS events' in caplog.text
         audit_spy.assert_not_called()
 
-    def test_replay_digest_and_unpaced_without_replay_trace_warn_and_are_ignored(self, caplog):
-        with constructed_engine('--replay-digest', 'digests.jsonl', '--replay-unpaced') as engine:
+    def test_replay_digest_without_replay_trace_warns_and_is_ignored(self, caplog):
+        with constructed_engine('--replay-digest', 'digests.jsonl') as engine:
             assert engine.replay_sources is None
-            assert GameEngine.OPTIONS['replay_unpaced'] is False
-        for option in ('--replay-digest', '--replay-unpaced'):
-            assert f'{option} is ignored without --replay-trace' in caplog.text
+        assert '--replay-digest is ignored without --replay-trace' in caplog.text
 
     def test_a_recording_cannot_override_the_audit_options(self):
-        assert {'audit', 'replay_digest', 'replay_unpaced'} <= REPLAY_LOCAL_OPTIONS
+        assert {'audit', 'replay_digest', 'headless'} <= REPLAY_LOCAL_OPTIONS
 
     def test_audit_under_an_interpreter_that_ignores_the_environment_is_refused(
         self, mocker, tmp_path, caplog
@@ -1814,6 +2199,7 @@ class TestAuditOption:
                 '--replay-trace',
                 str(recording_path),
                 '--audit',
+                '--headless',
             ],
             timeout_seconds=AUDIT_TIMEOUT_SECONDS,
         )
@@ -1833,6 +2219,7 @@ class TestAuditOption:
             'error',
             '--resolution',
             '320x240',
+            '--headless',
         ]
         record_run = run_child(
             command=[*common, '--record-trace', str(recording_path)],
