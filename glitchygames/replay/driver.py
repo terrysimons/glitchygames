@@ -58,6 +58,9 @@ session again, and every frame's sprites are compared with the recorded frame. T
 10. ``recorded_frame_fields`` hands a recording made over the replay (Part 2's rebaseline) the
     frame's recorded saves and device fields.
 11. ``GameEngine._shutdown`` calls ``finish_run`` and logs the result.
+12. Digests (``--replay-digest PATH``, for ``--audit``: glitchygames/replay/audit.py): each
+    compared frame's ``frame_digest`` (of the frame as sampled for rule 8) is kept, and
+    ``finish_run`` writes them with the divergence summary to the digest file.
 """
 
 from __future__ import annotations
@@ -68,6 +71,7 @@ import itertools
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
 
@@ -109,6 +113,7 @@ from glitchygames.recording import (
     stop_tracking_internal_posts,
     value_from_json,
 )
+from glitchygames.replay.audit import frame_digest, write_digest_file
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.sources import frame_clock_seconds
 from glitchygames.state.sandbox import MemorySaveManager
@@ -128,7 +133,6 @@ from glitchygames.tracing import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
-    from pathlib import Path
 
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
@@ -151,6 +155,7 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'rebaseline',
     'replay_pause_at_frame',
     'replay_fps',
+    'replay_unpaced',
     'profile',
     'log_level',
     'windowed',
@@ -427,6 +432,8 @@ class ReplaySources:
         fps_source: ``RECORDED_REPLAY_FPS`` or ``REAL_REPLAY_FPS`` (``--replay-fps``; rule 4).
         result: How the replay went so far.
         random_seed: The recorded master seed.
+        digest_path: Where ``finish_run`` writes the frame digests (``--replay-digest``; rule
+            12), or None.
 
     """
 
@@ -454,6 +461,8 @@ class ReplaySources:
         self.header = header
         # start_replay sets it from --replay-fps
         self.fps_source = RECORDED_REPLAY_FPS
+        # start_replay sets it from --replay-digest
+        self.digest_path: Path | None = None
         self.result = ReplayResult()
         self.random_seed = _recorded_seed(header=header)
         self._recorded_at = _recorded_start(header=header)
@@ -469,6 +478,8 @@ class ReplaySources:
         self._last_batch_origins: list[str] = []
         # The first difference the current frame's pumps found (reported at end_frame)
         self._frame_divergence: Divergence | None = None
+        # One frame_digest per compared frame, kept only when digest_path is set (rule 12)
+        self._frame_digests: list[str] = []
         # Joystick instance ids without a stand-in already warned about, and unrepresentable
         # types already logged
         self._warned_joystick_instances: set[int] = set()
@@ -763,8 +774,14 @@ class ReplaySources:
         del dt
         frame = self._current_frame()
         if frame is not None and not self._stop_requested:
+            # Sampled exactly as the recorder samples a recorded frame
+            replayed = sample_scene_frame(
+                frame_number=self._frame_index, scene=scene, sprite_ids=self._sprite_ids
+            )
+            if self.digest_path is not None:
+                self._frame_digests.append(frame_digest(frame_record=replayed))
             divergence = self._frame_difference(
-                frame=frame, scene=scene, control_events=control_events
+                frame=frame, replayed=replayed, control_events=control_events
             )
             self.result.frames_replayed = self._frame_index + 1
             if divergence is not None:
@@ -793,20 +810,26 @@ class ReplaySources:
 
         A run that ended while the replay was still running (the game quit or failed before
         the recording's last frame) diverged in length. Either way the blocked state of real
-        input is restored (rule 2).
+        input is restored (rule 2), and the digest file written when asked for (rule 12).
         """
         self._real_input_block.restore()
-        if self.result.end_reason != RUNNING_END_REASON:
-            return
-        self.result.divergence = Divergence(
-            frame_number=self.result.frames_replayed,
-            kind=LENGTH_DIVERGENCE,
-            subject=RECORDING_SUBJECT,
-            field=FRAME_COUNT_FIELD,
-            expected=len(self._frames),
-            actual=self.result.frames_replayed,
-        )
-        self._stop(end_reason=DIVERGED_END_REASON)
+        if self.result.end_reason == RUNNING_END_REASON:
+            self.result.divergence = Divergence(
+                frame_number=self.result.frames_replayed,
+                kind=LENGTH_DIVERGENCE,
+                subject=RECORDING_SUBJECT,
+                field=FRAME_COUNT_FIELD,
+                expected=len(self._frames),
+                actual=self.result.frames_replayed,
+            )
+            self._stop(end_reason=DIVERGED_END_REASON)
+        if self.digest_path is not None:
+            divergence = self.result.divergence
+            write_digest_file(
+                path=self.digest_path,
+                digests=self._frame_digests,
+                divergence=None if divergence is None else divergence.describe(),
+            )
 
     def recorded_frame_fields(self: Self, *, frame_index: int) -> dict[str, Any]:
         """Return the recorded frame's save and device fields (rule 10; a rebaseline copies them).
@@ -835,10 +858,15 @@ class ReplaySources:
         self: Self,
         *,
         frame: dict[str, Any],
-        scene: Scene | None,
+        replayed: dict[str, Any],
         control_events: list[ControlEvent],
     ) -> Divergence | None:
         """Return the frame's first difference: its pumps', its markers', then its sprites'.
+
+        Args:
+            frame: The recorded frame.
+            replayed: The replayed frame, sampled by ``sample_scene_frame``.
+            control_events: The control events recorded in the frame.
 
         Returns:
             The divergence, or None when the frame matches.
@@ -862,10 +890,6 @@ class ReplaySources:
         )
         if control_event_divergence is not None:
             return control_event_divergence
-        # Sampled exactly as the recorder samples a recorded frame
-        replayed = sample_scene_frame(
-            frame_number=self._frame_index, scene=scene, sprite_ids=self._sprite_ids
-        )
         return first_frame_difference(
             frame_index=self._frame_index, recorded=frame, replayed=replayed
         )
@@ -1119,7 +1143,8 @@ def start_replay(
         path: The recording.
         game_class_name: The class name of the game being started.
         options: The run's options, given the recorded ones in place; ``replay_fps`` (local, so
-            never the recording's) picks the FPS source, ``RECORDED_REPLAY_FPS`` when unset.
+            never the recording's) picks the FPS source, ``RECORDED_REPLAY_FPS`` when unset, and
+            ``replay_digest`` (local) the digest file (rule 12), none when unset.
         use_fastevents: Drain the real queue with pygame.fastevent (``GameEngine.USE_FASTEVENTS``).
 
     Returns:
@@ -1139,6 +1164,8 @@ def start_replay(
     apply_recorded_options(options=options, recorded=sources.header.get(OPTIONS_HEADER_FIELD, {}))
     seed_engine_random(seed=sources.random_seed)
     sources.fps_source = options.get('replay_fps') or RECORDED_REPLAY_FPS
+    replay_digest = options.get('replay_digest')
+    sources.digest_path = None if replay_digest is None else Path(replay_digest)
     if sources.fps_source == REAL_REPLAY_FPS:
         LOG.warning(REAL_REPLAY_FPS_NOTICE)
     LOG.info(

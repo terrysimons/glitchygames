@@ -807,7 +807,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """Handle frame pacing via timer or fallback to pygame clock.
 
         Only paces: the frame is measured afterwards, by _finish_frame, with
-        time.perf_counter().
+        time.perf_counter(). An unpaced replay (``--replay-unpaced``) never waits.
 
         Args:
             timer: The timer backend instance (or None)
@@ -815,6 +815,11 @@ class SceneManager(SceneInterface, events.EventManager):
             prev_deadline_ns: Previous frame deadline in nanoseconds (or None)
 
         """
+        # The replay children of --audit (glitchygames/replay/audit.py) run as fast as they can:
+        # a replay's frame times come from the recording, so pacing would only take real time.
+        # GameEngine clears the option when not replaying.
+        if self.OPTIONS.get('replay_unpaced', False):
+            return
         if timer is not None and period_ns > 0:
             # Cast timer to Any since it has dynamic methods (compute_deadline, etc.)
             timer_any: Any = timer

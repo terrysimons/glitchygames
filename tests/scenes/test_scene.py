@@ -1576,6 +1576,27 @@ class TestHandleFramePacing:
 
         mock_clock_tick.assert_called_once_with()
 
+    def test_handle_frame_pacing_never_waits_in_an_unpaced_replay(
+        self, mock_pygame_patches, mocker
+    ):
+        """--replay-unpaced (an audit's child replays): no timer deadline and no clock tick."""
+        manager = SceneManager()
+        manager.target_fps = 60
+        mocker.patch.object(SceneManager, 'OPTIONS', {'replay_unpaced': True})
+        mock_timer = mocker.Mock()
+        mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
+
+        manager._handle_frame_pacing(
+            timer=mock_timer,
+            period_ns=16_666_667,
+            prev_deadline_ns=1_000_000,
+        )
+        manager._handle_frame_pacing(timer=None, period_ns=0, prev_deadline_ns=None)
+
+        mock_timer.compute_deadline.assert_not_called()
+        mock_timer.sleep_until_next.assert_not_called()
+        mock_clock_tick.assert_not_called()
+
 
 class TestFinishFrameMeasurement:
     """SceneManager._finish_frame() measures frames with perf_counter, never the timer's clock."""

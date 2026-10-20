@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, override
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
 
 import pygame
 
@@ -51,7 +51,15 @@ from glitchygames.recording import (
     post_event,
     reset_internal_post_tracking,
 )
+from glitchygames.replay.audit import (
+    AUDIT_FAILED_EXIT_CODE,
+    AUDIT_PASSED_EXIT_CODE,
+    AuditRunError,
+    audit_command,
+    audit_recording,
+)
 from glitchygames.replay.driver import (
+    REAL_REPLAY_FPS,
     REPLAY_FPS_CHOICES,
     REPLAY_UNUSABLE_EXIT_CODE,
     ReplayRefusedError,
@@ -424,6 +432,33 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # None (not RECORDED_REPLAY_FPS) so that giving it without --replay-trace can be
             # warned about; start_replay reads None as recorded
             default=None,
+        )
+        group.add_argument(
+            '--audit',
+            action=argparse.BooleanOptionalAction,
+            help=(
+                'with --replay-trace: instead of replaying, replay the recording twice in fresh '
+                'headless processes with different hash seeds and compare every frame with the '
+                'recording and between the runs; exits 0 when both match, 1 otherwise'
+            ),
+            default=False,
+        )
+        group.add_argument(
+            '--replay-digest',
+            metavar='PATH',
+            help=(
+                'with --replay-trace: write a SHA-256 of every replayed frame, then the '
+                'divergence, to PATH as JSON lines (used by --audit)'
+            ),
+            default=None,
+        )
+        group.add_argument(
+            # Private: added by --audit to its replay children (glitchygames/replay/audit.py),
+            # which must not pace. Part 2's --headless (no pacing) supersedes it
+            '--replay-unpaced',
+            action='store_true',
+            help=argparse.SUPPRESS,
+            default=False,
         )
         group.add_argument(
             '--random-seed',
@@ -1315,6 +1350,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     ) -> ReplaySources | None:
         """Prepare the replay if --replay-trace was given (rule 1 of glitchygames/replay/driver.py).
 
+        With --audit the recording is audited instead (glitchygames/replay/audit.py), once it is
+        known to be replayable, and the process exits with the audit's outcome.
+
         Args:
             game: The game scene class or instance (its class name must match the recording's).
             options: The parsed options; a replay puts the recorded ones in place.
@@ -1324,14 +1362,26 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         Raises:
             SystemExit: With REPLAY_UNUSABLE_EXIT_CODE when the recording cannot be replayed (a
-                recording of another game, or an unreadable or missing file), or when
-                --record-trace is given too (recording over a replay is not supported yet).
+                recording of another game, or an unreadable or missing file), when
+                --record-trace is given too (recording over a replay is not supported yet), or
+                when --audit is given without --replay-trace or with --replay-fps real; with the
+                audit's outcome (0 or 1) after an audit.
 
         """
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
-            if options.get('replay_fps') is not None:
-                self.log.warning('--replay-fps is ignored without --replay-trace')
+            if options.get('audit'):
+                self.log.error('--audit needs --replay-trace PATH: the recording to audit')
+                raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE)
+            for option_name, flag in (
+                ('replay_fps', '--replay-fps'),
+                ('replay_digest', '--replay-digest'),
+                ('replay_unpaced', '--replay-unpaced'),
+            ):
+                if options.get(option_name) not in {None, False}:
+                    self.log.warning(f'{flag} is ignored without --replay-trace')
+            # Read by SceneManager._handle_frame_pacing: live play is always paced
+            options['replay_unpaced'] = False
             return None
         if options.get('record_trace') is not None:
             # A recording over a replay needs the replay's event origins and recorded fields
@@ -1341,9 +1391,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 'is not supported yet (see plans/future-work.md)'
             )
             raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE)
+        if options.get('audit') and options.get('replay_fps') == REAL_REPLAY_FPS:
+            # FPS events from measured frame times differ between the runs
+            self.log.error(
+                f'Cannot audit {replay_trace_path} with --replay-fps {REAL_REPLAY_FPS}: --audit '
+                'compares recorded FPS events'
+            )
+            raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE)
         game_class_name = game.__name__ if isinstance(game, type) else type(game).__name__
         try:
-            return start_replay(
+            sources = start_replay(
                 path=Path(replay_trace_path),
                 game_class_name=game_class_name,
                 options=options,
@@ -1353,9 +1410,38 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
         except (ReplayRefusedError, TraceFormatError, OSError) as error:
             refusal = error
+        else:
+            if options.get('audit'):
+                self._audit_replay(path=Path(replay_trace_path))
+            return sources
         # Logged without a traceback: the message says what is wrong with the recording
         self.log.error(f'Cannot replay {replay_trace_path}: {refusal}')
         raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE) from refusal
+
+    def _audit_replay(self: Self, *, path: Path) -> NoReturn:
+        """Audit the recording in two child replays and exit with the outcome (--audit).
+
+        Args:
+            path: The recording.
+
+        Raises:
+            SystemExit: 0 when the audit passes; 1 when it fails or a child wrote no digests.
+
+        """
+        self.log.info(f'Auditing {path}: two replays in fresh processes')
+        try:
+            result = audit_recording(command=audit_command(original_argv=sys.orig_argv), path=path)
+        except AuditRunError as error:
+            run_error = error
+        else:
+            if result.is_deterministic():
+                self.log.info(result.summary())
+                raise SystemExit(AUDIT_PASSED_EXIT_CODE)
+            self.log.error(result.summary())
+            raise SystemExit(AUDIT_FAILED_EXIT_CODE)
+        # Logged without a traceback: the message says which run failed and how
+        self.log.error(f'Audit failed: {run_error}')
+        raise SystemExit(AUDIT_FAILED_EXIT_CODE) from run_error
 
     def _log_replay_result(self: Self) -> None:
         """Settle and log the replay's result, if replaying (rule 11)."""

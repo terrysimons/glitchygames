@@ -233,6 +233,13 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
   `tests/replay/test_golden_replays.py` replays each with `--replay-trace` and requires an exact
   match; re-record only deliberately (commands in the script's docstring)
+- `--replay-trace PATH --audit` (`glitchygames/replay/audit.py`): instead of replaying, runs the
+  same command twice as headless child processes (`--no-audit --replay-unpaced --replay-digest
+  <temp>`, `PYTHONHASHSEED` 1 and 2) and compares each run with the recording and the two
+  per-frame digest streams (`--replay-digest PATH`: a SHA-256 per replayed frame, then the
+  divergence); exits 0 when deterministic, 1 otherwise (refused with `--replay-fps real`).
+  `--replay-unpaced` is private (no pacing; Part 2's `--headless` supersedes it). Children start
+  with `asyncio.create_subprocess_exec` (an argument list, no shell)
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`

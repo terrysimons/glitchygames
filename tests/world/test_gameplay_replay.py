@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
+import sys
 import zlib
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -16,6 +18,7 @@ from scripts.record_golden_traces import (
     record_trace,
     replay_golden_recording,
 )
+from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY, REPLAY_FIXTURE_SUFFIX
 
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
@@ -28,6 +31,17 @@ from glitchygames.recording import (
     RecordingSources,
     pending_internal_posts,
     post_event,
+)
+from glitchygames.replay import audit
+from glitchygames.replay.audit import (
+    AUDIT_HASH_SEEDS,
+    AuditRunError,
+    ReplayDigestRun,
+    audit_command,
+    compare_runs,
+    frame_digest,
+    read_digest_file,
+    run_process,
 )
 from glitchygames.replay.driver import (
     EVENT_DIVERGENCE,
@@ -70,6 +84,69 @@ EARLY_STOP_FRAME_LIMIT = 10
 # The departure scene's marker is placed from the clocks in this frame; the scene is still
 # active at the frame's end (its transition starts in frame 3), so the placement is compared
 CLOCK_ACTION_FRAME = 2
+
+# Child processes of the end-to-end audit tests run headless, and are killed if they hang
+HEADLESS_ENVIRONMENT = {**os.environ, 'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
+RECORD_TIMEOUT_SECONDS = 120.0
+AUDIT_TIMEOUT_SECONDS = 240.0
+
+# A game whose sprite moves by an unseeded random amount (the guard test forbids this inside the
+# package; a game file outside it can still do it, which is what --audit is for). It quits
+# itself after FRAMES_BEFORE_QUIT frames.
+UNSEEDED_GAME_SOURCE = """\
+import random
+
+import pygame
+
+from glitchygames.engine import GameEngine
+from glitchygames.scenes import Scene
+
+FRAMES_BEFORE_QUIT = 20
+
+
+class Mover(pygame.sprite.DirtySprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((4, 4))
+        self.rect = self.image.get_rect()
+        self.dirty = 2
+
+    def update_nested_sprites(self):
+        pass
+
+
+class UnseededGame(Scene):
+    NAME = 'UnseededGame'
+
+    def __init__(self, options=None, groups=None):
+        super().__init__(options=options, groups=groups)
+        self.mover = Mover()
+        self.all_sprites.add(self.mover)
+        self.frames = 0
+
+    def dt_tick(self, dt):
+        self.frames += 1
+        self.mover.rect.x += int(random.SystemRandom().random() * 10)
+        if self.frames == FRAMES_BEFORE_QUIT:
+            GameEngine.quit_game()
+
+
+if __name__ == '__main__':
+    GameEngine(game=UnseededGame).start()
+"""
+
+# A stand-in replay child for _run_replay_subprocess: writes its PYTHONHASHSEED and SDL drivers
+# as its digests to the --replay-digest path (the last argument), then a clean summary line
+DIGEST_WRITING_CHILD_SOURCE = """\
+import json
+import os
+import sys
+
+with open(sys.argv[-1], 'w', encoding='utf-8') as digest_file:
+    for frame_number, name in enumerate(('PYTHONHASHSEED', 'SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')):
+        digest_file.write(json.dumps({'frame': frame_number, 'digest': os.environ[name]}) + '\\n')
+    digest_file.write(json.dumps({'divergence': None}) + '\\n')
+"""
 
 # The live wall clock's reading when a paced recording starts (clocks_paced_by_frames)
 PACED_RECORDING_START = datetime(2026, 10, 19, 12, 0, 0, 250000, tzinfo=UTC)
@@ -1294,3 +1371,323 @@ class TestControlEventMarkers:
             {'kind': 'test-marker', 'note': 'n'},
             None,
         )
+
+
+def fake_run(*, digests: list[str], divergence: str | None) -> ReplayDigestRun:
+    """A finished replay subprocess, without running one."""
+    return ReplayDigestRun(
+        digests=digests, divergence=divergence, exit_code=0 if divergence is None else 1
+    )
+
+
+def sampled_part(*, frame: dict[str, Any]) -> dict[str, Any]:
+    """Return the fields of a recorded frame that the replay samples (sample_scene_frame)."""
+    return {'frame': frame['frame'], 'scene': frame['scene'], 'sprites': frame['sprites']}
+
+
+class TestAudit:
+    """--audit's comparison: per-frame digests of two replays, and their summaries."""
+
+    def test_frame_digest_is_canonical(self):
+        first = frame_digest(frame_record={'b': 1, 'a': [1, 2]})
+        second = frame_digest(frame_record={'a': [1, 2], 'b': 1})
+        assert first == second
+        assert first != frame_digest(frame_record={'a': [2, 1], 'b': 1})
+
+    def test_identical_runs_are_deterministic(self, tmp_path, mocker):
+        mocker.patch.object(
+            audit,
+            '_run_replay_subprocess',
+            side_effect=[
+                fake_run(digests=['a', 'b'], divergence=None),
+                fake_run(digests=['a', 'b'], divergence=None),
+            ],
+        )
+        result = audit.audit_recording(command=['game'], path=tmp_path / 'r.jsonl.gz')
+        assert result.is_deterministic()
+        assert result.first_mismatch_frame is None
+        assert result.summary().startswith('Audit passed')
+
+    def test_runs_that_differ_report_the_first_frame(self, tmp_path, mocker):
+        mocker.patch.object(
+            audit,
+            '_run_replay_subprocess',
+            side_effect=[
+                fake_run(digests=['a', 'b', 'c'], divergence=None),
+                fake_run(digests=['a', 'x', 'c'], divergence=None),
+            ],
+        )
+        result = audit.audit_recording(command=['game'], path=tmp_path / 'r.jsonl.gz')
+        assert result.first_mismatch_frame == 1
+        assert not result.is_deterministic()
+        assert 'differ first at frame 1' in result.summary()
+
+    def test_runs_of_different_lengths_differ_where_the_shorter_one_ends(self):
+        result = compare_runs(
+            first_run=fake_run(digests=['a', 'b'], divergence=None),
+            second_run=fake_run(digests=['a'], divergence=None),
+        )
+        assert result.first_mismatch_frame == 1
+        assert not result.is_deterministic()
+
+    def test_a_run_that_diverged_from_the_recording_fails_the_audit(self, tmp_path, mocker):
+        diverged = 'frame 1: sprite Marker#0 rect expected [0, 0, 4, 4], got [3, 0, 4, 4]'
+        mocker.patch.object(
+            audit,
+            '_run_replay_subprocess',
+            side_effect=[
+                fake_run(digests=['a', 'b'], divergence=diverged),
+                fake_run(digests=['a', 'b'], divergence=diverged),
+            ],
+        )
+        result = audit.audit_recording(command=['game'], path=tmp_path / 'r.jsonl.gz')
+        assert result.first_mismatch_frame is None
+        assert not result.is_deterministic()
+        assert 'diverged' in result.summary()
+        assert diverged in result.summary()
+
+    def test_a_run_that_failed_without_diverging_fails_the_audit(self):
+        crashed = ReplayDigestRun(digests=['a'], divergence=None, exit_code=3)
+        result = compare_runs(
+            first_run=fake_run(digests=['a'], divergence=None), second_run=crashed
+        )
+        assert not result.is_deterministic()
+        assert 'exited with status 3' in result.summary()
+
+
+class TestAuditReplayRuns:
+    """The audit's replay children: their command, environment and digest files."""
+
+    def test_each_run_gets_its_own_hash_seed_and_digest_file(self, tmp_path, mocker):
+        run_spy = mocker.patch.object(
+            audit,
+            '_run_replay_subprocess',
+            side_effect=[
+                fake_run(digests=['a'], divergence=None),
+                fake_run(digests=['a'], divergence=None),
+            ],
+        )
+        audit.audit_recording(command=['game'], path=tmp_path / 'r.jsonl.gz')
+        calls = run_spy.call_args_list
+        assert [call.kwargs['hash_seed'] for call in calls] == list(AUDIT_HASH_SEEDS)
+        assert [call.kwargs['command'] for call in calls] == [['game'], ['game']]
+        assert calls[0].kwargs['digest_path'] != calls[1].kwargs['digest_path']
+
+    def test_a_replay_subprocess_runs_headless_with_its_hash_seed(self, tmp_path):
+        """The child's environment is set before its interpreter starts (PYTHONHASHSEED)."""
+        run = audit._run_replay_subprocess(
+            command=[sys.executable, '-c', DIGEST_WRITING_CHILD_SOURCE],
+            hash_seed='7',
+            digest_path=tmp_path / 'digests.jsonl',
+        )
+        assert run == ReplayDigestRun(digests=['7', 'dummy', 'dummy'], divergence=None, exit_code=0)
+
+    def test_a_replay_subprocess_that_writes_no_digests_is_an_audit_error(self, tmp_path):
+        with pytest.raises(AuditRunError, match='status 3'):
+            audit._run_replay_subprocess(
+                command=[sys.executable, '-c', 'raise SystemExit(3)'],
+                hash_seed='1',
+                digest_path=tmp_path / 'digests.jsonl',
+            )
+
+    def test_a_child_that_runs_too_long_is_killed(self):
+        with pytest.raises(TimeoutError):
+            run_process(
+                command=[sys.executable, '-c', 'import time; time.sleep(60)'],
+                environment=HEADLESS_ENVIRONMENT,
+                timeout_seconds=0.5,
+            )
+
+    @pytest.mark.parametrize(
+        'lines',
+        [
+            ['{"frame": 0, "digest": "a"}'],
+            ['{"frame": 1, "digest": "a"}', '{"divergence": null}'],
+            [],
+        ],
+        ids=['no divergence line', 'frames out of order', 'empty'],
+    )
+    def test_an_incomplete_digest_file_is_refused(self, tmp_path, lines):
+        digest_path = tmp_path / 'digests.jsonl'
+        digest_path.write_text(''.join(f'{line}\n' for line in lines), encoding='utf-8')
+        with pytest.raises(ValueError, match=r'digests\.jsonl'):
+            read_digest_file(path=digest_path)
+
+    def test_the_audit_command_is_the_same_command_replayed_unpaced_without_the_audit(self):
+        command = audit_command(
+            original_argv=['python3', 'game.py', '--replay-trace', 'r.jsonl.gz', '--audit']
+        )
+        assert command == [
+            sys.executable,
+            'game.py',
+            '--replay-trace',
+            'r.jsonl.gz',
+            '--audit',
+            '--no-audit',
+            '--replay-unpaced',
+        ]
+
+    def test_the_digest_file_lists_every_replayed_frame_then_no_divergence(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        digest_path = tmp_path / 'digests.jsonl'
+        with engine_run_environment(mocker):
+            run_engine('--replay-trace', str(recording_path), '--replay-digest', str(digest_path))
+        digests, divergence = read_digest_file(path=digest_path)
+        recorded_frames = read_trace_result(path=recording_path).trace['frames']
+        assert digests == [
+            frame_digest(frame_record=sampled_part(frame=frame)) for frame in recorded_frames
+        ]
+        assert divergence is None
+
+    def test_the_digest_file_of_a_diverged_replay_ends_with_its_divergence(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=1)
+        digest_path = tmp_path / 'digests.jsonl'
+        with engine_run_environment(mocker):
+            engine = run_engine(
+                '--replay-trace', str(recording_path), '--replay-digest', str(digest_path)
+            )
+        assert engine.replay_sources is not None
+        expected_divergence = engine.replay_sources.result.divergence
+        assert expected_divergence is not None
+        digests, divergence = read_digest_file(path=digest_path)
+        assert len(digests) == expected_divergence.frame_number + 1
+        assert divergence == expected_divergence.describe()
+
+
+class TestAuditOption:
+    """--audit on the engine's command line, unit and end to end."""
+
+    def test_the_audit_option_runs_the_audit_instead_of_the_replay(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        audit_spy = mocker.patch.object(
+            game_engine_module,
+            'audit_recording',
+            return_value=compare_runs(
+                first_run=fake_run(digests=['a'], divergence=None),
+                second_run=fake_run(digests=['a'], divergence=None),
+            ),
+        )
+        with (
+            pytest.raises(SystemExit) as exit_info,
+            constructed_engine('--replay-trace', str(recording_path), '--audit'),
+        ):
+            pass
+        assert exit_info.value.code == 0
+        audit_spy.assert_called_once_with(
+            command=audit_command(original_argv=sys.orig_argv), path=recording_path
+        )
+
+    def test_a_nondeterministic_audit_exits_with_one_and_logs_why(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        mocker.patch.object(
+            game_engine_module,
+            'audit_recording',
+            return_value=compare_runs(
+                first_run=fake_run(digests=['a', 'b'], divergence=None),
+                second_run=fake_run(digests=['a', 'c'], divergence=None),
+            ),
+        )
+        with (
+            pytest.raises(SystemExit) as exit_info,
+            constructed_engine('--replay-trace', str(recording_path), '--audit'),
+        ):
+            pass
+        assert exit_info.value.code == 1
+        assert 'differ first at frame 1' in caplog.text
+
+    def test_an_audit_run_error_exits_with_one_and_logs_it(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        mocker.patch.object(
+            game_engine_module,
+            'audit_recording',
+            side_effect=AuditRunError('replay run 1 exited with status 3 without its digests'),
+        )
+        with (
+            pytest.raises(SystemExit) as exit_info,
+            constructed_engine('--replay-trace', str(recording_path), '--audit'),
+        ):
+            pass
+        assert exit_info.value.code == 1
+        assert 'without its digests' in caplog.text
+
+    def test_audit_without_replay_trace_is_refused(self, caplog):
+        with pytest.raises(SystemExit) as exit_info, constructed_engine('--audit'):
+            pass
+        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert '--audit needs --replay-trace' in caplog.text
+
+    def test_audit_with_real_replay_fps_is_refused(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        audit_spy = mocker.patch.object(game_engine_module, 'audit_recording')
+        with (
+            pytest.raises(SystemExit) as exit_info,
+            constructed_engine(
+                '--replay-trace', str(recording_path), '--audit', '--replay-fps', REAL_REPLAY_FPS
+            ),
+        ):
+            pass
+        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert '--audit compares recorded FPS events' in caplog.text
+        audit_spy.assert_not_called()
+
+    def test_replay_digest_and_unpaced_without_replay_trace_warn_and_are_ignored(self, caplog):
+        with constructed_engine('--replay-digest', 'digests.jsonl', '--replay-unpaced') as engine:
+            assert engine.replay_sources is None
+            assert GameEngine.OPTIONS['replay_unpaced'] is False
+        for option in ('--replay-digest', '--replay-unpaced'):
+            assert f'{option} is ignored without --replay-trace' in caplog.text
+
+    def test_a_recording_cannot_override_the_audit_options(self):
+        assert {'audit', 'replay_digest', 'replay_unpaced'} <= REPLAY_LOCAL_OPTIONS
+
+    def test_a_golden_recording_passes_the_real_audit(self):
+        """End to end: a deterministic game's recording passes --audit (two child replays)."""
+        recording_path = REPLAY_FIXTURE_DIRECTORY / 'paddleslap' / f'golden{REPLAY_FIXTURE_SUFFIX}'
+        audit_run = run_process(
+            command=[
+                sys.executable,
+                '-m',
+                'glitchygames.examples.paddleslap',
+                '--log-level',
+                'error',
+                '--replay-trace',
+                str(recording_path),
+                '--audit',
+            ],
+            environment=HEADLESS_ENVIRONMENT,
+            capture_output=True,
+            timeout_seconds=AUDIT_TIMEOUT_SECONDS,
+        )
+        assert audit_run.exit_code == 0, audit_run.output
+
+    def test_unseeded_randomness_makes_the_real_audit_fail(self, tmp_path):
+        """End to end: a game drawing from an unseeded source is caught by --audit."""
+        game_file = tmp_path / 'unseeded_game.py'
+        game_file.write_text(UNSEEDED_GAME_SOURCE, encoding='utf-8')
+        recording_path = tmp_path / 'unseeded.jsonl.gz'
+        common = [
+            sys.executable,
+            str(game_file),
+            '--target-fps',
+            '0',
+            '--log-level',
+            'error',
+            '--resolution',
+            '320x240',
+        ]
+        record_run = run_process(
+            command=[*common, '--record-trace', str(recording_path)],
+            environment=HEADLESS_ENVIRONMENT,
+            capture_output=True,
+            timeout_seconds=RECORD_TIMEOUT_SECONDS,
+        )
+        assert record_run.exit_code == 0, record_run.output
+        audit_run = run_process(
+            command=[*common, '--replay-trace', str(recording_path), '--audit'],
+            environment=HEADLESS_ENVIRONMENT,
+            capture_output=True,
+            timeout_seconds=AUDIT_TIMEOUT_SECONDS,
+        )
+        assert audit_run.exit_code == 1, audit_run.output
+        assert 'diverged' in audit_run.output
