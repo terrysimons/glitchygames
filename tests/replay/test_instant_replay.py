@@ -43,9 +43,11 @@ from glitchygames.replay.driver import ReplaySources
 from glitchygames.replay.playback import (
     INSTANT_PLAYBACK,
     PlaybackOptions,
+    fast_forward_frame_count,
     start_playback,
     start_playback_from_recording,
 )
+from glitchygames.replay.silence import FrameSilencer
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sources import active_sources
@@ -66,12 +68,12 @@ from tests.replay.playback_fixtures import (
 from tests.world.test_frame_integration import CameraFreeScene, running_scene, step
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Iterator, Sequence
 
     from pytest_mock import MockerFixture
 
     from glitchygames.events.base import HashableEvent
-    from glitchygames.replay.playback import PlaybackOutcome
+    from glitchygames.replay.playback import PlaybackOutcome, PlaybackSources
 
 INSTANT_REPLAY_TEST_SECONDS = 10.0
 # Spec 5.4: 60 s of scene time by default
@@ -101,6 +103,15 @@ PAUSE_BUDGET_FRAMES = 10
 # A goal's shake, still running when the instant replay starts, and a later WORLD shake
 GOAL_SHAKE = Shake(style=ShakeStyle.JITTER, strength=8.0, duration=1.0, frequency=30.0)
 LATER_WORLD_SHAKE = Shake(style=ShakeStyle.JITTER, strength=8.0, duration=0.2, frequency=30.0)
+# An instant replay of INSTANT_LIVE_FRAMES live frames that shows the last SHOWN_FRAMES of them
+INSTANT_LIVE_FRAMES = 30
+SHOWN_FRAMES = 10
+MATCHED_LIVE_FRAMES = 20
+# A budget the live frames are past
+REFUSING_BUDGET_FRAMES = 5
+# InstantGoalScene asks for an instant replay on this tick; a later one shows this many frames
+GOAL_TICK = 6
+SHOWN_FRAMES_AFTER_GOAL = 3
 
 
 class InstantCountingScene(CountingScene):
@@ -177,7 +188,7 @@ class InstantSelfReplayingScene(KeyReleaseCountingScene):
     """Shows its own instant replay on R, as a game shows one after every goal.
 
     What the request answered moves its marker (so a different answer in a playback of its
-    journal diverges). Asks the recorded answer first, as ``SceneManager.instant_replay`` will:
+    journal diverges). Asks the recorded answer first, as ``SceneManager.instant_replay`` does:
     inside a playback of its journal the rebuilt scene keeps no journal of its own.
     """
 
@@ -202,6 +213,36 @@ class InstantSelfReplayingScene(KeyReleaseCountingScene):
                 then=self,
                 options=PlaybackOptions(kind=INSTANT_PLAYBACK, start_frame=recording.start_frame),
             )
+        self.marker.rect.y += SELF_REPLAY_GRANTED_STEP if granted else 1
+
+
+class InstantGoalScene(KeyReleaseCountingScene):
+    """Shows an instant replay of itself after its goal (on GOAL_TICK), as a game does; R too.
+
+    Both go through ``SceneManager.instant_replay``; what each answered moves the marker (so a
+    different answer in a playback of its journal diverges).
+    """
+
+    INSTANT_REPLAY_SECONDS: ClassVar[float | None] = INSTANT_REPLAY_TEST_SECONDS
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Ask for an instant replay on GOAL_TICK."""
+        super().dt_tick(dt)
+        if self.frames_ticked == GOAL_TICK:
+            self._show_instant_replay()
+
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+        """Ask for an instant replay on R."""
+        if event.key == pygame.K_r:
+            self._show_instant_replay()
+            return
+        super().on_key_down_event(event)
+
+    def _show_instant_replay(self: Self) -> None:
+        """Ask for the instant replay; its answer moves the marker."""
+        granted = SceneManager().instant_replay()
         self.marker.rect.y += SELF_REPLAY_GRANTED_STEP if granted else 1
 
 
@@ -907,3 +948,279 @@ class TestReplayingTheSession:
         step(manager, frames=2)
         step(manager, press(pygame.K_SPACE))
         step(manager, release(pygame.K_SPACE), frames=JOURNALED_FRAMES)
+
+
+class EndingSupervisor:
+    """Ends the playback scope in progress from the supervisor slot of a chosen frame."""
+
+    def __init__(self: Self, *, manager: SceneManager, frame_number: int) -> None:
+        """Watch for ``frame_number``.
+
+        Args:
+            manager: The running scene manager.
+            frame_number: The frame whose slot ends the scope.
+
+        """
+        self.manager = manager
+        self.frame_number = frame_number
+
+    def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
+        """End the scope on the chosen frame (implements glitchygames.supervision.Supervisor)."""
+        del scene
+        if frame_number == self.frame_number:
+            self.manager.end_playback()
+
+
+def scope_frames(*, manager: SceneManager) -> Iterator[PlaybackSources]:
+    """Run frames while a playback scope plays, yielding its doors before each frame.
+
+    Yields:
+        The scope's doors, as the frame about to run reads them.
+
+    """
+    while (session := manager.playback_session) is not None:
+        yield session.sources
+        step(manager)
+
+
+class TestInstantReplay:
+    """SceneManager.instant_replay(): fast-forward, show the last seconds, return."""
+
+    def test_instant_replay_shows_the_last_seconds_and_returns(self, mocker: MockerFixture):
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            live_scene = active_counting_scene(manager)
+            ticked = live_scene.frames_ticked
+            # _present_frame runs every frame; it shows the frame only when the doors present
+            shown = mocker.spy(manager, '_show_frame')
+            mocker.patch.object(
+                InstantCountingScene, 'INSTANT_REPLAY_SECONDS', SHOWN_FRAMES * FRAME_SECONDS
+            )
+            assert manager.instant_replay()
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            assert manager.playback_session is None
+            assert manager.active_scene is live_scene
+            assert live_scene.frames_ticked == ticked
+            # Only the last ten frames were shown
+            assert shown.call_count == SHOWN_FRAMES
+            outcome = manager.last_playback_outcome
+            assert outcome is not None
+            assert outcome.kind == INSTANT_PLAYBACK
+            assert outcome.reason == 'end_of_recording'
+            assert outcome.frames_played == INSTANT_LIVE_FRAMES
+
+    def test_instant_replay_refused_past_the_budget(self, mocker: MockerFixture):
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            # Patched between frames: the journal is still kept, but now past the budget
+            mocker.patch.object(
+                InstantCountingScene,
+                'MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS',
+                REFUSING_BUDGET_FRAMES * FRAME_SECONDS,
+            )
+            assert manager.instant_replay_journal is not None
+            assert not manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is None
+
+    def test_instant_replay_refused_without_a_journal(self):
+        with running_scene(CountingScene) as manager:
+            step(manager, frames=JOURNALED_FRAMES)
+            assert not manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is None
+
+    def test_instant_replay_matches_the_live_frames(self):
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=MATCHED_LIVE_FRAMES)
+            assert manager.instant_replay()
+            step(manager, frames=MATCHED_LIVE_FRAMES)
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None, result.report()
+
+    def test_fast_forward_frames_are_unpresented_unpaced_and_silent(self, mocker: MockerFixture):
+        silenced = mocker.spy(FrameSilencer, 'silence_frame')
+        finished = mocker.spy(FrameSilencer, 'finish')
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            mocker.patch.object(
+                InstantCountingScene, 'INSTANT_REPLAY_SECONDS', SHOWN_FRAMES * FRAME_SECONDS
+            )
+            assert manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is not None
+            fast_forward_frames = INSTANT_LIVE_FRAMES - SHOWN_FRAMES
+            # From the scope's second frame on (the first was paced as the live doors paced it,
+            # read before the scope was entered at the top of that frame)
+            seen = [
+                (sources.presents_frames, sources.paced_frame_seconds())
+                for sources in scope_frames(manager=manager)
+            ]
+            assert (
+                seen == [(False, 0.0)] * (fast_forward_frames - 1) + [(True, None)] * SHOWN_FRAMES
+            )
+            # Every fast-forwarded frame was silenced; the visible part plays its sounds
+            assert silenced.call_count == fast_forward_frames
+            assert finished.call_count >= 1
+
+    def test_a_real_press_does_not_end_an_instant_replay(self):
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=JOURNALED_FRAMES)
+            assert manager.instant_replay()
+            step(manager)
+            step(manager, press(pygame.K_SPACE))
+            assert manager.playback_session is not None
+            step(manager, release(pygame.K_SPACE), frames=JOURNALED_FRAMES)
+            outcome = manager.last_playback_outcome
+            assert outcome is not None
+            assert outcome.reason == 'end_of_recording'
+
+    def test_the_game_ends_an_instant_replay_between_frames(self):
+        with running_scene(InstantCountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            step(manager, frames=JOURNALED_FRAMES)
+            assert manager.instant_replay()
+            step(manager, frames=2)
+            assert manager.playback_session is not None
+            manager.end_playback()
+            assert manager.playback_session is None
+            assert manager.active_scene is live_scene
+            outcome = manager.last_playback_outcome
+            assert outcome is not None
+            assert outcome.reason == 'ended_by_game'
+            assert outcome.frames_played == 2
+            # Nothing to end: nothing happens
+            manager.end_playback()
+            assert manager.last_playback_outcome is outcome
+
+    def test_a_scope_ended_while_fast_forwarding_ends_the_silence(self, mocker: MockerFixture):
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            mocker.patch.object(
+                InstantCountingScene, 'INSTANT_REPLAY_SECONDS', SHOWN_FRAMES * FRAME_SECONDS
+            )
+            assert manager.instant_replay()
+            step(manager, frames=2)
+            session = manager.playback_session
+            assert session is not None
+            assert session.sources.is_fast_forwarding
+            finished = mocker.spy(FrameSilencer, 'finish')
+            manager.end_playback()
+            assert finished.call_count == 1
+
+    def test_the_game_ends_an_instant_replay_inside_a_frame_at_its_end(self):
+        """Called during a frame (a supervisor, say), the scope ends once the frame ended."""
+        with running_scene(InstantCountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            step(manager, frames=JOURNALED_FRAMES)
+            assert manager.instant_replay()
+            manager.add_supervisor(
+                supervisor=EndingSupervisor(manager=manager, frame_number=manager.frame_number + 1)
+            )
+            step(manager)
+            assert manager.playback_session is not None
+            step(manager)
+            assert manager.playback_session is None
+            assert manager.active_scene is live_scene
+            outcome = manager.last_playback_outcome
+            assert outcome is not None
+            assert outcome.reason == 'ended_by_game'
+            # The frame it was asked in was played and compared whole
+            assert outcome.frames_played == 2
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None
+
+    def test_a_replay_the_game_asked_for_plays_back_across_in_a_later_one(
+        self, mocker: MockerFixture
+    ):
+        """The game's own request after a goal is answered from the journal in the later one.
+
+        The later one fast-forwards across the first (only its last frames are shown).
+        """
+        with running_scene(InstantGoalScene) as manager:
+            live_scene = active_counting_scene(manager)
+            step(manager, frames=GOAL_TICK)
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            first_result = manager.last_playback_result
+            assert first_result is not None
+            assert first_result.divergence is None, first_result.report()
+            step(manager, frames=JOURNALED_FRAMES)
+            mocker.patch.object(
+                InstantGoalScene, 'INSTANT_REPLAY_SECONDS', SHOWN_FRAMES_AFTER_GOAL * FRAME_SECONDS
+            )
+            assert manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            assert manager.active_scene is live_scene
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None, result.report()
+            assert result.end_reason == 'end_of_recording'
+
+    @pytest.mark.parametrize('viewing_arguments', [['--headless'], []], ids=['headless', 'watched'])
+    def test_a_replayed_session_with_instant_replays_matches(
+        self, tmp_path, mocker: MockerFixture, viewing_arguments: list[str]
+    ):
+        mocker.patch.object(
+            InstantGoalScene, 'INSTANT_REPLAY_SECONDS', SHOWN_FRAMES_AFTER_GOAL * FRAME_SECONDS
+        )
+        session_path = tmp_path / 'session.jsonl.gz'
+        with running_scene(InstantGoalScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            engine.start_trace_recording(path=session_path)
+            self._play(manager=manager)
+            engine.stop_trace_recording()
+        replay_arguments = ['--replay-trace', str(session_path), *viewing_arguments]
+        with running_scene(InstantGoalScene, extra_arguments=replay_arguments) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            replay_sources = engine.replay_sources
+            assert replay_sources is not None
+            self._play(manager=manager)
+            replay_sources.finish_run()
+            assert replay_sources.result.divergence is None, replay_sources.result.report()
+
+    @staticmethod
+    def _play(*, manager: SceneManager) -> None:
+        """Play to the goal's instant replay, then show one more on R."""
+        step(manager, frames=GOAL_TICK + 1)
+        assert manager.playback_session is not None
+        step_until_the_scope_ends(manager=manager, stepper=step)
+        step(manager, frames=2)
+        step(manager, press(pygame.K_r))
+        step(manager, release(pygame.K_r))
+        assert manager.playback_session is not None
+        step_until_the_scope_ends(manager=manager, stepper=step)
+        step(manager, frames=2)
+
+
+class TestFastForwardFrameCount:
+    """How many of a recording's frames an instant replay plays before the ones it shows."""
+
+    def test_the_frames_before_the_shown_seconds_are_fast_forwarded(self):
+        frames = [{'dt': 0.0}] + [{'dt': FRAME_SECONDS}] * INSTANT_LIVE_FRAMES
+        assert (
+            fast_forward_frame_count(
+                frames=frames, start_frame=1, shown_seconds=SHOWN_FRAMES * FRAME_SECONDS
+            )
+            == INSTANT_LIVE_FRAMES - SHOWN_FRAMES
+        )
+
+    def test_a_frame_partly_inside_the_shown_seconds_is_fast_forwarded(self):
+        frames = [{'dt': FRAME_SECONDS}] * INSTANT_LIVE_FRAMES
+        assert (
+            fast_forward_frame_count(
+                frames=frames, start_frame=0, shown_seconds=(SHOWN_FRAMES + 0.5) * FRAME_SECONDS
+            )
+            == INSTANT_LIVE_FRAMES - SHOWN_FRAMES
+        )
+
+    def test_more_seconds_than_recorded_fast_forward_nothing(self):
+        frames = [{'dt': FRAME_SECONDS}] * SHOWN_FRAMES
+        assert fast_forward_frame_count(frames=frames, start_frame=0, shown_seconds=10.0) == 0

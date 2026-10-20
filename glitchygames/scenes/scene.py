@@ -223,6 +223,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self._playback_session: PlaybackSession | None = None
         self._last_playback_result: ReplayResult | None = None
         self._last_playback_outcome: PlaybackOutcome | None = None
+        # True while _run_frame runs a frame: end_playback then waits for the frame's end
+        self._frame_in_progress = False
         # The instant-replay journal of the scene that offers instant replay
         # (glitchygames/instant_replay.py): made as it is first set up, recording from its
         # first logic frame
@@ -582,6 +584,51 @@ class SceneManager(SceneInterface, events.EventManager):
             then=then,
             options=PlaybackOptions(exit_on_input=True, kind=DEMO_PLAYBACK),
         )
+
+    def instant_replay(self: Self) -> bool:
+        """Show the active scene's last ``INSTANT_REPLAY_SECONDS``, then go on where it was.
+
+        The scene is rebuilt from its start in a playback scope from the start of the next
+        frame and plays its instant-replay journal (glitchygames/instant_replay.py): the frames
+        before the last ``INSTANT_REPLAY_SECONDS`` of frame time run unseen, unpaced and silent,
+        the rest are shown at the game's pace, then the live scene, never touched, goes on
+        exactly where it was (glitchygames/replay/playback.py, rules 6 and 7). The player's
+        presses do not end it; the game may, with ``end_playback``. How it ended:
+        ``last_playback_outcome``.
+
+        Returns:
+            True when the instant replay will begin. False (logged; nothing happens) when the
+            active scene keeps no journal (its class sets no ``INSTANT_REPLAY_SECONDS``, or
+            its first logic frame has not run), the journal is past the scene's
+            ``MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS``, or a playback is already starting or
+            playing. Inside a playback of the journal, what the recorded scene was answered
+            (nothing is requested: scopes do not nest).
+
+        """
+        # Function-level import, for layering (as in play_recording)
+        from glitchygames.replay.playback import start_instant_replay
+
+        return start_instant_replay(manager=self)
+
+    def end_playback(self: Self) -> None:
+        """End the playback scope in progress (a demo, an instant replay); the game goes on.
+
+        Asked during a frame (from a supervisor, say), the scope ends once that frame ended,
+        so the frame is played and compared whole; asked between frames, it ends at once. Its
+        outcome's reason is ``'ended_by_game'``. Nothing when no scope is in progress (a
+        requested one still begins). Code outside the played scene must ask: the played
+        scene's own code runs again in the playback, where its call would end the scope.
+        """
+        session = self._playback_session
+        if session is None:
+            return
+        if self._frame_in_progress:
+            sources = session.sources
+            # As the scope's doors note their own reasons: the first one found wins
+            if sources.end_reason is None:
+                sources.end_reason = 'ended_by_game'
+            return
+        self._exit_playback(reason='ended_by_game')
 
     def request_transition(
         self: Self,
@@ -1420,6 +1467,17 @@ class SceneManager(SceneInterface, events.EventManager):
         applied instead: ``_apply_resume_bridge``) and takes the frame after the doors ended
         it (``_journal_frame``).
         """
+        self._frame_in_progress = True
+        try:
+            self._run_frame_steps()
+        finally:
+            self._frame_in_progress = False
+        session = self._playback_session
+        if session is not None and session.sources.end_reason is not None:
+            self._exit_playback(reason=session.sources.end_reason)
+
+    def _run_frame_steps(self: Self) -> None:
+        """Run the frame and end it at the doors (``_run_frame``, with the frame in progress)."""
         self._enter_requested_playback()
         self._apply_resume_bridge()
         self._begin_scene_logic_frame()
@@ -1450,9 +1508,6 @@ class SceneManager(SceneInterface, events.EventManager):
             )
         self._frame_control_events = []
         self.frame_number += 1
-        session = self._playback_session
-        if session is not None and session.sources.end_reason is not None:
-            self._exit_playback(reason=session.sources.end_reason)
 
     def _begin_scene_logic_frame(self: Self) -> None:
         """Complete the active scene's start as its first logic frame begins (scene_start.py).

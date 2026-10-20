@@ -78,7 +78,8 @@ and play the journal back with no divergence (glitchygames/replay/playback.py). 
     the save stores its setup first opened, which a playback learns but does not serve;
     glitchygames/replay/driver.py, rule 18), then the journal's frames from ``start_frame``
     (``JOURNAL_START_FRAME``), the first holding the scene start. Play it with
-    ``start_playback(..., options=PlaybackOptions(start_frame=recording.start_frame, ...))``.
+    ``start_playback(..., options=PlaybackOptions(start_frame=recording.start_frame, ...))``,
+    as ``SceneManager.instant_replay`` does (glitchygames/replay/playback.py, rule 7).
 11. Memory: each kept frame is its trace line as compact UTF-8 JSON (a recording file's line,
     before gzip). Input (batches and changes) is recorded only when there is some; each
     frame's sprite sample dominates (``memory_bytes``; ``JOURNAL_BYTES_PER_MINUTE_LIMIT``

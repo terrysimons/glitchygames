@@ -34,12 +34,14 @@ Demos and instant replays run inside a playback scope, not a new engine run
    leaks in.
 3. Frames: ``PlaybackSources`` serve the recording to the scene (rule 5) and the scene
    manager runs every frame as always, paced and presented by the installed doors (a demo
-   plays at the game's speed).
+   plays at the game's speed), but for the fast-forwarded frames (rule 6).
 4. Ending: after each frame, the scope ends when its doors found a reason
    (``PlaybackSources.end_reason``): the player's press (``exit_on_input``: any key or button,
    ``PLAYBACK_EXIT_EVENT_TYPES``), the recording's quit (its window's QUIT or the playback
-   scene's own ``quit_game()``: the scope ends, the game does not quit), or the recording's end
-   or divergence (the replay stops there; a playback never pauses). An error in the scope's
+   scene's own ``quit_game()``: the scope ends, the game does not quit), the game's request
+   (``SceneManager.end_playback``: made during a frame, the scope ends once that frame ended;
+   between frames, at once; ``'ended_by_game'``), or the recording's end or divergence (the
+   replay stops there; a playback never pauses). An error in the scope's
    part of a frame (its frame, the comparison, or entering) ends it too, logged
    (``SceneManager._run_frame`` contains it); an error of the installed doors (a session
    recorder that cannot write) propagates as it would outside a scope. The run's end
@@ -90,9 +92,44 @@ Demos and instant replays run inside a playback scope, not a new engine run
      (a recording of the session writes it; glitchygames/recording.py, Playback scopes). The
      scene manager calls the two itself, so only the comparison's errors end the scope.
    - ``captures_scene_starts`` is True; ``stop_requested``, pacing, holding, presenting and
-     the overlay are the installed doors' (the scope never stops the run).
+     the overlay are the installed doors' (the scope never stops the run), except while
+     fast-forwarding (rule 6).
+6. Fast-forward (``PlaybackOptions.fast_forward_frames``): the scope's first N frames run in
+   full but unseen and unheard. While ``PlaybackSources.is_fast_forwarding`` (fewer frames
+   compared than N), ``presents_frames`` is False and ``paced_frame_seconds()`` is 0.0, the
+   doors a headless replay uses (the scene manager neither presents nor waits), and after each
+   such frame every sound it started is stopped and music is paused (``FrameSilencer``,
+   glitchygames/replay/silence.py, the code path a restarted replay's rebuild uses; it follows
+   the game's own music pauses from the scope's start). After the Nth frame the silence ends
+   (music the silencer paused plays on, unless the game paused it) and the frames play as rule
+   3 says, heard as the game plays them; so does a scope that ends during the fast-forward.
+   Music is the one mixer's: the scope neither saves nor restores it, so music the playback's
+   scene starts or stops is the live game's too. The scope's first frame is paced as the live
+   doors pace it (the loop asks before the frame enters the scope). None of this changes what
+   a frame does, so a recording or replay of the session (watched or headless) is unchanged.
+7. Instant replay (``SceneManager.instant_replay``, ``start_instant_replay``): the active
+   scene's instant-replay journal (glitchygames/instant_replay.py) plays in a scope of kind
+   ``'instant'`` from its ``start_frame``, returning to the scene shown (the journal's scene,
+   or the pause screen presenting it), with no exit on input: the player's presses reach
+   nothing, and the game decides when it ends (the journal's end, or
+   ``SceneManager.end_playback``). The frames before the last ``Scene.INSTANT_REPLAY_SECONDS``
+   of frame time are fast-forwarded (``fast_forward_frame_count``); the rest are shown at the
+   game's pace. Frame time, not game time: the shown part takes that long to watch, a paused
+   stretch in it included. Refused (False, nothing starts) when the scene keeps no journal (it
+   does not offer instant replay, its first logic frame has not run, or a scope plays) or
+   the journal holds more frame time than ``Scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS``.
+   The request is answered as any playback request is (rule 1: a playback of the journal gets
+   the recorded answer and requests nothing), so a scene that asks after every goal plays back
+   across its earlier replays. The journal's recording is taken as the request is made: the
+   frame that asks is not in it (it ends live, before the scope begins).
 
-Limits: a scene must be rebuildable from its start (``Scene.replay_arguments``). Of a scene
+Limits: ``SceneManager.end_playback`` is for code outside the played scene (a supervisor,
+code between frames): the played scene's own code runs again in a playback, where its call
+would end the scope. A scope that fast-forwards inside a restarted replay's rebuild follows the
+music controls on top of the rebuild's: the end of its fast-forward may resume music during the
+rebuild (which pauses it again after the next frame), and a rebuild that ends during the
+fast-forward leaves its music wrappers in place (they still call pygame's). A scene must be
+rebuildable from its start (``Scene.replay_arguments``). Of a scene
 that arrived by a transition, the arrival step is repeated, but the events the ride delivered
 to it (releases, window and device events) are not: a scene they change diverges. The
 first logic frame's earlier posts are counted from the internal-post tracker, so they are
@@ -105,6 +142,7 @@ from __future__ import annotations
 
 import collections
 import logging
+from fractions import Fraction
 from typing import TYPE_CHECKING, Any, Final, Literal, Self
 
 import pygame
@@ -114,6 +152,7 @@ from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.input.state import current_input
 from glitchygames.randomness import capture_stream_states
 from glitchygames.recording import (
+    DT_FIELD,
     EXTERNAL_ORIGIN,
     INTERNAL_ORIGIN,
     SCENE_START_FIELD,
@@ -126,6 +165,7 @@ from glitchygames.replay.driver import (
     is_cut_off,
     playback_replay_sources,
 )
+from glitchygames.replay.silence import FrameSilencer
 from glitchygames.scene_start import FirstLogicFrame, SceneStart
 from glitchygames.scenes import Scene
 from glitchygames.sources import active_sources, frame_clock_seconds
@@ -153,7 +193,14 @@ DEMO_PLAYBACK: Final = 'demo'
 INSTANT_PLAYBACK: Final = 'instant'
 # Why a scope ended (PlaybackOutcome.reason)
 type PlaybackEndReason = Literal[
-    'exit_input', 'recording_quit', 'end_of_recording', 'truncated', 'diverged', 'error', 'quit'
+    'exit_input',
+    'recording_quit',
+    'end_of_recording',
+    'truncated',
+    'diverged',
+    'error',
+    'quit',
+    'ended_by_game',
 ]
 
 # The player's presses that end a playback started with exit_on_input (spec 5.2: any key or
@@ -194,6 +241,9 @@ class PlaybackOptions(BaseModel):
         exit_on_input: True to end the scope at any key or button press (a demo).
         kind: What the scope plays (the ``playback`` control event's ``source``).
         start_frame: The recording frame played first; it must hold a ``scene_start``.
+        fast_forward_frames: How many frames, from ``start_frame``, run unpresented, unpaced
+            and silent before the rest play as usual (rule 6; an instant replay's
+            ``fast_forward_frame_count``).
 
     """
 
@@ -202,6 +252,7 @@ class PlaybackOptions(BaseModel):
     exit_on_input: bool = False
     kind: PlaybackKind = DEMO_PLAYBACK
     start_frame: int = Field(default=0, ge=0)
+    fast_forward_frames: int = Field(default=0, ge=0)
 
 
 # A playback with no options: no exit on input, a demo, from the recording's first frame
@@ -215,6 +266,10 @@ class PlaybackSources:
         base: The installed doors underneath (live, recording or a replay of the session).
         replay: The replay serving the recording to the playback's scene.
         exit_on_input: True when any key or button press ends the scope.
+        fast_forward_frames: How many of the scope's first frames run unpresented, unpaced and
+            silent (rule 6).
+        is_fast_forwarding: True while the frame running (or about to run) is one of them:
+            fewer frames compared than ``fast_forward_frames``.
         exit_requested: True once such a press arrived.
         recording_quit: True once the recording asked to quit (its window's QUIT, or the
             playback scene's own ``quit_game()``): the scope ends, the game does not quit.
@@ -223,7 +278,8 @@ class PlaybackSources:
         frames_played: How many frames the replay compared so far.
         end_reason: Why the scope should end now, or None while it plays on: the first found
             of the player's exit press (``'exit_input'``) and the recording's quit
-            (``'recording_quit'``), found by the frame's pumps, then the replay's end
+            (``'recording_quit'``), found by the frame's pumps, the game's request
+            (``'ended_by_game'``, set by ``SceneManager.end_playback``), then the replay's end
             (``'end_of_recording'``, ``'truncated'`` or ``'diverged'``), found by
             ``compare_frame``.
         last_base_snapshot: The installed doors' latest polled input (the live input as the
@@ -236,7 +292,12 @@ class PlaybackSources:
     """
 
     def __init__(
-        self: Self, *, base: EngineSources, replay: ReplaySources, exit_on_input: bool
+        self: Self,
+        *,
+        base: EngineSources,
+        replay: ReplaySources,
+        exit_on_input: bool,
+        fast_forward_frames: int = 0,
     ) -> None:
         """Wrap the installed doors and a replay.
 
@@ -244,11 +305,17 @@ class PlaybackSources:
             base: The installed doors.
             replay: The replay sources (``playback_replay_sources``).
             exit_on_input: True to end the scope at any key or button press.
+            fast_forward_frames: How many of the scope's first frames to fast-forward (rule 6).
 
         """
         self.base = base
         self.replay = replay
         self.exit_on_input = exit_on_input
+        self.fast_forward_frames = fast_forward_frames
+        # A plain attribute, kept by compare_frame (the class has as many methods as it may)
+        self.is_fast_forwarding = fast_forward_frames > 0
+        # Keeps the fast-forwarded frames silent (the rebuild's code path)
+        self._silencer = FrameSilencer()
         self.exit_requested = False
         self.recording_quit = False
         # The EngineSources property, as a plain attribute: set once, for the whole scope
@@ -279,8 +346,8 @@ class PlaybackSources:
 
     @property
     def presents_frames(self: Self) -> bool:
-        """Whether the installed doors present the frames as they run."""
-        return self.base.presents_frames
+        """Whether the frame is presented: never while fast-forwarding, else as the doors do."""
+        return not self.is_fast_forwarding and self.base.presents_frames
 
     @property
     def draws_overlay(self: Self) -> bool:
@@ -288,14 +355,21 @@ class PlaybackSources:
         return self.base.draws_overlay
 
     def on_installed(self: Self) -> None:
-        """Note the live game's pending posts and input, then let the replay own the tracker."""
+        """Note the live game's pending posts and input, then let the replay own the tracker.
+
+        A scope that fast-forwards follows the game's music controls from here (rule 6), so
+        the rebuilt scene's own are followed too.
+        """
         self._posts_before_scope = list(pending_internal_posts())
         self._has_pumped = False
         self.last_base_snapshot = current_input()
+        if self.is_fast_forwarding:
+            self._silencer.begin()
         self.replay.on_installed()
 
     def on_uninstalled(self: Self) -> None:
-        """Let the replay give up the post tracker."""
+        """Let the replay give up the post tracker; end a fast-forward's silence (rule 6)."""
+        self._silencer.finish()
         self.replay.on_uninstalled()
 
     def pump_events(self: Self) -> list[pygame.event.Event]:
@@ -403,12 +477,16 @@ class PlaybackSources:
         return self.base.performance_frame_seconds(measured=measured, frame_seconds=frame_seconds)
 
     def paced_frame_seconds(self: Self) -> float | None:
-        """Return how the installed doors pace the frame (a demo plays at the game's speed).
+        """Return how the frame is paced: not at all while fast-forwarding (rule 6).
+
+        Otherwise as the installed doors pace it (a demo plays at the game's speed).
 
         Returns:
-            Seconds, or None for the target FPS.
+            Seconds (0.0: unpaced), or None for the target FPS.
 
         """
+        if self.is_fast_forwarding:
+            return 0.0
         return self.base.paced_frame_seconds()
 
     def hold_frame(self: Self) -> bool:
@@ -505,8 +583,12 @@ class PlaybackSources:
         """Compare the frame with the recording (the scope's half of ``end_frame``; rule 5).
 
         The scope's own ``playback`` marker is left out: it belongs to the session, not to the
-        recording played.
+        recording played. A fast-forwarded frame is silenced first (every sound it started
+        stopped, music paused); after the last one, the silence ends (rule 6).
         """
+        was_fast_forwarding = self.is_fast_forwarding
+        if was_fast_forwarding:
+            self._silencer.silence_frame()
         self.replay.end_frame(
             frame_number=frame_number,
             dt=dt,
@@ -518,6 +600,10 @@ class PlaybackSources:
             ],
         )
         self.frames_played += 1
+        self.is_fast_forwarding = self.frames_played < self.fast_forward_frames
+        if was_fast_forwarding and not self.is_fast_forwarding:
+            # The shown frames play their sounds, and the music plays on
+            self._silencer.finish()
         if self.replay.stop_requested:
             replay_end_reason = self.replay.result.end_reason
             if replay_end_reason == 'diverged':
@@ -634,8 +720,9 @@ class PlaybackOutcome(BaseModel):
         kind: What the scope played.
         reason: Why it ended: ``'exit_input'`` (the player's press), ``'recording_quit'`` (the
             recording asked to quit), ``'end_of_recording'``, ``'truncated'`` (a cut-off file's
-            last complete frame), ``'diverged'``, ``'error'`` (an error in the scope, logged)
-            or ``'quit'`` (the run ended during the scope).
+            last complete frame), ``'diverged'``, ``'error'`` (an error in the scope, logged),
+            ``'quit'`` (the run ended during the scope) or ``'ended_by_game'``
+            (``SceneManager.end_playback``).
         frames_played: How many frames the scope compared with the recording.
 
     """
@@ -815,7 +902,10 @@ def _start_playback(
     return manager.request_playback(
         request=PlaybackRequest(
             sources=PlaybackSources(
-                base=active_sources(), replay=replay, exit_on_input=options.exit_on_input
+                base=active_sources(),
+                replay=replay,
+                exit_on_input=options.exit_on_input,
+                fast_forward_frames=options.fast_forward_frames,
             ),
             start=start,
             scene_class=scene_class,
@@ -824,6 +914,100 @@ def _start_playback(
             frame_count=len(frames) - start_frame,
             first_logic_frame=start.first_logic_frame,
         )
+    )
+
+
+def fast_forward_frame_count(
+    *, frames: Sequence[dict[str, Any]], start_frame: int, shown_seconds: float
+) -> int:
+    """Return how many frames an instant replay fast-forwards before the seconds it shows.
+
+    A frame is shown when the frame time from its start to the recording's end (its ``dt``
+    and every later frame's, summed exactly, then rounded once to a float) is at most
+    ``shown_seconds``; every earlier frame from ``start_frame`` is fast-forwarded (rule 7).
+    So ten frames of ``dt`` d are shown for ``shown_seconds`` 10 * d, whatever float rounding
+    a running sum would add.
+
+    Args:
+        frames: The recording's decoded frames.
+        start_frame: The frame the playback starts at.
+        shown_seconds: The frame time to show (``Scene.INSTANT_REPLAY_SECONDS``).
+
+    Returns:
+        The number of frames, from ``start_frame``, to fast-forward.
+
+    """
+    first_shown_frame = len(frames)
+    seconds_to_end = Fraction(0)
+    for frame_index in range(len(frames) - 1, start_frame - 1, -1):
+        seconds_to_end += Fraction(frames[frame_index][DT_FIELD])
+        if float(seconds_to_end) > shown_seconds:
+            break
+        first_shown_frame = frame_index
+    return first_shown_frame - start_frame
+
+
+def start_instant_replay(*, manager: SceneManager) -> bool:
+    """Show the active scene's instant replay (``SceneManager.instant_replay``; rule 7).
+
+    Args:
+        manager: The running scene manager.
+
+    Returns:
+        True when the scope will begin at the start of the next frame; False (logged) when no
+        journal is kept, the journal is past the scene's fast-forward budget, or a scope is
+        already starting or playing. Inside a scope playing the journal, the answer the frame
+        being played recorded, and nothing is requested (``answered_playback_request``).
+
+    """
+    return answered_playback_request(
+        manager=manager, request=lambda: _start_instant_replay(manager=manager)
+    )
+
+
+def _start_instant_replay(*, manager: SceneManager) -> bool:
+    """Make the playback request ``start_instant_replay`` describes (its answer is not kept here).
+
+    Returns:
+        As ``start_instant_replay``, outside a scope.
+
+    """
+    journal = manager.instant_replay_journal
+    if journal is None:
+        LOG.info('No instant replay: the active scene keeps no instant-replay journal')
+        return False
+    scene = journal.scene
+    shown_seconds = scene.INSTANT_REPLAY_SECONDS
+    budget_seconds = scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS
+    if shown_seconds is None or not journal.within_budget(maximum_seconds=budget_seconds):
+        LOG.info(
+            'No instant replay: %s s of %s would be re-simulated, past its %s s budget',
+            journal.recorded_seconds,
+            type(scene).__name__,
+            budget_seconds,
+        )
+        return False
+    # The scene itself, or the pause screen presenting it: the scope returns to what is shown
+    then = manager.active_scene
+    if then is None:
+        LOG.info('No instant replay: no scene is active')
+        return False
+    recording = journal.as_recording()
+    return _start_playback(
+        manager=manager,
+        header=recording.header,
+        frames=recording.frames,
+        then=then,
+        options=PlaybackOptions(
+            exit_on_input=False,
+            kind=INSTANT_PLAYBACK,
+            start_frame=recording.start_frame,
+            fast_forward_frames=fast_forward_frame_count(
+                frames=recording.frames,
+                start_frame=recording.start_frame,
+                shown_seconds=shown_seconds,
+            ),
+        ),
     )
 
 

@@ -34,18 +34,18 @@ and singletons hold the state of every frame run so far). So ``,`` (step back), 
    children run; only the first process supervises, so this is paid once, not per restart.
 4. The restarted replay (``ReplayOptions.pause_at_frame``) skips the start screen (the viewer
    already started it) and rebuilds: frames 0 to N - 1 run in full but unpresented and unpaced,
-   in silence (``Rebuild.silence_frame``: every sound a frame started is stopped after it, as
-   ``Sound.play()`` gives its channel full volume again, and music is paused until the rebuild
-   ends; ``Rebuild.begin`` follows the game's own music pauses, so music the game paused itself
-   stays paused), presenting ``Rebuilding: frame k / N`` every
+   in silence (``FrameSilencer``, glitchygames/replay/silence.py, which an instant replay's
+   fast-forward shares: ``Rebuild.silence_frame`` stops every sound a frame started after it,
+   as ``Sound.play()`` gives its channel full volume again, and music is paused until the
+   rebuild ends; ``Rebuild.begin`` follows the game's own music pauses, so music the game
+   paused itself stays paused), presenting ``Rebuilding: frame k / N`` every
    ``REBUILD_PROGRESS_INTERVAL_SECONDS`` of real time and printing it every
    ``REBUILD_PROGRESS_PRINT_INTERVAL_SECONDS``
    (``Rebuild.progress_is_due``), so the window does not look frozen. At frame N it pauses,
    showing frame N - 1's picture. Frame 0 always runs first (``FIRST_PAUSED_FRAME``), so a pause
-   frame of 0 (Home) pauses after it. A game that asks the mixer what is playing
-   (``get_busy``, ``Channel.get_busy``) may get a different answer during the rebuild than when
-   it was recorded; audio is played, never compared, so the replay is unaffected unless game
-   logic depends on it (which no recording could replay exactly anyway).
+   frame of 0 (Home) pauses after it. A game that asks the mixer what is playing may get a
+   different answer during the rebuild than when it was recorded (glitchygames/replay/
+   silence.py says why the replay is unaffected).
 
 ``os.execv`` would replace the process in place, but it is not used: starting a process without
 a shell is a security lint finding everywhere but the one authorised launcher
@@ -61,16 +61,16 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
-import pygame
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from glitchygames.debug.overlay import DebugPanel
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
 from glitchygames.replay.controls import ReplayControls, rebuild_progress_text
+from glitchygames.replay.silence import FrameSilencer
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
 LOG = logging.getLogger('game.replay')
 LOG.addHandler(logging.NullHandler())
@@ -351,22 +351,12 @@ def _supervise(*, first_handoff: RestartHandoff, handoff_path: Path) -> int:
     return returncode
 
 
-def _set_music_controls(*, pause: Callable[[], None], unpause: Callable[[], None]) -> None:
-    """Put ``pause`` and ``unpause`` in place of ``pygame.mixer.music``'s (``Rebuild.begin``).
-
-    Set by name: the type checkers type the module's functions as those exact functions.
-
-    Args:
-        pause: The function ``pygame.mixer.music.pause`` is to be.
-        unpause: The function ``pygame.mixer.music.unpause`` is to be.
-
-    """
-    for name, function in (('pause', pause), ('unpause', unpause)):
-        setattr(pygame.mixer.music, name, function)
-
-
-class Rebuild:
+class Rebuild(FrameSilencer):
     """A restarted replay's run up to its pause frame (module docstring, step 4).
+
+    Its frames run in silence as an instant replay's fast-forward does: ``begin``,
+    ``silence_frame``, ``stop_following_music`` and ``finish`` are ``FrameSilencer``'s
+    (glitchygames/replay/silence.py).
 
     Attributes:
         target_frame: The frame the replay pauses at.
@@ -380,48 +370,11 @@ class Rebuild:
             target_frame: The frame the replay pauses at (at least ``FIRST_PAUSED_FRAME``).
 
         """
+        super().__init__()
         self.target_frame = target_frame
         # When the progress is next shown and printed (set by the first question)
         self._next_progress_seconds: float | None = None
         self._next_print_seconds: float | None = None
-        # True while music is paused by the rebuild (silence_frame), not by the game
-        self._paused_music = False
-        # The game's own music.pause() and music.unpause() calls during the rebuild: whether
-        # its last one paused the music (begin), and pygame's functions while followed
-        self._game_paused_music = False
-        self._followed_music_controls: tuple[Callable[[], None], Callable[[], None]] | None = None
-
-    def begin(self: Self) -> None:
-        """Follow the game's own ``pygame.mixer.music.pause()`` and ``unpause()`` calls.
-
-        Until ``finish`` (or ``stop_following_music``), the two module functions are replaced
-        by ones that note the call and then call pygame's, so ``finish`` resumes music only when
-        the game did not pause it itself. A game that bound the functions before (``from
-        pygame.mixer.music import pause``) is not followed. Again: nothing.
-        """
-        if self._followed_music_controls is not None:
-            return
-        music = pygame.mixer.music
-        pygame_pause, pygame_unpause = music.pause, music.unpause
-
-        def game_pause() -> None:
-            self._game_paused_music = True
-            pygame_pause()
-
-        def game_unpause() -> None:
-            self._game_paused_music = False
-            pygame_unpause()
-
-        self._followed_music_controls = (pygame_pause, pygame_unpause)
-        _set_music_controls(pause=game_pause, unpause=game_unpause)
-
-    def stop_following_music(self: Self) -> None:
-        """Give ``pygame.mixer.music`` its own pause and unpause back (``begin``)."""
-        if self._followed_music_controls is None:
-            return
-        pygame_pause, pygame_unpause = self._followed_music_controls
-        _set_music_controls(pause=pygame_pause, unpause=pygame_unpause)
-        self._followed_music_controls = None
 
     def progress_is_due(self: Self, *, frame_index: int, now: float) -> bool:
         """Report whether the rebuild shows its progress before ``frame_index`` runs.
@@ -457,32 +410,3 @@ class Rebuild:
             sys.stdout.write(f'{progress_text}\n')
             sys.stdout.flush()
         return True
-
-    def silence_frame(self: Self) -> None:
-        """Stop every sound the rebuild frame just run started, and pause any music.
-
-        Music the rebuild paused plays on at ``finish``. Nothing happens without a mixer.
-        """
-        if pygame.mixer.get_init() is None:
-            return
-        pygame.mixer.stop()
-        if pygame.mixer.music.get_busy():
-            pause = (
-                pygame.mixer.music.pause
-                if self._followed_music_controls is None
-                else self._followed_music_controls[0]
-            )
-            # pygame's own pause: the rebuild's, not the game's
-            pause()
-            self._paused_music = True
-
-    def finish(self: Self) -> None:
-        """End the rebuild: music the rebuild paused plays on, unless the game paused it last."""
-        self.stop_following_music()
-        if (
-            self._paused_music
-            and not self._game_paused_music
-            and pygame.mixer.get_init() is not None
-        ):
-            pygame.mixer.music.unpause()
-        self._paused_music = False

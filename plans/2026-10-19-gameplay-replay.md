@@ -341,7 +341,13 @@ logging the report in debug runs; a replay test per bundled demo catches this in
   time of every kept frame, paused ones included), so it never holds much more than that.
 - `scene_manager.instant_replay() -> bool` rebuilds the scene (5.1), re-simulates headless to N
   seconds ago, plays N seconds visibly, then returns to the live scene where it was (the live scene
-  is never touched).
+  is never touched). Amended (as built in Part 3 Task 6): N seconds of frame time, not game
+  time (the shown part takes N seconds to watch, a paused stretch in it included); the
+  fast-forwarded frames run unpresented, unpaced and silent (the rebuild's `FrameSilencer`),
+  the shown ones at the game's pace with their sounds. The player's presses do not end it;
+  `scene_manager.end_playback()` does (reason `ended_by_game`). A request made by the scene's
+  own code inside a playback of its journal gets the recorded answer, so replays after every
+  goal play back across one another.
 - Budget `Scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` (default 60 s of scene time; about 1–2 ms
   per headless frame). Past it, `instant_replay()` returns `False`. Longer scenes need state
   snapshots (out of scope). Amended (Part 3 Task 5): the budget is measured as the frame time
