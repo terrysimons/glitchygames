@@ -81,7 +81,7 @@ class TestEnhancedNavigationAnimationWrap:
         del enhancements.scene.film_strips['walk']
 
         # Set last_update_time to past to allow visual update
-        enhancements.last_update_time = 0
+        enhancements.last_update_time = float('-inf')
 
         result = enhancements.enhanced_navigation(0, 'animation', amount=1)
 

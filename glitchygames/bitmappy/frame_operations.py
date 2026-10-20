@@ -417,10 +417,10 @@ class FrameOperationManager:
 
         # When the first pixel changed (frame clock), or None; compared with 'is not None'
         # because the frame clock reads 0.0 until the first frame closes
-        pixel_change_timer: float | None = getattr(self.editor, '_pixel_change_timer', None)
+        pixel_change_timer = self.editor.pixel_change_timer
         if pixel_count == 1 and pixel_change_timer is not None:  # Only for single pixels
             current_time = frame_clock_seconds()
             # If more than 0.1 seconds have passed since the first pixel change, submit it
             if current_time - pixel_change_timer > PIXEL_CHANGE_DEBOUNCE_SECONDS:
                 self.submit_pixel_changes_if_ready()
-                self.editor._pixel_change_timer = None  # type: ignore[reportPrivateUsage]
+                self.editor.pixel_change_timer = None

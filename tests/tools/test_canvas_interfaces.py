@@ -814,7 +814,7 @@ class TestCollectPixelChangeDictionaryTrimming:
 
         interface._collect_pixel_change(2, 3, MAGENTA, RED)
 
-        assert hasattr(parent_scene, '_pixel_change_timer')
+        assert hasattr(parent_scene, 'pixel_change_timer')
 
 
 class TestGetCurrentFramePixelsDefaultHandling:
@@ -2041,7 +2041,7 @@ class TestAnimatedCanvasInterfaceCollectPixelChange:
         interface._collect_pixel_change(0, 0, MAGENTA, RED)
 
         assert (0, 0) in canvas_sprite.parent_scene.current_pixel_changes_dict
-        assert hasattr(canvas_sprite.parent_scene, '_pixel_change_timer')
+        assert hasattr(canvas_sprite.parent_scene, 'pixel_change_timer')
 
     def test_collect_duplicate_pixel_updates_existing(self, mocker):
         """Test collecting same pixel again updates new_color, keeps old_color."""

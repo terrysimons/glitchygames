@@ -94,7 +94,7 @@ class TestBitmappyMultiControllerEnhancements:
         """Test navigating forward by frame."""
         mock_controller_selection.get_selection.return_value = ('walk', 0)
         # Force last_update_time far in the past so throttle doesn't block
-        enhancements.last_update_time = 0
+        enhancements.last_update_time = float('-inf')
 
         result = enhancements.enhanced_navigation(0, 'frame', 1)
         assert result is True
@@ -107,7 +107,7 @@ class TestBitmappyMultiControllerEnhancements:
     ):
         """Test that navigating backward past frame 0 clamps to 0."""
         mock_controller_selection.get_selection.return_value = ('walk', 0)
-        enhancements.last_update_time = 0
+        enhancements.last_update_time = float('-inf')
 
         result = enhancements.enhanced_navigation(0, 'frame', -1)
         assert result is True
@@ -118,7 +118,7 @@ class TestBitmappyMultiControllerEnhancements:
     def test_enhanced_navigation_animation_direction(self, enhancements, mock_controller_selection):
         """Test navigating between animations."""
         mock_controller_selection.get_selection.return_value = ('walk', 0)
-        enhancements.last_update_time = 0
+        enhancements.last_update_time = float('-inf')
 
         result = enhancements.enhanced_navigation(0, 'animation', 1)
         assert result is True
@@ -183,7 +183,7 @@ class TestBitmappyMultiControllerEnhancements:
     def test_execute_group_action_navigate(self, enhancements, mock_controller_selection):
         """Test executing a navigate action on a group."""
         enhancements.create_controller_group('team_a', [0, 1])
-        enhancements.last_update_time = 0
+        enhancements.last_update_time = float('-inf')
         mock_controller_selection.get_selection.return_value = ('walk', 0)
 
         result = enhancements.execute_group_action(
@@ -202,7 +202,7 @@ class TestBitmappyMultiControllerEnhancements:
     def test_execute_group_action_activate(self, enhancements):
         """Test executing an activate action on a group."""
         enhancements.create_controller_group('team_a', [0, 1])
-        enhancements.last_update_time = 0
+        enhancements.last_update_time = float('-inf')
 
         result = enhancements.execute_group_action('team_a', 'activate')
         assert result is True

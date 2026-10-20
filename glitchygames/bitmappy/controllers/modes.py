@@ -54,7 +54,9 @@ class ControllerModeState:
     current_mode: ControllerMode
     mode_positions: dict[ControllerMode, ModePosition]
     mode_history: list[ControllerMode]
-    last_mode_switch_time: float = 0.0
+    # elapsed_seconds() of the last switch; -inf before any switch, so the default never reads
+    # as a recent switch when elapsed_seconds() is near 0 (the frame clock in a replay)
+    last_mode_switch_time: float = float('-inf')
 
     def __init__(
         self,
@@ -72,7 +74,7 @@ class ControllerModeState:
             ControllerMode.B_SLIDER: ModePosition((0, 0)),
         }
         self.mode_history = [initial_mode]
-        self.last_mode_switch_time = 0.0
+        self.last_mode_switch_time = float('-inf')  # No switch yet
 
     def switch_to_mode(self, new_mode: ControllerMode, current_time: float) -> None:
         """Switch to a new mode, preserving current position."""
@@ -177,7 +179,9 @@ class TriggerDetector:
         # Initialize controller state if needed
         if controller_id not in self.last_trigger_states:
             self.last_trigger_states[controller_id] = {'L2': 0.0, 'R2': 0.0}
-            self.last_trigger_times[controller_id] = {'L2': 0.0, 'R2': 0.0}
+            # No press yet: -inf, so a first press is never debounced, even when
+            # elapsed_seconds() reads near 0 (the frame clock in a replay)
+            self.last_trigger_times[controller_id] = {'L2': float('-inf'), 'R2': float('-inf')}
 
         # Check if trigger crossed threshold
         last_value = self.last_trigger_states[controller_id][trigger_type]

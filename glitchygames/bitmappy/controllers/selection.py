@@ -41,7 +41,9 @@ class ControllerSelectionState:
     selected_slider: str = 'R'  # R, G, or B
     controller_fill_direction: str = 'HORIZONTAL'  # HORIZONTAL or VERTICAL
     is_active: bool = False
-    last_update_time: float = 0.0
+    # elapsed_seconds() of the last activity; -inf before any, so the activity age is inf
+    # rather than whatever elapsed_seconds() reads (the frame clock in a replay)
+    last_update_time: float = float('-inf')
     navigation_history: list[NavigationEntry] | None = None
 
     def __post_init__(self) -> None:

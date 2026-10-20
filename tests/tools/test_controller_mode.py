@@ -3,6 +3,8 @@
 import math
 import time
 
+import pytest
+
 from glitchygames.bitmappy.controllers.modes import (
     ControllerMode,
     ControllerModeState,
@@ -61,6 +63,10 @@ class TestControllerModeState:
             len(self.mode_state.mode_positions) == 5
         )  # FILM_STRIP, CANVAS, R_SLIDER, G_SLIDER, B_SLIDER
         assert len(self.mode_state.mode_history) == 1  # Initial mode is added to history
+
+    def test_no_mode_switch_yet_is_long_ago(self):
+        """Before any switch, the last switch time is -inf, whatever elapsed_seconds() reads."""
+        assert self.mode_state.last_mode_switch_time == float('-inf')
 
     def test_switch_to_mode(self):
         """Test switching to a different mode."""
@@ -142,6 +148,13 @@ class TestTriggerDetector:
             trigger_name,
             current_time,
         )
+
+        assert result is True
+
+    @pytest.mark.parametrize('current_time', [0.0, 0.05])
+    def test_first_press_counts_at_any_elapsed_reading(self, current_time):
+        """A first press is not debounced, even at elapsed 0.0 or 0.05 (a replay's start)."""
+        result = self.trigger_detector.detect_trigger_press(0, 1.0, 'R2', current_time)
 
         assert result is True
 

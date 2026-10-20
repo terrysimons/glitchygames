@@ -545,7 +545,7 @@ class EditorSetup:
         # to BitmapEditorScene by design.
         self.editor.current_pixel_changes = []
         self.editor._is_drag_operation = False  # pyright: ignore[reportPrivateUsage]
-        self.editor._pixel_change_timer = None  # pyright: ignore[reportPrivateUsage]
+        self.editor.pixel_change_timer = None
         self.editor._applying_undo_redo = False  # pyright: ignore[reportPrivateUsage]
 
         # These are set up in the GameEngine class.

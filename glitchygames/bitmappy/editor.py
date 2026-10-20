@@ -106,7 +106,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     controller_position_operation_tracker: ControllerPositionOperationTracker
     current_pixel_changes: list[tuple[int, tuple[int, ...], tuple[int, ...]]]
     _is_drag_operation: bool
-    _pixel_change_timer: float | None
+    pixel_change_timer: float | None
     _applying_undo_redo: bool
     _initialized: bool
 

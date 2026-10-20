@@ -152,7 +152,7 @@ def _setup_editor_state(editor, mocker):
     editor.current_pixel_changes = []
     editor._is_drag_operation = False
     editor._applying_undo_redo = False
-    editor._pixel_change_timer = None
+    editor.pixel_change_timer = None
 
     editor.controller_handler = ControllerEventHandler(editor)
     # Controller handler code references self.editor.* for state
@@ -1055,25 +1055,25 @@ class TestSingleClickTimer:
         frame_operations = mock_editor._frame_operations
         submit = mocker.patch.object(frame_operations, 'submit_pixel_changes_if_ready')
         mock_editor.current_pixel_changes = [(0, 0, (255, 0, 0), (0, 0, 0))]
-        mock_editor._pixel_change_timer = 0.0
+        mock_editor.pixel_change_timer = 0.0
 
         sources.advance_frame_clock(seconds=PIXEL_CHANGE_DEBOUNCE_SECONDS * 2)
         frame_operations.check_single_click_timer()
 
         submit.assert_called_once_with()
-        assert mock_editor._pixel_change_timer is None
+        assert mock_editor.pixel_change_timer is None
 
     def test_click_is_held_until_the_debounce_passes(self, mock_editor, mocker):
         """Within the debounce the single pixel waits (it may become a drag)."""
         frame_operations = mock_editor._frame_operations
         submit = mocker.patch.object(frame_operations, 'submit_pixel_changes_if_ready')
         mock_editor.current_pixel_changes = [(0, 0, (255, 0, 0), (0, 0, 0))]
-        mock_editor._pixel_change_timer = 0.0
+        mock_editor.pixel_change_timer = 0.0
 
         frame_operations.check_single_click_timer()
 
         submit.assert_not_called()
-        assert mock_editor._pixel_change_timer == 0.0
+        assert mock_editor.pixel_change_timer == 0.0
 
 
 class TestAxisCooldown:

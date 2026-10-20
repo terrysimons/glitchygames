@@ -525,7 +525,7 @@ class AnimatedCanvasInterface:
 
         # Start a timer for single clicks (if this is the first pixel)
         if len(pixel_changes_dict) == 1:
-            parent_scene._pixel_change_timer = frame_clock_seconds()
+            parent_scene.pixel_change_timer = frame_clock_seconds()
             LOG.debug('Canvas interface started pixel change timer for single click')
 
     def _update_frame_pixel_data(

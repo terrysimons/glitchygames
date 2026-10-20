@@ -424,7 +424,7 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
             position=(10, 20),
         )
 
-        # First update should go through since last_update_time is 0
+        # First update should go through: last_update_time starts at -inf (never)
         optimized_visual_manager.update_controller_position(0, (30, 40))
 
         # Performance should be recorded
@@ -499,7 +499,7 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
         assert len(optimized_visual_manager.pending_updates) == 1
 
         # Now set last_update_time far enough in the past to bypass throttle
-        optimized_visual_manager.last_update_time = 0
+        optimized_visual_manager.last_update_time = float('-inf')
 
         # This update should process pending updates first, then the new one
         optimized_visual_manager.update_controller_position(1, (70, 80))
@@ -517,7 +517,7 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
         )
 
         # Ensure update goes through (not throttled)
-        optimized_visual_manager.last_update_time = 0
+        optimized_visual_manager.last_update_time = float('-inf')
         optimized_visual_manager.update_controller_position(0, (50, 60))
 
         cached_position = optimized_visual_manager.position_cache.get_position(0, 'default', 0)
@@ -537,7 +537,7 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
         # Clear any cache that was set during add
         optimized_visual_manager.position_cache.clear_cache()
 
-        optimized_visual_manager.last_update_time = 0
+        optimized_visual_manager.last_update_time = float('-inf')
         optimized_visual_manager.update_controller_position(0, (50, 60))
 
         cached_position = optimized_visual_manager.position_cache.get_position(0, 'default', 0)

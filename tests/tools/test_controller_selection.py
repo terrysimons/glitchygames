@@ -176,3 +176,12 @@ class TestControllerSelectionActivity:
         selection = ControllerSelection(controller_id=0, instance_id=0)
         age = selection.get_activity_age()
         assert age >= 0.0
+
+    def test_activity_age_before_any_activity_is_infinite(self, mocker):
+        """With no activity yet the age is inf, even at elapsed 0.0 (a replay's start)."""
+        from glitchygames.bitmappy.controllers import selection as selection_module
+
+        mocker.patch.object(selection_module, 'elapsed_seconds', return_value=0.0)
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+
+        assert selection.get_activity_age() == float('inf')

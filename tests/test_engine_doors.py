@@ -43,6 +43,12 @@ RAW_CLOCK_READS = frozenset({
     'time.perf_counter_ns',
     'datetime.datetime.now',
     'datetime.datetime.utcnow',
+    'datetime.datetime.today',
+    'datetime.date.today',
+    'time.process_time',
+    'time.process_time_ns',
+    'time.clock_gettime',
+    'time.clock_gettime_ns',
     'pygame.time.get_ticks',
 })
 
@@ -52,7 +58,12 @@ DOOR_BYPASSES = RAW_CLOCK_READS | frozenset({
     'pygame.mouse.get_pos',
     'pygame.mouse.get_pressed',
     'pygame.mouse.get_focused',
+    'pygame.mouse.get_rel',
+    'pygame.key.get_focused',
     'pygame.event.get',
+    'pygame.event.poll',
+    'pygame.event.wait',
+    'pygame.event.peek',
     'pygame.event.post',
     'pygame.fastevent.get',
     'pygame.joystick.Joystick',
@@ -107,6 +118,11 @@ ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
     # Signs requests to a real server, which needs real time
     'api/client.py': frozenset({'time.time'}),
 }
+
+
+# Allow-list entries whose file a later task creates. Pending until Task 12 of the gameplay
+# replay plan creates replay/driver.py; that task removes it from here
+PENDING_ALLOWED_PATHS = frozenset({'replay/driver.py'})
 
 
 def _allowed(relative_path: str) -> frozenset[str]:
@@ -179,6 +195,16 @@ def enumerate_devices():
 
 def post():
     pygame.event.post(pygame.event.Event(pygame.USEREVENT))
+
+def other_clocks():
+    import datetime
+    return (clock.today(), datetime.date.today(), time.process_time(),
+            time.clock_gettime(time.CLOCK_MONOTONIC))
+
+def other_input():
+    from pygame import event as pygame_event
+    return (pygame_event.poll(), pygame.event.wait(100), pygame.event.peek(),
+            pygame.mouse.get_rel(), pygame.key.get_focused())
 """
 
 
@@ -208,7 +234,30 @@ def test_scan_finds_every_kind(offending_file):
         'pygame.event.post',
         'pygame.joystick.get_count',
         'pygame._sdl2.controller.is_controller',
+        'datetime.datetime.today',
+        'datetime.date.today',
+        'time.process_time',
+        'time.clock_gettime',
+        'pygame.event.poll',
+        'pygame.event.wait',
+        'pygame.event.peek',
+        'pygame.mouse.get_rel',
+        'pygame.key.get_focused',
     }
+
+
+def test_every_allowed_path_exists_unless_pending():
+    """Each allow-list entry names a real file (or directory, ending in '/') in the package.
+
+    A pending entry must not exist yet, so the task that creates it also removes its marker.
+    """
+    for location in ALLOWED_BYPASSES:
+        path = PACKAGE / location
+        exists = path.is_dir() if location.endswith('/') else path.is_file()
+        if location in PENDING_ALLOWED_PATHS:
+            assert not exists, f'{location} exists now: remove it from PENDING_ALLOWED_PATHS'
+        else:
+            assert exists, location
 
 
 def test_allowed_files_are_exact_paths_or_directories():
