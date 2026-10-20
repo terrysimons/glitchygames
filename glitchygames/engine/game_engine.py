@@ -2183,14 +2183,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         Live sources read SDL's queue; a replay's sources hand back a recorded batch instead;
         ``--record-trace``'s ``RecordingSources`` record the batch exactly as the pump returned
         it, before any dispatch or discarding (glitchygames/sources.py). Events a playback scope
-        held for the live game come first (``take_redelivered_events``; they were recorded in
-        the frames they were pumped in).
+        held for the live game come first (``take_redelivered_events``, taken after the doors'
+        pump so a recording can write them into this frame's ``redelivered_events``).
 
         Returns:
             The batch, in queue order.
 
         """
-        return [*take_redelivered_events(), *active_sources().pump_events()]
+        batch = active_sources().pump_events()
+        redelivered = [event for event, _origin in take_redelivered_events()]
+        return [*redelivered, *batch]
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.

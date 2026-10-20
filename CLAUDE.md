@@ -331,9 +331,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `PlaybackSources` (`sources.push_scoped_sources`), records a `playback` marker, rebuilds and
   sets up the scene (repeating a transition's arrival step), then sets the state its first logic
   frame began in and the recording's prior polled input. Real input reaches only the exit check
-  (`exit_on_input`); releases, device and window events are held and redelivered after
-  (`sources.redeliver_events`), live posts re-posted; the recording's QUIT ends the scope (not
-  the game); saves are a sandbox. It ends after the frame on exit input, the recording's end or
+  (`exit_on_input`); the live game's own posts and the player's releases, device and window
+  events are held and redelivered after, in pump order (`sources.redeliver_events`; recorded in
+  that frame's `redelivered_events`, which a playback starting there serves; a next scope takes
+  pending ones over; dropped at `terminate()`); the recording's QUIT ends the scope (not the
+  game); saves are a sandbox. It ends after the frame on exit input, the recording's end or
   divergence, and on any error in its part of the frame (logged; installed-door errors
   propagate); `terminate()` ends it first. `last_playback_result` / `last_playback_outcome`
   (frozen pydantic: kind, reason, frames played). A `--record-trace` session records the live

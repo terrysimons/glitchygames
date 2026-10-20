@@ -58,12 +58,17 @@ Demos and instant replays run inside a playback scope, not a new engine run
      live game posted) is kept: it quits the game. Internal events, the playback scene's own
      posts, go to the replay (``ReplaySources.pump_events(real_events=...)``), which matches
      them with the recorded ones. Internal events posted before the scope began (the live
-     game's last FPS event, say) are held (``held_live_posts``) and posted again when the scope
-     ends: they are the live game's, and would be divergences of the recording's first frame.
-     External events reach only the exit check, never the scene; of them, the ones the live
-     game must not lose (releases, device and window events, ``PLAYBACK_HELD_EVENT_TYPES``)
-     are held (``held_live_events``) and delivered before the first pump after the scope
-     (``sources.redeliver_events``); presses and motion are dropped. The batch is the
+     game's last FPS event, say: they are the live game's, and would be divergences of the
+     recording's first frame) are held, as are the external events the live game must not
+     lose (releases, device and window events, ``PLAYBACK_HELD_EVENT_TYPES``): one list
+     (``held_live_events``), in the order they were pumped, each with its origin, delivered in
+     that order before the first pump after the scope (``sources.redeliver_events``; a
+     recording writes them into that frame's ``redelivered_events``). Events still waiting to
+     be redelivered when a scope begins (a demo that ended into a scene starting the next
+     one) are taken into the new scope's list first, so they reach the live game, never a
+     playback scene. When the run ends during a scope (``terminate``) they are dropped: no
+     frame follows to deliver them. External events reach only the exit check, never the
+     scene; presses and motion are dropped. The batch is the
      replay's (recorded external events, matched internal ones) without any QUIT (a QUIT in
      it ends the scope: ``recording_quit``), then the kept QUIT.
    - ``input_snapshot``: the installed doors' snapshot is read (a recording of the session
@@ -101,13 +106,18 @@ from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.input.state import current_input
 from glitchygames.randomness import capture_stream_states
 from glitchygames.recording import (
+    EXTERNAL_ORIGIN,
     INTERNAL_ORIGIN,
     SCENE_START_FIELD,
     event_origin,
     pending_internal_posts,
     take_internal_post,
 )
-from glitchygames.replay.driver import playback_replay_sources
+from glitchygames.replay.driver import (
+    SOURCE_TRUNCATED_HEADER_FIELD,
+    is_cut_off,
+    playback_replay_sources,
+)
 from glitchygames.scene_start import FirstLogicFrame, SceneStart
 from glitchygames.scenes import Scene
 from glitchygames.sources import active_sources, frame_clock_seconds
@@ -123,7 +133,7 @@ if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.replay.driver import ReplaySources
     from glitchygames.scenes import SceneManager
-    from glitchygames.sources import EngineSources
+    from glitchygames.sources import EngineSources, RedeliveredEvent
     from glitchygames.state.manager import SaveManager
     from glitchygames.supervision import ControlEvent
 
@@ -210,11 +220,10 @@ class PlaybackSources:
             ``compare_frame``.
         last_base_snapshot: The installed doors' latest polled input (the live input as the
             scope began, then each frame's): the live game's input when the scope ends.
-        held_live_posts: Events the live game posted before the scope that its pumps drained:
-            posted again when the scope ends.
-        held_live_events: The player's events the live game must not lose (releases, device
-            and window events, ``PLAYBACK_HELD_EVENT_TYPES``), drained by the scope's pumps:
-            delivered before the first pump after the scope.
+        held_live_events: The live game's events the scope's pumps drained and held, each
+            with its origin, in pump order: its own posts made before the scope (internal) and
+            the player's releases, device and window events (external,
+            ``PLAYBACK_HELD_EVENT_TYPES``). Delivered before the first pump after the scope.
 
     """
 
@@ -240,8 +249,7 @@ class PlaybackSources:
         self.frames_played = 0
         self.end_reason: PlaybackEndReason | None = None
         self.last_base_snapshot: InputSnapshot = current_input()
-        self.held_live_posts: list[pygame.event.Event] = []
-        self.held_live_events: list[pygame.event.Event] = []
+        self.held_live_events: list[RedeliveredEvent] = []
         # Posts the live game made that no pump has returned yet as the scope began (rule 5)
         self._posts_before_scope: list[tuple[int, dict[str, Any]]] = []
         self._has_pumped = False
@@ -327,8 +335,7 @@ class PlaybackSources:
     ) -> tuple[list[pygame.event.Event], list[pygame.event.Event]]:
         """Sort the installed doors' batch for the replay, the game and the exit check (rule 5).
 
-        Holds the live game's posts and the events it must not lose (``held_live_posts``,
-        ``held_live_events``).
+        Holds the live game's posts and the events it must not lose (``held_live_events``).
 
         Args:
             base_events: The installed doors' batch.
@@ -353,17 +360,17 @@ class PlaybackSources:
             elif event.type == pygame.QUIT:
                 internal_events.append(event)
             elif take_internal_post(event=event, pending=live_posts):
-                self.held_live_posts.append(event)
+                self.held_live_events.append((event, INTERNAL_ORIGIN))
             elif take_internal_post(event=event, pending=scope_posts):
                 internal_events.append(event)
             elif event_origin(event=event, pending=[]) == INTERNAL_ORIGIN:
                 # Internal by type alone: on the first pump, posted before the scope began
                 if is_first_pump:
-                    self.held_live_posts.append(event)
+                    self.held_live_events.append((event, INTERNAL_ORIGIN))
                 else:
                     internal_events.append(event)
             elif event.type in PLAYBACK_HELD_EVENT_TYPES:
-                self.held_live_events.append(event)
+                self.held_live_events.append((event, EXTERNAL_ORIGIN))
             elif self.exit_on_input and event.type in PLAYBACK_EXIT_EVENT_TYPES:
                 self.exit_requested = True
                 self._note_end(reason='exit_input')
@@ -755,7 +762,7 @@ def start_playback_from_recording(
 ) -> bool:
     """Play a recording file in a playback scope (``start_playback``).
 
-    A file cut off part way plays up to its last complete frame.
+    A file cut off part way plays up to its last complete frame and ends as ``'truncated'``.
 
     Args:
         manager: The running scene manager.
@@ -773,6 +780,9 @@ def start_playback_from_recording(
         LOG.warning('No %s: %s cannot be read: %s', options.kind, path, error)
         return False
     header = {name: value for name, value in read_result.trace.items() if name != FRAMES_FIELD}
+    if is_cut_off(read_result=read_result):
+        # Played up to its last complete frame, then ends as 'truncated'
+        header[SOURCE_TRUNCATED_HEADER_FIELD] = True
     return start_playback(
         manager=manager,
         header=header,

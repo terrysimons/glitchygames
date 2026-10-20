@@ -26,7 +26,7 @@ from glitchygames.replay.playback import (
     start_playback,
     start_playback_from_recording,
 )
-from glitchygames.sources import active_sources, has_scoped_sources
+from glitchygames.sources import active_sources, has_scoped_sources, take_redelivered_events
 from glitchygames.state import open_saves
 from glitchygames.supervision import PLAYBACK_KIND
 from glitchygames.tracing import read_trace_result
@@ -39,7 +39,9 @@ from tests.replay.playback_fixtures import (
     SAVING_TICK,
     SWITCHING_TICK,
     CountingScene,
+    DemoLoopScene,
     InputReadingScene,
+    KeyReleaseCountingScene,
     PostingCountingScene,
     QuittingCountingScene,
     SavingCountingScene,
@@ -55,6 +57,7 @@ from tests.world.test_frame_integration import (
     running_scene,
     step,
 )
+from tests.world.test_gameplay_replay import cut_off_after_frame
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -911,3 +914,143 @@ class TestScenesThatBeganMidRun:
                 manager=manager, header=header, frames=frames, then=manager.active_scene
             )
         assert 'cannot be aligned' in caplog.text
+
+
+KEY_RELEASE = pygame.event.Event(pygame.KEYUP, key=pygame.K_SPACE, mod=0, unicode='', scancode=0)
+
+
+class TestPlaybacksBackToBack:
+    """Attract-mode loops: a scope that ends into a scene starting the next one."""
+
+    def test_a_release_held_by_a_demo_reaches_the_title_never_the_next_demo(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        key_up = mocker.spy(CountingScene, 'on_key_up_event')
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            title = DemoLoopScene(options=live_scene.options)
+            title.demo_path = recording_path
+            title.demos_left = 1
+            assert start_playback_from_recording(manager=manager, path=recording_path, then=title)
+            step(manager)
+            step(manager, KEY_RELEASE)
+            step(manager, frames=SHORT_RECORDED_FRAMES - 2)
+            # The first demo ended into the title, whose setup asked for the second
+            assert manager.active_scene is title
+            step(manager)
+            assert manager.playback_session is not None
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert manager.active_scene is title
+            step(manager)
+            # The release reached the title once, and never a playback scene
+            assert [call.args[0] for call in key_up.call_args_list] == [title]
+            assert manager._playback_requesting_scene is None
+
+    def test_a_scene_starting_right_after_a_scope_plays_back_exactly(self, tmp_path):
+        """The events redelivered in its first logic frame are recorded, so it replays."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        session_path = tmp_path / 'session.jsonl.gz'
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            engine.start_trace_recording(path=session_path)
+            # Built while recording: it captures its start
+            title = KeyReleaseCountingScene(options=engine.OPTIONS)
+            start_playback_from_recording(manager=manager, path=recording_path, then=title)
+            step(manager)
+            step(manager, KEY_RELEASE)
+            step(manager, frames=SHORT_RECORDED_FRAMES - 2)
+            assert manager.active_scene is title
+            step(manager, frames=LIVE_FRAMES_AFTER)
+            engine.stop_trace_recording()
+        header, frames = recorded_trace(path=session_path)
+        (title_start_frame,) = [
+            index
+            for index, frame in enumerate(frames)
+            if frame.get(SCENE_START_FIELD, {}).get('scene_class') == 'KeyReleaseCountingScene'
+        ]
+        assert [record['type'] for record in frames[title_start_frame]['redelivered_events']] == [
+            pygame.KEYUP
+        ]
+        with running_scene(CountingScene) as manager:
+            assert start_playback(
+                manager=manager,
+                header=header,
+                frames=frames,
+                then=active_counting_scene(manager),
+                options=PlaybackOptions(start_frame=title_start_frame),
+            )
+            step(manager, frames=len(frames) - title_start_frame)
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None
+            assert outcome_reason(manager) == 'end_of_recording'
+
+
+class TestScopeHousekeeping:
+    """The requesting scene is forgotten, teardown drops held posts, events keep their order."""
+
+    def test_the_requesting_scene_is_forgotten(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager)
+            assert manager.playback_session is not None
+            assert manager._playback_requesting_scene is None
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            # Dropped: the asking scene has gone by the next frame
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            manager.switch_to_scene(CountingScene(options=live_scene.options))
+            step(manager)
+            assert manager.playback_session is None
+            assert manager._playback_requesting_scene is None
+            # Terminated with a request pending
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=manager.active_scene
+            )
+            manager.terminate()
+            assert manager._playback_requesting_scene is None
+
+    def test_teardown_drops_the_held_live_posts(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            post_event(pygame.event.Event(pygame.USEREVENT, {'live': True}))
+            step(manager)
+            manager.terminate()
+            assert not [event for event in pygame.event.get() if event.type == pygame.USEREVENT]
+            assert take_redelivered_events() == []
+
+    def test_held_events_come_back_in_their_original_order(self, tmp_path, mocker: MockerFixture):
+        """A live post held on the first pump comes back before a release held later."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            post_event(pygame.event.Event(pygame.USEREVENT, {'live': True}))
+            step(manager)
+            step(manager, KEY_RELEASE)
+            step(manager, frames=SHORT_RECORDED_FRAMES - 2)
+            assert manager.playback_session is None
+            pump = mocker.spy(engine, '_pump_events')
+            step(manager)
+            assert [event.type for event in pump.spy_return] == [pygame.USEREVENT, pygame.KEYUP]
+
+    def test_a_cut_off_recording_ends_as_truncated(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        cut_off_after_frame(recording_path=recording_path, frame_number=SHORT_RECORDED_FRAMES - 1)
+        with running_scene(CountingScene) as manager:
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'truncated'

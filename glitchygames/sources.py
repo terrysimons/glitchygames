@@ -46,6 +46,10 @@ if TYPE_CHECKING:
     from glitchygames.supervision import ControlEvent
 
 
+# An event held for the live game, with its origin ('internal' or 'external'; recording.py)
+type RedeliveredEvent = tuple[pygame.event.Event, str]
+
+
 class SourcesAlreadyRunningError(RuntimeError):
     """install_sources() was called after the first frame started."""
 
@@ -222,7 +226,7 @@ class _SourcesRegistry:
     frames_started: bool = False
     frame_clock_seconds: float = 0.0
     # Events to deliver before the next pump's batch (redeliver_events)
-    redelivered_events: list[pygame.event.Event] = dataclasses.field(default_factory=list)
+    redelivered_events: list[RedeliveredEvent] = dataclasses.field(default_factory=list)
     # Weak: an observer nobody else keeps (a scene built and dropped before its setup) goes away
     save_store_observers: weakref.WeakSet[SaveStoreOpenedObserver] = dataclasses.field(
         default_factory=weakref.WeakSet
@@ -338,29 +342,43 @@ def has_scoped_sources() -> bool:
     return bool(_REGISTRY.scoped)
 
 
-def redeliver_events(*, events: list[pygame.event.Event]) -> None:
+def redeliver_events(*, events: list[RedeliveredEvent]) -> None:
     """Deliver ``events`` before the next pump's batch (``take_redelivered_events``).
 
-    A playback scope holds the live game's events that must not be lost (releases, device and
-    window events) while it plays, then hands them back here as it ends
-    (glitchygames/replay/playback.py). They are not read from any door: a recording of the
-    session holds them in the frames they were pumped in, and a replay of the session holds
-    and redelivers them the same way.
+    A playback scope holds the live game's events that must not be lost (its own posts, the
+    player's releases, device and window events) while it plays, then hands them back here as
+    it ends (glitchygames/replay/playback.py). They are not read from any door this frame: a
+    recording writes them into the frame they are delivered in (its ``redelivered_events``
+    field, ``pending_redelivered_events``), and a replay of the session holds and redelivers
+    them the same way.
 
     Args:
-        events: The events, in the order they were pumped.
+        events: Each event with its origin (``'internal'`` or ``'external'``), in the order
+            they were pumped.
 
     """
     _REGISTRY.redelivered_events.extend(events)
 
 
-def take_redelivered_events() -> list[pygame.event.Event]:
-    """Return the events to deliver before the next pump's batch, and forget them.
-
-    ``GameEngine._pump_events`` puts them first in the batch it dispatches.
+def pending_redelivered_events() -> list[RedeliveredEvent]:
+    """Return the events waiting to be delivered before the next pump's batch (a copy).
 
     Returns:
-        The events, in order (usually none).
+        Each event with its origin, in order.
+
+    """
+    return list(_REGISTRY.redelivered_events)
+
+
+def take_redelivered_events() -> list[RedeliveredEvent]:
+    """Return the events to deliver before the next pump's batch, and forget them.
+
+    ``GameEngine._pump_events`` takes them right after the doors' pump and puts them first in
+    the batch it dispatches; a playback scope that begins takes them first, to hold them again
+    for the live game.
+
+    Returns:
+        Each event with its origin, in order (usually none).
 
     """
     events = list(_REGISTRY.redelivered_events)

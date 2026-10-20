@@ -11,6 +11,8 @@ from scripts.record_golden_traces import discard_environment_events
 from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
 from glitchygames.recording import post_event
+from glitchygames.replay.playback import start_playback_from_recording
+from glitchygames.scenes import SceneManager
 from glitchygames.state import open_saves
 from glitchygames.transitions import FadeTransition
 from tests.world.test_frame_integration import (
@@ -156,6 +158,44 @@ class TransitioningCountingScene(CountingScene):
             self.transition_to(
                 CountingScene(options=self.options), FadeTransition(duration=TEST_FADE_SECONDS)
             )
+
+
+class KeyReleaseCountingScene(CountingScene):
+    """Moves its marker down a pixel per key release (so a lost or extra release diverges)."""
+
+    @override
+    def on_key_up_event(self: Self, event: Any) -> None:
+        """Move the marker down for each release."""
+        super().on_key_up_event(event)
+        self.marker.rect.y += 1
+
+
+class DemoLoopScene(KeyReleaseCountingScene):
+    """A title screen that starts a demo each time it is set up, while demos are left."""
+
+    def __init__(
+        self: Self,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
+    ) -> None:
+        """Start with no demo to play.
+
+        Args:
+            options: The game's options.
+            groups: The sprite group.
+
+        """
+        super().__init__(options=options, groups=groups)
+        self.demo_path: Path | None = None
+        self.demos_left = 0
+
+    @override
+    def setup(self: Self) -> None:
+        """Start the next demo, returning here, while demos are left."""
+        super().setup()
+        if self.demo_path is not None and self.demos_left > 0:
+            self.demos_left -= 1
+            start_playback_from_recording(manager=SceneManager(), path=self.demo_path, then=self)
 
 
 def step_finishing(manager: Any, *events: pygame.event.Event, frames: int = 1) -> None:

@@ -34,6 +34,7 @@ from glitchygames.sources import (
     push_scoped_sources,
     redeliver_events,
     set_frame_clock_seconds,
+    take_redelivered_events,
 )
 from glitchygames.supervision import PLAYBACK_KIND, ControlEvent
 from glitchygames.timing import DEFAULT_TARGET_FPS
@@ -202,6 +203,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self._requested_playback: PlaybackRequest | None = None
         # The scene that asked: the scope is dropped if it is gone when the next frame starts
         self._playback_requesting_scene: Scene | None = None
+        # The scene whose setup() runs now (a request made there is that scene's)
+        self._scene_in_setup: Scene | None = None
         self._playback_session: PlaybackSession | None = None
         self._last_playback_result: ReplayResult | None = None
         self._last_playback_outcome: PlaybackOutcome | None = None
@@ -323,7 +326,11 @@ class SceneManager(SceneInterface, events.EventManager):
             LOG.warning('A playback is already starting or playing; %s not started', request.kind)
             return False
         self._requested_playback = request
-        self._playback_requesting_scene = self.active_scene
+        # A scene asking from its setup() (a title screen starting the next demo as a demo
+        # returns to it) is the one active from then on
+        self._playback_requesting_scene = (
+            self._scene_in_setup if self._scene_in_setup is not None else self.active_scene
+        )
         return True
 
     def request_transition(
@@ -1222,7 +1229,8 @@ class SceneManager(SceneInterface, events.EventManager):
         ):
             return
         self._requested_playback = None
-        if self.active_scene is not self._playback_requesting_scene:
+        requesting_scene, self._playback_requesting_scene = self._playback_requesting_scene, None
+        if self.active_scene is not requesting_scene:
             LOG.warning(
                 'The %s playback was not started: the scene that asked for it has gone',
                 request.kind,
@@ -1313,6 +1321,9 @@ class SceneManager(SceneInterface, events.EventManager):
             live_scene=live_scene, fps_event_seconds=self._previous_fps_event_seconds
         )
         push_scoped_sources(sources=request.sources)
+        # Events an earlier scope held and has not delivered yet (it ended into a scene that
+        # started this one) belong to the live game: held again, ahead of this scope's own
+        request.sources.held_live_events[:0] = take_redelivered_events()
         # From here on an error ends the scope and restores all of the above (_exit_playback)
         self._playback_session = session
         LOG.info('Playing a %s of %s', request.kind, request.scene_class.__name__)
@@ -1347,11 +1358,11 @@ class SceneManager(SceneInterface, events.EventManager):
         streams, the frame clock, the FPS event timer and the live polled input (the installed
         doors' latest), and makes the stashed live scene active again without setting it up
         again (its snap mode, the event proxies, the caption and a full redraw), with no shake
-        or rumble carried out. The live game's posts the scope drained are posted again, and
-        the player's held releases, device and window events are delivered before the next
-        pump (``sources.redeliver_events``). A ``then`` other than the live scene is then
-        switched to normally (the live scene is cleaned up as it is left), unless the run is
-        ending.
+        or rumble carried out. The events the scope held for the live game (its own posts,
+        the player's releases, device and window events) are delivered before the next pump
+        in the order they were pumped (``sources.redeliver_events``), unless the run is ending
+        (dropped: no frame follows). A ``then`` other than the live scene is then switched to
+        normally (the live scene is cleaned up as it is left), unless the run is ending.
 
         The frame that ends the scope still finishes afterwards (``_finish_frame``), so the
         restored live frame clock resumes one frame later: it advances by that frame's dt.
@@ -1388,9 +1399,9 @@ class SceneManager(SceneInterface, events.EventManager):
             self._previous_fps_event_seconds = session.saved_fps_event_seconds
             self._clear_frame_effects()
             set_current_input(snapshot=session.sources.last_base_snapshot)
-            for event in session.sources.held_live_posts:
-                post_event(event)
-            redeliver_events(events=session.sources.held_live_events)
+            # In the order they were pumped; when the run ends no frame follows to deliver them
+            if switches_to_then:
+                redeliver_events(events=session.sources.held_live_events)
             self._resume_live_scene(scene=session.live_scene)
         if switches_to_then and session.then is not session.live_scene:
             self.switch_to_scene(session.then)
@@ -1559,6 +1570,7 @@ class SceneManager(SceneInterface, events.EventManager):
         the one torn down) and a requested one is dropped.
         """
         self._requested_playback = None
+        self._playback_requesting_scene = None
         self._exit_playback(reason='quit', switches_to_then=False)
         self.switch_to_scene(None)
 
@@ -1814,7 +1826,11 @@ class SceneManager(SceneInterface, events.EventManager):
             # The scene's snap mode is active from setup() on, so positions snapped while it
             # sets itself up (camera.snap_to, collision) use it, not the previous scene's mode
             self._activate_scene_snap_mode(next_scene)
-            next_scene.setup()
+            self._scene_in_setup = next_scene
+            try:
+                next_scene.setup()
+            finally:
+                self._scene_in_setup = None
 
     def _activate_scene_snap_mode(self, scene: Scene) -> None:
         """Make the scene's PIXEL_SNAP_MODE the default for sprites without their own mode.

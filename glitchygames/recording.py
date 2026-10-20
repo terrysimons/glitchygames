@@ -31,7 +31,7 @@ takes in is recorded where it passes through them.
   discarded or unhandled is a deterministic function of the batch and the game state, which
   replay re-derives. Pumps after the final recorded frame (while the engine terminates and
   shuts down) belong to no frame and are not recorded.
-- Format version 3 adds six frame fields, each written only on frames where it is not
+- Format version 3 adds seven frame fields, each written only on frames where it is not
   empty: ``input_changes``, the frame's polled input (see Polled input below) as the fields
   that changed since the previous frame's snapshot (``glitchygames.input.state.
   snapshot_changes``; the first frame's against ``IDLE_INPUT``); ``control_events``, the
@@ -57,6 +57,9 @@ takes in is recorded where it passes through them.
   ``scene_start`` needed no format version: readers pass frame fields they do not use through
   unchanged (glitchygames/tracing.py), and a replay never compares it (the replayed code
   captures its own); a recording without it replays as before and cannot be played in-game.
+  And ``redelivered_events``: the events a playback scope held for the live game, delivered
+  before the frame's first pump (see Playback scopes below), likewise version-free; a replay
+  never serves it (it redelivers them itself), a playback starting on the frame does.
 - A frame whose active scene is a different scene object from the previous frame's is a
   keyframe, even when both scenes have the same class (two floors of one game).
 
@@ -115,11 +118,14 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
 - No ``scene_start``: a scene that ends a frame while scoped doors are active (the playback
   scene, or a scene it switched to) is not one the live session began, so its start is never
   written (``RecordingSources._unrecorded_scene_start``).
-- After the scope: the live game's posts the scope held are posted again (``post_event``), so
-  the next frame's batch records them as internal; the player's held releases, device and
-  window events are delivered before the next pump (``sources.redeliver_events``) and are not
-  recorded again: they are in the scope frames' batches, and a replay of the session holds and
-  delivers them the same way.
+- After the scope: the events it held for the live game (the live game's own posts and the
+  player's releases, device and window events, in the order they were pumped) are delivered
+  before the next pump (``sources.redeliver_events``). That frame records them in its
+  ``redelivered_events`` field (event records with their origins); its ``event_batches`` do
+  not hold them. A replay of the session does not serve the field: it holds and redelivers
+  the events the same way from the scope frames' batches. A playback starting on that frame
+  (a scene whose first logic frame follows the scope) serves them before its first pump
+  (glitchygames/replay/driver.py, rule 18).
 
 Polled input
 ------------
@@ -186,7 +192,7 @@ import pygame
 
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.scene_start import SceneStart, SceneStartCapture
-from glitchygames.sources import has_scoped_sources
+from glitchygames.sources import has_scoped_sources, pending_redelivered_events
 from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
 
@@ -217,8 +223,11 @@ INPUT_CHANGES_FIELD = 'input_changes'
 CONTROL_EVENTS_FIELD = 'control_events'
 DEVICES_OPENED_FIELD = 'devices_opened'
 SAVES_OPENED_FIELD = 'saves_opened'
-# A scene's start (glitchygames/scene_start.py), on the frame it began
+# A scene's start (glitchygames/scene_start.py), on its first logic frame
 SCENE_START_FIELD = 'scene_start'
+# Events a playback scope held for the live game, delivered before the frame's first pump
+# (glitchygames/sources.py redeliver_events)
+REDELIVERED_EVENTS_FIELD = 'redelivered_events'
 # Device enumeration answers (glitchygames/input/devices.py): a header field for answers given
 # before recording started, and a frame field for answers given during that frame
 DEVICE_ENUMERATION_FIELD = 'device_enumeration'
@@ -231,6 +240,7 @@ RECORDING_FORMAT_THREE_FIELDS = (
     SAVES_OPENED_FIELD,
     DEVICE_ENUMERATION_FIELD,
     SCENE_START_FIELD,
+    REDELIVERED_EVENTS_FIELD,
 )
 # Header fields format version 3 adds
 SAVES_HEADER_FIELD = 'saves'
@@ -661,6 +671,8 @@ class RecordedFrameFields(TypedDict, total=False):
         saves_opened: Save namespaces first opened in the frame, each snapshotted.
         device_enumeration: Enumeration answers given in the frame (``to_json``).
         scene_start: The start of the scene that began in the frame (``SceneStart.to_json``).
+        redelivered_events: Event records delivered before the frame's first pump that no door
+            pumped in it (a playback scope's held events; ``event_to_record``).
 
     """
 
@@ -670,6 +682,7 @@ class RecordedFrameFields(TypedDict, total=False):
     saves_opened: dict[str, Any] | None
     device_enumeration: list[dict[str, Any]] | None
     scene_start: dict[str, Any] | None
+    redelivered_events: list[dict[str, Any]] | None
 
 
 class RecordedFrameFieldSource(Protocol):
@@ -904,6 +917,8 @@ class RecordingSources:
         self._recorded_snapshot: InputSnapshot = IDLE_INPUT
         self._frame_snapshot: InputSnapshot | None = None
         self._frame_saves_opened: dict[str, Any] = {}
+        # Events a playback scope held, delivered before this frame's first pump
+        self._frame_redelivered_events: list[dict[str, Any]] = []
         # Scenes whose start a frame already holds (weak: a scene left behind is not kept alive)
         self._scenes_with_recorded_start: weakref.WeakSet[Scene] = weakref.WeakSet()
 
@@ -940,6 +955,12 @@ class RecordingSources:
         raw_events = self.inner.pump_events()
         if self._recorder.is_closed:
             return raw_events
+        # Waiting for this pump's batch (GameEngine._pump_events takes them after it): the
+        # frame records them, so a playback starting on this frame delivers them too
+        self._frame_redelivered_events.extend(
+            event_to_record(event=event, origin=origin)
+            for event, origin in pending_redelivered_events()
+        )
         if self._replayed is None:
             # Live inner doors: origins come from the internal-post tracker
             self._recorder.record_event_batch(raw_events=raw_events)
@@ -1106,9 +1127,11 @@ class RecordingSources:
                 saves_opened=saves_opened,
                 device_enumeration=device_enumeration,
                 scene_start=None if scene_start is None else scene_start.to_json(),
+                redelivered_events=self._frame_redelivered_events,
             )
         self._frame_snapshot = None
         self._frame_saves_opened = {}
+        self._frame_redelivered_events = []
         self.inner.end_frame(
             frame_number=frame_number, dt=dt, scene=scene, control_events=control_events
         )

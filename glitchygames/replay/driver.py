@@ -165,7 +165,11 @@ session again, and every frame's sprites are compared with the recorded frame. T
     save view, over the header's. The internal events of frame N's first batch that were posted
     before the scene began (``ReplayOptions.earlier_internal_event_count``, from its start's
     first logic frame; glitchygames/scene_start.py, rule 7) are served from the recording, as
-    external ones are, and not compared. Frame indexes stay the recording's (rule 3, offset by N):
+    external ones are, and not compared; so are the events frame N's ``redelivered_events``
+    holds (a playback scope's held events, delivered before its first pump: they belong to the
+    frame, but no door pumped them), first in its first batch
+    (``ReplayOptions.serves_redelivered_events``). Frame indexes stay the recording's (rule 3,
+    offset by N):
     divergences name recording frames, and ``ReplayResult.frames_replayed`` counts up to the
     last compared recording frame.
 """
@@ -212,6 +216,7 @@ from glitchygames.recording import (
     EXTERNAL_ORIGIN,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
+    REDELIVERED_EVENTS_FIELD,
     SAVES_HEADER_FIELD,
     SAVES_OPENED_FIELD,
     WINDOW_REFERENCE,
@@ -438,6 +443,9 @@ class ReplayOptions(BaseModel):
             batch were posted before the replayed scene began (glitchygames/scene_start.py,
             rule 7): served from the recording, not compared (rule 18). 0 for every other
             replay.
+        serves_redelivered_events: True to deliver the start frame's recorded
+            ``redelivered_events`` before its first pump (a playback, rule 18); False for every
+            other replay, which redelivers them itself as the recorded run did.
 
     """
 
@@ -457,6 +465,7 @@ class ReplayOptions(BaseModel):
     captures_scene_starts: bool = False
     start_frame: int = Field(default=0, ge=0)
     earlier_internal_event_count: int = Field(default=0, ge=0)
+    serves_redelivered_events: bool = False
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -1228,6 +1237,10 @@ class ReplaySources:
         live_internal_events = [*self._held_internal_events, *live_internal_events]
         self._held_internal_events = []
         batch, origins = self._merged_batch(live_internal_events=live_internal_events)
+        if self.options.serves_redelivered_events and self._pump_index == 0:
+            redelivered, redelivered_origins = self._start_frame_redelivered_events()
+            batch = [*redelivered, *batch]
+            origins = [*redelivered_origins, *origins]
         self._pump_index += 1
         if window_closes:
             self._window_was_closed = True
@@ -1776,6 +1789,26 @@ class ReplaySources:
             origins.append(EXTERNAL_ORIGIN if origin == EXTERNAL_ORIGIN else INTERNAL_ORIGIN)
         return True
 
+    def _start_frame_redelivered_events(self: Self) -> tuple[list[pygame.event.Event], list[str]]:
+        """Return the start frame's recorded redelivered events, for its first pump (rule 18).
+
+        Returns:
+            The events (their references mapped to live objects) and their recorded origins;
+            none on any other frame.
+
+        """
+        frame = self._current_frame()
+        if frame is None or self._frame_index != self.options.start_frame:
+            return [], []
+        events: list[pygame.event.Event] = []
+        origins: list[str] = []
+        for record in frame.get(REDELIVERED_EVENTS_FIELD, []):
+            event = self._live_event_from_record(record=record)
+            if event is not None:
+                events.append(event)
+                origins.append(str(record.get(EVENT_ORIGIN_FIELD)))
+        return events, origins
+
     def _live_event_from_record(self: Self, *, record: dict[str, Any]) -> pygame.event.Event | None:
         """Rebuild a recorded external event with its references mapped to live objects.
 
@@ -2098,6 +2131,7 @@ def playback_replay_sources(
             options=ReplayOptions(
                 headless=True,
                 start_frame=start_frame,
+                serves_redelivered_events=True,
                 earlier_internal_event_count=(
                     0
                     if first_logic_frame is None
