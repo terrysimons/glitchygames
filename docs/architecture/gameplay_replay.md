@@ -204,9 +204,10 @@ early at frame 4312: the recording is truncated`.
 
 Every replay that ends normally, watched or headless, exits with its result: `SUCCESS` (0) when
 it matched or the window was closed, `REPLAY_DIVERGED` (1) when it diverged, `UNUSABLE_INPUT`
-(65) for a truncated recording. A crash, Ctrl-C or a signal exits as for any run, and the
-report then says only where the replay stopped (`Replay stopped at frame 12: the run ended with
-INTERNAL_ERROR (70)`; see
+(65) for a truncated recording. A crash, Ctrl-C, a signal or the game's own exit ends the run
+as for any run, and the report then says only where the replay stopped (`Replay stopped at frame
+12: the run ended with INTERNAL_ERROR (70)`); if the replay had already reached its result, the
+report gives it, then `then the run ended with ...` (see
 [exit codes](#exit-codes)).
 
 While a replay runs, real keyboard, mouse, touch, joystick, controller, device and window events

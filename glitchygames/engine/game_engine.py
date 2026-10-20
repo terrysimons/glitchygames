@@ -61,8 +61,10 @@ from glitchygames.replay.audit import (
 from glitchygames.replay.driver import (
     REAL_REPLAY_FPS,
     REPLAY_FPS_CHOICES,
+    RUNNING_END_REASON,
     ReplayRefusedError,
     ReplaySources,
+    announce_replay,
     start_replay,
 )
 from glitchygames.scenes import Scene, SceneManager
@@ -351,6 +353,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         group = parser.add_argument_group('Graphics Options')
+        # How any run is watched, recorded, replayed or diagnosed, whatever the game
+        diagnostics_group = parser.add_argument_group('Diagnostics Options')
 
         group.add_argument(
             '-f',
@@ -403,19 +407,19 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             action='store_true',
             default=False,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--log-timer-jitter',
             help='log frame pacing jitter statistics periodically',
             action='store_true',
             default=False,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--perf-trim-percent',
             type=float,
             help='percent of frames to trim from top and bottom in global FPS report',
             default=5.0,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--fps-histogram',
             choices=['equal-range', 'target-relative'],
             help=(
@@ -425,13 +429,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             default='equal-range',
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--debug-overlay',
             help='show the debug overlay at startup (F3 toggles, F4 cycles panels)',
             action='store_true',
             default=False,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--record-trace',
             metavar='PATH',
             help=(
@@ -440,7 +444,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             default=None,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--replay-trace',
             metavar='PATH',
             help=(
@@ -449,7 +453,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             default=None,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--replay-fps',
             choices=REPLAY_FPS_CHOICES,
             help=(
@@ -462,7 +466,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # warned about; start_replay reads None as recorded
             default=None,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--audit',
             action=argparse.BooleanOptionalAction,
             help=(
@@ -474,7 +478,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             default=False,
         )
-        group.add_argument(
+        diagnostics_group.add_argument(
             '--replay-digest',
             metavar='PATH',
             help=(
@@ -543,8 +547,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         group.add_argument('--video-driver', default=None, choices=default_videodriver)
 
-        # How any run is watched or diagnosed, whatever the game
-        diagnostics_group = parser.add_argument_group('Diagnostics Options')
         diagnostics_group.add_argument(
             '--headless',
             action='store_true',
@@ -1470,6 +1472,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                     replay_trace_path=replay_trace_path, sources=sources
                 )
                 self._audit_replay(path=Path(replay_trace_path))
+            announce_replay(path=Path(replay_trace_path), sources=sources)
             return sources
         # Logged without a traceback: the message says what is wrong with the recording
         self.log.error(f'Cannot replay {replay_trace_path}: {refusal}')
@@ -1563,20 +1566,30 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """Settle the replay's result and report it, if replaying (rule 11).
 
         The report (``ReplayResult.report``) is printed to stdout under ``--headless``, where it
-        is the run's output, and logged otherwise (as an error when the replay diverged). A run
-        that something else ended first (a crash, Ctrl-C, a signal, a game's own exit) reports
-        only where the replay stopped: its result would call that a length divergence.
+        is the run's output, and logged otherwise (as an error when the replay diverged).
+
+        Any early end of the run (a crash, Ctrl-C, a signal, or any SystemExit, a game's own
+        ``sys.exit(0)`` included) is reported by what ended it: before the replay reached its
+        result, only where the replay stopped (``Replay stopped at frame N: the run ended with
+        ...``), since its result would call that a length divergence; after the replay reached
+        its result (a late crash or signal, during the teardown of the last scene), that result
+        and then ``then the run ended with ...`` on the next line.
 
         Args:
-            run_ended_by: What ended the run before the replay could (an exit status as
+            run_ended_by: What ended the run early (an exit status as
                 ``ExitCode.describe_status`` gives it), or None when the run ended normally.
 
         """
         if self.replay_sources is None:
             return
-        self.replay_sources.finish_run()
         result = self.replay_sources.result
-        if run_ended_by is not None:
+        # Read before finish_run, which turns a replay still running into a length divergence
+        replay_had_ended = result.end_reason != RUNNING_END_REASON
+        self.replay_sources.finish_run()
+        if run_ended_by is not None and replay_had_ended:
+            report = f'{result.report()}\nthen the run ended with {run_ended_by}'
+            is_failure = True
+        elif run_ended_by is not None:
             report = (
                 f'Replay stopped at frame {result.frames_replayed}: the run ended with '
                 f'{run_ended_by}'
@@ -1607,7 +1620,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
           and output channels (``pygame.mixer.get_init()``) and the same number of mixing
           channels. Anything playing stops; sounds loaded before keep the format they were
           converted to, which still matches. The buffer size cannot be read back, so it is
-          pygame's default.
+          pygame's default. If the dummy mixer cannot start, the run goes on without audio
+          (logged).
         """
         os.environ['SDL_VIDEODRIVER'] = HEADLESS_SDL_DRIVER
         os.environ['SDL_AUDIODRIVER'] = HEADLESS_SDL_DRIVER
@@ -1625,9 +1639,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 'mixing channels)'
             )
             pygame.mixer.quit()
-            # The environment now names the dummy driver, so this opens the dummy device
-            pygame.mixer.init(frequency=frequency, size=size, channels=output_channels)
-            pygame.mixer.set_num_channels(mixing_channel_count)
+            try:
+                # The environment now names the dummy driver, so this opens the dummy device
+                pygame.mixer.init(frequency=frequency, size=size, channels=output_channels)
+            except pygame.error as error:
+                # The run goes on without a mixer: sounds and live voices are silent no-ops
+                self.log.warning(
+                    f'--headless: the mixer could not start on the dummy audio driver ({error}); '
+                    'running without audio'
+                )
+            else:
+                pygame.mixer.set_num_channels(mixing_channel_count)
         if restarted:
             self.log.warning(
                 f'--headless: pygame was started before the engine; restarting '

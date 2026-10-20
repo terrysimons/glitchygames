@@ -59,8 +59,10 @@ an empty bookmark list on save).
 - Modify: `glitchygames/sources.py` (Protocol `paced_frame_seconds`),
   `glitchygames/live_sources.py` (`LiveSources.paced_frame_seconds` returns None)
 - Modify: `glitchygames/recording.py` (`RecordingSources.paced_frame_seconds` delegates)
-- Modify: `glitchygames/replay/driver.py` (`ReplaySources(..., headless=..., exit_policy=...)`;
-  recent-frame history; `ReplayResult.exit_code`, `ReplayResult.report()`, `run_exit_code()`)
+- Modify: `glitchygames/replay/driver.py` (as built: one frozen pydantic `ReplayOptions` with
+  `headless`, `exit_policy`, `fps_source`, `digest_path`, `use_fastevents`, passed as
+  `ReplaySources(..., options=...)` / `from_path(path=..., options=...)`; recent-frame history;
+  `ReplayResult.exit_code(*, policy)`, `ReplayResult.report()`)
 - Modify: `glitchygames/scenes/scene.py:784-821` (`start`), `:736-760` (`_handle_frame_pacing`:
   the unpaced path), `:822-870` (`_finish_frame` passes the pacing decision through)
 - Modify: `tests/world/test_gameplay_recording.py` (`RUN_ENGINE_ARGUMENTS`, `build_engine`)
@@ -76,14 +78,21 @@ an empty bookmark list on save).
 ```python
 EngineSources.paced_frame_seconds(self) -> float | None   # None = the normal target-FPS pacing
 REPORT_HISTORY_FRAMES = 20
-ReplayResult.exit_code -> ExitCode   # SUCCESS matched/quit, REPLAY_DIVERGED, UNUSABLE_INPUT truncated
+ReplayResult.exit_code(self, *, policy: ReplayExitPolicy) -> ExitCode
+    # RESULT: SUCCESS matched/quit, REPLAY_DIVERGED, UNUSABLE_INPUT truncated;
+    # SUCCESS_AFTER_WRITING: SUCCESS
 ReplayResult.report(self) -> str     # multi-line, for stdout
 class ReplayExitPolicy(enum.Enum):
     RESULT = 'result'                  # exit with ReplayResult.exit_code (replays)
     SUCCESS_AFTER_WRITING = 'success'  # exit 0 once the run is over (--rebaseline, Task 6)
-ReplaySources.__init__(..., headless: bool = False,
-                       exit_policy: ReplayExitPolicy = ReplayExitPolicy.RESULT)
-ReplaySources.run_exit_code(self) -> int
+class ReplayOptions(pydantic.BaseModel):   # frozen, extra='forbid'; later tasks add fields
+    headless: bool = False
+    exit_policy: ReplayExitPolicy = ReplayExitPolicy.RESULT
+    fps_source: Literal['recorded', 'real'] = 'recorded'
+    digest_path: Path | None = None
+    use_fastevents: bool = False
+ReplaySources.__init__(..., options: ReplayOptions = DEFAULT_REPLAY_OPTIONS)
+ReplaySources.from_path(cls, *, path: Path, options: ReplayOptions = DEFAULT_REPLAY_OPTIONS)
 ```
 
 Rules: headless replays return `0.0` from `paced_frame_seconds` (never sleep); watched replays
@@ -95,7 +104,7 @@ already ran at import time, document that audio is still initialized and only vi
 mute instead by not starting live audio: check how `--live-voice-pool 0` behaves). `--headless`
 without `--replay-trace` is refused with a clear argparse error. At the end of `GameEngine.start()`
 (after `_shutdown`), when replaying: print `result.report()` to stdout when headless (log it
-otherwise) and exit with `self.replay_sources.run_exit_code()` through `exit_with` (which logs
+otherwise) and exit with `result.exit_code(policy=options.exit_policy)` through `exit_with` (which logs
 `Exiting with <ExitCode.describe()>`) — the exit policy is a parameter of the replay (Task 6's
 rebaseline exits `ExitCode.SUCCESS` after writing). `start()` already turns an uncaught exception
 into `ExitCode.INTERNAL_ERROR` and Ctrl-C into `ExitCode.INTERRUPTED` after the teardown; the
@@ -160,7 +169,9 @@ class TestHeadless:
 
     def test_headless_never_sleeps(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        engine_sources = ReplaySources.from_path(path=recording_path, headless=True)
+        engine_sources = ReplaySources.from_path(
+            path=recording_path, options=ReplayOptions(headless=True)
+        )
         assert engine_sources.paced_frame_seconds() == 0.0
 
     def test_headless_without_a_replay_is_refused(self, mocker):
@@ -183,7 +194,7 @@ def replay_session_with_arguments(*, recording_path: Path, mocker,
 
 (`ReplaySources.from_path` gains the `headless` keyword.)
 
-Every replay now ends `start()` with `SystemExit(result.exit_code)`, so Part 1's
+Every replay now ends `start()` with `SystemExit(result.exit_code(policy=...))`, so Part 1's
 `replay_session` helper (which calls `run_engine`) must tolerate it, and from Task 2 on a watched
 replay pauses instead of stopping, so the helper must also run headless. Change it to:
 
@@ -518,7 +529,9 @@ git commit -m "Watch replays: recorded pacing, status bar, pause, step and speed
 ```python
 ReplayControls.restart_request -> int | None     # frame to restart at, set by , / Home / D
 EngineSources.presents_frames(self) -> bool       # False while fast-forwarding
-ReplaySources.__init__(..., pause_at_frame: int | None = None)   # simulate 0..N-1, pause at N
+ReplayOptions.pause_at_frame: int | None = None   # new field, >= 0 (pydantic); simulate
+                                                  # 0..N-1, pause at N; ReplaySources reads
+                                                  # options.pause_at_frame
 def restart_command(*, original: list[str], recording_path: Path, pause_at_frame: int) -> list[str]
 FAST_FORWARD_PROGRESS_INTERVAL_FRAMES = 60
 ```
@@ -888,11 +901,12 @@ git commit -m "Run recordings under tests/fixtures/replays as pytest regression 
 
 **Files:**
 - Create: `glitchygames/replay/rebaseline.py`
-- Modify: `glitchygames/replay/driver.py` (`ReplaySources(..., stop_on_divergence: bool = True)`;
-  collecting mode for the summary)
+- Modify: `glitchygames/replay/driver.py` (new `ReplayOptions` field
+  `stop_on_divergence: bool = True`; collecting mode for the summary)
 - Modify: `glitchygames/engine/game_engine.py` (`--rebaseline PATH`, requires `--replay-trace`;
-  installs `RecordingSources(inner=ReplaySources(..., stop_on_divergence=False,
-  exit_policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING), recorder=...)`)
+  installs `RecordingSources(inner=ReplaySources(..., options=ReplayOptions(...,
+  stop_on_divergence=False, exit_policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING)),
+  recorder=...)`; the run exits with `ReplayResult.exit_code(policy=options.exit_policy)`)
 - Modify: `glitchygames/recording.py` (`RecordingSources` over a replay copies the source
   recording's per-frame `saves_opened` / `devices_opened` / `device_enumeration`, and takes event
   origins from `last_batch_origins()` — core Task 11's rules; add any part core did not build)

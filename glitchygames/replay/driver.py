@@ -662,7 +662,8 @@ class ReplaySources:
     ) -> ReplaySources:
         """Read a recording file into replay sources.
 
-        A file cut off part way (a killed recorder) replays up to its last complete frame. A
+        A file cut off part way (a killed recorder) replays up to its last complete frame
+        (``is_truncated``; ``announce_replay`` says so once the run will replay it). A
         file that is not a readable recording raises TraceFormatError (from reading it, or from
         a header without the seed or start time), a missing one OSError.
 
@@ -677,12 +678,6 @@ class ReplaySources:
         read_result = read_trace_result(path=path)
         frames = read_result.trace[FRAMES_FIELD]
         is_truncated = not read_result.is_complete or read_result.dropped_partial_line is not None
-        if is_truncated:
-            LOG.warning(
-                '%s is cut off after %d complete frames; replaying up to there',
-                path,
-                len(frames),
-            )
         header = {name: value for name, value in read_result.trace.items() if name != FRAMES_FIELD}
         return cls(
             header=header,
@@ -1339,7 +1334,27 @@ def start_replay(
     seed_engine_random(seed=sources.random_seed)
     if replay_options.fps_source == REAL_REPLAY_FPS:
         LOG.warning(REAL_REPLAY_FPS_NOTICE)
+    return sources
+
+
+def announce_replay(*, path: Path, sources: ReplaySources) -> None:
+    """Log that the run replays the recording (and where a truncated one stops).
+
+    Called by the engine once it is sure to replay (``--audit`` replays in child processes
+    instead, and refuses a truncated recording), so nothing announces a replay that will not
+    happen.
+
+    Args:
+        path: The recording.
+        sources: Its replay sources.
+
+    """
+    if sources.is_truncated:
+        LOG.warning(
+            '%s is cut off after %d complete frames; replaying up to there',
+            path,
+            sources.frame_count,
+        )
     LOG.info(
         'Replaying %s (%d frames, random seed %d)', path, sources.frame_count, sources.random_seed
     )
-    return sources

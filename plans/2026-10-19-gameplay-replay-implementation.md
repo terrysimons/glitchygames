@@ -289,7 +289,8 @@ class ReplaySources:   # implements EngineSources
     options: ReplayOptions
     is_truncated: bool
     result: ReplayResult  # .report() -> str, .exit_code(*, policy) -> ExitCode (Part 2 Task 1)
-def start_replay(*, path: Path, game_class_name: str, options: dict[str, Any]) -> ReplaySources: ...
+def start_replay(*, path: Path, game_class_name: str, options: dict[str, Any],
+                 use_fastevents: bool = False) -> ReplaySources: ...
 GameEngine.replay_sources: ReplaySources | None
 @dataclasses.dataclass(frozen=True)
 class Divergence:

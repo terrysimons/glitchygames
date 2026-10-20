@@ -938,7 +938,7 @@ class TestRefusals:
         assert 'recording over a replay is not supported yet' in caplog.text
         assert not (tmp_path / 'over-the-replay.jsonl.gz').exists()
 
-    def test_truncated_recording_replays_to_the_cut_off(self, mocker, tmp_path):
+    def test_truncated_recording_replays_to_the_cut_off(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         cut_off_after_frame(recording_path=recording_path, frame_number=2)
         engine = replay_session(recording_path=recording_path, mocker=mocker)
@@ -946,6 +946,9 @@ class TestRefusals:
         assert engine.replay_sources.result.end_reason == 'truncated'
         assert engine.replay_sources.result.frames_replayed == 3
         assert engine.replay_sources.result.divergence is None
+        assert f'{recording_path} is cut off after 3 complete frames; replaying up to there' in (
+            caplog.text
+        )
 
     def test_version_two_recording_replays_every_frame_with_the_pump_count_check(
         self, mocker, tmp_path
@@ -1224,7 +1227,8 @@ class TestHeadless:
             f'{ExitCode.INTERNAL_ERROR.describe()}\n'
         )
 
-    def test_headless_is_a_diagnostics_option(self):
+    def test_the_diagnostic_options_share_one_group(self):
+        """--headless and the other ways of watching or diagnosing a run; game settings stay put."""
         parser = argparse.ArgumentParser()
         GameEngine.args(parser)
         groups_by_option = {
@@ -1232,7 +1236,61 @@ class TestHeadless:
             for group in parser._action_groups
             for action in group._group_actions
         }
-        assert groups_by_option['headless'] == 'Diagnostics Options'
+        diagnostic_options = {
+            'headless',
+            'debug_overlay',
+            'record_trace',
+            'replay_trace',
+            'replay_fps',
+            'audit',
+            'replay_digest',
+            'log_timer_jitter',
+            'fps_histogram',
+            'perf_trim_percent',
+        }
+        assert {option: groups_by_option[option] for option in diagnostic_options} == dict.fromkeys(
+            diagnostic_options, 'Diagnostics Options'
+        )
+        for option in ('target_fps', 'random_seed', 'timer_backend', 'live_voice_pool'):
+            assert groups_by_option[option] == 'Graphics Options'
+
+    def test_a_late_end_after_the_replay_finished_reports_its_result_first(
+        self, mocker, tmp_path, capsys
+    ):
+        """The replay reached its result, then something else ended the run: both are said."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        recorded_frame_count = len(read_trace_result(path=recording_path).trace['frames'])
+        with constructed_engine('--replay-trace', str(recording_path), '--headless') as engine:
+            sources = engine.replay_sources
+            assert sources is not None
+            sources.result.frames_replayed = recorded_frame_count
+            sources.result.end_reason = 'end_of_recording'
+            engine._report_replay_result(run_ended_by=ExitCode.TERMINATED.describe())
+            sources.on_uninstalled()
+        assert capsys.readouterr().out == (
+            f'Replay matched {recorded_frame_count} frames (end of recording)\n'
+            f'then the run ended with {ExitCode.TERMINATED.describe()}\n'
+        )
+
+    def test_headless_runs_without_audio_when_the_dummy_mixer_cannot_start(
+        self, mocker, monkeypatch, caplog
+    ):
+        monkeypatch.setenv('SDL_VIDEODRIVER', UNUSED_VIDEO_DRIVER)
+        monkeypatch.setenv('SDL_AUDIODRIVER', UNUSED_AUDIO_DRIVER)
+        pygame_init_noting_drivers(mocker)
+        mocker.patch.object(pygame.mixer, 'get_init', return_value=(22050, 8, 1))
+        mocker.patch.object(pygame.mixer, 'get_num_channels', return_value=16)
+        mocker.patch.object(pygame.mixer, 'get_driver', return_value='coreaudio')
+        mocker.patch.object(pygame.mixer, 'quit')
+        mocker.patch.object(pygame.mixer, 'init', side_effect=pygame.error('no audio device'))
+        set_num_channels = mocker.patch.object(pygame.mixer, 'set_num_channels')
+        with constructed_engine('--headless'):
+            pass
+        set_num_channels.assert_not_called()
+        assert (
+            '--headless: the mixer could not start on the dummy audio driver (no audio device); '
+            'running without audio'
+        ) in caplog.text
 
     def test_headless_leaves_a_display_and_mixer_already_on_dummy_drivers(self, mocker, caplog):
         # --headless sets the SDL driver variables; the test's own values come back afterwards
@@ -2277,6 +2335,9 @@ class TestAuditOption:
             f'Cannot audit {recording_path}: the recording is truncated after 3 complete frames'
             in caplog.text
         )
+        # Nothing announces a replay that will not happen
+        assert 'replaying up to there' not in caplog.text
+        assert f'Replaying {recording_path}' not in caplog.text
         audit_spy.assert_not_called()
 
     def test_audit_under_an_interpreter_that_ignores_the_environment_is_refused(

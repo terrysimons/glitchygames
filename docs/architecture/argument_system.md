@@ -24,7 +24,7 @@ sequenceDiagram
     IA->>AP: ArgumentParser("GameName version X.Y")
     IA->>ENGINE: GameEngine.args(parser)
 
-    Note over ENGINE: Adds "Graphics Options" group<br/>23 arguments,<br/>then "Diagnostics Options" (--headless)
+    Note over ENGINE: Adds "Graphics Options" group<br/>14 arguments,<br/>and "Diagnostics Options"<br/>10 arguments
 
     ENGINE->>MGR: AppEventManager.args(parser)
     Note over MGR: Adds "App Options" group<br/>(empty, reserved)
@@ -93,16 +93,18 @@ flowchart TD
             F7["--timer-backend"]
             F8["--sleep-granularity-ns"]
             F9["--windows-timer-1ms"]
-            F10["--log-timer-jitter"]
-            F11["--perf-trim-percent"]
-            F12["--fps-histogram"]
-            F13["--debug-overlay"]
-            F14["--record-trace, --replay-trace, --replay-fps"]
-            F15["--audit, --replay-digest"]
             F16["--random-seed"]
             F17["--screen-shake-intensity, --rumble-intensity"]
             F18["--live-voice-pool"]
             F19["--video-driver"]
+        end
+
+        subgraph L1D["Layer 1: Diagnostics Options (GameEngine)"]
+            D1["--log-timer-jitter, --perf-trim-percent, --fps-histogram"]
+            D2["--debug-overlay"]
+            D3["--record-trace, --replay-trace, --replay-fps"]
+            D4["--audit, --replay-digest"]
+            D5["--headless"]
         end
 
         subgraph L2["Layer 2: Event Manager Groups"]
@@ -267,16 +269,7 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 | `--timer-backend` | `choice` | `fast` | Timer backend: `fast` or `pygame` (legacy) |
 | `--sleep-granularity-ns` | `int` | `1000000` | Minimum sleep granularity for pacing (ns); 0 to uncap |
 | `--windows-timer-1ms` | `store_true` | `False` | On Windows, request 1ms system timer resolution |
-| `--log-timer-jitter` | `store_true` | `False` | Log frame pacing jitter statistics periodically |
-| `--perf-trim-percent` | `float` | `5.0` | Percent of frames to trim from top and bottom in FPS report |
-| `--fps-histogram` | `choice` | `equal-range` | FPS histogram buckets in the shutdown report: `equal-range` or `target-relative` |
-| `--debug-overlay` | `store_true` | `False` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) |
 | `--video-driver` | `choice` | `None` | Platform-specific video driver (see below) |
-| `--record-trace` | `PATH` | `None` | Record the session to a gzip JSON Lines trace ([Gameplay Recording and Replay](gameplay_replay.md)) |
-| `--replay-trace` | `PATH` | `None` | Replay a recording exactly, reporting the first divergence |
-| `--replay-fps` | `choice` | `None` (read as `recorded`) | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
-| `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0, 3 when nondeterministic, 70 when a run could not finish; see [exit codes](gameplay_replay.md#exit-codes)) |
-| `--replay-digest` | `PATH` | `None` | With `--replay-trace`: write a SHA-256 per replayed frame (used by `--audit`) |
 | `--random-seed` | `int` | random 64-bit | Master seed for every engine random stream |
 | `--screen-shake-intensity` | `float` | `1.0` | Screen shake strength, 0.0 (off) to 1.0 |
 | `--rumble-intensity` | `float` | `1.0` | Controller rumble strength, 0.0 (off) to 1.0 |
@@ -292,10 +285,20 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 
 ### Diagnostics Options
 
-Added by `GameEngine.args()` right after the Graphics Options; they apply to any run.
+Added by `GameEngine.args()` right after the Graphics Options: how any run is watched,
+recorded, replayed or diagnosed, whatever the game. They change no game settings.
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
+| `--log-timer-jitter` | `store_true` | `False` | Log frame pacing jitter statistics periodically |
+| `--perf-trim-percent` | `float` | `5.0` | Percent of frames to trim from top and bottom in FPS report |
+| `--fps-histogram` | `choice` | `equal-range` | FPS histogram buckets in the shutdown report: `equal-range` or `target-relative` |
+| `--debug-overlay` | `store_true` | `False` | Show the debug overlay at startup (F3 toggles, F4 cycles panels) |
+| `--record-trace` | `PATH` | `None` | Record the session to a gzip JSON Lines trace ([Gameplay Recording and Replay](gameplay_replay.md)) |
+| `--replay-trace` | `PATH` | `None` | Replay a recording exactly, reporting the first divergence |
+| `--replay-fps` | `choice` | `None` (read as `recorded`) | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
+| `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0, 3 when nondeterministic, 70 when a run could not finish; see [exit codes](gameplay_replay.md#exit-codes)) |
+| `--replay-digest` | `PATH` | `None` | With `--replay-trace`: write a SHA-256 per replayed frame (used by `--audit`) |
 | `--headless` | `store_true` | `False` | Run on SDL's dummy video and audio drivers (no window, no sound); a replay also runs unpaced and prints its report to stdout ([headless runs](gameplay_replay.md#headless-runs-headless)) |
 
 ### Game Options
@@ -400,6 +403,11 @@ Graphics Options:
   --timer-backend       timer backend for draw loop pacing (default: fast; pygame is the legacy backend)
   --sleep-granularity-ns minimum sleep granularity for pacing (ns); 0 to uncap
   --windows-timer-1ms   on Windows, request 1ms system timer resolution
+  --random-seed         master seed for every engine random stream (...)
+  --screen-shake-intensity, --rumble-intensity, --live-voice-pool
+  --video-driver
+
+Diagnostics Options:
   --log-timer-jitter    log frame pacing jitter statistics periodically
   --perf-trim-percent   percent of frames to trim from top and bottom in global FPS report
   --fps-histogram       FPS histogram buckets in the shutdown report (...)
@@ -407,11 +415,6 @@ Graphics Options:
   --record-trace PATH   record the session (...)
   --replay-trace PATH   replay a --record-trace recording exactly (...)
   --replay-fps, --audit, --no-audit, --replay-digest PATH  (replay options)
-  --random-seed         master seed for every engine random stream (...)
-  --screen-shake-intensity, --rumble-intensity, --live-voice-pool
-  --video-driver
-
-Diagnostics Options:
   --headless            run on SDL's dummy video and audio drivers: no window, no sound (...)
 
 App Options:

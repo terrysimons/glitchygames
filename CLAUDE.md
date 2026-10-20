@@ -342,7 +342,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   a warning). Live headless runs pace normally and end as the game ends; a
   headless replay is unpaced (`EngineSources.paced_frame_seconds()` returns 0.0: no timer
   deadline, no clock tick) and prints its report to stdout instead of logging it. A replay that a
-  crash, Ctrl-C or signal ends reports only `Replay stopped at frame N: the run ended with ...`
+  crash, Ctrl-C, signal or the game's own exit ends early reports only `Replay stopped at frame
+  N: the run ended with ...` (after its result: the result, then `then the run ended with ...`).
+  The diagnostic flags (`--headless`, `--debug-overlay`, the trace/replay/audit flags, the timer
+  jitter and FPS report flags) are in the "Diagnostics Options" group
 - Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
