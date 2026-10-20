@@ -114,6 +114,85 @@ Follow-ups (not in any plan yet):
   (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False),
   #75 (`pygame_needs_fastevents` compares major and minor separately).
 
+## Headless capture to raw files and a frame/audio ready latch — groundwork for an external control API
+
+User request (2026-10-19). Not planned yet; needs a brainstormed spec. Each part below is a
+candidate ticket.
+
+### Headless capture (`--headless DIR`)
+
+- `video.raw`: every presented frame appended as raw RGBA, plus a small sidecar (for example
+  `video.json`) giving width, height, pixel format and frame count, so it can be piped to
+  `ffmpeg -f rawvideo -pixel_format rgba -video_size WxH -framerate N -i video.raw ...`.
+- `audio.raw`: the mixer's final output as raw PCM, 44100 Hz, signed 16-bit, stereo (the engine's
+  mixer format). The dummy audio driver plays nothing, so this needs a capture tap on the mix (see
+  the latch section below for why a tap alone is not enough in lockstep mode).
+- To consider: aligning the two streams by frame number; disk size (a 640×480 RGBA frame is
+  about 1.2 MB, so about 74 MB per second at 60 FPS); frame-skip and downscale options.
+- Builds on the planned general `--headless` (any run, not only replays; Part 2 of the replay
+  plans adds the replay form).
+
+### One ready latch per frame (the frame is a packet)
+
+Amended (user and controller decision): one latch tied to the frame, not separate "frame ready"
+and "audio buffer ready" flags.
+
+- Each frame is one packet: the presented picture plus exactly the audio that plays during that
+  frame. The sample count comes from that frame's duration (about 735 stereo samples at 60 FPS;
+  44100 / 60.01 = 734.9), with the fractional sample carried forward to the next frame so the
+  stream never drifts.
+- The engine sets the latch to 1 when the packet is written; the consumer reads the picture and
+  the audio and writes 0.
+- **Lockstep mode** (the engine waits for the 0 before the next frame; deterministic and complete,
+  which is what an AI consumer needs) requires the engine to render each frame's audio slice
+  itself: an offline, per-frame mixing path. pygame's mixer runs on its own real-time thread even
+  with the dummy driver, so it cannot simply be tapped while the engine waits. The synth and
+  live-voice code (`glitchygames/audio/synth.py`, `live.py`) already generates samples; sounds
+  played through `pygame.mixer` (`SoundBank`, loaded sound files) would need the offline path too.
+  **This is the main design question.**
+- **Free-running mode** (the engine never waits): the latch covers frames only. Audio is a
+  continuous stream in a ring buffer that the consumer reads at its own pace, with no audio latch.
+- Transports to compare: shared memory or an mmap'd file, a local socket, the API. Exposing the
+  latch through an API is a later ticket.
+
+### External control API (brainstorm)
+
+- **Observe:** raw pixels (full or downscaled); sprite state as data (the trace sample,
+  `glitchygames.tracing.sample_scene_frame`); declared game state such as score, lives and level
+  (shared with the future cheat device's named fields); the frame's audio packet and the sounds and
+  voices started this frame; frame hashes (`glitchygames/replay/audit.py`'s `frame_digest`).
+- **Act:** input injection through the doors, as an "external input" source alongside live and
+  replay (`glitchygames/sources.py`); scripted supervisor actions at the existing hook
+  (`glitchygames/supervision.py`); time control (pause, step, speed, reset with a seed); save and
+  load state (needs state snapshots); scene control.
+- **Output:** draw pixels, lines, rects, text and sprites to an overlay layer that is never in
+  traces unless asked for; play a voice from a waveform equation or a preset, with duration, pitch
+  curve and envelope, through the synth toolkit and live voices; speech through TTS; rumble and
+  LEDs.
+- **Recording:** start and stop `--record-trace`, fetch the recording, replay it, run `--audit`.
+- **Shape:** a Gymnasium-style environment wrapper, `reset(seed)` and
+  `step(actions) -> (observation, reward, done, info)`, built on lockstep mode and the seeded
+  doors. Transports: shared memory locally, WebSocket or HTTP remotely. Check what
+  `glitchygames/api/` already provides (today a FastAPI server and client for AI sprite
+  generation, `glitchygames-server` / `glitchygames-client`). Security: authentication for remote
+  input, rate limits, a read-only spectator mode.
+
+### Where it leads (later epics)
+
+- AI players and testers, whose runs are replayable and auditable.
+- Twitch Plays: chat mapped to input, with voting or anarchy modes and per-viewer cooldowns,
+  streamed from `video.raw` / `audio.raw` through ffmpeg.
+- Remote multiplayer: lockstep input sync on the deterministic doors, checked with frame hashes.
+  Rollback netcode needs state snapshots, the same prerequisite as fast step-back and long instant
+  replays.
+- Spectating by streaming recorded inputs.
+
+### Prerequisites already built (replay Part 1)
+
+The doors, deterministic simulation, recordings, the supervisor hook, the input-blocking helper
+(`glitchygames/replay/input_blocking.py`) and the golden fixtures. Still needed: the planned
+general `--headless` (any run, not only replays).
+
 ## Trace format ideas (pending a user decision)
 
 - **A later trace format version (v4; v3 is the replay format):** record each world sprite's world position and snap mode, and the camera

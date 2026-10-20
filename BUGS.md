@@ -84,6 +84,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Harmless today: the project runs on pygame-ce 2.x, where both forms give False. The existing `test_use_fastevents_with_old_pygame` mocks pygame 1.1, which both forms treat as old, so it does not catch the bug; a fix should add a 1.9 case
 - **Files**: `glitchygames/engine/game_engine.py`
 
+### 76. Graphics Options: `--resolution` Help, `--windowed` and the macOS Video-Driver Check Disagree With the Code
+- **Description**: In `GameEngine.args()` (`glitchygames/engine/game_engine.py`): `--resolution`'s help says "default: 1024x768" while its default is `800x480`; `-w`/`--windowed` is `store_true` with `default=True`, so the flag can never change anything (there is no way to ask for fullscreen); and the video-driver block checks `platform.system() == 'MacOS'`, which never matches (`platform.system()` returns `'Darwin'`), so the macOS branch is dead (harmless today, since it would also give no choices)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 15: correcting `docs/architecture/argument_system.md` against the argparse definitions)
+- **Date Reported**: 2026-10-19
+- **Details**: Not fixed here (documentation task). The help text is a one-line fix; `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
+- **Files**: `glitchygames/engine/game_engine.py`, `docs/architecture/argument_system.md`
+
 ## Resolved Bugs
 
 ### 69. The Live Device Registry Keeps Every Enumeration Answer and Opened Descriptor Until a Recorder Takes Them
