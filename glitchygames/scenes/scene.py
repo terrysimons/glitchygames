@@ -24,6 +24,7 @@ from glitchygames.input.state import current_input
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.recording import post_event
+from glitchygames.replay.scene_start import SceneStartCapture, begin_scene_start_capture
 from glitchygames.sources import (
     active_sources,
     advance_frame_clock,
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
+    from glitchygames.replay.scene_start import SceneStart
     from glitchygames.supervision import Supervisor
 
 LOG = logging.getLogger('game.scenes')
@@ -252,6 +254,18 @@ class SceneManager(SceneInterface, events.EventManager):
         if self.active_scene:
             return self.active_scene.all_sprites
 
+        return None
+
+    @property
+    def active_scene_start(self: Self) -> SceneStart | None:
+        """How the active scene began (glitchygames/replay/scene_start.py), if captured.
+
+        None without an active scene, when its start was not captured, or for a scene stand-in
+        (a SceneInterface that is not a Scene).
+        """
+        start_capture = getattr(self.active_scene, 'scene_start_capture', None)
+        if isinstance(start_capture, SceneStartCapture):
+            return start_capture.start
         return None
 
     def request_transition(
@@ -1478,6 +1492,12 @@ class SceneManager(SceneInterface, events.EventManager):
             forget_key_presses = getattr(next_scene, '_forget_key_presses', None)
             if forget_key_presses is not None:
                 forget_key_presses()
+            # Complete the scene's start before its first setup() (a later setup, resuming it
+            # from the pause screen, keeps the first); glitchygames/replay/scene_start.py.
+            # Looked up by name: a SceneInterface stand-in has no capture
+            start_capture = getattr(next_scene, 'scene_start_capture', None)
+            if isinstance(start_capture, SceneStartCapture):
+                start_capture.complete(scene=next_scene)
             # The scene's snap mode is active from setup() on, so positions snapped while it
             # sets itself up (camera.snap_to, collision) use it, not the previous scene's mode
             self._activate_scene_snap_mode(next_scene)
@@ -1623,6 +1643,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             groups (pygame.sprite.LayeredDirty[Any] | None): The sprite groups.
 
         """
+        # First, before anything (a subclass's body after super().__init__() included) draws
+        # random numbers: the streams and frame clock this scene began with, when its start is
+        # captured (None otherwise; glitchygames/replay/scene_start.py)
+        self.scene_start_capture: SceneStartCapture | None = begin_scene_start_capture(
+            scene_class=type(self)
+        )
+
         if options is None:
             options = {'debug_events': False, 'no_unhandled_events': False}
 
@@ -1700,6 +1727,32 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         with the frozen picture.
         """
         return self
+
+    @property
+    def scene_start(self: Self) -> SceneStart | None:
+        """How this scene began, once set up (glitchygames/replay/scene_start.py).
+
+        None when its start was not captured (live play without recording, playback or
+        instant replay) or before its first setup.
+        """
+        if self.scene_start_capture is None:
+            return None
+        return self.scene_start_capture.start
+
+    def replay_arguments(self: Self) -> dict[str, Any]:
+        """Return the constructor arguments that rebuild this scene as it began (besides options).
+
+        A scene rebuilt for playback is ``type(scene)(**replay_arguments(), options=...)``
+        (glitchygames/replay/scene_start.py), so a scene built with arguments carried from the
+        previous scene (a floor's score and lives) returns them as they were when it was built.
+        They must read back from JSON exactly as returned. Asked once, before the scene's first
+        setup, and only while its start is captured.
+
+        Returns:
+            The arguments by name; none by default.
+
+        """
+        return {}
 
     @property
     def game_time(self: Self) -> float:

@@ -9,6 +9,7 @@ package.
 from __future__ import annotations
 
 import ast
+import json
 import random
 from pathlib import Path
 
@@ -18,11 +19,13 @@ import pytest
 from glitchygames import randomness
 from glitchygames.randomness import (
     SEED_BITS,
+    capture_stream_states,
     engine_random,
     engine_random_seed,
     numpy_stream,
     random_stream,
     reset_streams,
+    restore_stream_states,
     seed_engine_random,
     stream_seed,
 )
@@ -219,6 +222,60 @@ class TestMasterSeed:
 
         assert generator is random_stream('shake')
         assert engine_random_seed() == 42
+
+
+class TestStreamStates:
+    """capture_stream_states/restore_stream_states save and restore every stream exactly."""
+
+    def test_restore_reproduces_the_next_draws(self):
+        """After a restore, every stream (and a stream not yet created) draws as it would have."""
+        reset_streams(seed=TEST_SEED)
+        random_stream('shake').random()
+        numpy_stream('audio.live').random()
+        states = capture_stream_states()
+        expected = (
+            random_stream('shake').random(),
+            numpy_stream('audio.live').random(),
+            random_stream('new').random(),
+        )
+        reset_streams(seed=999)
+        restore_stream_states(states=states)
+
+        assert engine_random_seed() == TEST_SEED
+        assert (
+            random_stream('shake').random(),
+            numpy_stream('audio.live').random(),
+            random_stream('new').random(),
+        ) == expected
+
+    def test_restore_drops_streams_created_after_the_capture(self):
+        """A stream created after the capture is recreated from the seed, as at capture time."""
+        reset_streams(seed=TEST_SEED)
+        states = capture_stream_states()
+        first_draws = _draws('late')
+        restore_stream_states(states=states)
+
+        assert _draws('late') == first_draws
+
+    def test_states_are_json_safe(self):
+        """The capture reads back from JSON exactly (lists, not tuples)."""
+        reset_streams(seed=TEST_SEED)
+        random_stream('shake').random()
+        numpy_stream('audio.live').random()
+        states = capture_stream_states()
+
+        assert json.loads(json.dumps(states)) == states
+
+    def test_restored_states_survive_a_json_round_trip(self):
+        """States read back from JSON (a recording's) restore the same draws."""
+        reset_streams(seed=TEST_SEED)
+        random_stream('shake').random()
+        numpy_stream('audio.live').random()
+        states = json.loads(json.dumps(capture_stream_states()))
+        expected = (random_stream('shake').random(), numpy_stream('audio.live').random())
+        restore_stream_states(states=states)
+
+        assert (random_stream('shake').random(), numpy_stream('audio.live').random()) == expected
 
 
 # Modules whose import bindings the scan follows (aliases, from-imports, __import__)

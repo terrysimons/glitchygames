@@ -166,10 +166,37 @@ A recording is a gzip JSON Lines trace (format version 3; versions 2 and 3 can b
 header line, then exactly one line per main-loop frame. Each frame holds its `dt`, every event
 batch the engine read from SDL's queue (each event tagged `external` or `internal`) and the
 sprites. Format 3 adds per-frame `input_changes`, `control_events`, `devices_opened`,
-`saves_opened` and `device_enumeration` (each written only when not empty). The header holds the
-game, scene and versions, every option, the start time, the random seed, and the saves and
-devices the run took in before recording started. The full format is described in the
+`saves_opened`, `device_enumeration` and `scene_start` (each written only when not empty). The
+header holds the game, scene and versions, every option, the start time, the random seed, and the
+saves and devices the run took in before recording started. The full format is described in the
 `glitchygames/recording.py` module docstring.
+
+### Scene starts
+
+A recording also holds how each scene began, so in-game playback (demos, instant replay) can
+rebuild a scene from its start: the frame a scene began in carries its `scene_start` (its class,
+`replay_arguments()`, every random stream's state and the frame clock as its `__init__` began,
+and the saves as its first `setup()` began; `glitchygames/replay/scene_start.py`). Frame 0 holds
+the first scene's start when the run was started with `--record-trace` (or `--rebaseline`).
+Starts are captured only while they can be used (recording, playback, or a scene that opts into
+instant replay), so live play pays nothing. A replay never compares them.
+
+A scene built with arguments besides `options` (Clockwork Keep's next floor carries the score
+and lives) returns them from `replay_arguments()`, as they were when it was built; they must
+read back from JSON exactly as returned:
+
+```python
+class FloorScene(Scene):
+    def __init__(self, floor_index=0, player_score=0, options=None, groups=None):
+        super().__init__(options=options, groups=groups)  # first: the start capture begins here
+        self.floor_index = floor_index
+        self.starting_player_score = player_score
+
+    def replay_arguments(self):
+        return {'floor_index': self.floor_index, 'player_score': self.starting_player_score}
+```
+
+Draw random numbers only after `super().__init__()`: the capture begins there.
 
 ## Replay (`--replay-trace PATH`)
 

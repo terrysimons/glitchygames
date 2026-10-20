@@ -102,6 +102,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Not a code bug and not removed here (it is the user's file). Deleting the directory fixes it; `glitchygames/testing/replays.py` (`game_entry_point`) searches every distribution so the plugin works either way. `replay/driver.py` (`_installed_engine_version`) and `state/manager.py` still read the first one
 - **Files**: `glitchygames.egg-info/` (untracked), `glitchygames/replay/driver.py`, `glitchygames/state/manager.py`
 
+### 79. Clockwork Keep's `--floor` Option Is Parsed but Never Read
+- **Description**: `ClockworkKeepScene.args` adds `--floor` ("Starting floor (0=Boiler Room, 1=Gear Works, 2=Clock Face)"), but nothing reads `options['floor']`: the game always starts on floor 0 (`ClockworkKeepScene()` with its default `floor_index`)
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (in-game playback, Task 1: Clockwork Keep's `replay_arguments`)
+- **Date Reported**: 2026-10-20
+- **Details**: Either read the option where the first floor is built (`floor_index=options.get('floor', 0)`, which would make `--floor` a recorded option a replay applies) or drop the argument. Not fixed here: it changes the game's behaviour, outside this task
+- **Files**: `glitchygames/examples/clockwork_keep/game.py`
+
 ## Resolved Bugs
 
 ### 77. Multi-Controller Stress Tests Time Themselves With the Wall Clock

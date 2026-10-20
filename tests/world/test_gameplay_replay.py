@@ -38,6 +38,7 @@ from glitchygames.process import run_command
 from glitchygames.recording import (
     INTERNAL_ORIGIN,
     RECORDING_FORMAT_THREE_FIELDS,
+    SCENE_START_FIELD,
     GameplayRecorder,
     RecordingSources,
     pending_internal_posts,
@@ -3746,8 +3747,10 @@ class TestRebaseline:
         assert capsys.readouterr().out.rstrip().endswith(': no frames differ')
         old_trace = read_trace_result(path=recording_path).trace
         new_trace = read_trace_result(path=new_path).trace
-        # Same inputs (batches with their origins, dt, input changes, control events) and sprites
+        # Same inputs (batches with their origins, dt, input changes, control events), sprites
+        # and scene starts (the replayed code captures its own, frame 0's included)
         assert new_trace['frames'] == old_trace['frames']
+        assert SCENE_START_FIELD in new_trace['frames'][0]
         assert new_trace['rebaselined_from'] == str(recording_path)
         for field_name in ('random_seed', 'recorded_at', 'options', 'saves', 'devices'):
             assert new_trace[field_name] == old_trace[field_name]

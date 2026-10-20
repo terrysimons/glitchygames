@@ -300,10 +300,23 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   except a watched replay's viewer ticks, which drain it for the viewer's keys; each event tagged
   `external`/`internal`) and the sprites. Format 3 adds frame fields, written only
   when non-empty: `input_changes` (snapshot diffs), `control_events`, `devices_opened`,
-  `saves_opened` and `device_enumeration`. The header holds versions, options, `recorded_at`, the
+  `saves_opened`, `device_enumeration` and `scene_start` (no format bump: readers pass unknown
+  frame fields through). The header holds versions, options, `recorded_at`, the
   random seed and, since format 3, the `saves`, `devices` and `device_enumeration` taken in before
   recording started. Engine code posts events with `glitchygames.recording.post_event` so
   recordings can mark them internal. The format is described in `glitchygames/recording.py`
+- Scene starts (`glitchygames/replay/scene_start.py`, Part 3 Task 1): while the active doors'
+  `captures_scene_starts` is True (`--record-trace` runs from their start, `--rebaseline`, the
+  playback scope) or the scene class sets `INSTANT_REPLAY_SECONDS`, `Scene.__init__` first
+  captures every random stream's state (`capture_stream_states()`, glitchygames/randomness.py) and
+  the frame clock, and `SceneManager._setup_new_scene` completes the `SceneStart` (frozen pydantic:
+  class name, `Scene.replay_arguments()` (JSON-safe, default `{}`; Clockwork Keep returns its
+  floor, score and lives), the saves) before the scene's FIRST setup only (resume keeps it).
+  `SceneManager.active_scene_start`, `Scene.scene_start`; recordings write it as the frame
+  field `scene_start` on the frame the scene began (frame 0 for the first scene).
+  `rebuild_scene(start=..., scene_class=..., options=...)` restores the streams
+  (`restore_stream_states`) and frame clock (`sources.set_frame_clock_seconds`) and constructs
+  the scene (no `setup()`). Live play captures nothing
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
   randomness draws from named streams seeded from it: `random_stream('name')` (`random.Random`) or
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is

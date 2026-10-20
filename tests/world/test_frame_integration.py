@@ -38,9 +38,12 @@ from glitchygames.engine import GameEngine
 from glitchygames.examples import paddleslap
 from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
+from glitchygames.randomness import random_stream
+from glitchygames.replay.scene_start import SceneStart, rebuild_scene
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.sources import active_sources
+from glitchygames.sources import active_sources, frame_clock_seconds
+from glitchygames.state import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, screen_position_for
@@ -705,6 +708,132 @@ class TestGameTime:
             step(manager, frames=PAUSE_FRAMES)
             assert isinstance(manager.active_scene, PauseScene)
             assert game_scene.game_time == paused_at
+
+
+START_CAPTURE_SAVE_NAMESPACE = 'start-capture-test'
+
+
+class StartCapturedScene(CameraFreeScene):
+    """Draws from a stream as it is built, carries a level and saves before its first setup."""
+
+    NAME = 'Start Captured'
+
+    def __init__(
+        self: Self,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
+        level: int = 1,
+    ) -> None:
+        """Draw the spawn position and write a save slot before setup().
+
+        Args:
+            options: The game's options.
+            groups: The sprite group.
+            level: The level this scene plays (its replay argument).
+
+        """
+        super().__init__(options=options, groups=groups)
+        self.level = level
+        self.spawn_x = random_stream('test.spawn').randrange(0, 100)
+        self.saves = open_saves(app_name=START_CAPTURE_SAVE_NAMESPACE)
+        self.saves.save('progress', {'level': level})
+
+    @override
+    def replay_arguments(self: Self) -> dict[str, Any]:
+        """Rebuild with the same level.
+
+        Returns:
+            The level.
+
+        """
+        return {'level': self.level}
+
+
+class TestSceneStart:
+    """A scene's start capture holds what rebuilding it as it began needs."""
+
+    def test_start_capture_holds_arguments_streams_clock_and_saves(self, mocker):
+        """The start names the class, its arguments, the frame clock and the save view."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with running_scene(StartCapturedScene) as manager:
+            start = manager.active_scene_start
+            assert start is not None
+            assert start.scene_class == 'StartCapturedScene'
+            assert start.arguments == {'level': 1}
+            assert start.frame_clock_seconds == 0.0
+            assert start.random_states['seed'] == RANDOM_SEED
+            saved_slot = start.saves[START_CAPTURE_SAVE_NAMESPACE]['progress']
+            assert saved_slot['data'] == {'level': 1}
+            assert SceneStart.from_json(json.loads(json.dumps(start.to_json()))) == start
+
+    def test_rebuilt_scene_draws_the_same_randomness(self, mocker):
+        """A rebuild restores the streams and frame clock the original began with."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with running_scene(StartCapturedScene) as manager:
+            original = manager.active_scene
+            start = manager.active_scene_start
+            assert isinstance(original, StartCapturedScene)
+            assert start is not None
+            step(manager, frames=2)
+            # Advance the stream after the start, so only a restore draws the same value
+            random_stream('test.spawn').random()
+            rebuilt = rebuild_scene(
+                start=start, scene_class=StartCapturedScene, options=original.options
+            )
+            assert isinstance(rebuilt, StartCapturedScene)
+            assert rebuilt.spawn_x == original.spawn_x
+            assert rebuilt.level == 1
+            assert frame_clock_seconds() == start.frame_clock_seconds
+
+    def test_non_json_arguments_are_refused(self, mocker):
+        """replay_arguments() that would not read back from JSON is a TypeError naming the scene."""
+
+        class BadArguments(StartCapturedScene):
+            @override
+            def replay_arguments(self: Self) -> dict[str, Any]:
+                return {'surface': object()}
+
+        mocker.patch.object(BadArguments, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with pytest.raises(TypeError, match='BadArguments'), running_scene(BadArguments):
+            pass
+
+    def test_tuple_arguments_are_refused(self, mocker):
+        """A tuple reads back from JSON as a list, so the rebuild would differ: refused."""
+
+        class TupleArguments(StartCapturedScene):
+            @override
+            def replay_arguments(self: Self) -> dict[str, Any]:
+                return {'position': (1, 2)}
+
+        mocker.patch.object(TupleArguments, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with pytest.raises(TypeError, match='TupleArguments'), running_scene(TupleArguments):
+            pass
+
+
+class TestSceneStartCaptureScope:
+    """Starts are captured only while they can be used, and a scene keeps its first one."""
+
+    def test_live_play_captures_nothing(self):
+        """Without recording, playback or instant replay, no scene start is captured."""
+        with running_scene(StartCapturedScene) as manager:
+            assert manager.active_scene_start is None
+
+    def test_resume_from_pause_keeps_the_first_capture(self, mocker):
+        """Resuming runs the scene's setup again but keeps the start of its first setup."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with running_scene(StartCapturedScene) as manager:
+            first = manager.active_scene_start
+            game_scene = manager.active_scene
+            assert first is not None
+            assert game_scene is not None
+            step(manager, frames=2)
+            game_scene.pause()
+            step(manager)
+            assert isinstance(manager.active_scene, PauseScene)
+            step(manager, press(pygame.K_SPACE))
+            step(manager, release(pygame.K_SPACE))
+            assert manager.active_scene is game_scene
+            assert manager.active_scene_start is first
 
 
 class TestTransitionCapture:

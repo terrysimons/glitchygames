@@ -218,6 +218,9 @@ class ClockworkKeepScene(Scene):
         super().__init__(options=options, groups=groups)
 
         self.floor_index = floor_index
+        # The score and lives carried onto this floor, as it began (replay_arguments)
+        self.starting_player_score = player_score
+        self.starting_player_lives = player_lives
         self.floor_data: FloorData = ALL_FLOORS[floor_index]
         # Game time on this floor (capped dt, frozen after game over); drives the floor-3 clock
         self.floor_elapsed_time: float = 0.0
@@ -371,6 +374,20 @@ class ClockworkKeepScene(Scene):
             default=0,
             help='Starting floor (0=Boiler Room, 1=Gear Works, 2=Clock Face)',
         )
+
+    @override
+    def replay_arguments(self: Self) -> dict[str, Any]:
+        """Rebuild this floor with the score and lives carried onto it.
+
+        Returns:
+            The constructor arguments the floor was built with (besides options).
+
+        """
+        return {
+            'floor_index': self.floor_index,
+            'player_score': self.starting_player_score,
+            'player_lives': self.starting_player_lives,
+        }
 
     @override
     def setup(self: Self) -> None:

@@ -340,6 +340,25 @@ class TestFloorThreeClock:
         scene.all_sprites.draw(surface)
         assert scene.floor_elapsed_time == pytest.approx(FRAME_TIME)
 
+    def test_floor_replay_arguments_rebuild_the_floor(self):
+        """replay_arguments() are the floor's constructor arguments as it began."""
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            pygame.display.set_mode((800, 480))
+        scene = ClockworkKeepScene(
+            floor_index=2, player_score=1450, player_lives=2, options={'input_mode': 'joystick'}
+        )
+        # Scoring on the floor does not change how it began
+        scene.player.score += 50
+        scene.player.lives -= 1
+
+        assert scene.replay_arguments() == {
+            'floor_index': 2,
+            'player_score': 1450,
+            'player_lives': 2,
+        }
+
 
 class TestPlatformSupportUsesHitbox:
     """Platforms support the player by its collision rect (hitbox), not its drawn width.

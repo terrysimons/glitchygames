@@ -858,7 +858,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         reset_internal_post_tracking()
         install_sources(
             sources=self.replay_sources
-            or LiveSources(random_seed=self.random_seed, use_fastevents=GameEngine.USE_FASTEVENTS)
+            or LiveSources(
+                random_seed=self.random_seed,
+                use_fastevents=GameEngine.USE_FASTEVENTS,
+                # A recorded run captures scene starts from its first scene on, which is built
+                # before recording starts (glitchygames/replay/scene_start.py)
+                captures_scene_starts=options.get('record_trace') is not None,
+            )
         )
 
         # We are fully initialized now, so we can set up the scene.

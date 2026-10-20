@@ -28,16 +28,28 @@ if TYPE_CHECKING:
 class LiveSources:
     """The live doors (implements glitchygames.sources.EngineSources)."""
 
-    def __init__(self: Self, *, random_seed: int, use_fastevents: bool = False) -> None:
+    def __init__(
+        self: Self,
+        *,
+        random_seed: int,
+        use_fastevents: bool = False,
+        captures_scene_starts: bool = False,
+    ) -> None:
         """Create the live doors.
 
         Args:
             random_seed: The run's master seed (glitchygames/randomness.py).
             use_fastevents: Read events with pygame.fastevent when pygame has it
                 (``GameEngine.USE_FASTEVENTS``; pygame < 2.2 only).
+            captures_scene_starts: True when the run will be recorded (``--record-trace``):
+                recording starts after the first scene is built and set up, so the live doors
+                capture scene starts from the run's start and frame 0 holds the first scene's
+                (glitchygames/replay/scene_start.py). False for live play.
 
         """
         self.random_seed = random_seed
+        # The EngineSources property, as a plain attribute: set once, for the whole run
+        self.captures_scene_starts = captures_scene_starts
         self._use_fastevents = use_fastevents
         self._devices = LiveDeviceRegistry()
         # Stores games opened, by namespace (opened_save_namespaces)

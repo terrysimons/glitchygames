@@ -143,7 +143,11 @@ session again, and every frame's sprites are compared with the recorded frame. T
     rebaseline.py, whose docstring is the contract): ``start_replay`` gives the replay
     ``stop_on_divergence=False`` and ``ReplayExitPolicy.SUCCESS_AFTER_WRITING``, and the engine
     records the run over it into NEW (``RecordingSources`` with ``replayed`` set: origins and
-    the saves and device fields come from this replay, never from the live trackers).
+    the saves and device fields come from this replay, never from the live trackers). It also
+    gives it ``captures_scene_starts=True``, so the scenes the replayed code builds capture their
+    starts and NEW holds them (``scene_start``, frame 0's included), as a ``--record-trace``
+    recording does; a recording's ``scene_start`` fields are never compared (the replayed code
+    captures its own).
 """
 
 from __future__ import annotations
@@ -403,6 +407,10 @@ class ReplayOptions(BaseModel):
         stop_on_divergence: True (the default) to end the comparison at the first difference
             (rule 8); False to note every differing frame and run on to the end
             (``--rebaseline``, rule 17).
+        captures_scene_starts: True when scenes the replayed code builds capture their starts
+            (``EngineSources.captures_scene_starts``; glitchygames/replay/scene_start.py): a
+            rebaseline's new recording holds them (rule 17). False (the default) for a replay
+            that records nothing.
 
     """
 
@@ -419,6 +427,7 @@ class ReplayOptions(BaseModel):
     viewer_state: ViewerState | None = None
     recording_path: Path | None = None
     stop_on_divergence: bool = True
+    captures_scene_starts: bool = False
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -966,6 +975,8 @@ class ReplaySources:
             (``draw_overlay``).
         presents_frames: False for a watched replay, whose viewer presents the latest frame
             once per outer tick.
+        captures_scene_starts: Whether scenes built now capture their starts
+            (``ReplayOptions.captures_scene_starts``: a rebaseline's).
 
     """
 
@@ -1004,6 +1015,7 @@ class ReplaySources:
         if isinstance(input_capture_format_version, int):
             format_version = min(format_version, input_capture_format_version)
         self.draws_overlay = not options.headless
+        self.captures_scene_starts = options.captures_scene_starts
         # Watched, inner frames are not presented: the viewer's outer tick presents the latest
         self.presents_frames = options.headless
         self.controls = ReplayControls(
@@ -2164,6 +2176,8 @@ def start_replay(
         recording_path=path,
         # A rebaseline summarizes every frame that changed, so it never stops at the first
         stop_on_divergence=not is_rebaseline,
+        # The rebaseline's new recording holds the scene starts, frame 0's included (rule 17)
+        captures_scene_starts=is_rebaseline,
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(header=sources.header, game_class_name=game_class_name)

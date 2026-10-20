@@ -31,16 +31,27 @@ takes in is recorded where it passes through them.
   discarded or unhandled is a deterministic function of the batch and the game state, which
   replay re-derives. Pumps after the final recorded frame (while the engine terminates and
   shuts down) belong to no frame and are not recorded.
-- Format version 3 adds five frame fields, each written only on frames where it is not
+- Format version 3 adds six frame fields, each written only on frames where it is not
   empty: ``input_changes``, the frame's polled input (see Polled input below) as the fields
   that changed since the previous frame's snapshot (``glitchygames.input.state.
   snapshot_changes``; the first frame's against ``IDLE_INPUT``); ``control_events``, the
   supervisor actions recorded in the frame, in order (``ControlEvent.to_json``:
   ``{"kind": ..., **data}``; glitchygames/supervision.py); ``devices_opened``, descriptors of
   devices opened in the frame; ``saves_opened``, a snapshot of each save namespace first
-  opened in the frame, taken before the game could write to it; and
+  opened in the frame, taken before the game could write to it;
   ``device_enumeration``, the enumeration and open answers given in the frame (failures
-  included, with their ``error``).
+  included, with their ``error``); and ``scene_start``, the start of the scene that began in
+  the frame (``SceneStart.to_json``: ``scene_class``, ``arguments``, ``random_states``,
+  ``frame_clock_seconds`` and ``saves``; glitchygames/replay/scene_start.py), written on the
+  first frame that ends with that scene active, which is the frame its first ``setup()`` ran
+  in (frame 0 for the scene set up before the first frame), once per scene: resuming it from
+  the pause screen does not write it again. Frame 0 holds the first scene's start only when
+  the run was started with ``--record-trace`` (or ``--rebaseline``): those runs capture scene
+  starts from their start, while a recording started later in the run
+  (``GameEngine.start_trace_recording``) holds the starts of scenes built after it began.
+  ``scene_start`` needed no format version: readers pass frame fields they do not use through
+  unchanged (glitchygames/tracing.py), and a replay never compares it (the replayed code
+  captures its own); a recording without it replays as before and cannot be played in-game.
 - A frame whose active scene is a different scene object from the previous frame's is a
   keyframe, even when both scenes have the same class (two floors of one game).
 
@@ -129,6 +140,7 @@ import dataclasses
 import logging
 import math
 import numbers
+import weakref
 from collections.abc import Sized
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
@@ -148,6 +160,7 @@ if TYPE_CHECKING:
 
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
+    from glitchygames.replay.scene_start import SceneStart
     from glitchygames.scenes import Scene
     from glitchygames.sources import EngineSources
     from glitchygames.state.manager import SaveManager
@@ -167,6 +180,7 @@ INPUT_CHANGES_FIELD = 'input_changes'
 CONTROL_EVENTS_FIELD = 'control_events'
 DEVICES_OPENED_FIELD = 'devices_opened'
 SAVES_OPENED_FIELD = 'saves_opened'
+# A scene's start (glitchygames/replay/scene_start.py), on the frame it began
 SCENE_START_FIELD = 'scene_start'
 # Device enumeration answers (glitchygames/input/devices.py): a header field for answers given
 # before recording started, and a frame field for answers given during that frame
@@ -179,6 +193,7 @@ RECORDING_FORMAT_THREE_FIELDS = (
     DEVICES_OPENED_FIELD,
     SAVES_OPENED_FIELD,
     DEVICE_ENUMERATION_FIELD,
+    SCENE_START_FIELD,
 )
 # Header fields format version 3 adds
 SAVES_HEADER_FIELD = 'saves'
@@ -597,6 +612,7 @@ class RecordedFrameFields(TypedDict, total=False):
         devices_opened: Descriptors of devices opened in the frame (``to_json``).
         saves_opened: Save namespaces first opened in the frame, each snapshotted.
         device_enumeration: Enumeration answers given in the frame (``to_json``).
+        scene_start: The start of the scene that began in the frame (``SceneStart.to_json``).
 
     """
 
@@ -605,6 +621,7 @@ class RecordedFrameFields(TypedDict, total=False):
     devices_opened: list[dict[str, Any]] | None
     saves_opened: dict[str, Any] | None
     device_enumeration: list[dict[str, Any]] | None
+    scene_start: dict[str, Any] | None
 
 
 class RecordedFrameFieldSource(Protocol):
@@ -793,6 +810,9 @@ class RecordingSources:
       ``saves`` are not).
     - ``devices``: the registry's opened-device descriptors and enumeration answers, taken at
       ``end_frame`` into ``devices_opened`` and ``device_enumeration``.
+    - ``captures_scene_starts``: True while recording, so every scene built captures its start
+      (glitchygames/replay/scene_start.py); ``end_frame`` writes the start of a scene that ends
+      a frame active for the first time into that frame's ``scene_start`` (once per scene).
     - ``end_frame``: writes the frame (with its control events), then lets ``inner`` end it.
 
     Over a replay (``replayed`` given: ``--rebaseline``), what the replay served is recorded
@@ -836,11 +856,18 @@ class RecordingSources:
         self._recorded_snapshot: InputSnapshot = IDLE_INPUT
         self._frame_snapshot: InputSnapshot | None = None
         self._frame_saves_opened: dict[str, Any] = {}
+        # Scenes whose start a frame already holds (weak: a scene left behind is not kept alive)
+        self._scenes_with_recorded_start: weakref.WeakSet[Scene] = weakref.WeakSet()
 
     @property
     def opened_save_namespaces(self) -> Mapping[str, SaveManager]:
         """Every save store ``inner`` opened so far, by namespace."""
         return self.inner.opened_save_namespaces
+
+    @property
+    def captures_scene_starts(self) -> bool:
+        """True while recording (the frames hold the starts); once closed, ``inner``'s."""
+        return not self._recorder.is_closed or self.inner.captures_scene_starts
 
     @property
     def stop_requested(self) -> bool:
@@ -1015,6 +1042,7 @@ class RecordingSources:
                 devices_opened = recorded_fields.get(DEVICES_OPENED_FIELD, [])
                 device_enumeration = recorded_fields.get(DEVICE_ENUMERATION_FIELD, [])
                 saves_opened = recorded_fields.get(SAVES_OPENED_FIELD, {})
+            scene_start = self._unrecorded_scene_start(scene=scene)
             input_changes: dict[str, Any] = {}
             if self._frame_snapshot is not None:
                 input_changes = snapshot_changes(
@@ -1029,9 +1057,32 @@ class RecordingSources:
                 devices_opened=devices_opened,
                 saves_opened=saves_opened,
                 device_enumeration=device_enumeration,
+                scene_start=None if scene_start is None else scene_start.to_json(),
             )
         self._frame_snapshot = None
         self._frame_saves_opened = {}
         self.inner.end_frame(
             frame_number=frame_number, dt=dt, scene=scene, control_events=control_events
         )
+
+    def _unrecorded_scene_start(self, *, scene: Scene | None) -> SceneStart | None:
+        """Return the start of the scene ending this frame, unless a frame already holds it.
+
+        A scene is active from the frame its first ``setup()`` runs in (switches and
+        transitions make it active as they set it up), so the first frame it ends is the frame
+        it began: frame 0 for the scene set up before the first frame. Resuming it from the
+        pause screen does not record it again.
+
+        Args:
+            scene: The active scene at the end of the frame.
+
+        Returns:
+            The start to write, or None (no scene, no capture, or already written).
+
+        """
+        if scene is None or scene in self._scenes_with_recorded_start:
+            return None
+        scene_start = scene.scene_start
+        if scene_start is not None:
+            self._scenes_with_recorded_start.add(scene)
+        return scene_start

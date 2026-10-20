@@ -64,6 +64,17 @@ class EngineSources(Protocol):
         ...
 
     @property
+    def captures_scene_starts(self) -> bool:
+        """True when scenes constructed now capture their starts (replay/scene_start.py).
+
+        Only while a start can be used: a run recorded with ``--record-trace`` from its start
+        (so the first scene's start is in frame 0) and while recording, a ``--rebaseline``
+        replay (its new recording holds them) and in-game playback. Live play and a plain replay
+        capture nothing.
+        """
+        ...
+
+    @property
     def stop_requested(self) -> bool:
         """True when the sources want the run to end (a replay reached its end)."""
         ...
@@ -252,6 +263,16 @@ def mark_frames_started() -> None:
 def advance_frame_clock(*, seconds: float) -> None:
     """Add one closed frame's dt to the frame clock (SceneManager._finish_frame)."""
     _REGISTRY.frame_clock_seconds += seconds
+
+
+def set_frame_clock_seconds(*, seconds: float) -> None:
+    """Set the frame clock (a scene rebuilt from its start; glitchygames/replay/scene_start.py).
+
+    Args:
+        seconds: The frame clock's new reading.
+
+    """
+    _REGISTRY.frame_clock_seconds = seconds
 
 
 def frame_clock_seconds() -> float:

@@ -53,11 +53,13 @@ from glitchygames.recording import (
     RECORDING_SOURCE,
     SAVES_HEADER_FIELD,
     SAVES_OPENED_FIELD,
+    SCENE_START_FIELD,
     RecordingSources,
     TraceRecordingAlreadyStartedError,
     UnrepresentableValue,
     event_from_record,
 )
+from glitchygames.replay.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
 from glitchygames.sources import active_sources, install_sources
@@ -106,6 +108,7 @@ RECORDING_FRAME_FIELDS = frozenset({
     DEVICES_OPENED_FIELD,
     SAVES_OPENED_FIELD,
     DEVICE_ENUMERATION_FIELD,
+    SCENE_START_FIELD,
 })
 
 # The whole Clockwork Keep golden script: the elevator ride (frames 352-592) and a pause (740-790)
@@ -759,6 +762,27 @@ class TestRecordingThroughTheEngine:
         assert opened['recording-test']['high_scores']['data'] == {'scores': [{'score': 900}]}
         assert frames[0]['frame'] == 0
         assert SAVES_OPENED_FIELD in frames[0]
+
+    def test_recording_holds_each_scene_start(self, mocker, tmp_path):
+        """Frame 0 holds the first scene's start, and a scene's start is in the frame it began."""
+        recording_path = tmp_path / 'session.jsonl.gz'
+        with engine_run_environment(mocker):
+            _schedule_quit_in_arrival()
+            run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        frames = read_trace_result(path=recording_path).trace['frames']
+        first_start = SceneStart.from_json(frames[0][SCENE_START_FIELD])
+        assert first_start.scene_class == 'DepartureRecordedScene'
+        assert first_start.random_states['seed'] == RANDOM_SEED
+        starts_by_frame = {
+            frame['frame']: frame[SCENE_START_FIELD]['scene_class']
+            for frame in frames
+            if SCENE_START_FIELD in frame
+        }
+        # The arriving scene is set up (and active) in the frame that starts the transition
+        assert starts_by_frame == {
+            0: 'DepartureRecordedScene',
+            TRANSITION_START_FRAME: 'ArrivalRecordedScene',
+        }
 
     def test_saves_opened_before_recording_are_in_the_header(self, tmp_path):
         """A store the game opened before recording started is snapshotted into the header."""

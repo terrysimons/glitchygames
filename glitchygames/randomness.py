@@ -16,6 +16,14 @@ seed, adding a draw in one subsystem never shifts another subsystem's numbers.
 replay); code must therefore look a stream up when it draws (or when the thing that draws is
 created), not keep one from import time. ``engine_random()`` is ``random_stream('engine')``.
 
+``capture_stream_states()``/``restore_stream_states(states=...)`` save and restore every stream
+exactly (in-game playback, plans/2026-10-19-gameplay-replay-playback.md): the master seed and
+each created stream's state, JSON-safe, so a scene rebuilt from its start
+(glitchygames/replay/scene_start.py) draws the numbers it drew when it began. A restore drops
+the streams the capture did not hold; they are created from the seed on first use, exactly as
+they would have been at capture time. Like ``reset_streams``, a restore replaces the stream
+objects, so code that kept a stream draws from a stale one.
+
 Streams in use: ``'shake'`` (glitchygames/effects/shake.py), ``'ball.serve'``
 (glitchygames/game_objects/ball.py), ``'paddleslap.spawn'`` and ``'paddleslap.colors'``
 (glitchygames/examples/paddleslap.py), ``'audio.controller_noise'``
@@ -36,6 +44,7 @@ import dataclasses
 import hashlib
 import random
 import secrets
+from typing import Any
 
 import numpy as np
 
@@ -48,6 +57,12 @@ RANDOM_STREAM_KIND = 'random'
 NUMPY_STREAM_KIND = 'numpy'
 # The stream engine_random() returns
 ENGINE_STREAM_NAME = 'engine'
+# capture_stream_states() fields
+SEED_STATE_FIELD = 'seed'
+RANDOM_STATES_FIELD = 'random'
+NUMPY_STATES_FIELD = 'numpy'
+# The placeholder seed a restored stream is constructed with; setstate() replaces its state
+RESTORED_STREAM_PLACEHOLDER_SEED = 0
 
 
 @dataclasses.dataclass
@@ -171,3 +186,53 @@ def engine_random() -> random.Random:
 
     """
     return random_stream(ENGINE_STREAM_NAME)
+
+
+def capture_stream_states() -> dict[str, Any]:
+    """Return the master seed and every created stream's state, JSON-safe.
+
+    ``{"seed": <master seed or None>, "random": {name: [version, [internal state ints],
+    gauss_next]}, "numpy": {name: <bit generator state dict>}}``: ``random.Random.getstate()``
+    with its tuples as lists, and numpy's ``bit_generator.state`` (PCG64's: plain dicts of ints
+    and strings).
+
+    Returns:
+        The states, for ``restore_stream_states``.
+
+    """
+    random_states: dict[str, Any] = {}
+    for name, generator in _STATE.random_streams.items():
+        version, internal_state, gauss_next = generator.getstate()
+        random_states[name] = [version, list(internal_state), gauss_next]
+    return {
+        SEED_STATE_FIELD: _STATE.seed,
+        RANDOM_STATES_FIELD: random_states,
+        NUMPY_STATES_FIELD: {
+            # default_rng's PCG64 state is a dict of Python ints and strings, JSON-safe as is
+            name: generator.bit_generator.state
+            for name, generator in _STATE.numpy_streams.items()
+        },
+    }
+
+
+def restore_stream_states(*, states: dict[str, Any]) -> None:
+    """Restore the master seed and streams ``capture_stream_states`` returned.
+
+    Streams the capture does not hold are dropped, so they are created from the seed on first
+    use, as they would have been at capture time.
+
+    Args:
+        states: What ``capture_stream_states()`` returned (or its JSON read back).
+
+    """
+    _STATE.seed = states[SEED_STATE_FIELD]
+    _STATE.random_streams.clear()
+    _STATE.numpy_streams.clear()
+    for name, (version, internal_state, gauss_next) in states[RANDOM_STATES_FIELD].items():
+        generator = random.Random(RESTORED_STREAM_PLACEHOLDER_SEED)
+        generator.setstate((version, tuple(internal_state), gauss_next))
+        _STATE.random_streams[name] = generator
+    for name, bit_generator_state in states[NUMPY_STATES_FIELD].items():
+        numpy_generator = np.random.default_rng(RESTORED_STREAM_PLACEHOLDER_SEED)
+        numpy_generator.bit_generator.state = bit_generator_state
+        _STATE.numpy_streams[name] = numpy_generator

@@ -873,6 +873,15 @@ class TestRecordingSources:
         assert sources.control_events_for_frame(frame_number=3) == []
         assert sources.wall_clock_time().tzinfo is not None
 
+    def test_scene_starts_are_captured_while_recording(self, tmp_path):
+        """Open, the doors capture scene starts; closed, they answer as the inner doors do."""
+        sources, recorder, inner = _recording_sources(path=tmp_path / 'unit.jsonl.gz')
+
+        assert inner.captures_scene_starts is False
+        assert sources.captures_scene_starts is True
+        recorder.close()
+        assert sources.captures_scene_starts is False
+
     def test_a_closed_recorder_records_nothing_more(self, tmp_path, event_queue):
         """After stop_trace_recording closes the recorder, the doors only delegate."""
         path = tmp_path / 'unit.jsonl.gz'
