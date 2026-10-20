@@ -28,6 +28,7 @@ from glitchygames.sources import (
     advance_frame_clock,
     mark_frames_started,
 )
+from glitchygames.supervision import ControlEvent
 from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
     from glitchygames.recording import GameplayRecorder
+    from glitchygames.supervision import Supervisor
 
 LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
@@ -154,6 +156,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self.quit_requested: bool = False
         # Frames finished this run; the doors' end_frame receives each frame's number
         self.frame_number: int = 0
+        # Called once per frame at the supervisor slot, in registration order (supervision.py)
+        self._supervisors: list[Supervisor] = []
+        self._control_event_handlers: dict[str, list[Callable[[ControlEvent], None]]] = {}
+        # This frame's control events; end_frame receives them, then the list starts over
+        self._frame_control_events: list[ControlEvent] = []
 
         # Scene transition support
         self._active_transition: Any = None  # Transition object during effect
@@ -432,6 +439,42 @@ class SceneManager(SceneInterface, events.EventManager):
         if self.active_scene:
             for sprite in self.active_scene.all_sprites:
                 sprite.dirty = max(sprite.dirty, 1)
+
+    def add_supervisor(self: Self, *, supervisor: Supervisor) -> None:
+        """Call ``supervisor`` once per frame at the supervisor slot (supervision.py)."""
+        self._supervisors.append(supervisor)
+
+    def remove_supervisor(self: Self, *, supervisor: Supervisor) -> None:
+        """Stop calling ``supervisor``; unknown supervisors are ignored."""
+        if supervisor in self._supervisors:
+            self._supervisors.remove(supervisor)
+
+    def add_control_event_handler(
+        self: Self, *, kind: str, handler: Callable[[ControlEvent], None]
+    ) -> None:
+        """Call ``handler`` for every control event of ``kind`` (live or replayed)."""
+        self._control_event_handlers.setdefault(kind, []).append(handler)
+
+    def record_control_event(self: Self, *, kind: str, data: dict[str, Any]) -> None:
+        """Record a supervisor action in this frame and hand it to its handlers."""
+        control_event = ControlEvent(kind=kind, data=data)
+        self._frame_control_events.append(control_event)
+        for handler in self._control_event_handlers.get(kind, []):
+            handler(control_event)
+
+    def _run_supervisor_slot(self: Self) -> None:
+        """Apply this frame's scheduled control events, then call every supervisor.
+
+        The doors schedule the control events a recording holds for this frame (live play has
+        none), so a replay re-applies them on the frame they happened in. Supervisors run in
+        registration order; the list is copied so one may remove itself.
+        """
+        for control_event in active_sources().control_events_for_frame(
+            frame_number=self.frame_number
+        ):
+            self.record_control_event(kind=control_event.kind, data=control_event.data)
+        for supervisor in list(self._supervisors):
+            supervisor.on_frame(frame_number=self.frame_number, scene=self.active_scene)
 
     def _update_frame_services(self: Self) -> None:
         """Advance services that outlive scenes: screen shake, rumble and live audio."""
@@ -909,6 +952,7 @@ class SceneManager(SceneInterface, events.EventManager):
         if self._active_transition is not None:
             transition_done = self._active_transition.update(self.dt)
             self._process_transition_events()
+            self._run_supervisor_slot()
             self._update_frame_services()
             self._active_transition.render(self.screen)
             self._present_frame(full_update=True)
@@ -920,17 +964,22 @@ class SceneManager(SceneInterface, events.EventManager):
         if self.trace_recorder is not None:
             self.trace_recorder.record_frame(dt=frame_dt, scene=self.active_scene)
         active_sources().end_frame(
-            frame_number=self.frame_number, dt=frame_dt, scene=self.active_scene
+            frame_number=self.frame_number,
+            dt=frame_dt,
+            scene=self.active_scene,
+            control_events=self._frame_control_events,
         )
+        self._frame_control_events = []
         self.frame_number += 1
 
     def _run_scene_frame(self: Self) -> None:
         """Run one non-transition frame of the active scene.
 
-        Starts the camera's frame, updates the scene, processes events, updates frame
-        services, aims the camera, positions world sprites, renders the frame, advances the
-        WORLD shake of a camera nothing moved, presents the frame, then starts a pending
-        transition or performs a requested scene switch. ``self.dt`` must already hold this
+        Starts the camera's frame, updates the scene, processes events, runs the supervisor
+        slot (glitchygames/supervision.py), updates frame services, aims the camera, positions
+        world sprites, renders the frame, advances the WORLD shake of a camera nothing moved,
+        presents the frame, then starts a pending transition or performs a requested scene
+        switch. ``self.dt`` must already hold this
         frame's delta time. The aim and the still-camera shake step are skipped when the
         active scene was switched mid-frame (during its logic or events, as resuming from the
         pause screen does): that scene ran no logic this frame, so its camera waits for its
@@ -938,7 +987,9 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         # Order matters: begin_frame() first, so a camera.update() the game made last frame
         # does not count as this frame's (the double-update warning in aim_camera). Then
-        # Scene.dt_tick, events, frame services (shake and rumble, so positioning uses this
+        # Scene.dt_tick, events, the supervisor slot (after logic and events, so supervisors read
+        # the frame's final logic state; before the aim and positioning, so what they change is
+        # drawn this frame), frame services (shake and rumble, so positioning uses this
         # frame's WORLD shake offset), the camera aim and positioning, so sprites spawned in
         # dt_tick are placed before their first render. Scene.update() runs inside
         # _render_scene, after positioning.
@@ -951,6 +1002,7 @@ class SceneManager(SceneInterface, events.EventManager):
         logic_scene = self.active_scene
         self._update_scene(scene_dt=scene_dt)
         self._process_events()
+        self._run_supervisor_slot()
         self._update_frame_services()
         # A scene switched to during this frame (resuming from the pause screen switches while
         # events are processed) ran no logic this frame, so its camera is not aimed either:

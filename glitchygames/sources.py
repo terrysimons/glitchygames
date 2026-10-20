@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     # this module, so a runtime import here would be a cycle (this module is a leaf);
     # state.manager also imports glitchygames.clock, which imports this module
     from glitchygames.state.manager import SaveManager
+    from glitchygames.supervision import ControlEvent
 
 
 class SourcesAlreadyRunningError(RuntimeError):
@@ -97,8 +98,26 @@ class EngineSources(Protocol):
         """Return a monotonic reading in seconds (only differences mean anything)."""
         ...
 
-    def end_frame(self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
-        """Called once after each frame (recording writes it, replay compares it)."""
+    def control_events_for_frame(self, *, frame_number: int) -> list[ControlEvent]:
+        """Return the control events to apply at frame ``frame_number``'s supervisor slot.
+
+        Live play has none; a replay returns the ones its recording holds for that frame
+        (glitchygames/supervision.py).
+        """
+        ...
+
+    def end_frame(
+        self,
+        *,
+        frame_number: int,
+        dt: float,
+        scene: Scene | None,
+        control_events: list[ControlEvent],
+    ) -> None:
+        """Called once after each frame (recording writes it, replay compares it).
+
+        ``control_events`` are the control events recorded in the frame, in order.
+        """
         ...
 
 

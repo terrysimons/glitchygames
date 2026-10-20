@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
     from glitchygames.state.manager import SaveManager
+    from glitchygames.supervision import ControlEvent
 
 
 class LiveSources:
@@ -133,11 +134,29 @@ class LiveSources:
         """
         return time.monotonic()
 
-    def end_frame(self: Self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
+    def control_events_for_frame(self: Self, *, frame_number: int) -> list[ControlEvent]:
+        """Return no control events: live play schedules none.
+
+        Returns:
+            An empty list.
+
+        """
+        # Live play has no recording to schedule from (EngineSources signature)
+        del frame_number
+        return []
+
+    def end_frame(
+        self: Self,
+        *,
+        frame_number: int,
+        dt: float,
+        scene: Scene | None,
+        control_events: list[ControlEvent],
+    ) -> None:
         """Discard the frame's device answers and descriptors nobody took.
 
         A recorder (Task 11 of the gameplay replay plan) takes them before this runs.
         """
         # The frame itself needs nothing from live play (EngineSources signature)
-        del frame_number, dt, scene
+        del frame_number, dt, scene, control_events
         self._devices.discard_untaken()

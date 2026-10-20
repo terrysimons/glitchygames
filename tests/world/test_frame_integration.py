@@ -39,6 +39,8 @@ from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.sources import active_sources
+from glitchygames.supervision import BREAKPOINT_KIND, ControlEvent
 from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, screen_position_for
 
@@ -940,3 +942,112 @@ class TestInputSnapshotInTheFrame:
                 assert manager.game_engine.input is captured[-1]
                 assert current_input() is captured[-1]
         assert order == ['pump', 'capture'] * INPUT_SNAPSHOT_FRAMES
+
+
+class OrderRecordingSupervisor:
+    """A supervisor that records each call's frame number and scene class name."""
+
+    def __init__(self: Self) -> None:
+        """Create the supervisor with no calls recorded yet."""
+        self.calls: list[tuple[int, str]] = []
+
+    def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
+        """Record the frame number and the scene's class name."""
+        self.calls.append((frame_number, type(scene).__name__))
+
+
+class TestSupervisorHook:
+    """Supervisors run once per frame at their slot, after events and before frame services."""
+
+    def test_supervisors_run_once_per_frame_after_events(self, mocker: MockerFixture) -> None:
+        with running_scene(CameraFreeScene) as manager:
+            supervisor = OrderRecordingSupervisor()
+            manager.add_supervisor(supervisor=supervisor)
+            order: list[str] = []
+            mocker.patch.object(
+                manager, '_process_events', side_effect=lambda: order.append('events')
+            )
+            mocker.patch.object(
+                manager, '_update_frame_services', side_effect=lambda: order.append('services')
+            )
+            original_on_frame = supervisor.on_frame
+
+            def ordered_on_frame(**keywords: Any) -> None:
+                order.append('supervisor')
+                original_on_frame(**keywords)
+
+            mocker.patch.object(supervisor, 'on_frame', side_effect=ordered_on_frame)
+            step(manager, frames=2)
+        assert order == ['events', 'supervisor', 'services'] * 2
+        assert supervisor.calls == [(0, 'CameraFreeScene'), (1, 'CameraFreeScene')]
+
+    def test_supervisors_run_in_transition_frames(self, mocker: MockerFixture) -> None:
+        with running_scene(CameraFreeScene) as manager:
+            supervisor = OrderRecordingSupervisor()
+            manager.add_supervisor(supervisor=supervisor)
+            order: list[str] = []
+            mocker.patch.object(
+                manager,
+                '_process_transition_events',
+                side_effect=lambda: order.append('transition events'),
+            )
+            mocker.patch.object(
+                manager, '_update_frame_services', side_effect=lambda: order.append('services')
+            )
+            original_on_frame = supervisor.on_frame
+
+            def ordered_on_frame(**keywords: Any) -> None:
+                order.append('supervisor')
+                original_on_frame(**keywords)
+
+            mocker.patch.object(supervisor, 'on_frame', side_effect=ordered_on_frame)
+            manager._active_transition = mocker.Mock(**{'update.return_value': False})
+            step(manager, frames=1)
+            manager._active_transition = None
+        assert order == ['transition events', 'supervisor', 'services']
+        assert supervisor.calls == [(0, 'CameraFreeScene')]
+
+    def test_removed_supervisor_is_not_called(self) -> None:
+        with running_scene(CameraFreeScene) as manager:
+            supervisor = OrderRecordingSupervisor()
+            manager.add_supervisor(supervisor=supervisor)
+            manager.remove_supervisor(supervisor=supervisor)
+            step(manager, frames=1)
+        assert supervisor.calls == []
+
+
+class TestControlEvents:
+    """Control events reach their handlers and the doors' end_frame, live or scheduled."""
+
+    def test_recorded_control_events_reach_handlers_and_end_frame(
+        self, mocker: MockerFixture
+    ) -> None:
+        handled: list[ControlEvent] = []
+        with running_scene(CameraFreeScene) as manager:
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=handled.append)
+            end_frame = mocker.spy(active_sources(), 'end_frame')
+            manager.record_control_event(kind=BREAKPOINT_KIND, data={'label': 'here'})
+            step(manager, frames=2)
+        assert handled == [ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'here'})]
+        first_frame_call, second_frame_call = end_frame.call_args_list
+        assert first_frame_call.kwargs['control_events'] == handled
+        # Each frame's list holds that frame's control events only
+        assert second_frame_call.kwargs['control_events'] == []
+
+    def test_scheduled_control_events_are_applied_at_the_slot(self, mocker: MockerFixture) -> None:
+        scheduled = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'from recording'})
+        handled: list[ControlEvent] = []
+        with running_scene(CameraFreeScene) as manager:
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=handled.append)
+            mocker.patch.object(
+                active_sources(),
+                'control_events_for_frame',
+                side_effect=lambda frame_number: [scheduled] if frame_number == 1 else [],
+            )
+            step(manager, frames=3)
+        assert handled == [scheduled]
+
+    def test_control_event_json_round_trip(self) -> None:
+        event = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'x'})
+        assert event.to_json() == {'kind': 'breakpoint', 'label': 'x'}
+        assert ControlEvent.from_json(event.to_json()) == event

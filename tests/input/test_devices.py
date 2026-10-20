@@ -502,7 +502,7 @@ def test_live_frames_without_a_recorder_keep_no_enumeration_answers(mocker):
     for frame_number in range(5):
         registry.joystick_count()
         registry.open_joystick(device_index=0)
-        sources.end_frame(frame_number=frame_number, dt=0.016, scene=None)
+        sources.end_frame(frame_number=frame_number, dt=0.016, scene=None, control_events=[])
 
         assert registry.take_enumeration_answers() == []
         assert registry.take_opened_descriptors() == []
@@ -516,6 +516,6 @@ def test_answers_taken_before_the_end_of_a_live_frame_are_intact(mocker):
 
     registry.joystick_count()
     taken = registry.take_enumeration_answers()
-    sources.end_frame(frame_number=0, dt=0.016, scene=None)
+    sources.end_frame(frame_number=0, dt=0.016, scene=None, control_events=[])
 
     assert taken == [EnumerationAnswer(call='joystick_count', device_index=None, value=2)]

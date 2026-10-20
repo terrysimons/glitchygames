@@ -6,7 +6,7 @@ and frame time.
 
 from __future__ import annotations
 
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 import pytest
@@ -30,6 +30,9 @@ from glitchygames.sources import (
     mark_frames_started,
     reset_sources,
 )
+
+if TYPE_CHECKING:
+    from glitchygames.supervision import ControlEvent
 
 SCRIPTED_KEY = pygame.K_x
 
@@ -74,7 +77,14 @@ class ScriptedSources(LiveSources):
             ]
         return []
 
-    def end_frame(self: Self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
+    def end_frame(
+        self: Self,
+        *,
+        frame_number: int,
+        dt: float,
+        scene: Scene | None,
+        control_events: list[ControlEvent],
+    ) -> None:
         self.ended_frames.append(frame_number)
 
 

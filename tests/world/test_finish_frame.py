@@ -34,6 +34,8 @@ if TYPE_CHECKING:
 
     from pytest_mock import MockerFixture
 
+    from glitchygames.supervision import ControlEvent
+
 NANOSECONDS_PER_SECOND = 1_000_000_000
 CLOCK_START_SECONDS = 100.0
 # Every perf_counter() reading takes a little fake time, as reading a real clock does
@@ -193,7 +195,14 @@ class StoppingSources(LiveSources):
         return SCRIPTED_FRAME_SECONDS[len(self.measured_frame_seconds) - 1]
 
     @override
-    def end_frame(self: Self, *, frame_number: int, dt: float, scene: object) -> None:
+    def end_frame(
+        self: Self,
+        *,
+        frame_number: int,
+        dt: float,
+        scene: object,
+        control_events: list[ControlEvent],
+    ) -> None:
         """Record the frame number."""
         self.ended_frames.append(frame_number)
 
