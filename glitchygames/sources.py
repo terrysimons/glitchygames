@@ -100,10 +100,6 @@ class EngineSources(Protocol):
         """Return the current wall-clock time (timezone-aware UTC); glitchygames/clock.py."""
         ...
 
-    def elapsed_seconds(self) -> float:
-        """Return a monotonic reading in seconds (only differences mean anything)."""
-        ...
-
     def control_events_for_frame(self, *, frame_number: int) -> list[ControlEvent]:
         """Return the control events to apply at frame ``frame_number``'s supervisor slot.
 

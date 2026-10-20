@@ -54,7 +54,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Low
 - **Reporter**: Found on feature/gameplay-replay (replay core, Task 9)
 - **Date Reported**: 2026-10-19
-- **Details**: Keep the last reading and the last duration under separate keys (or separate dicts), so each call subtracts the previous reading. The readings come from `elapsed_seconds()` since Task 9
+- **Details**: Keep the last reading and the last duration under separate keys (or separate dicts), so each call subtracts the previous reading. The readings come from `measured_seconds()` (real time, diagnostics only) since Task 12b
 - **Files**: `glitchygames/bitmappy/controllers/enhancements.py`
 
 ## Resolved Bugs

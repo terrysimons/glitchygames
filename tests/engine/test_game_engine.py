@@ -39,7 +39,6 @@ import argparse
 import sys
 from collections import OrderedDict
 from pathlib import Path
-from typing import override
 
 import pygame
 import pytest
@@ -51,6 +50,7 @@ from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import non_negative_int, unit_interval
 from glitchygames.live_sources import LiveSources
+from glitchygames.sources import advance_frame_clock
 from tests.mocks import MockFactory
 
 
@@ -971,54 +971,16 @@ class TestProcessUnimplementedEvent:
         assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
 
 
-class SettableElapsedSecondsSources(LiveSources):
-    """Live sources whose elapsed-seconds clock reads ``now_seconds``."""
-
-    def __init__(self) -> None:
-        """Create the sources reading 0.0."""
-        super().__init__(random_seed=1)
-        self.now_seconds = 0.0
-
-    @override
-    def elapsed_seconds(self) -> float:
-        """Return now_seconds.
-
-        Returns:
-            The settable reading.
-
-        """
-        return self.now_seconds
-
-
 class TestUnhandledEventTracking:
     """GameEngine keeps per-type statistics of unhandled events and reports them at teardown."""
 
-    @staticmethod
-    def _make_engine_at(mocker, mock_pygame_patches, mock_game_args, *, start_seconds):
-        """Create an engine whose elapsed-seconds clock reads start_seconds at startup.
-
-        The engine reads it through glitchygames.clock.elapsed_seconds(), which asks the
-        installed LiveSources.
-
-        Returns:
-            tuple: The engine and the elapsed-seconds mock (set its return_value to move time).
-
-        """
-        fake_elapsed_seconds = mocker.patch.object(
-            LiveSources, 'elapsed_seconds', return_value=start_seconds
-        )
-        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
-        return engine, fake_elapsed_seconds
-
     def test_counts_and_first_seen_time_per_type(self, mock_pygame_patches, mock_game_args, mocker):
-        """Each type is counted; its first-seen time is seconds since the engine started."""
-        engine, fake_elapsed_seconds = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=100.0
-        )
+        """Each type is counted; its first-seen time is the frame clock since the engine started."""
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
 
-        fake_elapsed_seconds.return_value = 100.25
+        advance_frame_clock(seconds=0.25)
         engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
-        fake_elapsed_seconds.return_value = 102.0
+        advance_frame_clock(seconds=1.75)
         engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
         engine.process_unimplemented_event(events.HashableEvent(pygame.DROPBEGIN))
 
@@ -1029,18 +991,14 @@ class TestUnhandledEventTracking:
         assert drop_record.count == 1
         assert drop_record.first_seen_seconds == pytest.approx(2.0)
 
-    def test_first_seen_times_count_on_sources_installed_later(
+    def test_first_seen_times_count_from_this_engines_start(
         self, mock_pygame_patches, mock_game_args, mocker
     ):
-        """Installing other sources (a replay's) restarts the count on their elapsed clock."""
-        engine, _fake_elapsed_seconds = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=500.0
-        )
-        sources = SettableElapsedSecondsSources()
-        sources.now_seconds = 3.0
-        engine.install_sources(sources=sources)
+        """An earlier run's frame clock never leaks in: the engine restarts it (reset_sources)."""
+        advance_frame_clock(seconds=500.0)
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
 
-        sources.now_seconds = 3.5
+        advance_frame_clock(seconds=0.5)
         engine.process_unimplemented_event(events.HashableEvent(pygame.JOYDEVICEADDED))
 
         assert engine.unhandled_events[pygame.JOYDEVICEADDED].first_seen_seconds == pytest.approx(
@@ -1051,9 +1009,7 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker
     ):
         """The first event's attribute names are kept, sorted; values never appear."""
-        engine, _fake_elapsed_seconds = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
-        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
 
         engine.process_unimplemented_event(
             events.HashableEvent(pygame.JOYDEVICEADDED, guid='secret-guid', device_index=3)
@@ -1074,10 +1030,8 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker
     ):
         """The most frequent type comes first."""
-        engine, fake_elapsed_seconds = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=10.0
-        )
-        fake_elapsed_seconds.return_value = 10.3
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
+        advance_frame_clock(seconds=0.3)
         engine.process_unimplemented_event(
             events.HashableEvent(pygame.JOYDEVICEADDED, device_index=0, guid='a')
         )
@@ -1099,9 +1053,7 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker
     ):
         """An unknown or custom type is reported with its numeric type."""
-        engine, _fake_elapsed_seconds = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
-        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         custom_event_type = 88886
 
         engine.process_unimplemented_event(events.HashableEvent(custom_event_type, payload=1))
@@ -1113,9 +1065,7 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker, caplog
     ):
         """_shutdown logs every unhandled event type with the shutdown statistics."""
-        engine, _fake_elapsed_seconds = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
-        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         mocker.patch('pygame.display.quit')
         mocker.patch('pygame.quit')
         engine.process_unimplemented_event(
@@ -1138,9 +1088,7 @@ class TestUnhandledEventTracking:
         self, mock_pygame_patches, mock_game_args, mocker, caplog
     ):
         """No unhandled events means no report line at all."""
-        engine, _fake_elapsed_seconds = self._make_engine_at(
-            mocker, mock_pygame_patches, mock_game_args, start_seconds=0.0
-        )
+        engine = _make_engine(mocker, mock_pygame_patches, mock_game_args)
         mocker.patch('pygame.display.quit')
         mocker.patch('pygame.quit')
 

@@ -868,15 +868,6 @@ class RecordingSources:
         """
         return self.inner.wall_clock_time()
 
-    def elapsed_seconds(self) -> float:
-        """Return ``inner``'s monotonic reading.
-
-        Returns:
-            Seconds.
-
-        """
-        return self.inner.elapsed_seconds()
-
     def control_events_for_frame(self, *, frame_number: int) -> list[ControlEvent]:
         """Return the control events ``inner`` schedules for ``frame_number``.
 

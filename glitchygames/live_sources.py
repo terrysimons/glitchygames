@@ -1,12 +1,11 @@
 """The live doors (glitchygames/sources.py).
 
 Pygame's queue, the measured frame time, pygame's polled input, real devices, real save files
-on disk and the real clocks.
+on disk and the real wall clock.
 """
 
 from __future__ import annotations
 
-import time
 from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Self
@@ -132,15 +131,6 @@ class LiveSources:
 
         """
         return datetime.now(tz=UTC)
-
-    def elapsed_seconds(self: Self) -> float:
-        """Return time.monotonic() (the live elapsed-time provider).
-
-        Returns:
-            Monotonic seconds.
-
-        """
-        return time.monotonic()
 
     def control_events_for_frame(self: Self, *, frame_number: int) -> list[ControlEvent]:
         """Return no control events: live play schedules none.

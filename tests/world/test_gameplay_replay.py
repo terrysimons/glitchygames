@@ -205,10 +205,10 @@ def downgrade_to_version_two(*, recording_path: Path) -> None:
 def clocks_paced_by_frames(mocker) -> None:
     """Make the live clocks read as a perfectly paced run (what a replay serves).
 
-    A recording made with real clocks reads real time, which no replay can serve (the replay's
-    wall clock is the recording's start plus the frame clock). With the live wall clock at
-    PACED_RECORDING_START plus the frame clock, and live elapsed seconds equal to the frame
-    clock, a session that reads the clocks is replayable exactly.
+    A recording made with the real wall clock reads real time, which no replay can serve (the
+    replay's wall clock is the recording's start plus the frame clock). With the live wall clock
+    at PACED_RECORDING_START plus the frame clock, a session that reads the clocks is replayable
+    exactly (elapsed seconds are the frame clock live too, so they need no pacing).
     """
     mocker.patch.object(
         game_engine_module,
@@ -219,11 +219,7 @@ def clocks_paced_by_frames(mocker) -> None:
     def paced_wall_clock_time(_sources: LiveSources) -> datetime:
         return PACED_RECORDING_START + timedelta(seconds=frame_clock_seconds())
 
-    def paced_elapsed_seconds(_sources: LiveSources) -> float:
-        return frame_clock_seconds()
-
     mocker.patch.object(LiveSources, 'wall_clock_time', new=paced_wall_clock_time)
-    mocker.patch.object(LiveSources, 'elapsed_seconds', new=paced_elapsed_seconds)
 
 
 def minimal_sources(*, frames: list[dict[str, Any]], is_truncated: bool = False) -> ReplaySources:
@@ -452,7 +448,6 @@ class TestReplayDoors:
         sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
         advance_frame_clock(seconds=1.5)
         assert sources.wall_clock_time() == datetime(2026, 10, 19, 12, 0, 1, 500000, tzinfo=UTC)
-        assert sources.elapsed_seconds() == 1.5
 
     def test_recorded_frame_fields_for_a_rebaseline(self):
         frame = recorded_frame(frame_number=0)

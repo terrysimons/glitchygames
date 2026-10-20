@@ -42,7 +42,7 @@ class ControllerSelectionState:
     controller_fill_direction: str = 'HORIZONTAL'  # HORIZONTAL or VERTICAL
     is_active: bool = False
     # elapsed_seconds() of the last activity; -inf before any, so the activity age is inf
-    # rather than whatever elapsed_seconds() reads (the frame clock in a replay)
+    # rather than whatever elapsed_seconds() reads (the frame clock)
     last_update_time: float = float('-inf')
     navigation_history: list[NavigationEntry] | None = None
 

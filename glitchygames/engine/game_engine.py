@@ -634,8 +634,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self._installed_sigterm_handler: bool = False
 
         # Unhandled events by type, reported at teardown (see unhandled_event_report); their
-        # first-seen times count from _started_at_seconds, read below once this run's doors
-        # are installed
+        # first-seen times are elapsed_seconds() readings, the frame clock that
+        # reset_sources() below restarts, so they count from this engine's start
         self.unhandled_events: dict[int, UnhandledEventRecord] = {}
 
         # Pygame stuff.
@@ -693,9 +693,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             sources=self.replay_sources
             or LiveSources(random_seed=self.random_seed, use_fastevents=GameEngine.USE_FASTEVENTS)
         )
-        # Read from the doors just installed, so every unhandled event's first-seen time comes
-        # from the same elapsed-seconds clock (a replay's is its frame clock, restarted above)
-        self._started_at_seconds: float = elapsed_seconds()
 
         # We are fully initialized now, so we can set up the scene.
         #
@@ -1257,8 +1254,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ],
         }
         recorder = GameplayRecorder(path=path, header=header)
-        # The module function, not self.install_sources: the doors read through stay the same,
-        # so the unhandled-event clock (_started_at_seconds) must not restart
         install_sources(sources=RecordingSources(inner=inner, recorder=recorder))
         self.trace_recorder = recorder
         self._install_sigterm_handler()
@@ -1576,8 +1571,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         install_sources(sources=sources)
-        # Unhandled events' first-seen times count on the new doors' elapsed-seconds clock
-        self._started_at_seconds = elapsed_seconds()
 
     def _pump_events(self: Self) -> list[pygame.event.Event]:
         """Take the next batch from the active sources' event pump: the one place it is read.
@@ -2125,7 +2118,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         self.unhandled_events[event.type] = UnhandledEventRecord(
             count=1,
-            first_seen_seconds=elapsed_seconds() - self._started_at_seconds,
+            # The frame clock, which reset_sources() restarted in __init__
+            first_seen_seconds=elapsed_seconds(),
             attribute_names=attribute_names,
         )
 

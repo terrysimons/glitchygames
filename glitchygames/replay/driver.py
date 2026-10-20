@@ -41,7 +41,7 @@ session again, and every frame's sprites are compared with the recorded frame. T
    present, ``rect``, ``visible``). The first difference stops the replay, as does the last
    recorded frame.
 9. Clocks: the wall clock is the recording's ``recorded_at`` plus the frame clock; elapsed
-   seconds are the frame clock.
+   seconds are the frame clock, live and replayed alike (glitchygames/clock.py).
 10. ``recorded_frame_fields`` hands a recording made over the replay (Part 2's rebaseline) the
     frame's recorded saves and device fields.
 11. ``GameEngine._shutdown`` calls ``finish_run`` and logs the result.
@@ -624,15 +624,6 @@ class ReplaySources:
 
         """
         return self._recorded_at + timedelta(seconds=frame_clock_seconds())
-
-    def elapsed_seconds(self: Self) -> float:
-        """Return the frame clock (rule 9).
-
-        Returns:
-            Seconds.
-
-        """
-        return frame_clock_seconds()
 
     def control_events_for_frame(self: Self, *, frame_number: int) -> list[ControlEvent]:
         """Return the current frame's recorded supervisor actions, to apply again.

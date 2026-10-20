@@ -10,8 +10,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from glitchygames import clock
-from glitchygames import live_sources as live_sources_module
 from glitchygames.live_sources import LiveSources
+from glitchygames.replay.driver import ReplaySources
 from glitchygames.sources import advance_frame_clock, install_sources
 
 # Every door and clock module, each imported first and alone in a fresh interpreter: an import
@@ -50,13 +50,35 @@ def test_wall_clock_epoch_seconds_matches_wall_clock_time(mocker):
     assert clock.wall_clock_epoch_seconds() == fixed.timestamp()
 
 
-def test_live_elapsed_seconds_reads_monotonic_time(mocker):
-    """Live elapsed seconds come from time.monotonic()."""
-    # Patch the module-level `time` name live_sources uses, never the global time module
+def test_live_elapsed_seconds_is_the_frame_clock():
+    """Live elapsed seconds are the frame clock, so live and replayed timers read the same."""
+    install_sources(sources=LiveSources(random_seed=1))
+    advance_frame_clock(seconds=0.25)
+    advance_frame_clock(seconds=0.5)
+    assert clock.elapsed_seconds() == clock.frame_clock_seconds() == 0.75
+
+
+def test_replay_elapsed_seconds_is_the_frame_clock():
+    """In a replay, elapsed seconds are the frame clock too (the replayed frame times)."""
+    header = {
+        'game_class': 'SomeGame',
+        'random_seed': 1,
+        'recorded_at': '2026-10-19T12:00:00',
+        'options': {},
+    }
+    install_sources(sources=ReplaySources(header=header, frames=[], format_version=3))
+    advance_frame_clock(seconds=1.5)
+    assert clock.elapsed_seconds() == clock.frame_clock_seconds() == 1.5
+
+
+def test_measured_seconds_reads_monotonic_time(mocker):
+    """measured_seconds() reads time.monotonic() (real time, never replayed)."""
+    # Patch the module-level `time` name glitchygames.clock uses, never the global time module
     fake_time = types.SimpleNamespace(monotonic=mocker.Mock(side_effect=[10.0, 10.5]))
-    mocker.patch.object(live_sources_module, 'time', fake_time)
-    first = clock.elapsed_seconds()
-    second = clock.elapsed_seconds()
+    mocker.patch.object(clock, 'time', fake_time)
+    first = clock.measured_seconds()
+    advance_frame_clock(seconds=3.0)
+    second = clock.measured_seconds()
     assert second - first == 0.5
 
 
@@ -75,17 +97,13 @@ def test_frame_clock_is_the_sum_of_frame_times():
 
 
 class FixedClockSources(LiveSources):
-    """Stand-in for the replay providers Task 12 writes: start time + frame clock."""
+    """Stand-in for the replay's wall-clock provider: start time + frame clock."""
 
     START = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
     def wall_clock_time(self) -> datetime:
         """Return the fixed start plus the frame clock."""
         return self.START + timedelta(seconds=clock.frame_clock_seconds())
-
-    def elapsed_seconds(self) -> float:
-        """Return the frame clock."""
-        return clock.frame_clock_seconds()
 
 
 @pytest.mark.parametrize('module_name', DOOR_MODULES)
@@ -110,8 +128,7 @@ def test_door_module_imports_alone(module_name):
 
 
 def test_clock_exports_read_the_active_sources():
-    """Installed sources (here, replay-like providers) serve the clock exports."""
+    """Installed sources (here, a replay-like provider) serve the wall clock."""
     install_sources(sources=FixedClockSources(random_seed=1))
     advance_frame_clock(seconds=2.0)
     assert clock.wall_clock_time() == FixedClockSources.START + timedelta(seconds=2)
-    assert clock.elapsed_seconds() == pytest.approx(2.0)

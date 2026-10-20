@@ -55,7 +55,7 @@ class ControllerModeState:
     mode_positions: dict[ControllerMode, ModePosition]
     mode_history: list[ControllerMode]
     # elapsed_seconds() of the last switch; -inf before any switch, so the default never reads
-    # as a recent switch when elapsed_seconds() is near 0 (the frame clock in a replay)
+    # as a recent switch when elapsed_seconds() is near 0 (the frame clock, from 0)
     last_mode_switch_time: float = float('-inf')
 
     def __init__(
@@ -180,7 +180,7 @@ class TriggerDetector:
         if controller_id not in self.last_trigger_states:
             self.last_trigger_states[controller_id] = {'L2': 0.0, 'R2': 0.0}
             # No press yet: -inf, so a first press is never debounced, even when
-            # elapsed_seconds() reads near 0 (the frame clock in a replay)
+            # elapsed_seconds() reads near 0 (the frame clock, from 0)
             self.last_trigger_times[controller_id] = {'L2': float('-inf'), 'R2': float('-inf')}
 
         # Check if trigger crossed threshold

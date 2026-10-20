@@ -4,17 +4,22 @@ Polled input goes through glitchygames/input/state.py, devices through
 glitchygames/input/devices.py, events through glitchygames/sources.py, posted events through
 glitchygames/recording.post_event, and time through glitchygames/clock.py (or Scene.game_time),
 so a replay reaches all of it (plans/2026-10-19-gameplay-replay.md, section 3.4). Only the files
-in ALLOWED_BYPASSES read the raw clock or pygame directly, each for the reason given.
+in ALLOWED_BYPASSES, and the functions in ALLOWED_FUNCTION_BYPASSES, read the raw clock or pygame
+directly, each for the reason given.
 """
 
 from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from tests.ast_scanning import import_bindings, qualified_name
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 PACKAGE = Path(__file__).resolve().parent.parent / 'glitchygames'
 
@@ -100,7 +105,6 @@ ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
     'live_sources.py': frozenset({
         'pygame.event.get',
         'pygame.fastevent.get',
-        'time.monotonic',
         'datetime.datetime.now',
     }),
     'recording.py': frozenset({'pygame.event.post'}),  # post_event, the one poster
@@ -116,6 +120,12 @@ ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
     'engine/game_engine.py': frozenset({'datetime.datetime.now'}),
     # Signs requests to a real server, which needs real time
     'api/client.py': frozenset({'time.time'}),
+}
+
+# Functions (by file, then by name) allowed to use a bypass inside their body only, with the reason
+ALLOWED_FUNCTION_BYPASSES: dict[str, dict[str, frozenset[str]]] = {
+    # Real durations for diagnostics only, never replayed (glitchygames/clock.py)
+    'clock.py': {'measured_seconds': frozenset({'time.monotonic'})},
 }
 
 
@@ -134,7 +144,32 @@ def _allowed(relative_path: str) -> frozenset[str]:
     return frozenset(allowed)
 
 
-def door_bypasses(*, source_path: Path, allowed: frozenset[str] = frozenset()) -> list[str]:
+def _allowed_inside_functions(
+    *, tree: ast.Module, allowed_in_functions: Mapping[str, frozenset[str]]
+) -> dict[int, frozenset[str]]:
+    """Map each node inside an allowed function (by ``id``) to the bypasses it may use.
+
+    Returns:
+        ``id(node)`` -> the bypasses allowed there.
+
+    """
+    allowed_by_node: dict[int, frozenset[str]] = {}
+    for function in ast.walk(tree):
+        if (
+            isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and function.name in allowed_in_functions
+        ):
+            for node in ast.walk(function):
+                allowed_by_node[id(node)] = allowed_in_functions[function.name]
+    return allowed_by_node
+
+
+def door_bypasses(
+    *,
+    source_path: Path,
+    allowed: frozenset[str] = frozenset(),
+    allowed_in_functions: Mapping[str, frozenset[str]] | None = None,
+) -> list[str]:
     """Return 'line: name' for every bypass a module calls or references.
 
     Names resolve through the module's imports and aliases (``from pygame import key as
@@ -142,7 +177,9 @@ def door_bypasses(*, source_path: Path, allowed: frozenset[str] = frozenset()) -
 
     Args:
         source_path: The Python file to scan.
-        allowed: The bypasses this file may use (from ALLOWED_BYPASSES).
+        allowed: The bypasses this file may use anywhere (from ALLOWED_BYPASSES).
+        allowed_in_functions: The bypasses this file may use only inside the named functions
+            (from ALLOWED_FUNCTION_BYPASSES).
 
     Returns:
         The bypasses found, sorted, each once per line.
@@ -150,13 +187,20 @@ def door_bypasses(*, source_path: Path, allowed: frozenset[str] = frozenset()) -
     """
     tree = ast.parse(source_path.read_text(encoding='utf-8'))
     bindings = import_bindings(tree=tree, watched_modules=WATCHED_DOOR_MODULES)
+    allowed_by_node = _allowed_inside_functions(
+        tree=tree, allowed_in_functions=allowed_in_functions or {}
+    )
     found: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.Attribute, ast.Name)):
             name = qualified_name(
                 node=node, bindings=bindings, watched_modules=WATCHED_DOOR_MODULES
             )
-            if name in DOOR_BYPASSES and name not in allowed:
+            if (
+                name in DOOR_BYPASSES
+                and name not in allowed
+                and name not in allowed_by_node.get(id(node), frozenset())
+            ):
                 found.append(f'{node.lineno}: {name}')
     return sorted(set(found))
 
@@ -168,11 +212,51 @@ def test_package_reads_input_and_time_only_through_the_doors():
         for path in sorted(PACKAGE.rglob('*.py'))
         if (
             bypasses := door_bypasses(
-                source_path=path, allowed=_allowed(path.relative_to(PACKAGE).as_posix())
+                source_path=path,
+                allowed=_allowed(path.relative_to(PACKAGE).as_posix()),
+                allowed_in_functions=ALLOWED_FUNCTION_BYPASSES.get(
+                    path.relative_to(PACKAGE).as_posix()
+                ),
             )
         )
     }
     assert offenders == {}
+
+
+MEASURING_SOURCE = """\
+import time
+
+def measured_seconds():
+    return time.monotonic()
+
+def cooldown_ready(last_seconds):
+    return time.monotonic() - last_seconds > 1.0
+"""
+
+
+def test_function_allowance_covers_only_that_function(tmp_path):
+    """A bypass allowed in one function is still reported anywhere else in the file."""
+    path = tmp_path / 'measuring.py'
+    path.write_text(MEASURING_SOURCE, encoding='utf-8')
+    assert door_bypasses(source_path=path) == ['4: time.monotonic', '7: time.monotonic']
+    assert door_bypasses(
+        source_path=path,
+        allowed_in_functions={'measured_seconds': frozenset({'time.monotonic'})},
+    ) == ['7: time.monotonic']
+
+
+def test_measured_seconds_is_the_clock_modules_only_raw_read():
+    """glitchygames/clock.py reads the raw clock in measured_seconds() and nowhere else."""
+    clock_path = PACKAGE / 'clock.py'
+    assert _allowed('clock.py') == frozenset()
+    unallowed = door_bypasses(source_path=clock_path)
+    assert [entry.split(': ', 1)[1] for entry in unallowed] == ['time.monotonic']
+    assert (
+        door_bypasses(
+            source_path=clock_path, allowed_in_functions=ALLOWED_FUNCTION_BYPASSES['clock.py']
+        )
+        == []
+    )
 
 
 OFFENDING_SOURCE = """\
@@ -257,6 +341,18 @@ def test_every_allowed_path_exists_unless_pending():
             assert not exists, f'{location} exists now: remove it from PENDING_ALLOWED_PATHS'
         else:
             assert exists, location
+
+
+def test_every_allowed_function_exists():
+    """Each function allowance names a function defined in its file."""
+    for location, functions in ALLOWED_FUNCTION_BYPASSES.items():
+        tree = ast.parse((PACKAGE / location).read_text(encoding='utf-8'))
+        defined = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        assert set(functions) <= defined, location
 
 
 def test_allowed_files_are_exact_paths_or_directories():

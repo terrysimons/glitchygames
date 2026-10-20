@@ -527,7 +527,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         """
         # Apply deadzone
         if abs(event.value) < self._controller_axis_deadzone:
-            # No cooldown (-inf), whatever elapsed_seconds() reads (the frame clock in a replay)
+            # No cooldown (-inf), whatever elapsed_seconds() reads (the frame clock)
             self._controller_axis_cooldown[event.axis] = float('-inf')
             self._controller_axis_last_values[event.axis] = 0
             return False

@@ -15,6 +15,7 @@ from glitchygames.bitmappy.indicators.collision import (
     VisualCollisionManager,
 )
 from glitchygames.clock import elapsed_seconds
+from glitchygames.sources import advance_frame_clock
 
 """Test suite for multi-controller system.
 
@@ -777,11 +778,12 @@ class TestMultiControllerManagerQueries:
             last_activity=0,
         )
         manager.controllers[100] = controller
+        # Activity times are elapsed_seconds() readings: the frame clock, a few frames later
+        advance_frame_clock(seconds=2.5)
 
         manager.update_controller_activity(100)
 
-        assert controller.last_activity is not None
-        assert controller.last_activity > 0
+        assert controller.last_activity == 2.5
 
     def test_get_active_controllers(self):
         """Test getting list of active controllers."""

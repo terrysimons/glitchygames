@@ -12,7 +12,48 @@ from glitchygames.bitmappy.controllers.performance import (
 )
 from glitchygames.bitmappy.controllers.selection import ControllerSelection
 from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
-from glitchygames.clock import elapsed_seconds
+from glitchygames.clock import elapsed_seconds, measured_seconds
+from glitchygames.live_sources import LiveSources
+from glitchygames.replay.driver import ReplaySources
+from glitchygames.sources import EngineSources, advance_frame_clock, install_sources, reset_sources
+
+# Frame times straddling OptimizedVisualCollisionManager.update_throttle (0.016 s), as a live run
+# near 60 FPS measures them: each update's throttle decision lands close to the threshold
+THROTTLE_STRADDLING_FRAME_SECONDS = (0.0155, 0.0166, 0.0159, 0.0171, 0.0161, 0.0158)
+
+# The decisions those frame times give (True: the update went through, False: it was throttled)
+THROTTLE_STRADDLING_DECISIONS = [True, False, True, False, True, True]
+
+REPLAY_HEADER = {
+    'game_class': 'SomeGame',
+    'random_seed': 1,
+    'recorded_at': '2026-10-19T12:00:00',
+    'options': {},
+}
+
+
+def throttle_decisions(*, sources: EngineSources) -> list[bool]:
+    """Update a controller's position once per frame under ``sources``, frame by frame.
+
+    The frame clock advances by THROTTLE_STRADDLING_FRAME_SECONDS after each update, as
+    SceneManager._finish_frame advances it after each frame.
+
+    Returns:
+        For each frame, True if the update went through, False if it was throttled.
+
+    """
+    reset_sources()
+    install_sources(sources=sources)
+    manager = OptimizedVisualCollisionManager(VisualCollisionManager())
+    manager.add_controller_indicator(
+        controller_id=0, instance_id=0, color=(255, 0, 0), position=(0, 0)
+    )
+    decisions: list[bool] = []
+    for frame_index, frame_seconds in enumerate(THROTTLE_STRADDLING_FRAME_SECONDS):
+        manager.update_controller_position(0, (frame_index, 0))
+        decisions.append(0 not in manager.pending_updates)
+        advance_frame_clock(seconds=frame_seconds)
+    return decisions
 
 
 class TestPerformanceMetrics:
@@ -115,9 +156,9 @@ class TestPerformanceMonitor:
 
     def test_last_operation_timestamp(self):
         """Test that last_operation time is recorded."""
-        before = elapsed_seconds()
+        before = measured_seconds()
         self.monitor.record_operation('test_op', 0.1)
-        after = elapsed_seconds()
+        after = measured_seconds()
 
         stats = self.monitor.get_operation_stats('test_op')
         assert stats is not None
@@ -542,6 +583,14 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
 
         cached_position = optimized_visual_manager.position_cache.get_position(0, 'default', 0)
         assert cached_position is None
+
+    def test_throttle_decides_the_same_live_and_in_a_replay(self):
+        """The same frame times give the same throttle decisions live and replayed (exactness)."""
+        live_decisions = throttle_decisions(sources=LiveSources(random_seed=1))
+        replay_decisions = throttle_decisions(
+            sources=ReplaySources(header=REPLAY_HEADER, frames=[], format_version=3)
+        )
+        assert live_decisions == replay_decisions == THROTTLE_STRADDLING_DECISIONS
 
 
 class TestOptimizedVisualCollisionManagerOptimize:

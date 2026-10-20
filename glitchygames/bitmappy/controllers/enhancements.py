@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
+from glitchygames.clock import elapsed_seconds, measured_seconds, wall_clock_epoch_seconds
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.editor import BitmapEditorScene
@@ -40,7 +40,7 @@ class BitmappyMultiControllerEnhancements:
 
         # Performance optimization
         # Never updated: -inf, so the first update is not throttled even when
-        # elapsed_seconds() reads near 0 (it is the frame clock in a replay)
+        # elapsed_seconds() reads near 0 (the frame clock, from 0)
         self.last_update_time = float('-inf')
         self.update_throttle = 0.016  # 60 FPS max
         self.position_cache: dict[int, tuple[int, int]] = {}
@@ -168,7 +168,7 @@ class BitmappyMultiControllerEnhancements:
             self.visual_manager.update_controller_position(controller_id, position)
 
         # Update performance metrics
-        self._update_performance_metrics('visual_update', elapsed_seconds())
+        self._update_performance_metrics('visual_update', measured_seconds())
 
     def _calculate_enhanced_position(
         self,

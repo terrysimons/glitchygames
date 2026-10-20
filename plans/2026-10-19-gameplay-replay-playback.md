@@ -362,7 +362,8 @@ Scope rules:
 - `frame_seconds`: `replay.frame_seconds(measured=base.frame_seconds(measured=measured))` (the
   base's door still sees one call per frame).
 - `saves`, `devices`, `control_events_for_frame`, `random_seed`, `wall_clock_time`,
-  `elapsed_seconds`, `opened_save_stores`: the replay's.
+  `opened_save_stores`: the replay's. (Elapsed seconds are the frame clock, not a door, since
+  core Task 12b.)
 - `end_frame`: `replay.end_frame(...)` (compare with the playback recording; a divergence or the
   end sets `ended`), then `base.end_frame(...)` (the session's recorder writes the frame).
 - `stop_requested`: the base's (the scope never stops the run). `captures_scene_starts`: True.

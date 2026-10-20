@@ -99,7 +99,7 @@ doors and unpaced pacing path, and its journal test uses `recorded_dt`.
 |---|---|---|
 | `glitchygames/sources.py` (new, leaf) | `EngineSources` Protocol, `FrameInputListener`, the active-sources registry (`active_sources`, `install_sources`, `push_scoped_sources`, `pop_scoped_sources`, `reset_sources`), the frame clock | 1, 3 |
 | `glitchygames/live_sources.py` (new) | `LiveSources`, the live providers | 1 |
-| `glitchygames/clock.py` (new, leaf) | the clock exports: `frame_clock_seconds`, `frame_clock_milliseconds`, `wall_clock_time`, `wall_clock_epoch_seconds`, `elapsed_seconds` | 1 |
+| `glitchygames/clock.py` (new, leaf) | the clock exports: `frame_clock_seconds`, `frame_clock_milliseconds`, `wall_clock_time`, `wall_clock_epoch_seconds`, `elapsed_seconds`, `measured_seconds` | 1 |
 | `glitchygames/input/state.py` (new) | `InputSnapshot`, `capture_live_snapshot`, `current_input`, snapshot diffs | 1 |
 | `glitchygames/input/devices.py` (new) | `DeviceRegistry` (enumeration, opening, polling), `LiveDeviceRegistry`, `ReplayDeviceRegistry`, `DeviceDescriptor`, `EnumerationAnswer`, `ReplayJoystick`, `ReplayController` | 1 |
 | `glitchygames/state/sandbox.py` (new) | `SaveStore` Protocol, `SandboxSaves`, `open_saves`, `save_namespace_snapshot` | 1 |
@@ -145,7 +145,7 @@ class EngineSources(Protocol):
     def devices(self) -> DeviceRegistry: ...                                 # Part 1 Task 5
     def saves(self, *, namespace: str) -> SaveStore: ...                    # Part 1 Task 7
     def wall_clock_time(self) -> datetime.datetime: ...                      # Part 1 Task 8
-    def elapsed_seconds(self) -> float: ...                                  # Part 1 Task 8
+    # (elapsed_seconds was a door from Task 8 until Task 12b made it the frame clock everywhere)
     def control_events_for_frame(self, *, frame_number: int) -> list[ControlEvent]: ...  # Part 1 Task 10
     def end_frame(self, *, frame_number: int, dt: float, scene: Scene | None,
                   control_events: list[ControlEvent]) -> None: ...           # Part 1 Tasks 2, 10
@@ -173,12 +173,14 @@ def frame_clock_seconds() -> float: ...        # blinks, animation, FPS events, 
 def frame_clock_milliseconds() -> int: ...     # the same, in ms (widget blink timers)
 def wall_clock_time() -> datetime.datetime: ...   # UTC-aware; timestamps
 def wall_clock_epoch_seconds() -> float: ...   # wall_clock_time().timestamp()
-def elapsed_seconds() -> float: ...            # durations, metrics, controller timing
-# live: now / time.monotonic(); replay: header recorded_at + frame clock / frame clock
+def elapsed_seconds() -> float: ...            # throttles, cooldowns, timeouts (Task 12b)
+def measured_seconds() -> float: ...           # real durations for logs/metrics only (Task 12b)
+# wall clock live: now; replay: header recorded_at + frame clock. elapsed_seconds is the frame
+# clock live and replayed; measured_seconds is time.monotonic(), never replayed, never decides
 # Scene.game_time (gameplay timers) stays on the scene.
 # Raw clock only in: timing.py, SceneManager pacing (scenes/scene.py perf_counter),
-# performance/, debug/, audio/diagnostics.py, the recorded_at stamp, api/client.py, and the
-# live providers in live_sources.py.
+# performance/, debug/, audio/diagnostics.py, the recorded_at stamp, api/client.py, the
+# live providers in live_sources.py, and clock.measured_seconds (Task 12b).
 
 # glitchygames/input/state.py (Part 1 Task 3)
 @dataclasses.dataclass(frozen=True)

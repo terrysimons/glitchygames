@@ -14,7 +14,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 from glitchygames.ai import get_sprite_size_hint
-from glitchygames.clock import elapsed_seconds
+from glitchygames.clock import measured_seconds
 
 from .constants import (
     AI_BASE_DELAY,
@@ -433,13 +433,13 @@ def _query_model_capabilities(log: logging.Logger, client: Any) -> dict[str, Any
     log.info('Querying model capabilities...')
     log.info('This may take a while if the model needs to be downloaded first...')
 
-    start_time = elapsed_seconds()
+    start_time = measured_seconds()
     response = client.chat.completions.create(
         model=AI_MODEL,
         messages=test_messages,
         max_tokens=256,
     )
-    duration = elapsed_seconds() - start_time
+    duration = measured_seconds() - start_time
 
     log.info(f'Model capability query completed in {duration:.2f} seconds')
     if duration > MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS:
@@ -571,7 +571,7 @@ def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> A
     log.debug('Max input tokens: %s', AI_MAX_INPUT_TOKENS)
     log.debug('Max context tokens: %s', AI_MAX_CONTEXT_SIZE)
 
-    start_time = elapsed_seconds()
+    start_time = measured_seconds()
 
     try:
         # Try to pass timeout parameters directly to the API call
@@ -610,13 +610,13 @@ def _make_ai_api_call(request: AIRequest, client: Any, log: logging.Logger) -> A
         log.critical('API call kwargs: %s', api_kwargs)
         response = client.chat.completions.create(**api_kwargs)
     except Exception:
-        end_time = elapsed_seconds()
+        end_time = measured_seconds()
         duration = end_time - start_time
         log.exception(f'API call failed after {duration:.2f} seconds')
         log.exception('API call failed with exception')
         raise
 
-    end_time = elapsed_seconds()
+    end_time = measured_seconds()
     duration = end_time - start_time
     log.info(f'AI response received from API in {duration:.2f} seconds')
 

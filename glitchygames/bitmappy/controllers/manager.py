@@ -85,7 +85,7 @@ class MultiControllerManager:
         self.next_controller_id = 0
         self.next_color_index = 0  # Track color assignment order
         # Never scanned: -inf, so the first scan runs even when elapsed_seconds() reads
-        # near 0 (it is the frame clock in a replay)
+        # near 0 (the frame clock, from 0)
         self.last_scan_time = float('-inf')
         self.scan_interval = 1.0  # seconds
         self._initialized = True

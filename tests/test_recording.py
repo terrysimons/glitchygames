@@ -872,7 +872,6 @@ class TestRecordingSources:
         assert sources.frame_seconds(measured=0.25) == 0.25
         assert sources.control_events_for_frame(frame_number=3) == []
         assert sources.wall_clock_time().tzinfo is not None
-        assert isinstance(sources.elapsed_seconds(), float)
 
     def test_a_closed_recorder_records_nothing_more(self, tmp_path, event_queue):
         """After stop_trace_recording closes the recorder, the doors only delegate."""
