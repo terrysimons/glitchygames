@@ -44,9 +44,6 @@ LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
 JITTER_SAMPLE_BUFFER_MAX_SIZE = 512
-# A held frame (EngineSources.hold_frame: a paused watched replay) waits this long before the
-# doors are asked again, so holding does not spin a CPU core
-HELD_FRAME_WAIT_MILLISECONDS = 16
 SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
 
 # Input dropped while a transition plays (SceneManager._process_transition_events): presses
@@ -619,7 +616,21 @@ class SceneManager(SceneInterface, events.EventManager):
             raise AttributeError(message)
 
     def _present_frame(self: Self, *, full_update: bool) -> None:
-        """Present the rendered frame, shifted by any active SCREEN shake and overlaid if shown.
+        """Present the frame just run, unless the doors present frames themselves.
+
+        A watched replay's frames are presented by its viewer's outer tick instead
+        (``EngineSources.presents_frames``; ``_present_held_frame``).
+
+        Args:
+            full_update: True to flip the whole display (transitions); False to use the
+                configured update type.
+
+        """
+        if active_sources().presents_frames:
+            self._show_frame(full_update=full_update)
+
+    def _show_frame(self: Self, *, full_update: bool) -> None:
+        """Show the rendered frame, shifted by any active SCREEN shake and overlaid if shown.
 
         The display surface always holds the clean frame between presents: a shaken or overlaid
         frame is copied, shifted and drawn on for the flip, then restored. Dirty-rect rendering,
@@ -637,6 +648,8 @@ class SceneManager(SceneInterface, events.EventManager):
         pixel_offset = (round(offset_x), round(offset_y))
         overlay_visible = self.debug_overlay.is_visible
         sources = active_sources()
+        # A watched replay draws its status bar on every frame, so its frames are copied and
+        # flipped whole like frames with a visible debug overlay
         sources_draw_overlay = sources.draws_overlay
         if self.screen is not None and (
             pixel_offset != (0, 0) or overlay_visible or sources_draw_overlay
@@ -944,14 +957,15 @@ class SceneManager(SceneInterface, events.EventManager):
         return self.terminate()
 
     def _present_held_frame(self: Self) -> None:
-        """Present the frame again while the doors hold the loop, then wait a little.
+        """Present the latest frame while the doors hold the loop (a watched replay's outer tick).
 
         Nothing runs: no events are pumped (the doors read the viewer's keys in ``hold_frame``),
         no scene updates and the frame clock stands still. The display is flipped whole, with
-        the debug overlay and the doors' overlay drawn on a copy as usual.
+        the debug overlay and the doors' overlay drawn on a copy as usual. The doors pace their
+        holds (a watched replay's ``hold_frame`` sleeps until its viewer's next tick), so the
+        loop does not spin.
         """
-        self._present_frame(full_update=True)
-        pygame.time.wait(HELD_FRAME_WAIT_MILLISECONDS)
+        self._show_frame(full_update=True)
 
     def _finish_frame(
         self: Self,

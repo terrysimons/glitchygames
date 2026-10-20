@@ -22,13 +22,16 @@ session again, and every frame's sprites are compared with the recorded frame. T
    window's close event and the custom range are never blocked, nor, in a watched replay, are
    KEYDOWN and KEYUP (``WATCHED_REAL_KEY_EVENT_TYPES``: the viewer's keys, rule 14). Blocking
    also refuses posts of those types: game code that fakes input by posting, say, KEYDOWN loses
-   the post in a headless replay, which shows as a missing internal event divergence (the
-   engine's own posts are QUIT and custom types). What external events still arrive (queued
-   before the first drain, the close event, app lifecycle and system notifications) never reach
-   the game: a watched replay's real key presses go to its controls (rule 14), the rest are
-   dropped, except the window's QUIT, kept last so closing the window ends the replay. A held
-   frame (rule 14) drains the queue the same way; the internal events it finds wait for the
-   next pump. Pump N serves the recording's batch N in
+   the post, which shows as a missing internal event divergence (the engine's own posts are
+   QUIT and custom types). So game code posting KEYDOWN or KEYUP replays differently watched
+   and headless: watched, the keys are not blocked, the post arrives and matches its recorded
+   internal record; headless (and so ``--audit``), it is refused and diverges. A recording of
+   such a game can match watched and diverge headless. What external events still arrive
+   (queued before the first drain, the close event, app lifecycle and system notifications)
+   never reach the game: a watched replay's real key presses and releases go to its controls
+   (rule 14), the rest are dropped, except the window's QUIT, kept last so closing the window
+   ends the replay. A control tick of a held frame (rule 14) drains the queue the same way; the
+   internal events it finds wait for the next pump. Pump N serves the recording's batch N in
    its recorded order: each external record is rebuilt (recorded references mapped to live
    objects: a window to None, as live events of the display module's window carry it; a
    joystick to its opened stand-in, an event whose joystick has none being dropped with one
@@ -70,19 +73,26 @@ session again, and every frame's sprites are compared with the recorded frame. T
 12. Digests (``--replay-digest PATH``, for ``--audit``: glitchygames/replay/audit.py): each
     compared frame's ``frame_digest`` (of the frame as sampled for rule 8) is kept, and
     ``finish_run`` writes them with the divergence summary to the digest file.
-13. Pacing (``paced_frame_seconds``): a headless replay (``--headless``) is not paced at all
-    (0.0), as its frame times come from the recording; a watched replay paces each frame to its
-    recorded duration (the next frame's recorded ``dt``) over the playback speed, and past the
-    end to the target FPS as live play does (None).
+13. Pacing: the scene manager never paces a replay (``paced_frame_seconds`` is 0.0). A
+    headless replay (``--headless``) is not paced at all, as its frame times come from the
+    recording. A watched replay paces itself in ``hold_frame``: each frame is due its recorded
+    duration (the next frame's recorded ``dt``) over the playback speed after the one before,
+    on the measured clock (``glitchygames.clock.measured_seconds``, never replayed: it only
+    decides when a frame runs, never what it does), and the loop is held until then.
 14. Watching (not ``--headless``): ``ReplayControls`` (glitchygames/replay/controls.py) take
-    the viewer's real key presses (the debug overlay's keys go to the overlay, as live); none
-    reaches the game. ``hold_frame`` drains the real queue into them and holds the frame loop
-    at the start screen (``ReplayOptions.wait_for_start``, before frame 0), while paused (until
-    a step) and once the recording is used up. At a divergence or the end the replay pauses
-    with the debug overlay on and a banner (``ReplayControls.banner``) instead of stopping;
-    Esc stops it (a run that already ended keeps its end reason, else ``'quit'``). The status
-    bar is drawn by ``draw_overlay``. A headless replay never holds and has no controls'
-    keys: its KEYDOWN and KEYUP stay blocked.
+    the viewer's real key presses and releases; none reaches the game. They run on their own
+    real-time cadence, 60 control ticks a second at any speed and while paused: ``hold_frame``
+    runs a due tick (drain the real queue, act on the keys read since the last tick, once per
+    press, refresh the status line) and, when it holds, sleeps until the next tick or the
+    frame's due time. The start screen (``ReplayOptions.wait_for_start``) holds the loop after
+    frame 0, so the first frame's picture is behind the message (frame 0's sounds play before
+    Space, and a one-frame recording reaches its end at the start screen). The loop is also
+    held while paused (until a step) and once the recording is used up. At a divergence or the
+    end the replay pauses with the debug overlay on (``ReplayControls.debug_overlay``, the
+    scene manager's, handed over by the engine) and a banner (``ReplayControls.banner``)
+    instead of stopping; Esc stops it (a run that already ended keeps its end reason, else
+    ``'quit'``). The status bar is drawn by ``draw_overlay``. A headless replay never holds and
+    has no controls' keys: its KEYDOWN and KEYUP stay blocked.
 """
 
 from __future__ import annotations
@@ -102,7 +112,6 @@ from typing import TYPE_CHECKING, Any, Final, Literal, Self
 import pygame
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.debug.overlay import OVERLAY_KEYS
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.devices import (
@@ -143,7 +152,7 @@ from glitchygames.recording import (
 from glitchygames.replay.audit import frame_digest, write_digest_file
 from glitchygames.replay.controls import ReplayControls
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
-from glitchygames.scenes import SceneManager
+from glitchygames.replay.viewer import ReplayViewer
 from glitchygames.sources import frame_clock_seconds
 from glitchygames.state.sandbox import MemorySaveManager
 from glitchygames.supervision import KIND_FIELD, REAPPLIED_CONTROL_EVENT_KINDS, ControlEvent
@@ -350,17 +359,17 @@ class RecordedFrames:
             return self._frames[frame_index]
         return None
 
-    def recorded_dt(self: Self, *, frame_number: int) -> float:
+    def recorded_dt(self: Self, *, frame_index: int) -> float:
         """Return a frame's recorded ``dt``: the duration of the frame before it (rule 4).
 
         Args:
-            frame_number: The recording's frame index.
+            frame_index: The recording's frame index.
 
         Returns:
             Seconds.
 
         """
-        return float(self._frames[frame_number][DT_FIELD])
+        return float(self._frames[frame_index][DT_FIELD])
 
     def recorded_frame_fields(self: Self, *, frame_index: int) -> dict[str, Any]:
         """Return the recorded frame's save and device fields (rule 10; a rebaseline copies them).
@@ -678,10 +687,12 @@ class ReplaySources:
         options: How the replay is run (``ReplayOptions``).
         result: How the replay went so far.
         random_seed: The recorded master seed.
-        is_truncated: True when the file was cut off (a killed recorder).
         controls: The watched replay's controls (rule 14; unused by a headless replay).
+        viewer: The watched replay's outer loop (rule 14, glitchygames/replay/viewer.py).
         draws_overlay: True for a watched replay, which draws its status bar
             (``draw_overlay``).
+        presents_frames: False for a watched replay, whose viewer presents the latest frame
+            once per outer tick.
 
     """
 
@@ -711,12 +722,14 @@ class ReplaySources:
         self.random_seed = _recorded_seed(header=header)
         self._recorded_at = _recorded_start(header=header)
         self.recording = RecordedFrames(frames=frames, is_truncated=is_truncated)
-        self.is_truncated = is_truncated
         self.draws_overlay = not options.headless
+        # Watched, inner frames are not presented: the viewer's outer tick presents the latest
+        self.presents_frames = options.headless
         self.controls = ReplayControls(
             total_frames=self.recording.frame_count,
             awaiting_start=options.wait_for_start and not options.headless,
         )
+        self.viewer = ReplayViewer(controls=self.controls)
         self._compares_control_events = format_version >= CONTROL_EVENTS_FORMAT_VERSION
         # Frames ended so far (end_frame calls): the index of the frame being served
         self._frame_index = 0
@@ -782,7 +795,7 @@ class ReplaySources:
         """Read a recording file into replay sources.
 
         A file cut off part way (a killed recorder) replays up to its last complete frame
-        (``is_truncated``; ``announce_replay`` says so once the run will replay it). A
+        (``recording.is_truncated``; ``announce_replay`` says so once the run will replay it). A
         file that is not a readable recording raises TraceFormatError (from reading it, or from
         a header without the seed or start time), a missing one OSError.
 
@@ -849,8 +862,11 @@ class ReplaySources:
             recording does not have, then the window's QUIT if it was closed.
 
         """
+        is_first_drain = real_events is None and not self._has_blocked_real_input
         live_events = self._drain_real_queue() if real_events is None else real_events
-        live_internal_events, window_closes = self._sort_live_events(live_events=live_events)
+        live_internal_events, window_closes = self._sort_live_events(
+            live_events=live_events, is_first_drain=is_first_drain
+        )
         # Posted but not returned: the queue was cleared or the type is blocked
         pending_internal_posts().clear()
         # Posts a held frame found come first: they were queued before this drain (rule 14)
@@ -916,62 +932,53 @@ class ReplaySources:
         """Return how the frame starting now is paced (rule 13).
 
         Returns:
-            0.0 (no pacing) when headless; watched, the frame's recorded duration (the next
-            frame's recorded ``dt``) over the playback speed, or None (the target FPS, as live
-            play) when the recording has no next frame.
+            0.0: a headless replay is not paced, and a watched one paces itself in
+            ``hold_frame`` (holding the loop until the frame is due), so the scene manager
+            never waits for it.
 
         """
-        if self.options.headless:
-            return 0.0
-        next_frame_index = self._frame_index + 1
-        if self.recording.frame(frame_index=next_frame_index) is None:
-            return None
-        return self.recording.recorded_dt(frame_number=next_frame_index) / self.controls.speed
+        return 0.0
 
     def hold_frame(self: Self) -> bool:
-        """Read the viewer's real keys, then say whether the frame loop holds (rule 14).
+        """Drive the viewer's outer loop: say whether the next inner frame waits (rule 14).
 
-        Drains the real queue as a pump does (its internal events wait for the next pump), so
-        Space, Esc, the debug overlay's keys and the window's close button work while held.
+        Opens the viewer's next outer tick when none is open (sleeping until it is due, then
+        reading the viewer's keys and refreshing the status line), and runs inner frames from
+        the viewer's accumulator (glitchygames/replay/viewer.py).
 
         Returns:
-            False when headless (a headless replay never holds). Watched, True at the start
-            screen, once the replay stops, once the recording is used up (a step past the end
-            does nothing) and while paused, except once per step (``.``).
+            False when headless (a headless replay never holds) or when the viewer runs one
+            more inner frame in its open tick; True when the tick closes (the loop presents the
+            outer frame and asks again).
 
         """
         if self.options.headless:
             return False
-        live_internal_events, window_closes = self._sort_live_events(
-            live_events=self._drain_real_queue()
+        now = self.viewer.begin_tick()
+        if now is not None:
+            self._run_control_tick(now=now)
+            self.viewer.accrue(now=now, is_inner_running=self._is_inner_running())
+        runs_inner_frame = self.viewer.should_run_inner_frame(
+            inner_frame_seconds=self._inner_frame_seconds(),
+            is_inner_over=self._is_inner_over(),
+            is_first_inner_frame=self._frame_index == 0,
         )
-        self._held_internal_events.extend(live_internal_events)
-        if window_closes or self.controls.quit_requested:
-            self._stop(end_reason=QUIT_END_REASON)
-        if self._stop_requested or self.controls.awaiting_start:
-            return True
-        if self._current_frame() is None:
-            # Nothing left to replay: a step (or Space) has no frame to run
-            self.controls.take_step()
-            return True
-        return self.controls.paused and not self.controls.take_step()
+        if not runs_inner_frame:
+            # The tick closed: the status line describes the frame about to be presented
+            self._refresh_status_line()
+        return not runs_inner_frame
 
     def draw_overlay(self: Self, *, surface: pygame.Surface) -> None:
         """Draw the watched replay's status bar, banner and start screen (rule 14).
+
+        What is drawn changes once per control tick (``hold_frame``); it is drawn on every
+        presented frame.
 
         Args:
             surface: The presented frame (never a screenshot or a traced frame).
 
         """
-        divergence = self.result.divergence
-        self.controls.draw(
-            surface=surface,
-            status_line=self.controls.status_line(
-                frame_number=self._frame_index,
-                seconds=frame_clock_seconds(),
-                divergence_frame=None if divergence is None else divergence.frame_number,
-            ),
-        )
+        self.controls.draw(surface=surface)
 
     def input_snapshot(self: Self) -> InputSnapshot:
         """Return the current frame's recorded polled input (rule 5).
@@ -1089,10 +1096,10 @@ class ReplaySources:
             elif self._frame_index == self.recording.frame_count - 1:
                 self._end_replay(
                     end_reason=TRUNCATED_END_REASON
-                    if self.is_truncated
+                    if self.recording.is_truncated
                     else END_OF_RECORDING_END_REASON,
                     banner=TRUNCATED_RECORDING_BANNER
-                    if self.is_truncated
+                    if self.recording.is_truncated
                     else END_OF_RECORDING_BANNER,
                 )
         if self._window_was_closed or self.controls.quit_requested:
@@ -1401,16 +1408,17 @@ class ReplaySources:
         return live_events
 
     def _sort_live_events(
-        self: Self, *, live_events: list[pygame.event.Event]
+        self: Self, *, live_events: list[pygame.event.Event], is_first_drain: bool
     ) -> tuple[list[pygame.event.Event], list[pygame.event.Event]]:
         """Split a real batch into internal events and window closes; nothing else reaches the game.
 
         Classified with the internal-post tracker (its matched posts are consumed). A watched
-        replay's real key presses go to the debug overlay (``OVERLAY_KEYS``) or its controls
-        (rule 14).
+        replay keeps its real key presses and releases for the next control tick (rule 14),
+        except the presses of the first drain: stale ones, queued before the replay.
 
         Args:
             live_events: The real batch.
+            is_first_drain: True for the replay's first drain of the real queue.
 
         Returns:
             The internal events and the window's QUIT events, each in queue order.
@@ -1424,19 +1432,75 @@ class ReplaySources:
                 live_internal_events.append(event)
             elif event.type == pygame.QUIT:
                 window_closes.append(event)
-            elif event.type == pygame.KEYDOWN and not self.options.headless:
-                self._handle_viewer_key(key=event.key)
+            elif (
+                event.type in WATCHED_REAL_KEY_EVENT_TYPES
+                and not self.options.headless
+                # The first drain's presses are stale: queued before the replay
+                and not (is_first_drain and event.type == pygame.KEYDOWN)
+            ):
+                self.viewer.queue_key_event(event_type=event.type, key=event.key)
             # Every other real external event is dropped: real input is blocked at SDL, so
-            # these are events queued before the first drain, the viewer's key releases, the
-            # window's close event (its QUIT follows) and app lifecycle and system notifications
+            # these are events queued before the first drain, the window's close event (its
+            # QUIT follows) and app lifecycle and system notifications
         return live_internal_events, window_closes
 
-    def _handle_viewer_key(self: Self, *, key: int) -> None:
-        """Route a watched replay's real key press: the debug overlay's keys, else the controls."""
-        if key in OVERLAY_KEYS:
-            SceneManager().debug_overlay.handle_key(key=key)
-        else:
-            self.controls.handle_key(key=key)
+    def _run_control_tick(self: Self, *, now: float) -> None:
+        """Read the real queue and act on the viewer's keys, at an outer tick's start (rule 14).
+
+        Args:
+            now: The measured time of the tick.
+
+        """
+        is_first_drain = not self._has_blocked_real_input
+        live_internal_events, window_closes = self._sort_live_events(
+            live_events=self._drain_real_queue(), is_first_drain=is_first_drain
+        )
+        self._held_internal_events.extend(live_internal_events)
+        self.viewer.apply_key_events(now=now)
+        if window_closes or self.controls.quit_requested:
+            self._stop(end_reason=QUIT_END_REASON)
+
+    def _refresh_status_line(self: Self) -> None:
+        """Give the controls the status line of the frame the closing outer tick presents."""
+        divergence = self.result.divergence
+        self.controls.update_status(
+            status_line=self.controls.status_line(
+                frame_number=self._frame_index,
+                seconds=frame_clock_seconds(),
+                divergence_frame=None if divergence is None else divergence.frame_number,
+            )
+        )
+
+    def _is_inner_over(self: Self) -> bool:
+        """Report whether no inner frame can run: the replay stopped or its recording is used up.
+
+        Returns:
+            True when over.
+
+        """
+        return self._stop_requested or self._current_frame() is None
+
+    def _is_inner_running(self: Self) -> bool:
+        """Report whether the inner game is running (not over, at the start screen or paused).
+
+        Returns:
+            True when the viewer's accumulator should fill.
+
+        """
+        return not (self._is_inner_over() or self.controls.awaiting_start or self.controls.paused)
+
+    def _inner_frame_seconds(self: Self) -> float:
+        """Return how long the inner frame starting now lasted when recorded (rule 4).
+
+        Returns:
+            The next frame's recorded ``dt`` (the duration of this one), or this frame's own
+            for the last recorded frame; 0.0 past the end.
+
+        """
+        for frame_index in (self._frame_index + 1, self._frame_index):
+            if self.recording.frame(frame_index=frame_index) is not None:
+                return self.recording.recorded_dt(frame_index=frame_index)
+        return 0.0
 
     def _end_replay(self: Self, *, end_reason: str, banner: str) -> None:
         """End the comparison: stop a headless replay, pause a watched one there (rule 14).
@@ -1452,7 +1516,7 @@ class ReplaySources:
         self.result.end_reason = end_reason
         self.controls.paused = True
         self.controls.banner = banner
-        SceneManager().debug_overlay.is_visible = True
+        self.controls.debug_overlay.is_visible = True
 
     def _stop(self: Self, *, end_reason: str) -> None:
         """Stop the replay; a replay that already ended keeps its end reason."""
@@ -1565,7 +1629,7 @@ def announce_replay(*, path: Path, sources: ReplaySources) -> None:
         sources: Its replay sources.
 
     """
-    if sources.is_truncated:
+    if sources.recording.is_truncated:
         LOG.warning(
             '%s is cut off after %d complete frames; replaying up to there',
             path,

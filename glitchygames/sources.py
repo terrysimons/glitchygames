@@ -98,9 +98,9 @@ class EngineSources(Protocol):
 
         ``None`` paces to the target FPS as always (live play); ``0.0`` does not pace at all (a
         headless replay: its frame times come from the recording, so waiting would only take
-        real time); a positive number of seconds paces to that period instead of the target's
-        (a watched replay: the frame's recorded duration over the playback speed;
-        SceneManager._handle_frame_pacing).
+        real time; a watched replay, which paces itself by holding the loop in ``hold_frame``);
+        a positive number of seconds paces to that period instead of the target's
+        (SceneManager._handle_frame_pacing).
         """
         ...
 
@@ -108,9 +108,19 @@ class EngineSources(Protocol):
         """Return True to run no frame now, asked before each frame starts.
 
         Live play never holds. A watched replay holds at its start screen, while paused (until
-        a step), and at its end or divergence; asking also reads the real keys into the
-        replay's controls (glitchygames/replay/controls.py). ``SceneManager.start`` then
-        presents the frame again and waits a little instead of running one.
+        a step), at its end or divergence, and until its next frame is due; asking also runs
+        its viewer controls' tick when due (glitchygames/replay/controls.py), and a call after
+        a held one first sleeps until the next tick or due time, so the loop never spins.
+        ``SceneManager.start`` presents the frame again instead of running one.
+        """
+        ...
+
+    @property
+    def presents_frames(self) -> bool:
+        """False when the frames the loop runs are not presented as they run.
+
+        A watched replay runs its recorded frames in full but presents only the latest, once
+        per outer tick of its viewer (glitchygames/replay/viewer.py), as a held frame.
         """
         ...
 

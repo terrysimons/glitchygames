@@ -890,7 +890,7 @@ def test_journal_as_recording_replays_through_replay_sources():
         step(manager, frames=4)
         header, frames = manager.instant_replay_journal.as_recording()
         sources = ReplaySources(header=header, frames=frames, format_version=3)
-        assert sources.recording.recorded_dt(frame_number=0) == FRAME_SECONDS
+        assert sources.recording.recorded_dt(frame_index=0) == FRAME_SECONDS
 ```
 
 (`ReplaySources.recording.recorded_dt` comes from Part 2 Task 2, which runs before this part.)

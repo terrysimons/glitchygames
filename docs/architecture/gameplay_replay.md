@@ -219,24 +219,39 @@ releases unblocked for its controls, which never pass them on to the game). The 
 restored exactly when the replay ends, normally or after an error. QUIT, the window's close event
 and custom event types are never blocked, so closing the window still ends the replay. Blocking
 also refuses posts of those types: game code that fakes input by posting `KEYDOWN` loses the
-post, which shows up as a missing internal event divergence. Recorded window references in
+post, which shows up as a missing internal event divergence. A watched replay leaves `KEYDOWN`
+and `KEYUP` unblocked, so such a post arrives there and matches its recording: a recording of a
+game that posts keys can match watched and diverge headless (and under `--audit`). Recorded window references in
 events are served as `None`, as live events of the display window carry.
 
 ### Watching a replay
 
-A replay without `--headless` is watched. It starts held before its first frame on a start
-screen: the first frame's backdrop dimmed, "Press Spacebar to Start Game Replay" centred, and a
-smaller line naming the debug overlay's keys (`F3: debug overlay   F4: next panel`). It is drawn
-by the pause screen's `MessageScreen` (`glitchygames/ui/message_screen.py`) with its own message
-and look, as an overlay on the presented frame: switching to a real pause scene would change the
-recorded scene sequence. Nothing runs while it is held: no frame, no frame clock, no recorded
-input. Each frame is then paced to its recorded duration over the playback speed. The viewer's
-keys go to the replay's controls (`glitchygames/replay/controls.py`), never to the game:
+A replay without `--headless` is watched: a read-only game inside a game
+(`glitchygames/replay/viewer.py`). The outer loop, the replay viewer, owns the window: it ticks
+60 times a second of real time whatever the speed and whether paused, reads the viewer's keys,
+and presents the recorded game's latest frame with the status bar drawn on it. The inner loop,
+the recorded game, runs its frames in full (logic, update and render) at their recorded frame
+times: each tick runs as many as the real time since the last tick, times the speed, pays for
+(at most `MAX_INNER_FRAMES_PER_TICK`; a long stall is caught up over later ticks). So 1x shows
+about one recorded frame per tick, 8x about eight, 1/4x one every fourth tick. Which frames run
+when never changes what they do, so a watched replay is exactly as exact as a headless one.
+
+It first runs frame 0, then holds on a start screen: that frame dimmed, "Press Spacebar to Start
+Game Replay" centred, and a smaller line naming the debug overlay's keys (`F3: debug overlay
+F4: next panel`). Frame 0's sounds play before Space, and a one-frame recording reaches its end
+at the start screen. The screen is drawn by the pause screen's `MessageScreen`
+(`glitchygames/ui/message_screen.py`) with its own message and look, as an overlay on the
+presented frame: switching to a real pause scene would change the recorded scene sequence.
+Nothing runs while the replay is held: no frame, no frame clock, no recorded input. The viewer's
+keys go to the replay's controls (`glitchygames/replay/controls.py`), never to the game. Each
+key acts once per press (the key repeat games turn on is ignored); `.` held steps once, then
+after 300 ms ten times a second:
 
 | Key | Action |
 | --- | --- |
 | Space | Start the replay from the start screen, then pause or resume |
 | `.` | While paused, run one frame |
+| `,` | Step back (coming in a later version; it says so for now) |
 | `]` / `[` | Double or halve the playback speed (0.25 to 8) |
 | Esc | Quit the replay |
 | F3 / F4 | Toggle the debug overlay / show its next panel |

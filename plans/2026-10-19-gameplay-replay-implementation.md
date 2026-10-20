@@ -154,7 +154,8 @@ class EngineSources(Protocol):
     @property
     def draws_overlay(self) -> bool: ...                                     # Part 2 Task 2
     def draw_overlay(self, *, surface: pygame.Surface) -> None: ...         # Part 2 Task 2
-    def presents_frames(self) -> bool: ...                                    # Part 2 Task 3
+    @property
+    def presents_frames(self) -> bool: ...  # Part 2 Task 2 (False while watched); Task 3 extends
     @property
     def captures_scene_starts(self) -> bool: ...                             # Part 3 Task 1
     def opened_save_stores(self) -> dict[str, SaveStore]: ...                # Part 3 Task 1
@@ -287,8 +288,11 @@ class ReplaySources:   # implements EngineSources
     # The recorded frames moved to a collaborator in Part 2 Task 2 (ruff's 20-public-method
     # limit): frame_count, recorded_frame_fields and recorded_dt are RecordedFrames'
     recording: RecordedFrames
-    controls: ReplayControls   # Part 2 Task 2 (glitchygames/replay/controls.py); .banner
+    controls: ReplayControls   # Part 2 Task 2 (glitchygames/replay/controls.py); .banner,
+                               # .debug_overlay (the scene manager's, handed over by GameEngine)
+    viewer: ReplayViewer       # Part 2 Task 2 (glitchygames/replay/viewer.py): the outer loop
     draws_overlay: bool        # Part 2 Task 2: True when watched
+    presents_frames: bool      # Part 2 Task 2: False when watched (the viewer presents)
     header: dict[str, Any]
     options: ReplayOptions
     is_truncated: bool
@@ -296,7 +300,7 @@ class ReplaySources:   # implements EngineSources
 class RecordedFrames:   # ReplaySources.recording (Part 2 Task 2)
     frame_count: int  # read-only property
     def frame(self, *, frame_index: int) -> dict[str, Any] | None: ...
-    def recorded_dt(self, *, frame_number: int) -> float: ...
+    def recorded_dt(self, *, frame_index: int) -> float: ...
     def recorded_frame_fields(self, *, frame_index: int) -> dict[str, Any]: ...
     is_truncated: bool
 def start_replay(*, path: Path, game_class_name: str, options: dict[str, Any],

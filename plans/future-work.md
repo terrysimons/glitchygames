@@ -76,11 +76,12 @@ and Replay").
 - **Part 2, replay tooling** (in progress, `plans/2026-10-19-gameplay-replay-tooling.md`): done:
   `--headless` (Task 1: any run on SDL's dummy drivers; replays then run unpaced, print the
   divergence report and exit with `ExitCode` members; it replaced the private `--replay-unpaced`);
-  watched replays (Task 2: recorded pacing, `ReplayControls` for Space pause / `.` step / `]` `[`
-  speed / Esc quit, the status bar, pausing at a divergence or the end with the debug overlay on,
-  and the "Press Spacebar to Start Game Replay" start screen with the F3/F4 hint, drawn by the
-  pause screen's `MessageScreen`; KEYDOWN/KEYUP stay unblocked at SDL and reach only the replay
-  controls and the debug overlay). Pending: `,` step back, Home, D, B, S (Tasks 3-4),
+  watched replays (Task 2: the `ReplayViewer` outer loop at 60 Hz real time running the recorded
+  game's frames from an accumulator, `ReplayControls` for Space pause / `.` step / `]` `[` speed /
+  Esc quit with one action per press, the status bar, pausing at a divergence or the end with the
+  debug overlay on, and the "Press Spacebar to Start Game Replay" start screen after frame 0 with
+  the F3/F4 hint, drawn by the pause screen's `MessageScreen`; KEYDOWN/KEYUP stay unblocked at SDL
+  and reach only the replay controls and the debug overlay). Pending: `,` step back, Home, D, B, S (Tasks 3-4),
   `--rebaseline`, and the pytest plugin for recordings.
 - **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
   starts, the playback scope (does not block real input at SDL; real input reaches only its "exit

@@ -810,6 +810,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # SceneManager is a singleton.
         self.scene_manager: SceneManager = SceneManager()
+        # A watched replay's F3/F4 (and its pause at a divergence) act on the scene manager's
+        # debug overlay, the one drawn (glitchygames/replay/controls.py)
+        if self.replay_sources is not None:
+            self.replay_sources.controls.debug_overlay = self.scene_manager.debug_overlay
         # The singleton outlives an earlier engine in this process: number this run's frames
         # from 0, as reset_sources() above restarted the frame clock (glitchygames/sources.py)
         self.scene_manager.frame_number = 0
@@ -1528,7 +1532,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             sources: Its replay sources (read, not installed).
 
         """
-        if sources.is_truncated:
+        if sources.recording.is_truncated:
             self.log.error(
                 f'Cannot audit {replay_trace_path}: the recording is truncated after '
                 f'{sources.recording.frame_count} complete frames, and an audit needs the whole '

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import collections
 import gzip
 import json
 import os
@@ -40,6 +41,7 @@ from glitchygames.recording import (
     post_event,
 )
 from glitchygames.replay import audit
+from glitchygames.replay import viewer as viewer_module
 from glitchygames.replay.audit import (
     AUDIT_HASH_SEEDS,
     AuditRunError,
@@ -51,7 +53,9 @@ from glitchygames.replay.audit import (
     read_digest_file,
     run_command,
 )
+from glitchygames.replay.controls import CONTROL_TICK_SECONDS
 from glitchygames.replay.driver import (
+    DEFAULT_REPLAY_OPTIONS,
     EVENT_DIVERGENCE,
     LENGTH_DIVERGENCE,
     REAL_REPLAY_FPS,
@@ -69,9 +73,14 @@ from glitchygames.replay.driver import (
     apply_recorded_options,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
+from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
 from glitchygames.scenes import SceneManager
-from glitchygames.scenes import scene as scene_module
-from glitchygames.sources import frame_clock_seconds, install_sources, reset_sources
+from glitchygames.sources import (
+    active_sources,
+    frame_clock_seconds,
+    install_sources,
+    reset_sources,
+)
 from glitchygames.timing import FastTimer
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace_result, write_trace
 from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
@@ -507,36 +516,148 @@ def harness_replay_sources(*, manager: GoldenTraceSceneManager) -> ReplaySources
     return engine.replay_sources
 
 
+class FakeMeasuredClock:
+    """The watched replay's measured clock, advanced only by its sleeps or by the test.
+
+    Patches ``glitchygames.replay.viewer.measured_seconds`` and ``pygame.time.wait`` (the
+    viewer's sleep until its next outer tick), so a watched replay's outer ticks run in no real
+    time.
+
+    Attributes:
+        now: The measured time, in seconds.
+
+    """
+
+    def __init__(self, *, mocker, on_wait: Callable[[], None] | None = None) -> None:
+        """Install the fake clock (undone with the test's mocker).
+
+        Args:
+            mocker: pytest-mock's fixture.
+            on_wait: Called after each sleep has advanced the clock.
+
+        """
+        self.now = 1000.0
+        self._on_wait = on_wait
+        mocker.patch.object(viewer_module, 'measured_seconds', side_effect=self.read)
+        mocker.patch.object(pygame.time, 'wait', side_effect=self.wait)
+
+    def read(self) -> float:
+        """Return the fake time.
+
+        Returns:
+            Seconds.
+
+        """
+        return self.now
+
+    def advance(self, *, seconds: float) -> None:
+        """Move the fake time on."""
+        self.now += seconds
+
+    def wait(self, milliseconds: int) -> None:
+        """Sleep: move the fake time on by ``milliseconds`` (pygame.time.wait's signature)."""
+        self.now += milliseconds / 1000
+        if self._on_wait is not None:
+            self._on_wait()
+
+
 def press_keys_while_held(
     *,
     mocker,
     keys: Sequence[int],
     before_each_press: Callable[[], None] | None = None,
-) -> None:
-    """Act as a watched replay's viewer: press the next key each time a held frame waits.
+) -> FakeMeasuredClock:
+    """Act as a watched replay's viewer: press the next key whenever the replay waits for one.
 
-    Patches the held frame's wait (``SceneManager._present_held_frame``) to post one real
-    KEYDOWN per wait, so the next ``hold_frame`` reads it. A frame held after every key was
-    pressed fails the test instead of waiting forever.
+    Installs a ``FakeMeasuredClock``. Each time the replay sleeps while it waits for the viewer
+    (at its start screen, or paused), one real key press (KEYDOWN, then KEYUP) is posted, which
+    the next control tick reads. Sleeps until a frame is due press nothing. A replay that waits
+    for the viewer after every key was pressed fails the test instead of waiting forever.
 
     Args:
         mocker: pytest-mock's fixture.
         keys: The keys, in order.
         before_each_press: Called before each press (to note what the viewer sees).
 
+    Returns:
+        The fake clock.
+
     """
     remaining_keys = list(keys)
 
-    def press_next_key(milliseconds: int) -> None:
-        del milliseconds
+    def press_next_key() -> None:
+        sources = active_sources()
+        assert isinstance(sources, ReplaySources)
+        if not (sources.controls.awaiting_start or sources.controls.paused):
+            return
         if before_each_press is not None:
             before_each_press()
         if not remaining_keys:
-            message = 'the replay held its frame after every key was pressed'
+            message = 'the replay waited for the viewer after every key was pressed'
             raise AssertionError(message)
-        pygame.event.post(_key(pygame.KEYDOWN, remaining_keys.pop(0)))
+        key = remaining_keys.pop(0)
+        pygame.event.post(_key(pygame.KEYDOWN, key))
+        pygame.event.post(_key(pygame.KEYUP, key))
 
-    mocker.patch.object(scene_module.pygame.time, 'wait', side_effect=press_next_key)
+    return FakeMeasuredClock(mocker=mocker, on_wait=press_next_key)
+
+
+def run_next_viewer_tick(*, sources: ReplaySources) -> None:
+    """Close the viewer's open outer tick, if any, then run the next tick until it closes.
+
+    The inner frames the ticks would run are not run (the frame index stays), so this only
+    reads the viewer's keys once more.
+
+    """
+    while not sources.hold_frame():
+        pass
+    while not sources.hold_frame():
+        pass
+
+
+def inner_frames_per_tick(
+    *, sources: ReplaySources, clock: FakeMeasuredClock, status_spy, seconds: float
+) -> list[int]:
+    """Run a watched replay's outer loop as the scene manager would, on the fake clock.
+
+    Each inner frame ends at the doors (compared) and takes a tenth of a millisecond of real
+    time.
+
+    Args:
+        sources: The watched replay.
+        clock: Its fake measured clock.
+        status_spy: A spy on ``sources.controls.update_status`` (called once per outer tick).
+        seconds: How long to run, in fake measured seconds.
+
+    Returns:
+        How many inner frames each outer tick opened meanwhile ran, in order.
+
+    """
+    first_tick = status_spy.call_count + 1
+    frames_by_tick: collections.Counter[int] = collections.Counter()
+    end_seconds = clock.now + seconds
+    while clock.now < end_seconds:
+        if sources.hold_frame():
+            continue
+        frames_by_tick[status_spy.call_count] += 1
+        sources.end_frame(frame_number=0, dt=0.0, scene=None, control_events=[])
+        clock.advance(seconds=0.0001)
+    return [frames_by_tick[tick] for tick in range(first_tick, status_spy.call_count + 1)]
+
+
+def watched_minimal_sources(*, recorded_dt: float, frame_count: int = 5000) -> ReplaySources:
+    """Installed watched replay sources over in-memory frames of one recorded dt.
+
+    Returns:
+        The sources.
+
+    """
+    sources = minimal_sources(
+        frames=[recorded_frame(frame_number=index, dt=recorded_dt) for index in range(frame_count)],
+        options=DEFAULT_REPLAY_OPTIONS,
+    )
+    install_sources(sources=sources)
+    return sources
 
 
 def recorded_frame(*, frame_number: int, dt: float = 0.25) -> dict[str, Any]:
@@ -1186,11 +1307,8 @@ class TestHeadless:
             path=recording_path, options=ReplayOptions(headless=True)
         )
         assert engine_sources.paced_frame_seconds() == 0.0
-        # A watched replay paces to the recording instead (TestWatched)
-        watched_sources = ReplaySources.from_path(path=recording_path)
-        assert watched_sources.paced_frame_seconds() == (
-            watched_sources.recording.recorded_dt(frame_number=1)
-        )
+        # A watched replay paces itself by holding the loop (TestWatched)
+        assert ReplaySources.from_path(path=recording_path).paced_frame_seconds() == 0.0
         assert LiveSources(random_seed=RANDOM_SEED).paced_frame_seconds() is None
 
     def test_a_headless_replay_runs_every_frame_unpaced(self, mocker, tmp_path):
@@ -1811,18 +1929,65 @@ class TestWatched:
         assert sources.result.divergence is None
         GoldenTraceSceneManager.uninstall()
 
-    def test_watched_replay_paces_to_the_recorded_frame_time(self, mocker, tmp_path):
-        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        sources = ReplaySources.from_path(path=recording_path)
-        first_dt = sources.frame_seconds(measured=0.0)
-        assert sources.paced_frame_seconds() == pytest.approx(
-            sources.recording.recorded_dt(frame_number=1)
+    @pytest.mark.parametrize(
+        ('speed', 'allowed_per_tick'),
+        [(1.0, {1, 2}), (8.0, {13, 14}), (0.25, {0, 1})],
+        ids=['normal', 'eight_times', 'quarter_speed'],
+    )
+    def test_inner_frames_follow_the_accumulator(self, mocker, speed, allowed_per_tick):
+        """Real time times speed, consumed by each inner frame's recorded duration (0.01 s)."""
+        clock = FakeMeasuredClock(mocker=mocker)
+        sources = watched_minimal_sources(recorded_dt=0.01)
+        sources.controls.speed = speed
+        assert sources.paced_frame_seconds() == 0.0
+        assert not sources.presents_frames
+        status_spy = mocker.spy(sources.controls, 'update_status')
+        frames_per_tick = inner_frames_per_tick(
+            sources=sources, clock=clock, status_spy=status_spy, seconds=2.0
         )
-        sources.controls.handle_key(key=pygame.K_RIGHTBRACKET)
-        assert sources.paced_frame_seconds() == pytest.approx(
-            sources.recording.recorded_dt(frame_number=1) / 2
+        # The first tick owes nothing yet (no time has passed) and the run stops part way
+        # through the last; exact over time
+        assert set(frames_per_tick[1:-1]) <= allowed_per_tick
+        # Within one tick's worth: the owed remainder of the run's last tick
+        assert abs(sum(frames_per_tick) - 2.0 * speed / 0.01) <= (
+            speed * CONTROL_TICK_SECONDS / 0.01 + 2
         )
-        assert first_dt == sources.recording.recorded_dt(frame_number=0)
+        assert sources.result.divergence is None
+
+    def test_a_hitch_runs_at_most_the_bound_per_tick_and_carries_the_rest(self, mocker):
+        clock = FakeMeasuredClock(mocker=mocker)
+        sources = watched_minimal_sources(recorded_dt=0.01)
+        status_spy = mocker.spy(sources.controls, 'update_status')
+        inner_frames_per_tick(sources=sources, clock=clock, status_spy=status_spy, seconds=0.1)
+        clock.advance(seconds=2.0)  # a two-second stall: 200 frames owed at 1x
+        frames_per_tick = inner_frames_per_tick(
+            sources=sources, clock=clock, status_spy=status_spy, seconds=0.5
+        )
+        assert max(frames_per_tick) == MAX_INNER_FRAMES_PER_TICK
+        assert frames_per_tick[:6] == [MAX_INNER_FRAMES_PER_TICK] * 6
+        assert abs(sum(frames_per_tick) - 2.5 / 0.01) <= 3
+
+    @pytest.mark.parametrize(
+        ('speed', 'recorded_dt', 'paused'),
+        [(8.0, 0.002, False), (0.25, 0.01, False), (1.0, 0.25, True)],
+        ids=['eight_times', 'quarter_speed', 'paused'],
+    )
+    def test_the_controls_tick_sixty_times_a_second_at_any_speed(
+        self, mocker, speed, recorded_dt, paused
+    ):
+        clock = FakeMeasuredClock(mocker=mocker)
+        sources = watched_minimal_sources(recorded_dt=recorded_dt)
+        sources.controls.speed = speed
+        sources.controls.paused = paused
+        tick_spy = mocker.spy(sources.controls, 'update_status')
+        end_seconds = clock.now + 1.0
+        while clock.now < end_seconds:
+            if not sources.hold_frame():
+                sources.end_frame(frame_number=0, dt=recorded_dt, scene=None, control_events=[])
+                # Each frame takes a tenth of a millisecond of real time
+                clock.advance(seconds=0.0001)
+        assert 59 <= tick_spy.call_count <= 61
+        assert sources.result.divergence is None
 
     def test_paused_replay_holds_until_a_step(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -1831,8 +1996,10 @@ class TestWatched:
         # input hold_frame blocks
         reset_sources()
         install_sources(sources=sources)
+        FakeMeasuredClock(mocker=mocker)
         sources.controls.handle_key(key=pygame.K_SPACE)
         assert sources.hold_frame()
+        assert sources.hold_frame()  # paused: no inner frame, tick after tick
         sources.controls.handle_key(key=pygame.K_PERIOD)
         assert not sources.hold_frame()  # one frame runs
         assert sources.hold_frame()  # then it holds again
@@ -1888,10 +2055,16 @@ class TestWatched:
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
         sources = harness_replay_sources(manager=manager)
+        FakeMeasuredClock(mocker=mocker)
         pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
+        # The first drain (a control tick) drops presses queued before the replay
+        assert not sources.hold_frame()
         pygame.event.post(_key(pygame.KEYDOWN, pygame.K_RIGHTBRACKET))
+        pygame.event.post(_key(pygame.KEYUP, pygame.K_RIGHTBRACKET))
         manager.dt = sources.frame_seconds(measured=0.0)
         manager.run_frame()
+        # The frame's pump read the keys; the viewer's next tick acts on them
+        run_next_viewer_tick(sources=sources)
         assert sources.controls.speed == 2.0
         # The viewer's keys stay unblocked at SDL; the rest of real input is blocked
         assert not pygame.event.get_blocked(pygame.KEYDOWN)
@@ -1899,9 +2072,10 @@ class TestWatched:
         assert pygame.event.get_blocked(pygame.MOUSEMOTION)
         for key in (pygame.K_LEFTBRACKET, pygame.K_F3, pygame.K_F4):
             assert pygame.event.post(_key(pygame.KEYDOWN, key))
-        assert pygame.event.post(_key(pygame.KEYUP, pygame.K_F4))
+            assert pygame.event.post(_key(pygame.KEYUP, key))
         manager.dt = sources.frame_seconds(measured=0.0)
         manager.run_frame()
+        run_next_viewer_tick(sources=sources)
         assert sources.controls.speed == 1.0
         assert manager.debug_overlay.is_visible
         assert manager.debug_overlay.panel is DebugPanel.COLLISION
@@ -1939,14 +2113,15 @@ class TestWatched:
         GoldenTraceSceneManager.uninstall()
 
     def test_a_watched_replay_waits_at_the_start_screen_until_space(self, mocker, tmp_path):
-        """No frame runs before Space; F3 works while held; the replay then matches."""
+        """Only frame 0 runs before Space (its picture behind the message); F3 works while held."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
         sources = harness_replay_sources(manager=manager)
         assert sources.controls.awaiting_start
         run_frame_spy = mocker.spy(manager, '_run_frame')
-        draw_spy = mocker.spy(sources.controls, 'draw')
+        status_spy = mocker.spy(sources.controls, 'update_status')
         seen_while_held: list[tuple[int, int, bool]] = []
+        status_lines_while_held: list[str] = []
 
         def note_what_the_viewer_sees() -> None:
             seen_while_held.append((
@@ -1954,6 +2129,7 @@ class TestWatched:
                 sources.result.frames_replayed,
                 manager.debug_overlay.is_visible,
             ))
+            status_lines_while_held.append(status_spy.call_args.kwargs['status_line'])
 
         press_keys_while_held(
             mocker=mocker,
@@ -1961,9 +2137,9 @@ class TestWatched:
             before_each_press=note_what_the_viewer_sees,
         )
         manager.start()
-        # Held twice before frame 0 (F3, then Space); the recorded game quits itself at its end
-        assert seen_while_held == [(0, 0, False), (0, 0, True)]
-        assert draw_spy.call_args_list[0].kwargs['status_line'].startswith('frame 0 / ')
+        # Held twice after frame 0 (F3, then Space); the recorded game quits itself at its end
+        assert seen_while_held == [(1, 1, False), (1, 1, True)]
+        assert status_lines_while_held[0].startswith('frame 1 / ')
         assert not sources.controls.awaiting_start
         assert sources.result.divergence is None
         assert sources.result.frames_replayed == sources.recording.frame_count
@@ -1976,7 +2152,6 @@ class TestWatched:
         )
         reset_sources()
         install_sources(sources=sources)
-        assert sources.hold_frame()
         pygame.event.post(pygame.event.Event(pygame.QUIT))
         assert sources.hold_frame()
         assert sources.stop_requested
@@ -1984,18 +2159,119 @@ class TestWatched:
 
     def test_internal_events_found_while_held_reach_the_next_pump(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        sources = ReplaySources.from_path(
-            path=recording_path, options=ReplayOptions(wait_for_start=True)
-        )
+        sources = ReplaySources.from_path(path=recording_path)
         reset_sources()
         install_sources(sources=sources)
         custom_event_type = pygame.event.custom_type()
         post_event(pygame.event.Event(custom_event_type, value=7))
+        FakeMeasuredClock(mocker=mocker)
+        sources.controls.handle_key(key=pygame.K_SPACE)
         assert sources.hold_frame()
         sources.controls.handle_key(key=pygame.K_SPACE)
-        assert not sources.hold_frame()
+        # Running again: ticks pass until the accumulator owes the next frame
+        while sources.hold_frame():
+            pass
         batch = sources.pump_events()
         assert [event.dict for event in batch if event.type == custom_event_type] == [{'value': 7}]
+
+    def test_a_repeating_viewer_key_acts_once_per_press(self, mocker, tmp_path):
+        """Games turn key repeat on (PaddleSlap: set_repeat(1)): a held key acts once."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        FakeMeasuredClock(mocker=mocker)
+        sources = ReplaySources.from_path(path=recording_path)
+        reset_sources()
+        install_sources(sources=sources)
+        sources.hold_frame()  # the first tick: the first drain
+        for key in (pygame.K_SPACE, pygame.K_F3):
+            pygame.event.post(_key(pygame.KEYDOWN, key))
+            pygame.event.post(_key(pygame.KEYDOWN, key))  # a repeat
+            pygame.event.post(_key(pygame.KEYUP, key))
+        run_next_viewer_tick(sources=sources)
+        assert sources.controls.paused
+        assert sources.controls.debug_overlay.is_visible
+        # Released, so the next press acts again
+        pygame.event.post(_key(pygame.KEYDOWN, pygame.K_SPACE))
+        run_next_viewer_tick(sources=sources)
+        assert not sources.controls.paused
+
+    def test_presses_queued_before_the_replay_are_dropped(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        sources = ReplaySources.from_path(path=recording_path)
+        reset_sources()
+        install_sources(sources=sources)
+        pygame.event.post(_key(pygame.KEYDOWN, pygame.K_SPACE))
+        sources.hold_frame()
+        assert not sources.controls.paused
+
+    def test_the_debug_overlay_is_the_scene_managers(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        manager = start_replay_in_harness(recording_path=recording_path)
+        sources = harness_replay_sources(manager=manager)
+        assert sources.controls.debug_overlay is manager.debug_overlay
+        GoldenTraceSceneManager.uninstall()
+
+    def test_a_one_frame_recording_reaches_its_end_at_the_start_screen(self):
+        sources = minimal_sources(
+            frames=[recorded_frame(frame_number=0)], options=ReplayOptions(wait_for_start=True)
+        )
+        install_sources(sources=sources)
+        assert not sources.hold_frame()  # frame 0 runs before the start screen holds
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        assert sources.hold_frame()
+        assert sources.controls.awaiting_start
+        assert sources.controls.banner == 'End of recording'
+        assert sources.result.end_reason == 'end_of_recording'
+
+    def test_mid_run_controls_keep_the_replay_exact(self, mocker, tmp_path):
+        """Pause at a pump, step, change speed and resume: nothing changes what is replayed."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        manager = start_replay_in_harness(recording_path=recording_path)
+        sources = harness_replay_sources(manager=manager)
+        # The viewer presses Space during logic frame 2: the next frame's pump reads it
+        Script.events_by_frame = {
+            2: [_key(pygame.KEYDOWN, pygame.K_SPACE), _key(pygame.KEYUP, pygame.K_SPACE)]
+        }
+        seen_while_held: list[tuple[int, float, float, float]] = []
+
+        def note_what_the_viewer_sees() -> None:
+            scene = manager.active_scene
+            assert scene is not None
+            seen_while_held.append((
+                sources.result.frames_replayed,
+                frame_clock_seconds(),
+                scene.game_time,
+                sources.controls.speed,
+            ))
+
+        press_keys_while_held(
+            mocker=mocker,
+            keys=(
+                pygame.K_SPACE,
+                pygame.K_PERIOD,
+                pygame.K_PERIOD,
+                pygame.K_RIGHTBRACKET,
+                pygame.K_LEFTBRACKET,
+                pygame.K_SPACE,
+            ),
+            before_each_press=note_what_the_viewer_sees,
+        )
+        manager.start()
+        frames_seen = [seen[0] for seen in seen_while_held]
+        paused_at = frames_seen[1]
+        assert frames_seen == [
+            1,
+            paused_at,
+            paused_at + 1,
+            paused_at + 2,
+            paused_at + 2,
+            paused_at + 2,
+        ]
+        # Held iterations of one frame leave the clocks alone
+        assert len({seen[1:3] for seen in seen_while_held[3:]}) == 1
+        assert [seen[3] for seen in seen_while_held[3:]] == [1.0, 2.0, 1.0]
+        assert sources.result.divergence is None
+        assert sources.result.frames_replayed == sources.recording.frame_count
+        GoldenTraceSceneManager.uninstall()
 
     def test_the_status_bar_is_drawn_on_the_presented_frame_only(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -2005,7 +2281,10 @@ class TestWatched:
         assert manager.screen is not None
         draw_spy = mocker.spy(ReplaySources, 'draw_overlay')
         clean_frame = pygame.image.tobytes(manager.screen, 'RGB')
+        # Inner frames are not presented; the viewer's outer tick presents the latest
         manager._present_frame(full_update=False)
+        assert draw_spy.call_count == 0
+        manager._present_held_frame()
         assert draw_spy.call_count == 1
         assert pygame.image.tobytes(manager.screen, 'RGB') == clean_frame
         assert not LiveSources(random_seed=RANDOM_SEED).draws_overlay

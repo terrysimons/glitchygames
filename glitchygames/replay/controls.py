@@ -1,20 +1,28 @@
 """Watched-replay controls: pause, step, speed, quit, the status bar and the start screen.
 
 A watched replay (``--replay-trace`` without ``--headless``; glitchygames/replay/driver.py)
-hands every real key press to ``ReplayControls.handle_key`` (the debug overlay's keys go to the
-overlay instead); none reaches the game. The keys (plans/2026-10-19-gameplay-replay.md, 4.1):
+hands every real key press and release to ``ReplayControls``; none reaches the game. The keys
+(plans/2026-10-19-gameplay-replay.md, 4.1):
 
 - Space: start the replay from the start screen, then pause or resume it.
 - ``.``: while paused, run one frame.
+- ``,``: step back (Part 2 Task 3); for now it only says so in a status message.
 - ``]`` / ``[``: double or halve the playback speed, within ``MIN_SPEED`` and ``MAX_SPEED``.
 - Esc: quit the replay (the driver ends it with ``end_reason = 'quit'``; no event is posted, as
   a code-posted QUIT would be an internal event the recording does not have).
+- F3 / F4: the debug overlay's keys (``OVERLAY_KEYS``), handed to the overlay.
+
+The controls run on their own real-time cadence (``ControlCadence``, 60 ticks a second),
+whatever the replay's speed and whether it is paused: the driver reads the keys and refreshes
+the status line once per tick. Each key acts once per press: the operating system's key repeat
+(games turn it on: PaddleSlap calls ``pygame.key.set_repeat(1)``) is ignored until the key is
+released. Step keys repeat by themselves instead: after ``STEP_REPEAT_DELAY_SECONDS`` held, every
+``STEP_REPEAT_INTERVAL_SECONDS``. The real time comes from ``glitchygames.clock.measured_seconds``
+(never replayed), which is sound because the controls never change what is simulated.
 
 The status bar, a transient message, the driver's banner and the start screen are drawn on the
 presented frame after the debug overlay (``SceneManager._present_frame``), so they are never in
-a screenshot or a trace. Nothing here reads a clock: a message lasts a number of presented
-frames, because every clock follows the frame clock in a replay, which stands still while
-paused.
+a screenshot or a trace.
 """
 
 from __future__ import annotations
@@ -26,7 +34,9 @@ import pygame
 from glitchygames.debug.overlay import (
     DEBUG_FONT_PATH,
     NEXT_PANEL_KEY,
+    OVERLAY_KEYS,
     TOGGLE_KEY,
+    DebugOverlay,
     load_debug_font,
 )
 from glitchygames.debug.panels import HUD_LINE_HEIGHT, HUD_MARGIN, HUD_TEXT_COLOR, blit_text
@@ -41,6 +51,16 @@ TENTHS_PER_SECOND = 10
 # Each speed key doubles or halves the speed
 SPEED_STEP_FACTOR = 2.0
 BANNER_COLOR: tuple[int, int, int] = (255, 220, 0)
+
+# The controls' real-time cadence (ControlCadence)
+CONTROL_TICKS_PER_SECOND = 60
+CONTROL_TICK_SECONDS = 1.0 / CONTROL_TICKS_PER_SECOND
+# Step keys act on press, then repeat while held: after this delay, at this interval (10 a second)
+STEP_KEYS: frozenset[int] = frozenset({pygame.K_PERIOD})
+STEP_REPEAT_DELAY_SECONDS = 0.3
+STEP_REPEAT_INTERVAL_SECONDS = 0.1
+# Step back arrives with Part 2 Task 3
+STEP_BACK_MESSAGE = 'step back arrives in a later version'
 
 
 def format_replay_time(*, seconds: float) -> str:
@@ -106,27 +126,73 @@ class ReplayStartScreen(MessageScreen):
         )
 
 
+class ControlCadence:
+    """The viewer controls' own real-time tick, ``CONTROL_TICKS_PER_SECOND`` a second.
+
+    Independent of the replay's speed and pauses: the replayed frames follow the recording, the
+    controls follow real time (``glitchygames.clock.measured_seconds``, never replayed; the
+    controls never change what is simulated). A tick that falls more than one period behind
+    (a long frame) is re-anchored to now instead of being caught up tick after tick.
+    """
+
+    def __init__(self: Self) -> None:
+        """Start with a tick due at once."""
+        self._next_tick_seconds: float | None = None
+
+    def tick_is_due(self: Self, *, now: float) -> bool:
+        """Report whether a tick is due at ``now``, and if so schedule the next one.
+
+        Args:
+            now: The measured time.
+
+        Returns:
+            True when the controls should run a tick now.
+
+        """
+        if self._next_tick_seconds is not None and now < self._next_tick_seconds:
+            return False
+        scheduled = (
+            now if self._next_tick_seconds is None else self._next_tick_seconds
+        ) + CONTROL_TICK_SECONDS
+        self._next_tick_seconds = scheduled if scheduled > now else now + CONTROL_TICK_SECONDS
+        return True
+
+    def next_tick_seconds(self: Self, *, now: float) -> float:
+        """Return when the next tick is due.
+
+        Args:
+            now: The measured time (the answer before any tick has run).
+
+        Returns:
+            The measured time of the next tick.
+
+        """
+        return now if self._next_tick_seconds is None else self._next_tick_seconds
+
+
 class ReplayControls:
     """The watched replay's control state, key handling and status bar (module docstring).
 
     Attributes:
         MIN_SPEED: The slowest playback speed.
         MAX_SPEED: The fastest playback speed.
-        MESSAGE_PRESENTED_FRAMES: How many presented frames a ``show_message`` text is shown.
+        MESSAGE_CONTROL_TICKS: How many control ticks a ``show_message`` text is shown.
         total_frames: How many frames the recording holds.
         paused: True while the replay holds between frames.
         speed: The playback speed (1.0 plays at the recorded pace).
         step_requested: True when ``.`` asked for one frame while paused (``take_step``).
         quit_requested: True once Esc was pressed.
-        awaiting_start: True while the start screen waits for Space (before frame 0).
+        awaiting_start: True while the start screen waits for Space.
         banner: A line shown above the status bar (the driver's divergence or end notice), or
             None.
+        debug_overlay: The debug overlay F3 and F4 act on: its own until the engine hands it
+            the scene manager's (``GameEngine.__init__``).
 
     """
 
     MIN_SPEED: ClassVar[float] = 0.25
     MAX_SPEED: ClassVar[float] = 8.0
-    MESSAGE_PRESENTED_FRAMES: ClassVar[int] = 120
+    MESSAGE_CONTROL_TICKS: ClassVar[int] = 120
 
     def __init__(self: Self, *, total_frames: int, awaiting_start: bool = False) -> None:
         """Start unpaused at speed 1.
@@ -143,19 +209,66 @@ class ReplayControls:
         self.quit_requested = False
         self.awaiting_start = awaiting_start
         self.banner: str | None = None
+        self.debug_overlay = DebugOverlay()
         self._message: str | None = None
-        self._message_frames_left = 0
+        self._message_ticks_left = 0
+        # Each key held down -> when it repeats next (step keys) or None (acts once per press)
+        self._held_keys: dict[int, float | None] = {}
+        self._status_line = ''
+        self._shown_message: str | None = None
+        # The lines last rendered, with their surfaces (rendered again only when they change)
+        self._rendered_lines: list[tuple[str, tuple[int, int, int], pygame.Surface]] = []
         self._start_screen = ReplayStartScreen()
         self._font: pygame.font.Font | None = None
 
-    def handle_key(self: Self, *, key: int) -> None:
-        """Act on a real key press (module docstring); other keys do nothing.
+    def press_key(self: Self, *, key: int, now: float) -> None:
+        """Take a real key press: act once per press (a key already held is a repeat, ignored).
+
+        Step keys (``STEP_KEYS``) also repeat by themselves while held: after
+        ``STEP_REPEAT_DELAY_SECONDS``, every ``STEP_REPEAT_INTERVAL_SECONDS``
+        (``repeat_held_keys``).
 
         Args:
-            key: The pressed key (a pygame key constant).
+            key: The pressed key.
+            now: The measured time of the viewer tick reading it.
 
         """
-        if key == pygame.K_ESCAPE:
+        if key in self._held_keys:
+            return
+        self._held_keys[key] = now + STEP_REPEAT_DELAY_SECONDS if key in STEP_KEYS else None
+        self.handle_key(key=key)
+
+    def release_key(self: Self, *, key: int) -> None:
+        """Take a real key release: the next press of the key acts again.
+
+        Args:
+            key: The released key.
+
+        """
+        self._held_keys.pop(key, None)
+
+    def repeat_held_keys(self: Self, *, now: float) -> None:
+        """Repeat each held step key whose repeat is due (once per control tick at most).
+
+        Args:
+            now: The measured time of the control tick.
+
+        """
+        for key, repeat_seconds in self._held_keys.items():
+            if repeat_seconds is not None and now >= repeat_seconds:
+                self._held_keys[key] = max(repeat_seconds + STEP_REPEAT_INTERVAL_SECONDS, now)
+                self.handle_key(key=key)
+
+    def handle_key(self: Self, *, key: int) -> None:
+        """Act on a key (module docstring); other keys do nothing.
+
+        Args:
+            key: The key (a pygame key constant).
+
+        """
+        if key in OVERLAY_KEYS:
+            self.debug_overlay.handle_key(key=key)
+        elif key == pygame.K_ESCAPE:
             self.quit_requested = True
         elif key == pygame.K_SPACE and self.awaiting_start:
             self.awaiting_start = False
@@ -164,31 +277,33 @@ class ReplayControls:
             self.step_requested = False
         elif key == pygame.K_PERIOD and self.paused:
             self.step_requested = True
+        elif key == pygame.K_COMMA:
+            self.show_message(text=STEP_BACK_MESSAGE)
         elif key == pygame.K_RIGHTBRACKET:
             self.speed = min(self.speed * SPEED_STEP_FACTOR, self.MAX_SPEED)
         elif key == pygame.K_LEFTBRACKET:
             self.speed = max(self.speed / SPEED_STEP_FACTOR, self.MIN_SPEED)
 
     def show_message(self: Self, *, text: str) -> None:
-        """Show ``text`` above the status bar for ``MESSAGE_PRESENTED_FRAMES`` presented frames.
+        """Show ``text`` above the status bar for ``MESSAGE_CONTROL_TICKS`` control ticks.
 
         Args:
             text: The message (it replaces any message still shown).
 
         """
         self._message = text
-        self._message_frames_left = self.MESSAGE_PRESENTED_FRAMES
+        self._message_ticks_left = self.MESSAGE_CONTROL_TICKS
 
-    def message_for_presented_frame(self: Self) -> str | None:
-        """Return the message to draw on the frame being presented, counting that frame.
+    def message_for_control_tick(self: Self) -> str | None:
+        """Return the message to show until the next control tick, counting this tick.
 
         Returns:
-            The message while it has presented frames left, else None.
+            The message while it has ticks left, else None.
 
         """
-        if self._message_frames_left <= 0:
+        if self._message_ticks_left <= 0:
             return None
-        self._message_frames_left -= 1
+        self._message_ticks_left -= 1
         return self._message
 
     def take_step(self: Self) -> bool:
@@ -230,32 +345,46 @@ class ReplayControls:
             parts.append(f'diverged at {divergence_frame}')
         return STATUS_SEPARATOR.join(parts)
 
-    def draw(self: Self, *, surface: pygame.Surface, status_line: str) -> None:
+    def update_status(self: Self, *, status_line: str) -> None:
+        """Take the status line for the control tick, and count the tick for the message.
+
+        Args:
+            status_line: The line ``status_line`` built for this tick.
+
+        """
+        self._status_line = status_line
+        self._shown_message = self.message_for_control_tick()
+
+    def draw(self: Self, *, surface: pygame.Surface) -> None:
         """Draw the start screen (while awaiting start), then the status bar and its notices.
 
-        The status line sits at the bottom centre (the debug overlay's collision legend and
-        frame-time graph take the bottom corners), a transient message above it (counted as one
-        presented frame) and the banner above that, each on the debug overlay's translucent
-        backing in its font.
+        Drawn on every presented frame from what the last control tick set
+        (``update_status``); text is rendered again only when it changed. The status line sits
+        at the bottom centre (the debug overlay's collision legend and frame-time graph take
+        the bottom corners), the message above it and the banner above that, each on the debug
+        overlay's translucent backing in its font.
 
         Args:
             surface: The presented frame to draw onto.
-            status_line: The line ``status_line`` built for this frame.
 
         """
         if self.awaiting_start:
             self._start_screen.draw(surface=surface)
-        if self._font is None:
-            self._font = load_debug_font()
-        lines = [(status_line, HUD_TEXT_COLOR)]
-        message = self.message_for_presented_frame()
-        if message is not None:
-            lines.append((message, HUD_TEXT_COLOR))
+        lines = [(self._status_line, HUD_TEXT_COLOR)]
+        if self._shown_message is not None:
+            lines.append((self._shown_message, HUD_TEXT_COLOR))
         if self.banner is not None:
             lines.append((self.banner, BANNER_COLOR))
+        if [(text, color) for text, color, _ in self._rendered_lines] != lines:
+            if self._font is None:
+                self._font = load_debug_font()
+            font = self._font
+            self._rendered_lines = [
+                (text, color, font.render(text, antialias=True, color=color))
+                for text, color in lines
+            ]
         line_top = surface.get_height() - HUD_MARGIN
-        for text, color in lines:
+        for _, _, text_surface in self._rendered_lines:
             line_top -= HUD_LINE_HEIGHT
-            text_surface = self._font.render(text, antialias=True, color=color)
             line_left = (surface.get_width() - text_surface.get_width()) // 2
             blit_text(surface=surface, text_surface=text_surface, position=(line_left, line_top))

@@ -296,8 +296,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `reset_supervision()`. A future cheat device plugs in here
 - `--record-trace PATH`: record the session as a gzip JSON Lines trace (`glitchygames/tracing.py`
   format version 3; versions 2 and 3 are readable), off by default. Each frame line holds `dt`,
-  the raw `event_batches` read at `GameEngine._pump_events` (the only reader of SDL's queue; each
-  event tagged `external`/`internal`) and the sprites. Format 3 adds frame fields, written only
+  the raw `event_batches` read at `GameEngine._pump_events` (the only reader of SDL's queue,
+  except a watched replay's viewer ticks, which drain it for the viewer's keys; each event tagged
+  `external`/`internal`) and the sprites. Format 3 adds frame fields, written only
   when non-empty: `input_changes` (snapshot diffs), `control_events`, `devices_opened`,
   `saves_opened` and `device_enumeration`. The header holds versions, options, `recorded_at`, the
   random seed and, since format 3, the `saves`, `devices` and `device_enumeration` taken in before
@@ -319,14 +320,20 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   replay). A different engine version only warns. Recorded options apply except
   `REPLAY_LOCAL_OPTIONS`. The first divergence (kinds `scene`, `sprite`, `event`, `length`)
   stops a `--headless` replay, as does the last recorded frame; closing the window stops any
-  replay. A watched replay (no `--headless`; `glitchygames/replay/controls.py`) starts held at a
-  "Press Spacebar to Start Game Replay" screen (the pause screen's `MessageScreen`,
-  `glitchygames/ui/message_screen.py`), paces each frame to its recorded duration over the speed,
-  draws a status bar (`EngineSources.draws_overlay`/`draw_overlay`, never in screenshots or
-  traces) and pauses at a divergence or its end with the debug overlay on; Space pauses, `.`
-  steps, `]`/`[` change speed, Esc quits. Its real KEYDOWN/KEYUP stay unblocked at SDL and go
-  only to its controls (F3/F4 to the debug overlay), never to the game; held frames
-  (`EngineSources.hold_frame`) run nothing and never consume a recorded batch. The report
+  replay. A watched replay (no `--headless`) is a read-only game inside a game
+  (`glitchygames/replay/viewer.py` documents the contract): the OUTER `ReplayViewer` ticks at
+  60 Hz real time (`clock.measured_seconds`), reads the viewer's keys (`ReplayControls`,
+  `glitchygames/replay/controls.py`: once per press; `.` repeats after 300 ms at 10/s) and
+  presents the latest frame with a status bar (`EngineSources.draws_overlay`/`draw_overlay`,
+  never in screenshots or traces); the INNER recorded game runs N full frames per tick from an
+  accumulator (real time x speed, consumed by recorded dt, at most `MAX_INNER_FRAMES_PER_TICK`),
+  unpresented (`EngineSources.presents_frames` False). It drives the loop through
+  `EngineSources.hold_frame` (held = present an outer frame, run nothing, consume no recorded
+  batch). It holds at a "Press Spacebar to Start Game Replay" screen after frame 0 (the pause
+  screen's `MessageScreen`, `glitchygames/ui/message_screen.py`) and pauses at a divergence or
+  its end with the debug overlay on; Space pauses, `.` steps, `]`/`[` change speed, Esc quits.
+  Its real KEYDOWN/KEYUP stay unblocked at SDL and go only to its controls (F3/F4 to the debug
+  overlay), never to the game. The report
   (`ReplayResult.report()`: `Replay diverged at frame 6120: sprite Ball#2 rect expected [412,
   300, 16, 16], got [412, 301, 16, 16]`, then that sprite's last 20 frames, expected | got; or
   `Replay matched N frames (end of recording)`) is logged, and every replay that ends normally

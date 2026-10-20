@@ -111,6 +111,11 @@ class LiveSources:
         return False
 
     @property
+    def presents_frames(self: Self) -> bool:
+        """Live play presents every frame."""
+        return True
+
+    @property
     def draws_overlay(self: Self) -> bool:
         """Live play draws no overlay of its own."""
         return False

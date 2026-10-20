@@ -851,6 +851,11 @@ class RecordingSources:
         return self.inner.hold_frame()
 
     @property
+    def presents_frames(self) -> bool:
+        """Whether ``inner`` presents the frames as they run."""
+        return self.inner.presents_frames
+
+    @property
     def draws_overlay(self) -> bool:
         """Whether ``inner`` draws an overlay of its own."""
         return self.inner.draws_overlay
