@@ -122,10 +122,13 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'windows_timer_1ms',
     'perf_trim_percent',
     'fps_histogram',
+    # Derived from log_level: whether events are logged, not what the game does
+    'debug_events',
 })
 
 # Divergence kinds
 SPRITE_DIVERGENCE = 'sprite'
+SCENE_DIVERGENCE = 'scene'
 EVENT_DIVERGENCE = 'event'
 LENGTH_DIVERGENCE = 'length'
 
@@ -170,7 +173,8 @@ class Divergence:
 
     Attributes:
         frame_number: The recording's frame index.
-        kind: ``SPRITE_DIVERGENCE``, ``EVENT_DIVERGENCE`` or ``LENGTH_DIVERGENCE``.
+        kind: ``SCENE_DIVERGENCE``, ``SPRITE_DIVERGENCE``, ``EVENT_DIVERGENCE`` or
+            ``LENGTH_DIVERGENCE``.
         subject: What differed: a sprite id, ``'scene'`` or ``'recording'``.
         field: Which of its fields: ``'rect'``, ``'visible'``, ``'present'``, ``'class'``,
             ``'frames'``.
@@ -191,9 +195,12 @@ class Divergence:
 
         Returns:
             For example ``frame 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got
-            [412, 301, 16, 16]``.
+            [412, 301, 16, 16]``, or for a different active scene ``frame 40: scene expected
+            ArrivalScene, got PauseScene``.
 
         """
+        if self.kind == SCENE_DIVERGENCE:
+            return f'frame {self.frame_number}: scene expected {self.expected}, got {self.actual}'
         return (
             f'frame {self.frame_number}: {self.kind} {self.subject} {self.field} '
             f'expected {self.expected}, got {self.actual}'
@@ -315,7 +322,7 @@ def first_frame_difference(
     if recorded[SCENE_FIELD] != replayed[SCENE_FIELD]:
         return Divergence(
             frame_number=frame_index,
-            kind=SPRITE_DIVERGENCE,
+            kind=SCENE_DIVERGENCE,
             subject=SCENE_SUBJECT,
             field=SCENE_CLASS_FIELD,
             expected=recorded[SCENE_FIELD],
@@ -341,6 +348,7 @@ class ReplaySources:
         frames: Sequence[dict[str, Any]],
         format_version: int,
         is_truncated: bool = False,
+        use_fastevents: bool = False,
     ) -> None:
         """Prepare to serve the recording from its first frame.
 
@@ -350,6 +358,8 @@ class ReplaySources:
             format_version: The file's format version (2 or 3).
             is_truncated: True when the file was cut off (a killed recorder): the replay then
                 ends with ``'truncated'`` after the last complete frame.
+            use_fastevents: Drain the real queue with pygame.fastevent when pygame has it
+                (``GameEngine.USE_FASTEVENTS``), as the live doors would.
 
         """
         self.header = header
@@ -366,7 +376,7 @@ class ReplaySources:
         self._window_was_closed = False
         self._last_batch_origins: list[str] = []
         # Only its event pump is used: the one place the real queue is read (rule 2)
-        self._live_queue = LiveSources(random_seed=self.random_seed)
+        self._live_queue = LiveSources(random_seed=self.random_seed, use_fastevents=use_fastevents)
         self._sprite_ids = StableSpriteIds()
         self._snapshot: InputSnapshot = IDLE_INPUT
         self._devices = ReplayDeviceRegistry(
@@ -387,7 +397,7 @@ class ReplaySources:
         self._begin_frame()
 
     @classmethod
-    def from_path(cls, *, path: Path) -> ReplaySources:
+    def from_path(cls, *, path: Path, use_fastevents: bool = False) -> ReplaySources:
         """Read a recording file into replay sources.
 
         A file cut off part way (a killed recorder) replays up to its last complete frame. A
@@ -396,6 +406,7 @@ class ReplaySources:
 
         Args:
             path: The recording.
+            use_fastevents: Drain the real queue with pygame.fastevent (see ``__init__``).
 
         Returns:
             The sources.
@@ -416,6 +427,7 @@ class ReplaySources:
             frames=frames,
             format_version=read_result.format_version,
             is_truncated=is_truncated,
+            use_fastevents=use_fastevents,
         )
 
     @property
@@ -759,23 +771,26 @@ def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any])
             options[name] = value_from_json(value)
 
 
-def start_replay(*, path: Path, game_class_name: str, options: dict[str, Any]) -> ReplaySources:
+def start_replay(
+    *, path: Path, game_class_name: str, options: dict[str, Any], use_fastevents: bool = False
+) -> ReplaySources:
     """Read a recording and prepare the run to replay it (rule 1); the caller installs it.
-
-    Args:
-        path: The recording.
-        game_class_name: The class name of the game being started.
-        options: The run's options, given the recorded ones in place.
 
     A recording of another game raises ReplayRefusedError (``check_game``); an unreadable file
     raises TraceFormatError or OSError (``ReplaySources.from_path``). The engine exits with
     ``REPLAY_UNUSABLE_EXIT_CODE`` on each.
 
+    Args:
+        path: The recording.
+        game_class_name: The class name of the game being started.
+        options: The run's options, given the recorded ones in place.
+        use_fastevents: Drain the real queue with pygame.fastevent (``GameEngine.USE_FASTEVENTS``).
+
     Returns:
         The replay's sources, not yet installed.
 
     """
-    sources = ReplaySources.from_path(path=path)
+    sources = ReplaySources.from_path(path=path, use_fastevents=use_fastevents)
     sources.check_game(game_class_name=game_class_name)
     recorded_version = sources.header.get(ENGINE_VERSION_HEADER_FIELD)
     installed_version = _installed_engine_version()

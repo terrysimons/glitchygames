@@ -95,6 +95,19 @@ DEFAULT_LIVE_VOICE_POOL = 4
 SIGNAL_EXIT_STATUS_BASE = 128
 
 
+def pygame_needs_fastevents() -> bool:
+    """Report whether this pygame is older than 2.2 and so reads events with pygame.fastevent.
+
+    Returns:
+        True for pygame < 2.2.
+
+    """
+    return (
+        pygame.version.vernum[0] < PYGAME_MIN_MAJOR_VERSION
+        and pygame.version.vernum[1] < PYGAME_MIN_MINOR_VERSION
+    )
+
+
 def unit_interval(value: str) -> float:
     """Argparse type: a float from 0.0 to 1.0 inclusive.
 
@@ -642,10 +655,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # For compatibility with older versions of pygame, use fast events
         #
         # For versions >= 2.2, we can use the new event loop
-        if (
-            pygame.version.vernum[0] < PYGAME_MIN_MAJOR_VERSION
-            and pygame.version.vernum[1] < PYGAME_MIN_MINOR_VERSION
-        ):
+        if pygame_needs_fastevents():
             GameEngine.USE_FASTEVENTS = True  # type: ignore[reportConstantRedefinition]
 
         # Ensure Linux/X11 sends DOWN on focus clicks
@@ -1306,16 +1316,30 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         Raises:
             SystemExit: With REPLAY_UNUSABLE_EXIT_CODE when the recording cannot be replayed (a
-                recording of another game, or an unreadable or missing file).
+                recording of another game, or an unreadable or missing file), or when
+                --record-trace is given too (recording over a replay is not supported yet).
 
         """
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
             return None
+        if options.get('record_trace') is not None:
+            # A recording over a replay needs the replay's event origins and recorded fields
+            # (Part 2's --rebaseline wires them); until then it would record wrong origins
+            self.log.error(
+                f'Cannot replay {replay_trace_path} with --record-trace: recording over a replay '
+                'is not supported yet (see plans/future-work.md)'
+            )
+            raise SystemExit(REPLAY_UNUSABLE_EXIT_CODE)
         game_class_name = game.__name__ if isinstance(game, type) else type(game).__name__
         try:
             return start_replay(
-                path=Path(replay_trace_path), game_class_name=game_class_name, options=options
+                path=Path(replay_trace_path),
+                game_class_name=game_class_name,
+                options=options,
+                # Set by the version check this __init__ runs later, so pygame's version is
+                # asked here too
+                use_fastevents=GameEngine.USE_FASTEVENTS or pygame_needs_fastevents(),
             )
         except (ReplayRefusedError, TraceFormatError, OSError) as error:
             refusal = error

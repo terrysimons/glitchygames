@@ -60,6 +60,12 @@ to 2026-10-18) and not done yet. One line per item, with where it is detailed. R
 
 ## Gameplay replay (follow-up to `--record-trace`, feature/engine-world-space Task 1d)
 
+- **Recording over a replay (`--record-trace` with `--replay-trace`) is refused** (exit 2,
+  `GameEngine._start_requested_replay`): the recorder would classify the replay's batches with the
+  internal-post tracker, whose pending posts the replay's pump already consumed, and would not
+  copy the source recording's saves and device fields. Part 2 Task 6 (`--rebaseline`) lifts the
+  refusal by wiring `ReplaySources.last_batch_origins()` and `recorded_frame_fields()` into
+  `RecordingSources` (plans/2026-10-19-gameplay-replay-tooling.md).
 - **`--replay-trace PATH`:** load a recording (`glitchygames/recording.py`, read with
   `TraceReader`), `reset_streams(seed=...)` from its `random_seed` and apply its recorded options
   (screen size, input mode); each frame, set `dt` from the frame's `dt` instead of reading the

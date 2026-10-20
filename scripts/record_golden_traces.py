@@ -691,7 +691,9 @@ def record_trace(
     return {'game': game_key, 'frame_seconds': FRAME_SECONDS, 'frames': frames}
 
 
-def replay_golden_recording(*, game_key: str, path: Path) -> ReplayResult:
+def replay_golden_recording(
+    *, game_key: str, path: Path, frame_limit: int | None = None
+) -> ReplayResult:
     """Replay a recording made by record_trace(recording_path=...) through the harness.
 
     Key events and per-frame input come from the recording (the replay's event pump), so they
@@ -700,9 +702,14 @@ def replay_golden_recording(*, game_key: str, path: Path) -> ReplayResult:
     record_trace applies them. (A placement that posts events, such as PaddleSlap's key
     release before its pause, posts real events the replay drops: the recording serves them.)
 
+    The result is settled as GameEngine._shutdown settles it (``finish_run``): a harness that
+    stops before the recording's last frame reports a length divergence.
+
     Args:
         game_key: Which game (a key of GAME_SCENES).
         path: The recording.
+        frame_limit: Stop after this many frames even if the replay goes on (None: run until
+            the replay stops).
 
     Returns:
         The replay's result.
@@ -717,7 +724,11 @@ def replay_golden_recording(*, game_key: str, path: Path) -> ReplayResult:
         sources = engine.replay_sources
         assert sources is not None
         frame_number = 0
-        while not sources.stop_requested and manager.active_scene is not None:
+        while (
+            not sources.stop_requested
+            and manager.active_scene is not None
+            and (frame_limit is None or frame_number < frame_limit)
+        ):
             # The harness steps frames without start()/_finish_frame, so it asks the frame-time
             # door itself: the first call returns frame 0's dt, each later call the next frame's
             manager.dt = sources.frame_seconds(measured=FRAME_SECONDS)
@@ -725,6 +736,7 @@ def replay_golden_recording(*, game_key: str, path: Path) -> ReplayResult:
                 placement(manager.active_scene)
             manager.run_frame()
             frame_number += 1
+        sources.finish_run()
     return sources.result
 
 

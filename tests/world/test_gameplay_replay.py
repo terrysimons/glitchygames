@@ -17,6 +17,7 @@ from scripts.record_golden_traces import (
     replay_golden_recording,
 )
 
+from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
@@ -31,6 +32,7 @@ from glitchygames.replay.driver import (
     LENGTH_DIVERGENCE,
     REPLAY_LOCAL_OPTIONS,
     REPLAY_UNUSABLE_EXIT_CODE,
+    SCENE_DIVERGENCE,
     SPRITE_DIVERGENCE,
     Divergence,
     ReplaySources,
@@ -53,6 +55,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 GOLDEN_SCRIPT_FRAMES = 300
+# A golden recording of this many frames, replayed by a harness stopped after the frame limit
+EARLY_STOP_RECORDED_FRAMES = 30
+EARLY_STOP_FRAME_LIMIT = 10
 # The departure scene's marker is placed from the clocks in this frame; the scene is still
 # active at the frame's end (its transition starts in frame 3), so the placement is compared
 CLOCK_ACTION_FRAME = 2
@@ -247,6 +252,23 @@ class TestRoundTrip:
         assert result.divergence is None
         assert result.frames_replayed == GOLDEN_SCRIPT_FRAMES
 
+    def test_golden_harness_stopped_early_reports_a_length_divergence(self, tmp_path):
+        recording_path = tmp_path / 'paddleslap.jsonl.gz'
+        record_trace(
+            'paddleslap', frame_count=EARLY_STOP_RECORDED_FRAMES, recording_path=recording_path
+        )
+        result = replay_golden_recording(
+            game_key='paddleslap', path=recording_path, frame_limit=EARLY_STOP_FRAME_LIMIT
+        )
+        assert result.end_reason == 'diverged'
+        divergence = result.divergence
+        assert divergence is not None
+        assert (divergence.kind, divergence.expected, divergence.actual) == (
+            LENGTH_DIVERGENCE,
+            EARLY_STOP_RECORDED_FRAMES,
+            EARLY_STOP_FRAME_LIMIT,
+        )
+
     def test_clock_reads_replay_exactly(self, mocker, tmp_path):
         from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
 
@@ -326,6 +348,18 @@ class TestDivergence:
         assert divergence.describe() == (
             'frame 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]'
         )
+
+    def test_a_different_scene_is_a_scene_divergence(self, mocker):
+        frame = recorded_frame(frame_number=0)
+        frame['scene'] = 'TitleScene'
+        sources = minimal_sources(frames=[frame])
+        scene = mocker.Mock()
+        scene.all_sprites.sprites.return_value = []
+        sources.end_frame(frame_number=0, dt=0.25, scene=scene, control_events=[])
+        divergence = sources.result.divergence
+        assert divergence is not None
+        assert divergence.kind == SCENE_DIVERGENCE
+        assert divergence.describe() == 'frame 0: scene expected TitleScene, got Mock'
 
     def test_missing_and_extra_sprites_diverge_as_present(self, mocker):
         frame = recorded_frame(frame_number=0)
@@ -427,6 +461,22 @@ class TestReplayDoors:
         }
         assert {'replay_trace', 'record_trace', 'log_level'} <= REPLAY_LOCAL_OPTIONS
 
+    def test_debug_events_stays_local(self):
+        """debug_events follows this run's log level, never the recording's."""
+        options = {'debug_events': True}
+        apply_recorded_options(options=options, recorded={'debug_events': False})
+        assert options == {'debug_events': True}
+
+    def test_the_real_queue_is_drained_with_the_engines_fastevents_setting(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        mocker.patch.object(GameEngine, 'USE_FASTEVENTS', new=True)
+        live_sources_spy = mocker.spy(LiveSources, '__init__')
+        replay_session(recording_path=recording_path, mocker=mocker)
+        assert live_sources_spy.call_args_list
+        assert all(
+            call.kwargs['use_fastevents'] is True for call in live_sources_spy.call_args_list
+        )
+
     def test_tracking_survives_a_recording_wrapping_the_replay(self, tmp_path):
         """install_sources tells the replay it is replaced, then installed again inside."""
         sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
@@ -463,6 +513,38 @@ class TestRefusals:
         with pytest.raises(SystemExit) as exit_info:
             replay_session(recording_path=tmp_path / 'missing.jsonl.gz', mocker=mocker)
         assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+
+    def test_unsupported_format_version_is_refused_without_a_traceback(
+        self, mocker, tmp_path, caplog
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        lines = gzip_lines(recording_path=recording_path)
+        header = json.loads(lines[0])
+        header['format_version'] = 99
+        with gzip.open(recording_path, 'wb') as recording_file:
+            recording_file.write((json.dumps(header) + '\n').encode('utf-8'))
+            recording_file.writelines(lines[1:])
+        caplog.clear()
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
+        assert len(refusals) == 1
+        assert 'format_version 99' in refusals[0].getMessage()
+        assert refusals[0].exc_info is None
+
+    def test_recording_over_a_replay_is_refused(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        with engine_run_environment(mocker), pytest.raises(SystemExit) as exit_info:
+            run_engine(
+                '--replay-trace',
+                str(recording_path),
+                '--record-trace',
+                str(tmp_path / 'over-the-replay.jsonl.gz'),
+            )
+        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert 'recording over a replay is not supported yet' in caplog.text
+        assert not (tmp_path / 'over-the-replay.jsonl.gz').exists()
 
     def test_truncated_recording_replays_to_the_cut_off(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
