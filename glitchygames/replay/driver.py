@@ -75,18 +75,23 @@ session again, and every frame's sprites are compared with the recorded frame. T
     ``finish_run`` writes them with the divergence summary to the digest file.
 13. Pacing: the scene manager never paces a replay (``paced_frame_seconds`` is 0.0). A
     headless replay (``--headless``) is not paced at all, as its frame times come from the
-    recording. A watched replay paces itself in ``hold_frame``: each frame is due its recorded
-    duration (the next frame's recorded ``dt``) over the playback speed after the one before,
-    on the measured clock (``glitchygames.clock.measured_seconds``, never replayed: it only
-    decides when a frame runs, never what it does), and the loop is held until then.
+    recording. A watched replay is paced by its viewer (glitchygames/replay/viewer.py, whose
+    docstring is the contract): an outer tick 60 times a second of real time
+    (``glitchygames.clock.measured_seconds``, never replayed: it only decides when frames run,
+    never what they do) runs the inner recorded frames its accumulator pays for (real time
+    times the speed, consumed by each frame's recorded duration, bounded per tick in frames and
+    real time, never owing more than one tick's worth).
 14. Watching (not ``--headless``): ``ReplayControls`` (glitchygames/replay/controls.py) take
-    the viewer's real key presses and releases; none reaches the game. They run on their own
-    real-time cadence, 60 control ticks a second at any speed and while paused: ``hold_frame``
-    runs a due tick (drain the real queue, act on the keys read since the last tick, once per
-    press, refresh the status line) and, when it holds, sleeps until the next tick or the
-    frame's due time. The start screen (``ReplayOptions.wait_for_start``) holds the loop after
-    frame 0, so the first frame's picture is behind the message (frame 0's sounds play before
-    Space, and a one-frame recording reaches its end at the start screen). The loop is also
+    the viewer's real key presses and releases; none reaches the game. ``hold_frame`` drives
+    the viewer: with no outer tick open it sleeps until the next one, drains the real queue
+    and acts on the keys read since the last tick (once per press; a key already down when
+    the replay starts acts only after its release); it then answers False for each inner frame
+    the open tick runs and True when the tick closes, refreshing the status line (showing the
+    real speed while the viewer cannot keep up); the scene manager then presents that frame.
+    Inner frames are not presented (``presents_frames`` is False). The start screen
+    (``ReplayOptions.wait_for_start``) holds the loop after frame 0, so the first frame's
+    picture is behind the message (frame 0's sounds play before Space, and a one-frame
+    recording reaches its end at the start screen). The loop is also
     held while paused (until a step) and once the recording is used up. At a divergence or the
     end the replay pauses with the debug overlay on (``ReplayControls.debug_overlay``, the
     scene manager's, handed over by the engine) and a banner (``ReplayControls.banner``)
@@ -1432,13 +1437,13 @@ class ReplaySources:
                 live_internal_events.append(event)
             elif event.type == pygame.QUIT:
                 window_closes.append(event)
-            elif (
-                event.type in WATCHED_REAL_KEY_EVENT_TYPES
-                and not self.options.headless
-                # The first drain's presses are stale: queued before the replay
-                and not (is_first_drain and event.type == pygame.KEYDOWN)
-            ):
-                self.viewer.queue_key_event(event_type=event.type, key=event.key)
+            elif event.type in WATCHED_REAL_KEY_EVENT_TYPES and not self.options.headless:
+                if is_first_drain and event.type == pygame.KEYDOWN:
+                    # Stale: pressed before the replay. Not acted on, but held, so its
+                    # operating-system repeats are not new presses until it is released
+                    self.controls.note_key_already_down(key=event.key)
+                else:
+                    self.viewer.queue_key_event(event_type=event.type, key=event.key)
             # Every other real external event is dropped: real input is blocked at SDL, so
             # these are events queued before the first drain, the window's close event (its
             # QUIT follows) and app lifecycle and system notifications
@@ -1468,6 +1473,7 @@ class ReplaySources:
                 frame_number=self._frame_index,
                 seconds=frame_clock_seconds(),
                 divergence_frame=None if divergence is None else divergence.frame_number,
+                effective_speed=self.viewer.effective_speed() if self.viewer.is_behind else None,
             )
         )
 

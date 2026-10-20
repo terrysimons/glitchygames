@@ -232,7 +232,10 @@ A replay without `--headless` is watched: a read-only game inside a game
 and presents the recorded game's latest frame with the status bar drawn on it. The inner loop,
 the recorded game, runs its frames in full (logic, update and render) at their recorded frame
 times: each tick runs as many as the real time since the last tick, times the speed, pays for
-(at most `MAX_INNER_FRAMES_PER_TICK`; a long stall is caught up over later ticks). So 1x shows
+(at most `MAX_INNER_FRAMES_PER_TICK`, and only within an 11 ms real-time budget per tick, so
+keys and drawing keep their 60 Hz). It never owes more than one tick's worth: after a stall it
+runs one bounded burst and drops the rest, and when the recorded game cannot keep up with the
+speed the status bar says so and shows the real speed (`can't keep up: ×3.2`). So 1x shows
 about one recorded frame per tick, 8x about eight, 1/4x one every fourth tick. Which frames run
 when never changes what they do, so a watched replay is exactly as exact as a headless one.
 

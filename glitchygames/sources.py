@@ -107,11 +107,12 @@ class EngineSources(Protocol):
     def hold_frame(self) -> bool:
         """Return True to run no frame now, asked before each frame starts.
 
-        Live play never holds. A watched replay holds at its start screen, while paused (until
-        a step), at its end or divergence, and until its next frame is due; asking also runs
-        its viewer controls' tick when due (glitchygames/replay/controls.py), and a call after
-        a held one first sleeps until the next tick or due time, so the loop never spins.
-        ``SceneManager.start`` presents the frame again instead of running one.
+        Live play never holds. A watched replay is driven by its viewer's outer tick
+        (glitchygames/replay/viewer.py): a call with no tick open sleeps until the next one (so
+        the loop never spins) and reads the viewer's keys; the open tick then answers False for
+        each recorded frame its accumulator pays for and True when it closes (also at the start
+        screen, while paused but for a step, and at the end or a divergence).
+        ``SceneManager.start`` presents the latest frame then instead of running one.
         """
         ...
 

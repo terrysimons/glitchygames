@@ -238,6 +238,17 @@ class ReplayControls:
         self._held_keys[key] = now + STEP_REPEAT_DELAY_SECONDS if key in STEP_KEYS else None
         self.handle_key(key=key)
 
+    def note_key_already_down(self: Self, *, key: int) -> None:
+        """Count a key held before the replay could read it as held, without acting on it.
+
+        Its operating-system repeats are then not new presses; it acts again after its release.
+
+        Args:
+            key: The key (its press was queued before the replay's first drain).
+
+        """
+        self._held_keys.setdefault(key, None)
+
     def release_key(self: Self, *, key: int) -> None:
         """Take a real key release: the next press of the key acts again.
 
@@ -319,7 +330,12 @@ class ReplayControls:
         return True
 
     def status_line(
-        self: Self, *, frame_number: int, seconds: float, divergence_frame: int | None
+        self: Self,
+        *,
+        frame_number: int,
+        seconds: float,
+        divergence_frame: int | None,
+        effective_speed: float | None = None,
     ) -> str:
         """Describe where the replay is.
 
@@ -327,6 +343,8 @@ class ReplayControls:
             frame_number: The recording's frame index to be served next.
             seconds: The frame clock.
             divergence_frame: The frame the replay diverged at, or None.
+            effective_speed: The speed the replay really runs at when it cannot keep up with
+                ``speed`` (the viewer's ``effective_speed`` while behind), or None.
 
         Returns:
             For example ``frame 6120 / 9800 · 1:42.0 · x1 · paused · diverged at 6120`` (the x
@@ -339,6 +357,8 @@ class ReplayControls:
             format_replay_time(seconds=seconds),
             f'{SPEED_PREFIX}{self.speed:g}',
         ]
+        if effective_speed is not None:
+            parts.append(f"can't keep up: {SPEED_PREFIX}{effective_speed:.2g}")
         if self.paused:
             parts.append('paused')
         if divergence_frame is not None:

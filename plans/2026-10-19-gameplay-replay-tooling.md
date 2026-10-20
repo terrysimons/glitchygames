@@ -345,8 +345,13 @@ not to the game.
 consume a recorded batch); instead call `active_sources().poll_controls()` — add that method to
 `ReplaySources` only (not the Protocol) and reach it through `hold_frame()`'s implementation: make
 `ReplaySources.hold_frame()` itself drain the real queue into the controls before answering, so
-`SceneManager` needs only `hold_frame()` and `_present_frame(full_update=True)` plus a short sleep
-(`pygame.time.wait(HELD_FRAME_WAIT_MILLISECONDS)`, 16) so a paused replay does not spin. The status
+`SceneManager` needs only `hold_frame()` and `_present_held_frame()`. As built, the watched replay
+is a game inside a game (glitchygames/replay/viewer.py): `hold_frame` drives the viewer's outer
+60 Hz tick, which sleeps until it is due with the engine's high-resolution timer (`sleep_for`),
+reads the viewer's keys, and runs inner frames from an accumulator (real time x speed, consumed
+by recorded dt, bounded per tick by `MAX_INNER_FRAMES_PER_TICK` and `INNER_FRAME_BUDGET_SECONDS`,
+never owing more than one tick's worth); inner frames are not presented
+(`EngineSources.presents_frames`), the closing tick presents the latest. The status
 bar is drawn in `_present_frame` after the debug overlay via `active_sources().draw_overlay(...)`,
 so it is never in a screenshot or trace. Status line format:
 `frame 6120 / 9800 · 1:42.0 · ×1 · paused · diverged at 6120` (omit absent parts).
@@ -354,7 +359,8 @@ so it is never in a screenshot or trace. Status line format:
 Divergence and end in a watched replay (spec 3.3): Part 1 stops the run at a divergence or the
 end. A watched replay instead pauses there: `ReplaySources` (not headless) sets
 `controls.paused = True`, keeps `stop_requested` False, turns the debug overlay on
-(`SceneManager().debug_overlay` — read its API for the toggle used by F3) and shows a banner line
+(`ReplayControls.debug_overlay`: the scene manager's, handed over by `GameEngine.__init__`;
+the driver never reaches into the `SceneManager` singleton) and shows a banner line
 above the status bar: `Diverged at frame 6120: <describe()>` or `End of recording`. Stepping
 forward past the end does nothing; Esc quits. Headless replays keep Part 1's stop. Tests (in
 `tests/world/test_gameplay_replay.py`; `start_replay_in_harness` is written in this task as
@@ -473,16 +479,9 @@ class TestWatched:
         assert sources.result.divergence is None
         GoldenTraceSceneManager.uninstall()
 
-    def test_watched_replay_paces_to_the_recorded_frame_time(self, mocker, tmp_path):
-        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
-        sources = ReplaySources.from_path(path=recording_path)
-        first_dt = sources.frame_seconds(measured=0.0)
-        assert sources.paced_frame_seconds() == pytest.approx(
-            sources.recording.recorded_dt(frame_index=1))
-        sources.controls.handle_key(key=pygame.K_RIGHTBRACKET)
-        assert sources.paced_frame_seconds() == pytest.approx(
-            sources.recording.recorded_dt(frame_index=1) / 2)
-        assert first_dt == sources.recording.recorded_dt(frame_index=0)
+    # As built: the scene manager never paces a replay (paced_frame_seconds() is 0.0); the
+    # viewer's accumulator does (tests/replay/test_viewer.py and
+    # test_inner_frames_follow_the_accumulator in tests/world/test_gameplay_replay.py)
 
     def test_paused_replay_holds_until_a_step(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)

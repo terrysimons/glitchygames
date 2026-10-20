@@ -135,6 +135,30 @@ def test_status_line_leaves_out_what_does_not_apply():
     assert line == 'frame 12 / 9800 · 0:00.2 · \N{MULTIPLICATION SIGN}0.5'
 
 
+def test_status_line_shows_the_real_speed_when_it_cannot_keep_up():
+    """The viewer passes its effective speed while behind."""
+    controls = ReplayControls(total_frames=100)
+    controls.speed = 8.0
+    line = controls.status_line(
+        frame_number=5, seconds=0.0, divergence_frame=None, effective_speed=3.2
+    )
+    assert line == (
+        'frame 5 / 100 · 0:00.0 · \N{MULTIPLICATION SIGN}8 · '
+        "can't keep up: \N{MULTIPLICATION SIGN}3.2"
+    )
+
+
+def test_a_key_already_down_acts_only_after_its_release():
+    """A key held before the replay began: its repeats are not presses."""
+    controls = ReplayControls(total_frames=100)
+    controls.note_key_already_down(key=pygame.K_SPACE)
+    controls.press_key(key=pygame.K_SPACE, now=0.0)
+    assert not controls.paused
+    controls.release_key(key=pygame.K_SPACE)
+    controls.press_key(key=pygame.K_SPACE, now=0.1)
+    assert controls.paused
+
+
 @pytest.mark.parametrize(
     ('seconds', 'expected'),
     [(0.0, '0:00.0'), (5.34, '0:05.3'), (59.96, '1:00.0'), (102.0, '1:42.0'), (3725.5, '62:05.5')],
