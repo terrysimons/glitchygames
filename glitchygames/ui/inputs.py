@@ -6,13 +6,14 @@ This module contains the InputBox, InputDialog, and ConfirmDialog widget classes
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 from pygame import Rect
 
+from glitchygames.clock import frame_clock_seconds
 from glitchygames.fonts import FontManager, GameFont
+from glitchygames.input.state import current_input
 from glitchygames.sprites import (
     BitmappySprite,
     Sprite,
@@ -153,7 +154,7 @@ class InputBox(Sprite):
         pygame.draw.rect(self.image, self.color, (0, 0, self.rect.width, self.rect.height), 1)
 
         # Blit the  cursor
-        if time.time() % 1 > CURSOR_BLINK_HALF_SECOND and self.is_active:
+        if frame_clock_seconds() % 1 > CURSOR_BLINK_HALF_SECOND and self.is_active:
             self.cursor_rect = self.text_image.get_rect(topleft=(5, 2))
 
             self.cursor.midleft = self.cursor_rect.midright
@@ -525,9 +526,9 @@ class ConfirmDialog(BitmappySprite):
     def update(self, *args: object, **kwargs: object) -> None:
         """Update the dialog."""
         # Check mouse position for hover effects
-        mouse_pos = pygame.mouse.get_pos()
-        dialog_relative_x = mouse_pos[0] - self.rect.x
-        dialog_relative_y = mouse_pos[1] - self.rect.y
+        mouse_position = current_input().mouse_position
+        dialog_relative_x = mouse_position[0] - self.rect.x
+        dialog_relative_y = mouse_position[1] - self.rect.y
 
         prev_hover = self.hover_button
         self.hover_button = None

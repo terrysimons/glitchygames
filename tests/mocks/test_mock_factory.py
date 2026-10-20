@@ -11,6 +11,7 @@ import pygame
 
 from glitchygames.camera import Camera2D
 from glitchygames.events import unhandled_event
+from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.sprites import AnimatedSprite
 
 # Constants for magic values
@@ -23,6 +24,10 @@ SCANCODE_COUNT = 512  # Length of pygame.key.get_pressed()
 # that refuses iteration and is subscripted by key code, so the mocked get_pressed() result
 # behaves exactly like pygame-ce's
 REAL_SCANCODE_WRAPPER = pygame.key.ScancodeWrapper
+# SDL scancodes of the held-key helpers (create_pygame_key_mock, install_frame_input), read while
+# pygame is still real
+SHIFT_SCANCODES = frozenset({pygame.KSCAN_LSHIFT, pygame.KSCAN_RSHIFT})
+CONTROL_SCANCODES = frozenset({pygame.KSCAN_LCTRL, pygame.KSCAN_RCTRL})
 
 
 class MockSpriteConfig(NamedTuple):
@@ -1105,20 +1110,56 @@ class MockFactory:  # ruff: ignore[too-many-public-methods]
 
     @staticmethod
     def create_pygame_key_mock(*, shift_pressed=False):
-        """Create a mock pygame key state for testing.
+        """Create a held-keys state exactly like ``pygame.key.get_pressed()`` returns.
+
+        A real ScancodeWrapper (indexed by pygame.K_* key codes) built from real SDL scancodes.
 
         Args:
-            shift_pressed (bool): Whether shift keys should be pressed
+            shift_pressed (bool): Whether both shift keys should be held
 
         Returns:
-            Mock: A mock that returns a list of key states
+            pygame.key.ScancodeWrapper: The held-keys state
 
         """
-        mock_key_state = [False] * 512
-        if shift_pressed:
-            mock_key_state[304] = True  # pygame.K_LSHIFT
-            mock_key_state[303] = True  # pygame.K_RSHIFT
-        return mock_key_state
+        held_scancodes = SHIFT_SCANCODES if shift_pressed else frozenset()
+        return REAL_SCANCODE_WRAPPER(
+            tuple(scancode in held_scancodes for scancode in range(SCANCODE_COUNT))
+        )
+
+    @staticmethod
+    def install_frame_input(
+        *,
+        held_scancodes=frozenset(),
+        modifiers=0,
+        mouse_position=(0, 0),
+        mouse_focused=True,
+    ):
+        """Make a snapshot this frame's polled input (``current_input()``).
+
+        Code reads held keys, modifiers and the mouse from the frame's InputSnapshot, never from
+        pygame, so tests set the snapshot instead of mocking pygame.key or pygame.mouse. The
+        autouse ``reset_engine_sources`` fixture (tests/conftest.py) resets it after the test.
+
+        Args:
+            held_scancodes: SDL scancodes held this frame (``pygame.KSCAN_*``, e.g.
+                ``SHIFT_SCANCODES``)
+            modifiers (int): The ``pygame.key.get_mods()`` bit mask
+            mouse_position (tuple[int, int]): The mouse position
+            mouse_focused (bool): Whether the window has mouse focus
+
+        Returns:
+            InputSnapshot: The installed snapshot
+
+        """
+        snapshot = InputSnapshot(
+            pressed_scancodes=frozenset(held_scancodes),
+            modifiers=modifiers,
+            mouse_position=mouse_position,
+            mouse_buttons=(False, False, False),
+            mouse_focused=mouse_focused,
+        )
+        set_current_input(snapshot=snapshot)
+        return snapshot
 
     @staticmethod
     def create_pygame_joystick_mock():
@@ -1785,8 +1826,6 @@ class MockFactory:  # ruff: ignore[too-many-public-methods]
             # Key constants mocking
             'K_q': ('pygame.K_q', {'new': 113}),
             'K_ESCAPE': ('pygame.K_ESCAPE', {'new': 27}),
-            'K_LSHIFT': ('pygame.K_LSHIFT', {'new': 304}),
-            'K_RSHIFT': ('pygame.K_RSHIFT', {'new': 303}),
         }
 
     @staticmethod

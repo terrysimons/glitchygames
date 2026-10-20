@@ -16,8 +16,10 @@ except ImportError:
 import pygame
 from pygame import Rect
 
+from glitchygames.clock import frame_clock_milliseconds
 from glitchygames.color import WHITE
 from glitchygames.fonts import FontManager, GameFont
+from glitchygames.input.state import current_input
 from glitchygames.sprites import (
     BitmappySprite,
 )
@@ -708,10 +710,10 @@ class MultiLineTextBox(BitmappySprite):
         self.text = text
         self.is_active = False
         self.cursor_visible = True
-        self.cursor_blink_time = pygame.time.get_ticks()
+        self.cursor_blink_time = frame_clock_milliseconds()
         self.cursor_blink_rate = 530
         self.cursor_pos = len(text)
-        self._last_update_time = pygame.time.get_ticks()
+        self._last_update_time = frame_clock_milliseconds()
         self._frame_count = 0
 
         # Initialize selection attributes
@@ -1079,7 +1081,7 @@ class MultiLineTextBox(BitmappySprite):
     def update(self) -> None:
         """Update the multi-line text box."""
         self._frame_count += 1
-        current_time = pygame.time.get_ticks()
+        current_time = frame_clock_milliseconds()
         time_since_last_update = current_time - self._last_update_time
         line_height = self._get_line_height()
 
@@ -1139,7 +1141,7 @@ class MultiLineTextBox(BitmappySprite):
         if self.rect.collidepoint(event.pos):
             self.is_active = True
             self.cursor_visible = True
-            self.cursor_blink_time = pygame.time.get_ticks()
+            self.cursor_blink_time = frame_clock_milliseconds()
             pygame.key.start_text_input()
             # Enable key repeat for backspace
             pygame.key.set_repeat(500, 50)  # 500ms delay, 50ms interval
@@ -1204,8 +1206,8 @@ class MultiLineTextBox(BitmappySprite):
             self.dirty = 2
             return
 
-        mods = pygame.key.get_mods()
-        is_ctrl = bool(mods & pygame.KMOD_CTRL) or bool(mods & pygame.KMOD_META)
+        modifiers = current_input().modifiers
+        is_ctrl = bool(modifiers & pygame.KMOD_CTRL) or bool(modifiers & pygame.KMOD_META)
 
         # Handle Ctrl+D (or Cmd+D) to clear contents
         if event.key == pygame.K_d and is_ctrl:
@@ -1218,7 +1220,7 @@ class MultiLineTextBox(BitmappySprite):
             self.log.debug('Cleared text contents with Ctrl+D')
             return
 
-        is_shift = bool(mods & pygame.KMOD_SHIFT)
+        is_shift = bool(modifiers & pygame.KMOD_SHIFT)
 
         # Handle Ctrl+Enter for submission
         if event.key == pygame.K_RETURN and is_ctrl:
@@ -1244,7 +1246,7 @@ class MultiLineTextBox(BitmappySprite):
         self._handle_regular_key(event)
 
         self.cursor_visible = True
-        self.cursor_blink_time = pygame.time.get_ticks()
+        self.cursor_blink_time = frame_clock_milliseconds()
         self.dirty = 1
 
     def _handle_ctrl_enter_submit(self) -> None:
@@ -1484,7 +1486,7 @@ class MultiLineTextBox(BitmappySprite):
         trigger: HashableEvent | None = None,
     ) -> None:
         """Handle mouse wheel events for scrolling."""
-        if not self.rect.collidepoint(pygame.mouse.get_pos()):
+        if not self.rect.collidepoint(current_input().mouse_position):
             return
 
         # Get total lines for boundary checking

@@ -83,7 +83,7 @@ class TestMultiLineTextBoxKeyDownEscape:
         textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_ESCAPE)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -116,7 +116,7 @@ class TestMultiLineTextBoxKeyDownCtrlD:
         textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_d)
-        _key_mock().get_mods.return_value = pygame.KMOD_CTRL
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_CTRL)
 
         textbox.on_key_down_event(event)
 
@@ -153,7 +153,7 @@ class TestMultiLineTextBoxKeyDownCtrlEnter:
         textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_RETURN)
-        _key_mock().get_mods.return_value = pygame.KMOD_CTRL
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_CTRL)
         textbox.on_key_down_event(event)
 
         parent.on_text_submit_event.assert_called_once()
@@ -165,7 +165,7 @@ class TestMultiLineTextBoxKeyDownCtrlEnter:
         textbox.parent = None
 
         event = _make_key_event(mocker, pygame.K_RETURN)
-        _key_mock().get_mods.return_value = pygame.KMOD_CTRL
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_CTRL)
 
         # Should not raise
         textbox.on_key_down_event(event)
@@ -305,7 +305,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 3
 
         event = _make_key_event(mocker, pygame.K_l, unicode_char='l')
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -318,7 +318,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 5
 
         event = _make_key_event(mocker, pygame.K_BACKSPACE)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -331,7 +331,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 0
 
         event = _make_key_event(mocker, pygame.K_BACKSPACE)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -344,7 +344,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 0
 
         event = _make_key_event(mocker, pygame.K_DELETE)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -357,7 +357,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 3
 
         event = _make_key_event(mocker, pygame.K_LEFT)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -370,7 +370,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 2
 
         event = _make_key_event(mocker, pygame.K_RIGHT)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -383,7 +383,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 0
 
         event = _make_key_event(mocker, pygame.K_LEFT)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -396,7 +396,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 5
 
         event = _make_key_event(mocker, pygame.K_RIGHT)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -409,7 +409,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 5
 
         event = _make_key_event(mocker, pygame.K_RETURN)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -422,7 +422,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 8  # Somewhere in line2
 
         event = _make_key_event(mocker, pygame.K_UP)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -436,7 +436,7 @@ class TestMultiLineTextBoxRegularKeys:
         textbox.cursor_pos = 2  # In line1
 
         event = _make_key_event(mocker, pygame.K_DOWN)
-        _key_mock().get_mods.return_value = 0
+        MockFactory.install_frame_input(modifiers=0)
 
         textbox.on_key_down_event(event)
 
@@ -458,8 +458,7 @@ class TestMultiLineTextBoxClipboardOperations:
         textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_a)
-        _key_mock().get_mods.return_value = pygame.KMOD_CTRL
-        mocker.patch('pygame.time.get_ticks', return_value=1000)
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_CTRL)
 
         textbox.on_key_down_event(event)
 
@@ -473,8 +472,7 @@ class TestMultiLineTextBoxClipboardOperations:
         textbox.is_active = True
 
         event = _make_key_event(mocker, pygame.K_c)
-        _key_mock().get_mods.return_value = pygame.KMOD_CTRL
-        mocker.patch('pygame.time.get_ticks', return_value=1000)
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_CTRL)
 
         # Mock pyperclip in widgets module
         mocker.patch('glitchygames.ui.text_widgets.pyperclip', None)
@@ -489,7 +487,7 @@ class TestMultiLineTextBoxClipboardOperations:
         textbox.cursor_pos = 2
 
         event = _make_key_event(mocker, pygame.K_RIGHT)
-        _key_mock().get_mods.return_value = pygame.KMOD_SHIFT
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_SHIFT)
 
         textbox.on_key_down_event(event)
 

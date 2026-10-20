@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
 
+from glitchygames.clock import wall_clock_time
 from glitchygames.state.exceptions import (
     SaveCorruptedError,
     SaveNotFoundError,
@@ -143,7 +144,7 @@ class SaveManager(abc.ABC):
         envelope: dict[str, Any] = {
             _META_KEY: {
                 'version': SAVE_FORMAT_VERSION,
-                'timestamp': datetime.now(tz=UTC).isoformat(),
+                'timestamp': wall_clock_time().isoformat(),
                 'app_name': self._app_name,
                 'engine_version': _get_engine_version(),
             },

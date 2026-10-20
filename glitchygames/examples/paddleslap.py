@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import math
-import time
 from typing import TYPE_CHECKING, Self, cast, override
 
 if TYPE_CHECKING:
@@ -298,7 +297,9 @@ class Game(Scene):
         self.balls: list[BallSprite] = []
         self.rally_count: int = 0  # Total paddle hits across all balls
         self.saves: SaveManager = open_saves(app_name='paddleslap')
-        self.last_ball_spawn_time = 0.0  # Track when we last spawned a ball
+        # Game time of the last spawn (Scene.game_time); -inf so the first spawn is never held
+        # back by the cooldown, as with the old wall-clock start of 0.0
+        self.last_ball_spawn_time = -math.inf
         self.ball_spawn_cooldown = 2.0  # Minimum 2 seconds between ball spawns
         # Per-pair collision cooldown to prevent duplicate collision processing
         # when ball bounding boxes overlap across multiple consecutive frames.
@@ -647,7 +648,7 @@ class Game(Scene):
 
         # Check cooldown if enabled
         if self.ball_spawn_mode & BallSpawnMode.COOLDOWN_ENABLED:
-            current_time = time.time()
+            current_time = self.game_time
             cooldown = self._get_spawn_cooldown()
             if current_time - self.last_ball_spawn_time < cooldown:
                 log.debug(
@@ -667,7 +668,7 @@ class Game(Scene):
 
         # Spawn conditions met, spawn a new ball
         if self.ball_spawn_mode & BallSpawnMode.COOLDOWN_ENABLED:
-            self.last_ball_spawn_time = time.time()
+            self.last_ball_spawn_time = self.game_time
         self._spawn_new_ball()
 
     def _get_spawn_cooldown(self: Self) -> float:

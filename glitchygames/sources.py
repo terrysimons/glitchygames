@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING, Protocol
 from glitchygames.randomness import engine_random_seed
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     import pygame
 
     # Type only: glitchygames.input's package __init__ imports input.rumble, which comes to
@@ -36,8 +38,8 @@ if TYPE_CHECKING:
     from glitchygames.scenes import Scene
 
     # Type only: glitchygames.state's package __init__ imports state.sandbox, which imports
-    # this module, so a runtime import here would be a cycle (this module is a leaf); Task 8
-    # also makes state.manager import glitchygames.clock, which imports this module
+    # this module, so a runtime import here would be a cycle (this module is a leaf);
+    # state.manager also imports glitchygames.clock, which imports this module
     from glitchygames.state.manager import SaveManager
 
 
@@ -85,6 +87,14 @@ class EngineSources(Protocol):
 
     def saves(self, *, namespace: str) -> SaveManager:
         """Return the save store for ``namespace`` (a game's app name; glitchygames/state)."""
+        ...
+
+    def wall_clock_time(self) -> datetime:
+        """Return the current wall-clock time (timezone-aware UTC); glitchygames/clock.py."""
+        ...
+
+    def elapsed_seconds(self) -> float:
+        """Return a monotonic reading in seconds (only differences mean anything)."""
         ...
 
     def end_frame(self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
@@ -170,7 +180,7 @@ def frame_clock_seconds() -> float:
     """Return the sum of every closed frame's dt this run.
 
     It replays exactly (dt comes through the frame-time door) and never pauses. Read it through
-    glitchygames/clock.py (Task 8), which re-exports it.
+    glitchygames/clock.py, which re-exports it.
 
     Returns:
         Seconds.

@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self, cast, override
 import pygame
 
 from glitchygames import events
+from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
 from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
@@ -580,8 +581,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Set while start_trace_recording's SIGTERM handler is installed
         self._installed_sigterm_handler: bool = False
 
-        # Unhandled events by type, reported at teardown (see unhandled_event_report)
-        self._started_at_seconds: float = time.perf_counter()
+        # Unhandled events by type, reported at teardown (see unhandled_event_report); their
+        # first-seen times count from _started_at_seconds, read below once this run's doors
+        # are installed
         self.unhandled_events: dict[int, UnhandledEventRecord] = {}
 
         # Pygame stuff.
@@ -641,6 +643,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 random_seed=self.random_seed, use_fastevents=GameEngine.USE_FASTEVENTS
             )
         )
+        # Read from the doors just installed, so every unhandled event's first-seen time comes
+        # from the same elapsed-seconds clock (a replay's is its frame clock, restarted above)
+        self._started_at_seconds: float = elapsed_seconds()
 
         # We are fully initialized now, so we can set up the scene.
         #
@@ -1422,6 +1427,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         install_sources(sources=sources)
+        # Unhandled events' first-seen times count on the new doors' elapsed-seconds clock
+        self._started_at_seconds = elapsed_seconds()
 
     def _pump_events(self: Self) -> list[pygame.event.Event]:
         """Take the next batch from the active sources' event pump: the one place it is read.
@@ -1973,7 +1980,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         self.unhandled_events[event.type] = UnhandledEventRecord(
             count=1,
-            first_seen_seconds=time.perf_counter() - self._started_at_seconds,
+            first_seen_seconds=elapsed_seconds() - self._started_at_seconds,
             attribute_names=attribute_names,
         )
 

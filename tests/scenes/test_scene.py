@@ -9,6 +9,8 @@ import pytest
 from glitchygames.color import BLUE, RED
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
+from glitchygames.sources import advance_frame_clock
+from tests.mocks import MockFactory
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -1253,6 +1255,26 @@ class TestSceneOnFpsEvent:
 
         assert abs(scene.fps - 59.5) < 1e-9
 
+    def test_on_fps_event_logs_once_per_interval_of_the_frame_clock(
+        self, mock_pygame_patches, mocker
+    ):
+        """The FPS log interval is measured on the frame clock, which a replay serves."""
+        scene = Scene()
+        scene.scene_manager.fps_log_interval_ms = 1000
+        log_info = mocker.patch.object(scene.log, 'info')
+        event = mocker.Mock()
+        event.fps = 60.0
+
+        advance_frame_clock(seconds=1.0)
+        scene.on_fps_event(event)  # one interval since the scene started: logs
+        scene.on_fps_event(event)  # no frame time since: silent
+        advance_frame_clock(seconds=0.5)
+        scene.on_fps_event(event)  # half an interval: silent
+        advance_frame_clock(seconds=0.5)
+        scene.on_fps_event(event)  # a full interval since the last log: logs
+
+        assert log_info.call_count == 2
+
 
 class TestSceneOnTextSubmitEvent:
     """Test Scene.on_text_submit_event() method."""
@@ -1265,6 +1287,24 @@ class TestSceneOnTextSubmitEvent:
 
 class TestSceneManagerHelpers:
     """Test SceneManager helper methods."""
+
+    def test_debug_overlay_mouse_position_comes_from_the_frame_input(
+        self, mock_pygame_patches, mocker
+    ):
+        """The debug overlay shows the frame's polled mouse position, None without focus."""
+        manager = SceneManager()
+
+        MockFactory.install_frame_input(mouse_position=(12, 34), mouse_focused=True)
+        focused_info = manager._debug_frame_info(
+            shake_offset=(0.0, 0.0), inspected_scene_label=None
+        )
+        MockFactory.install_frame_input(mouse_position=(12, 34), mouse_focused=False)
+        unfocused_info = manager._debug_frame_info(
+            shake_offset=(0.0, 0.0), inspected_scene_label=None
+        )
+
+        assert focused_info.mouse_position == (12, 34)
+        assert unfocused_info.mouse_position is None
 
     def test_scene_manager_stop(self, mock_pygame_patches, mocker):
         """Test SceneManager.stop() calls terminate."""

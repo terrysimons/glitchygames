@@ -919,11 +919,8 @@ class TestMultiLineTextBoxCursorEditing:
         textbox.selection_end = None
 
         # Simulate Shift+Right to select "llo"
-        # Patch where pygame is used, not where it's defined
-        mocker.patch(
-            'glitchygames.ui.text_widgets.pygame.key.get_mods',
-            return_value=pygame.KMOD_SHIFT,
-        )
+        # Shift is held in this frame's polled input
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_SHIFT)
         for _ in range(3):
             mock_event = mocker.Mock()
             mock_event.key = pygame.K_RIGHT
@@ -959,11 +956,8 @@ class TestMultiLineTextBoxCursorEditing:
         textbox.selection_end = None
 
         # Simulate Shift+Left to select backwards
-        # Patch where pygame is used, not where it's defined
-        mocker.patch(
-            'glitchygames.ui.text_widgets.pygame.key.get_mods',
-            return_value=pygame.KMOD_SHIFT,
-        )
+        # Shift is held in this frame's polled input
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_SHIFT)
         for _ in range(3):
             mock_event = mocker.Mock()
             mock_event.key = pygame.K_LEFT
@@ -999,11 +993,8 @@ class TestMultiLineTextBoxCursorEditing:
         textbox.selection_end = None
 
         # Simulate Shift+Right to select across potential wrap boundary
-        # Patch where pygame is used, not where it's defined
-        mocker.patch(
-            'glitchygames.ui.text_widgets.pygame.key.get_mods',
-            return_value=pygame.KMOD_SHIFT,
-        )
+        # Shift is held in this frame's polled input
+        MockFactory.install_frame_input(modifiers=pygame.KMOD_SHIFT)
         for _ in range(20):  # Select 20 characters
             mock_event = mocker.Mock()
             mock_event.key = pygame.K_RIGHT

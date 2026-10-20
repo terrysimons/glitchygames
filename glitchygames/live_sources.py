@@ -1,11 +1,13 @@
 """The live doors (glitchygames/sources.py).
 
 Pygame's queue, the measured frame time, pygame's polled input, real devices, real save files
-on disk and (from later tasks) the real clocks.
+on disk and the real clocks.
 """
 
 from __future__ import annotations
 
+import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Self
 
 import pygame
@@ -112,6 +114,24 @@ class LiveSources:
             store = DiskSaveManager(app_name=namespace)
             self.opened_save_namespaces[namespace] = store
         return store
+
+    def wall_clock_time(self: Self) -> datetime:
+        """Return now, in UTC (the live wall-clock provider).
+
+        Returns:
+            ``datetime.now(tz=UTC)``.
+
+        """
+        return datetime.now(tz=UTC)
+
+    def elapsed_seconds(self: Self) -> float:
+        """Return time.monotonic() (the live elapsed-time provider).
+
+        Returns:
+            Monotonic seconds.
+
+        """
+        return time.monotonic()
 
     def end_frame(self: Self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
         """Discard the frame's device answers and descriptors nobody took.

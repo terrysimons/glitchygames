@@ -19,6 +19,7 @@ from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
 )
 from glitchygames.engine import GameEngine
+from glitchygames.input.state import current_input
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.ui.dialogs import (
@@ -481,8 +482,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         """
         # Check for shift-right-click (screen sampling)
-        is_shift_click = (
-            pygame.key.get_pressed()[pygame.K_LSHIFT] or pygame.key.get_pressed()[pygame.K_RSHIFT]
+        held_keys = current_input()
+        is_shift_click = held_keys.key_pressed(pygame.K_LSHIFT) or held_keys.key_pressed(
+            pygame.K_RSHIFT
         )
 
         # First, check if any sprites have handled the event
@@ -1389,12 +1391,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             and hasattr(self, 'confirmation_dialog')
             and self.confirmation_dialog
         ):
-            mouse_pos = pygame.mouse.get_pos()
-            if self.confirmation_dialog.rect.collidepoint(mouse_pos):
+            mouse_position = current_input().mouse_position
+            if self.confirmation_dialog.rect.collidepoint(mouse_position):
                 # Convert to dialog-relative coordinates
                 dialog_relative_pos = (
-                    mouse_pos[0] - self.confirmation_dialog.rect.x,
-                    mouse_pos[1] - self.confirmation_dialog.rect.y,
+                    mouse_position[0] - self.confirmation_dialog.rect.x,
+                    mouse_position[1] - self.confirmation_dialog.rect.y,
                 )
                 if self.confirmation_dialog.handle_mouse_down(dialog_relative_pos):
                     self.confirmation_dialog = None  # Clear reference after handling

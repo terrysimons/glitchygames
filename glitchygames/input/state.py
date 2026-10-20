@@ -26,6 +26,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, cast, override
 
 import pygame
+from pygame.key import ScancodeWrapper
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -169,14 +170,16 @@ class InputSnapshot:
         ))
 
     @functools.cached_property
-    def pressed_keys(self) -> pygame.key.ScancodeWrapper:
+    def pressed_keys(self) -> ScancodeWrapper:
         """The held keys indexable by key code, exactly like ``pygame.key.get_pressed()``.
 
         Indexing it by a pygame.K_* code needs SDL initialized (pygame.init()), which a running
         engine always has; before it, every lookup is False. Built once per snapshot on first
-        use (about 10 microseconds; it is immutable, so every caller shares it).
+        use (about 10 microseconds; it is immutable, so every caller shares it). The class is
+        bound at import (``from pygame.key import ScancodeWrapper``), so code that later replaces
+        the ``pygame.key`` module attribute (test mocks) cannot change what this returns.
         """
-        return pygame.key.ScancodeWrapper(
+        return ScancodeWrapper(
             tuple(scancode in self.pressed_scancodes for scancode in range(SCANCODE_COUNT))
         )
 

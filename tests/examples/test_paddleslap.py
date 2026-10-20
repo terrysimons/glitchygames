@@ -28,6 +28,7 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
+from glitchygames.sources import advance_frame_clock
 from tests.mocks.test_mock_factory import MockFactory
 
 PADDLESLAP_STREAM_TEST_SEED = 41
@@ -49,6 +50,29 @@ def _reference_stream(name: str) -> random.Random:
     )
 
 
+# Options the tests create PaddleSlap with
+PADDLESLAP_TEST_OPTIONS: dict[str, object] = {
+    'balls': 1,
+    'fps': 60,
+    'resolution': '800x600',
+    'windowed': True,
+    'use_gfxdraw': False,
+    'update_type': 'update',
+    'fps_refresh_rate': 1000,
+    'profile': False,
+    'test_flag': False,
+    'font_name': 'Arial',
+    'font_size': 16,
+    'font_bold': False,
+    'font_italic': False,
+    'font_antialias': True,
+    'font_dpi': 72,
+    'font_system': 'pygame',
+    'log_level': 'info',
+    'no_unhandled_events': False,
+}
+
+
 class TestPaddleslapExample:
     """Test paddleslap example using centralized mocks."""
 
@@ -59,27 +83,7 @@ class TestPaddleslapExample:
 
     def setup_method(self):
         """Set up test fixtures using centralized mocks."""
-        # Create mock options
-        self.mock_options: dict[str, object] = {
-            'balls': 1,
-            'fps': 60,
-            'resolution': '800x600',
-            'windowed': True,
-            'use_gfxdraw': False,
-            'update_type': 'update',
-            'fps_refresh_rate': 1000,
-            'profile': False,
-            'test_flag': False,
-            'font_name': 'Arial',
-            'font_size': 16,
-            'font_bold': False,
-            'font_italic': False,
-            'font_antialias': True,
-            'font_dpi': 72,
-            'font_system': 'pygame',
-            'log_level': 'info',
-            'no_unhandled_events': False,
-        }
+        self.mock_options: dict[str, object] = dict(PADDLESLAP_TEST_OPTIONS)
 
     def test_paddleslap_game_initialization(self):
         """Test that paddleslap game initializes correctly with centralized mocks."""
@@ -380,3 +384,40 @@ class TestPaddleslapExample:
         actions = [action.dest for action in parser._actions]
         assert 'balls' in actions
         assert 'version' in actions
+
+
+class TestPaddleslapSpawnCooldown:
+    """PaddleSlap's ball spawn cooldown."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    def test_spawn_cooldown_counts_game_time_only(self, mocker):
+        """The spawn cooldown runs on Scene.game_time, so time spent paused never counts.
+
+        The frame clock (like the wall clock the cooldown used before) keeps running while the
+        game is paused; game time does not.
+        """
+        game = Game(options=dict(PADDLESLAP_TEST_OPTIONS))
+        game.ball_spawn_mode = (
+            BallSpawnMode.ON_PADDLE_COLLISION
+            | BallSpawnMode.COOLDOWN_ENABLED
+            | BallSpawnMode.NORMAL
+        )
+        spawn_new_ball = mocker.patch.object(game, '_spawn_new_ball')
+        ball = game.balls[0]
+
+        game._spawn_new_ball_with_speed_check(ball)
+        assert spawn_new_ball.call_count == 1, 'the first spawn is never held back'
+
+        # A minute paused (the frame clock runs on), then one second of play
+        advance_frame_clock(seconds=60.0)
+        game.advance_game_time(seconds=1.0)
+        game._spawn_new_ball_with_speed_check(ball)
+        assert spawn_new_ball.call_count == 1, 'held back: 1 s of game time < the 2 s cooldown'
+
+        game.advance_game_time(seconds=1.0)
+        game._spawn_new_ball_with_speed_check(ball)
+        assert spawn_new_ball.call_count == 2, '2 s of game time ends the cooldown'

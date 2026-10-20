@@ -10,6 +10,7 @@ import pygame
 
 from glitchygames import events
 from glitchygames.camera import Camera2D
+from glitchygames.clock import frame_clock_seconds
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
@@ -18,13 +19,13 @@ from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
+from glitchygames.input.state import current_input
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.recording import post_event
 from glitchygames.sources import (
     active_sources,
     advance_frame_clock,
-    frame_clock_seconds,
     mark_frames_started,
 )
 from glitchygames.timing import DEFAULT_TARGET_FPS
@@ -486,7 +487,8 @@ class SceneManager(SceneInterface, events.EventManager):
         live_voice_count = (
             self._live_audio.playing_voice_count if self._live_audio is not None else None
         )
-        mouse_position = pygame.mouse.get_pos() if pygame.mouse.get_focused() else None
+        frame_input = current_input()
+        mouse_position = frame_input.mouse_position if frame_input.mouse_focused else None
         return DebugFrameInfo(
             target_fps=float(self.target_fps),
             live_voice_count=live_voice_count,
@@ -1199,7 +1201,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def _post_fps_event(self) -> None:
         """Post FPS event."""
         # Prefer dt-derived FPS when available (fast timer path); fallback to clock
-        fps_value = 1.0 / self.dt if hasattr(self, 'dt') and self.dt > 0 else self.clock.get_fps()
+        fps_value = 1.0 / self.dt if self.dt > 0 else self.clock.get_fps()
 
         post_event(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
 
@@ -2541,7 +2543,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         # FPSEVENT is pygame.USEREVENT + 1
         # Log FPS at the specified interval to reduce log spam
-        current_time = time.perf_counter()
+        current_time = frame_clock_seconds()
 
         # Use the configured log interval instead of hardcoded 1.0 second
         log_interval_seconds = float(self.scene_manager.fps_log_interval_ms) / 1000.0

@@ -11,13 +11,12 @@ This module consolidates tests from:
 import math
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
-
-if TYPE_CHECKING:
-    from unittest.mock import Mock
 
 import pygame
 import pytest
+
+from glitchygames.clock import frame_clock_milliseconds
+from glitchygames.sources import advance_frame_clock
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -2529,14 +2528,15 @@ class TestMultiLineTextBoxDeactivation:
         assert text_box.is_active is False
 
     def test_mouse_down_inside_activates(self, text_box, mocker):
-        """Test clicking inside the text box activates it."""
+        """Clicking inside activates the text box and restarts its blink on the frame clock."""
         text_box.is_active = False
+        advance_frame_clock(seconds=1.25)
         # Position inside the text box (rect starts at 100, 100 with 300x200)
         event = mocker.Mock()
         event.pos = (150, 150)
-        mocker.patch('pygame.time.get_ticks', return_value=1000)
         text_box.on_left_mouse_button_down_event(event)
         assert text_box.is_active is True
+        assert text_box.cursor_blink_time == 1250
 
     def test_key_down_escape_deactivates(self, text_box, mocker):
         """Test pressing Escape deactivates the text box."""
@@ -2660,7 +2660,6 @@ class TestMultiLineTextBoxKeyHandling:
     def setup_mocks(self, mocker, mock_pygame_patches):
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
-        self._mock_pygame_patches = mock_pygame_patches
 
     @pytest.fixture
     def text_box(self, mocker):
@@ -2680,14 +2679,10 @@ class TestMultiLineTextBoxKeyHandling:
         tb.is_active = True
         return tb
 
-    def _set_key_mods(self, mods_value):
-        """Set the key mods return value on the mocked pygame.key module."""
-        if 'key_mock' in self._mock_pygame_patches:
-            self._mock_pygame_patches['key_mock'].get_mods.return_value = mods_value
-        else:
-            # Fallback: pygame.key is mocked in tests, so cast to access mock attributes
-            key_mock = cast('Mock', pygame.key.get_mods)
-            key_mock.return_value = mods_value
+    @staticmethod
+    def _set_key_mods(modifiers):
+        """Make ``modifiers`` the held modifier keys in this frame's polled input."""
+        MockFactory.install_frame_input(modifiers=modifiers)
 
     def test_key_down_inactive_returns(self, text_box, mocker):
         """Test key_down_event returns when not active."""
@@ -2846,7 +2841,6 @@ class TestMultiLineTextBoxUpdate:
 
     def test_update_hovered_not_active(self, text_box, mocker):
         """Test update with hover state but not active uses hover color."""
-        mocker.patch('pygame.time.get_ticks', return_value=1000)
         text_box.is_hovered = True
         text_box.is_active = False
         text_box.update()
@@ -2854,7 +2848,6 @@ class TestMultiLineTextBoxUpdate:
 
     def test_update_active(self, text_box, mocker):
         """Test update when active renders cursor."""
-        mocker.patch('pygame.time.get_ticks', return_value=1000)
         text_box.is_active = True
         text_box.cursor_visible = True
         text_box.update()
@@ -4311,9 +4304,8 @@ class TestInputBoxCursorBlink:
             groups=groups,
         )
         input_box.is_active = True
-        # Mock time.time to return a value that triggers cursor draw
-        # time.time() % 1 > 0.5 when e.g. time returns 1.7
-        mocker.patch('glitchygames.ui.inputs.time.time', return_value=1.7)
+        # The cursor blinks on the frame clock: frame_clock_seconds() % 1 > 0.5 at 1.7 s
+        advance_frame_clock(seconds=1.7)
         input_box.update()
         # Should have drawn cursor rect; verify it doesn't raise
 
@@ -4887,7 +4879,7 @@ class TestMultiLineTextBoxScrolling:
         textbox.cursor_pos = 0  # Cursor at top
         textbox.cursor_blink_time = 0
         # Should not raise even though cursor is outside visible range
-        textbox._update_cursor_blink(pygame.time.get_ticks(), 16)
+        textbox._update_cursor_blink(frame_clock_milliseconds(), 16)
 
 
 class TestMultiLineTextBoxMouseEvents:
@@ -5097,7 +5089,7 @@ class TestMultiLineTextBoxMouseWheel:
         lines = [f'Line {i}' for i in range(30)]
         textbox.text = '\n'.join(lines)
         textbox.scroll_offset = 10
-        mocker.patch('pygame.mouse.get_pos', return_value=(TEST_X + 5, TEST_Y + 5))
+        MockFactory.install_frame_input(mouse_position=(TEST_X + 5, TEST_Y + 5))
         event = mocker.Mock(spec=['button'])  # No 'y' attribute
         event.button = 4  # PYGAME_MOUSE_SCROLL_UP_BUTTON
         textbox.on_mouse_wheel_event(event)
@@ -5118,7 +5110,7 @@ class TestMultiLineTextBoxMouseWheel:
         lines = [f'Line {i}' for i in range(30)]
         textbox.text = '\n'.join(lines)
         textbox.scroll_offset = 5
-        mocker.patch('pygame.mouse.get_pos', return_value=(TEST_X + 5, TEST_Y + 5))
+        MockFactory.install_frame_input(mouse_position=(TEST_X + 5, TEST_Y + 5))
         event = mocker.Mock(spec=['button'])  # No 'y' attribute
         event.button = 5  # PYGAME_MOUSE_SCROLL_DOWN_BUTTON
         textbox.on_mouse_wheel_event(event)

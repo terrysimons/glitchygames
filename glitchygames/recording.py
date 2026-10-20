@@ -55,16 +55,11 @@ forgotten at that pump. Events posted before recording started are classified by
 Polled input
 ------------
 
-Input read by polling pygame's state, outside the event queue, is not in any batch and is not
-recorded: ``pygame.key.get_pressed`` (``bitmappy/editor.py``, ``bitmappy/film_strip_sprite.py``,
-``bitmappy/animated_canvas.py``, ``examples/dt_demo.py``), ``pygame.key.get_mods``
-(``ui/text_widgets.py``), ``pygame.mouse.get_pos`` (``ui/inputs.py``, ``ui/text_widgets.py``,
-``bitmappy/editor.py``, ``bitmappy/film_strip_sprite.py``, ``bitmappy/file_io.py``) and
-joystick or controller ``get_axis`` (``bitmappy/controllers/event_handler.py``,
-``events/joystick.py``, ``events/controller.py``, ``examples/joystick_demo.py``). An exact
-replay of code that polls needs a per-frame snapshot of the polled state (a follow-up in
-``plans/future-work.md``). The debug overlay's mouse poll (``scenes/scene.py``) only draws the
-overlay and does not affect the simulation.
+Input read by polling, outside the event queue (held keys, modifiers, the mouse, device axes,
+buttons and hats), is not in any batch. Code reads it from the frame's ``InputSnapshot``
+(``glitchygames.input.state.current_input()``), never from pygame; the snapshot is taken once
+per frame through the sources, so recording its per-frame changes (``RecordingSources``, Task 11
+of plans/2026-10-19-gameplay-replay-core.md) makes polled input replay exactly.
 
 Saves
 -----

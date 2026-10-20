@@ -11,8 +11,8 @@ Determinism:
     - Every game is started with ``--random-seed RANDOM_SEED``: all the randomness the games
       use (serves, PaddleSlap's spawn positions and colours, shakes) comes from the engine's
       named streams (``glitchygames/randomness.py``), so the seed fixes it. Nothing is patched.
-    - PaddleSlap's clock reads (``time.time`` for the ball spawn cooldown) come from a fake
-      clock that advances exactly 1/60 second per frame.
+    - PaddleSlap's ball spawn cooldown reads ``Scene.game_time``, which the fixed dt drives
+      (exactly 1/60 second per unpaused frame), so no clock is patched.
     - Save files go to a fresh temporary directory, so high scores on disk cannot leak in.
     - Events the host environment posts (window focus, window shown, audio devices, ...) are
       discarded before each frame. SDL's dummy video driver posts a focus-lost event at
@@ -42,7 +42,6 @@ import contextlib
 import os
 import sys
 import tempfile
-import types
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, override
@@ -77,9 +76,6 @@ RANDOM_SEED = 20261018
 # The header's ``source`` field for traces this script records
 GOLDEN_TRACE_SOURCE = 'golden-script'
 SCREEN_RESOLUTION = '800x480'
-
-# Where the fake clock starts (PaddleSlap's ball spawn cooldown reads time.time)
-FAKE_CLOCK_START_SECONDS = 1000.0
 
 # Events posted by the host environment rather than by the scripted player
 ENVIRONMENT_EVENT_TYPES: tuple[int, ...] = (
@@ -128,37 +124,6 @@ class FrameObserver(Protocol):
 
         """
         ...
-
-
-class FakeClock:
-    """A clock that advances only when told to, exactly one frame at a time."""
-
-    def __init__(self, *, start_seconds: float) -> None:
-        """Initialize the clock.
-
-        Args:
-            start_seconds: The time the clock reports before the first advance.
-
-        """
-        self.now_seconds = start_seconds
-
-    def now(self) -> float:
-        """Return the current fake time.
-
-        Returns:
-            The current time in seconds.
-
-        """
-        return self.now_seconds
-
-    def advance(self, *, seconds: float) -> None:
-        """Move the clock forward.
-
-        Args:
-            seconds: How far to advance.
-
-        """
-        self.now_seconds += seconds
 
 
 def press(key: int) -> pygame.event.Event:
@@ -455,13 +420,14 @@ SCRIPT_BUILDERS: dict[str, Callable[[], InputScript]] = {
 
 
 @contextlib.contextmanager
-def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator[None]:
-    """Replace the clock PaddleSlap reads and the save directory, then restore them.
+def deterministic_environment(*, save_root: Path) -> Generator[None]:
+    """Replace the save directory, then restore it.
 
-    Randomness needs no replacement: ``_start_game`` passes ``--random-seed``.
+    Randomness needs no replacement: ``_start_game`` passes ``--random-seed``. Clocks need
+    none either: PaddleSlap's cooldown now uses Scene.game_time, which the harness's fixed dt
+    drives.
 
     Args:
-        clock: The fake clock PaddleSlap's time reads come from.
         save_root: Directory the games' save files go to.
 
     Yields:
@@ -473,7 +439,6 @@ def deterministic_environment(*, clock: FakeClock, save_root: Path) -> Generator
         return save_root / app_name
 
     replacements: list[tuple[object, str, object]] = [
-        (paddleslap, 'time', types.SimpleNamespace(time=clock.now)),
         (save_manager_module, 'get_save_directory', temporary_save_directory),
     ]
     originals = [(owner, name, getattr(owner, name)) for owner, name, _ in replacements]
@@ -636,12 +601,11 @@ def record_trace(
 
     """
     script = SCRIPT_BUILDERS[game_key]()
-    clock = FakeClock(start_seconds=FAKE_CLOCK_START_SECONDS)
     frames: list[dict[str, Any]] = []
     sprite_ids = StableSpriteIds()
     with (
         tempfile.TemporaryDirectory(prefix='golden-trace-saves-') as save_directory,
-        deterministic_environment(clock=clock, save_root=Path(save_directory)),
+        deterministic_environment(save_root=Path(save_directory)),
     ):
         manager = _start_game(game_key, random_seed=random_seed)
         engine = manager.game_engine
@@ -650,7 +614,6 @@ def record_trace(
             if recording_path is not None:
                 engine.start_trace_recording(path=recording_path)
             for frame_number in range(frame_count):
-                clock.advance(seconds=FRAME_SECONDS)
                 manager.dt = FRAME_SECONDS
                 discard_environment_events()
                 assert manager.active_scene is not None

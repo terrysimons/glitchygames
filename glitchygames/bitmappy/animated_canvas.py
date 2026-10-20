@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.color import RGBA_COMPONENT_COUNT
+from glitchygames.input.state import current_input
 from glitchygames.sprites import BitmappySprite, SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
@@ -912,8 +913,9 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             ] = {}  # Track pixels changed during drag for batched updates
 
             # Check for control-click (flood fill mode)
-            is_control_click = (
-                pygame.key.get_pressed()[pygame.K_LCTRL] or pygame.key.get_pressed()[pygame.K_RCTRL]
+            held_keys = current_input()
+            is_control_click = held_keys.key_pressed(pygame.K_LCTRL) or held_keys.key_pressed(
+                pygame.K_RCTRL
             )
 
             if is_control_click:

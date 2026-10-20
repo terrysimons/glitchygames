@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -9,6 +10,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
+from glitchygames.live_sources import LiveSources
 from glitchygames.state.exceptions import (
     SaveCorruptedError,
     SaveNotFoundError,
@@ -151,6 +153,14 @@ class TestLoadRaw:
         assert meta['app_name'] == 'test-game'
         assert 'timestamp' in meta
         assert 'engine_version' in meta
+
+    def test_save_timestamp_comes_from_the_wall_clock_door(self, tmp_path: Path, mocker) -> None:
+        """The envelope's timestamp is glitchygames.clock.wall_clock_time(), so replays match."""
+        recorded_now = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+        mocker.patch.object(LiveSources, 'wall_clock_time', return_value=recorded_now)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        saves.save('slot_1', {'score': 100})
+        assert saves.load_raw('slot_1')['_meta']['timestamp'] == recorded_now.isoformat()
 
     def test_load_raw_skips_version_check(self, tmp_path: Path) -> None:
         """load_raw() does not raise on version mismatch."""

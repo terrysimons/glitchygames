@@ -16,11 +16,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pygame
 import pytest
 from scripts.record_golden_traces import (
-    FAKE_CLOCK_START_SECONDS,
     FRAME_SECONDS,
     RANDOM_SEED,
     SCREEN_RESOLUTION,
-    FakeClock,
     GoldenTraceEngine,
     GoldenTraceSceneManager,
     command_line,
@@ -418,10 +416,9 @@ def running_scene(scene_class: type[Scene]) -> Generator[GoldenTraceSceneManager
         The scene manager with the scene active.
 
     """
-    clock = FakeClock(start_seconds=FAKE_CLOCK_START_SECONDS)
     with (
         tempfile.TemporaryDirectory(prefix='frame-integration-saves-') as save_directory,
-        deterministic_environment(clock=clock, save_root=Path(save_directory)),
+        deterministic_environment(save_root=Path(save_directory)),
     ):
         manager = GoldenTraceSceneManager.install()
         try:

@@ -33,10 +33,11 @@ serializer.
 from __future__ import annotations
 
 import copy
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
 
+from glitchygames.clock import wall_clock_time
 from glitchygames.sources import active_sources
 from glitchygames.state.exceptions import SaveCorruptedError
 from glitchygames.state.manager import SaveManager, SaveSlotInfo
@@ -217,7 +218,7 @@ class MemorySaveManager(SaveManager):
                 read_content=lambda: content,
                 size_bytes=lambda: len(content.encode('utf-8')),
                 # A file just written has the current modification time
-                fallback_timestamp=lambda: datetime.now(tz=UTC),
+                fallback_timestamp=wall_clock_time,
             )
         record = entry.get(LISTING_KEY)
         if record is None:

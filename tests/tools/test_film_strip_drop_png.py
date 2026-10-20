@@ -49,8 +49,8 @@ class TestFilmStripDropPNG:
             return_value=mock_frame,
         )
 
-        # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
-        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+        # on_drop_file_event reads the frame's mouse position (drop events have no position)
+        MockFactory.install_frame_input(mouse_position=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
@@ -107,8 +107,8 @@ class TestFilmStripDropPNG:
             return_value=mock_frame,
         )
 
-        # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
-        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+        # on_drop_file_event reads the frame's mouse position (drop events have no position)
+        MockFactory.install_frame_input(mouse_position=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
@@ -214,8 +214,8 @@ class TestFilmStripDropPNG:
             return_value=mock_frame,
         )
 
-        # Mock pygame.mouse.get_pos since on_drop_file_event uses it instead of event.pos
-        self._mocker.patch('pygame.mouse.get_pos', return_value=(50, 50))
+        # on_drop_file_event reads the frame's mouse position (drop events have no position)
+        MockFactory.install_frame_input(mouse_position=(50, 50))
 
         # Create a test PNG file path (no need to create real image since conversion is mocked)
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as test_file:
