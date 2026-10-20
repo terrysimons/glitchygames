@@ -519,8 +519,9 @@ def harness_replay_sources(*, manager: GoldenTraceSceneManager) -> ReplaySources
 class FakeMeasuredClock:
     """The watched replay's measured clock, advanced only by its sleeps or by the test.
 
-    Patches ``glitchygames.replay.viewer.measured_seconds`` and ``sleep_for`` (the viewer's
-    sleep until its next outer tick), so a watched replay's outer ticks run in no real time.
+    Patches ``glitchygames.replay.viewer.measured_seconds``, ``sleep_for`` and
+    ``sleep_coarsely`` (the viewer's sleeps until its next outer tick), so a watched replay's
+    outer ticks run in no real time.
 
     Attributes:
         now: The measured time, in seconds.
@@ -539,6 +540,7 @@ class FakeMeasuredClock:
         self._on_wait = on_wait
         mocker.patch.object(viewer_module, 'measured_seconds', side_effect=self.read)
         mocker.patch.object(viewer_module, 'sleep_for', side_effect=self.wait)
+        mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=self.wait)
 
     def read(self) -> float:
         """Return the fake time.
@@ -2305,6 +2307,19 @@ class TestWatchedViewerKeys:
         pygame.event.post(_key(pygame.KEYDOWN, pygame.K_SPACE))
         run_next_viewer_tick(sources=sources)
         assert sources.controls.paused
+
+    def test_a_press_release_press_in_the_first_drain_leaves_the_key_held(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        FakeMeasuredClock(mocker=mocker)
+        sources = ReplaySources.from_path(path=recording_path)
+        reset_sources()
+        install_sources(sources=sources)
+        for event_type in (pygame.KEYDOWN, pygame.KEYUP, pygame.KEYDOWN):
+            pygame.event.post(_key(event_type, pygame.K_SPACE))
+        sources.hold_frame()  # the first drain
+        pygame.event.post(_key(pygame.KEYDOWN, pygame.K_SPACE))  # the OS repeating it
+        run_next_viewer_tick(sources=sources)
+        assert not sources.controls.paused
 
     def test_the_debug_overlay_is_the_scene_managers(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)

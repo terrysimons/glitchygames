@@ -959,7 +959,8 @@ class ReplaySources:
         """
         if self.options.headless:
             return False
-        now = self.viewer.begin_tick()
+        # Nothing has run since the last tick closed: its state decides how the viewer waits
+        now = self.viewer.begin_tick(is_inner_running=self._is_inner_running())
         if now is not None:
             self._run_control_tick(now=now)
             self.viewer.accrue(now=now, is_inner_running=self._is_inner_running())
@@ -1438,10 +1439,14 @@ class ReplaySources:
             elif event.type == pygame.QUIT:
                 window_closes.append(event)
             elif event.type in WATCHED_REAL_KEY_EVENT_TYPES and not self.options.headless:
-                if is_first_drain and event.type == pygame.KEYDOWN:
-                    # Stale: pressed before the replay. Not acted on, but held, so its
-                    # operating-system repeats are not new presses until it is released
-                    self.controls.note_key_already_down(key=event.key)
+                if is_first_drain:
+                    # Stale, pressed before the replay: not acted on, but followed in order, so
+                    # a key still down is held (its operating-system repeats are not new
+                    # presses until it is released)
+                    if event.type == pygame.KEYDOWN:
+                        self.controls.note_key_already_down(key=event.key)
+                    else:
+                        self.controls.release_key(key=event.key)
                 else:
                     self.viewer.queue_key_event(event_type=event.type, key=event.key)
             # Every other real external event is dropped: real input is blocked at SDL, so
@@ -1473,7 +1478,7 @@ class ReplaySources:
                 frame_number=self._frame_index,
                 seconds=frame_clock_seconds(),
                 divergence_frame=None if divergence is None else divergence.frame_number,
-                effective_speed=self.viewer.effective_speed() if self.viewer.is_behind else None,
+                effective_speed=self.viewer.real_speed_if_behind(),
             )
         )
 

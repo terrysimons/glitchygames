@@ -15,8 +15,9 @@ Two loops share the frame loop of ``SceneManager.start`` while a replay is watch
 
 The contract between them, asked through ``EngineSources.hold_frame`` before each inner frame:
 
-1. No tick open: sleep until the next tick is due (``sleep_for``: the engine's
-   high-resolution timer, glitchygames/timing.py ``FastTimer``), open it, let the doors run the
+1. No tick open: sleep until the next tick is due (while inner frames run, ``sleep_for``: the
+   engine's high-resolution sleep-then-spin timer, glitchygames/timing.py ``FastTimer``;
+   paused, at the start screen or over, ``sleep_coarsely``, which never spins), open it, let the doors run the
    tick's work (keys), then add the real time since the last tick, times the speed, to the
    accumulator. A tick within ``TICK_SNAP_WINDOW_SECONDS`` of one period counts as exactly one
    period, the error carried to the next tick, so wake-up jitter does not turn 1x into ticks of
@@ -47,6 +48,7 @@ audio/video capture (inner frames handed to a sink rather than presented).
 from __future__ import annotations
 
 import collections
+import time
 from typing import Self
 
 import pygame
@@ -64,6 +66,11 @@ INNER_FRAME_BUDGET_SECONDS = 0.011
 TICK_SNAP_WINDOW_SECONDS = 0.002
 # The effective speed (and being behind) is judged over the last second of ticks
 EFFECTIVE_SPEED_WINDOW_TICKS = 60
+# Behind, the status bar shows the real speed only when it is below this fraction of the speed
+BEHIND_SPEED_FRACTION = 0.95
+# A tick paying for more real time than this was a stall (the process stopped, a window drag):
+# it restarts the effective-speed window instead of reading as a slow second
+STALL_TICK_SECONDS = 0.25
 NANOSECONDS_PER_SECOND = 1_000_000_000
 
 # The viewer's sleeps: the engine's sleep-then-spin timer (finer than pygame.time.wait's
@@ -71,8 +78,21 @@ NANOSECONDS_PER_SECOND = 1_000_000_000
 _SLEEP_TIMER = FastTimer()
 
 
+def sleep_coarsely(*, seconds: float) -> None:
+    """Sleep ``seconds`` without spinning (``time.sleep``): the wait while nothing runs.
+
+    Args:
+        seconds: How long (nothing happens when not positive).
+
+    """
+    if seconds > 0:
+        time.sleep(seconds)
+
+
 def sleep_for(*, seconds: float) -> None:
     """Sleep ``seconds`` with the engine's high-resolution timer (glitchygames/timing.py).
+
+    It spins for the last millisecond or two, so it is used only while inner frames run.
 
     Args:
         seconds: How long (nothing happens when not positive).
@@ -114,13 +134,17 @@ class ReplayViewer:
         self._needs_phase_offset = True
         # Ticks left during which the viewer counts as behind (frames dropped or cut short)
         self._behind_ticks_left = 0
-        # Per tick over the last second, while running: real seconds and inner seconds run
+        # Per running tick over the last second: its real seconds and the inner seconds it ran
         self._recent_real_seconds: collections.deque[float] = collections.deque(
             maxlen=EFFECTIVE_SPEED_WINDOW_TICKS
         )
         self._recent_inner_seconds: collections.deque[float] = collections.deque(
             maxlen=EFFECTIVE_SPEED_WINDOW_TICKS
         )
+        # The open tick: whether the inner game runs in it, the real time it pays for and the
+        # inner seconds it ran
+        self._tick_is_running = False
+        self._tick_elapsed_seconds = 0.0
         self._inner_seconds_this_tick = 0.0
         # The viewer's key presses and releases (event type, key) read since the last tick
         self._key_events: list[tuple[int, int]] = []
@@ -142,6 +166,21 @@ class ReplayViewer:
             return 0.0
         return sum(self._recent_inner_seconds) / real_seconds
 
+    def real_speed_if_behind(self: Self) -> float | None:
+        """Return the real speed when the inner game meaningfully cannot keep up, for the status.
+
+        Returns:
+            ``effective_speed()`` while behind and below ``BEHIND_SPEED_FRACTION`` of the
+            speed, else None (keeping up, slightly slow, or no running ticks measured yet).
+
+        """
+        if not self.is_behind or not self._recent_real_seconds:
+            return None
+        real_speed = self.effective_speed()
+        if real_speed >= self.controls.speed * BEHIND_SPEED_FRACTION:
+            return None
+        return real_speed
+
     def queue_key_event(self: Self, *, event_type: int, key: int) -> None:
         """Keep a real KEYDOWN or KEYUP for the next tick (keys act once per tick at most).
 
@@ -152,8 +191,13 @@ class ReplayViewer:
         """
         self._key_events.append((event_type, key))
 
-    def begin_tick(self: Self) -> float | None:
+    def begin_tick(self: Self, *, is_inner_running: bool) -> float | None:
         """Open the next outer tick if none is open, first sleeping until it is due.
+
+        Args:
+            is_inner_running: Whether the inner game was running when the last tick closed:
+                the wait spins only then (``sleep_for``); paused, at the start screen or over
+                it is a plain sleep (``sleep_coarsely``).
 
         Returns:
             The tick's measured time when a tick was opened (the doors then run its work and
@@ -165,7 +209,10 @@ class ReplayViewer:
         now = measured_seconds()
         remaining_seconds = self.cadence.next_tick_seconds(now=now) - now
         if remaining_seconds > 0:
-            sleep_for(seconds=remaining_seconds)
+            if is_inner_running:
+                sleep_for(seconds=remaining_seconds)
+            else:
+                sleep_coarsely(seconds=remaining_seconds)
             now = measured_seconds()
         self.cadence.tick_is_due(now=now)
         self._is_tick_open = True
@@ -209,18 +256,16 @@ class ReplayViewer:
             else:
                 self._last_tick_seconds = now
         self._behind_ticks_left = max(0, self._behind_ticks_left - 1)
+        self._tick_is_running = is_inner_running
+        self._tick_elapsed_seconds = elapsed_seconds
+        self._inner_seconds_this_tick = 0.0
         if not is_inner_running:
             self.accumulated_seconds = 0.0
             self._needs_phase_offset = True
             self._recent_real_seconds.clear()
             self._recent_inner_seconds.clear()
             self._behind_ticks_left = 0
-            self._inner_seconds_this_tick = 0.0
             return
-        if elapsed_seconds > 0:
-            self._recent_real_seconds.append(elapsed_seconds)
-            self._recent_inner_seconds.append(self._inner_seconds_this_tick)
-        self._inner_seconds_this_tick = 0.0
         self.accumulated_seconds += elapsed_seconds * self.controls.speed
 
     def should_run_inner_frame(
@@ -251,8 +296,9 @@ class ReplayViewer:
             self._needs_phase_offset = False
             self.accumulated_seconds += inner_frame_seconds / 2
         # Never owe more than one tick's worth (keeping the half-frame phase): drop the excess
+        # (frames recorded with no duration owe nothing and never fall behind)
         owed_limit_seconds = (MAX_INNER_FRAMES_PER_TICK + 0.5) * inner_frame_seconds
-        if self.accumulated_seconds > owed_limit_seconds:
+        if inner_frame_seconds > 0 and self.accumulated_seconds > owed_limit_seconds:
             self.accumulated_seconds = owed_limit_seconds
             self._fall_behind()
         if self.accumulated_seconds < inner_frame_seconds:
@@ -262,7 +308,8 @@ class ReplayViewer:
             or measured_seconds() - self._tick_start_seconds >= INNER_FRAME_BUDGET_SECONDS
         ):
             # Owed but out of frames or time this tick: carried to the next
-            self._fall_behind()
+            if inner_frame_seconds > 0:
+                self._fall_behind()
             return self._close_tick()
         self.accumulated_seconds -= inner_frame_seconds
         self._inner_frames_this_tick += 1
@@ -276,9 +323,20 @@ class ReplayViewer:
     def _close_tick(self: Self) -> bool:
         """Close the open tick: the loop presents the outer frame next.
 
+        A running tick joins the effective-speed window with its own real time and the inner
+        seconds it ran; a stall (``STALL_TICK_SECONDS``) restarts the window instead, so it does
+        not read as a slow second.
+
         Returns:
             False (no inner frame runs).
 
         """
         self._is_tick_open = False
+        if self._tick_elapsed_seconds > STALL_TICK_SECONDS:
+            self._recent_real_seconds.clear()
+            self._recent_inner_seconds.clear()
+        elif self._tick_is_running and self._tick_elapsed_seconds > 0:
+            self._recent_real_seconds.append(self._tick_elapsed_seconds)
+            self._recent_inner_seconds.append(self._inner_seconds_this_tick)
+        self._tick_is_running = False
         return False
