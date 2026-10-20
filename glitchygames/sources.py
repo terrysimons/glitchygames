@@ -221,6 +221,8 @@ class _SourcesRegistry:
     scoped: list[EngineSources] = dataclasses.field(default_factory=list)
     frames_started: bool = False
     frame_clock_seconds: float = 0.0
+    # Events to deliver before the next pump's batch (redeliver_events)
+    redelivered_events: list[pygame.event.Event] = dataclasses.field(default_factory=list)
     # Weak: an observer nobody else keeps (a scene built and dropped before its setup) goes away
     save_store_observers: weakref.WeakSet[SaveStoreOpenedObserver] = dataclasses.field(
         default_factory=weakref.WeakSet
@@ -336,6 +338,36 @@ def has_scoped_sources() -> bool:
     return bool(_REGISTRY.scoped)
 
 
+def redeliver_events(*, events: list[pygame.event.Event]) -> None:
+    """Deliver ``events`` before the next pump's batch (``take_redelivered_events``).
+
+    A playback scope holds the live game's events that must not be lost (releases, device and
+    window events) while it plays, then hands them back here as it ends
+    (glitchygames/replay/playback.py). They are not read from any door: a recording of the
+    session holds them in the frames they were pumped in, and a replay of the session holds
+    and redelivers them the same way.
+
+    Args:
+        events: The events, in the order they were pumped.
+
+    """
+    _REGISTRY.redelivered_events.extend(events)
+
+
+def take_redelivered_events() -> list[pygame.event.Event]:
+    """Return the events to deliver before the next pump's batch, and forget them.
+
+    ``GameEngine._pump_events`` puts them first in the batch it dispatches.
+
+    Returns:
+        The events, in order (usually none).
+
+    """
+    events = list(_REGISTRY.redelivered_events)
+    _REGISTRY.redelivered_events.clear()
+    return events
+
+
 def mark_frames_started() -> None:
     """Record that the frame loop has started (install_sources is refused from now on)."""
     _REGISTRY.frames_started = True
@@ -415,4 +447,5 @@ def reset_sources() -> None:
     _REGISTRY.scoped.clear()
     _REGISTRY.frames_started = False
     _REGISTRY.frame_clock_seconds = 0.0
+    _REGISTRY.redelivered_events.clear()
     _REGISTRY.save_store_observers.clear()

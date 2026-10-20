@@ -159,8 +159,13 @@ session again, and every frame's sprites are compared with the recorded frame. T
     what they took in is learned when the sources are made (opened devices, saves first
     opened, the polled input they changed; not enumeration answers, which those frames
     consumed), and the sprite ids continue the recording's (``StableSpriteIds``'s
-    ``recorded_ids``), so frame N is compared as recorded. Saves start from the scene start's
-    save view, over the header's. Frame indexes stay the recording's (rule 3, offset by N):
+    ``recorded_ids``: the ids those frames gave, but those frame N holds, which are the
+    replayed scene's own, sampled already between its setup and its first logic frame), so
+    frame N is compared as recorded. Saves start from the scene start's
+    save view, over the header's. The internal events of frame N's first batch that were posted
+    before the scene began (``ReplayOptions.earlier_internal_event_count``, from its start's
+    first logic frame; glitchygames/scene_start.py, rule 7) are served from the recording, as
+    external ones are, and not compared. Frame indexes stay the recording's (rule 3, offset by N):
     divergences name recording frames, and ``ReplayResult.frames_replayed`` counts up to the
     last compared recording frame.
 """
@@ -429,6 +434,10 @@ class ReplayOptions(BaseModel):
             that records nothing.
         start_frame: The recording frame served first (rule 18: an in-game playback of a
             scene that began on a later frame). 0 (the default) for every other replay.
+        earlier_internal_event_count: How many internal records of the start frame's first
+            batch were posted before the replayed scene began (glitchygames/scene_start.py,
+            rule 7): served from the recording, not compared (rule 18). 0 for every other
+            replay.
 
     """
 
@@ -447,6 +456,7 @@ class ReplayOptions(BaseModel):
     stop_on_divergence: bool = True
     captures_scene_starts: bool = False
     start_frame: int = Field(default=0, ge=0)
+    earlier_internal_event_count: int = Field(default=0, ge=0)
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -996,6 +1006,9 @@ class ReplaySources:
             once per outer tick.
         captures_scene_starts: Whether scenes built now capture their starts
             (``ReplayOptions.captures_scene_starts``: a rebaseline's).
+        start_input: The polled input before the start frame (``IDLE_INPUT`` before frame 0),
+            which the start frame's logic reads (``dt_tick`` runs before the frame's pump); a
+            playback scope makes it the current input as it begins (rule 18).
 
     """
 
@@ -1066,6 +1079,8 @@ class ReplaySources:
         self._frame_index = options.start_frame
         # Pumps so far in the current frame: the index of the batch the next pump serves
         self._pump_index = 0
+        # The start frame's earlier internal events still to serve from the recording (rule 18)
+        self._earlier_internal_events_to_serve = options.earlier_internal_event_count
         self._stop_requested = False
         self._window_was_closed = False
         self._last_batch_origins: list[str] = []
@@ -1099,11 +1114,7 @@ class ReplaySources:
         self._has_blocked_real_input = False
         # A playback from a later frame continues the recording's sprite ids (rule 18)
         self._sprite_ids = StableSpriteIds(
-            recorded_ids=(
-                sprite[SPRITE_ID_FIELD]
-                for frame in frames[: options.start_frame]
-                for sprite in frame.get(SPRITES_FIELD, [])
-            )
+            recorded_ids=_ids_given_before_start(frames=frames, start_frame=options.start_frame)
         )
         self._snapshot: InputSnapshot = IDLE_INPUT
         self._devices = ReplayDeviceRegistry(
@@ -1121,9 +1132,7 @@ class ReplaySources:
         self._opened_save_namespaces: dict[str, MemorySaveManager] = {}
         if format_version < TRACE_FORMAT_VERSION:
             LOG.warning(VERSION_TWO_INPUT_WARNING, format_version)
-        # The frames before the start frame are not served; what they took in is (rule 18)
-        for earlier_frame in frames[: options.start_frame]:
-            self._learn_frame_inputs(frame=earlier_frame)
+        self.start_input = self._learn_frames_before_start(frames=frames)
         self._begin_frame()
 
     @classmethod
@@ -1698,11 +1707,7 @@ class ReplaySources:
         batch: list[pygame.event.Event] = []
         origins: list[str] = []
         for record in batches[self._pump_index]:
-            if record.get(EVENT_ORIGIN_FIELD) == EXTERNAL_ORIGIN:
-                event = self._live_event_from_record(record=record)
-                if event is not None:
-                    batch.append(event)
-                    origins.append(EXTERNAL_ORIGIN)
+            if self._serves_recorded_event(record=record, batch=batch, origins=origins):
                 continue
             is_compared = record.get(EVENT_TYPE_FIELD) not in uncompared_event_types
             matched_event = _take_live_match(
@@ -1734,6 +1739,42 @@ class ReplaySources:
                 actual=live_record,
             )
         return batch, origins
+
+    def _serves_recorded_event(
+        self: Self,
+        *,
+        record: dict[str, Any],
+        batch: list[pygame.event.Event],
+        origins: list[str],
+    ) -> bool:
+        """Serve a recorded event from the recording itself, when it is not matched live.
+
+        External records always are (rule 2). So are the start frame's first internal records
+        posted by code the replay did not run (``ReplayOptions.earlier_internal_event_count``,
+        rule 18): delivered as recorded and never compared.
+
+        Args:
+            record: The recorded event.
+            batch: The batch being built (the event is added to it, unless its joystick has no
+                stand-in).
+            origins: Its origins (the record's is added with it).
+
+        Returns:
+            True when the record was served from the recording; False for an internal record
+            the replayed code must post again.
+
+        """
+        origin = record.get(EVENT_ORIGIN_FIELD)
+        if origin != EXTERNAL_ORIGIN:
+            if self._earlier_internal_events_to_serve == 0:
+                return False
+            # Posted before the replayed scene began, by code the playback did not run
+            self._earlier_internal_events_to_serve -= 1
+        event = self._live_event_from_record(record=record)
+        if event is not None:
+            batch.append(event)
+            origins.append(EXTERNAL_ORIGIN if origin == EXTERNAL_ORIGIN else INTERNAL_ORIGIN)
+        return True
 
     def _live_event_from_record(self: Self, *, record: dict[str, Any]) -> pygame.event.Event | None:
         """Rebuild a recorded external event with its references mapped to live objects.
@@ -1804,6 +1845,22 @@ class ReplaySources:
             ]
         )
         self._learn_frame_inputs(frame=frame)
+
+    def _learn_frames_before_start(
+        self: Self, *, frames: Sequence[dict[str, Any]]
+    ) -> InputSnapshot:
+        """Learn what the frames before the start frame took in; none is served (rule 18).
+
+        Args:
+            frames: Every recorded frame.
+
+        Returns:
+            The polled input before the start frame, which its logic reads.
+
+        """
+        for earlier_frame in frames[: self.options.start_frame]:
+            self._learn_frame_inputs(frame=earlier_frame)
+        return self._snapshot
 
     def _learn_frame_inputs(self: Self, *, frame: dict[str, Any]) -> None:
         """Learn a frame's opened devices, newly opened save namespaces and polled input.
@@ -1985,6 +2042,27 @@ class ReplaySources:
         self._stop_requested = True
 
 
+def _ids_given_before_start(*, frames: Sequence[dict[str, Any]], start_frame: int) -> set[str]:
+    """Return the sprite ids the frames before ``start_frame`` gave to other sprites (rule 18).
+
+    The ids the start frame holds are left out: those sprites are the replayed scene's (set up,
+    and sampled, a frame or a transition's ride before its first logic frame), which the
+    rebuilt scene makes again and which take those ids again.
+
+    Returns:
+        The ids.
+
+    """
+    if start_frame == 0:
+        return set()
+    start_ids = {sprite[SPRITE_ID_FIELD] for sprite in frames[start_frame].get(SPRITES_FIELD, [])}
+    return {
+        sprite[SPRITE_ID_FIELD]
+        for frame in frames[:start_frame]
+        for sprite in frame.get(SPRITES_FIELD, [])
+    } - start_ids
+
+
 def playback_replay_sources(
     *, header: dict[str, Any], frames: Sequence[dict[str, Any]], start: SceneStart, start_frame: int
 ) -> ReplaySources:
@@ -2001,17 +2079,38 @@ def playback_replay_sources(
     Returns:
         The sources, not installed (the scope pushes them; glitchygames/sources.py).
 
+    Raises:
+        TraceFormatError: If the header cannot be replayed, or the frames before
+            ``start_frame`` are malformed (a sprite without an id or with an id that is not
+            ``<Class>#<n>``, an unreadable device descriptor or input change).
+
     """
     saves = {**header.get(SAVES_HEADER_FIELD, {}), **start.saves}
-    return ReplaySources(
-        header={**header, SAVES_HEADER_FIELD: saves},
-        frames=frames,
-        # Only recordings that hold scene starts can be played, and those are this format's
-        format_version=TRACE_FORMAT_VERSION,
-        # Nobody watches a playback's replay: it never holds or pauses and stops at its end or
-        # first divergence (the scope ends then)
-        options=ReplayOptions(headless=True, start_frame=start_frame),
-    )
+    first_logic_frame = start.first_logic_frame
+    try:
+        return ReplaySources(
+            header={**header, SAVES_HEADER_FIELD: saves},
+            frames=frames,
+            # Only recordings that hold scene starts can be played, and those are this format's
+            format_version=TRACE_FORMAT_VERSION,
+            # Nobody watches a playback's replay: it never holds or pauses and stops at its end
+            # or first divergence (the scope ends then)
+            options=ReplayOptions(
+                headless=True,
+                start_frame=start_frame,
+                earlier_internal_event_count=(
+                    0
+                    if first_logic_frame is None
+                    else first_logic_frame.earlier_internal_event_count
+                ),
+            ),
+        )
+    except TraceFormatError:
+        # Already says what is wrong (a header without its seed or start time)
+        raise
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
+        message = f'The recording is malformed before frame {start_frame}: {error!r}'
+        raise TraceFormatError(message) from error
 
 
 def is_cut_off(*, read_result: TraceReadResult) -> bool:

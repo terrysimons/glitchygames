@@ -5,12 +5,18 @@ A rebuilt scene plays a recording on scoped sources while the live game waits un
 
 from __future__ import annotations
 
+import contextlib
+import dataclasses
 import random
 from typing import TYPE_CHECKING, Any
 
 import pygame
+import pytest
 from scripts.record_golden_traces import FRAME_SECONDS, press, release
 
+from glitchygames.events import FPSEVENT
+from glitchygames.input.state import IDLE_INPUT, current_input
+from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import random_stream
 from glitchygames.recording import SCENE_START_FIELD, post_event
 from glitchygames.replay.playback import (
@@ -31,11 +37,17 @@ from tests.replay.playback_fixtures import (
     COUNTING_STREAM_NAME,
     MARKER_TRAVEL,
     SAVING_TICK,
+    SWITCHING_TICK,
     CountingScene,
+    InputReadingScene,
     PostingCountingScene,
+    QuittingCountingScene,
     SavingCountingScene,
+    SwitchingCountingScene,
+    TransitioningCountingScene,
     active_counting_scene,
     record_counting_scene,
+    step_finishing,
 )
 from tests.world.test_frame_integration import (
     TEST_FADE_SECONDS,
@@ -58,6 +70,12 @@ FAR_FROM_ZERO_FRAMES = 40
 TAMPERED_FRAME = 3
 # The live scene's slot, which a playback must never change
 LIVE_SAVE_VALUE = 1
+# The frame a second recorded scene begins on
+LATER_SCENE_FRAME = 4
+# What the live doors' scripted polled input says the mouse is at
+SCRIPTED_MOUSE_POSITION = (123, 45)
+# FPS events every other frame at 60 FPS (posted each half interval: 25 ms)
+FPS_EVENT_INTERVAL_MILLISECONDS = 50
 
 
 def recorded_trace(*, path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -69,6 +87,40 @@ def recorded_trace(*, path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]
     """
     trace = read_trace_result(path=path).trace
     return {name: value for name, value in trace.items() if name != 'frames'}, trace['frames']
+
+
+def record_later_scene(*, tmp_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Record a scene, then a second one switched to between frames at LATER_SCENE_FRAME.
+
+    Returns:
+        The recording's header fields and frames.
+
+    """
+    recording_path = tmp_path / 'later.jsonl.gz'
+    with running_scene(CountingScene) as manager:
+        engine = manager.game_engine
+        assert engine is not None
+        engine.start_trace_recording(path=recording_path)
+        # Built while recording: it captures its start, which the frame it begins holds
+        manager.switch_to_scene(CountingScene(options=engine.OPTIONS))
+        step(manager, frames=LATER_SCENE_FRAME)
+        # Switched to between frames: its first whole frame is LATER_SCENE_FRAME
+        manager.switch_to_scene(CountingScene(options=engine.OPTIONS))
+        step(manager, frames=SHORT_RECORDED_FRAMES)
+        engine.stop_trace_recording()
+    return recorded_trace(path=recording_path)
+
+
+def outcome_reason(manager: Any) -> str:
+    """Return why the last playback scope ended.
+
+    Returns:
+        The outcome's reason.
+
+    """
+    outcome = manager.last_playback_outcome
+    assert outcome is not None
+    return outcome.reason
 
 
 class TestPlaybackScope:
@@ -102,6 +154,7 @@ class TestPlaybackScope:
             assert result is not None
             assert result.divergence is None
             assert result.end_reason == 'end_of_recording'
+            assert outcome_reason(manager) == 'end_of_recording'
             assert result.frames_replayed == RECORDED_FRAMES
             assert not has_scoped_sources()
             # The live game goes on where it was
@@ -139,6 +192,7 @@ class TestPlaybackScope:
             result = manager.last_playback_result
             assert result is not None
             assert result.end_reason == 'running'
+            assert outcome_reason(manager) == 'exit_input'
             assert result.divergence is None
             # The release reaches the live scene
             step(manager, release(pygame.K_SPACE))
@@ -216,35 +270,22 @@ class TestPlaybackScope:
 
     def test_a_scene_that_began_on_a_later_frame_plays_from_there(self, tmp_path):
         """start_frame: the frames before are learned, not served; sprite ids continue."""
-        recording_path = tmp_path / 'later.jsonl.gz'
-        with running_scene(CountingScene) as manager:
-            engine = manager.game_engine
-            assert engine is not None
-            engine.start_trace_recording(path=recording_path)
-            # Built while recording: it captures its start, which the frame it begins holds
-            first_scene = CountingScene(options=engine.OPTIONS)
-            manager.switch_to_scene(first_scene)
-            step(manager, frames=4)
-            # Switched to between frames: frame 4 is the second scene's first whole frame
-            manager.switch_to_scene(CountingScene(options=engine.OPTIONS))
-            step(manager, frames=SHORT_RECORDED_FRAMES)
-            engine.stop_trace_recording()
-        header, frames = recorded_trace(path=recording_path)
-        assert SCENE_START_FIELD in frames[4]
+        header, frames = record_later_scene(tmp_path=tmp_path)
+        assert SCENE_START_FIELD in frames[LATER_SCENE_FRAME]
         with running_scene(CountingScene) as manager:
             assert start_playback(
                 manager=manager,
                 header=header,
                 frames=frames,
                 then=active_counting_scene(manager),
-                options=PlaybackOptions(start_frame=4),
+                options=PlaybackOptions(start_frame=LATER_SCENE_FRAME),
             )
             step(manager, frames=SHORT_RECORDED_FRAMES)
             result = manager.last_playback_result
             assert result is not None
             assert result.divergence is None
             assert result.end_reason == 'end_of_recording'
-            assert result.frames_replayed == 4 + SHORT_RECORDED_FRAMES
+            assert result.frames_replayed == LATER_SCENE_FRAME + SHORT_RECORDED_FRAMES
 
     def test_a_divergence_ends_the_scope(self, tmp_path):
         """The recording no longer matches (the game changed): the scope ends there."""
@@ -267,6 +308,7 @@ class TestPlaybackScope:
             assert result.divergence is not None
             assert result.divergence.frame_number == TAMPERED_FRAME
             assert result.end_reason == 'diverged'
+            assert outcome_reason(manager) == 'diverged'
 
 
 class TestPlaybackErrors:
@@ -291,6 +333,7 @@ class TestPlaybackErrors:
             assert active_sources() is sources_before
             assert random_stream(COUNTING_STREAM_NAME).getstate() == expected_state
             assert 'boom' in caplog.text
+            assert outcome_reason(manager) == 'error'
             # The live game goes on
             step(manager)
             assert live_scene.frames_ticked == 3
@@ -314,6 +357,7 @@ class TestPlaybackErrors:
             expected_stream.setstate(expected_state)
             assert live_scene.marker.rect.x == int(expected_stream.random() * MARKER_TRAVEL)
             assert 'no setup' in caplog.text
+            assert outcome_reason(manager) == 'error'
 
     def test_a_recording_without_a_scene_start_starts_nothing(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -497,3 +541,373 @@ class TestRecordingDuringAPlayback:
         result = manager.last_playback_result
         assert result is not None
         assert result.divergence is None
+
+
+class TestQuitDuringAPlayback:
+    """Only the player's real QUIT quits the game; the recording's ends the scope."""
+
+    def test_the_playback_scenes_own_quit_ends_the_scope_not_the_game(self, tmp_path):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=QuittingCountingScene
+        )
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.quit_requested is False
+            assert manager.playback_session is None
+            assert manager.active_scene is live_scene
+            assert outcome_reason(manager) == 'recording_quit'
+
+    def test_a_recorded_window_quit_ends_the_scope_not_the_game(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        header, frames = recorded_trace(path=recording_path)
+        frames[2]['event_batches'][0].append({
+            'type': pygame.QUIT,
+            'name': 'Quit',
+            'origin': 'external',
+            'attributes': {},
+        })
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            start_playback(manager=manager, header=header, frames=frames, then=live_scene)
+            step(manager, frames=3)
+            assert manager.quit_requested is False
+            assert manager.playback_session is None
+            assert manager.active_scene is live_scene
+            assert outcome_reason(manager) == 'recording_quit'
+
+    def test_a_real_quit_during_a_scope_tears_the_live_game_down(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """The player's QUIT quits; the run's end ends the scope first.
+
+        So the live scene is the one cleaned up, and the doors, streams and clock come back.
+        """
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            expected_state = random_stream(COUNTING_STREAM_NAME).getstate()
+            live_cleanup = mocker.spy(live_scene, 'cleanup')
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager)
+            playback_cleanup = mocker.spy(active_counting_scene(manager), 'cleanup')
+            step(manager, pygame.event.Event(pygame.QUIT, {}))
+            assert manager.quit_requested is True
+            manager.terminate()
+            assert manager.playback_session is None
+            assert manager.active_scene is None
+            assert not has_scoped_sources()
+            assert random_stream(COUNTING_STREAM_NAME).getstate() == expected_state
+            playback_cleanup.assert_called_once()
+            live_cleanup.assert_called_once()
+            assert outcome_reason(manager) == 'quit'
+
+    def test_the_runs_end_drops_a_requested_playback(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            manager.terminate()
+            assert manager._requested_playback is None
+            assert manager.playback_session is None
+
+
+class TestPolledInputInAPlayback:
+    """The playback scene polls the recording's input; the live scene gets its own back."""
+
+    def test_polled_input_does_not_leak_either_way(self, tmp_path, mocker: MockerFixture):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=InputReadingScene
+        )
+        with running_scene(InputReadingScene) as manager:
+            live_input = dataclasses.replace(IDLE_INPUT, mouse_position=SCRIPTED_MOUSE_POSITION)
+            mocker.patch.object(active_sources(), 'input_snapshot', return_value=live_input)
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, InputReadingScene)
+            step(manager, frames=2)
+            assert live_scene.mouse_positions[-1] == SCRIPTED_MOUSE_POSITION
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager)
+            playback_scene = manager.active_scene
+            assert isinstance(playback_scene, InputReadingScene)
+            # Its first tick reads the input before the recording's first frame: idle
+            assert playback_scene.mouse_positions == [IDLE_INPUT.mouse_position]
+            step(manager, frames=SHORT_RECORDED_FRAMES - 1)
+            assert manager.active_scene is live_scene
+            assert current_input() == live_input
+            step(manager)
+            assert live_scene.mouse_positions[-1] == SCRIPTED_MOUSE_POSITION
+
+
+class TestLiveEventsKeptThroughAPlayback:
+    """The live game's events that arrive during a scope reach it after the scope."""
+
+    @pytest.mark.parametrize(
+        'held_event',
+        [
+            pygame.event.Event(pygame.KEYUP, key=pygame.K_SPACE, mod=0, unicode='', scancode=0),
+            pygame.event.Event(pygame.AUDIODEVICEADDED, which=0, iscapture=0),
+            pygame.event.Event(pygame.WINDOWRESIZED, x=640, y=480),
+        ],
+        ids=['release', 'device', 'window'],
+    )
+    def test_held_external_events_are_delivered_after_the_scope(
+        self, tmp_path, mocker: MockerFixture, held_event
+    ):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+            step(manager, held_event)
+            step(manager, frames=SHORT_RECORDED_FRAMES - 2)
+            assert manager.playback_session is None
+            pump = mocker.spy(engine, '_pump_events')
+            step(manager)
+            assert [event.type for event in pump.spy_return] == [held_event.type]
+            assert pump.spy_return[0].dict == held_event.dict
+
+    def test_live_posts_queued_before_the_scope_are_posted_again_after_it(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            post_event(pygame.event.Event(pygame.USEREVENT, {'live': True}))
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            pump = mocker.spy(engine, '_pump_events')
+            step(manager)
+            assert [(event.type, event.dict) for event in pump.spy_return] == [
+                (pygame.USEREVENT, {'live': True})
+            ]
+
+
+class TestOnlyScopedErrorsAreContained:
+    """An error of the installed doors under a scope propagates as it would outside one."""
+
+    def test_a_session_recorder_error_propagates(self, tmp_path, mocker: MockerFixture):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            installed_sources = active_sources()
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+            mocker.patch.object(installed_sources, 'end_frame', side_effect=OSError('disk full'))
+            with pytest.raises(OSError, match='disk full'):
+                step(manager)
+
+
+class TestUnusableRequests:
+    """Malformed recordings and requests that cannot be honoured start nothing."""
+
+    @pytest.mark.parametrize('damage', ['bad_id', 'missing_id'])
+    def test_a_malformed_recording_starts_nothing(self, tmp_path, caplog, damage):
+        header, frames = record_later_scene(tmp_path=tmp_path)
+        sprite = frames[1]['sprites'][0]
+        if damage == 'bad_id':
+            sprite['id'] = 'Broken'
+        else:
+            del sprite['id']
+        with running_scene(CountingScene) as manager:
+            assert not start_playback(
+                manager=manager,
+                header=header,
+                frames=frames,
+                then=manager.active_scene,
+                options=PlaybackOptions(start_frame=LATER_SCENE_FRAME),
+            )
+        assert 'cannot be replayed' in caplog.text
+
+    def test_a_request_in_the_frame_of_a_scene_switch_is_dropped(
+        self, tmp_path, mocker: MockerFixture, caplog
+    ):
+        """The live scene left in the frame that asked: there is no live scene to return to."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            next_scene = CountingScene(options=live_scene.options)
+
+            def request_and_leave(dt: float) -> None:
+                del dt
+                assert start_playback_from_recording(
+                    manager=manager, path=recording_path, then=live_scene
+                )
+                live_scene.next_scene = next_scene
+
+            mocker.patch.object(live_scene, 'dt_tick', side_effect=request_and_leave)
+            step(manager)
+            assert manager.active_scene is next_scene
+            step(manager)
+            assert manager.playback_session is None
+            assert manager.active_scene is next_scene
+        assert 'the scene that asked for it has gone' in caplog.text
+
+
+def record_switching_session(
+    *,
+    tmp_path: Path,
+    scene_class: type[CountingScene],
+    frames: int,
+    option_overrides: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Record a scene that leaves for a new CountingScene mid-run.
+
+    Args:
+        tmp_path: Where the recording goes.
+        scene_class: The leaving scene (switching or transitioning).
+        frames: How many frames to record.
+        option_overrides: Engine options to change for the run; given, frames run as start()
+            runs them (frame clock, FPS events: ``step_finishing``).
+
+    Returns:
+        The recording's header fields and frames.
+
+    """
+    recording_path = tmp_path / f'{scene_class.__name__}-session.jsonl.gz'
+    with running_scene(CameraFreeScene) as manager, contextlib.ExitStack() as restorations:
+        engine = manager.game_engine
+        assert engine is not None
+        if option_overrides is not None:
+            options_before = dict(manager.OPTIONS)
+            manager.OPTIONS.update(option_overrides)
+            restorations.callback(manager.OPTIONS.update, options_before)
+        manager.dt = FRAME_SECONDS
+        engine.start_trace_recording(path=recording_path)
+        manager.switch_to_scene(scene_class(options=engine.OPTIONS))
+        if option_overrides is not None:
+            step_finishing(manager, frames=frames)
+        else:
+            step(manager, frames=frames)
+        engine.stop_trace_recording()
+    return recorded_trace(path=recording_path)
+
+
+def arriving_scene_start_frame(*, frames: list[dict[str, Any]]) -> int:
+    """Return the frame holding the arriving CountingScene's start.
+
+    Returns:
+        The frame index.
+
+    """
+    (start_frame,) = [
+        index
+        for index, frame in enumerate(frames)
+        if frame.get(SCENE_START_FIELD, {}).get('scene_class') == 'CountingScene'
+    ]
+    return start_frame
+
+
+class TestScenesThatBeganMidRun:
+    """A playback starts at the scene's first logic frame, in the state it began that frame."""
+
+    def test_a_scene_switched_to_at_a_frames_end_plays_from_its_first_logic_frame(self, tmp_path):
+        header, frames = record_switching_session(
+            tmp_path=tmp_path,
+            scene_class=SwitchingCountingScene,
+            frames=RECORDED_FRAMES,
+        )
+        start_frame = arriving_scene_start_frame(frames=frames)
+        # Set up at the end of frame SWITCHING_TICK - 1; its first dt_tick is the next frame's
+        assert start_frame == SWITCHING_TICK
+        with running_scene(CountingScene) as manager:
+            assert start_playback(
+                manager=manager,
+                header=header,
+                frames=frames,
+                then=active_counting_scene(manager),
+                options=PlaybackOptions(start_frame=start_frame),
+            )
+            step(manager, frames=RECORDED_FRAMES - start_frame)
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None
+            assert outcome_reason(manager) == 'end_of_recording'
+
+    def test_a_scene_that_arrived_by_a_transition_plays_from_its_first_logic_frame(self, tmp_path):
+        transition_frames = round(TEST_FADE_SECONDS / FRAME_SECONDS)
+        recorded_frames = SWITCHING_TICK + transition_frames + RECORDED_FRAMES
+        header, frames = record_switching_session(
+            tmp_path=tmp_path,
+            scene_class=TransitioningCountingScene,
+            frames=recorded_frames,
+        )
+        start_frame = arriving_scene_start_frame(frames=frames)
+        # After the ride: the transition frames ran no logic on it
+        assert start_frame > SWITCHING_TICK + 1
+        with running_scene(CountingScene) as manager:
+            assert start_playback(
+                manager=manager,
+                header=header,
+                frames=frames,
+                then=active_counting_scene(manager),
+                options=PlaybackOptions(start_frame=start_frame),
+            )
+            step(manager, frames=recorded_frames - start_frame)
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None
+            assert outcome_reason(manager) == 'end_of_recording'
+
+    @pytest.mark.parametrize('switch_tick', [SWITCHING_TICK, SWITCHING_TICK + 1])
+    def test_fps_events_of_a_scene_that_began_mid_run_play_again_exactly(
+        self, tmp_path, mocker: MockerFixture, switch_tick
+    ):
+        """The FPS event timer and an FPS event posted before the scene began are its start's.
+
+        FPS events every other frame (an interval of FPS_EVENT_INTERVAL_MILLISECONDS): one
+        switch tick leaves an FPS event queued for the scene's first logic frame, the other
+        none; both need the recorded FPS timer.
+        """
+        mocker.patch.object(LiveSources, 'frame_seconds', return_value=FRAME_SECONDS)
+        mocker.patch.object(SwitchingCountingScene, 'SWITCH_TICK', switch_tick)
+        header, frames = record_switching_session(
+            tmp_path=tmp_path,
+            scene_class=SwitchingCountingScene,
+            frames=RECORDED_FRAMES,
+            option_overrides={'fps_log_interval_ms': FPS_EVENT_INTERVAL_MILLISECONDS},
+        )
+        assert any(
+            record['type'] == FPSEVENT
+            for frame in frames
+            for batch in frame['event_batches']
+            for record in batch
+        )
+        start_frame = arriving_scene_start_frame(frames=frames)
+        with running_scene(CountingScene) as manager:
+            mocker.patch.dict(
+                manager.OPTIONS, {'fps_log_interval_ms': FPS_EVENT_INTERVAL_MILLISECONDS}
+            )
+            assert start_playback(
+                manager=manager,
+                header=header,
+                frames=frames,
+                then=active_counting_scene(manager),
+                options=PlaybackOptions(start_frame=start_frame),
+            )
+            step_finishing(manager, frames=RECORDED_FRAMES - start_frame)
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None
+            assert outcome_reason(manager) == 'end_of_recording'
+
+    def test_a_start_without_its_first_logic_frame_is_refused(self, tmp_path, caplog):
+        """A start the playback cannot align (no first logic frame recorded) starts nothing."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        header, frames = recorded_trace(path=recording_path)
+        del frames[0][SCENE_START_FIELD]['first_logic_frame']
+        with running_scene(CountingScene) as manager:
+            assert not start_playback(
+                manager=manager, header=header, frames=frames, then=manager.active_scene
+            )
+        assert 'cannot be aligned' in caplog.text

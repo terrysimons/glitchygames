@@ -315,23 +315,29 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `SceneManager._setup_new_scene` completes the frozen pydantic `SceneStart` before the scene's
   FIRST setup only (resume keeps it): `Scene.replay_arguments()` (JSON round-trip exact, default
   `{}`; Clockwork Keep returns its floor, score and lives) and the streams and frame clock again.
-  `SceneManager.active_scene_start`, `Scene.scene_start`; recordings write it as the frame field
-  `scene_start` on the first frame the scene ends active (frame 0 for the first scene; a scene
-  switched away within its first frame has none). `rebuild_scene(start=..., scene_class=...,
+  `SceneManager.active_scene_start`, `Scene.scene_start`. At the top of the scene's first logic
+  frame (first `dt_tick` on it: frame 0 for the first scene, the frame after a `next_scene`
+  switch, the first frame after a transition's ride) `_run_frame` adds `first_logic_frame`
+  (streams, frame clock, FPS timer, earlier pending posts, arrived by transition); recordings
+  write `scene_start` on that frame (a scene that never runs logic has none). `rebuild_scene(start=..., scene_class=...,
   options=...)` restores the construction streams and clock, constructs, then restores the setup
   ones (no `setup()`); it sets global state the caller must restore. Live play captures nothing
 - Playback scope (`glitchygames/replay/playback.py`, whose docstring is the contract; Part 3 Task
   2): `start_playback(manager=..., header=..., frames=..., then=..., options=PlaybackOptions(...))`
-  (or `start_playback_from_recording(path=...)`) requests a scope; `SceneManager._run_frame`
-  enters it at the next frame's start: saves the streams, frame clock and FPS timer, stashes the
-  live scene (no `cleanup()`), pushes `PlaybackSources` (`sources.push_scoped_sources`, over the
-  installed doors), records a `playback` marker, rebuilds the scene from the frame's
-  `scene_start` and sets it up. Real input reaches only the exit check (`exit_on_input`), the
-  scene's posts go to the replay's merge, saves are a sandbox. The scope ends after `end_frame`
-  on exit input, the recording's end or a divergence, and on any error in the frame (logged):
-  the live scene comes back untouched (no second `setup()`), `last_playback_result` keeps the
-  replay's result. Leaf records in `glitchygames/playback_scope.py`. A `--record-trace` session
-  records the live session through a scope (`recording.py`, Playback scopes) and replays it
+  (or `start_playback_from_recording(path=...)`) requests a scope from a frame holding a
+  `scene_start` with its `first_logic_frame`; `SceneManager._run_frame` enters it at the next
+  frame's start (waits out a transition; dropped if the asking scene left that frame): saves the
+  streams, frame clock and FPS timer, stashes the live scene (no `cleanup()`), pushes
+  `PlaybackSources` (`sources.push_scoped_sources`), records a `playback` marker, rebuilds and
+  sets up the scene (repeating a transition's arrival step), then sets the state its first logic
+  frame began in and the recording's prior polled input. Real input reaches only the exit check
+  (`exit_on_input`); releases, device and window events are held and redelivered after
+  (`sources.redeliver_events`), live posts re-posted; the recording's QUIT ends the scope (not
+  the game); saves are a sandbox. It ends after the frame on exit input, the recording's end or
+  divergence, and on any error in its part of the frame (logged; installed-door errors
+  propagate); `terminate()` ends it first. `last_playback_result` / `last_playback_outcome`
+  (frozen pydantic: kind, reason, frames played). A `--record-trace` session records the live
+  session through a scope (`recording.py`, Playback scopes) and replays it
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
   randomness draws from named streams seeded from it: `random_stream('name')` (`random.Random`) or
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is

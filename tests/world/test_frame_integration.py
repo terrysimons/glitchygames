@@ -41,7 +41,7 @@ from glitchygames.examples import paddleslap
 from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.process import run_command
-from glitchygames.randomness import random_stream
+from glitchygames.randomness import capture_stream_states, random_stream
 from glitchygames.scene_start import SceneStart, rebuild_scene, scene_start_capture_enabled
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
@@ -827,6 +827,27 @@ class TestSceneStart:
             progress = start.saves[START_CAPTURE_SAVE_NAMESPACE]['progress']
             assert progress['data'] == {'level': 7}
 
+    def test_the_first_logic_frame_is_captured_at_its_top(self, mocker):
+        """The start is completed as the first frame running the scene's logic begins."""
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        with running_scene(StartCapturedScene) as manager:
+            start = manager.active_scene_start
+            assert start is not None
+            assert start.first_logic_frame is None
+            states_before_the_frame = capture_stream_states()
+            step(manager)
+            completed = manager.active_scene_start
+            assert completed is not None
+            first_logic_frame = completed.first_logic_frame
+            assert first_logic_frame is not None
+            assert first_logic_frame.random_states == states_before_the_frame
+            assert first_logic_frame.frame_clock_seconds == frame_clock_seconds()
+            assert first_logic_frame.earlier_internal_event_count == 0
+            assert first_logic_frame.arrived_by_transition is False
+            # Later frames keep it
+            step(manager)
+            assert manager.active_scene_start is completed
+
     def test_rebuilt_scene_draws_the_same_randomness(self, mocker):
         """A rebuild restores the streams and frame clock the original began with."""
         mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
@@ -936,11 +957,13 @@ class TestSceneStartCaptureScope:
         """Resuming runs the scene's setup again but keeps the start of its first setup."""
         mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
         with running_scene(StartCapturedScene) as manager:
-            first = manager.active_scene_start
             game_scene = manager.active_scene
-            assert first is not None
             assert game_scene is not None
             step(manager, frames=2)
+            # Complete once its first logic frame began (glitchygames/scene_start.py, rule 7)
+            first = manager.active_scene_start
+            assert first is not None
+            assert first.first_logic_frame is not None
             game_scene.pause()
             step(manager)
             assert isinstance(manager.active_scene, PauseScene)

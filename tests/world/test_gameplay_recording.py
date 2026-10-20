@@ -764,7 +764,7 @@ class TestRecordingThroughTheEngine:
         assert SAVES_OPENED_FIELD in frames[0]
 
     def test_recording_holds_each_scene_start(self, mocker, tmp_path):
-        """Frame 0 holds the first scene's start, and a scene's start is in the frame it began."""
+        """Frame 0 holds the first scene's start, and each start is on its first logic frame."""
         recording_path = tmp_path / 'session.jsonl.gz'
         with engine_run_environment(mocker):
             _schedule_quit_in_arrival()
@@ -778,11 +778,19 @@ class TestRecordingThroughTheEngine:
             for frame in frames
             if SCENE_START_FIELD in frame
         }
-        # The arriving scene is set up (and active) in the frame that starts the transition
+        # The arriving scene is set up in the frame that starts the transition; its logic
+        # begins on the first frame after the ride, where its start is written
         assert starts_by_frame == {
             0: 'DepartureRecordedScene',
-            TRANSITION_START_FRAME: 'ArrivalRecordedScene',
+            TRANSITION_START_FRAME + TRANSITION_FRAME_COUNT + 1: 'ArrivalRecordedScene',
         }
+        arrival_start = SceneStart.from_json(
+            frames[TRANSITION_START_FRAME + TRANSITION_FRAME_COUNT + 1][SCENE_START_FIELD]
+        )
+        assert arrival_start.first_logic_frame is not None
+        assert arrival_start.first_logic_frame.arrived_by_transition is True
+        assert first_start.first_logic_frame is not None
+        assert first_start.first_logic_frame.arrived_by_transition is False
 
     def test_saves_opened_before_recording_are_in_the_header(self, tmp_path):
         """A store the game opened before recording started is snapshotted into the header."""

@@ -36,7 +36,24 @@ Rules:
    from deep copies, ``to_json`` returns a deep copy, ``from_json`` reads one, and
    ``rebuild_scene`` passes a deep copy of the arguments. Its own dicts must not be changed.
 6. A recording writes each start as its frame field ``scene_start`` (``SceneStart.to_json``;
-   glitchygames/recording.py documents the format).
+   glitchygames/recording.py documents the format), on the scene's first logic frame (rule 7):
+   a start without one is never written.
+7. The first logic frame (``FirstLogicFrame``): the first frame whose ``dt_tick`` runs on the
+   scene. A scene set up between frames (a run's first scene) begins logic on the next frame; a
+   scene set up inside a frame (a ``next_scene`` switch at the frame's end) on the frame after;
+   a scene that arrived by a transition after the ride (``_capture_arriving_scene`` ran one
+   ``dt_tick(0.001)`` on it as the ride began, and the ride's frames run no logic). At the top
+   of that frame, before any of its work, the scene manager completes the start with the state
+   the scene's logic began in (``SceneStartCapture.begin_first_logic_frame``): every random
+   stream's state, the frame clock (the setup clock plus any frame time since), the FPS event
+   timer (``SceneManager._previous_fps_event_seconds``), how many of the code-posted events
+   pending then (posted before the frame began, by whatever code ran before: an FPS event the
+   previous frame's end posted, a post of the scene left) the frame's first pump delivers
+   (``earlier_internal_event_count``; counted from the internal-post tracker, so exact while
+   posts are tracked: while recording or replaying), and whether the scene arrived by a
+   transition. A playback starts there (glitchygames/replay/playback.py): it sets the scene up,
+   repeats the transition's arrival step for a scene that arrived by one, then restores that
+   state, and serves those earlier events from the recording instead of comparing them.
 
 This module is a leaf like glitchygames/sources.py: it imports only pydantic and the leaves
 (glitchygames.randomness, glitchygames.sources, glitchygames.state), so glitchygames.scenes and
@@ -49,7 +66,7 @@ import copy
 import json
 from typing import TYPE_CHECKING, Any, Self
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames.randomness import capture_stream_states, restore_stream_states
 from glitchygames.sources import (
@@ -66,6 +83,30 @@ if TYPE_CHECKING:
     from glitchygames.state.manager import SaveManager
 
 
+class FirstLogicFrame(BaseModel):
+    """The state a scene's first logic frame began in (read-only; rule 7).
+
+    Attributes:
+        random_states: ``capture_stream_states()`` at the top of the frame.
+        frame_clock_seconds: The frame clock at the top of the frame.
+        fps_event_seconds: When the last FPS event was posted, on the frame clock.
+        earlier_internal_event_count: How many code-posted events pending at the top of the
+            frame its first pump delivers (posted before the frame, so not by the scene's
+            logic).
+        arrived_by_transition: True when the scene arrived by a transition (its arrival step
+            ran a ``dt_tick`` on it and snapped its camera).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    random_states: dict[str, Any]
+    frame_clock_seconds: float
+    fps_event_seconds: float
+    earlier_internal_event_count: int = Field(ge=0)
+    arrived_by_transition: bool
+
+
 class SceneStart(BaseModel):
     """How one scene began (read-only; see the module docstring).
 
@@ -80,6 +121,8 @@ class SceneStart(BaseModel):
         setup_frame_clock_seconds: The frame clock as the scene's first ``setup()`` began.
         saves: Save namespace -> ``save_namespace_snapshot`` of its store (slot name ->
             envelope) as the scene's ``__init__`` began, or as it was first opened after that.
+        first_logic_frame: The state the scene's first logic frame began in (rule 7), or None
+            until that frame begins (a start without it cannot be played).
 
     """
 
@@ -92,6 +135,7 @@ class SceneStart(BaseModel):
     setup_random_states: dict[str, Any]
     setup_frame_clock_seconds: float
     saves: dict[str, dict[str, Any]]
+    first_logic_frame: FirstLogicFrame | None = None
 
     def to_json(self: Self) -> dict[str, Any]:
         """Return the start as plain JSON types (a recording's ``scene_start`` field).
@@ -127,7 +171,9 @@ class SceneStartCapture:
             began.
         construction_frame_clock_seconds: The frame clock at the same moment.
         saves: Namespace -> snapshot, as each store was before the scene's ``__init__`` ran.
-        start: The completed start, or None before the scene's first setup.
+        start: The completed start, or None before the scene's first setup (its
+            ``first_logic_frame`` is added as that frame begins).
+        arrived_by_transition: True once the scene arrived by a transition (rule 7).
 
     """
 
@@ -150,6 +196,8 @@ class SceneStartCapture:
         self.construction_frame_clock_seconds = construction_frame_clock_seconds
         self.saves = saves
         self.start: SceneStart | None = None
+        # Set by SceneManager._start_transition for a scene that arrives by a transition
+        self.arrived_by_transition = False
 
     def on_save_store_opened(self: Self, *, namespace: str, store: SaveManager) -> None:
         """Snapshot a store opened while pending, unless an earlier snapshot holds it.
@@ -202,6 +250,33 @@ class SceneStartCapture:
             saves=copy.deepcopy(self.saves),
         )
         return self.start
+
+    def begin_first_logic_frame(
+        self: Self, *, fps_event_seconds: float, earlier_internal_event_count: int
+    ) -> None:
+        """Complete the start with the state its first logic frame begins in (rule 7).
+
+        Called at the top of every frame that runs the scene's logic; only the first (after
+        its setup) adds anything.
+
+        Args:
+            fps_event_seconds: When the last FPS event was posted, on the frame clock.
+            earlier_internal_event_count: How many code-posted events are pending now.
+
+        """
+        if self.start is None or self.start.first_logic_frame is not None:
+            return
+        self.start = self.start.model_copy(
+            update={
+                'first_logic_frame': FirstLogicFrame(
+                    random_states=capture_stream_states(),
+                    frame_clock_seconds=frame_clock_seconds(),
+                    fps_event_seconds=fps_event_seconds,
+                    earlier_internal_event_count=earlier_internal_event_count,
+                    arrived_by_transition=self.arrived_by_transition,
+                )
+            }
+        )
 
 
 def scene_start_capture_enabled(*, scene_class: type[Scene]) -> bool:

@@ -174,10 +174,11 @@ saves and devices the run took in before recording started. The full format is d
 ### Scene starts
 
 A recording also holds how each scene began, so in-game playback (demos, instant replay) can
-rebuild a scene from its start: the frame a scene began in carries its `scene_start` (its class,
-`replay_arguments()`, every random stream's state and the frame clock as its `__init__` began
-and again as its first `setup()` began, and the saves as they were before its `__init__` ran;
-`glitchygames/scene_start.py`). Frame 0 holds the first scene's start when the run was started
+rebuild a scene from its start: the scene's first logic frame (the first frame whose `dt_tick`
+runs on it) carries its `scene_start` (its class, `replay_arguments()`, every random stream's
+state and the frame clock as its `__init__` began and again as its first `setup()` began, the
+saves as they were before its `__init__` ran, and the state its first logic frame began in;
+`glitchygames/scene_start.py`). A playback starts there. Frame 0 holds the first scene's start when the run was started
 with `--record-trace` (or `--rebaseline`). Starts are captured only while they can be used
 (recording, playback, or a scene that opts into instant replay), so live play pays nothing. A
 scene that cannot be rebuilt on its own sets `CAPTURES_SCENE_START = False` (the pause screen

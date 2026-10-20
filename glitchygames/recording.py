@@ -43,15 +43,17 @@ takes in is recorded where it passes through them.
   included, with their ``error``); and ``scene_start``, the start of the scene that began in
   the frame (``SceneStart.to_json``: ``scene_class``, ``arguments``,
   ``construction_random_states``, ``construction_frame_clock_seconds``,
-  ``setup_random_states``, ``setup_frame_clock_seconds`` and ``saves``;
-  glitchygames/scene_start.py), written on the first frame that ends with that scene active,
-  which is the frame its first ``setup()`` ran in (frame 0 for the scene set up before the
-  first frame), once per scene: resuming it from the pause screen does not write it again,
-  and a scene set up and switched away from within one frame (it never ends a frame active)
-  has no ``scene_start`` at all. Frame 0 holds the first scene's start only when
-  the run was started with ``--record-trace`` (or ``--rebaseline``): those runs capture scene
-  starts from their start, while a recording started later in the run
-  (``GameEngine.start_trace_recording``) holds the starts of scenes built after it began.
+  ``setup_random_states``, ``setup_frame_clock_seconds``, ``saves`` and
+  ``first_logic_frame``; glitchygames/scene_start.py), written on the scene's first logic frame
+  (the first frame whose ``dt_tick`` runs on it: frame 0 for the scene set up before the first
+  frame, the frame after a ``next_scene`` switch, the first frame after a transition's ride;
+  scene_start.py rule 7), once per scene: resuming it from the pause screen does not write it
+  again, and a scene that never runs a logic frame (set up and switched away from within one
+  frame, or still arriving when the recording stops) has no ``scene_start`` at all. Frame 0
+  holds the first scene's start only when the run was started with ``--record-trace`` (or
+  ``--rebaseline``): those runs capture scene starts from their start, while a recording
+  started later in the run (``GameEngine.start_trace_recording``) holds the starts of scenes
+  built after it began.
   ``scene_start`` needed no format version: readers pass frame fields they do not use through
   unchanged (glitchygames/tracing.py), and a replay never compares it (the replayed code
   captures its own); a recording without it replays as before and cannot be played in-game.
@@ -113,6 +115,11 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
 - No ``scene_start``: a scene that ends a frame while scoped doors are active (the playback
   scene, or a scene it switched to) is not one the live session began, so its start is never
   written (``RecordingSources._unrecorded_scene_start``).
+- After the scope: the live game's posts the scope held are posted again (``post_event``), so
+  the next frame's batch records them as internal; the player's held releases, device and
+  window events are delivered before the next pump (``sources.redeliver_events``) and are not
+  recorded again: they are in the scope frames' batches, and a replay of the session holds and
+  delivers them the same way.
 
 Polled input
 ------------
@@ -1109,13 +1116,14 @@ class RecordingSources:
     def _unrecorded_scene_start(self, *, scene: Scene | None) -> SceneStart | None:
         """Return the start of the scene ending this frame, unless a frame already holds it.
 
-        A scene is active from the frame its first ``setup()`` runs in (switches and
-        transitions make it active as they set it up), so the first frame it ends is the frame
-        it began: frame 0 for the scene set up before the first frame. Resuming it from the
-        pause screen does not record it again. A scene set up and switched away from within
-        one frame never ends a frame active, so its start is never written. Nor is the start of
-        a scene that ends a frame while scoped doors are active (a playback scope's scene; see
-        Playback scopes in the module docstring): the live session did not begin it.
+        A start is complete once its first logic frame began (glitchygames/scene_start.py,
+        rule 7: at the top of that frame), so the first frame that ends with it active and
+        complete is its first logic frame: frame 0 for the scene set up before the first frame.
+        Resuming it from the pause screen does not record it again. A scene that never runs a
+        logic frame (set up and switched away from within one frame) is never written. Nor is
+        the start of a scene that ends a frame while scoped doors are active (a playback
+        scope's scene; see Playback scopes in the module docstring): the live session did not
+        begin it.
 
         Args:
             scene: The active scene at the end of the frame.
@@ -1132,7 +1140,11 @@ class RecordingSources:
         # Looked up by name, as SceneManager._setup_new_scene does: a SceneInterface stand-in
         # has no capture
         start_capture = getattr(scene, 'scene_start_capture', None)
-        if not isinstance(start_capture, SceneStartCapture) or start_capture.start is None:
+        if (
+            not isinstance(start_capture, SceneStartCapture)
+            or start_capture.start is None
+            or start_capture.start.first_logic_frame is None
+        ):
             return None
         self._scenes_with_recorded_start.add(scene)
         return start_capture.start

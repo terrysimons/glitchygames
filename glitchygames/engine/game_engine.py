@@ -76,7 +76,12 @@ from glitchygames.replay.rebuild import (
     restart_command,
 )
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.sources import active_sources, install_sources, reset_sources
+from glitchygames.sources import (
+    active_sources,
+    install_sources,
+    reset_sources,
+    take_redelivered_events,
+)
 from glitchygames.sprites import Sprite
 from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.supervision import BREAKPOINT_KIND
@@ -2177,13 +2182,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         Live sources read SDL's queue; a replay's sources hand back a recorded batch instead;
         ``--record-trace``'s ``RecordingSources`` record the batch exactly as the pump returned
-        it, before any dispatch or discarding (glitchygames/sources.py).
+        it, before any dispatch or discarding (glitchygames/sources.py). Events a playback scope
+        held for the live game come first (``take_redelivered_events``; they were recorded in
+        the frames they were pumped in).
 
         Returns:
             The batch, in queue order.
 
         """
-        return active_sources().pump_events()
+        return [*take_redelivered_events(), *active_sources().pump_events()]
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.
