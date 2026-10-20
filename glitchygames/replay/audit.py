@@ -252,6 +252,40 @@ def environment_reaches_children() -> bool:
     return not sys.flags.ignore_environment
 
 
+def run_command(
+    *,
+    command: Sequence[str],
+    environment: Mapping[str, str],
+    timeout_seconds: float,
+    capture_output: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run a command (an argument list, never a shell) as a child process and wait for it.
+
+    The engine's one child-process launcher: the audit's replays use it, and so do the
+    end-to-end audit tests.
+
+    Args:
+        command: The program and its arguments.
+        environment: The child's whole environment, in place before its interpreter starts.
+        timeout_seconds: Kill the child (subprocess.TimeoutExpired) after this long.
+        capture_output: True to capture standard output and error together in ``stdout``;
+            False to let the child write to this process's.
+
+    Returns:
+        The finished process (``returncode``; ``stdout`` when captured, else None).
+
+    """
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with the user's own command line plus fixed flags, as an argument list (no shell)
+        list(command),
+        env=dict(environment),
+        stdout=subprocess.PIPE if capture_output else None,
+        stderr=subprocess.STDOUT if capture_output else None,
+        text=True,
+        check=False,
+        timeout=timeout_seconds,
+    )
+
+
 def _run_replay_subprocess(
     *,
     command: list[str],
@@ -280,11 +314,10 @@ def _run_replay_subprocess(
     run_name = f'The replay with PYTHONHASHSEED={hash_seed}'
     environment = {**os.environ, **HEADLESS_ENVIRONMENT_VARIABLES, 'PYTHONHASHSEED': hash_seed}
     try:
-        process = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with the user's own command line plus fixed flags, as an argument list (no shell)
-            [*command, REPLAY_DIGEST_ARGUMENT, str(digest_path)],
-            env=environment,
-            check=False,
-            timeout=timeout_seconds,
+        process = run_command(
+            command=[*command, REPLAY_DIGEST_ARGUMENT, str(digest_path)],
+            environment=environment,
+            timeout_seconds=timeout_seconds,
         )
     except subprocess.TimeoutExpired as error:
         message = f'{run_name} was still running after {timeout_seconds} seconds; killed'

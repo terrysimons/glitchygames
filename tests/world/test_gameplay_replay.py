@@ -5,7 +5,6 @@ from __future__ import annotations
 import gzip
 import json
 import os
-import subprocess  # ruff: ignore[suspicious-subprocess-import] — the end-to-end audit tests run games as child processes (argument lists, no shell)
 import sys
 import zlib
 from datetime import UTC, datetime, timedelta
@@ -44,6 +43,7 @@ from glitchygames.replay.audit import (
     environment_reaches_children,
     frame_digest,
     read_digest_file,
+    run_command,
 )
 from glitchygames.replay.driver import (
     EVENT_DIVERGENCE,
@@ -1382,16 +1382,18 @@ def fake_run(*, digests: list[str], divergence: str | None) -> ReplayDigestRun:
     )
 
 
-def run_child(*, command: list[str], timeout_seconds: float) -> subprocess.CompletedProcess[str]:
-    """Run a command headless as a child process; its output (stdout and stderr) is captured."""
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with fixed test arguments, as an argument list (no shell)
-        command,
-        env=HEADLESS_ENVIRONMENT,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-        timeout=timeout_seconds,
+def run_child(*, command: list[str], timeout_seconds: float):
+    """Run a command headless through the audit's launcher, capturing stdout and stderr together.
+
+    Returns:
+        The finished process (subprocess.CompletedProcess).
+
+    """
+    return run_command(
+        command=command,
+        environment=HEADLESS_ENVIRONMENT,
+        timeout_seconds=timeout_seconds,
+        capture_output=True,
     )
 
 
