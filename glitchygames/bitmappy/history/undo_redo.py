@@ -11,10 +11,11 @@ their own execute/undo logic so the manager only pushes, pops, and invokes.
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
+
+from glitchygames.clock import wall_clock_epoch_seconds
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.history.commands import UndoRedoCommand
@@ -324,7 +325,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         """
         operation = Operation(
             operation_type=operation_type,
-            timestamp=time.time(),
+            timestamp=wall_clock_epoch_seconds(),
             description=description,
             undo_data=undo_data,
             redo_data=redo_data,
@@ -359,7 +360,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         """
         operation = Operation(
             operation_type=operation_type,
-            timestamp=time.time(),
+            timestamp=wall_clock_epoch_seconds(),
             description=description,
             undo_data=undo_data,
             redo_data=redo_data,

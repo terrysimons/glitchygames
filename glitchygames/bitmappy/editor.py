@@ -8,13 +8,13 @@ import logging
 import multiprocessing
 import signal
 import sys
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
 from glitchygames import events
+from glitchygames.clock import frame_clock_seconds
 from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
 )
@@ -857,8 +857,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         # Log animation state approximately once per second, regardless of fps
         if not hasattr(self, '_last_animation_log_time'):
-            self._last_animation_log_time = time.time()
-        current_time = time.time()
+            self._last_animation_log_time = frame_clock_seconds()
+        current_time = frame_clock_seconds()
         if current_time - self._last_animation_log_time >= 1.0:
             self._last_animation_log_time = current_time
 

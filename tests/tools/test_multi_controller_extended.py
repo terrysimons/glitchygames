@@ -13,6 +13,7 @@ from glitchygames.bitmappy.controllers.manager import (
 )
 from glitchygames.bitmappy.controllers.selection import ControllerSelection
 from glitchygames.bitmappy.indicators.collision import IndicatorShape, VisualCollisionManager
+from glitchygames.clock import elapsed_seconds
 
 
 class TestMultiControllerEdgeCases:
@@ -143,12 +144,12 @@ class TestMultiControllerEdgeCases:
                 instance_id=instance_id,
                 status=ControllerStatus.ACTIVE,
                 color=self.manager.CONTROLLER_COLORS[i],
-                last_activity=time.time(),
+                last_activity=elapsed_seconds(),
             )
             self.manager.assigned_controllers[instance_id] = i
 
         # Simulate old activity for some controllers
-        old_time = time.time() - 1000  # Very old
+        old_time = elapsed_seconds() - 1000  # Very old
         self.manager.controllers[0].last_activity = old_time
         self.manager.controllers[1].last_activity = old_time
 
@@ -232,7 +233,7 @@ class TestVisualCollisionEdgeCases:
     def test_performance_with_many_indicators(self):
         """Test performance with many visual indicators."""
         # Add many indicators
-        start_time = time.time()
+        start_time = elapsed_seconds()
         for i in range(50):
             self.manager.add_controller_indicator(
                 controller_id=i,
@@ -240,7 +241,7 @@ class TestVisualCollisionEdgeCases:
                 color=(255, 0, 0),
                 position=(i * 10, i * 10),
             )
-        end_time = time.time()
+        end_time = elapsed_seconds()
 
         # Should complete quickly (less than 1 second)
         assert end_time - start_time < 1.0
@@ -405,7 +406,7 @@ class TestMultiControllerIntegration:
                 instance_id=instance_id,
                 status=ControllerStatus.ACTIVE,
                 color=self.manager.CONTROLLER_COLORS[i],
-                last_activity=time.time() - i,  # Different activity times
+                last_activity=elapsed_seconds() - i,  # Different activity times
             )
             self.manager.assigned_controllers[instance_id] = i
 
@@ -532,10 +533,10 @@ class TestPerformanceScenarios:
         self.manager.assigned_controllers[0] = 0
 
         # Process many rapid events
-        start_time = time.time()
+        start_time = elapsed_seconds()
         for _ in range(1000):
             self.manager.update_controller_activity(0)
-        end_time = time.time()
+        end_time = elapsed_seconds()
 
         # Should complete quickly
         assert end_time - start_time < 1.0
@@ -543,7 +544,7 @@ class TestPerformanceScenarios:
     def test_collision_calculation_performance(self):
         """Test collision calculation performance with many indicators."""
         # Add many indicators at same position
-        start_time = time.time()
+        start_time = elapsed_seconds()
         for i in range(20):
             self.visual_manager.add_controller_indicator(
                 controller_id=i,
@@ -551,7 +552,7 @@ class TestPerformanceScenarios:
                 color=(255, 0, 0),
                 position=(100, 100),
             )
-        end_time = time.time()
+        end_time = elapsed_seconds()
 
         # Should complete quickly
         assert end_time - start_time < 1.0

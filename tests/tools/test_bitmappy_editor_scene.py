@@ -1044,6 +1044,53 @@ class TestCanvasPanning:
         mock_editor._frame_operations.handle_canvas_panning(delta_x=1, delta_y=0)
 
 
+class TestSingleClickTimer:
+    """Tests for FrameOperationManager.check_single_click_timer (frame-clock debounce)."""
+
+    def test_click_on_the_first_frame_is_submitted_after_the_debounce(self, mock_editor, mocker):
+        """A timer started while the frame clock still reads 0.0 is a real timer, not 'unset'."""
+        from glitchygames import sources
+        from glitchygames.bitmappy.constants import PIXEL_CHANGE_DEBOUNCE_SECONDS
+
+        frame_operations = mock_editor._frame_operations
+        submit = mocker.patch.object(frame_operations, 'submit_pixel_changes_if_ready')
+        mock_editor.current_pixel_changes = [(0, 0, (255, 0, 0), (0, 0, 0))]
+        mock_editor._pixel_change_timer = 0.0
+
+        sources.advance_frame_clock(seconds=PIXEL_CHANGE_DEBOUNCE_SECONDS * 2)
+        frame_operations.check_single_click_timer()
+
+        submit.assert_called_once_with()
+        assert mock_editor._pixel_change_timer is None
+
+    def test_click_is_held_until_the_debounce_passes(self, mock_editor, mocker):
+        """Within the debounce the single pixel waits (it may become a drag)."""
+        frame_operations = mock_editor._frame_operations
+        submit = mocker.patch.object(frame_operations, 'submit_pixel_changes_if_ready')
+        mock_editor.current_pixel_changes = [(0, 0, (255, 0, 0), (0, 0, 0))]
+        mock_editor._pixel_change_timer = 0.0
+
+        frame_operations.check_single_click_timer()
+
+        submit.assert_not_called()
+        assert mock_editor._pixel_change_timer == 0.0
+
+
+class TestAxisCooldown:
+    """Tests for ControllerEventHandler._check_axis_deadzone_and_cooldown."""
+
+    def test_stick_back_from_the_deadzone_has_no_cooldown_at_any_reading(self, mock_editor, mocker):
+        """After the deadzone clears the cooldown, a push counts even at elapsed 0.1 (replay)."""
+        handler = mock_editor.controller_handler
+        axis = (0, pygame.CONTROLLER_AXIS_LEFTX)
+
+        centered = handler._check_axis_deadzone_and_cooldown(mocker.Mock(axis=axis, value=0), 0.0)
+        pushed = handler._check_axis_deadzone_and_cooldown(mocker.Mock(axis=axis, value=20000), 0.1)
+
+        assert centered is False
+        assert pushed is True
+
+
 # ===========================================================================
 # 18. Handle Copy/Paste Frame Operations
 # ===========================================================================

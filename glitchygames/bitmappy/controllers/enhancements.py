@@ -7,8 +7,9 @@ user experience.
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING, Any, cast
+
+from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.editor import BitmapEditorScene
@@ -38,7 +39,9 @@ class BitmappyMultiControllerEnhancements:
         self.controller_groups: dict[str, list[int]] = {}
 
         # Performance optimization
-        self.last_update_time = 0
+        # Never updated: -inf, so the first update is not throttled even when
+        # elapsed_seconds() reads near 0 (it is the frame clock in a replay)
+        self.last_update_time = float('-inf')
         self.update_throttle = 0.016  # 60 FPS max
         self.position_cache: dict[int, tuple[int, int]] = {}
 
@@ -165,7 +168,7 @@ class BitmappyMultiControllerEnhancements:
             self.visual_manager.update_controller_position(controller_id, position)
 
         # Update performance metrics
-        self._update_performance_metrics('visual_update', time.time())
+        self._update_performance_metrics('visual_update', elapsed_seconds())
 
     def _calculate_enhanced_position(
         self,
@@ -282,7 +285,7 @@ class BitmappyMultiControllerEnhancements:
 
         """
         # Throttle updates for performance
-        current_time = time.time()
+        current_time = elapsed_seconds()
         if current_time - self.last_update_time < self.update_throttle:
             return
 
@@ -308,7 +311,7 @@ class BitmappyMultiControllerEnhancements:
         if controller_id not in self.controller_history:
             self.controller_history[controller_id] = []
 
-        action_record = {'timestamp': time.time(), 'action': action, 'data': data}
+        action_record = {'timestamp': wall_clock_epoch_seconds(), 'action': action, 'data': data}
 
         self.controller_history[controller_id].append(action_record)
 

@@ -14,6 +14,7 @@ import pygame
 from pydantic import BaseModel
 
 # Import the default file format constant
+from glitchygames.clock import frame_clock_seconds
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 
@@ -524,9 +525,7 @@ class AnimatedCanvasInterface:
 
         # Start a timer for single clicks (if this is the first pixel)
         if len(pixel_changes_dict) == 1:
-            import time
-
-            parent_scene._pixel_change_timer = time.time()
+            parent_scene._pixel_change_timer = frame_clock_seconds()
             LOG.debug('Canvas interface started pixel change timer for single click')
 
     def _update_frame_pixel_data(

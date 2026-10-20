@@ -48,6 +48,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Key the proxies by instance id (`ControllerEventProxy._instance_id`, set from the controller's joystick view since Task 6), as `JoystickEventManager` does. The joystick demo's controller-mode tab code treats the keys as device indexes, so it needs updating with it
 - **Files**: `glitchygames/events/controller.py`, `glitchygames/examples/joystick_demo.py`
 
+### 72. MultiControllerEnhancements Stores a Duration Where Its Next Call Expects a Timestamp
+- **Description**: `MultiControllerEnhancements._update_performance_metrics` stores the first reading as `performance_metrics[operation]`, then on each later call replaces it with `timestamp - performance_metrics[operation]`. From the third call on it subtracts a duration from a timestamp, so `'visual_update'` alternates between a duration and a timestamp-sized number
+- **Status**: Active (diagnostic only: the value is reported by `get_controller_performance_stats` and nothing acts on it)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 9)
+- **Date Reported**: 2026-10-19
+- **Details**: Keep the last reading and the last duration under separate keys (or separate dicts), so each call subtracts the previous reading. The readings come from `elapsed_seconds()` since Task 9
+- **Files**: `glitchygames/bitmappy/controllers/enhancements.py`
+
 ## Resolved Bugs
 
 ### 69. The Live Device Registry Keeps Every Enumeration Answer and Opened Descriptor Until a Recorder Takes Them

@@ -1200,8 +1200,10 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _post_fps_event(self) -> None:
         """Post FPS event."""
-        # Prefer dt-derived FPS when available (fast timer path); fallback to clock
-        fps_value = 1.0 / self.dt if self.dt > 0 else self.clock.get_fps()
+        # From dt alone, as _track_performance does: dt comes through the frame-time door, so a
+        # replay posts the same value. Not self.clock.get_fps() for dt == 0: that is pygame's
+        # real-time pacing clock (and stale; see _track_performance), which a replay cannot serve
+        fps_value = 1.0 / self.dt if self.dt > 0 else 0.0
 
         post_event(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
 

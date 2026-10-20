@@ -1265,6 +1265,39 @@ class TestAiWorkerShutdown:
 
 
 # ---------------------------------------------------------------------------
+# TestAiRequestIds
+# ---------------------------------------------------------------------------
+
+
+class TestAiRequestIds:
+    """Each AI request gets its own id, even when the wall clock has not moved."""
+
+    def test_two_requests_in_one_frame_get_different_ids(self, mocker):
+        """In a replay the wall clock stands still within a frame; the ids still differ."""
+        from glitchygames.bitmappy import ai_manager
+
+        mocker.patch.object(ai_manager, 'wall_clock_epoch_seconds', return_value=1_700_000_000.0)
+        manager = ai_manager.AIManager(editor=mocker.Mock())
+        manager.ai_request_queue = mocker.Mock()
+
+        for prompt in ('a red slime', 'a blue slime'):
+            manager._submit_ai_request(
+                text=prompt,
+                messages=[{'role': 'user', 'content': prompt}],
+                relevant_examples=[],
+                conversation_history=None,
+                last_sprite_content=None,
+            )
+
+        request_ids = [
+            put_call.args[0].request_id for put_call in manager.ai_request_queue.put.call_args_list
+        ]
+        assert len(request_ids) == 2
+        assert request_ids[0] != request_ids[1]
+        assert set(manager.pending_ai_requests) == set(request_ids)
+
+
+# ---------------------------------------------------------------------------
 # TestScrollArrowSprite
 # ---------------------------------------------------------------------------
 

@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
+from glitchygames.clock import frame_clock_milliseconds
+
 if TYPE_CHECKING:
     from glitchygames.bitmappy.film_strip import (
         FilmStripWidget,
@@ -135,7 +137,7 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
             self.widget.editing_text = ''  # Start with blank buffer
             self.widget.original_animation_name = clicked_animation
             # Initialize cursor blink state
-            self.widget.cursor_blink_time = pygame.time.get_ticks()
+            self.widget.cursor_blink_time = frame_clock_milliseconds()
             self.widget.cursor_visible = True
             LOG.debug(
                 f"FilmStripWidget: Entered edit mode for animation '{clicked_animation}'",
@@ -284,7 +286,7 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         if hasattr(event, 'key') and event.key == pygame.K_BACKSPACE and self.widget.editing_text:
             self.widget.editing_text = self.widget.editing_text[:-1]
             # Reset cursor blink to show cursor after typing
-            self.widget.cursor_blink_time = pygame.time.get_ticks()
+            self.widget.cursor_blink_time = frame_clock_milliseconds()
             self.widget.cursor_visible = True
             self.widget.mark_dirty()
             return True
@@ -299,7 +301,7 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         ):
             self.widget.editing_text += event.unicode
             # Reset cursor blink to show cursor after typing
-            self.widget.cursor_blink_time = pygame.time.get_ticks()
+            self.widget.cursor_blink_time = frame_clock_milliseconds()
             self.widget.cursor_visible = True
             self.widget.mark_dirty()
             return True

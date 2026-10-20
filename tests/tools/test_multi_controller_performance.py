@@ -1,7 +1,5 @@
 """Tests for multi-controller performance and coverage."""
 
-import time
-
 import pytest
 
 from glitchygames.bitmappy.controllers.performance import (
@@ -14,6 +12,7 @@ from glitchygames.bitmappy.controllers.performance import (
 )
 from glitchygames.bitmappy.controllers.selection import ControllerSelection
 from glitchygames.bitmappy.indicators.collision import VisualCollisionManager
+from glitchygames.clock import elapsed_seconds
 
 
 class TestPerformanceMetrics:
@@ -116,9 +115,9 @@ class TestPerformanceMonitor:
 
     def test_last_operation_timestamp(self):
         """Test that last_operation time is recorded."""
-        before = time.time()
+        before = elapsed_seconds()
         self.monitor.record_operation('test_op', 0.1)
-        after = time.time()
+        after = elapsed_seconds()
 
         stats = self.monitor.get_operation_stats('test_op')
         assert stats is not None
@@ -345,7 +344,7 @@ class TestOptimizedVisualCollisionManagerInit:
         assert optimized_manager.enable_caching is True
         assert optimized_manager.enable_optimization is True
         assert optimized_manager.update_throttle == pytest.approx(0.016)
-        assert optimized_manager.last_update_time == 0
+        assert optimized_manager.last_update_time == float('-inf')
         assert optimized_manager.pending_updates == {}
 
     def test_has_performance_components(self, optimized_visual_manager):
@@ -435,6 +434,29 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
         assert stats is not None
         assert stats.operation_count == 1
 
+    def test_first_update_is_not_throttled_when_elapsed_reads_zero(
+        self, optimized_visual_manager, mocker
+    ):
+        """At elapsed 0.0 (a replay's start) the first update still goes through."""
+        from glitchygames.bitmappy.controllers import performance
+
+        mocker.patch.object(performance, 'elapsed_seconds', return_value=0.0)
+        optimized_visual_manager.add_controller_indicator(
+            controller_id=0,
+            instance_id=0,
+            color=(255, 0, 0),
+            position=(10, 20),
+        )
+
+        optimized_visual_manager.update_controller_position(0, (30, 40))
+
+        assert optimized_visual_manager.pending_updates == {}
+        stats = optimized_visual_manager.performance_monitor.get_operation_stats(
+            'update_controller_position',
+        )
+        assert stats is not None
+        assert stats.operation_count == 1
+
     def test_update_position_throttled(self, optimized_visual_manager):
         """Test that updates are throttled when occurring too rapidly."""
         optimized_visual_manager.add_controller_indicator(
@@ -445,7 +467,7 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
         )
 
         # Force last_update_time to be very recent (simulate recent update)
-        optimized_visual_manager.last_update_time = time.time()
+        optimized_visual_manager.last_update_time = elapsed_seconds()
 
         # This update should be throttled (stored as pending)
         optimized_visual_manager.update_controller_position(0, (30, 40))
@@ -470,7 +492,7 @@ class TestOptimizedVisualCollisionManagerUpdatePosition:
         )
 
         # Force a recent update time to trigger throttling
-        optimized_visual_manager.last_update_time = time.time()
+        optimized_visual_manager.last_update_time = elapsed_seconds()
 
         # These should be throttled
         optimized_visual_manager.update_controller_position(0, (30, 40))
@@ -760,7 +782,7 @@ class TestMultiControllerPerformanceOptimizerAutoOptimize:
     def test_auto_optimize_when_interval_passed(self, performance_optimizer):
         """Test that auto optimization triggers when interval has passed."""
         # Set last cleanup time far in the past
-        performance_optimizer.last_cleanup_time = time.time() - 600
+        performance_optimizer.last_cleanup_time = elapsed_seconds() - 600
 
         result = performance_optimizer.auto_optimize_if_needed()
 
@@ -769,7 +791,7 @@ class TestMultiControllerPerformanceOptimizerAutoOptimize:
     def test_auto_optimize_skips_when_interval_not_passed(self, performance_optimizer):
         """Test that auto optimization is skipped when interval has not passed."""
         # Set last cleanup time to now
-        performance_optimizer.last_cleanup_time = time.time()
+        performance_optimizer.last_cleanup_time = elapsed_seconds()
 
         result = performance_optimizer.auto_optimize_if_needed()
 
@@ -777,8 +799,8 @@ class TestMultiControllerPerformanceOptimizerAutoOptimize:
 
     def test_auto_optimize_updates_last_cleanup_time(self, performance_optimizer):
         """Test that last_cleanup_time is updated after optimization."""
-        performance_optimizer.last_cleanup_time = time.time() - 600
-        before_time = time.time()
+        performance_optimizer.last_cleanup_time = elapsed_seconds() - 600
+        before_time = elapsed_seconds()
 
         performance_optimizer.auto_optimize_if_needed()
 

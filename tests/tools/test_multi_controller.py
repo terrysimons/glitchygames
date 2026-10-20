@@ -14,6 +14,7 @@ from glitchygames.bitmappy.indicators.collision import (
     IndicatorShape,
     VisualCollisionManager,
 )
+from glitchygames.clock import elapsed_seconds
 
 """Test suite for multi-controller system.
 
@@ -184,7 +185,7 @@ class TestMultiControllerManager:
             instance_id=0,
             status=ControllerStatus.ASSIGNED,
             color=(255, 0, 0),
-            last_activity=time.time() - 10,  # 10 seconds ago
+            last_activity=elapsed_seconds() - 10,  # 10 seconds ago
         )
         self.manager.controllers[0] = controller_info
         self.manager.assigned_controllers[0] = 0
@@ -588,8 +589,8 @@ class TestMultiControllerManagerCleanup:
             controller_id=0,
             instance_id=100,
             status=ControllerStatus.ACTIVE,
-            assigned_time=time.time() - 100,
-            last_activity=time.time() - 100,  # Very old activity
+            assigned_time=elapsed_seconds() - 100,
+            last_activity=elapsed_seconds() - 100,  # Very old activity
         )
         manager.controllers[100] = controller
         manager.assigned_controllers[100] = 0
@@ -610,8 +611,8 @@ class TestMultiControllerManagerCleanup:
             controller_id=0,
             instance_id=100,
             status=ControllerStatus.ACTIVE,
-            assigned_time=time.time(),
-            last_activity=time.time(),  # Very recent activity
+            assigned_time=elapsed_seconds(),
+            last_activity=elapsed_seconds(),  # Very recent activity
         )
         manager.controllers[100] = controller
         manager.assigned_controllers[100] = 0
@@ -621,6 +622,43 @@ class TestMultiControllerManagerCleanup:
         # Controller should remain ACTIVE
         assert manager.controllers[100].status == ControllerStatus.ACTIVE
         assert 100 in manager.assigned_controllers
+
+    def test_cleanup_counts_activity_at_elapsed_zero(self, mocker):
+        """Activity read at elapsed 0.0 (a replay's first frame) is activity, not 'never'."""
+        from glitchygames.bitmappy.controllers import manager as manager_module
+
+        manager = MultiControllerManager()
+        manager.controllers[100] = ControllerInfo(
+            controller_id=0,
+            instance_id=100,
+            status=ControllerStatus.ACTIVE,
+            assigned_time=0.0,
+            last_activity=0.0,
+        )
+        manager.assigned_controllers[100] = 0
+        mocker.patch.object(
+            manager_module, 'elapsed_seconds', return_value=manager.ASSIGNMENT_TIMEOUT + 1.0
+        )
+
+        manager.cleanup_inactive_controllers()
+
+        assert manager.controllers[100].status == ControllerStatus.CONNECTED
+        assert 100 not in manager.assigned_controllers
+
+    def test_first_scan_runs_when_elapsed_reads_zero(self, mocker):
+        """The first scan is not skipped as 'too soon' at elapsed 0.0 (a replay's start)."""
+        from glitchygames.bitmappy.controllers import manager as manager_module
+        from glitchygames.sources import active_sources
+
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 0
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        mocker.patch.object(manager_module, 'elapsed_seconds', return_value=0.0)
+        manager = MultiControllerManager()
+
+        manager.scan_for_controllers()
+
+        registry.joystick_count.assert_called_once_with()
 
 
 class TestMultiControllerManagerAssignment:

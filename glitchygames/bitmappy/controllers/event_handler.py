@@ -14,7 +14,6 @@ Domain-specific operations are provided by composition delegates:
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING, Any
 
 import pygame
@@ -35,6 +34,7 @@ from glitchygames.bitmappy.controllers.selection import (
 )
 from glitchygames.bitmappy.controllers.slider_operations import SliderOperations
 from glitchygames.bitmappy.controllers.visual_indicators import VisualIndicators
+from glitchygames.clock import elapsed_seconds
 from glitchygames.input.state import current_input
 
 if TYPE_CHECKING:
@@ -463,7 +463,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             self.log.debug('DEBUG: Controller selection not active, ignoring analog stick input')
             return
 
-        current_time = time.time()
+        current_time = elapsed_seconds()
 
         if event.axis == pygame.CONTROLLER_AXIS_LEFTX:
             self._handle_left_stick_x_axis(event, current_time)
@@ -527,7 +527,8 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         """
         # Apply deadzone
         if abs(event.value) < self._controller_axis_deadzone:
-            self._controller_axis_cooldown[event.axis] = 0
+            # No cooldown (-inf), whatever elapsed_seconds() reads (the frame clock in a replay)
+            self._controller_axis_cooldown[event.axis] = float('-inf')
             self._controller_axis_last_values[event.axis] = 0
             return False
 
@@ -569,7 +570,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             self.editor.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
             self.log.debug(f'DEBUG: Registered controller {controller_id} with mode switcher')
 
-        current_time = time.time()
+        current_time = elapsed_seconds()
 
         l2_value, r2_value = self._read_trigger_values(event, controller_id)
 
