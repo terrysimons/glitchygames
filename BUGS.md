@@ -48,15 +48,19 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Key the proxies by instance id (`ControllerEventProxy._instance_id`, set from the controller's joystick view since Task 6), as `JoystickEventManager` does. The joystick demo's controller-mode tab code treats the keys as device indexes, so it needs updating with it
 - **Files**: `glitchygames/events/controller.py`, `glitchygames/examples/joystick_demo.py`
 
+## Resolved Bugs
+
 ### 69. The Live Device Registry Keeps Every Enumeration Answer and Opened Descriptor Until a Recorder Takes Them
 - **Description**: `LiveDeviceRegistry` appends every enumeration answer and every opened device's descriptor to lists that only `take_enumeration_answers()` / `take_opened_descriptors()` empty, and nothing calls them yet (the recorder will). Without a recorder they grow for the whole run: the joystick demo counts devices every frame (one answer per frame), and Bitmappy's controller scan reopens every joystick once a second
-- **Status**: Active (until the recorder drains the registry every frame, or live sources drain it when not recording)
+- **Status**: Resolved
 - **Priority**: Low (tens of bytes per answer)
 - **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
 - **Date Reported**: 2026-10-19
 - **Files**: `glitchygames/input/devices.py`, `glitchygames/live_sources.py`
-
-## Resolved Bugs
+- **Date Resolved**: 2026-10-19
+- **Solution**: `LiveSources.end_frame` calls `LiveDeviceRegistry.discard_untaken()`, which drops the frame's answers and descriptors nobody took; a recorder (Task 11) takes them before `end_frame`. The registry also forgets a device when it is removed (the joystick and controller managers' removal handlers call `forget_device`) or when `poll()` finds it detached or raising, instead of logging a traceback every frame. The joystick demo looks joystick device indexes up once per frame instead of once per tracked device
+- **Files Modified**: `glitchygames/input/devices.py`, `glitchygames/live_sources.py`, `glitchygames/events/joystick.py`, `glitchygames/events/controller.py`, `glitchygames/examples/joystick_demo.py`
+- **Tests**: `test_live_frames_without_a_recorder_keep_no_enumeration_answers`, `test_answers_taken_before_the_end_of_a_live_frame_are_intact` and the forget tests in `tests/input/test_devices.py`; the removal tests in `tests/events/`; `test_joystick_device_index_lookup_opens_each_joystick_once_per_frame` in `tests/examples/test_joystick_demo.py`
 
 ### 71. The Joystick Demo Called `get_id` / `get_instance_id` on Game Controllers
 - **Description**: In controller mode the demo's device panel called `get_id()` and `get_instance_id()` on the `pygame._sdl2.controller.Controller`, which has neither, so the `AttributeError` (not caught by `except pygame.error`) would have stopped the demo once #66 no longer did

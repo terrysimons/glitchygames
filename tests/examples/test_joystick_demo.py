@@ -148,3 +148,29 @@ def test_controller_validation_fails_for_a_recorded_failure(mocker):
     scene = JoystickScene.__new__(JoystickScene)
 
     assert scene._is_controller_still_valid(0) is False
+
+
+def test_joystick_device_index_lookup_opens_each_joystick_once_per_frame(mocker):
+    """Looking up several joysticks in one frame counts and opens each joystick once."""
+    registry = mocker.Mock()
+    registry.joystick_count.return_value = 2
+    registry.open_joystick.side_effect = lambda device_index: mocker.Mock(**{
+        'get_instance_id.return_value': 10 + device_index
+    })
+    mocker.patch.object(active_sources(), 'devices', return_value=registry)
+    text_sprite = TextSprite.__new__(TextSprite)
+    text_sprite.forget_joystick_indexes()
+
+    def tracked(instance_id: int):
+        return mocker.Mock(**{'get_instance_id.return_value': instance_id})
+
+    assert text_sprite._find_joystick_device_id(tracked(11)) == 1
+    assert text_sprite._find_joystick_device_id(tracked(10)) == 0
+    assert text_sprite._find_joystick_device_id(tracked(99)) is None
+    assert registry.joystick_count.call_count == 1
+    assert registry.open_joystick.call_count == 2
+
+    # The next frame looks again
+    text_sprite.forget_joystick_indexes()
+    assert text_sprite._find_joystick_device_id(tracked(11)) == 1
+    assert registry.open_joystick.call_count == 4

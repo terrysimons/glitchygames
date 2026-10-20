@@ -418,3 +418,104 @@ def test_a_controller_whose_joystick_view_fails_is_closed_again(mocker):
             call='open_controller', device_index=0, value=None, error='Controller not attached'
         )
     ]
+
+
+def test_live_poll_forgets_a_device_that_raises(mocker):
+    """A device that errors while polled is forgotten: it is not polled (or logged) again."""
+    fake_device = mocker.Mock(**{
+        'get_instance_id.return_value': 4,
+        'get_name.return_value': 'Pad',
+        'get_guid.return_value': 'g',
+        'get_numaxes.return_value': 1,
+        'get_numbuttons.return_value': 0,
+        'get_numhats.return_value': 0,
+        'get_numballs.return_value': 0,
+        'get_axis.side_effect': pygame.error('Joystick not initialized'),
+    })
+    mocker.patch('pygame.joystick.Joystick', return_value=fake_device)
+    registry = LiveDeviceRegistry()
+    registry.open_joystick(device_index=0)
+
+    registry.poll()
+    registry.poll()
+
+    assert fake_device.get_axis.call_count == 1
+    assert registry.joystick_for_instance(instance_id=4) is None
+
+
+def test_live_poll_forgets_a_detached_controller(mocker):
+    """A controller that reports itself detached is forgotten without reading it."""
+    fake_controller = make_fake_controller(mocker=mocker, instance_id=12)
+    fake_controller.attached.return_value = False
+    mocker.patch('pygame._sdl2.controller.Controller', return_value=fake_controller)
+    registry = LiveDeviceRegistry()
+    registry.open_controller(device_index=0)
+
+    assert registry.poll() == PolledDevices(
+        axes={}, buttons={}, hats={}, controller_axes={}, controller_buttons={}
+    )
+    assert registry.joystick_for_instance(instance_id=12) is None
+    fake_controller.get_axis.assert_not_called()
+    fake_controller.as_joystick.return_value.get_axis.assert_not_called()
+
+
+def test_live_registry_forgets_a_removed_device(mocker):
+    """forget_device (the device-removed path) stops polling and looking up the device."""
+    fake_controller = make_fake_controller(mocker=mocker, instance_id=12)
+    mocker.patch('pygame._sdl2.controller.Controller', return_value=fake_controller)
+    registry = LiveDeviceRegistry()
+    registry.open_controller(device_index=0)
+
+    registry.forget_device(instance_id=12)
+    registry.forget_device(instance_id=12)  # a second removal event is harmless
+
+    assert registry.joystick_for_instance(instance_id=12) is None
+    assert registry.poll().controller_axes == {}
+
+
+def test_replay_registry_forgets_a_removed_device():
+    """The replay registry forgets a removed stand-in as live play does."""
+    registry = ReplayDeviceRegistry(descriptors=[PAD], enumeration_answers=[])
+    registry.open_joystick(device_index=0)
+
+    registry.forget_device(instance_id=7)
+
+    assert registry.joystick_for_instance(instance_id=7) is None
+
+
+def test_live_frames_without_a_recorder_keep_no_enumeration_answers(mocker):
+    """Untaken answers and descriptors are discarded at the end of every live frame."""
+    mocker.patch('pygame.joystick.get_count', return_value=1)
+    fake_device = mocker.Mock(**{
+        'get_instance_id.return_value': 4,
+        'get_name.return_value': 'Pad',
+        'get_guid.return_value': 'g',
+        'get_numaxes.return_value': 0,
+        'get_numbuttons.return_value': 0,
+        'get_numhats.return_value': 0,
+        'get_numballs.return_value': 0,
+    })
+    mocker.patch('pygame.joystick.Joystick', return_value=fake_device)
+    sources = LiveSources(random_seed=1)
+    registry = sources.devices()
+
+    for frame_number in range(5):
+        registry.joystick_count()
+        registry.open_joystick(device_index=0)
+        sources.end_frame(frame_number=frame_number, dt=0.016, scene=None)
+
+        assert registry.take_enumeration_answers() == []
+        assert registry.take_opened_descriptors() == []
+
+
+def test_answers_taken_before_the_end_of_a_live_frame_are_intact(mocker):
+    """A recorder takes the frame's answers before end_frame discards what is left."""
+    mocker.patch('pygame.joystick.get_count', return_value=2)
+    sources = LiveSources(random_seed=1)
+    registry = sources.devices()
+
+    registry.joystick_count()
+    taken = registry.take_enumeration_answers()
+    sources.end_frame(frame_number=0, dt=0.016, scene=None)
+
+    assert taken == [EnumerationAnswer(call='joystick_count', device_index=None, value=2)]

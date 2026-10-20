@@ -94,4 +94,10 @@ class LiveSources:
         return self._devices
 
     def end_frame(self: Self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
-        """Nothing to do after a live frame."""
+        """Discard the frame's device answers and descriptors nobody took.
+
+        A recorder (Task 11 of the gameplay replay plan) takes them before this runs.
+        """
+        # The frame itself needs nothing from live play (EngineSources signature)
+        del frame_number, dt, scene
+        self._devices.discard_untaken()

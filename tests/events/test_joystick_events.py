@@ -1543,3 +1543,41 @@ class TestJoystickDevicesDoor:
         real_joystick.assert_not_called()
         assert open_spy.call_count == 1
         assert list(manager.joysticks) == [9]
+
+    def test_joystick_removal_makes_the_registry_forget_the_device(self, mocker):
+        """A removed joystick is forgotten by the devices door, tracked or not."""
+        registry = _replay_registry_with_joystick(mocker=mocker, device_index=0, instance_id=9)
+        registry.open_joystick(device_index=0)
+        manager = JoystickEventManager.__new__(JoystickEventManager)
+        manager.joysticks = {}
+        manager.game = mocker.Mock()
+
+        manager.on_joy_device_removed_event(HashableEvent(pygame.JOYDEVICEREMOVED, instance_id=9))
+
+        assert registry.joystick_for_instance(instance_id=9) is None
+
+    def test_device_added_fallback_key_never_reuses_another_device(self, mocker):
+        """When the instance id lookup fails, the device index is never used as an instance id.
+
+        Device A (device index 0) has instance id 3. A device added at device index 3 whose
+        first open fails must be opened by its device index, not handed device A.
+        """
+        from glitchygames.input.devices import LiveDeviceRegistry
+        from glitchygames.sources import active_sources
+
+        registry = LiveDeviceRegistry()
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        device_a = _make_joystick_mock(mocker, get_instance_id=3)
+        device_b = _make_joystick_mock(mocker, get_instance_id=7)
+        mocker.patch(
+            'pygame.joystick.Joystick',
+            side_effect=[device_a, pygame.error('not ready'), device_b],
+        )
+        registry.open_joystick(device_index=0)
+        manager = JoystickEventManager.__new__(JoystickEventManager)
+        manager.joysticks = {}
+        manager.game = mocker.Mock()
+
+        manager.on_joy_device_added_event(HashableEvent(pygame.JOYDEVICEADDED, device_index=3))
+
+        assert manager.joysticks[3].joystick is device_b

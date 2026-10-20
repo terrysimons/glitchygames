@@ -266,6 +266,8 @@ class TextSprite(Sprite):
         self.x = x
         self.y = y
         self.text_box = None
+        # Joystick instance id -> device index, found once per frame (forget_joystick_indexes)
+        self._joystick_index_by_instance: dict[int, int] | None = None
         # Enable alternative textbox mode by default
         self.use_textbox = True
 
@@ -369,11 +371,39 @@ class TextSprite(Sprite):
             return self.controller_manager.controllers
         return self.joystick_manager.joysticks
 
+    def forget_joystick_indexes(self: Self) -> None:
+        """Forget the joystick device indexes found this frame (once per frame, and on hotplug).
+
+        The next ``_find_joystick_device_id`` counts and opens the joysticks again.
+        """
+        self._joystick_index_by_instance = None
+
+    def _joystick_indexes(self: Self) -> dict[int, int]:
+        """Return every joystick's device index by instance id, found at most once per frame.
+
+        Devices are counted and opened through the devices door (glitchygames/input/devices.py),
+        and every open is recorded, so they are opened once per frame, not once per lookup.
+
+        Returns:
+            Device index by instance id.
+
+        """
+        if self._joystick_index_by_instance is None:
+            devices = active_sources().devices()
+            joystick_index_by_instance: dict[int, int] = {}
+            for device_index in range(devices.joystick_count()):
+                try:
+                    current_device = devices.open_joystick(device_index=device_index)
+                    joystick_index_by_instance[current_device.get_instance_id()] = device_index
+                except pygame.error:
+                    LOG.debug('Failed to access joystick %d during device lookup', device_index)
+            self._joystick_index_by_instance = joystick_index_by_instance
+        return self._joystick_index_by_instance
+
     def _find_joystick_device_id(self: Self, device_obj: Any) -> int | None:
         """Find the current pygame device index for a joystick by its instance id.
 
-        Devices are counted and opened through the devices door (glitchygames/input/devices.py).
-        They are matched by instance id, not object identity: a replay's stand-ins are new
+        Joysticks are matched by instance id, not object identity: a replay's stand-ins are new
         objects on every open.
 
         Args:
@@ -383,7 +413,6 @@ class TextSprite(Sprite):
             The device index, or None if not found.
 
         """
-        devices = active_sources().devices()
         try:
             target_instance_id = device_obj.get_instance_id()
         except pygame.error:
@@ -391,14 +420,7 @@ class TextSprite(Sprite):
                 'Failed to get the instance id of joystick %r during device lookup', device_obj
             )
             return None
-        for device_index in range(devices.joystick_count()):
-            try:
-                current_device = devices.open_joystick(device_index=device_index)
-                if current_device.get_instance_id() == target_instance_id:
-                    return device_index
-            except pygame.error:
-                LOG.debug('Failed to access joystick %d during device lookup', device_index)
-        return None
+        return self._joystick_indexes().get(target_instance_id)
 
     def _collect_active_devices(
         self: Self,
@@ -524,24 +546,26 @@ class TextSprite(Sprite):
         self.text_box.print(self.image, f'Number of axes: {axes}')
 
         self.text_box.indent()
-        for j in range(axes):
+        for axis_index in range(axes):
             if instance_id is None:
-                self.text_box.print(self.image, f'Axis {j} value: N/A')
+                self.text_box.print(self.image, f'Axis {axis_index} value: N/A')
             else:
-                axis_value = snapshot.controller_axis(device_id=instance_id, axis=j)
-                self.text_box.print(self.image, f'Axis {j} value: {axis_value:>6.3f}')
+                axis_value = snapshot.controller_axis(device_id=instance_id, axis=axis_index)
+                self.text_box.print(self.image, f'Axis {axis_index} value: {axis_value:>6.3f}')
         self.text_box.unindent()
 
         buttons = len(proxy.BUTTONS) if hasattr(proxy, 'BUTTONS') else 0
         self.text_box.print(self.image, f'Number of buttons: {buttons}')
 
         self.text_box.indent()
-        for j in range(buttons):
+        for button_index in range(buttons):
             if instance_id is None:
-                self.text_box.print(self.image, f'Button {j:>2} value: N/A')
+                self.text_box.print(self.image, f'Button {button_index:>2} value: N/A')
             else:
-                button_value = snapshot.controller_button(device_id=instance_id, button=j)
-                self.text_box.print(self.image, f'Button {j:>2} value: {button_value}')
+                button_value = snapshot.controller_button(
+                    device_id=instance_id, button=button_index
+                )
+                self.text_box.print(self.image, f'Button {button_index:>2} value: {button_value}')
         self.text_box.unindent()
 
         # Controllers don't have hats
@@ -563,18 +587,18 @@ class TextSprite(Sprite):
         self.text_box.print(self.image, f'Number of axes: {axes}')
 
         self.text_box.indent()
-        for j in range(axes):
-            axis_value = snapshot.axis(device_id=instance_id, axis=j)
-            self.text_box.print(self.image, f'Axis {j} value: {axis_value:>6.3f}')
+        for axis_index in range(axes):
+            axis_value = snapshot.axis(device_id=instance_id, axis=axis_index)
+            self.text_box.print(self.image, f'Axis {axis_index} value: {axis_value:>6.3f}')
         self.text_box.unindent()
 
         buttons = device_obj.get_numbuttons()
         self.text_box.print(self.image, f'Number of buttons: {buttons}')
 
         self.text_box.indent()
-        for j in range(buttons):
-            button_value = snapshot.button(device_id=instance_id, button=j)
-            self.text_box.print(self.image, f'Button {j:>2} value: {button_value}')
+        for button_index in range(buttons):
+            button_value = snapshot.button(device_id=instance_id, button=button_index)
+            self.text_box.print(self.image, f'Button {button_index:>2} value: {button_value}')
         self.text_box.unindent()
 
         # Hat switch. All or nothing for direction, not like joysticks.
@@ -584,9 +608,9 @@ class TextSprite(Sprite):
 
         if hats > 0:
             self.text_box.indent()
-            for j in range(hats):
-                hat_value = snapshot.hat(device_id=instance_id, hat=j)
-                self.text_box.print(self.image, f'Hat {j} value: {hat_value!s}')
+            for button_index in range(hats):
+                hat_value = snapshot.hat(device_id=instance_id, hat=button_index)
+                self.text_box.print(self.image, f'Hat {button_index} value: {hat_value!s}')
             self.text_box.unindent()
 
     def _render_device_info(
@@ -753,6 +777,8 @@ class JoystickScene(Scene):
     def update(self: Self) -> None:
         """Update the scene."""
         super().update()  # Call parent update
+        # Joystick device indexes are looked up at most once per frame
+        self.text_sprite.forget_joystick_indexes()
 
         # Fallback: check for controller count changes if events aren't firing
         # Use the correct count method based on input mode
@@ -1190,6 +1216,8 @@ class JoystickScene(Scene):
         """Handle joystick device added events by rebuilding controller tabs."""
         # Update the fallback counter to trigger rebuild
         self.last_controller_count = active_sources().devices().joystick_count()
+        # The devices changed: look their device indexes up again
+        self.text_sprite.forget_joystick_indexes()
         self._rebuild_controller_tabs()
 
     @override
@@ -1197,6 +1225,8 @@ class JoystickScene(Scene):
         """Handle joystick device removed events by rebuilding controller tabs."""
         # Update the fallback counter to trigger rebuild
         self.last_controller_count = active_sources().devices().joystick_count()
+        # The devices changed: look their device indexes up again
+        self.text_sprite.forget_joystick_indexes()
         self._rebuild_controller_tabs()
 
     # Controller device events: rebuild tabs
@@ -1205,6 +1235,8 @@ class JoystickScene(Scene):
         """Handle controller device added events by rebuilding controller tabs."""
         # Update the fallback counter to trigger rebuild
         self.last_controller_count = active_sources().devices().joystick_count()
+        # The devices changed: look their device indexes up again
+        self.text_sprite.forget_joystick_indexes()
         self._rebuild_controller_tabs()
 
     @override
@@ -1212,6 +1244,8 @@ class JoystickScene(Scene):
         """Handle controller device removed events by rebuilding controller tabs."""
         # Update the fallback counter to trigger rebuild
         self.last_controller_count = active_sources().devices().joystick_count()
+        # The devices changed: look their device indexes up again
+        self.text_sprite.forget_joystick_indexes()
         self._rebuild_controller_tabs()
 
     @override

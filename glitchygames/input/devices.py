@@ -220,6 +220,15 @@ class DeviceRegistry(Protocol):
         """
         ...
 
+    def forget_device(self, *, instance_id: int) -> None:
+        """Forget a removed device (its removal event's instance id); unknown ids are ignored.
+
+        Args:
+            instance_id: The SDL instance id.
+
+        """
+        ...
+
     def take_opened_descriptors(self) -> list[DeviceDescriptor]:
         """Return the descriptors of devices opened since the last call (the recorder's)."""
         ...
@@ -460,6 +469,29 @@ class LiveDeviceRegistry:
         """
         return self._devices_by_instance.get(instance_id)
 
+    def forget_device(self: Self, *, instance_id: int) -> None:
+        """Stop polling and handing out a removed (or vanished) device.
+
+        Called from the joystick and controller managers' device-removed handlers, and by
+        ``poll`` for a device that is detached or raises. Unknown ids are ignored, so the
+        joystick and controller removal events of one game controller can both call it.
+
+        Args:
+            instance_id: The SDL instance id.
+
+        """
+        self._devices_by_instance.pop(instance_id, None)
+        self._controllers_by_instance.pop(instance_id, None)
+
+    def discard_untaken(self: Self) -> None:
+        """Drop the answers and descriptors nobody took this frame (``LiveSources.end_frame``).
+
+        A recorder (Task 11 of the gameplay replay plan) takes them before ``end_frame``;
+        without one, nothing would ever take them and they would pile up for the whole run.
+        """
+        self._new_answers.clear()
+        self._new_descriptors.clear()
+
     def take_opened_descriptors(self: Self) -> list[DeviceDescriptor]:
         """Return the descriptors of devices opened since the last call (the recorder's).
 
@@ -483,6 +515,9 @@ class LiveDeviceRegistry:
     def poll(self: Self) -> PolledDevices:
         """Read every opened device on both layers (once per frame, at the pump).
 
+        A device that is detached (a controller's ``attached()``) or raises while read is
+        forgotten (``forget_device``): it reads as absent from then on, and is logged once.
+
         Returns:
             The positions by instance id.
 
@@ -492,9 +527,14 @@ class LiveDeviceRegistry:
         hats: dict[int, tuple[tuple[int, int], ...]] = {}
         controller_axes: dict[int, tuple[int, ...]] = {}
         controller_buttons: dict[int, tuple[bool, ...]] = {}
+        vanished_instance_ids: list[int] = []
         for instance_id, joystick_view in self._devices_by_instance.items():
             controller = self._controllers_by_instance.get(instance_id)
             try:
+                if controller is not None and not controller.attached():
+                    LOG.debug('Controller %d is detached; forgetting it', instance_id)
+                    vanished_instance_ids.append(instance_id)
+                    continue
                 device_axes, device_buttons, device_hats = _poll_joystick_layer(
                     device=joystick_view
                 )
@@ -502,15 +542,20 @@ class LiveDeviceRegistry:
                     None if controller is None else _poll_controller_layer(controller=controller)
                 )
             except pygame.error:
-                # Unplugged since it was opened: it reads as absent this frame (every
-                # mapping, so a device is never half present)
-                LOG.debug('Device %d vanished while polling', instance_id, exc_info=True)
+                # Unplugged since it was opened: it is absent from every mapping (a device is
+                # never half present) and forgotten, so it is not polled or logged again
+                LOG.debug(
+                    'Device %d vanished while polling; forgetting it', instance_id, exc_info=True
+                )
+                vanished_instance_ids.append(instance_id)
                 continue
             axes[instance_id] = device_axes
             buttons[instance_id] = device_buttons
             hats[instance_id] = device_hats
             if controller_layer is not None:
                 controller_axes[instance_id], controller_buttons[instance_id] = controller_layer
+        for instance_id in vanished_instance_ids:
+            self.forget_device(instance_id=instance_id)
         return PolledDevices(
             axes=axes,
             buttons=buttons,
@@ -1035,6 +1080,15 @@ class ReplayDeviceRegistry:
 
         """
         return self._opened_by_instance.get(instance_id)
+
+    def forget_device(self: Self, *, instance_id: int) -> None:
+        """Forget a removed stand-in, as live play forgets the device (replayed removal events).
+
+        Args:
+            instance_id: The recorded SDL instance id.
+
+        """
+        self._opened_by_instance.pop(instance_id, None)
 
     def take_opened_descriptors(self: Self) -> list[DeviceDescriptor]:
         """Return the descriptors learned from the recording since the last call, once each.

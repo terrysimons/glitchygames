@@ -92,6 +92,9 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
             # Initialize button state from the frame's input snapshot (the controller layer, by
             # CONTROLLER_AXIS_* / CONTROLLER_BUTTON_* id), never from the device mid-frame, so
             # live play and a replay start from the same positions.
+            # A hot-plugged controller is not in this frame's snapshot (it was opened after the
+            # pump), so its caches start zeroed: intended (snapshot-only reads), do not read
+            # the device instead.
             snapshot = current_input()
             self._axes = [
                 snapshot.controller_axis(device_id=self._instance_id, axis=axis)
@@ -454,6 +457,8 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
 
         """
         # CONTROLLERDEVICEREMOVED instance_id
+        # The devices door stops polling it (tracked here or not)
+        active_sources().devices().forget_device(instance_id=event.instance_id)
         if event.instance_id in self.controllers:
             self.controllers[event.instance_id].on_controller_device_removed_event(event)
             del self.controllers[event.instance_id]

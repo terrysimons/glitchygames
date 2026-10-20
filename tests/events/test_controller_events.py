@@ -1016,3 +1016,17 @@ class TestControllerDevicesDoor:
         real_is_controller.assert_not_called()
         real_controller.assert_not_called()
         assert list(manager.controllers) == [0]
+
+    def test_controller_removal_makes_the_registry_forget_the_device(self, mocker):
+        """A removed controller is forgotten by the devices door, tracked or not."""
+        registry = _replay_registry_with_controller(mocker=mocker, device_index=0, instance_id=7)
+        registry.open_controller(device_index=0)
+        manager = ControllerEventManager.__new__(ControllerEventManager)
+        manager.controllers = {}
+        manager.game = mocker.Mock()
+
+        manager.on_controller_device_removed_event(
+            HashableEvent(pygame.CONTROLLERDEVICEREMOVED, instance_id=7)
+        )
+
+        assert registry.joystick_for_instance(instance_id=7) is None
