@@ -608,9 +608,9 @@ class TextSprite(Sprite):
 
         if hats > 0:
             self.text_box.indent()
-            for button_index in range(hats):
-                hat_value = snapshot.hat(device_id=instance_id, hat=button_index)
-                self.text_box.print(self.image, f'Hat {button_index} value: {hat_value!s}')
+            for hat_index in range(hats):
+                hat_value = snapshot.hat(device_id=instance_id, hat=hat_index)
+                self.text_box.print(self.image, f'Hat {hat_index} value: {hat_value!s}')
             self.text_box.unindent()
 
     def _render_device_info(
