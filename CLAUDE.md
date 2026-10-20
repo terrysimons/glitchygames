@@ -405,9 +405,15 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `rebaselined_from` + current versions, `source_truncated` for a cut-off OLD), written to
   `NEW.partial` and moved into place only on a normal end, prints `Rebaselined N frames to NEW:
   K frames differ (first at F: ...); sprites affected: ...` (or `no frames differ`) and exits
-  `SUCCESS` (`ReplayExitPolicy.SUCCESS_AFTER_WRITING`). Refused (`OPTIONS_REFUSED`) without
-  `--replay-trace` or `--headless`, with NEW == OLD, `--record-trace`, `--audit` or
-  `--replay-fps real`. NEW replays clean; replacing a golden fixture with it stays a reviewed step
+  `SUCCESS` (`ReplayExitPolicy.SUCCESS_AFTER_WRITING`); input OLD has that the run never got
+  (unpumped batches' external events, frames after an early game end) is never carried
+  elsewhere, only appended to the summary (`; 3 recorded input events not delivered (first at
+  frame 812); ended at frame 500 of 9800`) and logged as a warning; a failed final move keeps
+  `NEW.partial` and exits `CANNOT_WRITE_OUTPUT`. Refused (`OPTIONS_REFUSED`) without
+  `--replay-trace` or `--headless`, with NEW or `NEW.partial` == OLD, `--record-trace`,
+  `--audit`, `--replay-digest` or `--replay-fps real`. NEW replays clean; a truncated OLD gives a
+  `source_truncated` NEW (replays `UNUSABLE_INPUT`, not auditable, not a golden fixture);
+  replacing a golden fixture with NEW stays a reviewed step
 - Pending: Part 3 (in-game playback: demos, instant replay, ghosts); see `plans/future-work.md`.
   User docs: `docs/architecture/gameplay_replay.md`
 

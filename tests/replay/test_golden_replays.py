@@ -19,6 +19,7 @@ from scripts.record_scripted_session import (
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import SPRITE_DIVERGENCE
+from glitchygames.tracing import read_trace_result
 from tests.replay.replay_helpers import replay_through_engine, tamper_first_sprite_rect
 
 # The frame a tampered copy of a fixture first differs from the engine at
@@ -79,7 +80,11 @@ def test_a_rebaselined_golden_replay_names_the_tampered_frames_and_replays_clean
 
     summary = capsys.readouterr().out
     assert rebaseline.exit_status == ExitCode.SUCCESS, summary
-    assert f'frames differ (first at {TAMPERED_FRAME}: sprite ' in summary
+    # Every tampered frame differs: those from TAMPERED_FRAME on that have a sprite to move
+    frames = read_trace_result(path=tampered_path).trace['frames']
+    tampered_frame_count = sum(1 for frame in frames[TAMPERED_FRAME:] if frame['sprites'])
+    assert rebaseline.result.differing_frame_count == tampered_frame_count
+    assert f'{tampered_frame_count} frames differ (first at {TAMPERED_FRAME}: sprite ' in summary
     assert 'sprites affected: ' in summary
     replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=rebaselined_path)
     report = capsys.readouterr().out

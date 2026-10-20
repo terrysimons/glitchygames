@@ -3723,9 +3723,12 @@ class TestRebaseline:
         )
         assert exit_status == ExitCode.SUCCESS
         output = capsys.readouterr().out
-        frame_count = len(read_trace_result(path=recording_path).trace['frames'])
+        frames = read_trace_result(path=recording_path).trace['frames']
+        frame_count = len(frames)
         assert output.startswith(f'Rebaselined {frame_count} frames to {new_path}: ')
-        assert 'frames differ (first at 3: sprite ' in output
+        # Every tampered frame differs: those from frame 3 on that have a sprite to move
+        tampered_frame_count = sum(1 for frame in frames[3:] if frame['sprites'])
+        assert f'{tampered_frame_count} frames differ (first at 3: sprite ' in output
         assert 'sprites affected: ' in output
         assert not new_path.with_name(new_path.name + '.partial').exists()
         engine = replay_session(recording_path=new_path, mocker=mocker)
@@ -3853,6 +3856,10 @@ class TestRebaseline:
                 ('--rebaseline', '{new}', '--headless', '--replay-fps', 'real'),
                 'not with --replay-fps real',
             ),
+            (
+                ('--rebaseline', '{new}', '--headless', '--replay-digest', '{other}'),
+                'not with --replay-digest',
+            ),
         ],
     )
     def test_an_unsound_rebaseline_is_refused(self, mocker, tmp_path, caplog, arguments, message):
@@ -3966,6 +3973,9 @@ class TestRebaseline:
             frames_differing=412,
             sprites_affected=['Ball#2', 'Ball#3'],
             frames_replayed=9800,
+            frames_recorded=9800,
+            undelivered_input_count=0,
+            first_undelivered_input_frame=None,
         )
         assert summary.describe() == (
             f'Rebaselined 9800 frames to {new_path}: 412 frames differ (first at 6120: sprite '
@@ -3980,6 +3990,9 @@ class TestRebaseline:
             frames_differing=0,
             sprites_affected=[],
             frames_replayed=9800,
+            frames_recorded=9800,
+            undelivered_input_count=0,
+            first_undelivered_input_frame=None,
         )
         assert unchanged.describe() == f'Rebaselined 9800 frames to {new_path}: no frames differ'
         ended_early = RebaselineSummary(
@@ -3995,6 +4008,9 @@ class TestRebaseline:
             frames_differing=0,
             sprites_affected=[],
             frames_replayed=7,
+            frames_recorded=7,
+            undelivered_input_count=0,
+            first_undelivered_input_frame=None,
         )
         assert ended_early.describe() == (
             f'Rebaselined 7 frames to {new_path}: the run differs (at 7: length recording '
@@ -4002,3 +4018,116 @@ class TestRebaseline:
         )
         with pytest.raises(ValidationError):
             summary.frames_differing = 3
+
+    def test_a_partial_file_that_is_the_recording_is_refused(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        new_path = tmp_path / 'x.jsonl.gz'
+        old_path = tmp_path / 'x.jsonl.gz.partial'
+        recording_path.rename(old_path)
+        recording_bytes = old_path.read_bytes()
+        exit_status = rebaseline_session(recording_path=old_path, new_path=new_path, mocker=mocker)
+        assert exit_status == ExitCode.OPTIONS_REFUSED
+        assert 'its partial file' in caplog.text
+        assert old_path.read_bytes() == recording_bytes
+        assert not new_path.exists()
+
+    def test_a_failed_final_move_keeps_the_partial_file(self, mocker, tmp_path, caplog, capsys):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        # A directory where NEW goes: the partial file cannot be moved over it
+        new_path.mkdir()
+        exit_status = rebaseline_session(
+            recording_path=recording_path, new_path=new_path, mocker=mocker
+        )
+        assert exit_status == ExitCode.CANNOT_WRITE_OUTPUT
+        partial_path = new_path.with_name(new_path.name + '.partial')
+        assert partial_path.is_file()
+        assert read_trace_result(path=partial_path).trace['frames']
+        assert str(partial_path) in caplog.text
+        assert f'could not be moved to {new_path}' in capsys.readouterr().out
+
+    def test_recorded_input_the_run_never_pumped_is_reported(
+        self, mocker, tmp_path, capsys, caplog
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        frame_count = len(read_trace_result(path=recording_path).trace['frames'])
+
+        def add_unpumped_batch(trace: dict[str, Any]) -> None:
+            # A second batch in frame 2, which the run pumps once: its press is never served
+            trace['frames'][2]['event_batches'].append([
+                {
+                    'type': pygame.KEYDOWN,
+                    'name': 'KeyDown',
+                    'origin': 'external',
+                    'attributes': {'key': pygame.K_b, 'mod': 0, 'unicode': 'b', 'scancode': 5},
+                }
+            ])
+
+        rewrite_recording(recording_path=recording_path, change=add_unpumped_batch)
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        exit_status = rebaseline_session(
+            recording_path=recording_path, new_path=new_path, mocker=mocker
+        )
+        # The summary is what the user reviews; the rebaseline is still written
+        assert exit_status == ExitCode.SUCCESS
+        output = capsys.readouterr().out
+        assert '; 1 recorded input event not delivered (first at frame 2)' in output
+        assert 'ended at frame' not in output
+        assert '1 recorded input event not delivered' in caplog.text
+        assert len(read_trace_result(path=new_path).trace['frames']) == frame_count
+
+    def test_a_run_that_ends_before_the_recording_does_is_reported(
+        self, mocker, tmp_path, capsys, caplog
+    ):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        frame_count = len(read_trace_result(path=recording_path).trace['frames'])
+        new_path = tmp_path / 'rebaselined.jsonl.gz'
+        exit_status = rebaseline_session(
+            recording_path=recording_path,
+            new_path=new_path,
+            mocker=mocker,
+            # The current code ends the game early
+            action=lambda: SceneManager().quit_game(),
+            action_frame=1,
+        )
+        assert exit_status == ExitCode.SUCCESS
+        output = capsys.readouterr().out
+        new_frame_count = len(read_trace_result(path=new_path).trace['frames'])
+        assert new_frame_count < frame_count
+        assert f'; ended at frame {new_frame_count} of {frame_count}' in output
+        assert f'ended at frame {new_frame_count} of {frame_count}' in caplog.text
+
+    def test_the_report_history_ends_at_the_first_divergence(self):
+        matching_frames = [recorded_frame(frame_number=index) for index in range(25)]
+        differing_frames = [
+            {**recorded_frame(frame_number=index), 'scene': 'Recorded'} for index in range(25, 40)
+        ]
+        sources = minimal_sources(
+            frames=[*matching_frames, *differing_frames],
+            options=ReplayOptions(headless=True, stop_on_divergence=False),
+        )
+        for frame_number in range(40):
+            sources.end_frame(frame_number=frame_number, dt=0.25, scene=None, control_events=[])
+        result = sources.result
+        assert result.differing_frame_count == 15
+        assert [frame_index for frame_index, _ in result.recorded_history] == list(range(5, 26))
+        assert [frame_index for frame_index, _ in result.replayed_history] == list(range(5, 26))
+
+    def test_the_summary_names_undelivered_input_and_an_early_end(self, tmp_path):
+        from glitchygames.replay.rebaseline import RebaselineSummary
+
+        new_path = tmp_path / 'new.jsonl.gz'
+        summary = RebaselineSummary(
+            path=new_path,
+            first_divergence=None,
+            frames_differing=0,
+            sprites_affected=[],
+            frames_replayed=500,
+            frames_recorded=9800,
+            undelivered_input_count=3,
+            first_undelivered_input_frame=812,
+        )
+        assert summary.describe() == (
+            f'Rebaselined 500 frames to {new_path}: no frames differ; 3 recorded input events '
+            'not delivered (first at frame 812); ended at frame 500 of 9800'
+        )

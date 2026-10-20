@@ -65,6 +65,9 @@ session again, and every frame's sprites are compared with the recorded frame. T
    nothing: the result keeps the first one, counts the frames that differ
    (``ReplayResult.differing_frame_count``) and names every sprite that differs in them
    (``ReplayResult.affected_sprite_ids``), and the replay runs on to the last recorded frame.
+   The report's history ends at the first divergent frame either way. A frame that pumped fewer
+   times than recorded never serves its remaining batches (they are not carried into a later
+   pump); their external events are counted (``ReplayResult.undelivered_input_count``).
 9. Clocks: the wall clock is the recording's ``recorded_at`` plus the frame clock; elapsed
    seconds are the frame clock, live and replayed alike (glitchygames/clock.py).
 10. ``recorded_frame_fields`` hands a recording made over the replay (``--rebaseline``, rule 17)
@@ -662,13 +665,20 @@ class ReplayResult:
         restart_frame: The frame the replay restarts at (rule 15), or None. Set by a step back
             even after the replay ended (a divergence keeps its end reason).
         recorded_history: The last compared frames as recorded: (recording frame index, its
-            sprites), up to ``REPORT_HISTORY_FRAMES`` + 1, ending with the divergent frame once
-            the replay diverged (``ReplaySources.end_frame`` adds each compared frame).
+            sprites), up to ``REPORT_HISTORY_FRAMES`` + 1. ``ReplaySources.end_frame`` adds each
+            compared frame up to and including the first divergent one, then stops, so once the
+            replay diverged the history ends there (even when the replay runs on past it).
         replayed_history: The same frames as the replay sampled them.
         differing_frame_count: How many compared frames differed from the recording (at most 1
             unless ``ReplayOptions.stop_on_divergence`` is False).
         affected_sprite_ids: Every sprite that differed in those frames, in the order first
             found (``differing_sprite_ids``).
+        frames_recorded: How many complete frames the recording holds.
+        undelivered_input_count: Recorded external events the run never received: those in
+            batches of a compared frame that the frame did not pump (it pumped fewer times than
+            recorded). Events of frames never replayed are not counted here (see
+            ``frames_recorded``).
+        first_undelivered_input_frame: The frame of the first of them, or None.
 
     """
 
@@ -684,6 +694,23 @@ class ReplayResult:
     )
     differing_frame_count: int = 0
     affected_sprite_ids: list[str] = dataclasses.field(default_factory=list[str])
+    frames_recorded: int = 0
+    undelivered_input_count: int = 0
+    first_undelivered_input_frame: int | None = None
+
+    def note_undelivered_inputs(self: Self, *, frame_index: int, count: int) -> None:
+        """Count recorded external events a frame never received (its unpumped batches).
+
+        Args:
+            frame_index: The recording's frame index.
+            count: How many (nothing is noted for 0).
+
+        """
+        if count == 0:
+            return
+        self.undelivered_input_count += count
+        if self.first_undelivered_input_frame is None:
+            self.first_undelivered_input_frame = frame_index
 
     def note_differing_frame(self: Self, *, sprite_ids: Sequence[str]) -> None:
         """Count one more differing frame and add the sprites that differ in it.
@@ -964,7 +991,6 @@ class ReplaySources:
         """
         self.header = header
         self.options = options
-        self.result = ReplayResult()
         self.random_seed = _recorded_seed(header=header)
         self._recorded_at = _recorded_start(header=header)
         # A bookmarked copy of a cut-off recording ends as its source did (rule 16)
@@ -972,6 +998,7 @@ class ReplaySources:
             frames=frames,
             is_truncated=is_truncated or header.get(SOURCE_TRUNCATED_HEADER_FIELD) is True,
         )
+        self.result = ReplayResult(frames_recorded=self.recording.frame_count)
         # A bookmarked copy of a version-2 recording replays as version 2 (rule 16)
         input_capture_format_version = header.get(INPUT_CAPTURE_FORMAT_HEADER_FIELD)
         if isinstance(input_capture_format_version, int):
@@ -1367,12 +1394,14 @@ class ReplaySources:
             )
             if self.options.digest_path is not None:
                 self._frame_digests.append(frame_digest(frame_record=replayed))
-            # For the divergence report (rule 11)
-            self.result.recorded_history.append((self._frame_index, frame[SPRITES_FIELD]))
-            self.result.replayed_history.append((self._frame_index, replayed[SPRITES_FIELD]))
+            # For the divergence report (rule 11): the frames up to the first divergence
+            if self.result.divergence is None:
+                self.result.recorded_history.append((self._frame_index, frame[SPRITES_FIELD]))
+                self.result.replayed_history.append((self._frame_index, replayed[SPRITES_FIELD]))
             divergence = self._frame_difference(
                 frame=frame, replayed=replayed, control_events=control_events
             )
+            self._note_unpumped_batches(frame=frame)
             self.result.frames_replayed = self._frame_index + 1
             if divergence is not None:
                 self._note_divergence(
@@ -1439,6 +1468,28 @@ class ReplaySources:
 
     def _current_frame(self: Self) -> dict[str, Any] | None:
         return self.recording.frame(frame_index=self._frame_index)
+
+    def _note_unpumped_batches(self: Self, *, frame: dict[str, Any]) -> None:
+        """Count the external events of the frame's batches no pump served (rule 8).
+
+        They are never carried into a later pump: that would invent an input sequence the
+        recording does not have. A replay that stops at the divergence (the pump count) ends
+        here anyway; one that runs on (``--rebaseline``) reports the count.
+
+        Args:
+            frame: The recorded frame, after its last pump.
+
+        """
+        unpumped_batches = frame.get(EVENT_BATCHES_FIELD, [])[self._pump_index :]
+        self.result.note_undelivered_inputs(
+            frame_index=self._frame_index,
+            count=sum(
+                1
+                for batch in unpumped_batches
+                for record in batch
+                if record.get(EVENT_ORIGIN_FIELD) == EXTERNAL_ORIGIN
+            ),
+        )
 
     def _note_divergence(
         self: Self,
@@ -2009,7 +2060,13 @@ def write_bookmarked_copy(*, recording_path: Path, bookmarks: list[int], destina
         partial_path.unlink(missing_ok=True)
 
 
-def _installed_engine_version() -> str | None:
+def installed_engine_version() -> str | None:
+    """Return the installed glitchygames version (a recording's ``engine_version``).
+
+    Returns:
+        The version, or None when the package metadata is not installed.
+
+    """
     try:
         return importlib.metadata.version('glitchygames')
     except importlib.metadata.PackageNotFoundError:
@@ -2111,7 +2168,7 @@ def start_replay(
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(header=sources.header, game_class_name=game_class_name)
     recorded_version = sources.header.get(ENGINE_VERSION_HEADER_FIELD)
-    installed_version = _installed_engine_version()
+    installed_version = installed_engine_version()
     if recorded_version != installed_version:
         LOG.warning(
             'The recording was made with engine version %s; this is %s. The replay may diverge',

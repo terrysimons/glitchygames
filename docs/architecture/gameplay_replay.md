@@ -386,7 +386,7 @@ the code it exits with as `Exiting with OPTIONS_REFUSED (64)`.
 | 66 | `MISSING_INPUT` | The input file does not exist |
 | 69 | `SERVICE_UNAVAILABLE` | A required service (the API server) cannot be reached |
 | 70 | `INTERNAL_ERROR` | An uncaught exception during a run or its teardown (logged with its traceback, after the teardown), or an audit that could not run |
-| 73 | `CANNOT_WRITE_OUTPUT` | An output file or directory cannot be created or written |
+| 73 | `CANNOT_WRITE_OUTPUT` | An output file or directory cannot be created or written (a rebaseline's new recording could not be moved into place) |
 | 129 | `HANGUP` | Stopped by SIGHUP (Unix only) |
 | 130 | `INTERRUPTED` | Stopped by SIGINT (Ctrl-C) |
 | 143 | `TERMINATED` | Stopped by SIGTERM |
@@ -432,22 +432,37 @@ writes what that code did to NEW: the same inputs and a new picture. The contrac
   `input_changes`, re-applied control events, and each frame's `saves_opened`,
   `devices_opened` and `device_enumeration` copied from OLD. Its sprites and markers are the
   current code's. Its header is OLD's (seed, start time, options, saves, devices) with
-  `rebaselined_from` naming OLD and this run's engine, pygame and Python versions; a cut-off
-  OLD gives `source_truncated`, so NEW ends as truncated too.
+  `rebaselined_from` naming OLD and this run's engine, pygame and Python versions.
+- A cut-off (truncated) OLD gives NEW `source_truncated`: NEW ends as truncated too, so its
+  replay exits `UNUSABLE_INPUT` (65) at the cut-off, `--audit` refuses it, and it cannot be a
+  golden fixture (the plugin expects `SUCCESS`). Rebaseline a complete recording for those.
+- A version-2 OLD (no input snapshots) gives an honest format-3 NEW: its polled input is the
+  idle input the replay served, recorded as such, and its markers are compared when NEW is
+  replayed (OLD's were not).
+- Input OLD has that the run never received is not moved anywhere else (that would invent an
+  input sequence OLD does not have); it is reported. That is the external events of batches a
+  frame did not pump (the current code pumped fewer times than recorded), and OLD's frames
+  after the game ended early.
 - NEW is written to `NEW.partial` and moved into place only when the run ends normally; a run
-  that crashes or is interrupted writes nothing. NEW is never OLD.
+  that crashes or is interrupted writes nothing. If the move fails (say NEW is a directory),
+  the finished `NEW.partial` is kept, its path logged and printed, and the run exits
+  `CANNOT_WRITE_OUTPUT` (73). NEW is never OLD, and `NEW.partial` is never OLD either.
 - It prints one line to stdout and exits `SUCCESS` (0):
 
 ```text
 Rebaselined 9800 frames to NEW: 412 frames differ (first at 6120: sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]); sprites affected: Ball#2, Ball#3
 ```
 
-  or `Rebaselined 9800 frames to NEW: no frames differ`.
+  or `Rebaselined 9800 frames to NEW: no frames differ`. Lost input (above) is added to the
+  line and logged as a warning, e.g. `; 3 recorded input events not delivered (first at frame
+  812); ended at frame 500 of 9800`. The run still exits `SUCCESS`: NEW is written, and the
+  summary is what you review before using it.
 
 It is refused (`OPTIONS_REFUSED`, 64) without `--replay-trace` or without `--headless` (a watched
 replay holds frames and takes the viewer's keys, so it is refused rather than made headless
-quietly), when NEW is OLD's file, and with `--record-trace`, `--audit` or `--replay-fps real`
-(FPS events from this machine's frame times would become the baseline). An unusable OLD is
+quietly), when NEW or `NEW.partial` is OLD's file, and with `--record-trace`, `--audit`,
+`--replay-digest` (the audit's tools; a rebaseline is not audited) or `--replay-fps real` (FPS
+events from this machine's frame times would become the baseline). An unusable OLD is
 refused like any replay (`UNUSABLE_INPUT`, `MISSING_INPUT`).
 
 NEW replays on the current code with no divergence. Replacing a golden fixture with it stays a

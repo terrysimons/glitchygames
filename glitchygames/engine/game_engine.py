@@ -65,6 +65,7 @@ from glitchygames.replay.driver import (
     ReplayRefusedError,
     ReplaySources,
     announce_replay,
+    installed_engine_version,
     start_replay,
 )
 from glitchygames.replay.rebaseline import Rebaseline, rebaseline_refusal
@@ -1367,10 +1368,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         active_scene = self.scene_manager.active_scene
-        try:
-            engine_version = importlib.metadata.version('glitchygames')
-        except importlib.metadata.PackageNotFoundError:
-            engine_version = None
+        engine_version = installed_engine_version()
         return {
             'game_class': type(self.game).__name__,
             'scene_class': None if active_scene is None else type(active_scene).__name__,
@@ -1983,7 +1981,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         A replay exits with its own code (a divergence is ``REPLAY_DIVERGED``; never the
         ``INTERNAL_ERROR`` or ``INTERRUPTED`` of an early end), unless the viewer stepped back:
-        then the replay restarts (``_restart_replay``), its window already closed.
+        then the replay restarts (``_restart_replay``), its window already closed. A rebaseline
+        whose new recording could not be moved into place exits ``CANNOT_WRITE_OUTPUT``
+        (glitchygames/replay/rebaseline.py, rule 4).
 
         Args:
             replay_sources: The replay's sources.
@@ -1992,6 +1992,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         restart_frame = replay_sources.result.restart_frame
         if restart_frame is not None:
             self._restart_replay(replay_sources=replay_sources, restart_frame=restart_frame)
+        if self.rebaseline is not None and self.rebaseline.write_failed:
+            exit_with(exit_code=ExitCode.CANNOT_WRITE_OUTPUT)
         exit_with(
             exit_code=replay_sources.result.exit_code(policy=replay_sources.options.exit_policy)
         )

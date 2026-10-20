@@ -10,36 +10,45 @@ The rules:
 
 1. Options: ``--rebaseline NEW`` needs ``--replay-trace OLD`` and ``--headless`` (a watched
    replay holds frames and takes the viewer's keys, so it is refused rather than made headless
-   behind the user's back), and refuses NEW naming OLD's file, ``--record-trace`` (the
-   rebaseline writes its own recording), ``--audit`` and ``--replay-fps real`` (FPS events from
-   this machine's frame times would be recorded as the new baseline); each refusal exits
+   behind the user's back), and refuses NEW or NEW's partial file (rule 4) naming OLD's file,
+   ``--record-trace`` (the rebaseline writes its own recording), ``--audit`` and
+   ``--replay-digest`` (the audit's tools: a rebaseline is not audited) and ``--replay-fps real``
+   (FPS events from this machine's frame times would be recorded as the new baseline); each
+   refusal exits
    ``ExitCode.OPTIONS_REFUSED`` (``rebaseline_refusal``). An unusable OLD is refused as by any
    replay (``ExitCode.UNUSABLE_INPUT``, ``ExitCode.MISSING_INPUT``).
 2. Replay: OLD is replayed as usual (glitchygames/replay/driver.py, rule 17 there), but a
    divergence does not stop it (``ReplayOptions.stop_on_divergence`` False): it runs to OLD's
    last frame, or until the game ends, noting every frame that differs and every sprite that
-   differs in them.
+   differs in them. OLD's input the run never received is never carried elsewhere (that would
+   invent an input sequence OLD does not have); it is counted instead: the external events of
+   batches a frame did not pump (it pumped fewer times than recorded), and OLD's frames after
+   the game ended.
 3. Recording: ``RecordingSources`` over the replay (``replayed``; glitchygames/recording.py)
    write NEW with OLD's inputs, as the replay's doors served them: the event batches (origins
    from the replay's merge, so code-posted events stay internal and replaying NEW delivers
    nothing twice), ``dt``, ``input_changes``, re-applied control events, and each frame's
    ``saves_opened``, ``devices_opened`` and ``device_enumeration`` copied from OLD's frame; and
    the current code's sprites and markers. The header is OLD's (``rebaseline_header``).
-4. Writing: NEW is written to ``NEW.partial`` and moved into place once the run ended normally,
-   so NEW is never left half written; a run that a crash, signal or the game's own exit ended
-   early writes nothing (the partial file is removed).
+4. Writing: NEW is written to ``NEW.partial`` (``partial_rebaseline_path``) and moved into
+   place once the run ended normally, so NEW is never left half written; a run that a crash,
+   signal or the game's own exit ended early writes nothing (the partial file is removed). If
+   the move fails, the finished partial file is kept, its path logged and printed, and the run
+   exits ``ExitCode.CANNOT_WRITE_OUTPUT``.
 5. Output: the summary (``RebaselineSummary.describe``) is printed to stdout instead of the
    replay's report, e.g. ``Rebaselined 9800 frames to NEW: 412 frames differ (first at 6120:
    sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]); sprites affected:
-   Ball#2, Ball#3`` or ``Rebaselined 9800 frames to NEW: no frames differ``, and the run exits
-   ``ExitCode.SUCCESS`` (``ReplayExitPolicy.SUCCESS_AFTER_WRITING``).
+   Ball#2, Ball#3`` or ``Rebaselined 9800 frames to NEW: no frames differ``, followed by the
+   lost input (rule 2) when there is any, e.g. ``; 3 recorded input events not delivered (first
+   at frame 812); ended at frame 500 of 9800``, which is also logged as a warning. The run
+   exits ``ExitCode.SUCCESS`` (``ReplayExitPolicy.SUCCESS_AFTER_WRITING``) even then: NEW is
+   written, and the summary is what the user reviews before using it.
 
 NEW replays on the current code with no divergence.
 """
 
 from __future__ import annotations
 
-import importlib.metadata
 import logging
 import platform
 from pathlib import Path
@@ -57,6 +66,7 @@ from glitchygames.replay.driver import (
     Divergence,
     ReplayResult,
     ReplaySources,
+    installed_engine_version,
 )
 from glitchygames.sources import active_sources, install_sources
 
@@ -84,6 +94,9 @@ class RebaselineSummary(BaseModel):
         frames_differing: How many compared frames differed.
         sprites_affected: Every sprite that differed in them, in the order first found.
         frames_replayed: How many of OLD's frames were replayed (and written).
+        frames_recorded: How many complete frames OLD holds.
+        undelivered_input_count: OLD's external events in batches the run never pumped.
+        first_undelivered_input_frame: The frame of the first of them, or None.
 
     """
 
@@ -94,6 +107,9 @@ class RebaselineSummary(BaseModel):
     frames_differing: int
     sprites_affected: list[str]
     frames_replayed: int
+    frames_recorded: int
+    undelivered_input_count: int
+    first_undelivered_input_frame: int | None
 
     @classmethod
     def from_result(cls, *, result: ReplayResult, path: Path) -> RebaselineSummary:
@@ -113,7 +129,32 @@ class RebaselineSummary(BaseModel):
             frames_differing=result.differing_frame_count,
             sprites_affected=list(result.affected_sprite_ids),
             frames_replayed=result.frames_replayed,
+            frames_recorded=result.frames_recorded,
+            undelivered_input_count=result.undelivered_input_count,
+            first_undelivered_input_frame=result.first_undelivered_input_frame,
         )
+
+    def describe_lost_input(self: Self) -> str | None:
+        """Describe OLD's input the run never received (rule 2), if any.
+
+        Returns:
+            ``N recorded input events not delivered (first at frame F)`` and/or ``ended at
+            frame R of T``, joined with ``; ``, or None when every recorded input was delivered.
+
+        """
+        parts: list[str] = []
+        if self.undelivered_input_count > 0:
+            events = (
+                '1 recorded input event'
+                if self.undelivered_input_count == 1
+                else f'{self.undelivered_input_count} recorded input events'
+            )
+            parts.append(
+                f'{events} not delivered (first at frame {self.first_undelivered_input_frame})'
+            )
+        if self.frames_replayed < self.frames_recorded:
+            parts.append(f'ended at frame {self.frames_replayed} of {self.frames_recorded}')
+        return '; '.join(parts) if parts else None
 
     def describe(self: Self) -> str:
         """Describe the rebaseline on one line (printed to stdout).
@@ -122,32 +163,46 @@ class RebaselineSummary(BaseModel):
             ``Rebaselined N frames to NEW: `` then ``no frames differ``, ``K frames differ
             (first at F: <what differed>)`` with ``; sprites affected: A, B`` when sprites
             differed, or ``the run differs (at F: <what differed>)`` when no compared frame
-            differed but the run did (it ended before OLD's last frame).
+            differed but the run did (it ended before OLD's last frame); then ``; `` and
+            ``describe_lost_input()`` when input was lost.
 
         """
-        head = f'Rebaselined {self.frames_replayed} frames to {self.path}: '
+        line = f'Rebaselined {self.frames_replayed} frames to {self.path}: '
+        line += self._describe_differences()
+        lost_input = self.describe_lost_input()
+        if lost_input is not None:
+            line = f'{line}; {lost_input}'
+        return line
+
+    def _describe_differences(self: Self) -> str:
         divergence = self.first_divergence
         if divergence is None:
-            return f'{head}no frames differ'
+            return 'no frames differ'
         where = f'{divergence.frame_number}: {divergence.describe_difference()}'
         if self.frames_differing == 0:
-            return f'{head}the run differs (at {where})'
+            return f'the run differs (at {where})'
         count = (
             '1 frame differs'
             if self.frames_differing == 1
             else f'{self.frames_differing} frames differ'
         )
-        line = f'{head}{count} (first at {where})'
+        differences = f'{count} (first at {where})'
         if self.sprites_affected:
-            line = f'{line}; sprites affected: {", ".join(self.sprites_affected)}'
-        return line
+            differences = f'{differences}; sprites affected: {", ".join(self.sprites_affected)}'
+        return differences
 
 
-def _installed_engine_version() -> str | None:
-    try:
-        return importlib.metadata.version('glitchygames')
-    except importlib.metadata.PackageNotFoundError:
-        return None
+def partial_rebaseline_path(*, destination: Path) -> Path:
+    """Name the file NEW is written to before it is moved into place (rule 4).
+
+    Args:
+        destination: NEW's file.
+
+    Returns:
+        ``NEW.partial``, next to NEW.
+
+    """
+    return destination.with_name(destination.name + PARTIAL_REBASELINE_SUFFIX)
 
 
 def rebaseline_header(
@@ -177,7 +232,7 @@ def rebaseline_header(
     """
     header = dict(original_header)
     header.pop(INPUT_CAPTURE_FORMAT_HEADER_FIELD, None)
-    header[ENGINE_VERSION_HEADER_FIELD] = _installed_engine_version()
+    header[ENGINE_VERSION_HEADER_FIELD] = installed_engine_version()
     header[PYGAME_VERSION_HEADER_FIELD] = pygame.version.ver
     header[PYTHON_VERSION_HEADER_FIELD] = platform.python_version()
     header[REBASELINED_FROM_HEADER_FIELD] = str(original_path)
@@ -192,6 +247,24 @@ def _is_same_file(*, first: Path, second: Path) -> bool:
     return first.exists() and second.exists() and first.samefile(second)
 
 
+def _path_refusal(*, new_path: Path, old_path: Path) -> str | None:
+    """Say why NEW (or NEW's partial file) cannot be written: it is OLD's file (rule 1).
+
+    Returns:
+        The reason, or None.
+
+    """
+    if _is_same_file(first=new_path, second=old_path):
+        return f'--rebaseline {new_path} would overwrite the recording it replays'
+    partial_path = partial_rebaseline_path(destination=new_path)
+    if _is_same_file(first=partial_path, second=old_path):
+        return (
+            f'--rebaseline {new_path} would write its partial file {partial_path} over the '
+            'recording it replays'
+        )
+    return None
+
+
 def rebaseline_refusal(*, options: Mapping[str, Any]) -> str | None:
     """Say why a rebaseline's options cannot run (rule 1), given ``--replay-trace``.
 
@@ -202,25 +275,36 @@ def rebaseline_refusal(*, options: Mapping[str, Any]) -> str | None:
         The reason, for the log, or None when the rebaseline can run.
 
     """
-    new_path = Path(options['rebaseline'])
-    old_path = Path(options['replay_trace'])
     if not options.get('headless'):
         return (
             '--rebaseline needs --headless: a watched replay holds frames and takes the '
             "viewer's keys"
         )
-    if _is_same_file(first=new_path, second=old_path):
-        return f'--rebaseline {new_path} would overwrite the recording it replays'
-    if options.get('record_trace') is not None:
-        return '--rebaseline writes its own recording, not with --record-trace'
-    if options.get('audit'):
-        return '--rebaseline replays once, not with --audit'
-    if options.get('replay_fps') == REAL_REPLAY_FPS:
-        return (
-            f'--rebaseline would record FPS events from measured frame times, not with '
-            f'--replay-fps {REAL_REPLAY_FPS}'
-        )
-    return None
+    path_refusal = _path_refusal(
+        new_path=Path(options['rebaseline']), old_path=Path(options['replay_trace'])
+    )
+    if path_refusal is not None:
+        return path_refusal
+    # (the conflicting option is given, why it is refused), checked in order
+    conflicting_options = (
+        (
+            options.get('record_trace') is not None,
+            '--rebaseline writes its own recording, not with --record-trace',
+        ),
+        (bool(options.get('audit')), '--rebaseline replays once, not with --audit'),
+        (
+            options.get('replay_digest') is not None,
+            '--rebaseline is not audited, not with --replay-digest',
+        ),
+        (
+            options.get('replay_fps') == REAL_REPLAY_FPS,
+            (
+                '--rebaseline would record FPS events from measured frame times, not with '
+                f'--replay-fps {REAL_REPLAY_FPS}'
+            ),
+        ),
+    )
+    return next((reason for is_given, reason in conflicting_options if is_given), None)
 
 
 class Rebaseline:
@@ -229,6 +313,12 @@ class Rebaseline:
     ``GameEngine`` creates it for ``--rebaseline``, calls ``start_recording`` before the first
     frame and, once the run is over and the recorder closed, ``write`` (a normal end) or
     ``discard``.
+
+    Attributes:
+        destination: NEW's file.
+        write_failed: True once ``write`` could not move the partial file into place (the
+            engine then exits ``ExitCode.CANNOT_WRITE_OUTPUT``).
+
     """
 
     def __init__(
@@ -245,7 +335,8 @@ class Rebaseline:
         self._replay_sources = replay_sources
         self._source_path = source_path
         self.destination = destination
-        self._partial_path = destination.with_name(destination.name + PARTIAL_REBASELINE_SUFFIX)
+        self.write_failed = False
+        self._partial_path = partial_rebaseline_path(destination=destination)
 
     def start_recording(self: Self) -> GameplayRecorder:
         """Open the partial file and install recording doors over the replay (rule 3).
@@ -271,18 +362,40 @@ class Rebaseline:
     def write(self: Self, *, result: ReplayResult) -> str:
         """Move the closed recording into place and summarize the rebaseline (rules 4 and 5).
 
+        Lost input (rule 2) is logged as a warning. A failed move keeps the partial file, logs
+        it as an error and sets ``write_failed``.
+
         Args:
             result: The replay's settled result.
 
         Returns:
-            The summary line.
+            The summary line, then (after a failed move) a line saying where the recording is.
 
         """
+        summary = RebaselineSummary.from_result(result=result, path=self.destination)
+        lost_input = summary.describe_lost_input()
+        if lost_input is not None:
+            LOG.warning('The rebaseline lost recorded input: %s', lost_input)
+        move_error: OSError | None = None
         try:
             self._partial_path.replace(self.destination)
-        finally:
-            self._partial_path.unlink(missing_ok=True)
-        return RebaselineSummary.from_result(result=result, path=self.destination).describe()
+        except OSError as error:
+            move_error = error
+        if move_error is None:
+            return summary.describe()
+        self.write_failed = True
+        # Logged without a traceback: the message says what failed and where the recording is
+        LOG.error(
+            'Could not move the rebaselined recording %s to %s (%s); it is kept at %s',
+            self._partial_path,
+            self.destination,
+            move_error,
+            self._partial_path,
+        )
+        return (
+            f'{summary.describe()}\n{self._partial_path} could not be moved to '
+            f'{self.destination} ({move_error}); the rebaselined recording is kept there'
+        )
 
     def discard(self: Self) -> None:
         """Remove the partial recording of a run that ended early (rule 4)."""
