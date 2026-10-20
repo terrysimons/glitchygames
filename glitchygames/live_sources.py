@@ -69,14 +69,20 @@ class LiveSources:
         return measured
 
     def input_snapshot(self: Self) -> InputSnapshot:
-        """Read pygame's polled input and every opened device's positions now.
+        """Read pygame's polled input and every opened device's positions (both layers) now.
 
         Returns:
             The live snapshot.
 
         """
-        axes, buttons, hats = self._devices.poll()
-        return capture_live_snapshot(device_axes=axes, device_buttons=buttons, device_hats=hats)
+        polled = self._devices.poll()
+        return capture_live_snapshot(
+            device_axes=polled.axes,
+            device_buttons=polled.buttons,
+            device_hats=polled.hats,
+            controller_axes=polled.controller_axes,
+            controller_buttons=polled.controller_buttons,
+        )
 
     def devices(self: Self) -> LiveDeviceRegistry:
         """Return the live device registry (real devices).

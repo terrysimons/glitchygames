@@ -39,6 +39,10 @@ MOUSE_BUTTON_COUNT = 3
 type DeviceAxes = Mapping[int, tuple[float, ...]]
 type DeviceButtons = Mapping[int, tuple[bool, ...]]
 type DeviceHats = Mapping[int, tuple[tuple[int, int], ...]]
+# Game controller layer: instance id -> values indexed by pygame.CONTROLLER_AXIS_* /
+# CONTROLLER_BUTTON_* ids, axes on pygame's int scale (-32768..32767)
+type ControllerAxes = Mapping[int, tuple[int, ...]]
+type ControllerButtons = Mapping[int, tuple[bool, ...]]
 
 _EMPTY: Mapping[int, Any] = MappingProxyType({})
 
@@ -56,6 +60,10 @@ class InputSnapshot:
         device_axes: Joystick/controller instance id -> axis positions (-1.0..1.0).
         device_buttons: Instance id -> buttons held.
         device_hats: Instance id -> hat positions.
+        controller_axes: Game controller instance id -> axis values by CONTROLLER_AXIS_* id
+            (pygame's Controller.get_axis scale, -32768..32767).
+        controller_buttons: Game controller instance id -> buttons held by CONTROLLER_BUTTON_*
+            id.
 
     """
 
@@ -67,6 +75,8 @@ class InputSnapshot:
     device_axes: DeviceAxes = _EMPTY
     device_buttons: DeviceButtons = _EMPTY
     device_hats: DeviceHats = _EMPTY
+    controller_axes: ControllerAxes = _EMPTY
+    controller_buttons: ControllerButtons = _EMPTY
 
     def __post_init__(self) -> None:
         """Freeze the device mappings and their values (a snapshot never changes).
@@ -96,6 +106,20 @@ class InputSnapshot:
                 for device_id, hats in self.device_hats.items()
             }),
         )
+        object.__setattr__(
+            self,
+            'controller_axes',
+            MappingProxyType({
+                device_id: tuple(axes) for device_id, axes in self.controller_axes.items()
+            }),
+        )
+        object.__setattr__(
+            self,
+            'controller_buttons',
+            MappingProxyType({
+                device_id: tuple(buttons) for device_id, buttons in self.controller_buttons.items()
+            }),
+        )
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -116,17 +140,33 @@ class InputSnapshot:
             and dict(self.device_axes) == dict(other.device_axes)
             and dict(self.device_buttons) == dict(other.device_buttons)
             and dict(self.device_hats) == dict(other.device_hats)
+            and dict(self.controller_axes) == dict(other.controller_axes)
+            and dict(self.controller_buttons) == dict(other.controller_buttons)
         )
 
     @override
     def __hash__(self) -> int:
-        """Hash the key and mouse state (device mappings are not hashable).
+        """Hash every field.
+
+        The device mappings are hashed through frozensets of their items (their values are
+        tuples), so equal snapshots hash equal whatever order the devices were added in.
 
         Returns:
             The hash.
 
         """
-        return hash((self.pressed_scancodes, self.modifiers, self.mouse_position))
+        return hash((
+            self.pressed_scancodes,
+            self.modifiers,
+            self.mouse_position,
+            self.mouse_buttons,
+            self.mouse_focused,
+            frozenset(self.device_axes.items()),
+            frozenset(self.device_buttons.items()),
+            frozenset(self.device_hats.items()),
+            frozenset(self.controller_axes.items()),
+            frozenset(self.controller_buttons.items()),
+        ))
 
     @functools.cached_property
     def pressed_keys(self) -> pygame.key.ScancodeWrapper:
@@ -183,6 +223,34 @@ class InputSnapshot:
         hats = self.device_hats.get(device_id, ())
         return hats[hat] if 0 <= hat < len(hats) else (0, 0)
 
+    def controller_axis(self, *, device_id: int, axis: int) -> int:
+        """Return a game controller axis value by CONTROLLER_AXIS_* id; 0 when unknown.
+
+        Args:
+            device_id: The controller's instance id.
+            axis: A pygame.CONTROLLER_AXIS_* id.
+
+        Returns:
+            The value on pygame's Controller.get_axis scale.
+
+        """
+        axes = self.controller_axes.get(device_id, ())
+        return axes[axis] if 0 <= axis < len(axes) else 0
+
+    def controller_button(self, *, device_id: int, button: int) -> bool:
+        """Return whether a game controller button is held by CONTROLLER_BUTTON_* id.
+
+        Args:
+            device_id: The controller's instance id.
+            button: A pygame.CONTROLLER_BUTTON_* id.
+
+        Returns:
+            True when held; False when unknown.
+
+        """
+        buttons = self.controller_buttons.get(device_id, ())
+        return buttons[button] if 0 <= button < len(buttons) else False
+
 
 IDLE_INPUT = InputSnapshot(
     pressed_scancodes=frozenset(),
@@ -221,6 +289,8 @@ def capture_live_snapshot(
     device_axes: DeviceAxes = _EMPTY,
     device_buttons: DeviceButtons = _EMPTY,
     device_hats: DeviceHats = _EMPTY,
+    controller_axes: ControllerAxes = _EMPTY,
+    controller_buttons: ControllerButtons = _EMPTY,
 ) -> InputSnapshot:
     """Read pygame's polled state now (the live door; the only polling in the package).
 
@@ -228,6 +298,8 @@ def capture_live_snapshot(
         device_axes: Device positions read by the live device registry (Task 5).
         device_buttons: Device buttons read by the live device registry.
         device_hats: Device hats read by the live device registry.
+        controller_axes: Game controller axes read by the live device registry.
+        controller_buttons: Game controller buttons read by the live device registry.
 
     Returns:
         The snapshot.
@@ -244,6 +316,8 @@ def capture_live_snapshot(
         device_axes=device_axes,
         device_buttons=device_buttons,
         device_hats=device_hats,
+        controller_axes=controller_axes,
+        controller_buttons=controller_buttons,
     )
 
 
@@ -303,7 +377,13 @@ def snapshot_changes(*, previous: InputSnapshot, current: InputSnapshot) -> dict
         changes['mouse_buttons'] = list(current.mouse_buttons)
     if current.mouse_focused != previous.mouse_focused:
         changes['mouse_focused'] = current.mouse_focused
-    for field_name in ('device_axes', 'device_buttons', 'device_hats'):
+    for field_name in (
+        'device_axes',
+        'device_buttons',
+        'device_hats',
+        'controller_axes',
+        'controller_buttons',
+    ):
         device_changes = _device_mapping_changes(
             previous=getattr(previous, field_name), current=getattr(current, field_name)
         )
@@ -352,5 +432,15 @@ def apply_snapshot_changes(*, previous: InputSnapshot, changes: dict[str, Any]) 
         ),
         device_hats=_apply_device_changes(
             previous=previous.device_hats, changes=changes.get('device_hats', {}), is_hat=True
+        ),
+        controller_axes=_apply_device_changes(
+            previous=previous.controller_axes,
+            changes=changes.get('controller_axes', {}),
+            is_hat=False,
+        ),
+        controller_buttons=_apply_device_changes(
+            previous=previous.controller_buttons,
+            changes=changes.get('controller_buttons', {}),
+            is_hat=False,
         ),
     )

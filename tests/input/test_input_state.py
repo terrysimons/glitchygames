@@ -53,6 +53,8 @@ def snapshot_with(**fields: Any) -> InputSnapshot:
         'device_axes': {},
         'device_buttons': {},
         'device_hats': {},
+        'controller_axes': {},
+        'controller_buttons': {},
     }
     values.update(fields)
     return InputSnapshot(**values)
@@ -88,6 +90,20 @@ class TestQueries:
         assert snapshot.axis(device_id=9, axis=0) == 0.0
         assert snapshot.button(device_id=7, button=5) is False
         assert snapshot.hat(device_id=7, hat=3) == (0, 0)
+
+    def test_controller_queries_default_to_rest(self):
+        """The controller layer is indexed by CONTROLLER_* ids, on pygame's int scale."""
+        axes = [0] * pygame.CONTROLLER_AXIS_MAX
+        axes[pygame.CONTROLLER_AXIS_TRIGGERLEFT] = 32767
+        buttons = [False] * pygame.CONTROLLER_BUTTON_MAX
+        buttons[pygame.CONTROLLER_BUTTON_A] = True
+        snapshot = snapshot_with(controller_axes={7: axes}, controller_buttons={7: buttons})
+        assert snapshot.controller_axis(device_id=7, axis=pygame.CONTROLLER_AXIS_TRIGGERLEFT) == (
+            32767
+        )
+        assert snapshot.controller_button(device_id=7, button=pygame.CONTROLLER_BUTTON_A)
+        assert snapshot.controller_axis(device_id=9, axis=0) == 0
+        assert snapshot.controller_button(device_id=7, button=99) is False
 
 
 class TestLiveCapture:
@@ -141,6 +157,11 @@ class TestFreezing:
         assert from_lists.device_buttons[3] == (False, True)
         assert from_lists.device_hats[3] == ((0, -1), (1, 1))
         assert all(isinstance(hat, tuple) for hat in from_lists.device_hats[3])
+        controller_from_lists = snapshot_with(
+            controller_axes={3: [0, -32768]}, controller_buttons={3: [True]}
+        )
+        assert controller_from_lists.controller_axes[3] == (0, -32768)
+        assert controller_from_lists.controller_buttons[3] == (True,)
         assert from_lists == snapshot_with(
             device_axes={3: (0.25, -0.5)},
             device_buttons={3: (False, True)},
@@ -168,7 +189,20 @@ class TestFreezing:
             'device_axes',
             'device_buttons',
             'device_hats',
+            'controller_axes',
+            'controller_buttons',
         }
+
+    def test_controller_fields_take_part_in_equality_and_hashing(self):
+        """Snapshots differing only in the controller layer are unequal; equal ones hash equal."""
+        resting = snapshot_with(controller_axes={3: (0,)})
+        pressed = snapshot_with(controller_axes={3: (32767,)})
+        assert resting != pressed
+        assert snapshot_with(controller_buttons={3: [True]}) != snapshot_with(
+            controller_buttons={3: [False]}
+        )
+        assert hash(resting) == hash(snapshot_with(controller_axes={3: [0]}))
+        assert hash(resting) != hash(pressed)
 
 
 class TestCurrentInput:
@@ -203,6 +237,10 @@ class TestChanges:
                 device_buttons={3: (False, True)},
                 device_hats={3: ((0, -1),)},
             ),
+            snapshot_with(
+                controller_axes={3: (0, 32767, -32768, 0, 12, 0)},
+                controller_buttons={3: (True, False)},
+            ),
         ],
     )
     def test_changes_round_trip_through_json(self, current: InputSnapshot):
@@ -212,6 +250,8 @@ class TestChanges:
 
     def test_a_removed_device_is_recorded_and_removed(self):
         """A device that disappears is recorded as None and removed on rebuild."""
-        previous = snapshot_with(device_axes={3: (0.25,)})
+        previous = snapshot_with(
+            device_axes={3: (0.25,)}, controller_axes={3: (5,)}, controller_buttons={3: (True,)}
+        )
         changes = snapshot_changes(previous=previous, current=IDLE_INPUT)
         assert apply_snapshot_changes(previous=previous, changes=changes) == IDLE_INPUT
