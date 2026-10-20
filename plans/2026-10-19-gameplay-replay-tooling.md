@@ -18,7 +18,7 @@ which `ReplaySources.pump_events` already drains and keeps away from the game. S
 the replay in a fresh process (`os.execv`) with `--replay-pause-at-frame N`, which fast-forwards
 headless to frame N and pauses — exact and simple, because a fresh process has fresh engine state.
 (As built, Task 3: no `os.execv`, which is a security lint finding; the first replay process
-supervises restarted replays as children through `audit.run_command`, and each child hands its
+supervises restarted replays as children through `process.run_command`, and each child hands its
 own restart over in a handoff file: glitchygames/replay/rebuild.py.)
 
 **Tech Stack:** Python 3.14, pygame-ce 2.5.8, pytest (pytester), uv.
@@ -519,7 +519,7 @@ git commit -m "Watch replays: recorded pacing, status bar, pause, step and speed
 > was not used (ruff S606). After the teardown `GameEngine._restart_replay` builds
 > `restart_command(...)` and calls `relaunch_replay` (glitchygames/replay/rebuild.py): the first
 > replay process is the supervisor, running each restarted replay as a child with
-> `audit.run_command` and `--replay-restart-handoff PATH`; a child that steps back again writes a
+> `process.run_command` and `--replay-restart-handoff PATH`; a child that steps back again writes a
 > `RestartHandoff` (its command and result) to that file and ends, so there are at most two
 > processes. The viewer's speed, panel and divergence frame ride along in
 > `--replay-viewer-state`; progress is time-based (`REBUILD_PROGRESS_INTERVAL_SECONDS`), and the

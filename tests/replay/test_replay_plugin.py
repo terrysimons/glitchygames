@@ -9,11 +9,17 @@ that it cannot rewrite the plugin's assertions.
 from __future__ import annotations
 
 import shutil
+from typing import TYPE_CHECKING
 
 from scripts.record_scripted_session import fixture_path
 
 from glitchygames.testing.replays import REPLAY_FIXTURES_PATH_PARTS, game_entry_point
 from tests.replay.replay_helpers import tamper_first_sprite_rect
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pytest
 
 PLUGIN_MODULE = 'glitchygames.testing.replays'
 REPO_FIXTURE = fixture_path(game_key='paddleslap')
@@ -23,22 +29,39 @@ FIXTURES_DIRECTORY_NAME = REPLAY_FIXTURES_PATH_PARTS[0]
 SUBPROCESS_TIMEOUT_SECONDS = 300
 # The frame a tampered copy of the fixture first differs from the engine at
 TAMPERED_FRAME = 10
+# The collection error for a recording that is not directly in a game's directory
+MISPLACED_RECORDING_LINE = '*recordings go in fixtures/replays/<console-script>/*'
+# A conftest for the inner run that deletes each collected recording before it runs
+DELETE_RECORDINGS_AFTER_COLLECTION = """
+def pytest_collection_finish(session):
+    for item in session.items:
+        item.path.unlink()
+"""
 
 
-def game_directory(*, pytester, console_script: str):
-    """Make ``fixtures/replays/<console_script>/`` under pytester's path.
+def game_directory(*, pytester: pytest.Pytester, console_script: str) -> Path:
+    """Make ``fixtures/replays/<console_script>/`` under pytester's path (if it is not there).
+
+    Args:
+        pytester: pytest's fixture for running pytest in a temporary directory.
+        console_script: The game directory's name.
 
     Returns:
         The directory.
 
     """
     directory = pytester.path.joinpath(*REPLAY_FIXTURES_PATH_PARTS, console_script)
-    directory.mkdir(parents=True)
+    directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
-def copy_fixture_into(*, pytester, console_script: str, name: str):
+def copy_fixture_into(*, pytester: pytest.Pytester, console_script: str, name: str) -> Path:
     """Copy the PaddleSlap fixture to ``fixtures/replays/<console_script>/<name>``.
+
+    Args:
+        pytester: pytest's fixture for running pytest in a temporary directory.
+        console_script: The game directory's name.
+        name: The copy's file name.
 
     Returns:
         The copy's path.
@@ -49,8 +72,14 @@ def copy_fixture_into(*, pytester, console_script: str, name: str):
     return target
 
 
-def run_pytest(*, pytester, arguments: tuple[str, ...] = (FIXTURES_DIRECTORY_NAME,)):
+def run_pytest(
+    *, pytester: pytest.Pytester, arguments: tuple[str, ...] = (FIXTURES_DIRECTORY_NAME,)
+) -> pytest.RunResult:
     """Run pytest with the plugin in a fresh interpreter, by default over ``fixtures``.
+
+    Args:
+        pytester: pytest's fixture for running pytest in a temporary directory.
+        arguments: pytest's arguments after the plugin options.
 
     Returns:
         pytester's run result.
@@ -67,8 +96,11 @@ def run_pytest(*, pytester, arguments: tuple[str, ...] = (FIXTURES_DIRECTORY_NAM
 
 
 def test_game_entry_point_reads_the_console_script():
-    """A console script's entry point is its 'module:function' from the package metadata."""
-    assert game_entry_point(console_script='paddleslap') == 'glitchygames.examples.paddleslap:main'
+    """A console script's entry point comes from the package metadata."""
+    entry_point = game_entry_point(console_script='paddleslap')
+
+    assert entry_point.value == 'glitchygames.examples.paddleslap:main'
+    assert entry_point.group == 'console_scripts'
 
 
 def test_matching_recording_passes(pytester):
@@ -96,6 +128,7 @@ def test_unknown_game_directory_fails_at_collection(pytester):
 
 def test_other_files_are_not_collected(pytester):
     """Only .jsonl.gz files in a game's directory under fixtures/replays/ are recordings."""
+    copy_fixture_into(pytester=pytester, console_script='paddleslap', name='rally.jsonl.gz')
     copy_fixture_into(pytester=pytester, console_script='paddleslap', name='notes.txt')
     for elsewhere in (
         pytester.path / 'replays' / 'paddleslap',
@@ -106,7 +139,22 @@ def test_other_files_are_not_collected(pytester):
 
     result = run_pytest(pytester=pytester, arguments=())
 
-    result.assert_outcomes()
+    # Only fixtures/replays/paddleslap/rally.jsonl.gz
+    result.assert_outcomes(passed=1)
+
+
+def test_misplaced_recordings_fail_at_collection(pytester):
+    """A recording under fixtures/replays/ but not directly in a game's directory is an error."""
+    replays_directory = pytester.path.joinpath(*REPLAY_FIXTURES_PATH_PARTS)
+    nested_directory = replays_directory / 'paddleslap' / 'old'
+    nested_directory.mkdir(parents=True)
+    shutil.copy(REPO_FIXTURE, replays_directory / 'stray.jsonl.gz')
+    shutil.copy(REPO_FIXTURE, nested_directory / 'rally.jsonl.gz')
+
+    result = run_pytest(pytester=pytester)
+
+    result.assert_outcomes(errors=2)
+    result.stdout.fnmatch_lines([MISPLACED_RECORDING_LINE, MISPLACED_RECORDING_LINE])
 
 
 def test_tampered_recording_fails_with_the_report(pytester):
@@ -135,4 +183,17 @@ def test_unusable_recording_fails_with_the_exit_code(pytester):
     result.assert_outcomes(failed=1)
     result.stdout.fnmatch_lines([
         '*paddleslap/garbage: the replay exited UNUSABLE_INPUT (65) (unusable recording)'
+    ])
+
+
+def test_missing_recording_fails_as_unusable(pytester):
+    """A recording gone by the time its item runs fails with MISSING_INPUT, as unusable."""
+    copy_fixture_into(pytester=pytester, console_script='paddleslap', name='gone.jsonl.gz')
+    pytester.makeconftest(DELETE_RECORDINGS_AFTER_COLLECTION)
+
+    result = run_pytest(pytester=pytester)
+
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines([
+        '*paddleslap/gone: the replay exited MISSING_INPUT (66) (unusable recording)'
     ])

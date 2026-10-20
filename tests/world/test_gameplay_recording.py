@@ -39,6 +39,7 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.input import devices as devices_module
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
+from glitchygames.process import run_command
 from glitchygames.randomness import engine_random
 from glitchygames.recording import (
     CONTROL_EVENTS_FIELD,
@@ -57,7 +58,6 @@ from glitchygames.recording import (
     UnrepresentableValue,
     event_from_record,
 )
-from glitchygames.replay.audit import run_command
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
 from glitchygames.sources import active_sources, install_sources

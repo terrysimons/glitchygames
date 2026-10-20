@@ -179,7 +179,7 @@ uv run glitchygames-host --parallel 8 -- glitchygames-host --tap shm --lockstep 
 ```
 
 Games stay unchanged; each host layer adds one capability (audit, tap, record, replay, parallel,
-lockstep); it reuses the one subprocess launcher (`glitchygames.replay.audit.run_command`); it fixes
+lockstep); it reuses the one subprocess launcher (`glitchygames.process.run_command`); it fixes
 the "bare `--` already in argv" edge case of today's self-rerunning `--audit`. Keep the games'
 existing flags as thin aliases for the host so current commands keep working.
 

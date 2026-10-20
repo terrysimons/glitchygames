@@ -26,10 +26,11 @@ the audit passes, ``ExitCode.AUDIT_NONDETERMINISTIC`` when it fails and
 recording is refused before any child starts, with ``ExitCode.UNUSABLE_INPUT``: an audit needs
 the whole recording, and each child would stop at the cut-off.
 
-Children are started with ``subprocess.run``: an argument list, never a shell, with the
-environment set before the child's interpreter starts (PYTHONHASHSEED is read only then). An
-interpreter started with ``-E`` or ``-I`` would pass that option on to its children, which would
-then ignore PYTHONHASHSEED; ``environment_reaches_children`` tells the engine to refuse.
+Children are started with ``run_command`` (glitchygames/process.py, ``subprocess.run``): an
+argument list, never a shell, with the environment set before the child's interpreter starts
+(PYTHONHASHSEED is read only then). An interpreter started with ``-E`` or ``-I`` would pass that
+option on to its children, which would then ignore PYTHONHASHSEED;
+``environment_reaches_children`` tells the engine to refuse.
 
 The plan: plans/2026-10-19-gameplay-replay.md, section 3.5.
 """
@@ -40,16 +41,16 @@ import dataclasses
 import hashlib
 import json
 import os
-import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs this game's own command again (argument list, no shell)
 import sys
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 from glitchygames.exit_codes import ExitCode
+from glitchygames.process import TimeoutExpired, run_command
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
 # PYTHONHASHSEED per run, so set/dict-order bugs show up
 AUDIT_HASH_SEEDS = ('1', '2')
@@ -244,41 +245,6 @@ def environment_reaches_children() -> bool:
     return not sys.flags.ignore_environment
 
 
-def run_command(
-    *,
-    command: Sequence[str],
-    environment: Mapping[str, str],
-    timeout_seconds: float | None,
-    capture_output: bool = False,
-) -> subprocess.CompletedProcess[str]:
-    """Run a command (an argument list, never a shell) as a child process and wait for it.
-
-    The engine's one child-process launcher: the audit's replays use it, so do a watched
-    replay's restarts (glitchygames/replay/rebuild.py) and the end-to-end audit tests.
-
-    Args:
-        command: The program and its arguments.
-        environment: The child's whole environment, in place before its interpreter starts.
-        timeout_seconds: Kill the child (subprocess.TimeoutExpired) after this long; None waits
-            for as long as it runs (a restarted watched replay, glitchygames/replay/rebuild.py).
-        capture_output: True to capture standard output and error together in ``stdout``;
-            False to let the child write to this process's.
-
-    Returns:
-        The finished process (``returncode``; ``stdout`` when captured, else None).
-
-    """
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with the user's own command line plus fixed flags, as an argument list (no shell)
-        list(command),
-        env=dict(environment),
-        stdout=subprocess.PIPE if capture_output else None,
-        stderr=subprocess.STDOUT if capture_output else None,
-        text=True,
-        check=False,
-        timeout=timeout_seconds,
-    )
-
-
 def _run_replay_subprocess(
     *,
     command: list[str],
@@ -314,7 +280,7 @@ def _run_replay_subprocess(
             environment=environment,
             timeout_seconds=timeout_seconds,
         )
-    except subprocess.TimeoutExpired as error:
+    except TimeoutExpired as error:
         message = f'{run_name} was still running after {timeout_seconds} seconds; killed'
         raise AuditRunError(message) from error
     except OSError as error:

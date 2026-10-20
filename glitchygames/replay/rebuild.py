@@ -19,7 +19,7 @@ and singletons hold the state of every frame run so far). So ``,`` (step back), 
    SIGHUP raises SystemExit, and ``subprocess.run`` then kills the child with SIGKILL, without
    its teardown, and reaps it: acceptable, as a replay never records). The first
    replay process becomes the supervisor: it runs each restarted replay as a child with
-   ``audit.run_command`` (the engine's one child-process launcher), adding
+   ``glitchygames.process.run_command`` (the engine's one child-process launcher), adding
    ``--replay-restart-handoff PATH``. A child that steps back again does not start a grandchild:
    it writes a ``RestartHandoff`` (its restart command and its own result's exit code) to that
    file, whole (written aside, then moved into place), and ends; the supervisor runs it next. So
@@ -49,7 +49,7 @@ and singletons hold the state of every frame run so far). So ``,`` (step back), 
 
 ``os.execv`` would replace the process in place, but it is not used: starting a process without
 a shell is a security lint finding everywhere but the one authorised launcher
-(``audit.run_command``).
+(``glitchygames.process.run_command``).
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from glitchygames.debug.overlay import DebugPanel
 from glitchygames.exit_codes import ExitCode
-from glitchygames.replay.audit import run_command
+from glitchygames.process import run_command
 from glitchygames.replay.controls import ReplayControls, rebuild_progress_text
 
 if TYPE_CHECKING:

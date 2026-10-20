@@ -33,6 +33,7 @@ from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
+from glitchygames.process import run_command
 from glitchygames.recording import (
     INTERNAL_ORIGIN,
     RECORDING_FORMAT_THREE_FIELDS,
@@ -53,7 +54,6 @@ from glitchygames.replay.audit import (
     environment_reaches_children,
     frame_digest,
     read_digest_file,
-    run_command,
 )
 from glitchygames.replay.controls import CONTROL_TICK_SECONDS, FIRST_PAUSED_FRAME
 from glitchygames.replay.driver import (
