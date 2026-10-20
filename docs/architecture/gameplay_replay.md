@@ -204,7 +204,9 @@ early at frame 4312: the recording is truncated`.
 
 Every replay that ends normally, watched or headless, exits with its result: `SUCCESS` (0) when
 it matched or the window was closed, `REPLAY_DIVERGED` (1) when it diverged, `UNUSABLE_INPUT`
-(65) for a truncated recording. A crash or a signal exits as for any run (see
+(65) for a truncated recording. A crash, Ctrl-C or a signal exits as for any run, and the
+report then says only where the replay stopped (`Replay stopped at frame 12: the run ended with
+INTERNAL_ERROR (70)`; see
 [exit codes](#exit-codes)).
 
 While a replay runs, real keyboard, mouse, touch, joystick, controller, device and window events
@@ -251,7 +253,8 @@ The audit compares only what the replay samples: the scene class and each sprite
 `visible` and draw order. Pixels, audio and game state that never moves, hides or reorders a
 sprite are not compared. It is refused (`OPTIONS_REFUSED`, 64) with `--replay-fps real`, under
 `python -E` or `-I` (which would keep `PYTHONHASHSEED` from reaching the children) and without
-`--replay-trace`.
+`--replay-trace`. A truncated recording is refused before the children start
+(`UNUSABLE_INPUT`, 65): an audit needs the whole recording.
 
 ## Exit codes
 

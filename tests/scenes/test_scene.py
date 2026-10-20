@@ -1603,6 +1603,23 @@ class TestHandleFramePacing:
         mock_timer.sleep_until_next.assert_not_called()
         mock_clock_tick.assert_not_called()
 
+    def test_handle_frame_pacing_never_mixes_backends_for_a_sub_nanosecond_period(
+        self, mock_pygame_patches, mocker
+    ):
+        """A positive period that rounds to 0 ns with a timer: no deadline and no clock tick."""
+        manager = SceneManager()
+        manager.target_fps = 60
+        mock_timer = mocker.Mock()
+        mock_clock_tick = mocker.patch.object(manager.clock, 'tick')
+
+        manager._handle_frame_pacing(
+            timer=mock_timer, period_ns=0, prev_deadline_ns=None, paced_seconds=1e-10
+        )
+
+        mock_timer.compute_deadline.assert_not_called()
+        mock_timer.sleep_until_next.assert_not_called()
+        mock_clock_tick.assert_not_called()
+
     def test_handle_frame_pacing_without_a_timer_ticks_at_the_paced_period(
         self, mock_pygame_patches, mocker
     ):

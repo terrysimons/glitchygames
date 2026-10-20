@@ -336,11 +336,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   blocked state is restored exactly when the replay ends, normally or after an error). Caveat:
   posts of a blocked type are refused too, so game code that fakes input by posting e.g. KEYDOWN
   shows a "missing internal event" divergence in a replay
-- `--headless` (any run): `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` set to `dummy` right after the
-  options are read (a display or mixer pygame already started on another driver is restarted on
-  the dummy one, with a warning). Live headless runs pace normally and end as the game ends; a
+- `--headless` (any run; "Diagnostics Options" group): `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` set
+  to `dummy` right after the options are read (a display or mixer pygame already started on
+  another driver is restarted on the dummy one, the mixer with its format and channel count, with
+  a warning). Live headless runs pace normally and end as the game ends; a
   headless replay is unpaced (`EngineSources.paced_frame_seconds()` returns 0.0: no timer
-  deadline, no clock tick) and prints its report to stdout instead of logging it
+  deadline, no clock tick) and prints its report to stdout instead of logging it. A replay that a
+  crash, Ctrl-C or signal ends reports only `Replay stopped at frame N: the run ended with ...`
 - Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
@@ -354,7 +356,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   divergence); exits `SUCCESS` (0) when deterministic, `AUDIT_NONDETERMINISTIC` (3) otherwise,
   `INTERNAL_ERROR` (70) when a child could not finish (did not start, hung, crashed, wrote no
   digests); refused with `OPTIONS_REFUSED` (64) under `--replay-fps real` or `python -E`/`-I`,
-  which would keep PYTHONHASHSEED from the children. It compares only
+  which would keep PYTHONHASHSEED from the children, and with `UNUSABLE_INPUT` (65) for a
+  truncated recording (an audit needs the whole recording). It compares only
   what the replay samples: the scene class and each sprite's `rect`, `visible` and draw order, not
   pixels, audio or unsampled game state. Children run through `subprocess.run` (argument list, no shell; the
   one authorised subprocess suppression), with a timeout

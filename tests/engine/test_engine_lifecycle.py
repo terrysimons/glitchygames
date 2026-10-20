@@ -565,7 +565,7 @@ class TestStartExitStatus:
         assert exit_info.value.code == ExitCode.INTERNAL_ERROR
         assert exit_info.value.__cause__ is run_error
         assert f'Exiting with {ExitCode.INTERNAL_ERROR.describe()}' in caplog.text
-        engine._shutdown.assert_called_once_with()
+        engine._shutdown.assert_called_once_with(run_ended_by=ExitCode.INTERNAL_ERROR.describe())
         crash_records = [record for record in caplog.records if record.exc_info is not None]
         assert len(crash_records) == 1
         assert crash_records[0].exc_info[1] is run_error
@@ -581,7 +581,9 @@ class TestStartExitStatus:
         with pytest.raises(SystemExit) as exit_info:
             engine.start()
         assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
-        engine._shutdown.assert_called_once_with()
+        engine._shutdown.assert_called_once_with(
+            run_ended_by=ExitCode.describe_status(ExitCode.REPLAY_DIVERGED)
+        )
 
     def test_a_keyboard_interrupt_exits_as_interrupted_after_teardown(
         self, mock_pygame_patches, mock_game_args, mocker, caplog
@@ -593,7 +595,7 @@ class TestStartExitStatus:
         with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             engine.start()
         assert exit_info.value.code == ExitCode.INTERRUPTED
-        engine._shutdown.assert_called_once_with()
+        engine._shutdown.assert_called_once_with(run_ended_by=ExitCode.INTERRUPTED.describe())
         assert f'Exiting with {ExitCode.INTERRUPTED.describe()}' in caplog.text
         assert all(record.exc_info is None for record in caplog.records)
 

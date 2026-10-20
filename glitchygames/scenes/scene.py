@@ -839,6 +839,11 @@ class SceneManager(SceneInterface, events.EventManager):
             # Optional jitter logging
             if self.OPTIONS.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
+        elif timer is not None and paced_seconds is not None:
+            # A positive paced period shorter than half a nanosecond rounds to a 0 ns period:
+            # nothing to wait for. Never fall back to the pygame clock while a timer backend
+            # paces the run (mixing the two clocks)
+            pass
         # Fallback to pygame clock for FPS measurement if no timer
         elif paced_seconds is not None:
             self.clock.tick(1 / paced_seconds)

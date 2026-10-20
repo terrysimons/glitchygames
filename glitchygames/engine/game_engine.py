@@ -484,17 +484,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             default=None,
         )
         group.add_argument(
-            '--headless',
-            action='store_true',
-            help=(
-                "run on SDL's dummy video and audio drivers: no window, no sound. With "
-                '--replay-trace the replay also runs unpaced and prints its report to stdout '
-                f'(exit {ExitCode.SUCCESS:d} when it matches, {ExitCode.REPLAY_DIVERGED:d} '
-                f'when it diverges, {ExitCode.UNUSABLE_INPUT:d} for a truncated recording)'
-            ),
-            default=False,
-        )
-        group.add_argument(
             '--random-seed',
             type=int,
             help=(
@@ -553,6 +542,20 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             default_videodriver = windows_videodriver_choices
 
         group.add_argument('--video-driver', default=None, choices=default_videodriver)
+
+        # How any run is watched or diagnosed, whatever the game
+        diagnostics_group = parser.add_argument_group('Diagnostics Options')
+        diagnostics_group.add_argument(
+            '--headless',
+            action='store_true',
+            help=(
+                "run on SDL's dummy video and audio drivers: no window, no sound. With "
+                '--replay-trace the replay also runs unpaced and prints its report to stdout '
+                f'(exit {ExitCode.SUCCESS:d} when it matches, {ExitCode.REPLAY_DIVERGED:d} '
+                f'when it diverges, {ExitCode.UNUSABLE_INPUT:d} for a truncated recording)'
+            ),
+            default=False,
+        )
 
         event_managers = (
             AppEventManager,
@@ -1416,7 +1419,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         file), ``ExitCode.MISSING_INPUT`` when it does not exist, and
         ``ExitCode.OPTIONS_REFUSED`` when --record-trace is given too (recording over a replay
         is not supported yet) or --audit is given without --replay-trace, with --replay-fps
-        real or to an interpreter started with -E or -I.
+        real or to an interpreter started with -E or -I. Auditing a truncated recording exits
+        with ``ExitCode.UNUSABLE_INPUT`` too (an audit needs the whole recording).
 
         Args:
             game: The game scene class or instance (its class name must match the recording's).
@@ -1462,6 +1466,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             refusal = error
         else:
             if options.get('audit'):
+                self._refuse_auditing_a_truncated_recording(
+                    replay_trace_path=replay_trace_path, sources=sources
+                )
                 self._audit_replay(path=Path(replay_trace_path))
             return sources
         # Logged without a traceback: the message says what is wrong with the recording
@@ -1504,6 +1511,27 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
             exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
+    def _refuse_auditing_a_truncated_recording(
+        self: Self, *, replay_trace_path: str, sources: ReplaySources
+    ) -> None:
+        """Exit with ExitCode.UNUSABLE_INPUT if the recording to audit is truncated.
+
+        An audit needs the whole recording: its child replays would end at the cut-off (exit
+        ``ExitCode.UNUSABLE_INPUT``), which the audit could only report as a run that did not
+        finish.
+
+        Args:
+            replay_trace_path: The recording to audit.
+            sources: Its replay sources (read, not installed).
+
+        """
+        if sources.is_truncated:
+            self.log.error(
+                f'Cannot audit {replay_trace_path}: the recording is truncated after '
+                f'{sources.frame_count} complete frames, and an audit needs the whole recording'
+            )
+            exit_with(exit_code=ExitCode.UNUSABLE_INPUT)
+
     def _audit_replay(self: Self, *, path: Path) -> NoReturn:
         """Audit the recording in two child replays and exit with the outcome (--audit).
 
@@ -1531,21 +1559,36 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.log.error(f'Audit could not run: {run_error}')
         exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=run_error)
 
-    def _report_replay_result(self: Self) -> None:
+    def _report_replay_result(self: Self, *, run_ended_by: str | None) -> None:
         """Settle the replay's result and report it, if replaying (rule 11).
 
         The report (``ReplayResult.report``) is printed to stdout under ``--headless``, where it
-        is the run's output, and logged otherwise (as an error when the replay diverged).
+        is the run's output, and logged otherwise (as an error when the replay diverged). A run
+        that something else ended first (a crash, Ctrl-C, a signal, a game's own exit) reports
+        only where the replay stopped: its result would call that a length divergence.
+
+        Args:
+            run_ended_by: What ended the run before the replay could (an exit status as
+                ``ExitCode.describe_status`` gives it), or None when the run ended normally.
+
         """
         if self.replay_sources is None:
             return
         self.replay_sources.finish_run()
         result = self.replay_sources.result
-        report = result.report()
+        if run_ended_by is not None:
+            report = (
+                f'Replay stopped at frame {result.frames_replayed}: the run ended with '
+                f'{run_ended_by}'
+            )
+            is_failure = True
+        else:
+            report = result.report()
+            is_failure = result.divergence is not None
         if self.replay_sources.options.headless:
             sys.stdout.write(f'{report}\n')
             sys.stdout.flush()
-        elif result.divergence is not None:
+        elif is_failure:
             self.log.error(report)
         else:
             self.log.info(report)
@@ -1555,10 +1598,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         Called right after the options are read, before ``pygame.init()`` and the display. If
         pygame was started before the engine (at import, by a game's own code), its display and
-        mixer already run on the drivers chosen then: each that is not on the dummy driver is
-        stopped here, so ``pygame.init()`` starts it again on the dummy one (the display is
-        opened by the engine anyway; sounds loaded before keep playing, silently), with one
-        warning naming what was restarted.
+        mixer already run on the drivers chosen then, and each that is not on the dummy driver is
+        restarted on it, with one warning naming what was restarted:
+
+        - The display is stopped; ``pygame.init()`` starts it again and the engine opens its
+          window on it, as it always does.
+        - The mixer is stopped and started again at once with the same frequency, sample size
+          and output channels (``pygame.mixer.get_init()``) and the same number of mixing
+          channels. Anything playing stops; sounds loaded before keep the format they were
+          converted to, which still matches. The buffer size cannot be read back, so it is
+          pygame's default.
         """
         os.environ['SDL_VIDEODRIVER'] = HEADLESS_SDL_DRIVER
         os.environ['SDL_AUDIODRIVER'] = HEADLESS_SDL_DRIVER
@@ -1566,9 +1615,19 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if pygame.display.get_init() and pygame.display.get_driver() != HEADLESS_SDL_DRIVER:
             restarted.append(f'the display (video driver {pygame.display.get_driver()!r})')
             pygame.display.quit()
-        if pygame.mixer.get_init() is not None and pygame.mixer.get_driver() != HEADLESS_SDL_DRIVER:
-            restarted.append(f'the mixer (audio driver {pygame.mixer.get_driver()!r})')
+        mixer_format = pygame.mixer.get_init()
+        if mixer_format is not None and pygame.mixer.get_driver() != HEADLESS_SDL_DRIVER:
+            frequency, size, output_channels = mixer_format
+            mixing_channel_count = pygame.mixer.get_num_channels()
+            restarted.append(
+                f'the mixer (audio driver {pygame.mixer.get_driver()!r}; kept: {frequency} Hz, '
+                f'size {size}, {output_channels} output channels, {mixing_channel_count} '
+                'mixing channels)'
+            )
             pygame.mixer.quit()
+            # The environment now names the dummy driver, so this opens the dummy device
+            pygame.mixer.init(frequency=frequency, size=size, channels=output_channels)
+            pygame.mixer.set_num_channels(mixing_channel_count)
         if restarted:
             self.log.warning(
                 f'--headless: pygame was started before the engine; restarting '
@@ -1576,13 +1635,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 'audio is muted'
             )
 
-    def _shutdown(self: Self) -> None:
-        """Close any recording, report any replay, print performance reports, shut down pygame."""
+    def _shutdown(self: Self, *, run_ended_by: str | None = None) -> None:
+        """Close any recording, report any replay, print performance reports, shut down pygame.
+
+        Args:
+            run_ended_by: What ended the run early (``_report_replay_result``), or None.
+
+        """
         # First, so the recording is complete even if a report below fails
         self.stop_trace_recording()
         # After closing: until then a repeated signal must stay ignored (exit_on_signal)
         self._restore_signal_handlers()
-        self._report_replay_result()
+        self._report_replay_result(run_ended_by=run_ended_by)
 
         # Print performance report before shutdown
         try:
@@ -1641,11 +1705,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
             LOG.debug('Performance FPS histogram mode configuration failed: %s', perf_error)
 
-    def _tear_down_run(self: Self, *, profiler: cProfile.Profile | None) -> Exception | None:
+    def _tear_down_run(
+        self: Self, *, profiler: cProfile.Profile | None, run_ended_by: str | None
+    ) -> Exception | None:
         """Run the teardown after a run, whatever ended it, and report how it went.
 
         Args:
             profiler: The run's profiler (--profile), stopped and printed here, or None.
+            run_ended_by: What ended the run early (an exit status described), or None when it
+                ended normally.
 
         Returns:
             The exception ``_shutdown`` raised (logged with its traceback), or None.
@@ -1653,7 +1721,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         teardown_error: Exception | None = None
         try:
-            self._shutdown()
+            self._shutdown(run_ended_by=run_ended_by)
         except Exception as error:
             self.log.exception('The teardown failed')
             teardown_error = error
@@ -1697,6 +1765,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Set when the run ends in a way that start() turns into an exit code
         exit_code: ExitCode | None = None
         run_error: Exception | None = None
+        # What ended the run early, described for the replay report (None: a normal end)
+        run_ended_by: str | None = None
         try:
             # For the whole run, so a signal always ends it through the teardown below
             self._install_signal_handlers()
@@ -1720,18 +1790,23 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         except KeyboardInterrupt:
             # Ctrl-C: never an internal error; exits INTERRUPTED once the teardown has run
             exit_code = ExitCode.INTERRUPTED
+            run_ended_by = exit_code.describe()
         except SystemExit as exit_request:
             # A deliberate exit (a signal handler's, a game's) keeps its status
             if isinstance(exit_request.code, int):
-                self.log.info(f'Exiting with {ExitCode.describe_status(exit_request.code)}')
+                run_ended_by = ExitCode.describe_status(exit_request.code)
+                self.log.info(f'Exiting with {run_ended_by}')
+            else:
+                run_ended_by = f'SystemExit({exit_request.code!r})'
             raise
         except Exception as error:
             scene_name = self._resolve_scene_name_for_error()
             self.log.exception("Runtime error during game execution @ scene '%s'", scene_name)
             exit_code = ExitCode.INTERNAL_ERROR
+            run_ended_by = exit_code.describe()
             run_error = error
         finally:
-            teardown_error = self._tear_down_run(profiler=profiler)
+            teardown_error = self._tear_down_run(profiler=profiler, run_ended_by=run_ended_by)
             if teardown_error is not None:
                 # Replaces whatever was ending the run: a failed teardown is an internal error
                 exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=teardown_error)

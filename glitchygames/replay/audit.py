@@ -22,7 +22,9 @@ glitchygames/sources.py). A child that cannot be started, runs longer than
 ``ExitCode.SUCCESS`` (or ``ExitCode.REPLAY_DIVERGED`` with a divergence in its digest file) did
 not finish its replay: an ``AuditRunError``. ``GameEngine`` exits with ``ExitCode.SUCCESS`` when
 the audit passes, ``ExitCode.AUDIT_NONDETERMINISTIC`` when it fails and
-``ExitCode.INTERNAL_ERROR`` on an ``AuditRunError`` (glitchygames/exit_codes.py).
+``ExitCode.INTERNAL_ERROR`` on an ``AuditRunError`` (glitchygames/exit_codes.py). A truncated
+recording is refused before any child starts, with ``ExitCode.UNUSABLE_INPUT``: an audit needs
+the whole recording, and each child would stop at the cut-off.
 
 Children are started with ``subprocess.run``: an argument list, never a shell, with the
 environment set before the child's interpreter starts (PYTHONHASHSEED is read only then). An

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import gzip
 import json
 import os
@@ -68,6 +69,7 @@ from glitchygames.replay.driver import (
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.scenes import SceneManager
 from glitchygames.sources import frame_clock_seconds, install_sources, reset_sources
+from glitchygames.timing import FastTimer
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace_result, write_trace
 from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
 from tests.world import test_gameplay_recording as recording_test_module
@@ -989,6 +991,9 @@ class TestRefusals:
         assert len(warnings) == 1
 
 
+# A live headless run's target: a period of exactly 15_625_000 ns
+LIVE_HEADLESS_TARGET_FPS = 64
+
 # SDL driver names no SDL has: what the driver variables hold before the engine starts, in tests
 # whose pygame.init is a stub (pygame is already started on the worker, so nothing reads them)
 UNUSED_VIDEO_DRIVER = 'unused-video-driver'
@@ -1111,10 +1116,19 @@ class TestHeadless:
     def test_a_live_headless_run_starts_runs_paced_and_quits(self, mocker, tmp_path, capsys):
         """--headless without a replay: dummy drivers, normal pacing, and the game's own end."""
         pacing_spy = mocker.spy(SceneManager, '_handle_frame_pacing')
+        deadline_spy = mocker.spy(FastTimer, 'compute_deadline')
+        sleep_spy = mocker.spy(FastTimer, 'sleep_until_next')
         supervisor = QuittingSupervisor(quit_frame=3)
         with engine_run_environment(mocker):
             engine = build_engine(
-                scene_class=DepartureRecordedScene, arguments=(*RUN_ENGINE_ARGUMENTS, '--headless')
+                scene_class=DepartureRecordedScene,
+                # The last --target-fps wins over RUN_ENGINE_ARGUMENTS' uncapped 0
+                arguments=(
+                    *RUN_ENGINE_ARGUMENTS,
+                    '--target-fps',
+                    str(LIVE_HEADLESS_TARGET_FPS),
+                    '--headless',
+                ),
             )
             assert (os.environ['SDL_VIDEODRIVER'], os.environ['SDL_AUDIODRIVER']) == (
                 'dummy',
@@ -1128,6 +1142,12 @@ class TestHeadless:
         assert supervisor.video_drivers == {'dummy'}
         paced_seconds = {call.kwargs['paced_seconds'] for call in pacing_spy.call_args_list}
         assert paced_seconds == {None}
+        # Every frame waited for its deadline on the timer backend, one target period apart
+        assert len(deadline_spy.call_args_list) == len(pacing_spy.call_args_list)
+        assert {call.args[2] for call in deadline_spy.call_args_list} == {
+            round(1_000_000_000 / LIVE_HEADLESS_TARGET_FPS)
+        }
+        assert len(sleep_spy.call_args_list) == len(pacing_spy.call_args_list)
         assert not capsys.readouterr().out
 
     def test_headless_sets_the_dummy_drivers_before_pygame_starts(self, mocker, monkeypatch):
@@ -1156,13 +1176,22 @@ class TestHeadless:
         mocker.patch.object(pygame.display, 'get_init', return_value=True)
         mocker.patch.object(pygame.display, 'get_driver', return_value='cocoa')
         display_quit = mocker.patch.object(pygame.display, 'quit')
-        mocker.patch.object(pygame.mixer, 'get_init', return_value=(44100, -16, 2))
+        mocker.patch.object(pygame.mixer, 'get_init', return_value=(22050, 8, 1))
+        mocker.patch.object(pygame.mixer, 'get_num_channels', return_value=16)
         mocker.patch.object(pygame.mixer, 'get_driver', return_value='coreaudio')
-        mixer_quit = mocker.patch.object(pygame.mixer, 'quit')
+        mixer_calls = mocker.Mock()
+        mocker.patch.object(pygame.mixer, 'quit', new=mixer_calls.quit)
+        mocker.patch.object(pygame.mixer, 'init', new=mixer_calls.init)
+        mocker.patch.object(pygame.mixer, 'set_num_channels', new=mixer_calls.set_num_channels)
         with constructed_engine('--headless'):
             pass
         display_quit.assert_called_once_with()
-        mixer_quit.assert_called_once_with()
+        # The mixer comes back on the dummy driver with the game's format and channel count
+        assert mixer_calls.mock_calls == [
+            mocker.call.quit(),
+            mocker.call.init(frequency=22050, size=8, channels=1),
+            mocker.call.set_num_channels(16),
+        ]
         restarts = [
             record.getMessage()
             for record in caplog.records
@@ -1171,6 +1200,39 @@ class TestHeadless:
         assert len(restarts) == 1
         assert "video driver 'cocoa'" in restarts[0]
         assert "audio driver 'coreaudio'" in restarts[0]
+        assert '22050 Hz, size 8, 1 output channels, 16 mixing channels' in restarts[0]
+
+    def test_a_crashed_headless_replay_reports_where_it_stopped(self, mocker, tmp_path, capsys):
+        """A crash ends the replay early: the report says so, not that the replay diverged."""
+
+        def fail() -> None:
+            message = 'game code failed mid-replay'
+            raise RuntimeError(message)
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless',),
+                action=fail,
+                action_frame=ACTION_FRAME,
+            )
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        assert capsys.readouterr().out == (
+            f'Replay stopped at frame {ACTION_FRAME}: the run ended with '
+            f'{ExitCode.INTERNAL_ERROR.describe()}\n'
+        )
+
+    def test_headless_is_a_diagnostics_option(self):
+        parser = argparse.ArgumentParser()
+        GameEngine.args(parser)
+        groups_by_option = {
+            action.dest: group.title
+            for group in parser._action_groups
+            for action in group._group_actions
+        }
+        assert groups_by_option['headless'] == 'Diagnostics Options'
 
     def test_headless_leaves_a_display_and_mixer_already_on_dummy_drivers(self, mocker, caplog):
         # --headless sets the SDL driver variables; the test's own values come back afterwards
@@ -2197,6 +2259,25 @@ class TestAuditOption:
 
     def test_a_recording_cannot_override_the_audit_options(self):
         assert {'audit', 'replay_digest', 'headless'} <= REPLAY_LOCAL_OPTIONS
+
+    def test_a_truncated_recording_is_refused_before_the_audit_starts(
+        self, mocker, tmp_path, caplog
+    ):
+        """An audit needs the whole recording: its children would only replay to the cut-off."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        cut_off_after_frame(recording_path=recording_path, frame_number=2)
+        audit_spy = mocker.patch.object(game_engine_module, 'audit_recording')
+        with (
+            pytest.raises(SystemExit) as exit_info,
+            constructed_engine('--replay-trace', str(recording_path), '--audit'),
+        ):
+            pass
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        assert (
+            f'Cannot audit {recording_path}: the recording is truncated after 3 complete frames'
+            in caplog.text
+        )
+        audit_spy.assert_not_called()
 
     def test_audit_under_an_interpreter_that_ignores_the_environment_is_refused(
         self, mocker, tmp_path, caplog
