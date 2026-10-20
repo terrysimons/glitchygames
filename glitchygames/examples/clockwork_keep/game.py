@@ -73,7 +73,7 @@ from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import Sprite
-from glitchygames.state import SaveNotFoundError, SaveStore, open_saves
+from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 from glitchygames.transitions import ElevatorTransition, FadeTransition
 from glitchygames.world import CoordinateSpace
 
@@ -320,7 +320,7 @@ class ClockworkKeepScene(Scene):
         self._elevator_peak_velocity = 1.0
 
         # Persistence
-        self.saves: SaveStore = open_saves(app_name='clockwork-keep')
+        self.saves: SaveManager = open_saves(app_name='clockwork-keep')
 
         # Input
         input_mode = self.options.get('input_mode', 'joystick')

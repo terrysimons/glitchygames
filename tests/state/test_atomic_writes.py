@@ -6,7 +6,7 @@ import contextlib
 from pathlib import Path
 from unittest.mock import patch
 
-from glitchygames.state.manager import SaveManager
+from glitchygames.state.manager import DiskSaveManager
 
 
 class TestAtomicWrites:
@@ -16,7 +16,7 @@ class TestAtomicWrites:
         """Saved files contain complete, valid data."""
         import json
 
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
 
         # Read the raw file and verify it's valid JSON
@@ -26,7 +26,7 @@ class TestAtomicWrites:
 
     def test_no_temp_files_left_on_success(self, tmp_path: Path) -> None:
         """No .tmp files remain after a successful save."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100})
 
         tmp_files = list(tmp_path.glob('*.tmp'))
@@ -34,7 +34,7 @@ class TestAtomicWrites:
 
     def test_original_preserved_on_write_failure(self, tmp_path: Path) -> None:
         """If the write fails, the original save file is not corrupted."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
 
         # First, save valid data
         saves.save('slot_1', {'score': 100})
@@ -52,7 +52,7 @@ class TestAtomicWrites:
 
     def test_no_temp_files_left_on_failure(self, tmp_path: Path) -> None:
         """No .tmp files remain after a failed save."""
-        saves = SaveManager(app_name='test-game', save_dir=tmp_path)
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         tmp_path.mkdir(parents=True, exist_ok=True)
 
         with (

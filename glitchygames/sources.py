@@ -35,9 +35,9 @@ if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
-    # Type only, from its leaf module: glitchygames.state.manager comes to import
-    # glitchygames.clock, which imports this module
-    from glitchygames.state.save_store import SaveStore
+    # Type only: glitchygames.state.manager comes to import glitchygames.clock, which imports
+    # this module, so a runtime import here would be a cycle (this module is a leaf)
+    from glitchygames.state.manager import SaveManager
 
 
 class SourcesAlreadyRunningError(RuntimeError):
@@ -82,7 +82,7 @@ class EngineSources(Protocol):
         """Return the device registry (every joystick/controller enumeration and opening)."""
         ...
 
-    def saves(self, *, namespace: str) -> SaveStore:
+    def saves(self, *, namespace: str) -> SaveManager:
         """Return the save store for ``namespace`` (a game's app name; glitchygames/state)."""
         ...
 

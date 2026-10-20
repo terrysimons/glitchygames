@@ -1,18 +1,21 @@
 """SaveManager: orchestrates game state persistence.
 
-Handles save/load operations with atomic writes, pluggable
-serializers, and cross-platform save directory resolution.
-Wraps game data with metadata (version, timestamp, app_name)
-for forward compatibility and debugging.
+``SaveManager`` holds the save logic: it wraps game data with metadata (version, timestamp,
+app_name) for forward compatibility and debugging, validates it on load, lists slots and raises
+the save errors. Its subclasses provide the storage: ``DiskSaveManager`` (files with atomic
+writes, pluggable serializers and cross-platform save directory resolution) for live play, and
+``MemorySaveManager`` (glitchygames/state/sandbox.py) for replays, so a replay's store answers
+exactly as the live one did.
 
 Usage:
-    saves = SaveManager(app_name='brave_adventurer')
+    saves = DiskSaveManager(app_name='brave_adventurer')
     saves.save('slot_1', {'score': 100, 'level': 2})
     data = saves.load('slot_1')
 """
 
 from __future__ import annotations
 
+import abc
 import contextlib
 import importlib.metadata
 import logging
@@ -20,7 +23,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 
 from glitchygames.state.exceptions import (
     SaveCorruptedError,
@@ -28,7 +31,10 @@ from glitchygames.state.exceptions import (
     SaveVersionError,
 )
 from glitchygames.state.paths import get_save_directory
-from glitchygames.state.serializers import JsonSerializer, Serializer
+from glitchygames.state.serializers import JsonSerializer, Serializer, TomlSerializer
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 log: logging.Logger = logging.getLogger('game.state.manager')
 
@@ -38,6 +44,9 @@ SAVE_FORMAT_VERSION: int = 1
 # Metadata key used in save files
 _META_KEY: str = '_meta'
 _DATA_KEY: str = 'data'
+
+# Save file extensions, in the order a slot's file is looked up
+_SLOT_FILE_EXTENSIONS: tuple[str, ...] = ('.json', '.toml')
 
 
 def _get_engine_version() -> str:
@@ -75,19 +84,19 @@ class SaveSlotInfo:
     size_bytes: int
 
 
-class SaveManager:
+class SaveManager(abc.ABC):
     """Manages game state persistence with pluggable serializers.
 
-    Each SaveManager instance is scoped to an application name which
-    determines the save directory. Games create a SaveManager and use
-    it to save/load named slots.
+    Each SaveManager instance is scoped to an application name. Games
+    open one (``glitchygames.state.open_saves``) and use it to save/load
+    named slots. This base class holds every rule of the save format;
+    its subclasses only store slots: ``DiskSaveManager`` as files,
+    ``MemorySaveManager`` (glitchygames/state/sandbox.py) in memory.
 
     Args:
-        app_name: Application name for the save directory.
+        app_name: Application name (the save namespace).
         default_serializer: Serializer to use when none is specified
             per-operation. Defaults to JsonSerializer.
-        save_dir: Override the platform-specific save directory.
-            Primarily useful for testing with tmp_path.
 
     """
 
@@ -96,22 +105,15 @@ class SaveManager:
         app_name: str,
         *,
         default_serializer: Serializer | None = None,
-        save_dir: Path | None = None,
     ) -> None:
         """Initialize the save manager."""
         self._app_name = app_name
         self._default_serializer: Serializer = default_serializer or JsonSerializer()
-        self._save_dir = save_dir or get_save_directory(app_name)
 
     @property
     def app_name(self) -> str:
         """The application name this manager is scoped to."""
         return self._app_name
-
-    @property
-    def save_dir(self) -> Path:
-        """The directory where save files are stored."""
-        return self._save_dir
 
     def save(
         self,
@@ -122,9 +124,9 @@ class SaveManager:
     ) -> Path:
         """Save game state to a named slot.
 
-        Wraps the data with metadata and writes atomically to prevent
-        corruption on crash. The save directory is created if it
-        doesn't exist.
+        Wraps the data with metadata and hands the serialized envelope
+        to the storage (a disk store writes it atomically to prevent
+        corruption on crash).
 
         Args:
             slot_name: Name of the save slot (becomes the filename stem).
@@ -149,13 +151,9 @@ class SaveManager:
         }
 
         content = active_serializer.serialize(envelope)
-        save_path = self._slot_path(slot_name, active_serializer)
-
-        # Ensure directory exists (created on first save, not on init)
-        self._save_dir.mkdir(parents=True, exist_ok=True)
-
-        # Atomic write: temp file in same dir → os.replace()
-        self._atomic_write(save_path, content)
+        save_path = self._write_slot(
+            slot_name=slot_name, content=content, serializer=active_serializer
+        )
 
         log.info('Saved slot %r to %s', slot_name, save_path)
         return save_path
@@ -186,7 +184,7 @@ class SaveManager:
             msg = f"Save file for slot '{slot_name}' is missing metadata"
             raise SaveCorruptedError(
                 message=msg,
-                path=self._find_slot_path(slot_name),
+                path=self.find_slot_path(slot_name),
             )
         meta = cast('dict[str, Any]', meta_raw)
 
@@ -207,7 +205,7 @@ class SaveManager:
             msg = f"Save file for slot '{slot_name}' is missing data section"
             raise SaveCorruptedError(
                 message=msg,
-                path=self._find_slot_path(slot_name),
+                path=self.find_slot_path(slot_name),
             )
 
         return cast('dict[str, Any]', data_raw)
@@ -227,29 +225,15 @@ class SaveManager:
             slot_name: Name of the save slot to load.
             serializer: Override the default serializer for this load.
 
+        The storage raises SaveCorruptedError if the file can't be parsed.
+
         Returns:
             The full save envelope dict (metadata + data).
 
-        Raises:
-            SaveCorruptedError: If the file can't be parsed.
-
         """
-        save_path = self._find_slot_path(slot_name)
+        save_path = self.find_slot_path(slot_name)
         active_serializer = serializer or self._default_serializer
-
-        content = save_path.read_text(encoding='utf-8')
-
-        try:
-            result = active_serializer.deserialize(content)
-        except Exception as error:
-            msg = f"Failed to parse save file for slot '{slot_name}': {error}"
-            raise SaveCorruptedError(
-                message=msg,
-                path=save_path,
-                original_error=error,
-            ) from error
-
-        return result
+        return self._read_slot(slot_name=slot_name, path=save_path, serializer=active_serializer)
 
     def exists(self, slot_name: str) -> bool:
         """Check if a save slot exists.
@@ -258,14 +242,10 @@ class SaveManager:
             slot_name: Name of the save slot to check.
 
         Returns:
-            True if the slot exists on disk.
+            True if the slot exists in the store.
 
         """
-        try:
-            self._find_slot_path(slot_name)
-        except SaveNotFoundError:
-            return False
-        return True
+        return self._existing_slot_path(slot_name=slot_name) is not None
 
     def delete(self, slot_name: str) -> None:
         """Delete a save slot.
@@ -274,30 +254,23 @@ class SaveManager:
             slot_name: Name of the save slot to delete.
 
         """
-        save_path = self._find_slot_path(slot_name)
-        save_path.unlink()
+        save_path = self.find_slot_path(slot_name)
+        self._delete_slot(slot_name=slot_name, path=save_path)
         log.info('Deleted slot %r at %s', slot_name, save_path)
 
     def list_slots(self) -> list[SaveSlotInfo]:
         """List all save slots with metadata.
 
+        Slots whose metadata can't be read are skipped (with a warning).
+
         Returns:
             List of SaveSlotInfo, sorted by timestamp (newest first).
 
         """
-        if not self._save_dir.exists():
-            return []
-
         slots: list[SaveSlotInfo] = []
-        for path in self._save_dir.iterdir():
-            if not path.is_file():
-                continue
-            # Skip files without recognized extensions
-            if path.suffix not in {'.json', '.toml'}:
-                continue
-
+        for path in self._slot_file_paths():
             try:
-                slot_info = self._read_slot_info(path)
+                slot_info = self._read_slot_info(path=path)
             except SaveCorruptedError, SaveVersionError, OSError:
                 log.warning('Skipping unreadable save file: %s', path)
                 continue
@@ -308,22 +281,16 @@ class SaveManager:
         slots.sort(key=lambda slot: slot.timestamp, reverse=True)
         return slots
 
-    # --- Private helpers ---
-
-    def _slot_path(self, slot_name: str, serializer: Serializer) -> Path:
-        """Build the file path for a slot with the serializer's extension.
-
-        Args:
-            slot_name: Slot name.
-            serializer: Serializer to get the file extension from.
+    def slot_names(self) -> list[str]:
+        """List the name of every stored slot, readable or not.
 
         Returns:
-            Full path to the save file.
+            Slot names, sorted.
 
         """
-        return self._save_dir / f'{slot_name}{serializer.file_extension}'
+        return sorted({path.stem for path in self._slot_file_paths()})
 
-    def _find_slot_path(self, slot_name: str) -> Path:
+    def find_slot_path(self, slot_name: str) -> Path:
         """Find an existing save file for a slot, checking all extensions.
 
         Args:
@@ -336,38 +303,67 @@ class SaveManager:
             SaveNotFoundError: If no file exists for this slot.
 
         """
-        for extension in ('.json', '.toml'):
-            candidate = self._save_dir / f'{slot_name}{extension}'
-            if candidate.is_file():
-                return candidate
+        save_path = self._existing_slot_path(slot_name=slot_name)
+        if save_path is None:
+            msg = f"Save slot '{slot_name}' not found in {self._storage_location}"
+            raise SaveNotFoundError(message=msg, slot_name=slot_name)
+        return save_path
 
-        msg = f"Save slot '{slot_name}' not found in {self._save_dir}"
-        raise SaveNotFoundError(message=msg, slot_name=slot_name)
+    # --- Shared helpers for the storage ---
 
-    def _read_slot_info(self, path: Path) -> SaveSlotInfo:
-        """Read metadata from a save file to build a SaveSlotInfo.
+    @staticmethod
+    def _parse_slot_content(
+        *, slot_name: str, path: Path, content: str, serializer: Serializer
+    ) -> dict[str, Any]:
+        """Deserialize a slot file's content.
 
         Args:
-            path: Path to the save file.
+            slot_name: Slot name (for the error message).
+            path: The slot's file (for the error).
+            content: The file's text.
+            serializer: The serializer to parse with.
 
         Returns:
-            SaveSlotInfo with metadata from the file.
+            The envelope.
 
         Raises:
-            SaveCorruptedError: If the file has invalid metadata.
+            SaveCorruptedError: If the content can't be parsed.
 
         """
-        # Pick serializer based on file extension
-        if path.suffix == '.toml':
-            from glitchygames.state.serializers import TomlSerializer
+        try:
+            return serializer.deserialize(content)
+        except Exception as error:
+            msg = f"Failed to parse save file for slot '{slot_name}': {error}"
+            raise SaveCorruptedError(
+                message=msg,
+                path=path,
+                original_error=error,
+            ) from error
 
-            active_serializer: Serializer = TomlSerializer()
-        else:
-            active_serializer = JsonSerializer()
+    @staticmethod
+    def _slot_info_from_envelope(
+        *,
+        envelope: dict[str, Any],
+        path: Path,
+        size_bytes: int,
+        fallback_timestamp: Callable[[], datetime],
+    ) -> SaveSlotInfo:
+        """Build a slot's SaveSlotInfo from its envelope's metadata.
 
-        content = path.read_text(encoding='utf-8')
-        envelope = active_serializer.deserialize(content)
+        Args:
+            envelope: The slot's envelope.
+            path: The slot's file.
+            size_bytes: The file's size.
+            fallback_timestamp: Returns the time to report when the metadata has no valid
+                timestamp (a disk store: the file's modification time).
 
+        Returns:
+            SaveSlotInfo with metadata from the envelope.
+
+        Raises:
+            SaveCorruptedError: If the envelope has invalid metadata.
+
+        """
         meta_raw = envelope.get(_META_KEY, {})
         if not isinstance(meta_raw, dict):
             msg = f'Save file at {path} has invalid metadata'
@@ -378,7 +374,7 @@ class SaveManager:
         try:
             timestamp = datetime.fromisoformat(timestamp_str)
         except ValueError, TypeError:
-            timestamp = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+            timestamp = fallback_timestamp()
 
         version: int = int(meta.get('version', 0))
         app_name: str = str(meta.get('app_name', ''))
@@ -389,7 +385,182 @@ class SaveManager:
             timestamp=timestamp,
             version=version,
             app_name=app_name,
+            size_bytes=size_bytes,
+        )
+
+    # --- Storage (the subclasses) ---
+
+    @property
+    @abc.abstractmethod
+    def _storage_location(self) -> Path:
+        """Where the slots are stored (named in SaveNotFoundError)."""
+
+    @abc.abstractmethod
+    def _existing_slot_path(self, *, slot_name: str) -> Path | None:
+        """Return the path of the slot's stored file, or None if the slot does not exist."""
+
+    @abc.abstractmethod
+    def _slot_file_paths(self) -> list[Path]:
+        """Return the path of every stored slot file."""
+
+    @abc.abstractmethod
+    def _read_slot(self, *, slot_name: str, path: Path, serializer: Serializer) -> dict[str, Any]:
+        """Return the envelope stored for an existing slot.
+
+        Raises:
+            SaveCorruptedError: If it can't be parsed.
+            OSError: If it can't be read.
+
+        """
+
+    @abc.abstractmethod
+    def _write_slot(self, *, slot_name: str, content: str, serializer: Serializer) -> Path:
+        """Store a slot's serialized envelope and return its path."""
+
+    @abc.abstractmethod
+    def _delete_slot(self, *, slot_name: str, path: Path) -> None:
+        """Remove an existing slot."""
+
+    @abc.abstractmethod
+    def _read_slot_info(self, *, path: Path) -> SaveSlotInfo:
+        """Return a stored slot file's SaveSlotInfo.
+
+        Raises:
+            SaveCorruptedError: If its metadata can't be read.
+            SaveVersionError: If its metadata version is unusable.
+            OSError: If it can't be read.
+
+        """
+
+
+class DiskSaveManager(SaveManager):
+    """A SaveManager storing slots as files on disk (live play).
+
+    Each instance's app name determines the save directory.
+
+    Args:
+        app_name: Application name for the save directory.
+        default_serializer: Serializer to use when none is specified
+            per-operation. Defaults to JsonSerializer.
+        save_dir: Override the platform-specific save directory.
+            Primarily useful for testing with tmp_path.
+
+    """
+
+    def __init__(
+        self,
+        app_name: str,
+        *,
+        default_serializer: Serializer | None = None,
+        save_dir: Path | None = None,
+    ) -> None:
+        """Initialize the save manager."""
+        super().__init__(app_name, default_serializer=default_serializer)
+        self._save_dir = save_dir or get_save_directory(app_name)
+
+    @property
+    def save_dir(self) -> Path:
+        """The directory where save files are stored."""
+        return self._save_dir
+
+    @property
+    @override
+    def _storage_location(self) -> Path:
+        """The save directory."""
+        return self._save_dir
+
+    @override
+    def _existing_slot_path(self, *, slot_name: str) -> Path | None:
+        """Return the slot's file, checking all extensions, or None.
+
+        Returns:
+            The first existing ``<slot_name><extension>`` file, or None.
+
+        """
+        for extension in _SLOT_FILE_EXTENSIONS:
+            candidate = self._save_dir / f'{slot_name}{extension}'
+            if candidate.is_file():
+                return candidate
+        return None
+
+    @override
+    def _slot_file_paths(self) -> list[Path]:
+        """Return every file in the save directory with a recognized extension.
+
+        Returns:
+            The files, in directory order.
+
+        """
+        if not self._save_dir.exists():
+            return []
+        return [
+            path
+            for path in self._save_dir.iterdir()
+            # Skip files without recognized extensions
+            if path.is_file() and path.suffix in _SLOT_FILE_EXTENSIONS
+        ]
+
+    @override
+    def _read_slot(self, *, slot_name: str, path: Path, serializer: Serializer) -> dict[str, Any]:
+        """Read and parse the slot's file.
+
+        Returns:
+            The envelope.
+
+        """
+        content = path.read_text(encoding='utf-8')
+        return self._parse_slot_content(
+            slot_name=slot_name, path=path, content=content, serializer=serializer
+        )
+
+    @override
+    def _write_slot(self, *, slot_name: str, content: str, serializer: Serializer) -> Path:
+        """Write the slot's file atomically.
+
+        Returns:
+            Path to the written save file.
+
+        """
+        save_path = self._save_dir / f'{slot_name}{serializer.file_extension}'
+
+        # Ensure directory exists (created on first save, not on init)
+        self._save_dir.mkdir(parents=True, exist_ok=True)
+
+        # Atomic write: temp file in same dir → os.replace()
+        self._atomic_write(save_path, content)
+        return save_path
+
+    @override
+    def _delete_slot(self, *, slot_name: str, path: Path) -> None:
+        """Remove the slot's file."""
+        del slot_name  # The file is enough (SaveManager signature)
+        path.unlink()
+
+    @override
+    def _read_slot_info(self, *, path: Path) -> SaveSlotInfo:
+        """Read metadata from a save file to build a SaveSlotInfo.
+
+        Args:
+            path: Path to the save file.
+
+        Returns:
+            SaveSlotInfo with metadata from the file.
+
+        """
+        # Pick serializer based on file extension
+        active_serializer: Serializer = (
+            TomlSerializer() if path.suffix == '.toml' else JsonSerializer()
+        )
+
+        content = path.read_text(encoding='utf-8')
+        envelope = self._parse_slot_content(
+            slot_name=path.stem, path=path, content=content, serializer=active_serializer
+        )
+        return self._slot_info_from_envelope(
+            envelope=envelope,
+            path=path,
             size_bytes=path.stat().st_size,
+            fallback_timestamp=lambda: datetime.fromtimestamp(path.stat().st_mtime, tz=UTC),
         )
 
     def _atomic_write(self, target_path: Path, content: str) -> None:

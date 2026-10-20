@@ -57,7 +57,7 @@ from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.state import SaveNotFoundError, SaveStore, open_saves
+from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 if TYPE_CHECKING:
     import argparse
@@ -170,7 +170,7 @@ class BraveAdventurerScene(Scene):
         self._enemy_hit_this_pass: bool = False
 
         # Persistence
-        self.saves: SaveStore = open_saves(app_name='brave-adventurer')
+        self.saves: SaveManager = open_saves(app_name='brave-adventurer')
 
         # Sound effects (generated from waveforms, initialized in setup)
         self.sounds = GameSounds()

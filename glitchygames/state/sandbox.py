@@ -1,150 +1,245 @@
 """The saves door: games open their save store through the active sources.
 
-Live play gets a real ``SaveManager``. A recording stores each opened store's slots (their full
-envelopes) when recording starts or when the store is opened later, and a replay or in-game
-playback gets a ``SandboxSaves`` seeded from them: reads see what the original session saw, and
-writes stay in memory and are discarded, so a replay never touches real saves.
+Live play gets a ``DiskSaveManager``. A recording stores each opened store's snapshot
+(``save_namespace_snapshot``) when recording starts or when the store is opened later, and a
+replay or in-game playback gets a ``MemorySaveManager`` seeded from it: reads see what the
+original session saw, and writes stay in memory and are discarded, so a replay never touches
+real saves. Both are ``SaveManager``s, which hold every rule of the save format, so the memory
+store answers exactly as the disk store did.
+
+Snapshot format (slot name -> entry, JSON-safe):
+
+- A slot ``load_raw`` could read: its envelope, exactly as ``load_raw`` returned it
+  (``{"_meta": {...}, "data": {...}}``, or whatever the file held).
+- A slot it could not read: ``{"__unreadable__": {"kind": "corrupt" | "os_error", "message":
+  "<the error's message>"}}``. In replay ``exists()`` is True and ``load``/``load_raw`` raise
+  ``SaveCorruptedError`` (``corrupt``) or ``OSError`` (``os_error``) with that message.
+- Either may hold ``"__listing__": {"timestamp": <ISO 8601>, "version": n, "app_name": "...",
+  "size_bytes": n}``, what ``list_slots`` reported for the slot; a slot without it is one
+  ``list_slots`` skipped (unreadable metadata).
+
+The keys ``__unreadable__`` and ``__listing__`` are reserved: ``load_raw`` never returns them.
+Limits: a slot stored as both ``.json`` and ``.toml`` is recorded once (the file ``load`` reads,
+``.json``), while the disk store lists both; ``load(..., serializer=...)`` in replay reads the
+recorded envelope whatever the serializer; ``list_slots`` errors other than unreadable slots (a
+non-numeric version) are raised while snapshotting.
 """
 
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Any, Self
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast, override
 
 from glitchygames.sources import active_sources
-from glitchygames.state.exceptions import SaveNotFoundError
+from glitchygames.state.exceptions import SaveCorruptedError
+from glitchygames.state.manager import SaveManager, SaveSlotInfo
 
 if TYPE_CHECKING:
-    from glitchygames.state.manager import SaveManager
-    from glitchygames.state.save_store import SaveStore
+    from glitchygames.state.serializers import Serializer
 
-# The envelope key holding the game's data (glitchygames/state/manager.py _DATA_KEY)
-DATA_KEY = 'data'
+# Reserved snapshot entry keys (see the module docstring)
+UNREADABLE_SLOT_KEY = '__unreadable__'
+LISTING_KEY = '__listing__'
+RESERVED_SNAPSHOT_KEYS = frozenset({UNREADABLE_SLOT_KEY, LISTING_KEY})
+# Kinds of unreadable slot
+CORRUPT_SLOT_KIND = 'corrupt'
+OS_ERROR_SLOT_KIND = 'os_error'
 
 
-class SandboxSaves:
-    """An in-memory save store seeded from recorded envelopes; writes are discarded at exit.
+def _listing_record(*, slot_info: SaveSlotInfo) -> dict[str, Any]:
+    """Return a SaveSlotInfo as a snapshot's JSON-safe ``__listing__`` record.
 
-    Implements glitchygames.state.save_store.SaveStore with ``SaveManager``'s positional
-    signatures (a drop-in: interface conformance).
+    Returns:
+        The record (the path is left out: a memory store has no files).
+
+    """
+    return {
+        'timestamp': slot_info.timestamp.isoformat(),
+        'version': slot_info.version,
+        'app_name': slot_info.app_name,
+        'size_bytes': slot_info.size_bytes,
+    }
+
+
+class MemorySaveManager(SaveManager):
+    """A SaveManager holding slots in memory, seeded from a recorded snapshot.
+
+    This is what replays and in-game playback use: reads answer from the snapshot exactly as
+    the recorded ``DiskSaveManager`` did, and writes stay in memory and are discarded when the
+    store goes away, so real saves are never touched.
     """
 
-    def __init__(self: Self, *, app_name: str, envelopes: dict[str, dict[str, Any]]) -> None:
-        """Copy the recorded envelopes (the recording is never modified).
+    def __init__(
+        self,
+        *,
+        app_name: str,
+        snapshot: dict[str, dict[str, Any]],
+        default_serializer: Serializer | None = None,
+    ) -> None:
+        """Copy the recorded snapshot (the recording is never modified).
 
         Args:
             app_name: The application name (the save namespace) this store stands in for.
-            envelopes: Slot name -> full save envelope, as save_namespace_snapshot returns.
+            snapshot: Slot name -> entry, as save_namespace_snapshot returns.
+            default_serializer: Serializer to use when none is specified per-operation.
+                Defaults to JsonSerializer, as live stores use.
 
         """
-        self._app_name = app_name
-        self._envelopes = copy.deepcopy(envelopes)
+        super().__init__(app_name, default_serializer=default_serializer)
+        self._entries: dict[str, dict[str, Any]] = copy.deepcopy(snapshot)
 
     @property
-    def app_name(self: Self) -> str:
-        """The application name this store is scoped to."""
-        return self._app_name
+    @override
+    def _storage_location(self) -> Path:
+        """A stand-in directory named after the app (there are no files)."""
+        return Path('<replay save snapshot>') / self.app_name
 
-    def load(self: Self, slot_name: str) -> dict[str, Any]:
-        """Return a slot's data.
-
-        Positional like ``SaveManager.load`` (a drop-in: interface conformance).
-
-        Args:
-            slot_name: Name of the save slot to load.
+    def _slot_path(self, *, slot_name: str) -> Path:
+        """Return the stand-in path of a slot (for errors and return values).
 
         Returns:
-            A copy of the slot's data.
+            ``<storage location>/<slot_name><default extension>``.
+
+        """
+        return self._storage_location / f'{slot_name}{self._default_serializer.file_extension}'
+
+    @override
+    def _existing_slot_path(self, *, slot_name: str) -> Path | None:
+        """Return the slot's stand-in path, or None if the snapshot has no such slot.
+
+        Returns:
+            The path, or None.
+
+        """
+        if slot_name not in self._entries:
+            return None
+        return self._slot_path(slot_name=slot_name)
+
+    @override
+    def _slot_file_paths(self) -> list[Path]:
+        """Return every slot's stand-in path.
+
+        Returns:
+            The paths, in snapshot order.
+
+        """
+        return [self._slot_path(slot_name=slot_name) for slot_name in self._entries]
+
+    @override
+    def _read_slot(self, *, slot_name: str, path: Path, serializer: Serializer) -> dict[str, Any]:
+        """Return the recorded envelope, or raise the error reading it raised when recorded.
+
+        Returns:
+            A copy of the envelope, without the snapshot's reserved keys.
 
         Raises:
-            SaveNotFoundError: If the slot does not exist, as SaveManager does.
+            SaveCorruptedError: If the slot was recorded as corrupt.
+            OSError: If the slot was recorded as unreadable.
 
         """
-        envelope = self._envelopes.get(slot_name)
-        if envelope is None:
-            message = f"No save slot '{slot_name}' in the replay's save snapshot"
-            raise SaveNotFoundError(message=message, slot_name=slot_name)
-        return copy.deepcopy(envelope[DATA_KEY])
+        del serializer  # The recorded envelope is already parsed (SaveManager signature)
+        entry = self._entries[slot_name]
+        unreadable = entry.get(UNREADABLE_SLOT_KEY)
+        if unreadable is not None:
+            message = str(unreadable['message'])
+            if unreadable['kind'] == CORRUPT_SLOT_KIND:
+                raise SaveCorruptedError(message=message, path=path)
+            raise OSError(message)
+        return {
+            key: copy.deepcopy(value)
+            for key, value in entry.items()
+            if key not in RESERVED_SNAPSHOT_KEYS
+        }
 
-    def save(self: Self, slot_name: str, data: dict[str, Any]) -> None:
-        """Keep the data in memory only.
-
-        Positional like ``SaveManager.save`` (a drop-in: interface conformance).
-
-        Args:
-            slot_name: Name of the save slot.
-            data: Game state to keep.
-
-        """
-        self._envelopes[slot_name] = {DATA_KEY: copy.deepcopy(data)}
-
-    def exists(self: Self, slot_name: str) -> bool:
-        """Return whether the slot exists in the sandbox.
-
-        Positional like ``SaveManager.exists`` (a drop-in: interface conformance).
-
-        Args:
-            slot_name: Name of the save slot to check.
+    @override
+    def _write_slot(self, *, slot_name: str, content: str, serializer: Serializer) -> Path:
+        """Keep the slot in memory, read back through the serializer as a file would be.
 
         Returns:
-            True if the sandbox holds the slot.
+            The slot's stand-in path.
 
         """
-        return slot_name in self._envelopes
+        path = self._storage_location / f'{slot_name}{serializer.file_extension}'
+        envelope = serializer.deserialize(content)
+        slot_info = self._slot_info_from_envelope(
+            envelope=envelope,
+            path=path,
+            size_bytes=len(content.encode('utf-8')),
+            # A file just written has the current modification time
+            fallback_timestamp=lambda: datetime.now(tz=UTC),
+        )
+        self._entries[slot_name] = {**envelope, LISTING_KEY: _listing_record(slot_info=slot_info)}
+        return path
 
-    def delete(self: Self, slot_name: str) -> None:
-        """Remove the slot from the sandbox.
+    @override
+    def _delete_slot(self, *, slot_name: str, path: Path) -> None:
+        """Forget the slot."""
+        del path  # Nothing is stored at the stand-in path (SaveManager signature)
+        del self._entries[slot_name]
 
-        Positional like ``SaveManager.delete`` (a drop-in: interface conformance).
+    @override
+    def _read_slot_info(self, *, path: Path) -> SaveSlotInfo:
+        """Return what list_slots reported for the slot when recorded.
 
-        Args:
-            slot_name: Name of the save slot to delete.
+        Returns:
+            The SaveSlotInfo (with the stand-in path).
 
         Raises:
-            SaveNotFoundError: If the slot does not exist, as SaveManager does.
+            SaveCorruptedError: If list_slots skipped the slot when recorded.
 
         """
-        if slot_name not in self._envelopes:
-            message = f"No save slot '{slot_name}' in the replay's save snapshot"
-            raise SaveNotFoundError(message=message, slot_name=slot_name)
-        del self._envelopes[slot_name]
-
-    def envelopes(self: Self) -> dict[str, dict[str, Any]]:
-        """Return a deep copy of every slot's envelope.
-
-        A recording made over a replay snapshots a sandbox (--rebaseline), and so does a scene
-        start inside one.
-
-        Returns:
-            Slot name -> envelope.
-
-        """
-        return copy.deepcopy(self._envelopes)
+        record = self._entries[path.stem].get(LISTING_KEY)
+        if record is None:
+            message = f'Save file at {path} had unreadable metadata when recorded'
+            raise SaveCorruptedError(message=message, path=path)
+        listing = cast('dict[str, Any]', record)
+        return SaveSlotInfo(
+            name=path.stem,
+            path=path,
+            timestamp=datetime.fromisoformat(str(listing['timestamp'])),
+            version=int(listing['version']),
+            app_name=str(listing['app_name']),
+            size_bytes=int(listing['size_bytes']),
+        )
 
 
-def save_namespace_snapshot(*, saves: SaveManager | SandboxSaves) -> dict[str, dict[str, Any]]:
-    """Return every slot of a store as its full envelope (slot name -> envelope).
+def save_namespace_snapshot(*, saves: SaveManager) -> dict[str, dict[str, Any]]:
+    """Return every slot of a store as a snapshot entry (see the module docstring).
 
     Args:
-        saves: A real store, or the sandbox a replay hands out.
+        saves: A disk store, or the memory store a replay hands out (``--rebaseline``).
 
     Returns:
         The JSON-safe snapshot a recording stores.
 
     """
-    if isinstance(saves, SandboxSaves):
-        return saves.envelopes()
-    return {slot.name: saves.load_raw(slot_name=slot.name) for slot in saves.list_slots()}
+    listings = {slot_info.path: slot_info for slot_info in saves.list_slots()}
+    snapshot: dict[str, dict[str, Any]] = {}
+    for slot_name in saves.slot_names():
+        entry: dict[str, Any]
+        try:
+            entry = copy.deepcopy(saves.load_raw(slot_name))
+        except SaveCorruptedError as error:
+            entry = {UNREADABLE_SLOT_KEY: {'kind': CORRUPT_SLOT_KIND, 'message': str(error)}}
+        except OSError as error:
+            entry = {UNREADABLE_SLOT_KEY: {'kind': OS_ERROR_SLOT_KIND, 'message': str(error)}}
+        slot_info = listings.get(saves.find_slot_path(slot_name))
+        if slot_info is not None:
+            entry[LISTING_KEY] = _listing_record(slot_info=slot_info)
+        snapshot[slot_name] = entry
+    return snapshot
 
 
-def open_saves(*, app_name: str) -> SaveStore:
+def open_saves(*, app_name: str) -> SaveManager:
     """Open a game's save store through the active sources (glitchygames/sources.py).
 
     Args:
         app_name: The application name (the save namespace).
 
     Returns:
-        The store: a SaveManager live, a SandboxSaves in a replay.
+        The store: a DiskSaveManager live, a MemorySaveManager in a replay.
 
     """
     return active_sources().saves(namespace=app_name)

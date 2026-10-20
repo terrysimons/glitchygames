@@ -12,12 +12,12 @@ import pygame
 
 from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
-from glitchygames.state.manager import SaveManager
+from glitchygames.state.manager import DiskSaveManager
 
 if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
-    from glitchygames.state.save_store import SaveStore
+    from glitchygames.state.manager import SaveManager
 
 
 class LiveSources:
@@ -36,7 +36,7 @@ class LiveSources:
         self._use_fastevents = use_fastevents
         self._devices = LiveDeviceRegistry()
         # Stores games opened, by namespace; RecordingSources snapshots them
-        self.opened_save_namespaces: dict[str, SaveManager] = {}
+        self.opened_save_namespaces: dict[str, DiskSaveManager] = {}
 
     @property
     def stop_requested(self: Self) -> bool:
@@ -97,19 +97,19 @@ class LiveSources:
         """
         return self._devices
 
-    def saves(self: Self, *, namespace: str) -> SaveStore:
+    def saves(self: Self, *, namespace: str) -> SaveManager:
         """Open (or return the already opened) real save store for ``namespace``.
 
         Args:
             namespace: The game's app name (the save directory's name).
 
         Returns:
-            The SaveManager for ``namespace``.
+            The DiskSaveManager for ``namespace``.
 
         """
         store = self.opened_save_namespaces.get(namespace)
         if store is None:
-            store = SaveManager(app_name=namespace)
+            store = DiskSaveManager(app_name=namespace)
             self.opened_save_namespaces[namespace] = store
         return store
 

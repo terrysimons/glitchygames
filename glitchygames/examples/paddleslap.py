@@ -42,7 +42,7 @@ from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import Sprite
-from glitchygames.state import SaveNotFoundError, SaveStore, open_saves
+from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 log = logging.getLogger('game')
 log.setLevel(logging.INFO)
@@ -297,7 +297,7 @@ class Game(Scene):
 
         self.balls: list[BallSprite] = []
         self.rally_count: int = 0  # Total paddle hits across all balls
-        self.saves: SaveStore = open_saves(app_name='paddleslap')
+        self.saves: SaveManager = open_saves(app_name='paddleslap')
         self.last_ball_spawn_time = 0.0  # Track when we last spawned a ball
         self.ball_spawn_cooldown = 2.0  # Minimum 2 seconds between ball spawns
         # Per-pair collision cooldown to prevent duplicate collision processing
