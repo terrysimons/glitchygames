@@ -117,7 +117,9 @@ Follow-ups (not in any plan yet):
 ## Headless capture to raw files and a frame/audio ready latch — groundwork for an external control API
 
 User request (2026-10-19). Not planned yet; needs a brainstormed spec. Each part below is a
-candidate ticket.
+candidate ticket. The fuller design notes (lossless A/V streaming as its own API separate from the
+event/state stream, the packet format, transports, and what to reuse from the replay engine) are in
+[`plans/2026-10-20-av-capture-and-streaming.md`](2026-10-20-av-capture-and-streaming.md).
 
 ### Headless capture (`--headless DIR`)
 
