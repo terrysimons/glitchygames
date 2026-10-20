@@ -11,6 +11,7 @@ import pygame
 # Add the parent directory to the path so we can import glitchygames
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from glitchygames.exit_codes import ExitCode
 from glitchygames.scenes import Scene
 from glitchygames.sprites.animated import AnimatedSprite
 
@@ -129,7 +130,7 @@ def main() -> int:
         pygame.display.flip()
 
     pygame.quit()
-    return 0
+    return ExitCode.SUCCESS
 
 
 if __name__ == '__main__':

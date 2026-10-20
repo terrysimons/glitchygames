@@ -16,6 +16,7 @@ SYSEXITS_COUNTERPARTS = {
     ExitCode.MISSING_INPUT: 'EX_NOINPUT',
     ExitCode.SERVICE_UNAVAILABLE: 'EX_UNAVAILABLE',
     ExitCode.INTERNAL_ERROR: 'EX_SOFTWARE',
+    ExitCode.CANNOT_WRITE_OUTPUT: 'EX_CANTCREAT',
 }
 
 # The engine's own failed checks, which must stay clear of argparse's, sysexits' and the shell's
@@ -23,6 +24,7 @@ FAILED_CHECKS = (
     ExitCode.REPLAY_DIVERGED,
     ExitCode.AUDIT_NONDETERMINISTIC,
     ExitCode.GENERATION_REJECTED,
+    ExitCode.EXTRACTION_REJECTED,
 )
 # sysexits.h codes run from EX_USAGE (64) to EX_CONFIG (78)
 SYSEXITS_FIRST = ExitCode.OPTIONS_REFUSED
@@ -70,8 +72,10 @@ def test_describe_names_the_code_and_its_number():
             f'signal {signal.SIGABRT:d} ({SIGNAL_EXIT_STATUS_BASE + signal.SIGABRT})',
         ),
         (SHELL_RESERVED_FIRST, str(SHELL_RESERVED_FIRST)),
+        (-signal.SIGTERM, f'TERMINATED (signal {signal.SIGTERM:d})'),
+        (-signal.SIGABRT, f'signal {signal.SIGABRT:d}'),
     ],
-    ids=['member', 'unwired signal', 'unknown'],
+    ids=['member', 'unwired signal', 'unknown', 'killed by a wired signal', 'killed by another'],
 )
 def test_describe_status_reads_any_process_status(status, expected):
     """A child's status reads as its member, an unwired signal, or a bare number."""

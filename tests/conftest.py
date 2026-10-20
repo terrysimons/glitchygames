@@ -33,6 +33,7 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
 )
 from tests.mocks import MockFactory
+from tests.signal_handlers import preserved_signal_handlers
 
 
 def _load_lazy_pygame_modules() -> None:
@@ -179,6 +180,17 @@ def _reset_all_singleton_instances():
         for subclass in singleton_base.__subclasses__():
             if hasattr(subclass, '__instance__'):
                 subclass.__instance__ = None
+
+
+@pytest.fixture(autouse=True)
+def restore_signal_handlers():
+    """Put back the process's signal handlers after each test (tests/signal_handlers.py).
+
+    A test that runs GameEngine.start with _shutdown mocked would otherwise leave the engine's
+    exit_on_signal installed for the rest of the worker's tests.
+    """
+    with preserved_signal_handlers():
+        yield
 
 
 @pytest.fixture(autouse=True)

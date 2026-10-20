@@ -10,6 +10,7 @@ import pygame
 # Add the parent directory to the path so we can import glitchygames
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from glitchygames.exit_codes import ExitCode
 from glitchygames.sprites.animated import AnimatedSprite
 
 # Set up logging
@@ -89,9 +90,12 @@ def main() -> int:
         logger.info(f'Loaded: {animated_sprite.name} ({animated_sprite.frame_count} frames)')
         logger.info('Scaled from %s to %s (5x upscale)', original_size, scaled_size)
         logger.info('Controls: ESC/Q=quit, SPACE=pause/resume, R=reset, 1/2=frame 0/1')
-    except FileNotFoundError, ValueError, RuntimeError:
+    except FileNotFoundError:
         logger.exception('Failed to load animation')
-        return 1
+        return ExitCode.MISSING_INPUT
+    except ValueError, RuntimeError:
+        logger.exception('Failed to load animation')
+        return ExitCode.UNUSABLE_INPUT
 
     # Main game loop
     running = True
@@ -120,7 +124,7 @@ def main() -> int:
         pygame.display.flip()
 
     pygame.quit()
-    return 0
+    return ExitCode.SUCCESS
 
 
 if __name__ == '__main__':

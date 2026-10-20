@@ -15,8 +15,9 @@ Code  Member                       Meaning
                                    it itself)
 3     ``AUDIT_NONDETERMINISTIC``   ``--audit``'s two runs differ from each other or from the
                                    recording
-4     ``GENERATION_REJECTED``      The API server rejected the client's request (an error status,
-                                   or a response that says it failed)
+4     ``GENERATION_REJECTED``      The API server rejected the client's sprite generation (an
+                                   error status, or a response that says it failed)
+5     ``EXTRACTION_REJECTED``      The API server rejected the client's frame extraction
 64    ``OPTIONS_REFUSED``          The engine refuses the options given (a combination it will not
                                    run)
 65    ``UNUSABLE_INPUT``           The recording or input data is unusable (another game's
@@ -24,9 +25,10 @@ Code  Member                       Meaning
                                    unreadable file, a bad server response)
 66    ``MISSING_INPUT``            The input file does not exist
 69    ``SERVICE_UNAVAILABLE``      A required service (the API server) cannot be reached
-70    ``INTERNAL_ERROR``           An internal error: an uncaught exception during a run, or an
-                                   audit that could not run (a replay child crashed, timed out or
-                                   wrote no digests)
+70    ``INTERNAL_ERROR``           An internal error: an uncaught exception during a run (or in
+                                   its teardown), or an audit that could not run (a replay child
+                                   crashed, timed out or wrote no digests)
+73    ``CANNOT_WRITE_OUTPUT``      An output file or directory cannot be created or written
 129   ``HANGUP``                   Stopped by SIGHUP (Unix only), after the normal teardown
 130   ``INTERRUPTED``              Stopped by SIGINT (Ctrl-C), after the normal teardown
 143   ``TERMINATED``               Stopped by SIGTERM, after the normal teardown
@@ -43,12 +45,17 @@ handles the signal yet. The engine also turns off SDL's own SIGINT/SIGTERM handl
 SIGSTOP (they cannot be caught), SIGPIPE (Python ignores it) and SIGQUIT (it keeps its core-dump
 convention); a process they stop exits as the system decides.
 
-Every code has exactly one name. The engine's own failed checks (1, 3, 4) avoid 2 (argparse's),
-64-78 (``sysexits.h``) and 126 and up (the shell's and signal exits).
+An exception raised before ``GameEngine.start()`` (in ``GameEngine.__init__``, or a game's own
+code around it) is not mapped: each game has its own entry point (``GameEngine(game=...)
+.start()`` in its ``main``), so there is no single place to wrap, and Python exits with its
+default 1 and a traceback.
 
-The codes 0 and 64-70 have the values of BSD ``sysexits.h``, which Python exposes as ``os.EX_OK``,
-``os.EX_USAGE`` and so on. They are defined here rather than read from ``os`` because the
-``os.EX_*`` names exist only on Unix, and the engine runs on Windows too;
+Every code has exactly one name. The engine's own failed checks (1, 3, 4, 5) avoid 2
+(argparse's), 64-78 (``sysexits.h``) and 126 and up (the shell's and signal exits).
+
+The codes 0, 64-70 and 73 have the values of BSD ``sysexits.h``, which Python exposes as
+``os.EX_OK``, ``os.EX_USAGE`` and so on. They are defined here rather than read from ``os``
+because the ``os.EX_*`` names exist only on Unix, and the engine runs on Windows too;
 ``tests/test_exit_codes.py`` checks that the values agree wherever ``os`` has them.
 
 A file that exists but cannot be read (no permission, a directory, not gzip) is unusable input
@@ -82,9 +89,13 @@ class ExitCode(enum.IntEnum):
     # --audit's two replay runs differ from each other or from the recording
     AUDIT_NONDETERMINISTIC = 3
 
-    # The API server rejected the client's request (an error status, or a response that says it
-    # failed)
+    # The API server rejected the client's sprite generation (an error status, or a response that
+    # says it failed)
     GENERATION_REJECTED = 4
+
+    # The API server rejected the client's frame extraction (an error status, or a response that
+    # says it failed)
+    EXTRACTION_REJECTED = 5
 
     # The engine refuses the options given (a combination it will not run). Same value as
     # Python's os.EX_USAGE (sysexits.h EX_USAGE)
@@ -104,6 +115,10 @@ class ExitCode(enum.IntEnum):
     # An uncaught exception during a run, or an audit that could not run. Same value as Python's
     # os.EX_SOFTWARE (sysexits.h EX_SOFTWARE)
     INTERNAL_ERROR = 70
+
+    # An output file or directory cannot be created or written. Same value as Python's
+    # os.EX_CANTCREAT (sysexits.h EX_CANTCREAT)
+    CANNOT_WRITE_OUTPUT = 73
 
     # Stopped by SIGHUP (Unix only): 128 + signal.SIGHUP
     HANGUP = 129
@@ -159,10 +174,18 @@ class ExitCode(enum.IntEnum):
             status: A process's exit status (a child's ``returncode``).
 
         Returns:
-            ``'INTERNAL_ERROR (70)'`` for a member, ``'signal 15 (143)'`` for 128 + a signal
-            number, otherwise the number alone.
+            ``'INTERNAL_ERROR (70)'`` for a member; for a signal, ``'signal 6 (134)'`` (128 + the
+            signal number, as a shell reports it) or, for a process killed by the signal (a
+            subprocess reports -N), ``'TERMINATED (signal 15)'`` where the signal has a member and
+            ``'signal 6'`` otherwise; any other number alone.
 
         """
+        if status < 0:
+            signal_number = -status
+            try:
+                return f'{cls.for_signal(signal_number).name} (signal {signal_number})'
+            except ValueError:
+                return f'signal {signal_number}'
         try:
             return cls(status).describe()
         except ValueError:

@@ -40,6 +40,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from glitchygames.exit_codes import ExitCode
 from glitchygames.sprites.animated import AnimatedSprite
 from glitchygames.sprites.pixel_utils import (
     compute_bounding_box,
@@ -977,14 +978,14 @@ def main() -> None:
         filepath = args.file.resolve()
         if not filepath.exists():
             log.error('File not found: %s', filepath)
-            sys.exit(1)
+            sys.exit(ExitCode.MISSING_INPUT)
         discovered = {0: [filepath]}
     else:
         discovered = discover_toml_files(priority=args.priority)
 
     if not discovered:
         log.info('No TOML sprite files found.')
-        sys.exit(0)
+        sys.exit(ExitCode.SUCCESS)
 
     total_files = sum(len(file_list) for file_list in discovered.values())
     log.info('Discovered %d TOML sprite file(s).\n', total_files)

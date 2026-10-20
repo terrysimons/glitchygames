@@ -2,8 +2,11 @@
 
 import argparse
 import base64
+import binascii
+import logging
 from pathlib import Path
 
+import httpx
 import pytest
 
 from glitchygames.api.client import (
@@ -23,6 +26,11 @@ from glitchygames.api.client import (
     save_files_locally,
 )
 from glitchygames.exit_codes import ExitCode
+
+# HTTP statuses the client tells apart: the server is overloaded or down for maintenance (503),
+# or it refused what was asked (422)
+HTTP_SERVICE_UNAVAILABLE = 503
+HTTP_UNPROCESSABLE_CONTENT = 422
 
 
 class TestCreateParser:
@@ -496,6 +504,43 @@ class TestMainCli:
         )
 
         assert main(['test prompt']) == ExitCode.UNUSABLE_INPUT
+
+    @pytest.mark.parametrize(
+        ('request_error_factory', 'expected_exit_code'),
+        [
+            (lambda: httpx.InvalidURL('bad url'), ExitCode.OPTIONS_REFUSED),
+            (lambda: httpx.UnsupportedProtocol('ftp is not http'), ExitCode.OPTIONS_REFUSED),
+            (lambda: httpx.TooManyRedirects('loop'), ExitCode.UNUSABLE_INPUT),
+            (lambda: httpx.DecodingError('bad gzip'), ExitCode.UNUSABLE_INPUT),
+        ],
+        ids=['invalid url', 'unsupported scheme', 'redirect loop', 'undecodable body'],
+    )
+    def test_main_request_errors_never_escape(
+        self, mocker, request_error_factory, expected_exit_code
+    ):
+        """Every httpx error maps to a named code (nothing escapes as Python's 1)."""
+        mocker.patch('glitchygames.api.client.generate_sprite', side_effect=request_error_factory())
+
+        assert main(['test prompt']) == expected_exit_code
+
+    @pytest.mark.parametrize(
+        ('status_code', 'expected_exit_code'),
+        [
+            (HTTP_SERVICE_UNAVAILABLE, ExitCode.SERVICE_UNAVAILABLE),
+            (HTTP_UNPROCESSABLE_CONTENT, ExitCode.GENERATION_REJECTED),
+        ],
+        ids=['503', '422'],
+    )
+    def test_main_http_status_maps_by_meaning(self, mocker, status_code, expected_exit_code):
+        mock_response = mocker.Mock(status_code=status_code, text='busy')
+        mocker.patch(
+            'glitchygames.api.client.generate_sprite',
+            side_effect=httpx.HTTPStatusError(
+                'status', request=mocker.Mock(), response=mock_response
+            ),
+        )
+
+        assert main(['test prompt']) == expected_exit_code
 
     def test_main_extract_frames_from_a_directory_is_unusable_input(self, tmp_path):
         """An input path that exists but cannot be read as a file is unusable, not missing."""
@@ -999,7 +1044,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == ExitCode.GENERATION_REJECTED
+        assert result == ExitCode.EXTRACTION_REJECTED
 
     def test_extraction_file_not_found(self, mocker):
         """Test handling of FileNotFoundError."""
@@ -1050,7 +1095,7 @@ class TestHandleExtractFrames:
 
         result = _handle_extract_frames(parsed_args)
 
-        assert result == ExitCode.GENERATION_REJECTED
+        assert result == ExitCode.EXTRACTION_REJECTED
 
     def test_extraction_os_error_with_verbose_traceback(self, mocker, capsys):
         """Test that verbose mode prints traceback on OSError."""
@@ -1087,6 +1132,35 @@ class TestHandleExtractFrames:
         captured = capsys.readouterr()
         # Verbose should include full base64, not truncated
         assert 'fullbase64data' in captured.out
+
+
+class TestHandleExtractFramesOutput:
+    """Writing the extracted frames: failures map to exit codes instead of a traceback."""
+
+    @pytest.mark.parametrize(
+        ('save_error', 'expected_exit_code'),
+        [
+            (OSError('disk full'), ExitCode.CANNOT_WRITE_OUTPUT),
+            (FileNotFoundError('directory vanished'), ExitCode.CANNOT_WRITE_OUTPUT),
+            (binascii.Error('incorrect padding'), ExitCode.UNUSABLE_INPUT),
+        ],
+        ids=['disk full', 'directory vanished', 'bad base64 from the server'],
+    )
+    def test_frame_write_failures(self, mocker, tmp_path, save_error, expected_exit_code):
+        parsed_args = argparse.Namespace(
+            extract_frames=str(tmp_path / 'in.apng'),
+            server_url='http://localhost:8000',
+            output_path=str(tmp_path / 'frames'),
+            verbose=False,
+        )
+        mocker.patch(
+            'glitchygames.api.client.extract_apng_frames',
+            return_value={'success': True, 'frame_count': 1},
+        )
+        mocker.patch('glitchygames.api.client._log_extraction_metadata')
+        mocker.patch('glitchygames.api.client._save_apng_extracted_frames', side_effect=save_error)
+
+        assert _handle_extract_frames(parsed_args) == expected_exit_code
 
 
 class TestHandleGenerateSprite:
@@ -1283,21 +1357,27 @@ class TestMainCliExtended:
         output_formats = call_args[0][1]
         assert output_formats == ['toml']
 
-    def test_main_general_os_error(self, mocker):
-        """Test handling of general OS errors in main."""
+    @pytest.mark.parametrize(
+        'write_error',
+        [OSError('disk full'), FileNotFoundError('no such directory')],
+        ids=['disk full', 'output directory missing'],
+    )
+    def test_main_output_that_cannot_be_written(self, mocker, tmp_path, write_error):
+        """A failure writing the output is CANNOT_WRITE_OUTPUT, never missing input."""
         mocker.patch(
-            'glitchygames.api.client._handle_generate_sprite',
-            side_effect=OSError('disk full'),
+            'glitchygames.api.client.generate_sprite',
+            return_value={'success': True, 'sprite_name': 'heart'},
         )
+        mocker.patch('glitchygames.api.client.save_files_locally', side_effect=write_error)
 
-        result = main(['test prompt'])
+        result = main(['test prompt', '-q', '-o', str(tmp_path)])
 
-        assert result == ExitCode.UNUSABLE_INPUT
+        assert result == ExitCode.CANNOT_WRITE_OUTPUT
 
     def test_main_value_error(self, mocker):
-        """Test handling of ValueError in main."""
+        """A response that cannot be decoded is unusable input."""
         mocker.patch(
-            'glitchygames.api.client._handle_generate_sprite',
+            'glitchygames.api.client.generate_sprite',
             side_effect=ValueError('bad value'),
         )
 
@@ -1306,9 +1386,13 @@ class TestMainCliExtended:
         assert result == ExitCode.UNUSABLE_INPUT
 
     def test_main_verbose_with_error_prints_traceback(self, mocker, capsys):
-        """Test that verbose mode prints traceback on errors."""
+        """A malformed server response (TypeError) prints its traceback in verbose mode."""
         mocker.patch(
-            'glitchygames.api.client._handle_generate_sprite',
+            'glitchygames.api.client.generate_sprite',
+            return_value={'success': True, 'sprite_name': 'heart'},
+        )
+        mocker.patch(
+            'glitchygames.api.client._log_generation_results',
             side_effect=TypeError('type mismatch'),
         )
 
@@ -1317,6 +1401,29 @@ class TestMainCliExtended:
         assert result == ExitCode.UNUSABLE_INPUT
         captured = capsys.readouterr()
         assert 'Traceback' in captured.err or 'type mismatch' in captured.err
+
+    def test_main_client_bug_is_an_internal_error(self, mocker, caplog):
+        """An exception no handler expects is a client bug: INTERNAL_ERROR, with its traceback."""
+        client_bug = AttributeError('no such attribute')
+        mocker.patch('glitchygames.api.client._handle_generate_sprite', side_effect=client_bug)
+
+        result = main(['test prompt'])
+
+        assert result == ExitCode.INTERNAL_ERROR
+        assert any(
+            record.exc_info and record.exc_info[1] is client_bug for record in caplog.records
+        )
+
+    def test_main_logs_the_exit_code(self, mocker, caplog):
+        mocker.patch(
+            'glitchygames.api.client._handle_generate_sprite',
+            return_value=ExitCode.GENERATION_REJECTED,
+        )
+
+        with caplog.at_level(logging.INFO, logger='glitchygames.api.client'):
+            main(['test prompt'])
+
+        assert f'Exiting with {ExitCode.GENERATION_REJECTED.describe()}' in caplog.text
 
     def test_main_quiet_logging_setup(self, mocker):
         """Test that quiet mode sets ERROR logging level."""

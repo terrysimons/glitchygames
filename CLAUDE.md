@@ -145,21 +145,26 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 `glitchygames.engine`; never write the number in code or tests)
 - 0 `SUCCESS` (replay matched, audit deterministic), 1 `REPLAY_DIVERGED`, 2
   `ARGUMENT_PARSER_ERROR` (argparse's own; the engine never exits with it), 3
-  `AUDIT_NONDETERMINISTIC`, 4 `GENERATION_REJECTED` (API client: the server refused the request),
+  `AUDIT_NONDETERMINISTIC`, 4 `GENERATION_REJECTED` / 5 `EXTRACTION_REJECTED` (API client: the
+  server refused a generation / a frame extraction; a 503 is `SERVICE_UNAVAILABLE`),
   64 `OPTIONS_REFUSED` (option combinations the engine won't run), 65 `UNUSABLE_INPUT` (wrong
   game, unsupported format, corrupt or unreadable file, bad server response), 66 `MISSING_INPUT`
   (the file does not exist), 69 `SERVICE_UNAVAILABLE` (API server unreachable), 70
-  `INTERNAL_ERROR` (uncaught exception during a run, logged with its traceback after teardown; an
-  audit that could not run), 129 `HANGUP` (SIGHUP, Unix), 130 `INTERRUPTED` (SIGINT/Ctrl-C), 143
+  `INTERNAL_ERROR` (uncaught exception during a run or its teardown, logged with its traceback
+  after teardown; an audit that could not run; an API client bug), 73 `CANNOT_WRITE_OUTPUT` (an
+  output file or directory cannot be written), 129 `HANGUP` (SIGHUP, Unix), 130 `INTERRUPTED` (SIGINT/Ctrl-C), 143
   `TERMINATED` (SIGTERM), 149 `BREAK` (SIGBREAK, Windows)
-- 0 and 64-70 equal Python's `os.EX_*` (defined literally: Windows has no `os.EX_*`); signal
+- 0, 64-70 and 73 equal Python's `os.EX_*` (defined literally: Windows has no `os.EX_*`); signal
   members are 128 + N (`ExitCode.for_signal`). `ExitCode.describe()` gives `'OPTIONS_REFUSED
   (64)'`, the form the engine logs (`Exiting with ...`)
 - Signals: `GameEngine.start` installs `exit_on_signal` for SIGTERM/SIGHUP/SIGBREAK (where the
   platform has them and nothing else handles them) for the whole run, and SIGINT ends it through
   KeyboardInterrupt; each exits with its member after teardown (recordings closed). The engine
   sets `SDL_NO_SIGNAL_HANDLERS=1` (unless preset) before `pygame.init()`, so SDL never turns
-  SIGINT/SIGTERM into QUIT events. Not wired: SIGKILL/SIGSTOP, SIGPIPE, SIGQUIT
+  SIGINT/SIGTERM into QUIT events. Not wired: SIGKILL/SIGSTOP, SIGPIPE, SIGQUIT. An engine started
+  off the main thread can't install handlers, so SIGTERM then kills it without teardown.
+  Exceptions before `start()` (in `__init__`) exit with Python's default 1. Tests:
+  `tests/signal_handlers.py` (autouse fixture) restores signal handlers after every test
 
 **Frame Pacing** (`glitchygames/timing.py`)
 - Two timer backends:

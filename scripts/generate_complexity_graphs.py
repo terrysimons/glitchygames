@@ -19,6 +19,8 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] - subprocess use
 import sys
 from pathlib import Path
 
+from glitchygames.exit_codes import ExitCode
+
 LOG = logging.getLogger(__name__)
 
 # How many top files to graph (by cyclomatic complexity)
@@ -191,7 +193,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     if not ensure_wily_cache():
-        sys.exit(1)
+        # wily (a local tool) could not index or build its cache
+        sys.exit(ExitCode.INTERNAL_ERROR)
 
     GRAPHS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -199,7 +202,7 @@ def main() -> None:
     files = get_top_files()
     if not files:
         LOG.error('No files found. Is the wily cache populated?')
-        sys.exit(1)
+        sys.exit(ExitCode.UNUSABLE_INPUT)
 
     LOG.info('Found %d files. Generating graphs...', len(files))
 

@@ -233,25 +233,29 @@ the code it exits with as `Exiting with OPTIONS_REFUSED (64)`.
 | 1 | `REPLAY_DIVERGED` | A replay's frames differ from the recording |
 | 2 | `ARGUMENT_PARSER_ERROR` | A usage error from argparse; the engine never exits with it itself |
 | 3 | `AUDIT_NONDETERMINISTIC` | `--audit`'s two runs differ from each other or from the recording |
-| 4 | `GENERATION_REJECTED` | The API server rejected the sprite client's request |
+| 4 | `GENERATION_REJECTED` | The API server rejected the sprite client's generation request |
+| 5 | `EXTRACTION_REJECTED` | The API server rejected the sprite client's frame extraction |
 | 64 | `OPTIONS_REFUSED` | The engine refuses the options given (a combination it will not run) |
 | 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a bad server response) |
 | 66 | `MISSING_INPUT` | The input file does not exist |
 | 69 | `SERVICE_UNAVAILABLE` | A required service (the API server) cannot be reached |
-| 70 | `INTERNAL_ERROR` | An uncaught exception during a run (logged with its traceback, after the teardown), or an audit that could not run |
+| 70 | `INTERNAL_ERROR` | An uncaught exception during a run or its teardown (logged with its traceback, after the teardown), or an audit that could not run |
+| 73 | `CANNOT_WRITE_OUTPUT` | An output file or directory cannot be created or written |
 | 129 | `HANGUP` | Stopped by SIGHUP (Unix only) |
 | 130 | `INTERRUPTED` | Stopped by SIGINT (Ctrl-C) |
 | 143 | `TERMINATED` | Stopped by SIGTERM |
 | 149 | `BREAK` | Stopped by SIGBREAK (Windows only: Ctrl-Break) |
 
-0 and 64-70 have the values of BSD `sysexits.h` (Python's `os.EX_OK`, `os.EX_USAGE` and so on,
+0, 64-70 and 73 have the values of BSD `sysexits.h` (Python's `os.EX_OK`, `os.EX_USAGE` and so on,
 which exist only on Unix, so the values are defined in the engine). The signal codes are
 128 + the signal number. A run stopped by one of those signals exits only after the normal
 teardown, so a recording is complete: the engine handles SIGTERM, SIGHUP and SIGBREAK for the
 whole run (unless the game installed its own handler) and turns off SDL's own signal handling
 (`SDL_NO_SIGNAL_HANDLERS`), which would otherwise turn SIGINT and SIGTERM into a QUIT event.
 SIGKILL and SIGSTOP cannot be caught, Python ignores SIGPIPE, and SIGQUIT keeps its core-dump
-convention.
+convention. An engine started off the main thread cannot install its handlers, so SIGTERM then
+ends it the system's default way, without the teardown. An exception raised before the run
+starts (while the engine is being constructed) exits with Python's default status 1.
 
 ## Golden replays
 

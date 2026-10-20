@@ -1369,7 +1369,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         recorder.close()
 
     def _install_signal_handlers(self: Self) -> None:
-        """Make each of terminating_signals() raise SystemExit, if nothing else handles it yet."""
+        """Make each of terminating_signals() raise SystemExit, if nothing else handles it yet.
+
+        Limitation: Python sets signal handlers from the main thread only. An engine started on
+        another thread installs none, and SDL's own handler is off (SDL_NO_SIGNAL_HANDLERS), so
+        SIGTERM (or SIGHUP, SIGBREAK) then kills the process the system's default way, without
+        the teardown: a recording is left unclosed (it still reads up to its last full frame).
+        """
         for signal_number in terminating_signals():
             try:
                 # Limitation: a C-level handler (SDL's, when pygame was initialized before the
@@ -1596,10 +1602,38 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
             LOG.debug('Performance FPS histogram mode configuration failed: %s', perf_error)
 
+    def _tear_down_run(self: Self, *, profiler: cProfile.Profile | None) -> Exception | None:
+        """Run the teardown after a run, whatever ended it, and report how it went.
+
+        Args:
+            profiler: The run's profiler (--profile), stopped and printed here, or None.
+
+        Returns:
+            The exception ``_shutdown`` raised (logged with its traceback), or None.
+
+        """
+        teardown_error: Exception | None = None
+        try:
+            self._shutdown()
+        except Exception as error:
+            self.log.exception('The teardown failed')
+            teardown_error = error
+        finally:
+            # Again (it is idempotent): _shutdown restores them, but not if it failed first
+            self._restore_signal_handlers()
+        if GameEngine.OPTIONS['profile'] and profiler is not None:
+            profiler.disable()
+            profiler.print_stats()
+        return teardown_error
+
     def start(self: Self) -> None:
         """Start the game engine.
 
-        However the run ends, the teardown (``_shutdown``: recordings closed) runs first.
+        However the run ends, the teardown (``_shutdown``: recordings closed) runs first; if the
+        teardown itself raises, the run exits ``ExitCode.INTERNAL_ERROR`` (both errors logged).
+        An exception raised before start(), in ``__init__``, is not mapped: it exits with
+        Python's default 1 (each game has its own entry point, so there is no one place to wrap;
+        see glitchygames/exit_codes.py).
 
         Raises:
             RuntimeError: If the game is not initialized.
@@ -1654,11 +1688,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             exit_code = ExitCode.INTERNAL_ERROR
             run_error = error
         finally:
-            self._shutdown()
-
-            if GameEngine.OPTIONS['profile'] and profiler is not None:
-                profiler.disable()
-                profiler.print_stats()
+            teardown_error = self._tear_down_run(profiler=profiler)
+            if teardown_error is not None:
+                # Replaces whatever was ending the run: a failed teardown is an internal error
+                exit_with(exit_code=ExitCode.INTERNAL_ERROR, cause=teardown_error)
         if exit_code is not None:
             # After the teardown, so the recording is closed before the process ends
             exit_with(exit_code=exit_code, cause=run_error)

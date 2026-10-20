@@ -4,6 +4,7 @@ This module tests GameEngine start/stop, game loop, and quit functionality.
 """
 
 import logging
+import signal
 import sys
 from pathlib import Path
 
@@ -13,7 +14,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
+from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.exit_codes import ExitCode
+from glitchygames.scenes import Scene
 from tests.mocks import MockFactory
 
 
@@ -521,25 +524,24 @@ class TestEngineLifecycle:
         assert format_args[1] == 'None'
 
 
-def engine_whose_run_raises(*, mocker, mock_game_args, run_error: BaseException) -> GameEngine:
-    """Build a GameEngine whose scene manager raises ``run_error`` when the run starts.
+class StartExitStatusGame(Scene):
+    """The game class GameEngine is built with in TestStartExitStatus (never instantiated)."""
+
+    NAME = 'StartExitStatusGame'
+    VERSION = '1.0'
+
+
+def engine_whose_run_raises(
+    *, mocker, mock_game_args, run_error: BaseException | None
+) -> GameEngine:
+    """Build a GameEngine whose scene manager raises ``run_error`` (None: returns) when started.
 
     Returns:
         The engine, with its event managers mocked and ``_shutdown`` spied on.
 
     """
-
-    class MockGame:
-        NAME = 'MockGame'
-        VERSION = '1.0'
-        TARGET_FPS = None
-
-        @classmethod
-        def args(cls, parser):
-            return parser
-
     mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_game_args)
-    engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
+    engine = GameEngine(game=StartExitStatusGame)
     mocker.patch.object(engine, '_initialize_event_managers')
     mocker.patch.object(engine, 'game')
     engine.scene_manager = mocker.Mock()
@@ -594,3 +596,41 @@ class TestStartExitStatus:
         engine._shutdown.assert_called_once_with()
         assert f'Exiting with {ExitCode.INTERRUPTED.describe()}' in caplog.text
         assert all(record.exc_info is None for record in caplog.records)
+
+    def test_signal_handlers_are_restored_even_when_the_teardown_does_not(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        """start() restores what it installed itself, so a mocked _shutdown leaks nothing."""
+        handlers_before = {
+            signal_number: signal.getsignal(signal_number)
+            for signal_number in game_engine_module.terminating_signals()
+        }
+        engine = engine_whose_run_raises(
+            mocker=mocker, mock_game_args=mock_game_args, run_error=None
+        )
+        mocker.patch.object(engine, '_shutdown')
+        engine.start()
+        assert {
+            signal_number: signal.getsignal(signal_number) for signal_number in handlers_before
+        } == handlers_before
+
+    @pytest.mark.parametrize(
+        'run_error', [None, RuntimeError('the game broke')], ids=['clean run', 'crashed run']
+    )
+    def test_a_teardown_failure_exits_as_an_internal_error(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog, run_error
+    ):
+        """A _shutdown that raises never leaves Python to exit 1; every error is logged."""
+        teardown_error = RuntimeError('the teardown broke')
+        engine = engine_whose_run_raises(
+            mocker=mocker, mock_game_args=mock_game_args, run_error=run_error
+        )
+        mocker.patch.object(engine, '_shutdown', side_effect=teardown_error)
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
+            engine.start()
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        assert exit_info.value.__cause__ is teardown_error
+        logged_errors = [record.exc_info[1] for record in caplog.records if record.exc_info]
+        expected_errors = [teardown_error] if run_error is None else [run_error, teardown_error]
+        assert logged_errors == expected_errors
+        assert f'Exiting with {ExitCode.INTERNAL_ERROR.describe()}' in caplog.text

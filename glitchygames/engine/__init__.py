@@ -1,6 +1,5 @@
 """Contains GameEngine and helper classes for building a game."""
 
-# Re-exported so games and scripts can exit with the engine's codes (glitchygames/exit_codes.py)
 from glitchygames.engine.game_engine import (
     ASSET_PATH,
     DEFAULT_TARGET_FPS,
@@ -15,6 +14,8 @@ from glitchygames.engine.game_engine import (
 
 # Re-export GameEventManager since it was importable from glitchygames.engine
 from glitchygames.events.game import GameEventManager
+
+# Re-exported so games and scripts can exit with the engine's codes (glitchygames/exit_codes.py)
 from glitchygames.exit_codes import ExitCode
 
 __all__ = [

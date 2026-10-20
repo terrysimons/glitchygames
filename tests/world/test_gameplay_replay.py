@@ -181,7 +181,7 @@ TAMPERED_FPS = 12345.0
 # The frame of the scripted session a test action runs in
 ACTION_FRAME = 2
 # An exit status no engine path uses, for fake children that fail in a way the audit cannot read
-UNLISTED_EXIT_STATUS = 5
+UNLISTED_EXIT_STATUS = 9
 # The status a probe child exits with when its interpreter ignores the environment
 ENVIRONMENT_IGNORED_EXIT_STATUS = 7
 
@@ -1719,7 +1719,7 @@ class TestAuditOption:
             command=audit_command(original_argv=sys.orig_argv), path=recording_path
         )
 
-    def test_a_nondeterministic_audit_exits_with_check_failed_and_logs_why(
+    def test_a_nondeterministic_audit_exits_as_audit_nondeterministic_and_logs_why(
         self, mocker, tmp_path, caplog
     ):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)

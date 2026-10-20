@@ -11,8 +11,9 @@ import sys
 from pathlib import Path
 
 # Add the project root to the Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from glitchygames.exit_codes import ExitCode
 
 log: logging.Logger = logging.getLogger('game.scripts.show_ai_query')
 
@@ -817,7 +818,7 @@ def main() -> None:
         log.info('\nExamples:')
         log.info("  python show_ai_query.py 'a red hat'")
         log.info("  python show_ai_query.py 'animated walking character' --full-content")
-        sys.exit(1)
+        sys.exit(ExitCode.OPTIONS_REFUSED)
 
     user_prompt: str = sys.argv[1]
     show_full_content: bool = '--full-content' in sys.argv
@@ -839,7 +840,7 @@ def main() -> None:
 
     except Exception:
         log.exception('Error constructing AI query')
-        sys.exit(1)
+        sys.exit(ExitCode.INTERNAL_ERROR)
 
 
 if __name__ == '__main__':
