@@ -228,6 +228,11 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   blocked state is restored when the replay ends). Caveat: posts of a blocked
   type are refused too, so game code that fakes input by posting e.g. KEYDOWN shows a "missing
   internal event" divergence in a replay
+- Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
+  real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
+  input script one frame ahead; never the golden harness, whose recordings have no FPS events).
+  `tests/replay/test_golden_replays.py` replays each with `--replay-trace` and requires an exact
+  match; re-record only deliberately (commands in the script's docstring)
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`
