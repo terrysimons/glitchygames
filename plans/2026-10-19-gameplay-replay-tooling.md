@@ -29,14 +29,14 @@ See the master plan. Part 1 must be complete (all 15 tasks committed) before thi
 ## Review Focus
 
 Owned here: none of the master's five; but every task's tests cover its own failure cases
-(unusable recording exit code 2, a divergence that is the very last frame, step back from frame 0,
+(unusable recording `ExitCode.UNUSABLE_INPUT`, a divergence that is the very last frame, step back from frame 0,
 an empty bookmark list on save).
 
 ## Tasks
 
 | # | Task | Produces |
 |---|---|---|
-| 1 | `--headless`, exit codes and the divergence report | `paced_frame_seconds`, exit 0/1/2, report with sprite history |
+| 1 | `--headless`, exit codes and the divergence report | `paced_frame_seconds`, `ExitCode` exits, report with sprite history |
 | 2 | Watched pacing, status bar, pause / step / speed | `hold_frame`, `draw_overlay`, `ReplayControls` |
 | 3 | Step back, Home and jump to divergence | `--replay-pause-at-frame`, re-exec |
 | 4 | Bookmarks and saving a copy | `B` / `S`, breakpoints pause the watched replay |
@@ -69,15 +69,14 @@ an empty bookmark list on save).
 - Test: `tests/world/test_gameplay_replay.py`, `tests/world/test_finish_frame.py`
 
 **Interfaces:**
-- Consumes: Part 1 `ReplaySources`, `ReplayResult`, `Divergence`, `REPLAY_UNUSABLE_EXIT_CODE`.
+- Consumes: Part 1 `ReplaySources`, `ReplayResult`, `Divergence`; `ExitCode`
+  (`glitchygames/exit_codes.py`, every exit code is a member; never write the number).
 - Produces:
 
 ```python
 EngineSources.paced_frame_seconds(self) -> float | None   # None = the normal target-FPS pacing
-REPLAY_MATCHED_EXIT_CODE = 0
-REPLAY_DIVERGED_EXIT_CODE = 1
 REPORT_HISTORY_FRAMES = 20
-ReplayResult.exit_code -> int        # 0 matched/quit, 1 diverged, 2 truncated
+ReplayResult.exit_code -> ExitCode   # SUCCESS matched/quit, REPLAY_DIVERGED, UNUSABLE_INPUT truncated
 ReplayResult.report(self) -> str     # multi-line, for stdout
 class ReplayExitPolicy(enum.Enum):
     RESULT = 'result'                  # exit with ReplayResult.exit_code (replays)
@@ -96,8 +95,14 @@ already ran at import time, document that audio is still initialized and only vi
 mute instead by not starting live audio: check how `--live-voice-pool 0` behaves). `--headless`
 without `--replay-trace` is refused with a clear argparse error. At the end of `GameEngine.start()`
 (after `_shutdown`), when replaying: print `result.report()` to stdout when headless (log it
-otherwise) and `raise SystemExit(self.replay_sources.run_exit_code())` — the exit policy is a
-parameter of the replay (Task 6's rebaseline exits 0 after writing).
+otherwise) and exit with `self.replay_sources.run_exit_code()` through `exit_with` (which logs
+`Exiting with <ExitCode.describe()>`) — the exit policy is a parameter of the replay (Task 6's
+rebaseline exits `ExitCode.SUCCESS` after writing). `start()` already turns an uncaught exception
+into `ExitCode.INTERNAL_ERROR` and Ctrl-C into `ExitCode.INTERRUPTED` after the teardown; the
+replay's exit must come from the normal end of the run, so it is never mistaken for either.
+`--headless` therefore reports `ExitCode.SUCCESS` / `ExitCode.REPLAY_DIVERGED`, or the other
+`ExitCode` members (65 unusable or truncated recording, 66 missing, 64 refused options, 70
+internal error), never a bare 2 (that is argparse's alone).
 
 Pacing (an explicit unpaced path): `paced_frame_seconds()` returns `None` (pace as today), `0.0`
 (unpaced: a headless replay, a fast-forward) or a positive period. `SceneManager.start` reads it
@@ -131,7 +136,7 @@ class TestHeadless:
         with pytest.raises(SystemExit) as exit_info:
             replay_session_with_arguments(recording_path=recording_path, mocker=mocker,
                                           arguments=('--headless',))
-        assert exit_info.value.code == 0
+        assert exit_info.value.code == ExitCode.SUCCESS
         assert 'Replay matched' in capsys.readouterr().out
 
     def test_divergence_exits_one_with_the_sprite_history(self, mocker, tmp_path, capsys):
@@ -141,17 +146,17 @@ class TestHeadless:
             replay_session_with_arguments(recording_path=recording_path, mocker=mocker,
                                           arguments=('--headless',))
         output = capsys.readouterr().out
-        assert exit_info.value.code == 1
+        assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
         assert 'Replay diverged at frame 3' in output
         assert 'last 20 frames (expected | got)' in output
 
-    def test_truncated_recording_exits_two(self, mocker, tmp_path):
+    def test_truncated_recording_exits_as_unusable_input(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         cut_off_after_frame(recording_path=recording_path, frame_number=2)
         with pytest.raises(SystemExit) as exit_info:
             replay_session_with_arguments(recording_path=recording_path, mocker=mocker,
                                           arguments=('--headless',))
-        assert exit_info.value.code == 2
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
 
     def test_headless_never_sleeps(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -161,7 +166,7 @@ class TestHeadless:
     def test_headless_without_a_replay_is_refused(self, mocker):
         with pytest.raises(SystemExit) as exit_info, engine_run_environment(mocker):
             run_engine('--headless')
-        assert exit_info.value.code == 2  # argparse's usage error
+        assert exit_info.value.code == ExitCode.ARGUMENT_PARSER_ERROR
 ```
 
 with the helper:
@@ -198,7 +203,7 @@ def replay_session(*, recording_path: Path, mocker, events_by_frame=None, action
 where `RUN_ENGINE_ARGUMENTS` (the argument list `run_engine` uses) and
 `build_engine(*, scene_class, arguments) -> GoldenTraceEngine` (the `command_line` + construction
 `run_engine` does) move into module-level names in `tests/world/test_gameplay_recording.py`;
-`run_engine` becomes `build_engine(...)` plus `start()`. `TestRefusals.test_wrong_game_is_refused` still sees `SystemExit(2)`: it is raised in
+`run_engine` becomes `build_engine(...)` plus `start()`. `TestRefusals.test_wrong_game_is_refused` still sees `SystemExit(ExitCode.UNUSABLE_INPUT)`: it is raised in
 `GameEngine.__init__`, before `start()`. Run the whole Part 1 replay test file after the change.
 
 In `tests/world/test_finish_frame.py`
@@ -595,7 +600,7 @@ def test_headless_pause_at_frame_does_not_pause(mocker, tmp_path):
     with pytest.raises(SystemExit) as exit_info:
         replay_session_with_arguments(recording_path=recording_path, mocker=mocker,
                                       arguments=('--replay-pause-at-frame', '3', '--headless'))
-    assert exit_info.value.code == 0          # nobody can unpause a headless replay
+    assert exit_info.value.code == ExitCode.SUCCESS  # nobody can unpause a headless replay
 ```
 
 `start_replay_in_harness(*, recording_path, extra_arguments=())` (written in Task 2, reused here
@@ -807,8 +812,10 @@ script from `[project.scripts]`, e.g. `paddleslap`, `clockwork-keep`) becomes on
 '--headless']` (where `module:function` comes from `importlib.metadata.entry_points(
 group='console_scripts')[console_script].value`; `sys.argv` in the child is `['-c', ...]` — set
 it properly by passing the arguments after `-c` code, which Python places in `sys.argv[1:]`). Exit
-0 passes; exit 1 fails with the child's stdout (the divergence report) as the failure message;
-exit 2 fails with "unusable recording" plus stdout; any other code fails with stderr. A directory
+`ExitCode.SUCCESS` passes; `ExitCode.REPLAY_DIVERGED` fails with the child's stdout (the
+divergence report) as the failure message; `ExitCode.UNUSABLE_INPUT` or `ExitCode.MISSING_INPUT`
+fails with "unusable recording" plus stdout; any other code fails with stderr and
+`ExitCode.describe_status(code)`. A directory
 name that is not a console script fails at collection with a clear message.
 
 Fixtures must be recorded through the real engine (`scripts/record_scripted_session.py`), never
@@ -933,7 +940,7 @@ class TestRebaseline:
             replay_session_with_arguments(recording_path=recording_path, mocker=mocker,
                                           arguments=('--rebaseline', str(new_path),
                                                      '--headless'))
-        assert exit_info.value.code == 0
+        assert exit_info.value.code == ExitCode.SUCCESS
         output = capsys.readouterr().out
         assert 'frames differ (first at 3' in output
         engine = replay_session(recording_path=new_path, mocker=mocker)

@@ -13,8 +13,10 @@ import contextlib
 import gzip
 import importlib.metadata
 import json
+import os
 import platform
 import signal
+import sys
 import threading
 import types
 from datetime import datetime
@@ -33,6 +35,7 @@ from scripts.record_golden_traces import (
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
 from glitchygames.examples import paddleslap
+from glitchygames.exit_codes import ExitCode
 from glitchygames.input import devices as devices_module
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
@@ -54,6 +57,7 @@ from glitchygames.recording import (
     UnrepresentableValue,
     event_from_record,
 )
+from glitchygames.replay.audit import HEADLESS_ENVIRONMENT_VARIABLES, run_command
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
 from glitchygames.sources import active_sources, install_sources
@@ -244,11 +248,82 @@ class DepartureRecordedScene(ArrivalRecordedScene):
             self.transition_to(ArrivalRecordedScene(options=self.options), ScriptedTransition())
 
 
-def call_sigterm_handler() -> None:
-    """Call the installed SIGTERM handler the way a delivered SIGTERM would."""
-    handler = signal.getsignal(signal.SIGTERM)
-    assert callable(handler), f'No SIGTERM handler is installed (found {handler!r})'
-    handler(signal.SIGTERM, None)
+# A child game that sends itself SIGTERM in its third frame (a real signal, delivered by the OS)
+SELF_TERMINATING_GAME_SOURCE = """\
+import os
+import signal
+
+from glitchygames.engine import GameEngine
+from glitchygames.scenes import Scene
+
+SIGNAL_FRAME = 3
+
+
+class SelfTerminatingGame(Scene):
+    NAME = 'SelfTerminatingGame'
+
+    def __init__(self, options=None, groups=None):
+        super().__init__(options=options, groups=groups)
+        self.frames = 0
+
+    def dt_tick(self, dt):
+        self.frames += 1
+        if self.frames == SIGNAL_FRAME:
+            os.kill(os.getpid(), signal.SIGTERM)
+
+
+if __name__ == '__main__':
+    GameEngine(game=SelfTerminatingGame).start()
+"""
+# A child game that only runs a few frames is killed after this long
+SIGNAL_CHILD_TIMEOUT_SECONDS = 120.0
+
+
+def run_self_terminating_game(*, game_file: Path, extra_arguments: tuple[str, ...]):
+    """Run SELF_TERMINATING_GAME_SOURCE headless as a child, without a preset SDL signal hint.
+
+    Returns:
+        The finished process (subprocess.CompletedProcess, output captured).
+
+    """
+    environment = {
+        name: value for name, value in os.environ.items() if name != 'SDL_NO_SIGNAL_HANDLERS'
+    }
+    return run_command(
+        command=[
+            sys.executable,
+            str(game_file),
+            '--target-fps',
+            '0',
+            '--log-level',
+            'error',
+            '--resolution',
+            '320x240',
+            *extra_arguments,
+        ],
+        environment={**environment, **HEADLESS_ENVIRONMENT_VARIABLES},
+        timeout_seconds=SIGNAL_CHILD_TIMEOUT_SECONDS,
+        capture_output=True,
+    )
+
+
+def call_signal_handler(*, signal_number: int) -> None:
+    """Call the installed handler of a signal the way the delivered signal would."""
+    handler = signal.getsignal(signal_number)
+    assert callable(handler), f'No handler is installed for {signal_number} (found {handler!r})'
+    handler(signal_number, None)
+
+
+def platform_signal(signal_name: str) -> int:
+    """Return a signal's number, skipping the test where this platform does not have it.
+
+    Returns:
+        The signal number.
+
+    """
+    if not hasattr(signal, signal_name):
+        pytest.skip(f'signal.{signal_name} does not exist on this platform')
+    return getattr(signal, signal_name)
 
 
 def _key(event_type: int, key: int, *, unicode: str = '') -> pygame.event.Event:
@@ -531,24 +606,35 @@ class TestRecordingThroughTheEngine:
         assert frames[1]['scene'] is None
         assert frames[1]['sprites'] == []
 
-    def test_sigterm_ends_the_run_and_closes_the_recording(self, mocker, tmp_path):
-        """SIGTERM while recording unwinds through the shutdown path; the file is complete."""
+    @pytest.mark.parametrize(
+        ('signal_name', 'expected_exit_code'),
+        [
+            ('SIGTERM', ExitCode.TERMINATED),
+            ('SIGHUP', ExitCode.HANGUP),
+            ('SIGBREAK', ExitCode.BREAK),
+        ],
+    )
+    def test_a_terminating_signal_ends_the_run_and_closes_the_recording(
+        self, mocker, tmp_path, signal_name, expected_exit_code
+    ):
+        """The signal while recording unwinds through the shutdown path; the file is complete."""
+        signal_number = platform_signal(signal_name)
         path = tmp_path / 'session.jsonl.gz'
-        previous_handler = signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        previous_handler = signal.signal(signal_number, signal.SIG_DFL)
         try:
             with engine_run_environment(mocker):
-                # Call the installed handler as the signal would (a real SIGTERM with no
+                # Call the installed handler as the signal would (a real signal with no
                 # handler installed would kill the test worker)
                 Script.action_frame = 2
-                Script.action = call_sigterm_handler
+                Script.action = lambda: call_signal_handler(signal_number=signal_number)
                 with pytest.raises(SystemExit) as exit_info:
                     run_engine('--record-trace', str(path))
-            handler_after_run = signal.getsignal(signal.SIGTERM)
+            handler_after_run = signal.getsignal(signal_number)
         finally:
-            signal.signal(signal.SIGTERM, previous_handler)
+            signal.signal(signal_number, previous_handler)
 
         result = read_trace_result(path=path)
-        assert exit_info.value.code == 128 + signal.SIGTERM
+        assert exit_info.value.code == expected_exit_code
         assert result.is_complete
         # Frames 0 and 1 finished; frame 2 was interrupted inside its logic
         assert [frame['frame'] for frame in result.trace['frames']] == [0, 1]
@@ -564,31 +650,34 @@ class TestRecordingThroughTheEngine:
         with engine_run_environment(mocker):
             Script.action_frame = 1
             Script.action = interrupt
-            with pytest.raises(KeyboardInterrupt):
+            with pytest.raises(SystemExit) as exit_info:
                 run_engine('--record-trace', str(path))
 
         result = read_trace_result(path=path)
+        assert exit_info.value.code == ExitCode.INTERRUPTED
         assert result.is_complete
         assert [frame['frame'] for frame in result.trace['frames']] == [0]
 
-    def test_existing_sigterm_handler_is_left_alone(self, mocker, tmp_path):
-        """A game that installed its own SIGTERM handler (Bitmappy) keeps it."""
+    @pytest.mark.parametrize('signal_name', ['SIGTERM', 'SIGHUP', 'SIGBREAK'])
+    def test_existing_signal_handler_is_left_alone(self, mocker, tmp_path, signal_name):
+        """A game that installed its own handler for a signal (Bitmappy) keeps it."""
+        signal_number = platform_signal(signal_name)
         path = tmp_path / 'session.jsonl.gz'
         observed_handlers: list[object] = []
 
         def game_handler(_signal_number: int, _frame: object) -> None:
             return None
 
-        previous_handler = signal.signal(signal.SIGTERM, game_handler)
+        previous_handler = signal.signal(signal_number, game_handler)
         try:
             with engine_run_environment(mocker):
                 Script.events_by_frame = {2: [pygame.event.Event(pygame.QUIT)]}
                 Script.action_frame = 1
-                Script.action = lambda: observed_handlers.append(signal.getsignal(signal.SIGTERM))
+                Script.action = lambda: observed_handlers.append(signal.getsignal(signal_number))
                 run_engine('--record-trace', str(path))
-            handler_after_run = signal.getsignal(signal.SIGTERM)
+            handler_after_run = signal.getsignal(signal_number)
         finally:
-            signal.signal(signal.SIGTERM, previous_handler)
+            signal.signal(signal_number, previous_handler)
 
         assert observed_handlers == [game_handler]
         assert handler_after_run is game_handler
@@ -823,16 +912,66 @@ def constructed_engine(*arguments: str) -> Generator[GoldenTraceEngine]:
 class TestRecordingEdgeCases:
     """Recording set-up that the normal run does not reach."""
 
-    def test_sigterm_handler_is_skipped_off_the_main_thread(self):
+    def test_the_engine_turns_off_sdls_signal_handlers(self, monkeypatch):
+        """SDL must not turn SIGINT/SIGTERM into QUIT events: the engine owns the signals."""
+        monkeypatch.delenv('SDL_NO_SIGNAL_HANDLERS', raising=False)
+        with constructed_engine():
+            assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '1'
+
+    def test_a_preset_sdl_signal_handler_hint_is_kept(self, monkeypatch):
+        monkeypatch.setenv('SDL_NO_SIGNAL_HANDLERS', '0')
+        with constructed_engine():
+            assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '0'
+
+    def test_pygame_initialized_before_the_engine_is_warned_about(self, mocker, caplog):
+        mocker.patch.object(game_engine_module.pygame, 'get_init', return_value=True)
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' in caplog.text
+
+    def test_a_real_sigterm_ends_a_live_run_as_terminated_not_as_a_quit(self, tmp_path):
+        """End to end, without recording: the engine's handler, not SDL's QUIT, ends the run."""
+        game_file = tmp_path / 'self_terminating_game.py'
+        game_file.write_text(SELF_TERMINATING_GAME_SOURCE, encoding='utf-8')
+        process = run_self_terminating_game(game_file=game_file, extra_arguments=())
+        assert process.returncode == ExitCode.TERMINATED, process.stdout
+
+    def test_a_real_sigterm_ends_a_recording_run_as_terminated_not_as_a_quit(self, tmp_path):
+        """End to end: a delivered SIGTERM is never an SDL QUIT event, in the run or the file."""
+        game_file = tmp_path / 'self_terminating_game.py'
+        game_file.write_text(SELF_TERMINATING_GAME_SOURCE, encoding='utf-8')
+        recording_path = tmp_path / 'terminated.jsonl.gz'
+        process = run_self_terminating_game(
+            game_file=game_file, extra_arguments=('--record-trace', str(recording_path))
+        )
+
+        assert process.returncode == ExitCode.TERMINATED, process.stdout
+        result = read_trace_result(path=recording_path)
+        assert result.is_complete
+        recorded_events = [
+            event
+            for frame in result.trace['frames']
+            for batch in frame['event_batches']
+            for event in batch
+        ]
+        assert all(event['type'] != pygame.QUIT for event in recorded_events)
+
+    def test_signal_handlers_are_skipped_off_the_main_thread(self):
         """signal.signal only works on the main thread; elsewhere recording goes on without it."""
         with constructed_engine() as engine:
-            original_handler = signal.getsignal(signal.SIGTERM)
-            install_thread = threading.Thread(target=engine._install_sigterm_handler)
+            original_handlers = {
+                signal_number: signal.getsignal(signal_number)
+                for signal_number in game_engine_module.terminating_signals()
+            }
+            install_thread = threading.Thread(target=engine._install_signal_handlers)
             install_thread.start()
             install_thread.join()
 
-            assert engine._installed_sigterm_handler is False
-            assert signal.getsignal(signal.SIGTERM) == original_handler
+            assert engine._installed_signal_handlers == []
+            assert {
+                signal_number: signal.getsignal(signal_number)
+                for signal_number in original_handlers
+            } == original_handlers
 
     def test_header_without_installed_package_metadata(self, mocker):
         """Running from a source tree without package metadata records engine_version null."""
@@ -854,7 +993,7 @@ class TestRecordingEdgeCases:
         finally:
             signal.signal(signal.SIGTERM, previous_handler)
 
-        assert exit_info.value.code == 128 + signal.SIGTERM
+        assert exit_info.value.code == ExitCode.TERMINATED
         assert handler_after_signal == signal.SIG_IGN
 
     def test_starting_a_second_recording_is_refused(self, tmp_path):

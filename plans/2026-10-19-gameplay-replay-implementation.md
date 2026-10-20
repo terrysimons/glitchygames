@@ -75,7 +75,7 @@ doors and unpaced pacing path, and its journal test uses `recorded_dt`.
 ## Review Focus
 
 1. A replay started with a different game than the recording, a truncated file or a version-2
-   recording: refused with exit 2 / replayed to the cut-off / replayed with one warning — never a
+   recording: refused with exit 65 (`ExitCode.UNUSABLE_INPUT`) / replayed to the cut-off / replayed with one warning — never a
    traceback (Part 1 Task 12, tests `test_wrong_game_is_refused`, `test_truncated_recording_*`,
    `test_version_two_recording_replays_with_a_warning`).
 2. Real keyboard, mouse and window events arriving during a replay (the user touching the keyboard,

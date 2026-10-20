@@ -15,11 +15,14 @@ What is compared: the sampled frame only (the active scene's class, and each spr
 that is not sampled are not compared, so nondeterminism that never moves, hides or reorders a
 sprite goes unnoticed.
 
-The audit fails if either run diverged from the recording, exited with a nonzero status, or the
-two digest streams differ (the first differing frame is reported: nondeterminism that slipped past
-the doors, glitchygames/sources.py). A child that cannot be started, runs longer than
-``AUDIT_REPLAY_TIMEOUT_SECONDS`` or writes no readable digest file is an ``AuditRunError``.
-``GameEngine`` exits with 0 when the audit passes and 1 when it fails.
+The audit fails if either run diverged from the recording or the two digest streams differ (the
+first differing frame is reported: nondeterminism that slipped past the doors,
+glitchygames/sources.py). A child that cannot be started, runs longer than
+``AUDIT_REPLAY_TIMEOUT_SECONDS``, writes no readable digest file or exits with a status other than
+``ExitCode.SUCCESS`` (or ``ExitCode.REPLAY_DIVERGED`` with a divergence in its digest file) did
+not finish its replay: an ``AuditRunError``. ``GameEngine`` exits with ``ExitCode.SUCCESS`` when
+the audit passes, ``ExitCode.AUDIT_NONDETERMINISTIC`` when it fails and
+``ExitCode.INTERNAL_ERROR`` on an ``AuditRunError`` (glitchygames/exit_codes.py).
 
 Children are started with ``subprocess.run``: an argument list, never a shell, with the
 environment set before the child's interpreter starts (PYTHONHASHSEED is read only then). An
@@ -42,15 +45,13 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
 
+from glitchygames.exit_codes import ExitCode
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 # PYTHONHASHSEED per run, so set/dict-order bugs show up
 AUDIT_HASH_SEEDS = ('1', '2')
-
-# GameEngine's exit status after an audit
-AUDIT_PASSED_EXIT_CODE = 0
-AUDIT_FAILED_EXIT_CODE = 1
 
 # Added to the audited command for each child: replay instead of auditing again, and never pace
 # (the recorded frame times are served anyway; pacing would only make the audit take real time)
@@ -87,13 +88,11 @@ class ReplayDigestRun:
     Attributes:
         digests: One digest per replayed frame, in order.
         divergence: ``Divergence.describe()`` of that run, or None.
-        exit_code: The child process's exit status.
 
     """
 
     digests: list[str]
     divergence: str | None
-    exit_code: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -113,7 +112,7 @@ class AuditResult:
     first_mismatch_frame: int | None
 
     def is_deterministic(self: Self) -> bool:
-        """Return True when both runs matched the recording, exited cleanly and agree.
+        """Return True when both runs matched the recording and agree.
 
         Returns:
             True when the audit passes.
@@ -126,8 +125,7 @@ class AuditResult:
 
         Returns:
             ``Audit passed: ...``, or ``Audit failed: `` and the first failure: a run that
-            diverged from the recording, a run that exited with a nonzero status, or the first
-            frame the two runs differ at.
+            diverged from the recording, or the first frame the two runs differ at.
 
         """
         failure = self._first_failure()
@@ -145,8 +143,6 @@ class AuditResult:
             run_name = f'replay {run_number} (PYTHONHASHSEED={hash_seed})'
             if run.divergence is not None:
                 return f'{run_name} diverged from the recording: {run.divergence}'
-            if run.exit_code != 0:
-                return f'{run_name} exited with status {run.exit_code}'
         if self.first_mismatch_frame is not None:
             return (
                 f'the two replays differ first at frame {self.first_mismatch_frame} '
@@ -307,8 +303,10 @@ def _run_replay_subprocess(
         The finished run.
 
     Raises:
-        AuditRunError: If the child could not be started, ran longer than ``timeout_seconds``
-            or wrote no readable digest file.
+        AuditRunError: If the child could not be started, ran longer than ``timeout_seconds``,
+            wrote no readable digest file, or exited with a status other than
+            ``ExitCode.SUCCESS`` (``ExitCode.REPLAY_DIVERGED`` is a finished replay when its
+            digest file holds the divergence).
 
     """
     run_name = f'The replay with PYTHONHASHSEED={hash_seed}'
@@ -329,11 +327,20 @@ def _run_replay_subprocess(
         digests, divergence = read_digest_file(path=digest_path)
     except ValueError as error:
         message = (
-            f'{run_name} exited with status {process.returncode} without writing its digests '
-            f'({error})'
+            f'{run_name} exited with status {ExitCode.describe_status(process.returncode)} '
+            f'without writing its digests ({error})'
         )
         raise AuditRunError(message) from error
-    return ReplayDigestRun(digests=digests, divergence=divergence, exit_code=process.returncode)
+    finished_replay = process.returncode == ExitCode.SUCCESS or (
+        process.returncode == ExitCode.REPLAY_DIVERGED and divergence is not None
+    )
+    if not finished_replay:
+        message = (
+            f'{run_name} exited with status {ExitCode.describe_status(process.returncode)} '
+            'after writing its digests'
+        )
+        raise AuditRunError(message)
+    return ReplayDigestRun(digests=digests, divergence=divergence)
 
 
 def _first_mismatch_frame(*, first_digests: list[str], second_digests: list[str]) -> int | None:

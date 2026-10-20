@@ -275,7 +275,7 @@ Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
 | `--record-trace` | `PATH` | `None` | Record the session to a gzip JSON Lines trace ([Gameplay Recording and Replay](gameplay_replay.md)) |
 | `--replay-trace` | `PATH` | `None` | Replay a recording exactly, reporting the first divergence |
 | `--replay-fps` | `choice` | `None` (read as `recorded`) | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
-| `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0 or 1) |
+| `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0, 3 when nondeterministic, 70 when a run could not finish; see [exit codes](gameplay_replay.md#exit-codes)) |
 | `--replay-digest` | `PATH` | `None` | With `--replay-trace`: write a SHA-256 per replayed frame (used by `--audit`) |
 | `--random-seed` | `int` | random 64-bit | Master seed for every engine random stream |
 | `--screen-shake-intensity` | `float` | `1.0` | Screen shake strength, 0.0 (off) to 1.0 |

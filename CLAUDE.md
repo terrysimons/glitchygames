@@ -141,6 +141,26 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   10. **Finish**: `_finish_frame` (see Frame Pacing)
 - Handles scene transitions and lifecycle (`setup()`, `cleanup()`, `load_resources()`)
 
+**Exit Codes** (`glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
+`glitchygames.engine`; never write the number in code or tests)
+- 0 `SUCCESS` (replay matched, audit deterministic), 1 `REPLAY_DIVERGED`, 2
+  `ARGUMENT_PARSER_ERROR` (argparse's own; the engine never exits with it), 3
+  `AUDIT_NONDETERMINISTIC`, 4 `GENERATION_REJECTED` (API client: the server refused the request),
+  64 `OPTIONS_REFUSED` (option combinations the engine won't run), 65 `UNUSABLE_INPUT` (wrong
+  game, unsupported format, corrupt or unreadable file, bad server response), 66 `MISSING_INPUT`
+  (the file does not exist), 69 `SERVICE_UNAVAILABLE` (API server unreachable), 70
+  `INTERNAL_ERROR` (uncaught exception during a run, logged with its traceback after teardown; an
+  audit that could not run), 129 `HANGUP` (SIGHUP, Unix), 130 `INTERRUPTED` (SIGINT/Ctrl-C), 143
+  `TERMINATED` (SIGTERM), 149 `BREAK` (SIGBREAK, Windows)
+- 0 and 64-70 equal Python's `os.EX_*` (defined literally: Windows has no `os.EX_*`); signal
+  members are 128 + N (`ExitCode.for_signal`). `ExitCode.describe()` gives `'OPTIONS_REFUSED
+  (64)'`, the form the engine logs (`Exiting with ...`)
+- Signals: `GameEngine.start` installs `exit_on_signal` for SIGTERM/SIGHUP/SIGBREAK (where the
+  platform has them and nothing else handles them) for the whole run, and SIGINT ends it through
+  KeyboardInterrupt; each exits with its member after teardown (recordings closed). The engine
+  sets `SDL_NO_SIGNAL_HANDLERS=1` (unless preset) before `pygame.init()`, so SDL never turns
+  SIGINT/SIGTERM into QUIT events. Not wired: SIGKILL/SIGSTOP, SIGPIPE, SIGQUIT
+
 **Frame Pacing** (`glitchygames/timing.py`)
 - Two timer backends:
   - `FastTimer` (default): High-resolution `time.perf_counter_ns()` with sleep+spin hybrid
@@ -286,8 +306,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - `--replay-trace PATH` (`glitchygames/replay/driver.py`; its module docstring lists the rules):
   replay a recording exactly through the real engine. `ReplaySources` serve its events, dt,
   polled input, devices, in-memory saves, clocks and seed, and every frame's sprites are compared
-  with the recorded frame. Refusals log the reason and exit 2 (`REPLAY_UNUSABLE_EXIT_CODE`): a
-  recording of another game, a missing or unreadable file, an unsupported format version, and
+  with the recorded frame. Refusals log the reason and exit with an `ExitCode` (see Exit Codes):
+  `UNUSABLE_INPUT` (65) for a recording of another game, an unreadable file or an unsupported
+  format version, `MISSING_INPUT` (66) for a missing file, and `OPTIONS_REFUSED` (64) for
   `--record-trace` given too (refused until Part 2's `--rebaseline` wires recording over a
   replay). A different engine version only warns. Recorded options apply except
   `REPLAY_LOCAL_OPTIONS`. The first divergence (kinds `scene`, `sprite`, `event`, `length`) is
@@ -313,8 +334,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   same command twice as headless child processes (`--no-audit --replay-unpaced --replay-digest
   <temp>`, `PYTHONHASHSEED` 1 and 2) and compares each run with the recording and the two
   per-frame digest streams (`--replay-digest PATH`: a SHA-256 per replayed frame, then the
-  divergence); exits 0 when deterministic, 1 otherwise (refused with exit 2 under `--replay-fps
-  real` or `python -E`/`-I`, which would keep PYTHONHASHSEED from the children). It compares only
+  divergence); exits `SUCCESS` (0) when deterministic, `AUDIT_NONDETERMINISTIC` (3) otherwise,
+  `INTERNAL_ERROR` (70) when a child could not finish (did not start, hung, crashed, wrote no
+  digests); refused with `OPTIONS_REFUSED` (64) under `--replay-fps real` or `python -E`/`-I`,
+  which would keep PYTHONHASHSEED from the children. It compares only
   what the replay samples: the scene class and each sprite's `rect`, `visible` and draw order, not
   pixels, audio or unsampled game state. `--replay-unpaced` is private (no pacing; Part 2's
   `--headless` replaces it). Children run through `subprocess.run` (argument list, no shell; the

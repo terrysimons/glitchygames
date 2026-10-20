@@ -7,11 +7,12 @@ session again, and every frame's sprites are compared with the recorded frame. T
 
 1. Startup, in one place (``GameEngine.__init__``): once the options are parsed,
    ``start_replay`` reads the recording, refuses a recording of another game
-   (``ReplayRefusedError``; the engine logs it and exits with ``REPLAY_UNUSABLE_EXIT_CODE``, as
-   for an unreadable file), warns once about a different engine version, applies the recorded
-   options (all but ``REPLAY_LOCAL_OPTIONS``) and seeds the random streams with the recorded
-   seed. The engine installs the sources before the first frame; while installed they own the
-   internal-post tracker (glitchygames/recording.py).
+   (``ReplayRefusedError``; the engine logs it and exits with ``ExitCode.UNUSABLE_INPUT``, as
+   for an unreadable file, or ``ExitCode.MISSING_INPUT`` for a missing one;
+   glitchygames/exit_codes.py), warns once about a different engine version, applies the
+   recorded options (all but ``REPLAY_LOCAL_OPTIONS``) and seeds the random streams with the
+   recorded seed. The engine installs the sources before the first frame; while installed they
+   own the internal-post tracker (glitchygames/recording.py).
 2. Pump: the real queue is drained (through the live doors' pump) and each event classified
    with the internal-post tracker. From the first pump on, real input, device and window events
    are blocked at SDL (``REAL_INPUT_EVENT_TYPES``, glitchygames/replay/input_blocking.py), so
@@ -140,9 +141,6 @@ if TYPE_CHECKING:
 
 LOG = logging.getLogger('game.replay')
 LOG.addHandler(logging.NullHandler())
-
-# Exit status when a recording cannot be replayed (wrong game, unreadable file)
-REPLAY_UNUSABLE_EXIT_CODE = 2
 
 # Options the recording never overrides: how this run is watched, logged, paced and recorded,
 # not what the game does
@@ -1137,7 +1135,7 @@ def start_replay(
 
     A recording of another game raises ReplayRefusedError (``check_game``); an unreadable file
     raises TraceFormatError or OSError (``ReplaySources.from_path``). The engine exits with
-    ``REPLAY_UNUSABLE_EXIT_CODE`` on each.
+    ``ExitCode.UNUSABLE_INPUT`` on each, or ``ExitCode.MISSING_INPUT`` for a missing file.
 
     Args:
         path: The recording.

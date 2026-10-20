@@ -1,4 +1,11 @@
-"""CLI client for the GlitchyGames Sprite Generation API."""
+"""CLI client for the GlitchyGames Sprite Generation API.
+
+Exit codes (``ExitCode``, glitchygames/exit_codes.py): ``SUCCESS``; ``GENERATION_REJECTED`` when the
+server answers with an error status or a response that says it failed; ``SERVICE_UNAVAILABLE``
+when the server cannot be reached or stops answering; ``MISSING_INPUT`` when the APNG to extract
+does not exist; ``UNUSABLE_INPUT`` for a file that cannot be read or written, or a response that
+cannot be parsed or used; argparse's ``ARGUMENT_PARSER_ERROR`` for a usage error.
+"""
 
 import argparse
 import base64
@@ -13,6 +20,7 @@ from typing import Any
 import httpx
 from apng import APNG, PNG
 
+from glitchygames.exit_codes import ExitCode
 from glitchygames.tools.ascii_renderer import ASCIIRenderer
 
 LOG = logging.getLogger('glitchygames.api.client')
@@ -546,6 +554,56 @@ def save_files_locally(  # ruff: ignore[too-many-arguments]
     return saved_files
 
 
+# What a request to the server and the handling of its answer can raise (mapped to exit codes by
+# _exit_code_for_request_error): ValueError includes the JSON decoding of a response
+REQUEST_ERRORS = (
+    httpx.TransportError,
+    httpx.HTTPStatusError,
+    OSError,
+    ValueError,
+    KeyError,
+    TypeError,
+)
+
+
+def _exit_code_for_request_error(*, error: Exception, parsed_args: argparse.Namespace) -> ExitCode:
+    """Log why a request (or the handling of its answer) failed and return its exit code.
+
+    Called from an ``except REQUEST_ERRORS`` block, so ``--verbose`` can print the traceback.
+
+    Args:
+        error: The exception raised.
+        parsed_args: Parsed command line arguments (``server_url``, ``verbose``).
+
+    Returns:
+        ``ExitCode.SERVICE_UNAVAILABLE`` when the server could not be reached or stopped
+        answering, ``ExitCode.GENERATION_REJECTED`` for an error status,
+        ``ExitCode.MISSING_INPUT`` for a file that does not exist, and
+        ``ExitCode.UNUSABLE_INPUT`` for any other file error or a response that cannot be
+        parsed or used.
+
+    """
+    if isinstance(error, httpx.ConnectError):
+        LOG.error(f'Could not connect to server at {parsed_args.server_url}')
+        LOG.error('Is the server running? Start it with: glitchygames-server')
+        return ExitCode.SERVICE_UNAVAILABLE
+    if isinstance(error, httpx.TransportError):
+        LOG.error(f'The server at {parsed_args.server_url} did not answer: {error!r}')
+        return ExitCode.SERVICE_UNAVAILABLE
+    if isinstance(error, httpx.HTTPStatusError):
+        LOG.error(f'HTTP error: {error.response.status_code} - {error.response.text}')
+        return ExitCode.GENERATION_REJECTED
+    if isinstance(error, FileNotFoundError):
+        LOG.error('File not found: %s', error.filename or error)
+        return ExitCode.MISSING_INPUT
+    LOG.error('Error: %s', error)
+    if parsed_args.verbose:
+        import traceback
+
+        traceback.print_exc()
+    return ExitCode.UNUSABLE_INPUT
+
+
 def _log_extraction_metadata(response: dict[str, Any]) -> None:
     """Log metadata from an APNG extraction response.
 
@@ -601,12 +659,13 @@ def _process_extraction_response(
         apng_path: Path to the original APNG file
 
     Returns:
-        Exit code (0 for success, 1 for failure)
+        ``ExitCode.SUCCESS``, or ``ExitCode.GENERATION_REJECTED`` when the server says the
+        extraction failed.
 
     """
     if not response.get('success'):
         LOG.error(f'Extraction failed: {response.get("error", "Unknown error")}')
-        return 1
+        return ExitCode.GENERATION_REJECTED
 
     _log_extraction_metadata(response)
 
@@ -624,7 +683,7 @@ def _process_extraction_response(
                 frame['png_base64'] = f'<{len(frame.get("png_base64", ""))} chars>'
         print(json.dumps(output_data, indent=2))  # ruff: ignore[print]
 
-    return 0
+    return ExitCode.SUCCESS
 
 
 def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
@@ -634,7 +693,7 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
         parsed_args: Parsed command line arguments
 
     Returns:
-        Exit code (0 for success, non-zero for errors)
+        The exit code (``ExitCode``; see the module docstring).
 
     """
     apng_path = parsed_args.extract_frames
@@ -645,23 +704,8 @@ def _handle_extract_frames(parsed_args: argparse.Namespace) -> int:
             server_url=parsed_args.server_url,
             apng_path=apng_path,
         )
-    except FileNotFoundError:
-        LOG.error('APNG file not found: %s', apng_path)  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except httpx.ConnectError:
-        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # ruff: ignore[error-instead-of-exception]
-        LOG.error('Is the server running? Start it with: glitchygames-server')  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except httpx.HTTPStatusError as e:
-        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error('Error: %s', e)  # ruff: ignore[error-instead-of-exception]
-        if parsed_args.verbose:
-            import traceback
-
-            traceback.print_exc()
-        return 1
+    except REQUEST_ERRORS as error:
+        return _exit_code_for_request_error(error=error, parsed_args=parsed_args)
     else:
         return _process_extraction_response(response, parsed_args, apng_path)
 
@@ -692,7 +736,8 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
         output_formats: List of requested output formats
 
     Returns:
-        Exit code (0 for success, non-zero for errors)
+        ``ExitCode.SUCCESS``, or ``ExitCode.GENERATION_REJECTED`` when the server says the
+        generation failed.
 
     """
     LOG.info(f'Generating sprite: {parsed_args.prompt}')
@@ -714,7 +759,7 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
 
     if not response.get('success'):
         LOG.error(f'Generation failed: {response.get("error", "Unknown error")}')
-        return 1
+        return ExitCode.GENERATION_REJECTED
 
     _log_generation_results(response)
 
@@ -739,7 +784,7 @@ def _handle_generate_sprite(parsed_args: argparse.Namespace, output_formats: lis
             print('\n--- TOML Content ---')  # ruff: ignore[print]
         print(response['toml_content'])  # ruff: ignore[print]
 
-    return 0
+    return ExitCode.SUCCESS
 
 
 def main(args: list[str] | None = None) -> int:
@@ -749,7 +794,8 @@ def main(args: list[str] | None = None) -> int:
         args: Command line arguments (defaults to sys.argv[1:])
 
     Returns:
-        Exit code (0 for success, non-zero for errors)
+        The exit code (``ExitCode``; see the module docstring). A usage error exits through
+        argparse instead (SystemExit with ``ExitCode.ARGUMENT_PARSER_ERROR``).
 
     """
     parser = create_parser()
@@ -776,20 +822,8 @@ def main(args: list[str] | None = None) -> int:
 
     try:
         return _handle_generate_sprite(parsed_args, output_formats)
-    except httpx.ConnectError:
-        LOG.error(f'Could not connect to server at {parsed_args.server_url}')  # ruff: ignore[error-instead-of-exception]
-        LOG.error('Is the server running? Start it with: glitchygames-server')  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except httpx.HTTPStatusError as e:
-        LOG.error(f'HTTP error: {e.response.status_code} - {e.response.text}')  # ruff: ignore[error-instead-of-exception]
-        return 1
-    except (OSError, ValueError, KeyError, TypeError) as e:
-        LOG.error('Error: %s', e)  # ruff: ignore[error-instead-of-exception]
-        if parsed_args.verbose:
-            import traceback
-
-            traceback.print_exc()
-        return 1
+    except REQUEST_ERRORS as error:
+        return _exit_code_for_request_error(error=error, parsed_args=parsed_args)
 
 
 def run() -> None:

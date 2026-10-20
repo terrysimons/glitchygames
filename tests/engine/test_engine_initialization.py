@@ -19,6 +19,7 @@ from glitchygames import timing
 from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
+from glitchygames.exit_codes import ExitCode
 from glitchygames.scenes import Scene
 from glitchygames.timing import GIL_SWITCH_INTERVAL_SECONDS, FastTimer
 from tests.mocks import MockFactory
@@ -413,8 +414,9 @@ class TestTargetFpsArgumentValidation:
     @pytest.mark.parametrize('invalid_text', ['-5', 'nan', 'inf', '-inf', 'fast'])
     def test_invalid_values_are_rejected(self, invalid_text, capsys):
         parser = GameEngine.args(argparse.ArgumentParser())
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exit_info:
             parser.parse_args(['--target-fps', invalid_text])
+        assert exit_info.value.code == ExitCode.ARGUMENT_PARSER_ERROR
         assert '--target-fps' in capsys.readouterr().err
 
     @pytest.mark.parametrize(('text', 'expected'), [('0', 0.0), ('60.5', 60.5)])

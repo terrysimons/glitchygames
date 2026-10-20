@@ -18,7 +18,7 @@ from glitchygames.clock import frame_clock_seconds
 from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
 )
-from glitchygames.engine import GameEngine
+from glitchygames.engine import ExitCode, GameEngine
 from glitchygames.input.state import current_input
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
@@ -1593,14 +1593,16 @@ def main() -> None:
     def signal_handler(signum: int, _frame: types.FrameType | None) -> None:
         """Handle shutdown signals gracefully.
 
-        Only records the signal and raises SystemExit. SystemExit unwinds the engine
-        (releasing whatever the main thread held) and the finally below then logs and shuts
-        the AI worker down. Doing either here could fail: logging while the interrupted code
-        is writing to stderr raises "reentrant call inside BufferedWriter" (which replaced
-        SystemExit and lost the signal), and a queue put could block on a lock it holds.
+        Only records the signal and raises SystemExit with the signal's exit code. SystemExit
+        unwinds the engine (releasing whatever the main thread held) and the finally below
+        then logs and shuts the AI worker down. Doing either here could fail: logging while the
+        interrupted code is writing to stderr raises "reentrant call inside BufferedWriter"
+        (which replaced SystemExit and lost the signal), and a queue put could block on a lock
+        it holds.
         """
         received_signals.append(signum)
-        sys.exit(0)
+        # INTERRUPTED for SIGINT, TERMINATED for SIGTERM (glitchygames/exit_codes.py)
+        sys.exit(ExitCode.for_signal(signum))
 
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)

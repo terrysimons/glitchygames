@@ -781,7 +781,8 @@ class TraceReader:
         At the end, any bytes after the last newline become ``dropped_partial_line``.
 
         Raises:
-            TraceFormatError: If data follows the end of the gzip stream.
+            TraceFormatError: If the file is not gzip data, or data follows the end of the gzip
+                stream.
 
         """
         while b'\n' not in self._pending:
@@ -791,7 +792,11 @@ class TraceReader:
             if not chunk:
                 break
             self.bytes_read += len(chunk)
-            self._pending += self._decompressor.decompress(chunk)
+            try:
+                self._pending += self._decompressor.decompress(chunk)
+            except zlib.error as error:
+                message = f'{self.path}: not a gzip trace ({error})'
+                raise TraceFormatError(message) from error
             if self._decompressor.unused_data:
                 message = f'{self.path}: unexpected data after the end of the gzip stream'
                 raise TraceFormatError(message)

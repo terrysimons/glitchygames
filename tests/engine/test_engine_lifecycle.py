@@ -3,6 +3,7 @@
 This module tests GameEngine start/stop, game loop, and quit functionality.
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -12,6 +13,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEngine
+from glitchygames.exit_codes import ExitCode
 from tests.mocks import MockFactory
 
 
@@ -60,8 +62,9 @@ class TestEngineLifecycle:
         mock_start.side_effect = SystemExit
 
         # Test that start method can be called
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exit_info:
             engine.start()
+        assert exit_info.value.code is None
 
         # Verify the start method was called
         mock_start.assert_called_once()
@@ -88,8 +91,9 @@ class TestEngineLifecycle:
         mock_start.side_effect = SystemExit
 
         # Test that start method can be called with profiling
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exit_info:
             engine.start()
+        assert exit_info.value.code is None
 
         # Verify the start method was called
         mock_start.assert_called_once()
@@ -297,12 +301,12 @@ class TestEngineLifecycle:
         engine.joysticks = []
         engine.joystick_count = 0
 
-        # Test start method with exception handling
-        # The engine should handle exceptions gracefully (not raise them)
-        # In test environments, exceptions are logged as debug messages
-        mock_log = mocker.patch('glitchygames.engine.LOG.debug')
-        engine.start()
-        # Verify the exception was logged (as debug in test environment)
+        # An uncaught exception is logged with its traceback, then the run exits as an internal
+        # error once the teardown has run
+        mock_log = mocker.patch('glitchygames.engine.LOG.exception')
+        with pytest.raises(SystemExit) as exit_info:
+            engine.start()
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
         mock_log.assert_called_once()
 
         # Verify game was initialized
@@ -368,9 +372,11 @@ class TestEngineLifecycle:
         engine.joystick_count = 0
 
         # Test start method with exception handling
-        mock_log = mocker.patch('glitchygames.engine.LOG.debug')
-        engine.start()
-        # Verify the exception was logged with previous scene info (as debug in test environment)
+        mock_log = mocker.patch('glitchygames.engine.LOG.exception')
+        with pytest.raises(SystemExit) as exit_info:
+            engine.start()
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        # Verify the exception was logged with previous scene info
         mock_log.assert_called_once()
         # Log uses %s format: ("Runtime error ... '%s'", scene_name)
         format_args = mock_log.call_args[0]
@@ -435,9 +441,11 @@ class TestEngineLifecycle:
         engine.joystick_count = 0
 
         # Test start method with exception handling
-        mock_log = mocker.patch('glitchygames.engine.LOG.debug')
-        engine.start()
-        # Verify the exception was logged with current scene info (as debug in test environment)
+        mock_log = mocker.patch('glitchygames.engine.LOG.exception')
+        with pytest.raises(SystemExit) as exit_info:
+            engine.start()
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        # Verify the exception was logged with current scene info
         mock_log.assert_called_once()
         # Log uses %s format: ("Runtime error ... '%s'", scene_name)
         format_args = mock_log.call_args[0]
@@ -502,10 +510,87 @@ class TestEngineLifecycle:
         engine.joystick_count = 0
 
         # Test start method with exception handling
-        mock_log = mocker.patch('glitchygames.engine.LOG.debug')
-        engine.start()
-        # Verify the exception was logged with None (as debug in test environment)
+        mock_log = mocker.patch('glitchygames.engine.LOG.exception')
+        with pytest.raises(SystemExit) as exit_info:
+            engine.start()
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        # Verify the exception was logged with None
         mock_log.assert_called_once()
         # Log uses %s format: ("Runtime error ... '%s'", scene_name)
         format_args = mock_log.call_args[0]
         assert format_args[1] == 'None'
+
+
+def engine_whose_run_raises(*, mocker, mock_game_args, run_error: BaseException) -> GameEngine:
+    """Build a GameEngine whose scene manager raises ``run_error`` when the run starts.
+
+    Returns:
+        The engine, with its event managers mocked and ``_shutdown`` spied on.
+
+    """
+
+    class MockGame:
+        NAME = 'MockGame'
+        VERSION = '1.0'
+        TARGET_FPS = None
+
+        @classmethod
+        def args(cls, parser):
+            return parser
+
+    mocker.patch('argparse.ArgumentParser.parse_args', return_value=mock_game_args)
+    engine = GameEngine(game=MockGame)  # type: ignore[invalid-argument-type]
+    mocker.patch.object(engine, '_initialize_event_managers')
+    mocker.patch.object(engine, 'game')
+    engine.scene_manager = mocker.Mock()
+    engine.scene_manager.start = mocker.Mock(side_effect=run_error)
+    mocker.spy(engine, '_shutdown')
+    return engine
+
+
+class TestStartExitStatus:
+    """How GameEngine.start() ends: crashes exit as internal errors, deliberate exits pass."""
+
+    def test_an_uncaught_exception_exits_as_an_internal_error_after_teardown(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog
+    ):
+        run_error = RuntimeError('the game broke')
+        engine = engine_whose_run_raises(
+            mocker=mocker, mock_game_args=mock_game_args, run_error=run_error
+        )
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
+            engine.start()
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        assert exit_info.value.__cause__ is run_error
+        assert f'Exiting with {ExitCode.INTERNAL_ERROR.describe()}' in caplog.text
+        engine._shutdown.assert_called_once_with()
+        crash_records = [record for record in caplog.records if record.exc_info is not None]
+        assert len(crash_records) == 1
+        assert crash_records[0].exc_info[1] is run_error
+
+    def test_a_deliberate_system_exit_passes_through_unchanged(
+        self, mock_pygame_patches, mock_game_args, mocker
+    ):
+        engine = engine_whose_run_raises(
+            mocker=mocker,
+            mock_game_args=mock_game_args,
+            run_error=SystemExit(ExitCode.REPLAY_DIVERGED),
+        )
+        with pytest.raises(SystemExit) as exit_info:
+            engine.start()
+        assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
+        engine._shutdown.assert_called_once_with()
+
+    def test_a_keyboard_interrupt_exits_as_interrupted_after_teardown(
+        self, mock_pygame_patches, mock_game_args, mocker, caplog
+    ):
+        """Ctrl-C is never an internal error: it exits INTERRUPTED once teardown has run."""
+        engine = engine_whose_run_raises(
+            mocker=mocker, mock_game_args=mock_game_args, run_error=KeyboardInterrupt()
+        )
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
+            engine.start()
+        assert exit_info.value.code == ExitCode.INTERRUPTED
+        engine._shutdown.assert_called_once_with()
+        assert f'Exiting with {ExitCode.INTERRUPTED.describe()}' in caplog.text
+        assert all(record.exc_info is None for record in caplog.records)

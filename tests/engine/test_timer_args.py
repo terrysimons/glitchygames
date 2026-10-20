@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from glitchygames.engine import GameEngine
+from glitchygames.exit_codes import ExitCode
 from glitchygames.scenes import Scene
 
 
@@ -101,7 +102,9 @@ def test_timer_backend_accepts_pygame():
     assert _parse_graphics_arguments(['--timer-backend=pygame']).timer_backend == 'pygame'
 
 
-def test_timer_backend_rejects_invalid_choice():
+def test_timer_backend_rejects_invalid_choice(capsys):
     """An unknown timer backend is rejected by argparse."""
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as exit_info:
         _parse_graphics_arguments(['--timer-backend=bogus'])
+    assert exit_info.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+    assert 'invalid choice' in capsys.readouterr().err

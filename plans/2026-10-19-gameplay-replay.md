@@ -170,13 +170,14 @@ begin_frame → dt_tick → events → SUPERVISOR → frame services → aim →
 
 ### 3.1 Start
 
-- Read the header. A recording of a different game: refuse, exit 2. A different engine version:
-  warn once and continue. An unreadable format version: refuse, exit 2.
+- Read the header. A recording of a different game: refuse, exit 2 (amended: `ExitCode.UNUSABLE_INPUT`,
+  65; see `glitchygames/exit_codes.py`). A different engine version: warn once and continue. An
+  unreadable format version: refuse, exit 2 (amended: 65; a missing file 66).
 - Seed the random streams with the recorded seed; apply the recorded options that affect play
   (screen size, input mode, target FPS); install `ReplaySources`; start the game as it started when
   recording began.
 - Amended (as built): every recorded option is applied except `REPLAY_LOCAL_OPTIONS`
-  (`glitchygames/replay/driver.py`). `--record-trace` with `--replay-trace` is refused (exit 2) until
+  (`glitchygames/replay/driver.py`). `--record-trace` with `--replay-trace` is refused (exit 64, `OPTIONS_REFUSED`) until
   Part 2's `--rebaseline` wires the replay's event origins and recorded fields into the recorder.
 
 ### 3.2 Each frame
@@ -208,7 +209,7 @@ begin_frame → dt_tick → events → SUPERVISOR → frame services → aim →
 - On the final recorded frame a watched replay pauses ("end of recording"); a headless replay exits
   0 if nothing diverged.
 - A truncated file replays every complete frame and reports where it ends (watched: pause; headless:
-  exit 2).
+  exit 65, `UNUSABLE_INPUT`).
 - Version 2 recordings (no input snapshots, no control events) replay with one warning: polled input
   reads as idle.
 
@@ -255,8 +256,9 @@ Replays twice in two fresh subprocesses with different PYTHONHASHSEED values (am
 approved), comparing both runs with the recording and with each other through per-frame digests.
 A mismatch between the two runs is reported as nondeterminism that slipped past the doors. As
 built (`glitchygames/replay/audit.py`): it compares what the replay samples (scene class, each
-sprite's `rect`, `visible` and draw order), exits 0 or 1, and is refused (exit 2) with
-`--replay-fps real` or under `python -E` / `-I`.
+sprite's `rect`, `visible` and draw order), exits 0, 3 (`AUDIT_NONDETERMINISTIC`) or 70
+(`INTERNAL_ERROR`: a run could not finish), and is refused (exit 64) with `--replay-fps real` or
+under `python -E` / `-I`.
 
 ## 4. Replay tooling
 
@@ -349,7 +351,7 @@ logging the report in debug runs; a replay test per bundled demo catches this in
 
 ## 6. Errors, performance, format
 
-- Errors: wrong game or unreadable format → exit 2; truncated file → replay to the cut-off;
+- Errors: wrong game or unreadable format → exit 65 (missing file 66); truncated file → replay to the cut-off;
   version mismatch → warn; unknown device kind → stand-in with name and id, events it cannot map
   dropped with a warning; playback errors never crash the game (5.2).
 - Performance: live play without recording costs one provider call per pump and per frame; the

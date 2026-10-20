@@ -49,6 +49,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import non_negative_int, unit_interval
+from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import advance_frame_clock, install_sources
 from tests.mocks import MockFactory
@@ -2561,8 +2562,9 @@ class TestFpsHistogramArgument:
 
     def test_invalid_choice_is_rejected(self, capsys):
         """Test an unknown choice makes argparse exit with a usage error."""
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exit_info:
             self._parse(['--fps-histogram', 'logarithmic'])
+        assert exit_info.value.code == ExitCode.ARGUMENT_PARSER_ERROR
         assert 'invalid choice' in capsys.readouterr().err
 
     def test_choices_match_the_performance_modes(self):

@@ -530,6 +530,13 @@ class TestTraceReader:
         with pytest.raises(TraceFormatError, match='format_version 4'):
             TraceReader(path=path)
 
+    def test_a_file_that_is_not_gzip_is_rejected_on_open(self, tmp_path):
+        """The decompressor's error becomes TraceFormatError, so callers refuse the file."""
+        path = tmp_path / 'plain.jsonl.gz'
+        path.write_text('{"format_version": 3}\n', encoding='utf-8')
+        with pytest.raises(TraceFormatError, match='not a gzip trace'):
+            TraceReader(path=path)
+
 
 class TestTraceWriter:
     """Streaming writes: every frame is readable as soon as write_frame returns."""

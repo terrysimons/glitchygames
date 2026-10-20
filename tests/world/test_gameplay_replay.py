@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import re
 import sys
 import zlib
 from datetime import UTC, datetime, timedelta
@@ -23,6 +24,7 @@ from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY, REPLAY_FIX
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
+from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
     INTERNAL_ORIGIN,
@@ -51,7 +53,6 @@ from glitchygames.replay.driver import (
     REAL_REPLAY_FPS,
     RECORDED_REPLAY_FPS,
     REPLAY_LOCAL_OPTIONS,
-    REPLAY_UNUSABLE_EXIT_CODE,
     SCENE_DIVERGENCE,
     SPRITE_DIVERGENCE,
     Divergence,
@@ -150,6 +151,23 @@ with open(sys.argv[-1], 'w', encoding='utf-8') as digest_file:
     digest_file.write(json.dumps({'divergence': None}) + '\\n')
 """
 
+
+def digest_writing_child_source(*, divergence: str | None, exit_status: int) -> str:
+    """Python source for a child that writes a one-frame digest file and exits with a status.
+
+    Returns:
+        The source, run with ``python -c``; the digest file is its last argument.
+
+    """
+    return (
+        'import json, sys\n'
+        "with open(sys.argv[-1], 'w', encoding='utf-8') as digest_file:\n"
+        "    digest_file.write(json.dumps({'frame': 0, 'digest': 'a'}) + '\\n')\n"
+        f"    digest_file.write(json.dumps({{'divergence': {divergence!r}}}) + '\\n')\n"
+        f'raise SystemExit({exit_status})\n'
+    )
+
+
 # The live wall clock's reading when a paced recording starts (clocks_paced_by_frames)
 PACED_RECORDING_START = datetime(2026, 10, 19, 12, 0, 0, 250000, tzinfo=UTC)
 
@@ -162,6 +180,10 @@ REPLAY_MACHINE_CLOCK_STEP_SECONDS = FAKE_CLOCK_STEP_SECONDS * 2.5
 TAMPERED_FPS = 12345.0
 # The frame of the scripted session a test action runs in
 ACTION_FRAME = 2
+# An exit status no engine path uses, for fake children that fail in a way the audit cannot read
+UNLISTED_EXIT_STATUS = 5
+# The status a probe child exits with when its interpreter ignores the environment
+ENVIRONMENT_IGNORED_EXIT_STATUS = 7
 
 
 def record_session(
@@ -782,13 +804,28 @@ class TestRefusals:
         )
         with pytest.raises(SystemExit) as exit_info:
             replay_session(recording_path=recording_path, mocker=mocker)
-        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert 'SomeOtherGame' in caplog.text
 
     def test_missing_file_is_refused(self, mocker, tmp_path):
         with pytest.raises(SystemExit) as exit_info:
             replay_session(recording_path=tmp_path / 'missing.jsonl.gz', mocker=mocker)
-        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert exit_info.value.code == ExitCode.MISSING_INPUT
+
+    @pytest.mark.parametrize('kind', ['plain text', 'directory'])
+    def test_a_file_that_is_not_a_readable_recording_is_unusable_data(
+        self, mocker, tmp_path, caplog, kind
+    ):
+        """A path that exists but is not a gzip recording is unusable data, not missing input."""
+        recording_path = tmp_path / 'not-a-recording.jsonl.gz'
+        if kind == 'directory':
+            recording_path.mkdir()
+        else:
+            recording_path.write_text('this is not a recording\n', encoding='utf-8')
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        assert f'Cannot replay {recording_path}' in caplog.text
 
     def test_unsupported_format_version_is_refused_without_a_traceback(
         self, mocker, tmp_path, caplog
@@ -803,7 +840,7 @@ class TestRefusals:
         caplog.clear()
         with pytest.raises(SystemExit) as exit_info:
             replay_session(recording_path=recording_path, mocker=mocker)
-        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
         assert len(refusals) == 1
         assert 'format_version 99' in refusals[0].getMessage()
@@ -818,7 +855,7 @@ class TestRefusals:
                 '--record-trace',
                 str(tmp_path / 'over-the-replay.jsonl.gz'),
             )
-        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
         assert 'recording over a replay is not supported yet' in caplog.text
         assert not (tmp_path / 'over-the-replay.jsonl.gz').exists()
 
@@ -1022,9 +1059,17 @@ class TestRealInputBlocking:
 
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         states_before = blocked_states()
-        engine = replay_session(
-            recording_path=recording_path, mocker=mocker, action=fail, action_frame=ACTION_FRAME
-        )
+        # The crash ends start() with SystemExit, so the engine is taken from its teardown call
+        shutdown_spy = mocker.spy(GoldenTraceEngine, '_shutdown')
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(
+                recording_path=recording_path,
+                mocker=mocker,
+                action=fail,
+                action_frame=ACTION_FRAME,
+            )
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+        engine = shutdown_spy.call_args.args[0]
         assert observed == {'keys_blocked': True}
         assert engine.replay_sources is not None
         assert engine.replay_sources.result.divergence is not None
@@ -1377,9 +1422,7 @@ class TestControlEventMarkers:
 
 def fake_run(*, digests: list[str], divergence: str | None) -> ReplayDigestRun:
     """A finished replay subprocess, without running one."""
-    return ReplayDigestRun(
-        digests=digests, divergence=divergence, exit_code=0 if divergence is None else 1
-    )
+    return ReplayDigestRun(digests=digests, divergence=divergence)
 
 
 def run_child(*, command: list[str], timeout_seconds: float):
@@ -1463,14 +1506,6 @@ class TestAudit:
         assert 'diverged' in result.summary()
         assert diverged in result.summary()
 
-    def test_a_run_that_failed_without_diverging_fails_the_audit(self):
-        crashed = ReplayDigestRun(digests=['a'], divergence=None, exit_code=3)
-        result = compare_runs(
-            first_run=fake_run(digests=['a'], divergence=None), second_run=crashed
-        )
-        assert not result.is_deterministic()
-        assert 'exited with status 3' in result.summary()
-
 
 class TestAuditReplayRuns:
     """The audit's replay children: their command, environment and digest files."""
@@ -1497,12 +1532,48 @@ class TestAuditReplayRuns:
             hash_seed='7',
             digest_path=tmp_path / 'digests.jsonl',
         )
-        assert run == ReplayDigestRun(digests=['7', 'dummy', 'dummy'], divergence=None, exit_code=0)
+        assert run == ReplayDigestRun(digests=['7', 'dummy', 'dummy'], divergence=None)
+
+    @pytest.mark.parametrize(
+        'exit_status',
+        [ExitCode.INTERNAL_ERROR, UNLISTED_EXIT_STATUS, ExitCode.REPLAY_DIVERGED],
+        ids=['internal error', 'unlisted status', 'diverged without a divergence'],
+    )
+    def test_a_replay_subprocess_that_crashed_after_its_digests_is_an_audit_error(
+        self, tmp_path, exit_status
+    ):
+        """A child that wrote its digests but then failed did not finish its replay cleanly."""
+        expected_message = f'exited with status {ExitCode.describe_status(exit_status)}'
+        with pytest.raises(AuditRunError, match=re.escape(expected_message)):
+            audit._run_replay_subprocess(
+                command=[
+                    sys.executable,
+                    '-c',
+                    digest_writing_child_source(divergence=None, exit_status=exit_status),
+                ],
+                hash_seed='1',
+                digest_path=tmp_path / 'digests.jsonl',
+            )
+
+    def test_a_replay_subprocess_that_diverged_may_exit_as_replay_diverged(self, tmp_path):
+        """A replay that diverged exits ExitCode.REPLAY_DIVERGED; the audit reads its divergence."""
+        run = audit._run_replay_subprocess(
+            command=[
+                sys.executable,
+                '-c',
+                digest_writing_child_source(
+                    divergence='frame 1: sprite moved', exit_status=ExitCode.REPLAY_DIVERGED
+                ),
+            ],
+            hash_seed='1',
+            digest_path=tmp_path / 'digests.jsonl',
+        )
+        assert run.divergence == 'frame 1: sprite moved'
 
     def test_a_replay_subprocess_that_writes_no_digests_is_an_audit_error(self, tmp_path):
-        with pytest.raises(AuditRunError, match='status 3'):
+        with pytest.raises(AuditRunError, match=f'status {UNLISTED_EXIT_STATUS}'):
             audit._run_replay_subprocess(
-                command=[sys.executable, '-c', 'raise SystemExit(3)'],
+                command=[sys.executable, '-c', f'raise SystemExit({UNLISTED_EXIT_STATUS})'],
                 hash_seed='1',
                 digest_path=tmp_path / 'digests.jsonl',
             )
@@ -1573,12 +1644,14 @@ class TestAuditReplayRuns:
                 '-c',
                 (
                     'from glitchygames.replay.audit import environment_reaches_children; '
-                    'raise SystemExit(0 if environment_reaches_children() else 7)'
+                    f'raise SystemExit({ExitCode.SUCCESS} if environment_reaches_children() '
+                    f'else {ENVIRONMENT_IGNORED_EXIT_STATUS})'
                 ),
             ],
             timeout_seconds=RECORD_TIMEOUT_SECONDS,
         )
-        assert child.returncode == (0 if reaches else 7), child.stdout
+        expected_status = ExitCode.SUCCESS if reaches else ENVIRONMENT_IGNORED_EXIT_STATUS
+        assert child.returncode == expected_status, child.stdout
         assert environment_reaches_children()
 
     def test_the_audit_command_is_the_same_command_replayed_unpaced_without_the_audit(self):
@@ -1641,12 +1714,14 @@ class TestAuditOption:
             constructed_engine('--replay-trace', str(recording_path), '--audit'),
         ):
             pass
-        assert exit_info.value.code == 0
+        assert exit_info.value.code == ExitCode.SUCCESS
         audit_spy.assert_called_once_with(
             command=audit_command(original_argv=sys.orig_argv), path=recording_path
         )
 
-    def test_a_nondeterministic_audit_exits_with_one_and_logs_why(self, mocker, tmp_path, caplog):
+    def test_a_nondeterministic_audit_exits_with_check_failed_and_logs_why(
+        self, mocker, tmp_path, caplog
+    ):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         mocker.patch.object(
             game_engine_module,
@@ -1661,28 +1736,30 @@ class TestAuditOption:
             constructed_engine('--replay-trace', str(recording_path), '--audit'),
         ):
             pass
-        assert exit_info.value.code == 1
+        assert exit_info.value.code == ExitCode.AUDIT_NONDETERMINISTIC
         assert 'differ first at frame 1' in caplog.text
 
-    def test_an_audit_run_error_exits_with_one_and_logs_it(self, mocker, tmp_path, caplog):
+    def test_an_audit_run_error_exits_with_an_internal_error_and_logs_it(
+        self, mocker, tmp_path, caplog
+    ):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         mocker.patch.object(
             game_engine_module,
             'audit_recording',
-            side_effect=AuditRunError('replay run 1 exited with status 3 without its digests'),
+            side_effect=AuditRunError('replay run 1 crashed without its digests'),
         )
         with (
             pytest.raises(SystemExit) as exit_info,
             constructed_engine('--replay-trace', str(recording_path), '--audit'),
         ):
             pass
-        assert exit_info.value.code == 1
+        assert exit_info.value.code == ExitCode.INTERNAL_ERROR
         assert 'without its digests' in caplog.text
 
     def test_audit_without_replay_trace_is_refused(self, caplog):
         with pytest.raises(SystemExit) as exit_info, constructed_engine('--audit'):
             pass
-        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
         assert '--audit needs --replay-trace' in caplog.text
 
     def test_audit_with_real_replay_fps_is_refused(self, mocker, tmp_path, caplog):
@@ -1695,7 +1772,7 @@ class TestAuditOption:
             ),
         ):
             pass
-        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
         assert '--audit compares recorded FPS events' in caplog.text
         audit_spy.assert_not_called()
 
@@ -1720,7 +1797,7 @@ class TestAuditOption:
             constructed_engine('--replay-trace', str(recording_path), '--audit'),
         ):
             pass
-        assert exit_info.value.code == REPLAY_UNUSABLE_EXIT_CODE
+        assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
         assert 'started with -E or -I' in caplog.text
         audit_spy.assert_not_called()
 
@@ -1740,7 +1817,7 @@ class TestAuditOption:
             ],
             timeout_seconds=AUDIT_TIMEOUT_SECONDS,
         )
-        assert audit_run.returncode == 0, audit_run.stdout
+        assert audit_run.returncode == ExitCode.SUCCESS, audit_run.stdout
 
     def test_unseeded_randomness_makes_the_real_audit_fail(self, tmp_path):
         """End to end: a game drawing from an unseeded source is caught by --audit."""
@@ -1761,10 +1838,10 @@ class TestAuditOption:
             command=[*common, '--record-trace', str(recording_path)],
             timeout_seconds=RECORD_TIMEOUT_SECONDS,
         )
-        assert record_run.returncode == 0, record_run.stdout
+        assert record_run.returncode == ExitCode.SUCCESS, record_run.stdout
         audit_run = run_child(
             command=[*common, '--replay-trace', str(recording_path), '--audit'],
             timeout_seconds=AUDIT_TIMEOUT_SECONDS,
         )
-        assert audit_run.returncode == 1, audit_run.stdout
+        assert audit_run.returncode == ExitCode.AUDIT_NONDETERMINISTIC, audit_run.stdout
         assert 'diverged' in audit_run.stdout

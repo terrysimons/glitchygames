@@ -164,11 +164,14 @@ devices the run took in before recording started. The full format is described i
 ## Replay (`--replay-trace PATH`)
 
 At startup the replay reads the recording, applies its recorded options and seeds the random
-streams with its seed. It refuses, logging the reason and exiting with status 2, when:
+streams with its seed. It refuses, logging the reason and exiting with one of the
+[exit codes](#exit-codes), when:
 
-- the recording is of another game;
-- the file is missing or unreadable, or its format version is not supported;
-- `--record-trace` is given too (recording over a replay is not supported yet).
+- the recording is of another game, cannot be read (not gzip, no permission, a directory) or
+  has an unsupported format version: `UNUSABLE_INPUT` (65);
+- the file does not exist: `MISSING_INPUT` (66);
+- `--record-trace` is given too (recording over a replay is not supported yet):
+  `OPTIONS_REFUSED` (64).
 
 A recording made by a different engine version replays with one warning. A version-2 recording
 replays with one warning too: it has no input snapshots, so polled input reads as idle.
@@ -205,14 +208,50 @@ that draw the FPS value may then diverge. Logic always receives the recorded `dt
 
 `--replay-trace PATH --audit` does not replay in-process. It runs the same command again as two
 headless child processes, with `PYTHONHASHSEED` set to 1 and 2, and each child writes a SHA-256
-digest of every replayed frame. The audit passes (exit 0) when both runs match the recording and
-their digests match each other; otherwise it reports the first differing frame and exits 1.
+digest of every replayed frame. The audit passes (exit `SUCCESS`, 0) when both runs match the
+recording and their digests match each other; otherwise it reports the first differing frame
+and exits `AUDIT_NONDETERMINISTIC` (3). A child that cannot start, hangs, crashes (exits with any
+status but 0, or 1 with a recorded divergence) or writes no digests means the audit could not
+run: `INTERNAL_ERROR` (70).
 Fresh processes and different hash seeds make set and dict ordering bugs show up.
 
 The audit compares only what the replay samples: the scene class and each sprite's `rect`,
 `visible` and draw order. Pixels, audio and game state that never moves, hides or reorders a
-sprite are not compared. It is refused (exit 2) with `--replay-fps real` and under `python -E`
-or `-I`, which would keep `PYTHONHASHSEED` from reaching the children.
+sprite are not compared. It is refused (`OPTIONS_REFUSED`, 64) with `--replay-fps real`, under
+`python -E` or `-I` (which would keep `PYTHONHASHSEED` from reaching the children) and without
+`--replay-trace`.
+
+## Exit codes
+
+The exit code alone says who refused the run and why. Every code is a member of
+`glitchygames.exit_codes.ExitCode` (also importable from `glitchygames.engine`); the engine logs
+the code it exits with as `Exiting with OPTIONS_REFUSED (64)`.
+
+| Code | `ExitCode` member | Meaning |
+|---|---|---|
+| 0 | `SUCCESS` | Success; the replay matched; the audit is deterministic |
+| 1 | `REPLAY_DIVERGED` | A replay's frames differ from the recording |
+| 2 | `ARGUMENT_PARSER_ERROR` | A usage error from argparse; the engine never exits with it itself |
+| 3 | `AUDIT_NONDETERMINISTIC` | `--audit`'s two runs differ from each other or from the recording |
+| 4 | `GENERATION_REJECTED` | The API server rejected the sprite client's request |
+| 64 | `OPTIONS_REFUSED` | The engine refuses the options given (a combination it will not run) |
+| 65 | `UNUSABLE_INPUT` | The recording or input data is unusable (another game's recording, an unsupported format version, a corrupt or unreadable file, a bad server response) |
+| 66 | `MISSING_INPUT` | The input file does not exist |
+| 69 | `SERVICE_UNAVAILABLE` | A required service (the API server) cannot be reached |
+| 70 | `INTERNAL_ERROR` | An uncaught exception during a run (logged with its traceback, after the teardown), or an audit that could not run |
+| 129 | `HANGUP` | Stopped by SIGHUP (Unix only) |
+| 130 | `INTERRUPTED` | Stopped by SIGINT (Ctrl-C) |
+| 143 | `TERMINATED` | Stopped by SIGTERM |
+| 149 | `BREAK` | Stopped by SIGBREAK (Windows only: Ctrl-Break) |
+
+0 and 64-70 have the values of BSD `sysexits.h` (Python's `os.EX_OK`, `os.EX_USAGE` and so on,
+which exist only on Unix, so the values are defined in the engine). The signal codes are
+128 + the signal number. A run stopped by one of those signals exits only after the normal
+teardown, so a recording is complete: the engine handles SIGTERM, SIGHUP and SIGBREAK for the
+whole run (unless the game installed its own handler) and turns off SDL's own signal handling
+(`SDL_NO_SIGNAL_HANDLERS`), which would otherwise turn SIGINT and SIGTERM into a QUIT event.
+SIGKILL and SIGSTOP cannot be caught, Python ignores SIGPIPE, and SIGQUIT keeps its core-dump
+convention.
 
 ## Golden replays
 

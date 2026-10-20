@@ -36,6 +36,7 @@ from glitchygames.bitmappy.sprite_inspection import (
     load_ai_training_data,
 )
 from glitchygames.bitmappy.utils import detect_file_format, resource_path
+from glitchygames.exit_codes import ExitCode
 from tests.mocks import MockFactory
 
 LOG = logging.getLogger('test.bitmappy_coverage')
@@ -1195,7 +1196,7 @@ class TestAiWorkerShutdown:
         with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
             bitmappy.main()
 
-        assert exit_info.value.code == 0
+        assert exit_info.value.code == ExitCode.TERMINATED
         assert f'Received signal {signal.SIGTERM}' in caplog.text
         assert set(installed_handlers) == {signal.SIGINT, signal.SIGTERM}
         shut_down_workers.assert_called_once_with()
