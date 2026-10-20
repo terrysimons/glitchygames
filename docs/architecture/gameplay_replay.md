@@ -403,7 +403,12 @@ starts (while the engine is being constructed) exits with Python's default statu
 `tests/fixtures/replays/<game>/golden.jsonl.gz` holds a recorded session of each example game
 (PaddleSlap, Clockwork Keep and both Brave Adventurer editions).
 `scripts/record_scripted_session.py` recorded them through the real engine loop, with a
-supervisor posting each game's golden input script. `tests/replay/test_golden_replays.py`
-replays each one with `--replay-trace` and requires an exact match. Re-record a fixture only
-deliberately, after finding out why it stopped replaying; the commands are in the script's
-docstring.
+supervisor posting each game's golden input script. Each recording is a test item of its own:
+the pytest plugin `glitchygames/testing/replays.py` (loaded by the root `conftest.py`) collects
+every `.../fixtures/replays/<console-script>/<name>.jsonl.gz` as `<console-script>/<name>`,
+replays it headless in a child process through the console script's entry point
+(`--replay-trace PATH --headless`) and fails, with the exit code and the child's output (the
+divergence report), unless it exits `ExitCode.SUCCESS`. A directory that is not a console script
+is a collection error. Another project's games can use the plugin the same way
+(`pytest_plugins = ['glitchygames.testing.replays']`). Re-record a fixture only deliberately,
+after finding out why it stopped replaying; the commands are in the script's docstring.

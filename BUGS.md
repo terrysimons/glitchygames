@@ -93,6 +93,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Not fixed here (documentation task). The help text is a one-line fix; `--windowed` needs a decision (a `--fullscreen` flag, or `BooleanOptionalAction`); the macOS check should compare with `'Darwin'`
 - **Files**: `glitchygames/engine/game_engine.py`, `docs/architecture/argument_system.md`
 
+### 78. A Stale `glitchygames.egg-info` in the Checkout Root Hides the Installed Package Metadata
+- **Description**: The checkout root holds an untracked, git-ignored `glitchygames.egg-info/` from April 2025 (version 0.1.0, no entry points). Whenever the checkout root comes before `site-packages` on `sys.path` (pytest's rootdir insertion, `python -c` or `python -m` run from the root), `importlib.metadata` finds it first: `importlib.metadata.version('glitchygames')` returns `0.1.0` instead of `1.0.0`, so `--replay-trace` logs "The recording was made with engine version 1.0.0; this is 0.1.0" and recordings made that way would record `engine_version` 0.1.0; `importlib.metadata.entry_points()` (which keeps only the first distribution of each name) lists none of the project's console scripts
+- **Status**: Active (local environment)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay tooling, Task 5: the replay plugin's console-script lookup failed under pytest)
+- **Date Reported**: 2026-10-20
+- **Details**: Not a code bug and not removed here (it is the user's file). Deleting the directory fixes it; `glitchygames/testing/replays.py` (`game_entry_point`) searches every distribution so the plugin works either way. `replay/driver.py` (`_installed_engine_version`) and `state/manager.py` still read the first one
+- **Files**: `glitchygames.egg-info/` (untracked), `glitchygames/replay/driver.py`, `glitchygames/state/manager.py`
+
 ## Resolved Bugs
 
 ### 77. Multi-Controller Stress Tests Time Themselves With the Wall Clock

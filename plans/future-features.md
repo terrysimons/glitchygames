@@ -232,7 +232,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     the devices door with replay stand-ins, saves through `open_saves` (`DiskSaveManager` /
     `MemorySaveManager`), the supervisor hook and control events
   - Trace format 3, `--replay-fps {recorded,real}`, real input blocked at SDL during a replay,
-    golden replay fixtures (`tests/fixtures/replays/`, `scripts/record_scripted_session.py`)
+    golden replay fixtures (`tests/fixtures/replays/`, `scripts/record_scripted_session.py`),
+    run as pytest items by the replay plugin (`glitchygames/testing/replays.py`)
 - **Docs**: CLAUDE.md (Clocks, Gameplay Recording and Replay),
   `docs/architecture/gameplay_replay.md`, `plans/2026-10-19-gameplay-replay.md`
 
