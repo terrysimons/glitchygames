@@ -6,11 +6,21 @@ hands every real key press and release to ``ReplayControls``; none reaches the g
 
 - Space: start the replay from the start screen, then pause or resume it.
 - ``.``: while paused, run one frame.
-- ``,``: step back (Part 2 Task 3); for now it only says so in a status message.
+- ``,``: while paused at frame N, step back to frame N - 1 (``restart_request``). The driver
+  restarts the replay, which rebuilds up to that frame unpresented and pauses there
+  (glitchygames/replay/rebuild.py). Held, it repeats like ``.``, but each repeat only moves the
+  target back one more frame: the restart happens once, after the release
+  (``take_restart_request``), as each restart re-runs the replay from frame 0.
+- Home: restart at frame 0 (paused after frame 0, ``FIRST_PAUSED_FRAME``).
+- D: restart at the divergence frame, once the replay has found one (``divergence_frame``).
 - ``]`` / ``[``: double or halve the playback speed, within ``MIN_SPEED`` and ``MAX_SPEED``.
 - Esc: quit the replay (the driver ends it with ``end_reason = 'quit'``; no event is posted, as
   a code-posted QUIT would be an internal event the recording does not have).
 - F3 / F4: the debug overlay's keys (``OVERLAY_KEYS``), handed to the overlay.
+
+While a restarted replay rebuilds (``rebuild_target_frame``) only Esc and the debug overlay's
+keys act (``REBUILD_KEYS``), and the presented frame is the rebuild's progress line on a cleared
+display instead of the status bar.
 
 The controls run on their own real-time cadence (``ControlCadence``, 60 ticks a second),
 whatever the replay's speed and whether it is paused: the driver reads the keys and refreshes
@@ -56,11 +66,17 @@ BANNER_COLOR: tuple[int, int, int] = (255, 220, 0)
 CONTROL_TICKS_PER_SECOND = 60
 CONTROL_TICK_SECONDS = 1.0 / CONTROL_TICKS_PER_SECOND
 # Step keys act on press, then repeat while held: after this delay, at this interval (10 a second)
-STEP_KEYS: frozenset[int] = frozenset({pygame.K_PERIOD})
+STEP_KEYS: frozenset[int] = frozenset({pygame.K_PERIOD, pygame.K_COMMA})
 STEP_REPEAT_DELAY_SECONDS = 0.3
 STEP_REPEAT_INTERVAL_SECONDS = 0.1
-# Step back arrives with Part 2 Task 3
-STEP_BACK_MESSAGE = 'step back arrives in a later version'
+# Frame 0 always runs before a watched replay holds (the start screen's rule, and a restart's),
+# so its picture is the first there is: the earliest frame a replay pauses at
+FIRST_PAUSED_FRAME = 1
+# Step back, Home and jump to the divergence: each asks for a restart (restart_request)
+RESTART_KEYS: frozenset[int] = frozenset({pygame.K_COMMA, pygame.K_HOME, pygame.K_d})
+# The keys that act while a restarted replay rebuilds
+REBUILD_KEYS: frozenset[int] = OVERLAY_KEYS | {pygame.K_ESCAPE}
+REBUILD_BACKGROUND_COLOR: tuple[int, int, int] = (0, 0, 0)
 
 
 def format_replay_time(*, seconds: float) -> str:
@@ -78,6 +94,20 @@ def format_replay_time(*, seconds: float) -> str:
     minutes, tenths = divmod(total_tenths, SECONDS_PER_MINUTE * TENTHS_PER_SECOND)
     whole_seconds, tenth = divmod(tenths, TENTHS_PER_SECOND)
     return f'{minutes}:{whole_seconds:02d}.{tenth}'
+
+
+def rebuild_progress_text(*, frame_index: int, target_frame: int) -> str:
+    """Describe a rebuild's progress (printed and presented while it runs).
+
+    Args:
+        frame_index: The frame the rebuild has reached.
+        target_frame: The frame it pauses at.
+
+    Returns:
+        For example ``Rebuilding: frame 60 / 130``.
+
+    """
+    return f'Rebuilding: frame {frame_index} / {target_frame}'
 
 
 def overlay_key_label(*, key: int) -> str:
@@ -187,6 +217,13 @@ class ReplayControls:
             None.
         debug_overlay: The debug overlay F3 and F4 act on: its own until the engine hands it
             the scene manager's (``GameEngine.__init__``).
+        current_frame: The recording's frame index to be served next (the driver keeps it).
+        divergence_frame: The frame the replay diverged at once it has (the driver sets it), or
+            None.
+        restart_request: The frame ``,``, Home or D asked to restart at, or None
+            (``take_restart_request``).
+        rebuild_target_frame: The frame a restarted replay is rebuilding up to, or None once
+            it is there (the driver keeps it).
 
     """
 
@@ -210,6 +247,10 @@ class ReplayControls:
         self.awaiting_start = awaiting_start
         self.banner: str | None = None
         self.debug_overlay = DebugOverlay()
+        self.current_frame = 0
+        self.divergence_frame: int | None = None
+        self.restart_request: int | None = None
+        self.rebuild_target_frame: int | None = None
         self._message: str | None = None
         self._message_ticks_left = 0
         # Each key held down -> when it repeats next (step keys) or None (acts once per press)
@@ -277,6 +318,8 @@ class ReplayControls:
             key: The key (a pygame key constant).
 
         """
+        if self.rebuild_target_frame is not None and key not in REBUILD_KEYS:
+            return
         if key in OVERLAY_KEYS:
             self.debug_overlay.handle_key(key=key)
         elif key == pygame.K_ESCAPE:
@@ -288,12 +331,58 @@ class ReplayControls:
             self.step_requested = False
         elif key == pygame.K_PERIOD and self.paused:
             self.step_requested = True
-        elif key == pygame.K_COMMA:
-            self.show_message(text=STEP_BACK_MESSAGE)
+        elif key in RESTART_KEYS:
+            self._handle_restart_key(key=key)
         elif key == pygame.K_RIGHTBRACKET:
             self.speed = min(self.speed * SPEED_STEP_FACTOR, self.MAX_SPEED)
         elif key == pygame.K_LEFTBRACKET:
             self.speed = max(self.speed / SPEED_STEP_FACTOR, self.MIN_SPEED)
+
+    def _handle_restart_key(self: Self, *, key: int) -> None:
+        """Act on ``,`` (while paused), Home or D (once the replay diverged).
+
+        Args:
+            key: One of ``RESTART_KEYS``.
+
+        """
+        if key == pygame.K_COMMA:
+            if self.paused:
+                self._step_back()
+        elif key == pygame.K_HOME:
+            self._request_restart(frame_index=0)
+        elif self.divergence_frame is not None:
+            self._request_restart(frame_index=self.divergence_frame)
+
+    def _step_back(self: Self) -> None:
+        """Move the restart target one frame back from it (or from the current frame)."""
+        target_frame = self.current_frame if self.restart_request is None else self.restart_request
+        if target_frame <= FIRST_PAUSED_FRAME:
+            return
+        self.restart_request = target_frame - 1
+        self.show_message(text=f'back to frame {self.restart_request}')
+
+    def _request_restart(self: Self, *, frame_index: int) -> None:
+        """Ask to restart at ``frame_index``, unless that rebuilds the frame already shown.
+
+        Args:
+            frame_index: The frame to pause at (one before ``FIRST_PAUSED_FRAME`` pauses there).
+
+        """
+        if max(frame_index, FIRST_PAUSED_FRAME) != self.current_frame:
+            self.restart_request = frame_index
+
+    def take_restart_request(self: Self) -> int | None:
+        """Consume the restart request, unless ``,`` is still held (it moves the target back).
+
+        Returns:
+            The frame to restart at, or None (no request, or ``,`` held).
+
+        """
+        if self.restart_request is None or pygame.K_COMMA in self._held_keys:
+            return None
+        frame_index = self.restart_request
+        self.restart_request = None
+        return frame_index
 
     def show_message(self: Self, *, text: str) -> None:
         """Show ``text`` above the status bar for ``MESSAGE_CONTROL_TICKS`` control ticks.
@@ -388,6 +477,9 @@ class ReplayControls:
             surface: The presented frame to draw onto.
 
         """
+        if self.rebuild_target_frame is not None:
+            self._draw_rebuild_screen(surface=surface, target_frame=self.rebuild_target_frame)
+            return
         if self.awaiting_start:
             self._start_screen.draw(surface=surface)
         lines = [(self._status_line, HUD_TEXT_COLOR)]
@@ -396,9 +488,7 @@ class ReplayControls:
         if self.banner is not None:
             lines.append((self.banner, BANNER_COLOR))
         if [(text, color) for text, color, _ in self._rendered_lines] != lines:
-            if self._font is None:
-                self._font = load_debug_font()
-            font = self._font
+            font = self._loaded_font()
             self._rendered_lines = [
                 (text, color, font.render(text, antialias=True, color=color))
                 for text, color in lines
@@ -408,3 +498,36 @@ class ReplayControls:
             line_top -= HUD_LINE_HEIGHT
             line_left = (surface.get_width() - text_surface.get_width()) // 2
             blit_text(surface=surface, text_surface=text_surface, position=(line_left, line_top))
+
+    def _draw_rebuild_screen(self: Self, *, surface: pygame.Surface, target_frame: int) -> None:
+        """Draw a rebuild's progress line, centred on the cleared display (instead of the bar).
+
+        Args:
+            surface: The presented frame.
+            target_frame: The frame the rebuild pauses at.
+
+        """
+        surface.fill(REBUILD_BACKGROUND_COLOR)
+        text_surface = self._loaded_font().render(
+            rebuild_progress_text(frame_index=self.current_frame, target_frame=target_frame),
+            antialias=True,
+            color=HUD_TEXT_COLOR,
+        )
+        surface.blit(
+            text_surface,
+            (
+                (surface.get_width() - text_surface.get_width()) // 2,
+                (surface.get_height() - text_surface.get_height()) // 2,
+            ),
+        )
+
+    def _loaded_font(self: Self) -> pygame.font.Font:
+        """Return the debug overlay's font, loaded on first use.
+
+        Returns:
+            The font.
+
+        """
+        if self._font is None:
+            self._font = load_debug_font()
+        return self._font

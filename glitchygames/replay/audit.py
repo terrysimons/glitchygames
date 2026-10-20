@@ -248,18 +248,19 @@ def run_command(
     *,
     command: Sequence[str],
     environment: Mapping[str, str],
-    timeout_seconds: float,
+    timeout_seconds: float | None,
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command (an argument list, never a shell) as a child process and wait for it.
 
-    The engine's one child-process launcher: the audit's replays use it, and so do the
-    end-to-end audit tests.
+    The engine's one child-process launcher: the audit's replays use it, so do a watched
+    replay's restarts (glitchygames/replay/rebuild.py) and the end-to-end audit tests.
 
     Args:
         command: The program and its arguments.
         environment: The child's whole environment, in place before its interpreter starts.
-        timeout_seconds: Kill the child (subprocess.TimeoutExpired) after this long.
+        timeout_seconds: Kill the child (subprocess.TimeoutExpired) after this long; None waits
+            for as long as it runs (a restarted watched replay, glitchygames/replay/rebuild.py).
         capture_output: True to capture standard output and error together in ``stdout``;
             False to let the child write to this process's.
 

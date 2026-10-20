@@ -40,9 +40,11 @@ The contract between them, asked through ``EngineSources.hold_frame`` before eac
 
 The accumulator only decides when inner frames run, never what they do, so a watched replay is
 as exact as a headless one. Headless replays have no viewer loop: they never hold and run
-unpaced. Later users of the same contract: Part 3's playback scopes (an inner replay under a
-live outer game), step back (the outer loop re-simulating the inner game to frame N-1), and
-audio/video capture (inner frames handed to a sink rather than presented).
+unpaced. Step back restarts the replay process instead, which rebuilds the inner game up to
+frame N-1 before the viewer's first tick (glitchygames/replay/rebuild.py; no outer tick opens
+during the rebuild). Later users of the same contract: Part 3's playback scopes (an inner replay
+under a live outer game) and audio/video capture (inner frames handed to a sink rather than
+presented).
 """
 
 from __future__ import annotations

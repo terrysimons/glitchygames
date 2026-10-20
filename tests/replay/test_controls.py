@@ -9,9 +9,11 @@ import pytest
 
 from glitchygames.debug import DebugPanel
 from glitchygames.debug.overlay import NEXT_PANEL_KEY, TOGGLE_KEY
+from glitchygames.replay import controls as controls_module
 from glitchygames.replay.controls import (
     CONTROL_TICK_SECONDS,
     CONTROL_TICKS_PER_SECOND,
+    FIRST_PAUSED_FRAME,
     STEP_REPEAT_DELAY_SECONDS,
     STEP_REPEAT_INTERVAL_SECONDS,
     ControlCadence,
@@ -19,6 +21,7 @@ from glitchygames.replay.controls import (
     ReplayStartScreen,
     format_replay_time,
     overlay_key_label,
+    rebuild_progress_text,
 )
 from glitchygames.ui.message_screen import MessageScreen
 
@@ -87,11 +90,128 @@ def test_escape_requests_quit_without_posting_an_event(mocker):
     post_event.assert_not_called()
 
 
-def test_step_back_says_it_arrives_later():
-    """The , key (step back) only shows a status message for now."""
+def test_step_back_requests_the_previous_frame_while_paused():
+    """, while paused at frame N asks for a restart at N - 1, and says so."""
     controls = ReplayControls(total_frames=100)
+    controls.handle_key(key=pygame.K_SPACE)
+    controls.current_frame = 10
     controls.handle_key(key=pygame.K_COMMA)
-    assert controls.message_for_control_tick() == 'step back arrives in a later version'
+    assert controls.restart_request == 9
+    assert controls.message_for_control_tick() == 'back to frame 9'
+    assert controls.take_restart_request() == 9
+    assert controls.restart_request is None
+    assert controls.take_restart_request() is None
+
+
+@pytest.mark.parametrize('current_frame', [0, FIRST_PAUSED_FRAME])
+def test_step_back_at_the_first_frame_does_nothing(current_frame):
+    """Frame 0 always runs before a pause, so nothing comes before the first paused frame."""
+    controls = ReplayControls(total_frames=100)
+    controls.handle_key(key=pygame.K_SPACE)
+    controls.current_frame = current_frame
+    controls.handle_key(key=pygame.K_COMMA)
+    assert controls.restart_request is None
+
+
+def test_step_back_does_nothing_while_running():
+    """Like a step, a step back needs a pause."""
+    controls = ReplayControls(total_frames=100)
+    controls.current_frame = 10
+    controls.handle_key(key=pygame.K_COMMA)
+    assert controls.restart_request is None
+
+
+def test_home_and_jump_to_divergence():
+    """D asks for the divergence frame once there is one; Home for frame 0."""
+    controls = ReplayControls(total_frames=100)
+    controls.current_frame = 50
+    controls.handle_key(key=pygame.K_d)
+    assert controls.restart_request is None  # no divergence yet
+    controls.divergence_frame = 42
+    controls.handle_key(key=pygame.K_d)
+    assert controls.restart_request == 42
+    controls.handle_key(key=pygame.K_HOME)
+    assert controls.restart_request == 0
+
+
+@pytest.mark.parametrize(('key', 'current_frame'), [(pygame.K_HOME, 1), (pygame.K_d, 42)])
+def test_home_and_jump_do_nothing_at_the_frame_already_shown(key, current_frame):
+    """A restart that would rebuild the frame already shown is not asked for."""
+    controls = ReplayControls(total_frames=100)
+    controls.divergence_frame = 42
+    controls.current_frame = current_frame
+    controls.handle_key(key=key)
+    assert controls.restart_request is None
+
+
+def test_holding_step_back_accumulates_until_the_release():
+    """Held, , repeats like a step; the restart is taken once, at the release."""
+    controls = ReplayControls(total_frames=100)
+    controls.paused = True
+    controls.current_frame = 20
+    tick_count = 60  # one second of control ticks
+    for tick in range(tick_count):
+        now = tick * CONTROL_TICK_SECONDS
+        controls.press_key(key=pygame.K_COMMA, now=now)
+        controls.repeat_held_keys(now=now)
+        assert controls.take_restart_request() is None
+    # One on the press, then ten a second after the delay
+    expected_steps = 1 + round((1.0 - STEP_REPEAT_DELAY_SECONDS) / STEP_REPEAT_INTERVAL_SECONDS)
+    target = controls.restart_request
+    assert target is not None
+    assert abs(target - (20 - expected_steps)) <= 1
+    controls.release_key(key=pygame.K_COMMA)
+    assert controls.take_restart_request() == target
+    assert controls.take_restart_request() is None
+
+
+def test_holding_step_back_stops_at_the_first_paused_frame():
+    """Repeats never move the target before the first paused frame."""
+    controls = ReplayControls(total_frames=100)
+    controls.paused = True
+    controls.current_frame = 3
+    for _ in range(5):
+        controls.handle_key(key=pygame.K_COMMA)
+    assert controls.restart_request == FIRST_PAUSED_FRAME
+
+
+class TestRebuilding:
+    """While a restarted replay rebuilds up to its pause frame."""
+
+    def test_only_escape_and_the_overlay_keys_act(self):
+        controls = ReplayControls(total_frames=100)
+        controls.rebuild_target_frame = 50
+        controls.current_frame = 30
+        controls.divergence_frame = 10
+        for key in (pygame.K_SPACE, pygame.K_HOME, pygame.K_d, pygame.K_RIGHTBRACKET):
+            controls.handle_key(key=key)
+        assert (controls.paused, controls.restart_request, controls.speed) == (False, None, 1.0)
+        controls.handle_key(key=TOGGLE_KEY)
+        controls.handle_key(key=pygame.K_ESCAPE)
+        assert controls.debug_overlay.is_visible
+        assert controls.quit_requested
+
+    def test_the_progress_text(self):
+        assert rebuild_progress_text(frame_index=60, target_frame=130) == (
+            'Rebuilding: frame 60 / 130'
+        )
+
+    def test_the_rebuild_screen_replaces_the_status_bar(self, initialized_pygame, mocker):
+        font = mocker.Mock()
+        font.render.return_value = pygame.Surface((40, 10))
+        mocker.patch.object(controls_module, 'load_debug_font', return_value=font)
+        surface = pygame.Surface(SURFACE_SIZE)
+        surface.fill((200, 10, 10))
+        controls = ReplayControls(total_frames=100)
+        controls.rebuild_target_frame = 130
+        controls.current_frame = 60
+        controls.update_status(status_line='frame 60 / 100')
+        controls.draw(surface=surface)
+        rendered_texts = [call.args[0] for call in font.render.call_args_list]
+        assert rendered_texts == ['Rebuilding: frame 60 / 130']
+        # The display is cleared around the one line
+        assert surface.get_at((2, 2)) == pygame.Color(0, 0, 0)
+        assert surface.get_at((2, SURFACE_SIZE[1] - 2)) == pygame.Color(0, 0, 0)
 
 
 def test_other_keys_do_nothing():

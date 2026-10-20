@@ -247,14 +247,16 @@ at the start screen. The screen is drawn by the pause screen's `MessageScreen`
 presented frame: switching to a real pause scene would change the recorded scene sequence.
 Nothing runs while the replay is held: no frame, no frame clock, no recorded input. The viewer's
 keys go to the replay's controls (`glitchygames/replay/controls.py`), never to the game. Each
-key acts once per press (the key repeat games turn on is ignored); `.` held steps once, then
-after 300 ms ten times a second:
+key acts once per press (the key repeat games turn on is ignored); `.` and `,` held act once,
+then after 300 ms ten times a second:
 
 | Key | Action |
 | --- | --- |
 | Space | Start the replay from the start screen, then pause or resume |
 | `.` | While paused, run one frame |
-| `,` | Step back (coming in a later version; it says so for now) |
+| `,` | While paused, step back one frame (held: one more frame back per repeat, restarting once on release) |
+| Home | Restart at the beginning, paused after frame 0 |
+| D | Restart just before the divergence, once the replay has found one |
 | `]` / `[` | Double or halve the playback speed (0.25 to 8) |
 | Esc | Quit the replay |
 | F3 / F4 | Toggle the debug overlay / show its next panel |
@@ -264,6 +266,21 @@ A status bar at the bottom centre shows `frame 6120 / 9800 · 1:42.0 · ×1 · p
 in a screenshot or a trace. At a divergence or the end of the recording the replay pauses with
 the debug overlay on and a banner above the status bar (`Diverged at frame 6120: ...` or `End of
 recording`); stepping past the end does nothing, and Esc ends the run with the replay's result.
+
+#### Step back, Home and D
+
+A replay cannot run backwards, and the engine cannot be rebuilt in-process, so these keys
+restart the replay in a fresh process (`glitchygames/replay/rebuild.py`) with the same command
+line (every option kept, `--replay-fps` included; `--debug-overlay` follows whether the overlay
+was shown) plus `--replay-pause-at-frame N`. The restarted replay skips the start screen and
+rebuilds: frames 0 to N - 1 run in full, unpresented, unpaced and muted, with `Rebuilding: frame
+k / N` printed and shown on a cleared window every 60 frames (Esc still quits). It then pauses with
+frame N next, showing frame N - 1's picture; frame 0 always runs, so Home pauses after it. The
+first replay process supervises the restarts: each later replay that steps back hands its restart
+command to it (`--replay-restart-handoff`, internal) instead of starting a process of its own,
+so there are never more than two, and the run exits with the last replay's status. Stepping back
+from far into a long recording takes as long as rebuilding up to there. `--replay-pause-at-frame`
+is ignored with `--headless` (nothing could unpause the replay).
 
 ### `--replay-fps {recorded,real}`
 

@@ -103,7 +103,7 @@ flowchart TD
             D1["--log-timer-jitter, --perf-trim-percent, --fps-histogram"]
             D2["--debug-overlay"]
             D3["--record-trace, --replay-trace, --replay-fps"]
-            D4["--audit, --replay-digest"]
+            D4["--audit, --replay-digest, --replay-pause-at-frame"]
             D5["--headless"]
         end
 
@@ -299,6 +299,7 @@ recorded, replayed or diagnosed, whatever the game. They change no game settings
 | `--replay-fps` | `choice` | `None` (read as `recorded`) | With `--replay-trace`: FPS events from the `recorded` or the `real` frame times |
 | `--audit` / `--no-audit` | `bool` | `False` | With `--replay-trace`: replay twice in fresh processes and compare (exit 0, 3 when nondeterministic, 70 when a run could not finish; see [exit codes](gameplay_replay.md#exit-codes)) |
 | `--replay-digest` | `PATH` | `None` | With `--replay-trace`: write a SHA-256 per replayed frame (used by `--audit`) |
+| `--replay-pause-at-frame` | `N` (non-negative int) | `None` | With `--replay-trace`, watched: skip the start screen, rebuild frames 0 to N - 1 unpresented, then pause with frame N next (what step back restarts with; ignored with `--headless`; [step back](gameplay_replay.md#step-back-home-and-d)) |
 | `--headless` | `store_true` | `False` | Run on SDL's dummy video and audio drivers (no window, no sound); a replay also runs unpaced and prints its report to stdout ([headless runs](gameplay_replay.md#headless-runs-headless)) |
 
 ### Game Options
@@ -414,7 +415,8 @@ Diagnostics Options:
   --debug-overlay       show the debug overlay at startup (F3 toggles, F4 cycles panels)
   --record-trace PATH   record the session (...)
   --replay-trace PATH   replay a --record-trace recording exactly (...)
-  --replay-fps, --audit, --no-audit, --replay-digest PATH  (replay options)
+  --replay-fps, --audit, --no-audit, --replay-digest PATH, --replay-pause-at-frame N
+                        (replay options)
   --headless            run on SDL's dummy video and audio drivers: no window, no sound (...)
 
 App Options:

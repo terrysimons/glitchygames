@@ -67,6 +67,7 @@ from glitchygames.replay.driver import (
     announce_replay,
     start_replay,
 )
+from glitchygames.replay.rebuild import relaunch_replay, restart_command
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources, install_sources, reset_sources
 from glitchygames.sprites import Sprite
@@ -477,6 +478,25 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 'a run could not finish'
             ),
             default=False,
+        )
+        diagnostics_group.add_argument(
+            '--replay-pause-at-frame',
+            metavar='N',
+            type=non_negative_int,
+            help=(
+                'with --replay-trace, watched: skip the start screen, run frames 0 to N - 1 '
+                'without showing them, then pause with frame N next (what step back restarts '
+                'with; ignored with --headless)'
+            ),
+            default=None,
+        )
+        diagnostics_group.add_argument(
+            '--replay-restart-handoff',
+            metavar='PATH',
+            # Internal: the supervising replay process passes it to each replay it restarts,
+            # as glitchygames/replay/rebuild.py describes
+            help=argparse.SUPPRESS,
+            default=None,
         )
         diagnostics_group.add_argument(
             '--replay-digest',
@@ -1444,6 +1464,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             for option_name, flag in (
                 ('replay_fps', '--replay-fps'),
                 ('replay_digest', '--replay-digest'),
+                ('replay_pause_at_frame', '--replay-pause-at-frame'),
             ):
                 if options.get(option_name) is not None:
                     self.log.warning(f'{flag} is ignored without --replay-trace')
@@ -1841,13 +1862,60 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # After the teardown, so the recording is closed before the process ends
             exit_with(exit_code=exit_code, cause=run_error)
         if self.replay_sources is not None:
-            # The run ended normally: a replay exits with its own code (a divergence is
-            # REPLAY_DIVERGED; never the INTERNAL_ERROR or INTERRUPTED of the paths above)
-            exit_with(
-                exit_code=self.replay_sources.result.exit_code(
-                    policy=self.replay_sources.options.exit_policy
-                )
-            )
+            self._end_replay_run(replay_sources=self.replay_sources)
+
+    def _end_replay_run(self: Self, *, replay_sources: ReplaySources) -> NoReturn:
+        """Exit a replay's run that ended normally, after the teardown.
+
+        A replay exits with its own code (a divergence is ``REPLAY_DIVERGED``; never the
+        ``INTERNAL_ERROR`` or ``INTERRUPTED`` of an early end), unless the viewer stepped back:
+        then the replay restarts (``_restart_replay``), its window already closed.
+
+        Args:
+            replay_sources: The replay's sources.
+
+        """
+        restart_frame = replay_sources.result.restart_frame
+        if restart_frame is not None:
+            self._restart_replay(replay_sources=replay_sources, restart_frame=restart_frame)
+        exit_with(
+            exit_code=replay_sources.result.exit_code(policy=replay_sources.options.exit_policy)
+        )
+
+    def _restart_replay(
+        self: Self, *, replay_sources: ReplaySources, restart_frame: int
+    ) -> NoReturn:
+        """Restart the torn-down watched replay at ``restart_frame`` and exit with the outcome.
+
+        The restart (glitchygames/replay/rebuild.py) runs this process's own command line with
+        the pause frame, keeping whether the debug overlay was shown; this process either hands
+        it to the supervising replay process or supervises the restarted replays itself.
+
+        Args:
+            replay_sources: The torn-down replay's sources.
+            restart_frame: The frame the restarted replay pauses at.
+
+        Raises:
+            SystemExit: Always, with the status ``relaunch_replay`` returns.
+
+        """
+        self.log.info(f'Restarting the replay at frame {restart_frame}')
+        status = relaunch_replay(
+            command=restart_command(
+                original=sys.orig_argv,
+                recording_path=Path(GameEngine.OPTIONS['replay_trace']),
+                pause_at_frame=restart_frame,
+                debug_overlay_visible=self.scene_manager.debug_overlay.is_visible,
+            ),
+            handoff_path=replay_sources.options.restart_handoff_path,
+        )
+        try:
+            exit_code = ExitCode(status)
+        except ValueError:
+            # A status no member names (a game's own exit status, a signal without a member)
+            self.log.info(f'Exiting with {ExitCode.describe_status(status)}')
+            raise SystemExit(status) from None
+        exit_with(exit_code=exit_code)
 
     @classmethod
     def quit_game(cls) -> None:

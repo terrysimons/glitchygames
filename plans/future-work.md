@@ -81,7 +81,10 @@ and Replay").
   Esc quit with one action per press, the status bar, pausing at a divergence or the end with the
   debug overlay on, and the "Press Spacebar to Start Game Replay" start screen after frame 0 with
   the F3/F4 hint, drawn by the pause screen's `MessageScreen`; KEYDOWN/KEYUP stay unblocked at SDL
-  and reach only the replay controls and the debug overlay). Pending: `,` step back, Home, D, B, S (Tasks 3-4),
+  and reach only the replay controls and the debug overlay); step back (Task 3: `,`, Home and D
+  restart the replay process at a pause frame, `--replay-pause-at-frame N` rebuilding there
+  unpresented and muted, the first process supervising later restarts through a handoff file).
+  Pending: B, S (Task 4),
   `--rebaseline`, and the pytest plugin for recordings.
 - **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
   starts, the playback scope (does not block real input at SDL; real input reaches only its "exit

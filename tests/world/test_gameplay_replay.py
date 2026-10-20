@@ -53,7 +53,7 @@ from glitchygames.replay.audit import (
     read_digest_file,
     run_command,
 )
-from glitchygames.replay.controls import CONTROL_TICK_SECONDS
+from glitchygames.replay.controls import CONTROL_TICK_SECONDS, FIRST_PAUSED_FRAME
 from glitchygames.replay.driver import (
     DEFAULT_REPLAY_OPTIONS,
     EVENT_DIVERGENCE,
@@ -73,6 +73,7 @@ from glitchygames.replay.driver import (
     apply_recorded_options,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
+from glitchygames.replay.rebuild import FAST_FORWARD_PROGRESS_INTERVAL_FRAMES, MixerMute
 from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
 from glitchygames.scenes import SceneManager
 from glitchygames.sources import (
@@ -1629,7 +1630,7 @@ class TestReplayReport:
         with pytest.raises(ValidationError):
             ReplayOptions(fps_source='sometimes')
         with pytest.raises(ValidationError):
-            ReplayOptions(pause_at_frame=3)
+            ReplayOptions(no_such_option=3)
 
     def test_the_sources_keep_the_options_they_were_given(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -2326,6 +2327,182 @@ class TestWatchedViewerKeys:
         manager = start_replay_in_harness(recording_path=recording_path)
         sources = harness_replay_sources(manager=manager)
         assert sources.controls.debug_overlay is manager.debug_overlay
+        GoldenTraceSceneManager.uninstall()
+
+
+def run_until_paused(*, sources: ReplaySources) -> int:
+    """Run a watched replay's loop as the scene manager would until it pauses.
+
+    Returns:
+        How many times the loop was held (each hold presents a frame).
+
+    """
+    holds = 0
+    while not sources.controls.paused:
+        if sources.hold_frame():
+            holds += 1
+            continue
+        sources.end_frame(frame_number=0, dt=0.0, scene=None, control_events=[])
+    return holds
+
+
+class TestStepBack:
+    """Step back, Home and D: the replay restarts and rebuilds up to a pause frame."""
+
+    def test_pause_at_frame_fast_forwards_without_presenting(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        manager = start_replay_in_harness(
+            recording_path=recording_path, extra_arguments=('--replay-pause-at-frame', '3')
+        )
+        sources = harness_replay_sources(manager=manager)
+        assert sources.options.pause_at_frame == 3
+        shown = mocker.spy(manager, '_show_frame')
+        for _ in range(3):
+            manager.dt = sources.frame_seconds(measured=0.0)
+            manager.run_frame()
+        assert shown.call_count == 0  # frames 0-2 fast-forwarded
+        assert sources.controls.paused  # paused on arriving at frame 3
+        # The viewer had already started this replay before the restart
+        assert not sources.controls.awaiting_start
+        assert sources.controls.rebuild_target_frame is None
+        assert sources.result.divergence is None
+        GoldenTraceSceneManager.uninstall()
+
+    def test_headless_pause_at_frame_does_not_pause(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--replay-pause-at-frame', '3', '--headless'),
+            )
+        # Nobody can unpause a headless replay
+        assert exit_info.value.code == ExitCode.SUCCESS
+        assert '--replay-pause-at-frame is ignored with --headless' in caplog.text
+
+    def test_pause_at_frame_without_a_replay_is_ignored_with_a_warning(self, caplog):
+        with constructed_engine('--replay-pause-at-frame', '3'):
+            pass
+        assert '--replay-pause-at-frame is ignored without --replay-trace' in caplog.text
+
+    def test_a_negative_pause_frame_is_refused(self):
+        with pytest.raises(ValidationError):
+            ReplayOptions(pause_at_frame=-1)
+
+    def test_a_rebuild_shows_its_progress_then_pauses_silently(self, mocker, capsys):
+        FakeMeasuredClock(mocker=mocker)
+        mute = mocker.spy(MixerMute, 'mute')
+        unmute = mocker.spy(MixerMute, 'unmute')
+        sources = minimal_sources(
+            frames=[recorded_frame(frame_number=index, dt=0.01) for index in range(200)],
+            options=ReplayOptions(pause_at_frame=130),
+        )
+        install_sources(sources=sources)
+        assert sources.controls.rebuild_target_frame == 130
+        # Held (presented) once per FAST_FORWARD_PROGRESS_INTERVAL_FRAMES, never paced
+        assert run_until_paused(sources=sources) == 130 // FAST_FORWARD_PROGRESS_INTERVAL_FRAMES
+        assert sources.paced_frame_seconds() == 0.0
+        assert not sources.presents_frames
+        assert sources.controls.current_frame == 130
+        assert sources.controls.rebuild_target_frame is None
+        assert capsys.readouterr().out == (
+            'Rebuilding: frame 60 / 130\nRebuilding: frame 120 / 130\n'
+        )
+        # Muted from the first frame (MixerMute keeps the volumes it found only once)
+        assert mute.called
+        assert unmute.call_count == 1
+        # Arrived: held while paused, as a paused replay is
+        assert sources.hold_frame()
+        assert sources.hold_frame()
+        assert sources.controls.current_frame == 130
+
+    def test_a_pause_frame_of_zero_still_runs_frame_zero(self, mocker):
+        FakeMeasuredClock(mocker=mocker)
+        sources = minimal_sources(
+            frames=[recorded_frame(frame_number=index, dt=0.01) for index in range(5)],
+            options=ReplayOptions(pause_at_frame=0),
+        )
+        install_sources(sources=sources)
+        run_until_paused(sources=sources)
+        assert sources.controls.current_frame == FIRST_PAUSED_FRAME
+
+    def test_step_back_ends_the_run_with_a_restart_at_the_previous_frame(self, mocker):
+        FakeMeasuredClock(mocker=mocker)
+        sources = minimal_sources(
+            frames=[recorded_frame(frame_number=index, dt=0.01) for index in range(20)],
+            options=ReplayOptions(pause_at_frame=10),
+        )
+        install_sources(sources=sources)
+        run_until_paused(sources=sources)
+        sources.hold_frame()  # the first drain
+        pygame.event.post(_key(pygame.KEYDOWN, pygame.K_COMMA))
+        pygame.event.post(_key(pygame.KEYUP, pygame.K_COMMA))
+        run_next_viewer_tick(sources=sources)
+        assert sources.stop_requested
+        assert sources.result.restart_frame == 9
+        assert sources.result.end_reason == 'restart'
+        sources.finish_run()
+        assert sources.result.divergence is None
+        assert sources.result.exit_code(policy=sources.options.exit_policy) == ExitCode.SUCCESS
+        assert sources.result.report() == 'Replay matched 10 frames (restarting at frame 9)'
+
+    def test_a_held_step_back_restarts_once_on_release(self, mocker):
+        FakeMeasuredClock(mocker=mocker)
+        sources = minimal_sources(
+            frames=[recorded_frame(frame_number=index, dt=0.01) for index in range(20)],
+            options=ReplayOptions(pause_at_frame=10),
+        )
+        install_sources(sources=sources)
+        run_until_paused(sources=sources)
+        sources.hold_frame()  # the first drain
+        pygame.event.post(_key(pygame.KEYDOWN, pygame.K_COMMA))
+        for _ in range(3):
+            run_next_viewer_tick(sources=sources)
+        assert not sources.stop_requested
+        pygame.event.post(_key(pygame.KEYUP, pygame.K_COMMA))
+        run_next_viewer_tick(sources=sources)
+        assert sources.stop_requested
+        assert sources.result.restart_frame == 9
+
+    def test_step_back_from_a_divergence_relaunches_the_replay(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
+        shutdown_spy = mocker.spy(GoldenTraceEngine, '_shutdown')
+        relaunch = mocker.patch.object(
+            game_engine_module, 'relaunch_replay', return_value=ExitCode.REPLAY_DIVERGED
+        )
+        # Space starts the replay; it pauses after the divergent frame 3, and , steps back
+        press_keys_while_held(mocker=mocker, keys=(pygame.K_SPACE, pygame.K_COMMA))
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path, mocker=mocker, arguments=()
+            )
+        # The run exits with the status of the restarted replays
+        assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
+        engine = shutdown_spy.call_args.args[0]
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.controls.divergence_frame == 3
+        assert engine.replay_sources.result.restart_frame == 3
+        command = relaunch.call_args.kwargs['command']
+        # The debug overlay was on (the divergence shows it), so the restart shows it too
+        assert command[-5:] == [
+            '--debug-overlay',
+            '--replay-trace',
+            str(recording_path),
+            '--replay-pause-at-frame',
+            '3',
+        ]
+        assert relaunch.call_args.kwargs['handoff_path'] is None
+
+    def test_a_supervised_replay_hands_over_its_handoff_path(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        handoff_path = tmp_path / 'restart.json'
+        manager = start_replay_in_harness(
+            recording_path=recording_path,
+            extra_arguments=('--replay-restart-handoff', str(handoff_path)),
+        )
+        sources = harness_replay_sources(manager=manager)
+        assert sources.options.restart_handoff_path == handoff_path
         GoldenTraceSceneManager.uninstall()
 
 
