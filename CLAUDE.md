@@ -219,7 +219,14 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 - `--replay-trace PATH` (`glitchygames/replay/driver.py`): replay a recording exactly through the
   engine (`ReplaySources` serve its events, dt, polled input, devices, sandboxed saves, clocks and
   seed), compare every frame's sprites and log the first divergence; a recording of another game
-  exits 2
+  exits 2. `--replay-fps {recorded,real}` (default `recorded`): FPS events, the performance
+  stats and the overlay's performance panel use the recorded frame times (exact, compared) or
+  this machine's measured ones (FPS events then not compared); logic always gets the recorded
+  `dt`. Real input, device and window events are blocked at SDL during a replay
+  (`glitchygames/replay/input_blocking.py`; never QUIT, the window close event or custom types;
+  each type's prior blocked state is restored when the replay ends). Caveat: posts of a blocked
+  type are refused too, so game code that fakes input by posting e.g. KEYDOWN shows a "missing
+  internal event" divergence in a replay
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`

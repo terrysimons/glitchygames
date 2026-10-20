@@ -823,6 +823,15 @@ class RecordingSources:
         """
         return self.inner.frame_seconds(measured=measured)
 
+    def performance_frame_seconds(self, *, measured: float, frame_seconds: float) -> float:
+        """Return ``inner``'s frame time for FPS events and the performance statistics.
+
+        Returns:
+            Seconds.
+
+        """
+        return self.inner.performance_frame_seconds(measured=measured, frame_seconds=frame_seconds)
+
     def input_snapshot(self) -> InputSnapshot:
         """Return ``inner``'s polled input, remembered for this frame's ``input_changes``.
 

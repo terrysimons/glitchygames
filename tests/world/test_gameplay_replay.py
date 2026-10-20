@@ -19,6 +19,7 @@ from scripts.record_golden_traces import (
 
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
+from glitchygames.events import FPSEVENT
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
     INTERNAL_ORIGIN,
@@ -31,6 +32,8 @@ from glitchygames.recording import (
 from glitchygames.replay.driver import (
     EVENT_DIVERGENCE,
     LENGTH_DIVERGENCE,
+    REAL_REPLAY_FPS,
+    RECORDED_REPLAY_FPS,
     REPLAY_LOCAL_OPTIONS,
     REPLAY_UNUSABLE_EXIT_CODE,
     SCENE_DIVERGENCE,
@@ -39,20 +42,24 @@ from glitchygames.replay.driver import (
     ReplaySources,
     apply_recorded_options,
 )
+from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.scenes import SceneManager
-from glitchygames.sources import frame_clock_seconds, install_sources
+from glitchygames.sources import frame_clock_seconds, install_sources, reset_sources
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace_result, write_trace
+from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
+    FAKE_CLOCK_STEP_SECONDS,
     RANDOM_SEED,
     Script,
     _key,
     _schedule_quit_in_arrival,
+    constructed_engine,
     engine_run_environment,
     run_engine,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from pathlib import Path
 
 GOLDEN_SCRIPT_FRAMES = 300
@@ -66,6 +73,16 @@ CLOCK_ACTION_FRAME = 2
 # The live wall clock's reading when a paced recording starts (clocks_paced_by_frames)
 PACED_RECORDING_START = datetime(2026, 10, 19, 12, 0, 0, 250000, tzinfo=UTC)
 
+# Post an FPS event every frame (the interval is halved, and every frame is longer than 0.5 ms)
+EVERY_FRAME_FPS_ARGUMENTS = ('--fps-log-interval-ms', '1')
+# A replay machine whose fake clock runs at another speed than the recording's, so its measured
+# frame times (and FPS) differ from the recorded ones
+REPLAY_MACHINE_CLOCK_STEP_SECONDS = FAKE_CLOCK_STEP_SECONDS * 2.5
+# A recorded FPS value the replay never posts
+TAMPERED_FPS = 12345.0
+# The frame of the scripted session a test action runs in
+ACTION_FRAME = 2
+
 
 def record_session(
     *,
@@ -73,8 +90,11 @@ def record_session(
     mocker,
     action: Callable[[], None] | None = None,
     action_frame: int = 1,
+    extra_arguments: Sequence[str] = (),
 ) -> Path:
     """Record the departure/arrival scripted session (with an optional scripted action).
+
+    `extra_arguments` are added to the recording run's command line.
 
     Returns:
         The recording's path.
@@ -89,7 +109,13 @@ def record_session(
         }
         Script.action, Script.action_frame = action, action_frame
         _schedule_quit_in_arrival()
-        run_engine('--record-trace', str(recording_path), '--random-seed', str(RANDOM_SEED))
+        run_engine(
+            '--record-trace',
+            str(recording_path),
+            '--random-seed',
+            str(RANDOM_SEED),
+            *extra_arguments,
+        )
     return recording_path
 
 
@@ -149,6 +175,61 @@ def add_recorded_external_event(
         trace['frames'][frame_number]['event_batches'][0].append(record)
 
     rewrite_recording(recording_path=recording_path, change=add)
+
+
+def tamper_first_recorded_fps(*, recording_path: Path) -> None:
+    """Change the value of the first recorded FPS event to TAMPERED_FPS."""
+
+    def tamper(trace: dict[str, Any]) -> None:
+        for frame in trace['frames']:
+            for batch in frame['event_batches']:
+                for record in batch:
+                    if record['type'] == FPSEVENT:
+                        record['attributes']['fps'] = TAMPERED_FPS
+                        return
+        message = 'The recording has no FPS event'
+        raise AssertionError(message)
+
+    rewrite_recording(recording_path=recording_path, change=tamper)
+
+
+def recorded_fps_values(*, recording_path: Path) -> list[float]:
+    """Return every recorded FPS event's value, in order.
+
+    Returns:
+        The values.
+
+    """
+    frames = read_trace_result(path=recording_path).trace['frames']
+    return [
+        record['attributes']['fps']
+        for frame in frames
+        for batch in frame['event_batches']
+        for record in batch
+        if record['type'] == FPSEVENT
+    ]
+
+
+def delivered_events(*, pump_spy) -> list[pygame.event.Event]:
+    """Return every event the engine's pump returned, in order.
+
+    Returns:
+        The events.
+
+    """
+    return [event for batch in pump_spy.spy_return_list for event in batch]
+
+
+def blocked_states() -> dict[int, bool]:
+    """Return whether SDL blocks each of REAL_INPUT_EVENT_TYPES now.
+
+    Returns:
+        Event type -> blocked.
+
+    """
+    return {
+        event_type: pygame.event.get_blocked(event_type) for event_type in REAL_INPUT_EVENT_TYPES
+    }
 
 
 def tamper_first_sprite_rect(*, recording_path: Path, frame_number: int) -> None:
@@ -516,6 +597,118 @@ class TestReplayDoors:
         assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
 
 
+class TestReplayFps:
+    """--replay-fps: FPS events from the recorded frame times (default) or this machine's."""
+
+    def test_the_default_is_recorded(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.fps_source == RECORDED_REPLAY_FPS
+        assert minimal_sources(frames=[recorded_frame(frame_number=0)]).fps_source == (
+            RECORDED_REPLAY_FPS
+        )
+
+    def test_the_performance_frame_time_door_serves_each_mode(self):
+        recorded_sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        real_sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        real_sources.fps_source = REAL_REPLAY_FPS
+        assert recorded_sources.performance_frame_seconds(measured=9.0, frame_seconds=0.5) == 0.5
+        assert real_sources.performance_frame_seconds(measured=9.0, frame_seconds=0.5) == 9.0
+        live_sources = LiveSources(random_seed=RANDOM_SEED)
+        assert live_sources.performance_frame_seconds(measured=9.0, frame_seconds=0.5) == 0.5
+
+    def test_recorded_posts_the_recorded_fps_on_another_machine(self, mocker, tmp_path):
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, extra_arguments=EVERY_FRAME_FPS_ARGUMENTS
+        )
+        expected_fps_values = recorded_fps_values(recording_path=recording_path)
+        assert expected_fps_values
+        mocker.patch.object(
+            recording_test_module, 'FAKE_CLOCK_STEP_SECONDS', REPLAY_MACHINE_CLOCK_STEP_SECONDS
+        )
+        pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        delivered_fps_values = [
+            event.fps for event in delivered_events(pump_spy=pump_spy) if event.type == FPSEVENT
+        ]
+        assert delivered_fps_values == expected_fps_values
+
+    def test_recorded_compares_the_fps_events(self, mocker, tmp_path):
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, extra_arguments=EVERY_FRAME_FPS_ARGUMENTS
+        )
+        tamper_first_recorded_fps(recording_path=recording_path)
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        divergence = engine.replay_sources.result.divergence
+        assert divergence is not None
+        assert (divergence.kind, divergence.field) == (EVENT_DIVERGENCE, 'missing internal event')
+        assert isinstance(divergence.expected, dict)
+        assert divergence.expected['attributes']['fps'] == TAMPERED_FPS
+
+    def test_real_posts_measured_fps_and_does_not_compare_it(self, mocker, tmp_path, caplog):
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, extra_arguments=EVERY_FRAME_FPS_ARGUMENTS
+        )
+        tamper_first_recorded_fps(recording_path=recording_path)
+        recorded_dts = {
+            frame['dt'] for frame in read_trace_result(path=recording_path).trace['frames']
+        }
+        mocker.patch.object(
+            recording_test_module, 'FAKE_CLOCK_STEP_SECONDS', REPLAY_MACHINE_CLOCK_STEP_SECONDS
+        )
+        pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
+        performance_spy = mocker.spy(ReplaySources, 'performance_frame_seconds')
+        with engine_run_environment(mocker):
+            engine = run_engine(
+                '--replay-trace', str(recording_path), '--replay-fps', REAL_REPLAY_FPS
+            )
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.fps_source == REAL_REPLAY_FPS
+        assert engine.replay_sources.result.divergence is None
+        assert engine.replay_sources.result.end_reason == 'end_of_recording'
+        measured_frame_seconds = [
+            call.kwargs['measured'] for call in performance_spy.call_args_list
+        ]
+        assert measured_frame_seconds
+        assert not recorded_dts & set(measured_frame_seconds)
+        delivered_fps_values = [
+            event.fps for event in delivered_events(pump_spy=pump_spy) if event.type == FPSEVENT
+        ]
+        assert delivered_fps_values
+        measured_fps_values = {1.0 / seconds for seconds in measured_frame_seconds}
+        assert set(delivered_fps_values) <= measured_fps_values
+        # The debug overlay's performance panel follows the measured frame times too
+        overlay_frame_times = engine.scene_manager.debug_overlay.frame_times()
+        assert overlay_frame_times
+        assert set(overlay_frame_times) <= set(measured_frame_seconds)
+        notices = [
+            record
+            for record in caplog.records
+            if record.getMessage().startswith('--replay-fps real: FPS events follow this machine')
+        ]
+        assert len(notices) == 1
+
+    def test_without_replay_trace_it_warns_and_is_ignored(self, caplog):
+        with constructed_engine('--replay-fps', REAL_REPLAY_FPS) as engine:
+            assert engine.replay_sources is None
+        warnings_logged = [
+            record
+            for record in caplog.records
+            if '--replay-fps is ignored without --replay-trace' in record.getMessage()
+        ]
+        assert len(warnings_logged) == 1
+
+    def test_a_recording_cannot_override_it(self):
+        assert 'replay_fps' in REPLAY_LOCAL_OPTIONS
+        options = {'replay_fps': REAL_REPLAY_FPS}
+        apply_recorded_options(options=options, recorded={'replay_fps': RECORDED_REPLAY_FPS})
+        assert options == {'replay_fps': REAL_REPLAY_FPS}
+
+
 class TestRefusals:
     """Recordings that cannot be replayed, or only in part."""
 
@@ -662,6 +855,168 @@ class TestRealInput:
         assert result.end_reason == 'quit'
         assert result.divergence is None
         assert result.frames_replayed == 2
+
+
+class TestRealInputBlocking:
+    """Real input is blocked at SDL while a replay drains the queue; the prior state comes back."""
+
+    def test_the_blocked_types_are_real_input_device_and_window_events(self):
+        blocked_types = set(REAL_INPUT_EVENT_TYPES)
+        assert {
+            pygame.KEYDOWN,
+            pygame.TEXTINPUT,
+            pygame.TEXTEDITING,
+            pygame.MOUSEMOTION,
+            pygame.MOUSEWHEEL,
+            pygame.FINGERDOWN,
+            pygame.MULTIGESTURE,
+            pygame.JOYAXISMOTION,
+            pygame.JOYDEVICEADDED,
+            pygame.CONTROLLERDEVICEREMAPPED,
+            pygame.CONTROLLERSENSORUPDATE,
+            pygame.AUDIODEVICEADDED,
+            pygame.DROPFILE,
+            pygame.WINDOWFOCUSLOST,
+            pygame.WINDOWRESIZED,
+        } <= blocked_types
+        assert pygame.QUIT not in blocked_types
+        assert pygame.WINDOWCLOSE not in blocked_types
+        assert all(event_type < pygame.USEREVENT for event_type in blocked_types)
+        assert len(blocked_types) == len(REAL_INPUT_EVENT_TYPES)
+
+    def test_real_input_is_blocked_during_the_replay(self, mocker, tmp_path):
+        custom_event_type = pygame.event.custom_type()
+        observed: dict[str, Any] = {}
+
+        def observe_blocking() -> None:
+            observed['blocked'] = {
+                event_type: pygame.event.get_blocked(event_type)
+                for event_type in (
+                    pygame.KEYDOWN,
+                    pygame.MOUSEMOTION,
+                    pygame.JOYAXISMOTION,
+                    pygame.QUIT,
+                    pygame.WINDOWCLOSE,
+                    FPSEVENT,
+                    custom_event_type,
+                )
+            }
+            observed['posted'] = [
+                pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_q)),
+                pygame.event.post(
+                    pygame.event.Event(
+                        pygame.MOUSEMOTION, pos=(1, 1), rel=(1, 1), buttons=(0, 0, 0)
+                    )
+                ),
+                pygame.event.post(
+                    pygame.event.Event(pygame.JOYAXISMOTION, instance_id=0, axis=0, value=0.5)
+                ),
+            ]
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
+        engine = replay_session(
+            recording_path=recording_path,
+            mocker=mocker,
+            action=observe_blocking,
+            action_frame=ACTION_FRAME,
+        )
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        assert observed['blocked'] == {
+            pygame.KEYDOWN: True,
+            pygame.MOUSEMOTION: True,
+            pygame.JOYAXISMOTION: True,
+            pygame.QUIT: False,
+            pygame.WINDOWCLOSE: False,
+            FPSEVENT: False,
+            custom_event_type: False,
+        }
+        # SDL refused the posts: nothing of those types entered the queue
+        assert observed['posted'] == [False, False, False]
+        delivered = delivered_events(pump_spy=pump_spy)
+        assert not any(
+            event.type == pygame.KEYDOWN and event.key == pygame.K_q for event in delivered
+        )
+        assert not any(
+            event.type in {pygame.MOUSEMOTION, pygame.JOYAXISMOTION} for event in delivered
+        )
+
+    def test_the_blocked_state_comes_back_after_the_replay(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        states_before = blocked_states()
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.end_reason == 'end_of_recording'
+        assert blocked_states() == states_before
+
+    def test_the_blocked_state_comes_back_after_an_error_mid_replay(self, mocker, tmp_path):
+        observed: dict[str, bool] = {}
+
+        def fail() -> None:
+            observed['keys_blocked'] = pygame.event.get_blocked(pygame.KEYDOWN)
+            message = 'game code failed mid-replay'
+            raise RuntimeError(message)
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        states_before = blocked_states()
+        engine = replay_session(
+            recording_path=recording_path, mocker=mocker, action=fail, action_frame=ACTION_FRAME
+        )
+        assert observed == {'keys_blocked': True}
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is not None
+        assert blocked_states() == states_before
+
+    def test_a_type_blocked_before_the_replay_stays_blocked(self):
+        pygame.event.set_blocked(pygame.MOUSEWHEEL)
+        try:
+            states_before = blocked_states()
+            assert states_before[pygame.MOUSEWHEEL]
+            assert not states_before[pygame.KEYDOWN]
+            sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+            install_sources(sources=sources)
+            sources.pump_events()
+            assert all(blocked_states().values())
+            sources.finish_run()
+            assert blocked_states() == states_before
+        finally:
+            pygame.event.set_allowed(pygame.MOUSEWHEEL)
+
+    def test_uninstalling_the_replay_restores_the_blocked_state(self):
+        states_before = blocked_states()
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        install_sources(sources=sources)
+        sources.pump_events()
+        assert pygame.event.get_blocked(pygame.KEYDOWN)
+        reset_sources()
+        assert blocked_states() == states_before
+
+    def test_a_pump_given_the_real_batch_does_not_block(self):
+        """A playback scope's pump filters the base pump's batch; it does not own SDL's queue."""
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        install_sources(sources=sources)
+        sources.pump_events(real_events=[])
+        assert not pygame.event.get_blocked(pygame.KEYDOWN)
+
+    def test_the_block_restores_exactly_the_recorded_prior_state(self):
+        block = EventTypeBlock(event_types=(pygame.KEYDOWN, pygame.KEYUP))
+        pygame.event.set_blocked(pygame.KEYUP)
+        try:
+            block.block()
+            assert block.is_active
+            assert pygame.event.get_blocked(pygame.KEYDOWN)
+            assert pygame.event.get_blocked(pygame.KEYUP)
+            block.restore()
+            assert not block.is_active
+            assert not pygame.event.get_blocked(pygame.KEYDOWN)
+            assert pygame.event.get_blocked(pygame.KEYUP)
+            # A second restore changes nothing
+            pygame.event.set_blocked(pygame.KEYDOWN)
+            block.restore()
+            assert pygame.event.get_blocked(pygame.KEYDOWN)
+        finally:
+            pygame.event.set_allowed([pygame.KEYDOWN, pygame.KEYUP])
 
 
 class TestSaves:

@@ -143,6 +143,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self.fps_log_interval_ms: int = 1000
         self.target_fps: float = 0.0
         self.dt: float = 0.0
+        # The last frame's measured start-to-start time (dt is what the frame-time door made of
+        # it); only the performance statistics read it (_performance_frame_seconds)
+        self._measured_frame_seconds: float = 0.0
         self.timer: Any = 0
         self._game_engine: GameEngine | None = None
         self.active_scene: Scene | None = None
@@ -498,7 +501,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _update_frame_services(self: Self) -> None:
         """Advance services that outlive scenes: screen shake, rumble and live audio."""
-        self.debug_overlay.record_frame(frame_seconds=self.dt)
+        self.debug_overlay.record_frame(frame_seconds=self._performance_frame_seconds())
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
@@ -847,9 +850,13 @@ class SceneManager(SceneInterface, events.EventManager):
             #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
             #   3. carries over from the previous scene (the clock is shared), so a new
             #      scene's first samples are stale.
-            # self.dt is the frame time _finish_frame measured with time.perf_counter(): the
-            # full start-to-start period of the frame just finished.
-            current_fps = (1.0 / self.dt) if self.dt > 0 else 0.0
+            # The frame time _finish_frame measured with time.perf_counter() (the full
+            # start-to-start period of the frame just finished), as the doors pass it on
+            # (_performance_frame_seconds).
+            performance_frame_seconds = self._performance_frame_seconds()
+            current_fps = (
+                (1.0 / performance_frame_seconds) if performance_frame_seconds > 0 else 0.0
+            )
             performance_manager.track_fps_from_event(current_fps, processing_time)
         except ImportError:
             pass  # Performance module not available
@@ -865,7 +872,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._previous_fps_event_seconds = frame_clock_seconds()
         # The first frame has no previous frame: its dt is the short time since the reading
         # above, as before (a replay's frame-time door returns the recorded first dt)
-        self.dt = active_sources().frame_seconds(measured=time.perf_counter() - frame_start_seconds)
+        self._set_frame_time(measured=time.perf_counter() - frame_start_seconds)
         mark_frames_started()
 
         while (
@@ -914,9 +921,11 @@ class SceneManager(SceneInterface, events.EventManager):
         period as the frame-time door returns it: the measurement when live, the recorded dt
         in a replay; add it to the frame clock; record it as the frame's FPS sample and post
         the FPS event when its interval of frame-clock time has passed (the frame clock replays
-        exactly). Each frame's ``self.dt`` is set only here, so recorded frames sum exactly to
-        elapsed time, and logic and the debug overlay in the next frame see the same value the
-        statistics recorded (engine audit #15).
+        exactly). Each frame's ``self.dt`` is set only here (_set_frame_time), so recorded
+        frames sum exactly to elapsed time, and logic and the debug overlay in the next frame
+        see the same value the statistics recorded (engine audit #15); the statistics take
+        their frame time from _performance_frame_seconds, which is ``self.dt`` except in a
+        ``--replay-fps real`` replay (this machine's measurement).
 
         The statistics are recorded after the closing reading, so their (microseconds of)
         work counts towards the next frame's period rather than going unmeasured.
@@ -940,9 +949,7 @@ class SceneManager(SceneInterface, events.EventManager):
         )
 
         closing_reading_seconds = time.perf_counter()
-        self.dt = active_sources().frame_seconds(
-            measured=closing_reading_seconds - frame_start_seconds
-        )
+        self._set_frame_time(measured=closing_reading_seconds - frame_start_seconds)
         # The frame clock (glitchygames/sources.py) is the sum of closed frames' dt: UI timing and
         # FPS events use it, so they replay exactly
         advance_frame_clock(seconds=self.dt)
@@ -954,6 +961,35 @@ class SceneManager(SceneInterface, events.EventManager):
             self._previous_fps_event_seconds = frame_clock
 
         return closing_reading_seconds
+
+    def _set_frame_time(self: Self, *, measured: float) -> None:
+        """Set ``self.dt`` from a start-to-start measurement, through the frame-time door.
+
+        The one writer of each frame's ``self.dt`` (start() for the first frame, _finish_frame
+        for every later one); the measurement is kept for _performance_frame_seconds.
+
+        Args:
+            measured: The measured start-to-start time in seconds.
+
+        """
+        self._measured_frame_seconds = measured
+        self.dt = active_sources().frame_seconds(measured=measured)
+
+    def _performance_frame_seconds(self: Self) -> float:
+        """The frame time FPS events, the performance manager and the debug overlay record.
+
+        The one place the statistics get their frame time: the doors choose between the last
+        measurement and ``self.dt`` (live play and a ``--replay-fps recorded`` replay use
+        ``self.dt``, so a replay posts the recorded FPS; ``--replay-fps real`` uses the
+        measurement; glitchygames/replay/driver.py).
+
+        Returns:
+            Seconds.
+
+        """
+        return active_sources().performance_frame_seconds(
+            measured=self._measured_frame_seconds, frame_seconds=self.dt
+        )
 
     def _run_frame(self: Self) -> None:
         """Run one frame (a transition frame or a scene frame), then end it at the doors.
@@ -1270,10 +1306,13 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _post_fps_event(self) -> None:
         """Post FPS event."""
-        # From dt alone, as _track_performance does: dt comes through the frame-time door, so a
-        # replay posts the same value. Not self.clock.get_fps() for dt == 0: that is pygame's
-        # real-time pacing clock (and stale; see _track_performance), which a replay cannot serve
-        fps_value = 1.0 / self.dt if self.dt > 0 else 0.0
+        # From the frame time alone, as _track_performance does: it comes through the doors
+        # (_performance_frame_seconds), so a replay posts the recorded value (or, with
+        # --replay-fps real, this machine's). Not self.clock.get_fps() for a zero frame time:
+        # that is pygame's real-time pacing clock (and stale; see _track_performance), which a
+        # replay cannot serve
+        performance_frame_seconds = self._performance_frame_seconds()
+        fps_value = 1.0 / performance_frame_seconds if performance_frame_seconds > 0 else 0.0
 
         post_event(pygame.event.Event(events.FPSEVENT, {'fps': fps_value}))
 

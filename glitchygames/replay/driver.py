@@ -13,8 +13,16 @@ session again, and every frame's sprites are compared with the recorded frame. T
    seed. The engine installs the sources before the first frame; while installed they own the
    internal-post tracker (glitchygames/recording.py).
 2. Pump: the real queue is drained (through the live doors' pump) and each event classified
-   with the internal-post tracker; its external events are dropped, except the window's QUIT,
-   kept last so closing the window ends the replay. Pump N serves the recording's batch N in
+   with the internal-post tracker. From the first pump on, real input, device and window events
+   are blocked at SDL (``REAL_INPUT_EVENT_TYPES``, glitchygames/replay/input_blocking.py), so
+   they never enter the queue; the blocked state each type had before comes back when the
+   replay ends (``finish_run``, normally or after an error) or is uninstalled. QUIT, the
+   window's close event and the custom range are never blocked. Blocking also refuses posts of
+   those types: game code that fakes input by posting, say, KEYDOWN loses the post, which
+   shows as a missing internal event divergence (the engine's own posts are QUIT and custom
+   types). What external events still arrive (queued before the first pump, the close event,
+   app lifecycle and system notifications) are dropped, except the window's QUIT, kept last
+   so closing the window ends the replay. Pump N serves the recording's batch N in
    its recorded order: each external record is rebuilt (recorded references mapped to live
    objects: a window to None, as live events of the display module's window carry it; a
    joystick to its opened stand-in, an event whose joystick has none being dropped with one
@@ -26,7 +34,11 @@ session again, and every frame's sprites are compared with the recorded frame. T
    recorded and live ids; none of the engine's posts carry one today.
 3. Frame indexes: the sources count their own ``end_frame`` calls; every recorded frame they
    serve is picked by that count, never by the scene manager's frame number.
-4. Frame time: the current frame's recorded ``dt``; past the end, the measurement.
+4. Frame time: the current frame's recorded ``dt``; past the end, the measurement. The FPS
+   events and performance statistics (``performance_frame_seconds``) use it too under
+   ``--replay-fps recorded`` (the default), so the FPS events are compared exactly; under
+   ``--replay-fps real`` they use this machine's measured frame time, and FPS events are not
+   compared (logic still receives the recorded ``dt``).
 5. Input: the frame's snapshot, rebuilt by applying each frame's ``input_changes`` in order
    (a version-2 recording has none: polled input reads as idle, with one warning).
 6. Devices: a ``ReplayDeviceRegistry`` from the header, learning each frame's opened devices
@@ -60,6 +72,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
+from glitchygames.events import FPSEVENT
 from glitchygames.input.devices import (
     DeviceDescriptor,
     EnumerationAnswer,
@@ -78,6 +91,7 @@ from glitchygames.recording import (
     EVENT_BATCHES_FIELD,
     EVENT_NAME_FIELD,
     EVENT_ORIGIN_FIELD,
+    EVENT_TYPE_FIELD,
     EXTERNAL_ORIGIN,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
@@ -94,6 +108,7 @@ from glitchygames.recording import (
     stop_tracking_internal_posts,
     value_from_json,
 )
+from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.sources import frame_clock_seconds
 from glitchygames.state.sandbox import MemorySaveManager
 from glitchygames.supervision import KIND_FIELD, REAPPLIED_CONTROL_EVENT_KINDS, ControlEvent
@@ -134,6 +149,7 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'headless',
     'rebaseline',
     'replay_pause_at_frame',
+    'replay_fps',
     'profile',
     'log_level',
     'windowed',
@@ -148,6 +164,16 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     # Derived from log_level: whether events are logged, not what the game does
     'debug_events',
 })
+
+# --replay-fps values: FPS events (and the performance statistics) from the recorded frame times
+# (exact, compared) or from this machine's measured frame times (not compared)
+RECORDED_REPLAY_FPS = 'recorded'
+REAL_REPLAY_FPS = 'real'
+REPLAY_FPS_CHOICES = (RECORDED_REPLAY_FPS, REAL_REPLAY_FPS)
+REAL_REPLAY_FPS_NOTICE = (
+    '--replay-fps real: FPS events follow this machine and are not compared; sprites that draw '
+    'the FPS value may diverge'
+)
 
 # Divergence kinds
 SPRITE_DIVERGENCE = 'sprite'
@@ -338,6 +364,33 @@ def _sprite_difference(
     return None
 
 
+def _take_live_match(
+    *,
+    unmatched: list[tuple[pygame.event.Event, dict[str, Any]]],
+    record: dict[str, Any],
+    is_compared: bool,
+) -> pygame.event.Event | None:
+    """Remove and return the first live internal event that stands for a recorded internal one.
+
+    Args:
+        unmatched: The live internal events not matched yet, each with its record (changed in
+            place).
+        record: The recorded internal event.
+        is_compared: True to match equal records only; False (a type that is not compared) to
+            match the first live event of the recorded type.
+
+    Returns:
+        The live event, or None when none matches.
+
+    """
+    recorded_type = record.get(EVENT_TYPE_FIELD)
+    for index, (live_event, live_record) in enumerate(unmatched):
+        if live_record == record if is_compared else live_event.type == recorded_type:
+            del unmatched[index]
+            return live_event
+    return None
+
+
 def first_frame_difference(
     *, frame_index: int, recorded: dict[str, Any], replayed: dict[str, Any]
 ) -> Divergence | None:
@@ -369,6 +422,7 @@ class ReplaySources:
 
     Attributes:
         header: The recording's header fields (without ``format_version`` and ``frames``).
+        fps_source: ``RECORDED_REPLAY_FPS`` or ``REAL_REPLAY_FPS`` (``--replay-fps``; rule 4).
         result: How the replay went so far.
         random_seed: The recorded master seed.
 
@@ -396,6 +450,8 @@ class ReplaySources:
 
         """
         self.header = header
+        # start_replay sets it from --replay-fps
+        self.fps_source = RECORDED_REPLAY_FPS
         self.result = ReplayResult()
         self.random_seed = _recorded_seed(header=header)
         self._recorded_at = _recorded_start(header=header)
@@ -417,6 +473,10 @@ class ReplaySources:
         self._logged_unrepresentable_types: set[str] = set()
         # Only its event pump is used: the one place the real queue is read (rule 2)
         self._live_queue = LiveSources(random_seed=self.random_seed, use_fastevents=use_fastevents)
+        # Real input blocked at SDL from the first pump that drains the queue until the replay
+        # ends or is uninstalled (rule 2); blocked once, so a pump after the end does not again
+        self._real_input_block = EventTypeBlock(event_types=REAL_INPUT_EVENT_TYPES)
+        self._has_blocked_real_input = False
         self._sprite_ids = StableSpriteIds()
         self._snapshot: InputSnapshot = IDLE_INPUT
         self._devices = ReplayDeviceRegistry(
@@ -508,13 +568,17 @@ class ReplaySources:
         start_tracking_internal_posts()
 
     def on_uninstalled(self: Self) -> None:
-        """Give up the internal-post tracker."""
+        """Give up the internal-post tracker and restore the blocked state of real input."""
         stop_tracking_internal_posts()
+        self._real_input_block.restore()
 
     def pump_events(
         self: Self, *, real_events: list[pygame.event.Event] | None = None
     ) -> list[pygame.event.Event]:
         """Serve the recording's batch for this pump, merged with live internal events (rule 2).
+
+        The first pump that drains the real queue blocks real input at SDL (rule 2); a pump
+        given ``real_events`` does not own the queue, so it blocks nothing.
 
         Args:
             real_events: The real batch to filter instead of draining the real queue (a Part 3
@@ -526,7 +590,14 @@ class ReplaySources:
             recording does not have, then the window's QUIT if it was closed.
 
         """
-        live_events = self._live_queue.pump_events() if real_events is None else real_events
+        if real_events is None:
+            live_events = self._live_queue.pump_events()
+            # After the drain, so the replayed code's posts made before the first pump are kept
+            if not self._has_blocked_real_input:
+                self._has_blocked_real_input = True
+                self._real_input_block.block()
+        else:
+            live_events = real_events
         pending = pending_internal_posts()
         live_internal_events: list[pygame.event.Event] = []
         window_closes: list[pygame.event.Event] = []
@@ -535,7 +606,9 @@ class ReplaySources:
                 live_internal_events.append(event)
             elif event.type == pygame.QUIT:
                 window_closes.append(event)
-            # Every other real external event (keyboard, mouse, window, devices) is dropped
+            # Every other real external event is dropped: real input is blocked at SDL, so
+            # these are events queued before the first pump, the window's close event (its
+            # QUIT follows) and app lifecycle and system notifications
         # Posted but not returned: the queue was cleared or the type is blocked
         pending.clear()
         batch, origins = self._merged_batch(live_internal_events=live_internal_events)
@@ -578,6 +651,21 @@ class ReplaySources:
         if frame is None:
             return measured
         return float(frame[DT_FIELD])
+
+    def performance_frame_seconds(self: Self, *, measured: float, frame_seconds: float) -> float:
+        """Return the frame time FPS events and the performance statistics use (rule 4).
+
+        Args:
+            measured: The measured start-to-start time.
+            frame_seconds: The frame time ``frame_seconds()`` returned (the recorded dt).
+
+        Returns:
+            ``frame_seconds`` under ``--replay-fps recorded``, ``measured`` under ``real``.
+
+        """
+        if self.fps_source == REAL_REPLAY_FPS:
+            return measured
+        return frame_seconds
 
     def input_snapshot(self: Self) -> InputSnapshot:
         """Return the current frame's recorded polled input (rule 5).
@@ -696,8 +784,10 @@ class ReplaySources:
         """Settle the result when the run ends (``GameEngine._shutdown``).
 
         A run that ended while the replay was still running (the game quit or failed before
-        the recording's last frame) diverged in length.
+        the recording's last frame) diverged in length. Either way the blocked state of real
+        input is restored (rule 2).
         """
+        self._real_input_block.restore()
         if self.result.end_reason != RUNNING_END_REASON:
             return
         self.result.divergence = Divergence(
@@ -830,6 +920,10 @@ class ReplaySources:
     ) -> tuple[list[pygame.event.Event], list[str]]:
         """Build this pump's batch in the recorded batch's order (rule 2).
 
+        Under ``--replay-fps real`` FPS events are not compared (rule 4): a recorded one takes
+        the next live FPS event in its place, if any, and a live one left over is delivered;
+        neither is a divergence.
+
         Args:
             live_internal_events: The events the replayed code posted, in queue order.
 
@@ -838,6 +932,9 @@ class ReplaySources:
             frame did not record, the live internal events alone.
 
         """
+        uncompared_event_types: frozenset[int] = (
+            frozenset({FPSEVENT}) if self.fps_source == REAL_REPLAY_FPS else frozenset()
+        )
         live_origins = [INTERNAL_ORIGIN] * len(live_internal_events)
         frame = self._current_frame()
         if frame is None:
@@ -866,12 +963,14 @@ class ReplaySources:
                     batch.append(event)
                     origins.append(EXTERNAL_ORIGIN)
                 continue
-            match_index: int | None = None
-            for index, (_unmatched_event, live_record) in enumerate(unmatched):
-                if live_record == record:
-                    match_index = index
-                    break
-            if match_index is None:
+            is_compared = record.get(EVENT_TYPE_FIELD) not in uncompared_event_types
+            matched_event = _take_live_match(
+                unmatched=unmatched, record=record, is_compared=is_compared
+            )
+            if matched_event is not None:
+                batch.append(matched_event)
+                origins.append(INTERNAL_ORIGIN)
+            elif is_compared:
                 self._note_frame_divergence(
                     kind=EVENT_DIVERGENCE,
                     subject=str(record.get(EVENT_NAME_FIELD)),
@@ -879,12 +978,13 @@ class ReplaySources:
                     expected=record,
                     actual=None,
                 )
-                continue
-            matched_event, _live_record = unmatched.pop(match_index)
-            batch.append(matched_event)
-            origins.append(INTERNAL_ORIGIN)
         # Posted again by the replayed code but not recorded: still delivered, and a divergence
+        # (unless its type is not compared)
         for event, live_record in unmatched:
+            batch.append(event)
+            origins.append(INTERNAL_ORIGIN)
+            if event.type in uncompared_event_types:
+                continue
             self._note_frame_divergence(
                 kind=EVENT_DIVERGENCE,
                 subject=str(live_record[EVENT_NAME_FIELD]),
@@ -892,8 +992,6 @@ class ReplaySources:
                 expected=None,
                 actual=live_record,
             )
-            batch.append(event)
-            origins.append(INTERNAL_ORIGIN)
         return batch, origins
 
     def _live_event_from_record(self: Self, *, record: dict[str, Any]) -> pygame.event.Event | None:
@@ -1012,7 +1110,8 @@ def start_replay(
     Args:
         path: The recording.
         game_class_name: The class name of the game being started.
-        options: The run's options, given the recorded ones in place.
+        options: The run's options, given the recorded ones in place; ``replay_fps`` (local, so
+            never the recording's) picks the FPS source, ``RECORDED_REPLAY_FPS`` when unset.
         use_fastevents: Drain the real queue with pygame.fastevent (``GameEngine.USE_FASTEVENTS``).
 
     Returns:
@@ -1031,6 +1130,9 @@ def start_replay(
         )
     apply_recorded_options(options=options, recorded=sources.header.get(OPTIONS_HEADER_FIELD, {}))
     seed_engine_random(seed=sources.random_seed)
+    sources.fps_source = options.get('replay_fps') or RECORDED_REPLAY_FPS
+    if sources.fps_source == REAL_REPLAY_FPS:
+        LOG.warning(REAL_REPLAY_FPS_NOTICE)
     LOG.info(
         'Replaying %s (%d frames, random seed %d)', path, sources.frame_count, sources.random_seed
     )

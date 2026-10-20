@@ -82,6 +82,16 @@ class LiveSources:
         """
         return measured
 
+    def performance_frame_seconds(self: Self, *, measured: float, frame_seconds: float) -> float:
+        """Live statistics use logic's frame time (the measurement, as frame_seconds returns it).
+
+        Returns:
+            ``frame_seconds``, unchanged.
+
+        """
+        del measured
+        return frame_seconds
+
     def input_snapshot(self: Self) -> InputSnapshot:
         """Read pygame's polled input and every opened device's positions (both layers) now.
 

@@ -84,6 +84,15 @@ class EngineSources(Protocol):
         """Return the frame time logic receives, given the measured start-to-start time."""
         ...
 
+    def performance_frame_seconds(self, *, measured: float, frame_seconds: float) -> float:
+        """Return the frame time FPS events and the performance statistics use.
+
+        ``frame_seconds`` is what ``frame_seconds()`` returned for the same measurement: live
+        play and a ``--replay-fps recorded`` replay use it, a ``--replay-fps real`` replay uses
+        ``measured`` (glitchygames/replay/driver.py).
+        """
+        ...
+
     def input_snapshot(self) -> InputSnapshot:
         """Return this frame's polled input, asked once per frame right after the first pump."""
         ...

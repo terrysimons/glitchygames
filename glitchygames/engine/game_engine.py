@@ -52,6 +52,7 @@ from glitchygames.recording import (
     reset_internal_post_tracking,
 )
 from glitchygames.replay.driver import (
+    REPLAY_FPS_CHOICES,
     REPLAY_UNUSABLE_EXIT_CODE,
     ReplayRefusedError,
     ReplaySources,
@@ -409,6 +410,19 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 'replay a --record-trace recording exactly through the engine, comparing every '
                 'frame with it and reporting the first divergence (default: off)'
             ),
+            default=None,
+        )
+        group.add_argument(
+            '--replay-fps',
+            choices=REPLAY_FPS_CHOICES,
+            help=(
+                'with --replay-trace: post FPS events from the recorded frame times (recorded, '
+                "the default: exact, and compared with the recording) or from this machine's "
+                'measured frame times (real: what this machine achieves; FPS events are then '
+                'not compared, and sprites that draw the FPS value may diverge)'
+            ),
+            # None (not RECORDED_REPLAY_FPS) so that giving it without --replay-trace can be
+            # warned about; start_replay reads None as recorded
             default=None,
         )
         group.add_argument(
@@ -1316,6 +1330,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
+            if options.get('replay_fps') is not None:
+                self.log.warning('--replay-fps is ignored without --replay-trace')
             return None
         if options.get('record_trace') is not None:
             # A recording over a replay needs the replay's event origins and recorded fields
