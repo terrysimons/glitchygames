@@ -1979,31 +1979,39 @@ class SceneManager(SceneInterface, events.EventManager):
             if switches_to_then:
                 redeliver_events(events=session.sources.held_live_events)
                 # The playback scene's posts made after its frame's last pump (update(), its
-                # event handlers, its cleanup above) are still queued: never the live game's
-                discard_scope_posts(posts=self._scope_posts_still_pending(session=session))
+                # event handlers, its cleanup above) are still queued: never the live game's.
+                # The live doors' next read drops them, and they are no longer pending, so
+                # nothing counts them as posted (a scene start's or resume bridge's earlier
+                # events)
+                discard_scope_posts(posts=self._forget_scope_posts_still_pending(session=session))
             self._resume_live_scene(scene=session.live_scene)
         if switches_to_then and session.then is not session.live_scene:
             self.switch_to_scene(session.then)
 
     @staticmethod
-    def _scope_posts_still_pending(*, session: PlaybackSession) -> list[tuple[int, dict[str, Any]]]:
-        """Return the posts a playback scope's code made that no pump returned yet.
+    def _forget_scope_posts_still_pending(
+        *, session: PlaybackSession
+    ) -> list[tuple[int, dict[str, Any]]]:
+        """Take the posts a playback scope's code made that no pump returned yet off the tracker.
 
         After the scope's first pump every pending post is the scope's (its pumps hold the live
         game's and hand the rest to its replay); before it, the live game's posts from before
-        the scope come first and are left to arrive as usual.
+        the scope come first and stay pending, to arrive as usual.
 
         Args:
             session: The scope ending.
 
         Returns:
-            Each post as (type, attributes), in posting order.
+            The posts taken, each as (type, attributes), in posting order.
 
         """
-        pending = list(pending_internal_posts())
-        if session.sources.has_pumped:
-            return pending
-        return pending[len(session.sources.live_posts_before_scope) :]
+        pending = pending_internal_posts()
+        live_post_count = (
+            0 if session.sources.has_pumped else len(session.sources.live_posts_before_scope)
+        )
+        scope_posts = pending[live_post_count:]
+        del pending[live_post_count:]
+        return scope_posts
 
     def _resume_live_scene(self: Self, *, scene: Scene) -> None:
         """Make a stashed scene active again as it was: no setup(), only what is drawn anew.

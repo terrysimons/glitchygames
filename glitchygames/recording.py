@@ -143,7 +143,10 @@ plays a recording to a rebuilt scene, each recorded frame holds what the live se
   not hold them. A replay of the session does not serve the field: it holds and redelivers
   the events the same way from the scope frames' batches. A playback starting on that frame
   (a scene whose first logic frame follows the scope) serves them before its first pump
-  (glitchygames/replay/driver.py, rule 18).
+  (glitchygames/replay/driver.py, rule 18). The playback scene's own posts still queued as the
+  scope ended are not in any batch: the live doors drop them as they read the queue
+  (``sources.discard_scope_posts``), so the recording never holds them, and a replay of the
+  session drops them the same way.
 
 Polled input
 ------------

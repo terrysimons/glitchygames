@@ -14,6 +14,7 @@ import pygame
 
 from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
+from glitchygames.sources import without_discarded_scope_posts
 from glitchygames.state.manager import DiskSaveManager
 from glitchygames.state.sandbox import save_namespace_snapshot
 
@@ -88,7 +89,10 @@ class LiveSources:
         """Nothing to stop for live play."""
 
     def pump_events(self: Self) -> list[pygame.event.Event]:
-        """Take every event from SDL's queue.
+        """Take every event from SDL's queue, but a playback scope's posts left behind.
+
+        A playback scope's own posts still queued when it ended are dropped
+        (``sources.without_discarded_scope_posts``; glitchygames/replay/playback.py, rule 4).
 
         Returns:
             The batch, in queue order.
@@ -98,8 +102,8 @@ class LiveSources:
         # if you're using pygame < 2.2, you'll need to use pygame.fastevent.
         fastevent = getattr(pygame, 'fastevent', None)
         if self._use_fastevents and fastevent is not None:
-            return list(fastevent.get())
-        return list(pygame.event.get())
+            return without_discarded_scope_posts(events=list(fastevent.get()))
+        return without_discarded_scope_posts(events=list(pygame.event.get()))
 
     def frame_seconds(self: Self, *, measured: float) -> float:
         """Live logic receives the measured frame time.

@@ -64,8 +64,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    posts the scope drained and hands back the player's held events (rule 5), drops the
    playback scene's own posts still queued (made after its frame's last pump: in
    ``update()``, an event handler, a supervisor, its cleanup; ``sources.discard_scope_posts``:
-   the next pump's batch loses them, after a session recording recorded them, so a replay of
-   the session drops them the same way), then makes the live scene active again
+   they stop being pending posts, and the live doors' next read of SDL's queue loses them
+   before a recording, the instant-replay journal or the game sees the batch; a replay of the
+   session drops them the same way as its playback scene posts them again), then makes the
+   live scene active again
    exactly as it was (no ``setup()`` again: only its snap mode, event proxies, caption and a
    full redraw), or switches to ``then`` when that is another scene. The frame that ends the
    scope still finishes afterwards, so the restored live frame clock resumes one frame later

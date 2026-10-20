@@ -411,14 +411,15 @@ def take_redelivered_events() -> list[RedeliveredEvent]:
 
 
 def discard_scope_posts(*, posts: list[tuple[int, dict[str, Any]]]) -> None:
-    """Drop these posts from the next pump's batch (``take_discarded_scope_posts``).
+    """Drop these posts from the next read of SDL's queue (``without_discarded_scope_posts``).
 
     A playback scope's scene can post after its frame's last pump (in ``update()``, an event
-    handler, a supervisor, a scene it switched to), so its last posts may still be queued when
-    the scope ends (glitchygames/replay/playback.py, rule 4). They are the playback's, never the
-    live game's: the next pump's batch loses them, once each. They still pass through the doors
-    (a recording of the session records them as internal, and its replay posts them again), so
-    a session replays exactly.
+    handler, a supervisor, its cleanup), so its last posts may still be queued when the scope
+    ends (glitchygames/replay/playback.py, rule 4). They are the playback's, never the live
+    game's: the live doors' next read of the queue loses them, once each, before anything sees
+    the batch (a recording, the instant-replay journal, the game). The scene manager forgets
+    them as pending posts too, so they count as nothing posted. A replay of the session drops
+    them the same way, as its replayed playback scene posts them again.
 
     Args:
         posts: Each post as (type, attributes), as the internal-post tracker holds it.
@@ -427,18 +428,33 @@ def discard_scope_posts(*, posts: list[tuple[int, dict[str, Any]]]) -> None:
     _REGISTRY.discarded_scope_posts.extend(posts)
 
 
-def take_discarded_scope_posts() -> list[tuple[int, dict[str, Any]]]:
-    """Return the posts to drop from the next pump's batch, and forget them.
+def without_discarded_scope_posts(*, events: list[pygame.event.Event]) -> list[pygame.event.Event]:
+    """Return a batch read from SDL's queue without the discarded scope posts, and forget them.
 
-    ``GameEngine._pump_events`` takes them right after the doors' pump.
+    The live doors' pump (glitchygames/live_sources.py, the one reader of SDL's queue) calls it
+    on every batch: each discarded post drops the first event of the batch with its type and
+    attributes, once, and is forgotten either way (one that is not in the batch, its type
+    blocked, is never delivered anyway).
+
+    Args:
+        events: The batch, in queue order.
 
     Returns:
-        Each post as (type, attributes) (usually none).
+        The batch without them (the same list when none are discarded).
 
     """
-    posts = list(_REGISTRY.discarded_scope_posts)
+    if not _REGISTRY.discarded_scope_posts:
+        return events
+    discarded_posts = list(_REGISTRY.discarded_scope_posts)
     _REGISTRY.discarded_scope_posts.clear()
-    return posts
+    kept_events: list[pygame.event.Event] = []
+    for event in events:
+        matching_post = (event.type, event.dict)
+        if matching_post in discarded_posts:
+            discarded_posts.remove(matching_post)
+            continue
+        kept_events.append(event)
+    return kept_events
 
 
 def mark_frames_started() -> None:

@@ -396,6 +396,10 @@ class GoalInUpdateScene(KeyReleaseCountingScene):
             GoalInUpdateScene.requests.append((manager.playback_session is not None, granted))
 
 
+class GoalInUpdatePostingScene(GoalInUpdateScene, PostingCountingScene):
+    """A goal scene that also posts an internal event every tick (matched in a playback)."""
+
+
 class HandlerAddingScene(InstantCountingScene):
     """Adds a breakpoint handler in every setup() (a rebuilt scene's too)."""
 
@@ -1575,6 +1579,30 @@ class TestScopePostsAndTheJournal:
             granted for in_a_scope, granted in GoalInUpdateScene.requests if not in_a_scope
         ]
         assert live_requests == [True]
+
+    def test_a_later_replay_across_a_scope_with_dropped_posts_matches(self, mocker):
+        """The journal resumes after the scope as if the dropped posts had never been made.
+
+        The scene's own posts every tick are matched in the playback: a dropped post counted as
+        an earlier event of the resumed frame would make the next one served, not matched.
+        """
+        mocker.patch.object(GoalInUpdateScene, 'requests', [])
+        with running_scene(GoalInUpdatePostingScene) as manager:
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            assert manager.playback_session is None
+            first_result = manager.last_playback_result
+            assert first_result is not None
+            assert first_result.divergence is None
+            step(manager, frames=JOURNALED_FRAMES)
+            # A second instant replay plays the journal across the first one
+            assert manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None, result.report()
+            assert result.end_reason == 'end_of_recording'
 
 
 class TestFastForwardFrameCount:
