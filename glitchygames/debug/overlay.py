@@ -24,6 +24,12 @@ log: logging.Logger = logging.getLogger('game.debug.overlay')
 DEBUG_FONT_PATH = Path(__file__).parent.parent / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
 DEBUG_FONT_SIZE = 13
 
+# The overlay's keys: SceneManager.on_key_down_event and a watched replay's real keys
+# (glitchygames/replay/driver.py) hand them to DebugOverlay.handle_key
+TOGGLE_KEY = pygame.K_F3
+NEXT_PANEL_KEY = pygame.K_F4
+OVERLAY_KEYS: frozenset[int] = frozenset({TOGGLE_KEY, NEXT_PANEL_KEY})
+
 PERFORMANCE_WINDOW_SECONDS = 5.0
 GRAPH_WINDOW_SECONDS = panels.GRAPH_WINDOW_SECONDS  # the graph's time axis
 FRAME_HISTORY_LENGTH = 5000  # 5 s at up to 1000 FPS
@@ -32,6 +38,16 @@ ONE_PERCENT = 0.01
 # exactly reached (for example 500 frames of 0.007 s sum to 3.500000000000011 s). Without
 # this tolerance the boundary frame would be dropped, so the window would depend on rounding.
 WINDOW_TOLERANCE_SECONDS = 1e-9
+
+
+def load_debug_font() -> pygame.font.Font:
+    """Load the debug text font (``DEBUG_FONT_PATH`` at ``DEBUG_FONT_SIZE``); callers keep it.
+
+    Returns:
+        A new Font (pygame's font module must be initialised).
+
+    """
+    return pygame.font.Font(DEBUG_FONT_PATH, DEBUG_FONT_SIZE)
 
 
 class DebugPanel(enum.Enum):
@@ -80,6 +96,18 @@ class DebugOverlay:
     def toggle(self) -> None:
         """Show the overlay if it is hidden, hide it if it is shown."""
         self.is_visible = not self.is_visible
+
+    def handle_key(self, *, key: int) -> None:
+        """Act on one of ``OVERLAY_KEYS``: ``TOGGLE_KEY`` toggles, ``NEXT_PANEL_KEY`` cycles.
+
+        Args:
+            key (int): The pressed key (any other key does nothing).
+
+        """
+        if key == TOGGLE_KEY:
+            self.toggle()
+        elif key == NEXT_PANEL_KEY:
+            self.cycle_panel()
 
     def cycle_panel(self) -> None:
         """Advance to the next panel in declaration order, wrapping after the last one."""
@@ -212,7 +240,7 @@ class DebugOverlay:
 
         """
         if self._font is None:
-            self._font = pygame.font.Font(DEBUG_FONT_PATH, DEBUG_FONT_SIZE)
+            self._font = load_debug_font()
         font = self._font
         camera = scene.camera
 

@@ -250,10 +250,14 @@ def _backing_surface(size: tuple[int, int]) -> pygame.Surface:
     return backing
 
 
-def _blit_text(
+def blit_text(
     *, surface: pygame.Surface, text_surface: pygame.Surface, position: tuple[int, int]
 ) -> None:
-    """Blit rendered debug text over a translucent backing slightly larger than the text."""
+    """Blit rendered debug text over a translucent backing slightly larger than the text.
+
+    The overlay's text helper, shared with the watched replay's status bar
+    (glitchygames/replay/controls.py).
+    """
     backing = _backing_surface((
         text_surface.get_width() + 2 * TEXT_BACKING_PADDING,
         text_surface.get_height() + 2 * TEXT_BACKING_PADDING,
@@ -278,7 +282,7 @@ def _draw_legend(
             layer_color,
             pygame.Rect(LEGEND_MARGIN, row_top, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE),
         )
-        _blit_text(
+        blit_text(
             surface=surface,
             text_surface=text_surface,
             position=(LEGEND_MARGIN + LEGEND_SWATCH_SIZE + 4, row_top),
@@ -349,7 +353,7 @@ def draw_physics_panel(
         )
 
         velocity_text = f'({round(body.velocity_x)}, {round(body.velocity_y)})'
-        _blit_text(
+        blit_text(
             surface=surface,
             text_surface=font.render(velocity_text, antialias=True, color=ARROW_COLOR),
             position=(sprite_rect.right + 2, sprite_rect.top),
@@ -477,7 +481,7 @@ def draw_camera_panel(
         text_top = min(
             mouse_position[1] + MOUSE_TEXT_OFFSET, surface.get_height() - mouse_text.get_height()
         )
-        _blit_text(surface=surface, text_surface=mouse_text, position=(text_left, text_top))
+        blit_text(surface=surface, text_surface=mouse_text, position=(text_left, text_top))
 
 
 def _draw_text_lines(
@@ -497,7 +501,7 @@ def _draw_text_lines(
             if right_aligned
             else HUD_MARGIN
         )
-        _blit_text(surface=surface, text_surface=text_surface, position=(line_left, line_top))
+        blit_text(surface=surface, text_surface=text_surface, position=(line_left, line_top))
         line_top += HUD_LINE_HEIGHT
     return line_top
 
@@ -632,7 +636,7 @@ def draw_performance_panel(
 
     graph_rect = _draw_frame_time_graph(surface=surface, overlay=overlay, target_fps=target_fps)
     footnote = font.render('overlay drawing included', antialias=True, color=HUD_TEXT_COLOR)
-    _blit_text(
+    blit_text(
         surface=surface,
         text_surface=footnote,
         position=(graph_rect.right - footnote.get_width(), graph_rect.bottom + 2),
@@ -663,7 +667,7 @@ def draw_mode_line(
         antialias=True,
         color=HUD_TEXT_COLOR,
     )
-    _blit_text(
+    blit_text(
         surface=surface,
         text_surface=text_surface,
         position=((surface.get_width() - text_surface.get_width()) // 2, TEXT_BACKING_PADDING),

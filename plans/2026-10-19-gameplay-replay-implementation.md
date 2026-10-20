@@ -25,7 +25,7 @@ replay compares each frame's sprites with the recording. Tooling and in-game pla
 Order: Part 1, then Part 2, then Part 3. Part 3 depends on Part 2: its bundled demo (Task 4) is
 recorded with Part 2's `scripts/record_scripted_session.py` and tested through Part 2's replay
 plugin, its instant replay (Task 6) uses Part 2's `presents_frames()` / `paced_frame_seconds()`
-doors and unpaced pacing path, and its journal test uses `recorded_dt`.
+doors and unpaced pacing path, and its journal test uses `recording.recorded_dt`.
 
 ## Global Constraints
 
@@ -151,6 +151,8 @@ class EngineSources(Protocol):
                   control_events: list[ControlEvent]) -> None: ...           # Part 1 Tasks 2, 10
     def paced_frame_seconds(self) -> float | None: ...                       # Part 2 Task 1
     def hold_frame(self) -> bool: ...                                         # Part 2 Task 2
+    @property
+    def draws_overlay(self) -> bool: ...                                     # Part 2 Task 2
     def draw_overlay(self, *, surface: pygame.Surface) -> None: ...         # Part 2 Task 2
     def presents_frames(self) -> bool: ...                                    # Part 2 Task 3
     @property
@@ -282,13 +284,21 @@ class ReplaySources:   # implements EngineSources
     def pump_events(self, *, real_events: list[pygame.event.Event] | None = None
                     ) -> list[pygame.event.Event]: ...
     def last_batch_origins(self) -> list[str]: ...
-    def recorded_frame_fields(self, *, frame_index: int) -> dict[str, Any]: ...
-    def recorded_dt(self, *, frame_number: int) -> float: ...     # Part 2 Task 2
-    frame_count: int  # read-only property
+    # The recorded frames moved to a collaborator in Part 2 Task 2 (ruff's 20-public-method
+    # limit): frame_count, recorded_frame_fields and recorded_dt are RecordedFrames'
+    recording: RecordedFrames
+    controls: ReplayControls   # Part 2 Task 2 (glitchygames/replay/controls.py); .banner
+    draws_overlay: bool        # Part 2 Task 2: True when watched
     header: dict[str, Any]
     options: ReplayOptions
     is_truncated: bool
     result: ReplayResult  # .report() -> str, .exit_code(*, policy) -> ExitCode (Part 2 Task 1)
+class RecordedFrames:   # ReplaySources.recording (Part 2 Task 2)
+    frame_count: int  # read-only property
+    def frame(self, *, frame_index: int) -> dict[str, Any] | None: ...
+    def recorded_dt(self, *, frame_number: int) -> float: ...
+    def recorded_frame_fields(self, *, frame_index: int) -> dict[str, Any]: ...
+    is_truncated: bool
 def start_replay(*, path: Path, game_class_name: str, options: dict[str, Any],
                  use_fastevents: bool = False) -> ReplaySources: ...
 GameEngine.replay_sources: ReplaySources | None

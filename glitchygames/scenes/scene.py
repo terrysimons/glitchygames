@@ -14,6 +14,7 @@ from glitchygames.clock import frame_clock_seconds
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
+from glitchygames.debug.overlay import OVERLAY_KEYS
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
@@ -43,6 +44,9 @@ LOG = logging.getLogger('game.scenes')
 LOG.addHandler(logging.NullHandler())
 
 JITTER_SAMPLE_BUFFER_MAX_SIZE = 512
+# A held frame (EngineSources.hold_frame: a paused watched replay) waits this long before the
+# doors are asked again, so holding does not spin a CPU core
+HELD_FRAME_WAIT_MILLISECONDS = 16
 SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
 
 # Input dropped while a transition plays (SceneManager._process_transition_events): presses
@@ -593,12 +597,8 @@ class SceneManager(SceneInterface, events.EventManager):
             AttributeError: If neither the active scene nor the game engine has a handler.
 
         """
-        overlay_keys = {pygame.K_F3, pygame.K_F4}
-        if event.key in overlay_keys and not self._active_scene_has_focused_sprite():
-            if event.key == pygame.K_F3:
-                self.debug_overlay.toggle()
-            else:
-                self.debug_overlay.cycle_panel()
+        if event.key in OVERLAY_KEYS and not self._active_scene_has_focused_sprite():
+            self.debug_overlay.handle_key(key=event.key)
             return
         if self.active_scene is not None and hasattr(self.active_scene, 'on_key_down_event'):
             # Recorded before dispatch, so a quit-key release knows this scene saw the press.
@@ -623,8 +623,9 @@ class SceneManager(SceneInterface, events.EventManager):
 
         The display surface always holds the clean frame between presents: a shaken or overlaid
         frame is copied, shifted and drawn on for the flip, then restored. Dirty-rect rendering,
-        screenshots and transition captures therefore never see the shift, the black strips or
-        the debug overlay.
+        screenshots and transition captures therefore never see the shift, the black strips,
+        the debug overlay or the doors' own overlay (a watched replay's status bar, drawn last:
+        ``EngineSources.draw_overlay``).
 
         Args:
             full_update: True to flip the whole display (transitions); False to use the
@@ -635,7 +636,11 @@ class SceneManager(SceneInterface, events.EventManager):
         offset_x, offset_y = self.screen_shake.offset
         pixel_offset = (round(offset_x), round(offset_y))
         overlay_visible = self.debug_overlay.is_visible
-        if self.screen is not None and (pixel_offset != (0, 0) or overlay_visible):
+        sources = active_sources()
+        sources_draw_overlay = sources.draws_overlay
+        if self.screen is not None and (
+            pixel_offset != (0, 0) or overlay_visible or sources_draw_overlay
+        ):
             clean_frame = self.screen.copy()
             if pixel_offset != (0, 0):
                 self.screen.fill(SHAKE_BORDER_COLOR)
@@ -655,6 +660,8 @@ class SceneManager(SceneInterface, events.EventManager):
                         inspected_scene_label=inspected_scene_label,
                     ),
                 )
+            if sources_draw_overlay:
+                sources.draw_overlay(surface=self.screen)
             pygame.display.flip()
             self.screen.blit(clean_frame, (0, 0))
             self._altered_frame_was_presented = True
@@ -898,6 +905,16 @@ class SceneManager(SceneInterface, events.EventManager):
             and self.quit_requested is False
             and not active_sources().stop_requested
         ):
+            # The doors may hold the loop between frames (a paused watched replay): no frame
+            # runs, the last one is presented again with the doors' overlay
+            if active_sources().hold_frame():
+                # Unless the hold ended the run (the viewer quit): nothing more to show
+                if not active_sources().stop_requested:
+                    self._present_held_frame()
+                # The hold is not part of the next frame's measured time
+                frame_start_seconds = time.perf_counter()
+                continue
+
             # Frame pacing using timer backend when available
             timer = getattr(self.game_engine, 'timer', None)
             # The doors may pace the frame themselves (0.0: not at all, in a headless replay)
@@ -925,6 +942,16 @@ class SceneManager(SceneInterface, events.EventManager):
 
         self._log_quit_info()
         return self.terminate()
+
+    def _present_held_frame(self: Self) -> None:
+        """Present the frame again while the doors hold the loop, then wait a little.
+
+        Nothing runs: no events are pumped (the doors read the viewer's keys in ``hold_frame``),
+        no scene updates and the frame clock stands still. The display is flipped whole, with
+        the debug overlay and the doors' overlay drawn on a copy as usual.
+        """
+        self._present_frame(full_update=True)
+        pygame.time.wait(HELD_FRAME_WAIT_MILLISECONDS)
 
     def _finish_frame(
         self: Self,

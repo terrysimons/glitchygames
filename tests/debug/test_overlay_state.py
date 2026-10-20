@@ -1,8 +1,10 @@
 """Tests for the debug overlay state, protocols and rolling frame-time history."""
 
+import pygame
 import pytest
 
 from glitchygames.debug import DebugDrawable, DebugOverlay, DebugPanel, HasPhysicsBody
+from glitchygames.debug.overlay import NEXT_PANEL_KEY, OVERLAY_KEYS, TOGGLE_KEY
 
 
 class TestToggleAndCycle:
@@ -30,6 +32,15 @@ class TestToggleAndCycle:
             DebugPanel.PERFORMANCE,
             DebugPanel.ALL,
         ]
+
+    def test_handle_key_toggles_cycles_and_ignores_other_keys(self):
+        """F3 toggles, F4 cycles, any other key changes nothing (a watched replay's route)."""
+        overlay = DebugOverlay()
+        overlay.handle_key(key=TOGGLE_KEY)
+        overlay.handle_key(key=NEXT_PANEL_KEY)
+        overlay.handle_key(key=pygame.K_a)
+        assert (overlay.is_visible, overlay.panel) == (True, DebugPanel.COLLISION)
+        assert {pygame.K_F3, pygame.K_F4} == OVERLAY_KEYS
 
     def test_shows(self):
         """ALL shows every panel; a single panel shows only itself."""

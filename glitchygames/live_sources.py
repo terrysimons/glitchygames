@@ -101,6 +101,25 @@ class LiveSources:
         """
         return None
 
+    def hold_frame(self: Self) -> bool:
+        """Live play never holds a frame.
+
+        Returns:
+            False.
+
+        """
+        return False
+
+    @property
+    def draws_overlay(self: Self) -> bool:
+        """Live play draws no overlay of its own."""
+        return False
+
+    def draw_overlay(self: Self, *, surface: pygame.Surface) -> None:
+        """Draw nothing (``draws_overlay`` is False, so the scene manager never calls this)."""
+        # Live play has nothing to draw (EngineSources signature)
+        del surface
+
     def input_snapshot(self: Self) -> InputSnapshot:
         """Read pygame's polled input and every opened device's positions (both layers) now.
 

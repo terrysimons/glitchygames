@@ -28,7 +28,7 @@ and a WORLD-space `GhostSprite` draws it later.
 
 See the master plan. Parts 1 and 2 must be complete (master order): Task 4 uses Part 2's
 scripted-session recorder and replay plugin, Task 6 its `presents_frames()` / `paced_frame_seconds()`
-doors and unpaced path, Task 5 its `recorded_dt`; Task 2 creates `tests/replay/__init__.py` only if
+doors and unpaced path, Task 5 its `recording.recorded_dt`; Task 2 creates `tests/replay/__init__.py` only if
 Part 2 did not.
 
 - A rebuilt scene must not depend on state outside what is captured; document in
@@ -890,10 +890,10 @@ def test_journal_as_recording_replays_through_replay_sources():
         step(manager, frames=4)
         header, frames = manager.instant_replay_journal.as_recording()
         sources = ReplaySources(header=header, frames=frames, format_version=3)
-        assert sources.recorded_dt(frame_number=0) == FRAME_SECONDS
+        assert sources.recording.recorded_dt(frame_number=0) == FRAME_SECONDS
 ```
 
-(`ReplaySources.recorded_dt` comes from Part 2 Task 2, which runs before this part.)
+(`ReplaySources.recording.recorded_dt` comes from Part 2 Task 2, which runs before this part.)
 
 Also in `tests/replay/test_instant_replay.py`:
 

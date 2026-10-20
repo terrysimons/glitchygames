@@ -75,11 +75,13 @@ and Replay").
   done.
 - **Part 2, replay tooling** (in progress, `plans/2026-10-19-gameplay-replay-tooling.md`): done:
   `--headless` (Task 1: any run on SDL's dummy drivers; replays then run unpaced, print the
-  divergence report and exit with `ExitCode` members; it replaced the private `--replay-unpaced`).
-  Pending: watched replay controls (starts paused with a "Press Spacebar to Start Game Replay"
-  overlay that also shows how to turn on the debug overlay), `--rebaseline`, and the pytest plugin
-  for recordings. While watched controls are active,
-  KEYDOWN/KEYUP stay unblocked at SDL and reach only the replay controls.
+  divergence report and exit with `ExitCode` members; it replaced the private `--replay-unpaced`);
+  watched replays (Task 2: recorded pacing, `ReplayControls` for Space pause / `.` step / `]` `[`
+  speed / Esc quit, the status bar, pausing at a divergence or the end with the debug overlay on,
+  and the "Press Spacebar to Start Game Replay" start screen with the F3/F4 hint, drawn by the
+  pause screen's `MessageScreen`; KEYDOWN/KEYUP stay unblocked at SDL and reach only the replay
+  controls and the debug overlay). Pending: `,` step back, Home, D, B, S (Tasks 3-4),
+  `--rebaseline`, and the pytest plugin for recordings.
 - **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
   starts, the playback scope (does not block real input at SDL; real input reaches only its "exit
   playback" check), demos (the bundled PaddleSlap demo), instant replay and ghosts.
@@ -88,7 +90,9 @@ and Replay").
   classify the replay's batches with the internal-post tracker, whose pending posts the replay's
   pump already consumed, and would not copy the source recording's saves and device fields. Part 2
   Task 6 (`--rebaseline`) lifts the refusal by wiring `ReplaySources.last_batch_origins()` and
-  `recorded_frame_fields()` into `RecordingSources`.
+  `ReplaySources.recording.recorded_frame_fields()` into `RecordingSources`. A rebaseline replay
+  must be headless (or pass its controls' keys through the recorder): a watched replay holds
+  frames and routes real keys to its controls.
 
 Follow-ups (not in any plan yet):
 

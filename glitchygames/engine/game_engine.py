@@ -1531,7 +1531,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if sources.is_truncated:
             self.log.error(
                 f'Cannot audit {replay_trace_path}: the recording is truncated after '
-                f'{sources.frame_count} complete frames, and an audit needs the whole recording'
+                f'{sources.recording.frame_count} complete frames, and an audit needs the whole '
+                'recording'
             )
             exit_with(exit_code=ExitCode.UNUSABLE_INPUT)
 

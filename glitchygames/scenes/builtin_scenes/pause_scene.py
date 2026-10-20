@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-from glitchygames.color import WHITE
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
     from glitchygames.events.base import HashableEvent
 from glitchygames.sprites import Sprite
+from glitchygames.ui.message_screen import MessageScreen
 
 
 class PauseOverlay(Sprite):
@@ -29,23 +29,12 @@ class PauseOverlay(Sprite):
         # Initialize the sprite with the screenshot dimensions
         super().__init__(x=0, y=0, width=screenshot.get_width(), height=screenshot.get_height())
 
-        # Create a semi-transparent overlay
-        self.overlay = pygame.Surface((game.screen_width, game.screen_height))
-        self.overlay.fill((0, 0, 0))  # Black background
-        self.overlay.set_alpha(128)  # 50% transparency
-
-        # Create the paused text
-        font = pygame.font.Font(None, 72)
-        text_surface = font.render('PAUSED', True, WHITE)  # ruff: ignore[boolean-positional-value-in-call]
-
-        # Center the text on screen
-        text_rect = text_surface.get_rect()
-        text_rect.center = (game.screen_width // 2, game.screen_height // 2)
-
-        # Blit the screenshot first, then overlay, then text
-        self.image = screenshot.copy()
-        self.image.blit(self.overlay, (0, 0))
-        self.image.blit(text_surface, text_rect)
+        # The screenshot dimmed, with PAUSED centred on the game's screen: the shared
+        # pause-style look (the replay's start screen draws the same way;
+        # glitchygames/ui/message_screen.py)
+        self.image = MessageScreen().render(
+            backdrop=screenshot, area_size=(game.screen_width, game.screen_height)
+        )
 
         self.rect = self.image.get_rect()
         self.dirty = 1

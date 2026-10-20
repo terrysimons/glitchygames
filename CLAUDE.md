@@ -318,12 +318,20 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--record-trace` given too (refused until Part 2's `--rebaseline` wires recording over a
   replay). A different engine version only warns. Recorded options apply except
   `REPLAY_LOCAL_OPTIONS`. The first divergence (kinds `scene`, `sprite`, `event`, `length`)
-  stops the replay, as do the last recorded frame and closing the window. The report
+  stops a `--headless` replay, as does the last recorded frame; closing the window stops any
+  replay. A watched replay (no `--headless`; `glitchygames/replay/controls.py`) starts held at a
+  "Press Spacebar to Start Game Replay" screen (the pause screen's `MessageScreen`,
+  `glitchygames/ui/message_screen.py`), paces each frame to its recorded duration over the speed,
+  draws a status bar (`EngineSources.draws_overlay`/`draw_overlay`, never in screenshots or
+  traces) and pauses at a divergence or its end with the debug overlay on; Space pauses, `.`
+  steps, `]`/`[` change speed, Esc quits. Its real KEYDOWN/KEYUP stay unblocked at SDL and go
+  only to its controls (F3/F4 to the debug overlay), never to the game; held frames
+  (`EngineSources.hold_frame`) run nothing and never consume a recorded batch. The report
   (`ReplayResult.report()`: `Replay diverged at frame 6120: sprite Ball#2 rect expected [412,
   300, 16, 16], got [412, 301, 16, 16]`, then that sprite's last 20 frames, expected | got; or
   `Replay matched N frames (end of recording)`) is logged, and every replay that ends normally
   exits with `ReplayResult.exit_code(policy=...)` (the policy and the other replay settings are
-  the frozen pydantic `ReplayOptions`): `SUCCESS` (0) matched or window closed,
+  the frozen pydantic `ReplayOptions`): `SUCCESS` (0) matched or quit early (window closed, Esc),
   `REPLAY_DIVERGED` (1), `UNUSABLE_INPUT` (65) for a truncated recording that matched to its
   cut-off. Recorded window references map to None (live events of the display window carry None).
   Version-2 recordings replay with one warning (polled input reads as idle)

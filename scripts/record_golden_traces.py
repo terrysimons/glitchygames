@@ -716,8 +716,11 @@ def replay_golden_recording(
 
     """
     script = SCRIPT_BUILDERS[game_key]()
+    # Headless: a watched replay would pause at its end (or divergence) instead of stopping
     with _golden_game(
-        game_key, random_seed=RANDOM_SEED, extra_arguments=['--replay-trace', str(path)]
+        game_key,
+        random_seed=RANDOM_SEED,
+        extra_arguments=['--replay-trace', str(path), '--headless'],
     ) as manager:
         engine = manager.game_engine
         assert engine is not None

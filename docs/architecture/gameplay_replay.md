@@ -4,9 +4,10 @@ GlitchyGames can record a play session and replay it exactly through the real en
 engine version and same recording give bit-identical sprite traces: every frame's sprite
 `rect` and `visible` match the recording. Audio is played during a replay but is not compared.
 
-This page covers the replay core: recording, exact replay, headless runs, the determinism audit,
-and the rules game code follows so its sessions replay. Watched-replay controls, rebaselining
-and in-game playback (demos, instant replay, ghosts) are planned. See
+This page covers the replay core: recording, exact replay, watching a replay, headless runs, the
+determinism audit, and the rules game code follows so its sessions replay. More watched-replay
+controls (stepping back, bookmarks), rebaselining and in-game playback (demos, instant replay,
+ghosts) are planned. See
 `plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for what is
 pending.
 
@@ -16,7 +17,7 @@ pending.
 # Record a session
 uv run paddleslap --record-trace session.jsonl.gz
 
-# Replay it exactly, comparing every frame with the recording
+# Watch it replay exactly, comparing every frame with the recording (press Space to start)
 uv run paddleslap --replay-trace session.jsonl.gz
 
 # The same with no window, no sound and no pacing; the report goes to stdout, and the exit
@@ -184,9 +185,10 @@ replays with one warning too: it has no input snapshots, so polled input reads a
 Each frame, the replay serves the recorded events, `dt`, input, devices, saves and clocks. Then
 it compares the frame with the recording: the active scene's class, then each recorded sprite in
 draw order (present, `rect`, `visible`), along with the frame's internal events, control events
-and pump count. The first difference stops the replay. The replay also stops at the last
-recorded frame or when the window is closed. Then it reports how it went (logged, or printed to
-stdout under [`--headless`](#headless-runs-headless)). A sprite divergence lists that sprite in
+and pump count. The first difference stops a headless replay, as does the last recorded frame;
+a [watched replay](#watching-a-replay) pauses there instead. Closing the window stops any
+replay. Then it reports how it went (logged, or printed to stdout under
+[`--headless`](#headless-runs-headless)). A sprite divergence lists that sprite in
 the last 20 frames up to the divergent one, as recorded and as replayed:
 
 ```text
@@ -198,12 +200,12 @@ Ball#2, last 20 frames (expected | got):
 ```
 
 Other divergences (the scene, an event, the frame or pump count) are reported on their one line.
-A replay that matched reports `Replay matched 9800 frames (end of recording)` (or `(the window
-was closed)`), and one that matched up to the cut-off of a truncated recording `Replay ended
+A replay that matched reports `Replay matched 9800 frames (end of recording)` (or `(quit before
+the end)`, when the window was closed or a watched replay's viewer pressed Esc), and one that matched up to the cut-off of a truncated recording `Replay ended
 early at frame 4312: the recording is truncated`.
 
 Every replay that ends normally, watched or headless, exits with its result: `SUCCESS` (0) when
-it matched or the window was closed, `REPLAY_DIVERGED` (1) when it diverged, `UNUSABLE_INPUT`
+it matched or was quit before the end, `REPLAY_DIVERGED` (1) when it diverged, `UNUSABLE_INPUT`
 (65) for a truncated recording. A crash, Ctrl-C, a signal or the game's own exit ends the run
 as for any run, and the report then says only where the replay stopped (`Replay stopped at frame
 12: the run ended with INTERNAL_ERROR (70)`); if the replay had already reached its result, the
@@ -211,13 +213,39 @@ report gives it, then `then the run ended with ...` (see
 [exit codes](#exit-codes)).
 
 While a replay runs, real keyboard, mouse, touch, joystick, controller, device and window events
-are blocked at SDL, so they never reach the game. The block is applied again on every pump
+are blocked at SDL, so they never reach the game (a watched replay leaves key presses and
+releases unblocked for its controls, which never pass them on to the game). The block is applied again on every pump
 (event managers created mid-run allow their types again). Each type's earlier blocked state is
 restored exactly when the replay ends, normally or after an error. QUIT, the window's close event
 and custom event types are never blocked, so closing the window still ends the replay. Blocking
 also refuses posts of those types: game code that fakes input by posting `KEYDOWN` loses the
 post, which shows up as a missing internal event divergence. Recorded window references in
 events are served as `None`, as live events of the display window carry.
+
+### Watching a replay
+
+A replay without `--headless` is watched. It starts held before its first frame on a start
+screen: the first frame's backdrop dimmed, "Press Spacebar to Start Game Replay" centred, and a
+smaller line naming the debug overlay's keys (`F3: debug overlay   F4: next panel`). It is drawn
+by the pause screen's `MessageScreen` (`glitchygames/ui/message_screen.py`) with its own message
+and look, as an overlay on the presented frame: switching to a real pause scene would change the
+recorded scene sequence. Nothing runs while it is held: no frame, no frame clock, no recorded
+input. Each frame is then paced to its recorded duration over the playback speed. The viewer's
+keys go to the replay's controls (`glitchygames/replay/controls.py`), never to the game:
+
+| Key | Action |
+| --- | --- |
+| Space | Start the replay from the start screen, then pause or resume |
+| `.` | While paused, run one frame |
+| `]` / `[` | Double or halve the playback speed (0.25 to 8) |
+| Esc | Quit the replay |
+| F3 / F4 | Toggle the debug overlay / show its next panel |
+
+A status bar at the bottom centre shows `frame 6120 / 9800 · 1:42.0 · ×1 · paused · diverged at
+6120` (the parts that apply), drawn on the presented frame after the debug overlay, so it is never
+in a screenshot or a trace. At a divergence or the end of the recording the replay pauses with
+the debug overlay on and a banner above the status bar (`Diverged at frame 6120: ...` or `End of
+recording`); stepping past the end does nothing, and Esc ends the run with the replay's result.
 
 ### `--replay-fps {recorded,real}`
 
@@ -236,7 +264,8 @@ warning.
 
 A live headless run is paced to the target FPS as usual (an unpaced live frame would last about
 a millisecond of game time) and ends however the game ends. A headless replay is not paced at
-all, since its frame times come from the recording, prints its report to stdout instead of
+all, since its frame times come from the recording, never waits (no start screen, no pause at
+a divergence or the end; its key events stay blocked), prints its report to stdout instead of
 logging it, and exits with its result as above.
 
 ## The determinism audit (`--audit`)

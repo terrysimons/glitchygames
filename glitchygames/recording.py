@@ -841,6 +841,24 @@ class RecordingSources:
         """
         return self.inner.paced_frame_seconds()
 
+    def hold_frame(self) -> bool:
+        """Return whether ``inner`` holds the frame (not recorded: a held frame never runs).
+
+        Returns:
+            True to run no frame now.
+
+        """
+        return self.inner.hold_frame()
+
+    @property
+    def draws_overlay(self) -> bool:
+        """Whether ``inner`` draws an overlay of its own."""
+        return self.inner.draws_overlay
+
+    def draw_overlay(self, *, surface: pygame.Surface) -> None:
+        """Let ``inner`` draw its overlay (never recorded: it is drawn on the presented frame)."""
+        self.inner.draw_overlay(surface=surface)
+
     def input_snapshot(self) -> InputSnapshot:
         """Return ``inner``'s polled input, remembered for this frame's ``input_changes``.
 

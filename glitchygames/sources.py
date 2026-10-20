@@ -96,10 +96,37 @@ class EngineSources(Protocol):
     def paced_frame_seconds(self) -> float | None:
         """Return how long the frame starting now is paced to, asked once per frame.
 
-        ``None`` paces to the target FPS as always (live play, a watched replay); ``0.0`` does
-        not pace at all (a headless replay: its frame times come from the recording, so waiting
-        would only take real time); a positive number of seconds paces to that period instead
-        of the target's (SceneManager._handle_frame_pacing).
+        ``None`` paces to the target FPS as always (live play); ``0.0`` does not pace at all (a
+        headless replay: its frame times come from the recording, so waiting would only take
+        real time); a positive number of seconds paces to that period instead of the target's
+        (a watched replay: the frame's recorded duration over the playback speed;
+        SceneManager._handle_frame_pacing).
+        """
+        ...
+
+    def hold_frame(self) -> bool:
+        """Return True to run no frame now, asked before each frame starts.
+
+        Live play never holds. A watched replay holds at its start screen, while paused (until
+        a step), and at its end or divergence; asking also reads the real keys into the
+        replay's controls (glitchygames/replay/controls.py). ``SceneManager.start`` then
+        presents the frame again and waits a little instead of running one.
+        """
+        ...
+
+    @property
+    def draws_overlay(self) -> bool:
+        """True when ``draw_overlay`` draws anything (a watched replay's status bar).
+
+        ``SceneManager._present_frame`` then presents a copy of each frame with it drawn on,
+        as for the debug overlay; when False it never calls ``draw_overlay``.
+        """
+        ...
+
+    def draw_overlay(self, *, surface: pygame.Surface) -> None:
+        """Draw these doors' own overlay on the presented frame, after the debug overlay.
+
+        Never on a screenshot or a traced frame (SceneManager._present_frame).
         """
         ...
 
