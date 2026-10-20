@@ -42,9 +42,12 @@ On disk (format version 3, which reads version 2 files too) a trace is gzip-comp
 - Any other frame field (a recording's ``dt`` or input events, for example) is written to
   the frame's line unchanged, keyframe or delta.
 - Format version 3 adds the recording fields ``input_changes``, ``control_events``,
-  ``devices_opened``, ``saves_opened`` and ``scene_start`` on frames, and ``saves`` and
-  ``devices`` in the header (named in ``glitchygames/recording.py``). The encoding passes them
-  through like any other field; version 2 files simply lack them.
+  ``devices_opened``, ``saves_opened`` and ``device_enumeration`` on frames, and ``saves``,
+  ``devices`` and ``device_enumeration`` in the header; later fields need no version, as
+  readers pass frame fields they do not use through unchanged: a recording's ``scene_start``
+  and ``redelivered_events`` and an instant-replay journal's ``resume_bridge`` and
+  ``playback_answers`` (all described in ``glitchygames/recording.py``). The encoding passes
+  them through like any other field; version 2 files simply lack them.
 
 Reserved names (the encoding owns them; ``TraceWriter.write_frame`` and ``encode_frame``
 reject a record that uses one, ``TraceWriter`` rejects a header that does):
@@ -117,6 +120,10 @@ RECT_DELTA_FIELD = 'rect_delta'
 FORMAT_VERSION_FIELD = 'format_version'
 FRAMES_FIELD = 'frames'
 RESERVED_HEADER_FIELDS = (FORMAT_VERSION_FIELD, FRAMES_FIELD)
+# The header field naming a bookmarked copy's source (glitchygames/replay/driver.py, rule 16):
+# here, beside the reader, so tools that must tell a copy apart (the replay pytest plugin,
+# glitchygames/testing/replays.py) need not import the engine (is_bookmarked_copy)
+BOOKMARKED_COPY_OF_HEADER_FIELD = 'bookmarked_copy_of'
 
 # zlib wbits for a gzip stream (16 + the 15-bit window)
 GZIP_WINDOW_BITS = 16 + zlib.MAX_WBITS
@@ -935,3 +942,24 @@ def read_trace(*, path: Path) -> dict[str, Any]:
             len(result.trace[FRAMES_FIELD]),
         )
     return result.trace
+
+
+def is_bookmarked_copy(*, path: Path) -> bool:
+    """Report whether a file is a bookmarked copy (its header names the copy's source).
+
+    Args:
+        path: The file.
+
+    Returns:
+        True when it exists, is a readable trace and its header has
+        ``BOOKMARKED_COPY_OF_HEADER_FIELD``.
+
+    """
+    if not path.exists():
+        return False
+    try:
+        with TraceReader(path=path) as reader:
+            return BOOKMARKED_COPY_OF_HEADER_FIELD in reader.header
+    # A TraceFormatError is a ValueError: not a trace, so not a copy
+    except OSError, ValueError:
+        return False

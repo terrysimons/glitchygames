@@ -13,10 +13,14 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   carries its own), plus what ``GameEngine`` adds: game and scene class names (and
   ``game_module``, the game class's module, optional: older recordings lack it), engine,
   pygame and Python versions, every command-line option, the screen size, the start time
-  (``recorded_at``, ISO 8601; a replay's wall clock is this stamp plus its frame clock) and
+  (``recorded_at``, ISO 8601; the recorded run's wall clock, and its replay's, is this stamp
+  plus the frame clock: ``RecordingSources.wall_clock_time``) and
   ``random_seed`` (see ``glitchygames/randomness.py``). And what the run took in before
   recording started (format version 3): ``saves``, a snapshot of every save store opened
-  so far (see Saves below); ``devices``, the descriptors of devices opened so far (``kind``,
+  so far (see Saves below; in a run started with ``--record-trace``, each store as it was
+  first opened, before the first scene's ``setup()`` could write to it:
+  ``LiveSources.first_open_save_snapshots``); ``devices``, the descriptors of devices opened
+  so far (``kind``,
   ``device_index``, ``instance_id``, ``name``, ``guid`` and the axis, button, hat and ball
   counts; glitchygames/input/devices.py); and ``device_enumeration``, the enumeration and
   open answers given so far (``call``, ``device_index``, ``value``, ``error``), in order.
@@ -34,10 +38,14 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   discarded or unhandled is a deterministic function of the batch and the game state, which
   replay re-derives. Pumps after the final recorded frame (while the engine terminates and
   shuts down) belong to no frame and are not recorded.
-- Format version 3 adds seven frame fields, each written only on frames where it is not
-  empty: ``input_changes``, the frame's polled input (see Polled input below) as the fields
-  that changed since the previous frame's snapshot (``glitchygames.input.state.
-  snapshot_changes``; the first frame's against ``IDLE_INPUT``); ``control_events``, the
+- Format version 3 adds five frame fields, and later recordings two more that needed no
+  format version (``scene_start`` and ``redelivered_events``, below), each written only on
+  frames where it is not empty: ``input_changes``, the frame's polled input (see Polled input
+  below) as the fields that changed since the previous frame's snapshot
+  (``glitchygames.input.state.snapshot_changes``; the first frame's against ``IDLE_INPUT``;
+  a change of the held keys holds ``held_key_codes`` too, the key codes they were held as,
+  absent in recordings made before, which then read keys through the replaying machine's
+  keymap); ``control_events``, the
   supervisor actions recorded in the frame, in order (``ControlEvent.to_json``:
   ``{"kind": ..., **data}``; glitchygames/supervision.py); ``devices_opened``, descriptors of
   devices opened in the frame; ``saves_opened``, a snapshot of each save namespace first
@@ -194,6 +202,7 @@ import math
 import numbers
 import weakref
 from collections.abc import Sized
+from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
 
@@ -202,13 +211,16 @@ import pygame
 
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.scene_start import SceneStart, SceneStartCapture
-from glitchygames.sources import has_scoped_sources, pending_redelivered_events
+from glitchygames.sources import (
+    frame_clock_seconds,
+    has_scoped_sources,
+    pending_redelivered_events,
+)
 from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
-    from datetime import datetime
     from pathlib import Path
     from types import TracebackType
 
@@ -260,6 +272,8 @@ RECORDING_FORMAT_THREE_FIELDS = (
 # Header fields format version 3 adds
 SAVES_HEADER_FIELD = 'saves'
 DEVICES_HEADER_FIELD = 'devices'
+# The recording's start time (ISO 8601): the origin of a recorded or replayed run's wall clock
+RECORDED_AT_HEADER_FIELD = 'recorded_at'
 
 # Event record fields and origins
 EVENT_TYPE_FIELD = 'type'
@@ -455,6 +469,26 @@ def _json_safe_object(value: object) -> dict[str, Any]:
         return {REFERENCE_TAG: JOYSTICK_REFERENCE, 'instance_id': value.get_instance_id()}
     value_class = type(value)
     return {UNREPRESENTABLE_TAG: f'{value_class.__module__}.{value_class.__qualname__}'}
+
+
+def recorded_start_time(*, header: Mapping[str, Any]) -> datetime | None:
+    """Return a header's ``recorded_at`` as an aware datetime (UTC when it has no offset).
+
+    A ``recorded_at`` string that is not ISO 8601 raises ``datetime.fromisoformat``'s
+    ValueError.
+
+    Args:
+        header: A recording's header fields.
+
+    Returns:
+        The start time, or None when the header has no ``recorded_at`` string.
+
+    """
+    recorded_at = header.get(RECORDED_AT_HEADER_FIELD)
+    if not isinstance(recorded_at, str):
+        return None
+    start = datetime.fromisoformat(recorded_at)
+    return start if start.tzinfo is not None else start.replace(tzinfo=UTC)
 
 
 def json_safe_value(value: object) -> Any:
@@ -990,6 +1024,8 @@ class RecordingSources:
         self._replayed = replayed
         self.random_seed = inner.random_seed
         self._recorder = recorder
+        # The wall clock's origin (wall_clock_time)
+        self._recorded_at = recorded_start_time(header=recorder.header)
         self._recorded_save_namespaces: set[str] = set(recorder.header.get(SAVES_HEADER_FIELD, {}))
         self._recorded_snapshot: InputSnapshot = IDLE_INPUT
         self._frame_snapshot: InputSnapshot | None = None
@@ -1140,13 +1176,21 @@ class RecordingSources:
         return store
 
     def wall_clock_time(self) -> datetime:
-        """Return ``inner``'s wall-clock time.
+        """Return the recording's start time plus the frame clock: what its replay serves.
+
+        A replay's wall clock is the header's ``recorded_at`` plus its frame clock
+        (glitchygames/replay/driver.py, rule 9), so a recorded run reads the same, and game
+        code that reads the wall clock (a save's timestamp shown on screen) replays exactly.
+        The frame clock sums the frames' real times, so this stays close to the real time. A
+        header without ``recorded_at`` (a recorder made outside the engine) reads ``inner``'s.
 
         Returns:
-            Timezone-aware UTC time.
+            Timezone-aware time.
 
         """
-        return self.inner.wall_clock_time()
+        if self._recorded_at is None:
+            return self.inner.wall_clock_time()
+        return self._recorded_at + timedelta(seconds=frame_clock_seconds())
 
     def control_events_for_frame(self, *, frame_number: int) -> list[ControlEvent]:
         """Return the control events ``inner`` schedules for ``frame_number``.

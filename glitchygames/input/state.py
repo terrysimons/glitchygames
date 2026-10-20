@@ -15,6 +15,17 @@ handlers and everything after the pump read the snapshot captured this frame.
 
 Recordings store only what changed from the previous frame (``snapshot_changes``), so idle
 frames add nothing; ``apply_snapshot_changes`` rebuilds the snapshot.
+
+Keyboard layouts: held keys are captured as SDL scancodes (physical key positions), and a key
+code (pygame.K_*) is looked up through the keymap of the machine that asks, which differs
+between layouts (the key in the A position is K_q on AZERTY). So a recording also holds, with
+each change of the held scancodes, the key codes they were held as (``held_key_codes``: every
+pygame.K_* constant whose scancode is held, by the recording machine's keymap). A snapshot
+rebuilt from a recording answers ``key_pressed`` and ``pressed_keys`` from those key codes, as
+the recording machine did, whatever this machine's layout; a live snapshot (and one rebuilt
+from a recording made before key codes were recorded) looks keys up by scancode through this
+machine's keymap, as pygame does. Key codes pygame has no K_* constant for (keys a layout adds)
+are not recorded: a rebuilt snapshot never reports them held.
 """
 
 from __future__ import annotations
@@ -29,7 +40,7 @@ import pygame
 from pygame.key import ScancodeWrapper
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Collection, Sequence
 
 # Length of pygame.key.get_pressed(): one entry per SDL scancode
 SCANCODE_COUNT = 512
@@ -46,6 +57,20 @@ type ControllerAxes = Mapping[int, tuple[int, ...]]
 type ControllerButtons = Mapping[int, tuple[bool, ...]]
 
 _EMPTY: Mapping[int, Any] = MappingProxyType({})
+
+# Every key code pygame names (pygame.K_*, but K_UNKNOWN): the key codes a recording holds
+NAMED_KEY_CODES: frozenset[int] = frozenset(
+    value
+    for name, value in vars(pygame).items()
+    if name.startswith('K_') and isinstance(value, int) and value != pygame.K_UNKNOWN
+)
+# Indexed by a key code, a ScancodeWrapper looks up the key's scancode through this machine's
+# keymap (SDL_GetScancodeFromKey) and returns the entry there: with each entry its own index,
+# that entry is the scancode itself (live_scancode). pygame types the entries as the held flags
+# get_pressed() gives, so the integers are cast to that type; nothing reads them as flags
+_SCANCODE_OF_KEY_CODE = ScancodeWrapper(cast('tuple[bool, ...]', tuple(range(SCANCODE_COUNT))))
+# SDL_SCANCODE_UNKNOWN: what a key code this keymap has no key for maps to
+UNKNOWN_SCANCODE = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -65,6 +90,10 @@ class InputSnapshot:
             (pygame's Controller.get_axis scale, -32768..32767).
         controller_buttons: Game controller instance id -> buttons held by CONTROLLER_BUTTON_*
             id.
+        held_key_codes: The pygame.K_* codes held, as the keymap of the machine that recorded
+            the snapshot named them (see the module docstring), or None for a live snapshot
+            and one rebuilt from a recording made before they were recorded (keys are then
+            looked up by scancode through this machine's keymap).
 
     """
 
@@ -78,13 +107,17 @@ class InputSnapshot:
     device_hats: DeviceHats = _EMPTY
     controller_axes: ControllerAxes = _EMPTY
     controller_buttons: ControllerButtons = _EMPTY
+    held_key_codes: frozenset[int] | None = None
 
     def __post_init__(self) -> None:
         """Freeze the device mappings and their values (a snapshot never changes).
 
         Each device's values become a tuple, and each hat position a 2-tuple, so a snapshot
-        built from lists (JSON hands lists back) equals one built from tuples.
+        built from lists (JSON hands lists back) equals one built from tuples; the held key
+        codes become a frozenset.
         """
+        if self.held_key_codes is not None:
+            object.__setattr__(self, 'held_key_codes', frozenset(self.held_key_codes))
         object.__setattr__(
             self,
             'device_axes',
@@ -143,6 +176,7 @@ class InputSnapshot:
             and dict(self.device_hats) == dict(other.device_hats)
             and dict(self.controller_axes) == dict(other.controller_axes)
             and dict(self.controller_buttons) == dict(other.controller_buttons)
+            and self.held_key_codes == other.held_key_codes
         )
 
     @override
@@ -167,6 +201,7 @@ class InputSnapshot:
             frozenset(self.device_hats.items()),
             frozenset(self.controller_axes.items()),
             frozenset(self.controller_buttons.items()),
+            self.held_key_codes,
         ))
 
     @functools.cached_property
@@ -178,9 +213,19 @@ class InputSnapshot:
         use (about 10 microseconds; it is immutable, so every caller shares it). The class is
         bound at import (``from pygame.key import ScancodeWrapper``), so code that later replaces
         the ``pygame.key`` module attribute (test mocks) cannot change what this returns.
+
+        A snapshot with ``held_key_codes`` (rebuilt from a recording) holds the scancodes those
+        key codes have in this machine's keymap, so each recorded key code reads as held here,
+        whatever this machine's layout; any other snapshot holds its ``pressed_scancodes``.
         """
+        if self.held_key_codes is None:
+            held_scancodes: Collection[int] = self.pressed_scancodes
+        else:
+            held_scancodes = {live_scancode(key=key) for key in self.held_key_codes} - {
+                UNKNOWN_SCANCODE
+            }
         return ScancodeWrapper(
-            tuple(scancode in self.pressed_scancodes for scancode in range(SCANCODE_COUNT))
+            tuple(scancode in held_scancodes for scancode in range(SCANCODE_COUNT))
         )
 
     def key_pressed(self, key: int) -> bool:
@@ -264,6 +309,40 @@ IDLE_INPUT = InputSnapshot(
 )
 
 _CURRENT: list[InputSnapshot] = [IDLE_INPUT]
+
+
+def live_scancode(*, key: int) -> int:
+    """Return the scancode a key code has in this machine's keymap (SDL initialized).
+
+    Args:
+        key: A pygame.K_* code.
+
+    Returns:
+        The scancode; ``UNKNOWN_SCANCODE`` when this keymap has no key for it (or before
+        pygame.init()).
+
+    """
+    return int(_SCANCODE_OF_KEY_CODE[key])
+
+
+def held_key_codes(*, snapshot: InputSnapshot) -> frozenset[int]:
+    """Return the pygame.K_* codes a snapshot holds (what a recording writes with it).
+
+    Args:
+        snapshot: The snapshot.
+
+    Returns:
+        Its ``held_key_codes`` when it has them (rebuilt from a recording); else every
+        ``NAMED_KEY_CODES`` member whose scancode in this machine's keymap is held.
+
+    """
+    if snapshot.held_key_codes is not None:
+        return snapshot.held_key_codes
+    if not snapshot.pressed_scancodes:
+        return frozenset()
+    return frozenset(
+        key for key in NAMED_KEY_CODES if live_scancode(key=key) in snapshot.pressed_scancodes
+    )
 
 
 def _held_scancodes(*, pressed: Sequence[bool]) -> frozenset[int]:
@@ -367,11 +446,18 @@ def snapshot_changes(*, previous: InputSnapshot, current: InputSnapshot) -> dict
 
     Returns:
         A dict of changed fields; device fields hold only changed devices (None = removed).
+        A change of the held scancodes (or of the held key codes) writes both
+        ``pressed_scancodes`` and ``held_key_codes`` (``held_key_codes()``; see the module
+        docstring).
 
     """
     changes: dict[str, Any] = {}
-    if current.pressed_scancodes != previous.pressed_scancodes:
+    if (
+        current.pressed_scancodes != previous.pressed_scancodes
+        or current.held_key_codes != previous.held_key_codes
+    ):
         changes['pressed_scancodes'] = sorted(current.pressed_scancodes)
+        changes['held_key_codes'] = sorted(held_key_codes(snapshot=current))
     if current.modifiers != previous.modifiers:
         changes['modifiers'] = current.modifiers
     if current.mouse_position != previous.mouse_position:
@@ -419,7 +505,15 @@ def apply_snapshot_changes(*, previous: InputSnapshot, changes: dict[str, Any]) 
     """
     mouse_buttons = changes.get('mouse_buttons', previous.mouse_buttons)
     mouse_position = changes.get('mouse_position', previous.mouse_position)
+    # A recording made before key codes were recorded has none: keys are looked up through
+    # this machine's keymap, as they were then
+    recorded_key_codes = changes.get('held_key_codes')
     return InputSnapshot(
+        held_key_codes=(
+            previous.held_key_codes
+            if recorded_key_codes is None
+            else frozenset(int(key) for key in recorded_key_codes)
+        ),
         pressed_scancodes=frozenset(changes.get('pressed_scancodes', previous.pressed_scancodes)),
         modifiers=int(changes.get('modifiers', previous.modifiers)),
         mouse_position=(int(mouse_position[0]), int(mouse_position[1])),

@@ -21,7 +21,9 @@ output and error together), which holds the divergence report (``Replay diverged
 ``ExitCode.MISSING_INPUT`` are reported as an unusable recording). These fail at collection: a
 directory under ``fixtures/replays/`` that is not a console script, and a recording anywhere under
 ``fixtures/replays/`` that is not directly in a game's directory (directly in ``replays/``, or
-nested deeper).
+nested deeper). A bookmarked copy (a header naming its source, ``bookmarked_copy_of``: what S
+saves beside a recording a watched replay plays; glitchygames/replay/driver.py, rule 16) is not
+collected.
 
 The child replay is ``replay_recording_headless``, which other tests reuse: demos bundled in a
 game's package (``glitchygames/examples/<game>_demos/<name>.jsonl.gz``, listed by
@@ -49,6 +51,7 @@ import pytest
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
+from glitchygames.tracing import is_bookmarked_copy
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -330,6 +333,10 @@ def pytest_collect_file(file_path: Path, parent: pytest.Collector) -> ReplayFile
         file_path.name.endswith(RECORDING_SUFFIX)
         and is_under_replay_fixtures(directory=file_path.parent)
     ):
+        return None
+    # A watched replay's S saves x.bookmarked.jsonl.gz beside a fixture it replays: a viewer's
+    # copy, not a regression test of its own
+    if is_bookmarked_copy(path=file_path):
         return None
     make_file = cast('ReplayFileFactory', ReplayFile.from_parent)
     return make_file(parent=parent, path=file_path)

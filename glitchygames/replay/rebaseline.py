@@ -30,11 +30,13 @@ The rules:
    nothing twice), ``dt``, ``input_changes``, re-applied control events, and each frame's
    ``saves_opened``, ``devices_opened`` and ``device_enumeration`` copied from OLD's frame; and
    the current code's sprites and markers. The header is OLD's (``rebaseline_header``).
-4. Writing: NEW is written to ``NEW.partial`` (``partial_rebaseline_path``) and moved into
-   place once the run ended normally, so NEW is never left half written; a run that a crash,
-   signal or the game's own exit ended early writes nothing (the partial file is removed). If
-   the move fails, the finished partial file is kept, its path logged and printed, and the run
-   exits ``ExitCode.CANNOT_WRITE_OUTPUT``.
+4. Writing: NEW is written to ``NEW.partial`` (``glitchygames.output_files.partial_path``)
+   and moved into place once the run ended normally, so NEW is never left half written; a run
+   that a crash, signal or the game's own exit ended early writes nothing (the partial file is
+   removed). A partial file that cannot be written is refused before the replay starts, on one
+   line, with ``ExitCode.CANNOT_WRITE_OUTPUT`` (``GameEngine._refuse_unwritable_outputs``). If
+   the final move fails, the finished partial file is kept, its path logged and printed, and
+   the run exits ``ExitCode.CANNOT_WRITE_OUTPUT``.
 5. Output: the summary (``RebaselineSummary.describe``) is printed to stdout instead of the
    replay's report, e.g. ``Rebaselined 9800 frames to NEW: 412 frames differ (first at 6120:
    sprite Ball#2 rect expected [412, 300, 16, 16], got [412, 301, 16, 16]); sprites affected:
@@ -44,7 +46,10 @@ The rules:
    exits ``ExitCode.SUCCESS`` (``ReplayExitPolicy.SUCCESS_AFTER_WRITING``) even then: NEW is
    written, and the summary is what the user reviews before using it.
 
-NEW replays on the current code with no divergence.
+NEW replays on the current code with no divergence, as long as the rebaseline replayed all of
+OLD: a truncated OLD gives a truncated NEW (``source_truncated``), whose replay matches to its
+cut-off and exits ``ExitCode.UNUSABLE_INPUT``, as any truncated recording does; and a run that
+ended before OLD's last frame (the lost input of rule 2) records only the frames it ran.
 """
 
 from __future__ import annotations
@@ -57,6 +62,7 @@ from typing import TYPE_CHECKING, Any, Self
 import pygame
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.output_files import partial_path
 from glitchygames.recording import GameplayRecorder, RecordingSources
 from glitchygames.replay.driver import (
     ENGINE_VERSION_HEADER_FIELD,
@@ -69,6 +75,7 @@ from glitchygames.replay.driver import (
     installed_engine_version,
 )
 from glitchygames.sources import active_sources, install_sources
+from glitchygames.tracing import BOOKMARKED_COPY_OF_HEADER_FIELD
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -81,8 +88,6 @@ REBASELINED_FROM_HEADER_FIELD = 'rebaselined_from'
 # Header fields that describe the code that produced the sprites, set to this run's
 PYGAME_VERSION_HEADER_FIELD = 'pygame_version'
 PYTHON_VERSION_HEADER_FIELD = 'python_version'
-# The file NEW is written to before it is moved into place (rule 4)
-PARTIAL_REBASELINE_SUFFIX = '.partial'
 
 
 class RebaselineSummary(BaseModel):
@@ -192,19 +197,6 @@ class RebaselineSummary(BaseModel):
         return differences
 
 
-def partial_rebaseline_path(*, destination: Path) -> Path:
-    """Name the file NEW is written to before it is moved into place (rule 4).
-
-    Args:
-        destination: NEW's file.
-
-    Returns:
-        ``NEW.partial``, next to NEW.
-
-    """
-    return destination.with_name(destination.name + PARTIAL_REBASELINE_SUFFIX)
-
-
 def rebaseline_header(
     *,
     original_header: Mapping[str, Any],
@@ -217,9 +209,11 @@ def rebaseline_header(
     enumeration answers: the replay ran with them, so NEW replays with them), with:
     ``rebaselined_from`` naming OLD, the engine, pygame and Python versions of this run (they
     produced NEW's sprites), ``source_truncated`` when OLD was cut off (NEW then ends as
-    truncated, as OLD's replay did), and no ``input_capture_format_version`` (NEW records the
-    polled input and markers the replay saw, as format 3; a bookmarked copy's
-    ``bookmarked_copy_of`` is kept, as NEW holds the same bookmarks).
+    truncated, as OLD's replay did), no ``input_capture_format_version`` (NEW records the
+    polled input and markers the replay saw, as format 3) and no ``bookmarked_copy_of``: NEW
+    is an original, never a bookmarked copy that S may rewrite in place (it may be moved over
+    a golden fixture); it holds OLD's bookmark breakpoints, which a watched replay of NEW still
+    loads as its bookmarks (glitchygames/replay/driver.py, rule 16).
 
     Args:
         original_header: OLD's header fields (without ``format_version`` and ``frames``).
@@ -232,6 +226,7 @@ def rebaseline_header(
     """
     header = dict(original_header)
     header.pop(INPUT_CAPTURE_FORMAT_HEADER_FIELD, None)
+    header.pop(BOOKMARKED_COPY_OF_HEADER_FIELD, None)
     header[ENGINE_VERSION_HEADER_FIELD] = installed_engine_version()
     header[PYGAME_VERSION_HEADER_FIELD] = pygame.version.ver
     header[PYTHON_VERSION_HEADER_FIELD] = platform.python_version()
@@ -256,10 +251,10 @@ def _path_refusal(*, new_path: Path, old_path: Path) -> str | None:
     """
     if _is_same_file(first=new_path, second=old_path):
         return f'--rebaseline {new_path} would overwrite the recording it replays'
-    partial_path = partial_rebaseline_path(destination=new_path)
-    if _is_same_file(first=partial_path, second=old_path):
+    new_partial_path = partial_path(destination=new_path)
+    if _is_same_file(first=new_partial_path, second=old_path):
         return (
-            f'--rebaseline {new_path} would write its partial file {partial_path} over the '
+            f'--rebaseline {new_path} would write its partial file {new_partial_path} over the '
             'recording it replays'
         )
     return None
@@ -336,7 +331,7 @@ class Rebaseline:
         self._source_path = source_path
         self.destination = destination
         self.write_failed = False
-        self._partial_path = partial_rebaseline_path(destination=destination)
+        self._partial_path = partial_path(destination=destination)
 
     def start_recording(self: Self) -> GameplayRecorder:
         """Open the partial file and install recording doors over the replay (rule 3).

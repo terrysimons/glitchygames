@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
 from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
 from glitchygames.state.manager import DiskSaveManager
+from glitchygames.state.sandbox import save_namespace_snapshot
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -54,11 +55,26 @@ class LiveSources:
         self._devices = LiveDeviceRegistry()
         # Stores games opened, by namespace (opened_save_namespaces)
         self._opened_save_namespaces: dict[str, DiskSaveManager] = {}
+        # Each store as it was first opened, before the game could write to it, in a run that
+        # will be recorded (first_open_save_snapshots)
+        self._first_open_save_snapshots: dict[str, dict[str, Any]] = {}
 
     @property
     def opened_save_namespaces(self: Self) -> Mapping[str, SaveManager]:
         """Every store opened so far, by namespace (read-only; a recording's header)."""
         return MappingProxyType(self._opened_save_namespaces)
+
+    @property
+    def first_open_save_snapshots(self: Self) -> Mapping[str, dict[str, Any]]:
+        """Each store as it was first opened, by namespace (read-only), in a recorded run.
+
+        Kept only while ``captures_scene_starts`` (a run started with ``--record-trace``):
+        recording starts once the first scene is built and set up, so a store that scene wrote
+        to (a ``setup()`` that adds one to a saved count) is in the recording's header as it
+        was before, which is what the replayed scene reads again
+        (``GameEngine.start_trace_recording``). Empty otherwise.
+        """
+        return MappingProxyType(self._first_open_save_snapshots)
 
     @property
     def stop_requested(self: Self) -> bool:
@@ -176,6 +192,8 @@ class LiveSources:
         if store is None:
             store = DiskSaveManager(app_name=namespace)
             self._opened_save_namespaces[namespace] = store
+            if self.captures_scene_starts:
+                self._first_open_save_snapshots[namespace] = save_namespace_snapshot(saves=store)
         return store
 
     def wall_clock_time(self: Self) -> datetime:

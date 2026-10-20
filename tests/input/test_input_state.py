@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import typing
 from typing import TYPE_CHECKING, Any
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 import pygame
 import pytest
 
+from glitchygames.input import state as state_module
 from glitchygames.input.state import (
     IDLE_INPUT,
     SCANCODE_COUNT,
@@ -16,6 +18,7 @@ from glitchygames.input.state import (
     apply_snapshot_changes,
     capture_live_snapshot,
     current_input,
+    held_key_codes,
     set_current_input,
     snapshot_changes,
 )
@@ -191,6 +194,7 @@ class TestFreezing:
             'device_hats',
             'controller_axes',
             'controller_buttons',
+            'held_key_codes',
         }
 
     def test_controller_fields_take_part_in_equality_and_hashing(self):
@@ -244,9 +248,62 @@ class TestChanges:
         ],
     )
     def test_changes_round_trip_through_json(self, current: InputSnapshot):
-        """The changes survive JSON and rebuild exactly the snapshot they came from."""
+        """The changes survive JSON and rebuild the snapshot they came from.
+
+        Held keys come back with the key codes they were held as (this machine's keymap here).
+        """
         changes = json.loads(json.dumps(snapshot_changes(previous=IDLE_INPUT, current=current)))
-        assert apply_snapshot_changes(previous=IDLE_INPUT, changes=changes) == current
+        expected = (
+            dataclasses.replace(current, held_key_codes=held_key_codes(snapshot=current))
+            if current.pressed_scancodes
+            else current
+        )
+        assert apply_snapshot_changes(previous=IDLE_INPUT, changes=changes) == expected
+
+    def test_held_keys_are_recorded_by_key_code_too(self, mocker: MockerFixture):
+        """A recording made on another keyboard layout answers key_pressed as it did there.
+
+        The recording machine's layout swaps A and Q (AZERTY): the key in the A position is
+        K_q there. Replayed on this machine, the held scancode would read as K_a; the recorded
+        key codes keep it K_q.
+        """
+        swapped_layout = {pygame.K_q: pygame.KSCAN_A, pygame.K_a: pygame.KSCAN_Q}
+
+        def recording_machine_scancode(*, key: int) -> int:
+            return swapped_layout.get(key, 0)
+
+        layout = mocker.patch.object(
+            state_module, 'live_scancode', side_effect=recording_machine_scancode
+        )
+        held = snapshot_with(pressed_scancodes=frozenset({pygame.KSCAN_A}))
+        changes = json.loads(json.dumps(snapshot_changes(previous=IDLE_INPUT, current=held)))
+        assert changes['held_key_codes'] == [pygame.K_q]
+        mocker.stop(layout)
+        replayed = apply_snapshot_changes(previous=IDLE_INPUT, changes=changes)
+        assert replayed.key_pressed(pygame.K_q)
+        assert not replayed.key_pressed(pygame.K_a)
+        assert replayed.pressed_keys[pygame.K_q]
+        # The scancode itself is kept as recorded
+        assert replayed.pressed_scancodes == frozenset({pygame.KSCAN_A})
+        released = apply_snapshot_changes(
+            previous=replayed, changes=snapshot_changes(previous=replayed, current=IDLE_INPUT)
+        )
+        assert released.held_key_codes == frozenset()
+        assert not released.key_pressed(pygame.K_q)
+
+    def test_a_recording_without_key_codes_reads_keys_through_this_keymap(self):
+        """Recordings made before key codes were recorded answer as they always did."""
+        replayed = apply_snapshot_changes(
+            previous=IDLE_INPUT, changes={'pressed_scancodes': [LEFT_ARROW_SCANCODE]}
+        )
+        assert replayed.held_key_codes is None
+        assert replayed.key_pressed(pygame.K_LEFT)
+
+    def test_a_live_snapshot_reads_keys_through_this_keymap(self):
+        """Live play is unchanged: a snapshot without key codes looks keys up by scancode."""
+        live = snapshot_with(pressed_scancodes=frozenset({LEFT_ARROW_SCANCODE}))
+        assert live.held_key_codes is None
+        assert held_key_codes(snapshot=live) == frozenset({pygame.K_LEFT})
 
     def test_a_removed_device_is_recorded_and_removed(self):
         """A device that disappears is recorded as None and removed on rebuild."""

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import tomllib
+
 import pygame
 import pytest
 from scripts.record_golden_traces import (
@@ -150,3 +152,12 @@ def test_every_game_has_a_fixture_location():
     assert path.relative_to(PROJECT_ROOT).as_posix() == (
         'tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz'
     )
+
+
+def test_each_fixture_directory_is_the_games_console_script_in_pyproject():
+    """The mapping follows [project.scripts]: each game's entry point is in its module."""
+    with (PROJECT_ROOT / 'pyproject.toml').open('rb') as pyproject_file:
+        console_scripts = tomllib.load(pyproject_file)['project']['scripts']
+    for console_script, game_key in CONSOLE_SCRIPT_GAME_KEYS.items():
+        entry_point_module = console_scripts[console_script].split(':')[0]
+        assert entry_point_module == f'glitchygames.examples.{game_key}'

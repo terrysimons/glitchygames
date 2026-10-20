@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, Self
 
 import pygame
 
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     from glitchygames.effects.shake import ScreenShake
+    from glitchygames.input.devices import DeviceRegistry
 
 log: logging.Logger = logging.getLogger('game.input.rumble')
 
@@ -46,30 +47,53 @@ class RumbleDevice(Protocol):
         ...
 
 
-def connected_rumble_devices(controller_manager: object | None) -> list[RumbleDevice]:
-    """Return every device that can rumble in the current input mode.
+class ConnectedRumbleDevices:
+    """Finds every device that can rumble in the current input mode (the scene manager's).
 
-    Args:
-        controller_manager: GameEngine.controller_manager; None in joystick mode (the
-            pygame-ce default), where joysticks are opened through the devices door
-            (glitchygames/input/devices.py).
-
-    Returns:
-        The devices.
-
+    In joystick mode the joysticks are opened through the devices door
+    (glitchygames/input/devices.py) once, and the same ones are rumbled again while the door
+    reports the same joystick count: each send asks the count (one recorded answer), not every
+    joystick's open again (which a recording would hold, answer and descriptor, on every send).
+    A different count, or other doors (a playback scope's, a new run's), opens them again.
+    Limitation: a joystick swapped for another between two sends, the count unchanged, keeps the
+    first one's handle until the count changes (rumbling it fails quietly).
     """
-    if controller_manager is not None:
-        controllers: dict[int, RumbleDevice] = getattr(controller_manager, 'controllers', {})
-        return list(controllers.values())
-    devices = active_sources().devices()
-    joysticks: list[RumbleDevice] = []
-    for index in range(devices.joystick_count()):
-        try:
-            joysticks.append(devices.open_joystick(device_index=index))
-        except pygame.error:
-            # Unplugged between get_count() and construction; skip it, keep the others
-            log.debug('Joystick %d vanished before it could be opened', index, exc_info=True)
-    return joysticks
+
+    def __init__(self: Self) -> None:
+        """Start with nothing opened."""
+        self._registry: DeviceRegistry | None = None
+        self._joystick_count: int | None = None
+        self._joysticks: list[RumbleDevice] = []
+
+    def find(self: Self, *, controller_manager: object | None) -> list[RumbleDevice]:
+        """Return every device that can rumble now.
+
+        Args:
+            controller_manager: GameEngine.controller_manager; None in joystick mode (the
+                pygame-ce default).
+
+        Returns:
+            The devices: the controller manager's controllers, else the joysticks.
+
+        """
+        if controller_manager is not None:
+            controllers: dict[int, RumbleDevice] = getattr(controller_manager, 'controllers', {})
+            return list(controllers.values())
+        registry = active_sources().devices()
+        joystick_count = registry.joystick_count()
+        if registry is not self._registry or joystick_count != self._joystick_count:
+            self._registry = registry
+            self._joystick_count = joystick_count
+            self._joysticks = []
+            for index in range(joystick_count):
+                try:
+                    self._joysticks.append(registry.open_joystick(device_index=index))
+                except pygame.error:
+                    # Unplugged between get_count() and construction; skip it, keep the others
+                    log.debug(
+                        'Joystick %d vanished before it could be opened', index, exc_info=True
+                    )
+        return list(self._joysticks)
 
 
 @dataclass

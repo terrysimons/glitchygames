@@ -8,7 +8,8 @@ session again, and every frame's sprites are compared with the recorded frame. T
 1. Startup, in one place (``GameEngine.__init__``): once the options are parsed,
    ``start_replay`` reads the recording, refuses a recording of another game
    (``ReplayRefusedError``; the engine logs it and exits with ``ExitCode.UNUSABLE_INPUT``, as
-   for an unreadable file, or ``ExitCode.MISSING_INPUT`` for a missing one;
+   for an unreadable file or a malformed one (``decoded_replay_sources``), or
+   ``ExitCode.MISSING_INPUT`` for a missing one;
    glitchygames/exit_codes.py), warns once about a different engine version, applies the
    recorded options (all but ``REPLAY_LOCAL_OPTIONS``) and seeds the random streams with the
    recorded seed. The engine installs the sources before the first frame; while installed they
@@ -49,7 +50,9 @@ session again, and every frame's sprites are compared with the recorded frame. T
    ``--replay-fps real`` they use this machine's measured frame time, and FPS events are not
    compared (logic still receives the recorded ``dt``).
 5. Input: the frame's snapshot, rebuilt by applying each frame's ``input_changes`` in order
-   (a version-2 recording has none: polled input reads as idle, with one warning).
+   (a version-2 recording has none: polled input reads as idle, with one warning). Held keys
+   answer by the key codes the recording machine held them as, whatever this machine's
+   keyboard layout (glitchygames/input/state.py).
 6. Devices: a ``ReplayDeviceRegistry`` from the header, learning each frame's opened devices
    and enumeration answers when the frame begins (before any open in it is answered).
 7. Saves: a ``MemorySaveManager`` per namespace, seeded from the header's ``saves`` or the
@@ -80,7 +83,10 @@ session again, and every frame's sprites are compared with the recorded frame. T
     frames before it, recorded and replayed (kept by ``end_frame``).
 12. Digests (``--replay-digest PATH``, for ``--audit``: glitchygames/replay/audit.py): each
     compared frame's ``frame_digest`` (of the frame as sampled for rule 8) is kept, and
-    ``finish_run`` writes them with the divergence summary to the digest file.
+    ``finish_run`` writes them with the divergence summary to the digest file. The engine
+    refuses a digest file it cannot write before the run (``ExitCode.CANNOT_WRITE_OUTPUT``);
+    one that cannot be written at the end is logged on one line (``digest_write_failed``), and
+    the run exits ``ExitCode.CANNOT_WRITE_OUTPUT`` once the replay is reported.
 13. Pacing: the scene manager never paces a replay (``paced_frame_seconds`` is 0.0). A
     headless replay (``--headless``) is not paced at all, as its frame times come from the
     recording. A watched replay is paced by its viewer (glitchygames/replay/viewer.py, whose
@@ -124,11 +130,13 @@ session again, and every frame's sprites are compared with the recorded frame. T
     (``write_bookmarked_copy``) to ``bookmarked_copy_path``, with a
     ``{'kind': 'breakpoint', 'label': 'bookmark'}`` control event appended to frame N - 1 (the
     frame whose picture was shown) for each bookmark N (one already there is not added again;
-    other control events are kept). The same bookmarks as the last save are not written again.
-    The copy's header names its source (``bookmarked_copy_of``); only a file with that field is
-    updated in place (written aside and moved in), so an original is never written, even one
-    named like a copy. The copy replays as its source does: a cut-off source gives
-    ``source_truncated`` (the copy ends as truncated) and a version-2 source
+    other control events are kept). The same bookmarks as the last save are not written again
+    (unless that copy was deleted since). The copy's header names its source
+    (``bookmarked_copy_of``); only a file with that field is updated in place (written aside and
+    moved in), so an original is never written, even one named like a copy, nor a copy of
+    another recording; a copy an earlier session saved from the same source keeps its
+    bookmarks (they are added to the viewer's). The copy replays as its source does: a cut-off
+    source gives ``source_truncated`` (the copy ends as truncated) and a version-2 source
     ``input_capture_format_version`` (polled input reads as idle, markers are not compared).
     With no bookmarks nothing is written and the viewer is told so. A breakpoint is re-applied
     on its frame (glitchygames/supervision.py) and is not compared, so the copy replays exactly
@@ -194,10 +202,10 @@ import importlib.metadata
 import itertools
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Final, Literal, Self
+from typing import TYPE_CHECKING, Any, Final, Literal, Self, cast
 
 import pygame
 from pydantic import BaseModel, ConfigDict, Field
@@ -213,6 +221,7 @@ from glitchygames.input.devices import (
 )
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
+from glitchygames.output_files import write_aside_then_replace
 from glitchygames.randomness import seed_engine_random
 from glitchygames.recording import (
     CONTROL_EVENTS_FIELD,
@@ -228,6 +237,7 @@ from glitchygames.recording import (
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
     PLAYBACK_ANSWERS_FIELD,
+    RECORDED_AT_HEADER_FIELD,
     REDELIVERED_EVENTS_FIELD,
     RESUME_BRIDGE_FIELD,
     SAVES_HEADER_FIELD,
@@ -239,6 +249,7 @@ from glitchygames.recording import (
     event_origin,
     event_to_record,
     pending_internal_posts,
+    recorded_start_time,
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
     value_from_json,
@@ -262,6 +273,7 @@ from glitchygames.supervision import (
     ControlEvent,
 )
 from glitchygames.tracing import (
+    BOOKMARKED_COPY_OF_HEADER_FIELD,
     FRAMES_FIELD,
     RECT_FIELD,
     SCENE_FIELD,
@@ -270,8 +282,8 @@ from glitchygames.tracing import (
     TRACE_FORMAT_VERSION,
     StableSpriteIds,
     TraceFormatError,
-    TraceReader,
     TraceReadResult,
+    is_bookmarked_copy,
     read_trace_result,
     sample_scene_frame,
     write_trace,
@@ -365,7 +377,6 @@ GAME_MODULE_HEADER_FIELD = 'game_module'
 # The module name of a file run as a script (python paddleslap.py)
 SCRIPT_MODULE_NAME = '__main__'
 RANDOM_SEED_HEADER_FIELD = 'random_seed'
-RECORDED_AT_HEADER_FIELD = 'recorded_at'
 ENGINE_VERSION_HEADER_FIELD = 'engine_version'
 OPTIONS_HEADER_FIELD = 'options'
 
@@ -389,14 +400,12 @@ BOOKMARK_CONTROL_EVENT = ControlEvent(
 # Header fields a bookmarked copy carries, so it replays as its source does: the source file's
 # name (only a file with it is updated in place), whether the source was cut off (the copy then
 # ends as truncated), and the source's format version when it is older than the copy's (a
-# version-2 source: polled input reads as idle and control events are not compared)
-BOOKMARKED_COPY_OF_HEADER_FIELD = 'bookmarked_copy_of'
+# version-2 source: polled input reads as idle and control events are not compared). The first,
+# BOOKMARKED_COPY_OF_HEADER_FIELD, is glitchygames/tracing.py's (is_bookmarked_copy reads it)
 SOURCE_TRUNCATED_HEADER_FIELD = 'source_truncated'
 INPUT_CAPTURE_FORMAT_HEADER_FIELD = 'input_capture_format_version'
 RECORDING_FILE_SUFFIX = '.jsonl.gz'
 BOOKMARKED_COPY_MARK = '.bookmarked'
-# The file a copy is written to before it is moved into place
-PARTIAL_COPY_SUFFIX = '.partial'
 NO_BOOKMARKS_MESSAGE = 'no bookmarks to save'
 NO_RECORDING_FILE_MESSAGE = 'no recording file to copy the bookmarks into'
 ALREADY_SAVED_MESSAGE = 'bookmarks already saved to {name}'
@@ -602,7 +611,7 @@ class BookmarkedCopy:
         The viewer is told the outcome (``ReplayControls.show_message``), and it is logged.
 
         The same bookmarks as the last save (or as a bookmarked copy being replayed holds) are
-        not written again.
+        not written again, unless that copy has been deleted since.
 
         Returns:
             The copy's path (already saved, or just written), or None when there is no copy:
@@ -617,7 +626,12 @@ class BookmarkedCopy:
         if self._recording_path is None:
             self._controls.show_message(text=NO_RECORDING_FILE_MESSAGE)
             return None
-        if self._saved_path is not None and bookmarks == self._saved_bookmarks:
+        if (
+            self._saved_path is not None
+            and bookmarks == self._saved_bookmarks
+            # A copy deleted since it was saved is written again
+            and self._saved_path.exists()
+        ):
             self._controls.show_message(
                 text=ALREADY_SAVED_MESSAGE.format(name=self._saved_path.name)
             )
@@ -863,15 +877,15 @@ def _recorded_start(*, header: dict[str, Any]) -> datetime:
 
     """
     recorded_at = header.get(RECORDED_AT_HEADER_FIELD)
-    if not isinstance(recorded_at, str):
-        message = f'The recording header has no recorded_at start time (found {recorded_at!r})'
-        raise TraceFormatError(message)
     try:
-        start = datetime.fromisoformat(recorded_at)
+        start = recorded_start_time(header=header)
     except ValueError as error:
         message = f'The recording header recorded_at {recorded_at!r} is not ISO 8601'
         raise TraceFormatError(message) from error
-    return start if start.tzinfo is not None else start.replace(tzinfo=UTC)
+    if start is None:
+        message = f'The recording header has no recorded_at start time (found {recorded_at!r})'
+        raise TraceFormatError(message)
+    return start
 
 
 def _recorded_seed(*, header: dict[str, Any]) -> int:
@@ -1039,12 +1053,16 @@ class ReplaySources:
             after a playback scope (an instant-replay journal's frame; rule 18), else None.
         recorded_playback_answers: The answers the current frame's playback requests got, not
             yet given again (an instant-replay journal's ``playback_answers``; rule 18).
+        digest_write_failed: True once ``finish_run`` could not write the digest file (rule
+            12; the engine then exits ``ExitCode.CANNOT_WRITE_OUTPUT``).
 
     """
 
     # Set for each frame as it begins (_begin_frame)
     frame_bridge: ResumeBridge | None
     recorded_playback_answers: collections.deque[bool]
+    # Set by finish_run when the digest file cannot be written
+    digest_write_failed: bool = False
 
     def __init__(
         self: Self,
@@ -1196,7 +1214,7 @@ class ReplaySources:
         frames = read_result.trace[FRAMES_FIELD]
         is_truncated = is_cut_off(read_result=read_result)
         header = {name: value for name, value in read_result.trace.items() if name != FRAMES_FIELD}
-        return cls(
+        return decoded_replay_sources(
             header=header,
             frames=frames,
             format_version=read_result.format_version,
@@ -1558,11 +1576,22 @@ class ReplaySources:
             self._stop(end_reason=DIVERGED_END_REASON)
         if self.options.digest_path is not None:
             divergence = self.result.divergence
-            write_digest_file(
-                path=self.options.digest_path,
-                digests=self._frame_digests,
-                divergence=None if divergence is None else divergence.describe(),
-            )
+            write_error: OSError | None = None
+            try:
+                write_digest_file(
+                    path=self.options.digest_path,
+                    digests=self._frame_digests,
+                    divergence=None if divergence is None else divergence.describe(),
+                )
+            except OSError as error:
+                write_error = error
+            if write_error is not None:
+                # Logged without a traceback: the message says what failed; the engine reports
+                # the replay, then exits CANNOT_WRITE_OUTPUT (rule 12)
+                LOG.error(
+                    'Could not write the digest file %s: %s', self.options.digest_path, write_error
+                )
+                self.digest_write_failed = True
 
     def _current_frame(self: Self) -> dict[str, Any] | None:
         return self.recording.frame(frame_index=self._frame_index)
@@ -2190,6 +2219,56 @@ def _ids_given_before_start(*, frames: Sequence[dict[str, Any]], start_frame: in
     } - start_ids
 
 
+def decoded_replay_sources(
+    *,
+    header: dict[str, Any],
+    frames: Sequence[dict[str, Any]],
+    format_version: int,
+    is_truncated: bool = False,
+    options: ReplayOptions = DEFAULT_REPLAY_OPTIONS,
+) -> ReplaySources:
+    """Make replay sources from a decoded recording, refusing a malformed one (rule 1).
+
+    What the sources decode as they are made (the header's devices, enumeration answers and
+    saves, the frames before the start frame and the start frame itself: their devices, saves,
+    input changes and resume bridge) is checked here, so a malformed recording raises
+    TraceFormatError, which the engine refuses with ``ExitCode.UNUSABLE_INPUT`` as it does an
+    unreadable file (``ReplaySources.from_path``), and a playback refuses as it does any
+    recording it cannot play (``playback_replay_sources``).
+
+    Args:
+        header: The header fields.
+        frames: Every complete recorded frame, decoded.
+        format_version: The file's format version (2 or 3).
+        is_truncated: True when the file was cut off.
+        options: How the replay is run.
+
+    Returns:
+        The sources.
+
+    Raises:
+        TraceFormatError: If the header has no seed or start time, or what the sources decode
+            is malformed.
+
+    """
+    try:
+        return ReplaySources(
+            header=header,
+            frames=frames,
+            format_version=format_version,
+            is_truncated=is_truncated,
+            options=options,
+        )
+    except TraceFormatError:
+        # Already says what is wrong (a header without its seed or start time)
+        raise
+    # A pydantic ValidationError (a resume bridge) is a ValueError
+    except (AttributeError, KeyError, TypeError, ValueError) as error:
+        where = '' if options.start_frame == 0 else f' before frame {options.start_frame}'
+        message = f'The recording is malformed{where}: {error!r}'
+        raise TraceFormatError(message) from error
+
+
 def playback_replay_sources(
     *, header: dict[str, Any], frames: Sequence[dict[str, Any]], start: SceneStart, start_frame: int
 ) -> ReplaySources:
@@ -2212,33 +2291,28 @@ def playback_replay_sources(
             ``<Class>#<n>``, an unreadable device descriptor or input change).
 
     """
-    saves = {**header.get(SAVES_HEADER_FIELD, {}), **start.saves}
+    header_saves: object = header.get(SAVES_HEADER_FIELD, {})
+    if not isinstance(header_saves, dict):
+        message = f'The recording header saves is not a mapping: {header_saves!r}'
+        raise TraceFormatError(message)
+    saves: dict[str, Any] = {**cast('dict[str, Any]', header_saves), **start.saves}
     first_logic_frame = start.first_logic_frame
-    try:
-        return ReplaySources(
-            header={**header, SAVES_HEADER_FIELD: saves},
-            frames=frames,
-            # Only recordings that hold scene starts can be played, and those are this format's
-            format_version=TRACE_FORMAT_VERSION,
-            # Nobody watches a playback's replay: it never holds or pauses and stops at its end
-            # or first divergence (the scope ends then)
-            options=ReplayOptions(
-                headless=True,
-                start_frame=start_frame,
-                serves_redelivered_events=True,
-                earlier_internal_event_count=(
-                    0
-                    if first_logic_frame is None
-                    else first_logic_frame.earlier_internal_event_count
-                ),
+    return decoded_replay_sources(
+        header={**header, SAVES_HEADER_FIELD: saves},
+        frames=frames,
+        # Only recordings that hold scene starts can be played, and those are this format's
+        format_version=TRACE_FORMAT_VERSION,
+        # Nobody watches a playback's replay: it never holds or pauses and stops at its end
+        # or first divergence (the scope ends then)
+        options=ReplayOptions(
+            headless=True,
+            start_frame=start_frame,
+            serves_redelivered_events=True,
+            earlier_internal_event_count=(
+                0 if first_logic_frame is None else first_logic_frame.earlier_internal_event_count
             ),
-        )
-    except TraceFormatError:
-        # Already says what is wrong (a header without its seed or start time)
-        raise
-    except (AttributeError, KeyError, TypeError, ValueError) as error:
-        message = f'The recording is malformed before frame {start_frame}: {error!r}'
-        raise TraceFormatError(message) from error
+        ),
+    )
 
 
 def is_cut_off(*, read_result: TraceReadResult) -> bool:
@@ -2272,26 +2346,6 @@ def recorded_bookmarks(*, frames: Sequence[Mapping[str, Any]]) -> list[int]:
     ]
 
 
-def is_bookmarked_copy(*, path: Path) -> bool:
-    """Report whether a file is a bookmarked copy (its header names the copy's source).
-
-    Args:
-        path: The file.
-
-    Returns:
-        True when it exists, is a readable recording and has ``bookmarked_copy_of``.
-
-    """
-    if not path.exists():
-        return False
-    try:
-        with TraceReader(path=path) as reader:
-            return BOOKMARKED_COPY_OF_HEADER_FIELD in reader.header
-    # A TraceFormatError is a ValueError: not a recording, so not a copy
-    except OSError, ValueError:
-        return False
-
-
 def bookmarked_copy_path(*, recording_path: Path) -> Path:
     """Name the bookmarked copy of a recording (rule 16), next to it.
 
@@ -2322,8 +2376,10 @@ def write_bookmarked_copy(*, recording_path: Path, bookmarks: list[int], destina
     N - 1 gets ``BOOKMARK_CONTROL_EVENT`` appended to its control events, unless it already has
     it. The header gains ``bookmarked_copy_of`` (the source's file name, kept from a copy),
     ``source_truncated`` when the source was cut off, and ``input_capture_format_version``
-    when the source is older than format version 3, so the copy replays as its source does. The
-    copy is written to ``destination`` plus ``PARTIAL_COPY_SUFFIX``, then moved into place, so
+    when the source is older than format version 3, so the copy replays as its source does. A
+    copy an earlier session saved from the same source keeps its bookmarks: they are added to
+    ``bookmarks`` (a copy of another recording is never written over). The copy is written
+    aside, then moved into place (``glitchygames.output_files.write_aside_then_replace``), so
     ``destination`` is never left half written, even when it is ``recording_path``.
 
     Args:
@@ -2335,13 +2391,15 @@ def write_bookmarked_copy(*, recording_path: Path, bookmarks: list[int], destina
             copy.
 
     Raises:
-        ValueError: If ``destination`` exists but is not a bookmarked copy, or a bookmark is
-            outside the recording (nothing is written either way).
+        ValueError: If ``destination`` exists but is not a bookmarked copy of
+            ``recording_path``, or a bookmark is outside the recording (nothing is written
+            either way).
 
     """
-    if destination.exists() and not is_bookmarked_copy(path=destination):
-        message = f'{destination} is not a bookmarked copy; refusing to write over it'
-        raise ValueError(message)
+    bookmarks = sorted({
+        *bookmarks,
+        *_earlier_copy_bookmarks(recording_path=recording_path, destination=destination),
+    })
     read_result = read_trace_result(path=recording_path)
     trace = read_result.trace
     frames: list[dict[str, Any]] = trace[FRAMES_FIELD]
@@ -2363,12 +2421,44 @@ def write_bookmarked_copy(*, recording_path: Path, bookmarks: list[int], destina
         trace[SOURCE_TRUNCATED_HEADER_FIELD] = True
     if read_result.format_version < TRACE_FORMAT_VERSION:
         trace.setdefault(INPUT_CAPTURE_FORMAT_HEADER_FIELD, read_result.format_version)
-    partial_path = destination.with_name(destination.name + PARTIAL_COPY_SUFFIX)
-    try:
-        write_trace(trace=trace, path=partial_path)
-        partial_path.replace(destination)
-    finally:
-        partial_path.unlink(missing_ok=True)
+    write_aside_then_replace(
+        destination=destination, write=lambda aside: write_trace(trace=trace, path=aside)
+    )
+
+
+def _earlier_copy_bookmarks(*, recording_path: Path, destination: Path) -> list[int]:
+    """Return the bookmarks a copy an earlier session saved holds, to keep them (rule 16).
+
+    Args:
+        recording_path: The recording being copied.
+        destination: The copy's path.
+
+    Returns:
+        The bookmarks of ``destination`` when it is a bookmarked copy of ``recording_path``
+        saved earlier; none when it does not exist or is ``recording_path`` itself (a copy
+        being replayed, whose frames already hold them).
+
+    Raises:
+        ValueError: If ``destination`` exists but is not a bookmarked copy, or is a copy of
+            another recording.
+
+    """
+    if not destination.exists():
+        return []
+    if not is_bookmarked_copy(path=destination):
+        message = f'{destination} is not a bookmarked copy; refusing to write over it'
+        raise ValueError(message)
+    if destination.resolve() == recording_path.resolve():
+        return []
+    copy = read_trace_result(path=destination).trace
+    copy_of = copy.get(BOOKMARKED_COPY_OF_HEADER_FIELD)
+    if copy_of != recording_path.name:
+        message = (
+            f'{destination} is a bookmarked copy of {copy_of}, not of {recording_path.name}; '
+            'refusing to write over it'
+        )
+        raise ValueError(message)
+    return recorded_bookmarks(frames=copy[FRAMES_FIELD])
 
 
 def installed_engine_version() -> str | None:

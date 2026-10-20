@@ -15,6 +15,7 @@ import pytest
 from scripts.record_scripted_session import fixture_path
 
 from glitchygames.exit_codes import ExitCode
+from glitchygames.replay.driver import write_bookmarked_copy
 from glitchygames.testing.replays import (
     BUNDLED_DEMO_DIRECTORY_SUFFIX,
     REPLAY_FIXTURES_PATH_PARTS,
@@ -147,6 +148,22 @@ def test_other_files_are_not_collected(pytester):
 
     # Only fixtures/replays/paddleslap/rally.jsonl.gz
     result.assert_outcomes(passed=1)
+
+
+def test_a_bookmarked_copy_is_not_collected(pytester):
+    """S on a watched fixture writes x.bookmarked.jsonl.gz beside it: not a regression test."""
+    fixture = copy_fixture_into(
+        pytester=pytester, console_script='paddleslap', name='rally.jsonl.gz'
+    )
+    copy = fixture.with_name('rally.bookmarked.jsonl.gz')
+    write_bookmarked_copy(recording_path=fixture, bookmarks=[2], destination=copy)
+
+    collected = run_pytest(
+        pytester=pytester, arguments=('--collect-only', '-q', FIXTURES_DIRECTORY_NAME)
+    )
+
+    collected.stdout.fnmatch_lines(['fixtures/replays/paddleslap/rally.jsonl.gz::paddleslap/rally'])
+    collected.stdout.no_fnmatch_line('*rally.bookmarked*')
 
 
 def test_misplaced_recordings_fail_at_collection(pytester):

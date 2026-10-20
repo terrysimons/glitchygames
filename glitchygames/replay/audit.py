@@ -47,7 +47,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import TimeoutExpired, run_command, with_options_appended
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -225,11 +225,15 @@ def audit_command(*, original_argv: Sequence[str]) -> list[str]:
 
     Returns:
         The same command run by this interpreter (``sys.executable``, so a relative interpreter
-        name needs no PATH lookup), with ``AUDIT_CHILD_ARGUMENTS`` added: ``--no-audit``
+        name needs no PATH lookup), with ``AUDIT_CHILD_ARGUMENTS`` added after its options
+        (before any bare ``--``: ``glitchygames.process.with_options_appended``): ``--no-audit``
         overrides the ``--audit`` given earlier, as the last occurrence of an option wins.
 
     """
-    return [sys.executable, *original_argv[1:], *AUDIT_CHILD_ARGUMENTS]
+    return [
+        sys.executable,
+        *with_options_appended(arguments=original_argv[1:], appended=AUDIT_CHILD_ARGUMENTS),
+    ]
 
 
 def environment_reaches_children() -> bool:
@@ -276,7 +280,9 @@ def _run_replay_subprocess(
     environment = {**os.environ, 'PYTHONHASHSEED': hash_seed}
     try:
         process = run_command(
-            command=[*command, REPLAY_DIGEST_ARGUMENT, str(digest_path)],
+            command=with_options_appended(
+                arguments=command, appended=[REPLAY_DIGEST_ARGUMENT, str(digest_path)]
+            ),
             environment=environment,
             timeout_seconds=timeout_seconds,
         )

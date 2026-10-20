@@ -36,6 +36,7 @@ from glitchygames.bitmappy.sprite_inspection import (
     load_ai_training_data,
 )
 from glitchygames.bitmappy.utils import detect_file_format, resource_path
+from glitchygames.engine.game_engine import exit_on_signal
 from glitchygames.exit_codes import ExitCode
 from tests.mocks import MockFactory
 
@@ -1182,8 +1183,11 @@ class TestAiWorkerShutdown:
         mocker.patch.object(bitmappy, 'load_ai_training_data')
         engine_class = mocker.patch.object(bitmappy, 'GameEngine')
 
+        handlers_while_running: dict[int, object] = {}
+
         # The signal arrives while the engine runs
         def deliver_signal_while_running():
+            handlers_while_running.update(installed_handlers)
             logged_before_handler = len(caplog.records)
             try:
                 installed_handlers[signal.SIGTERM](signal.SIGTERM, None)
@@ -1198,7 +1202,13 @@ class TestAiWorkerShutdown:
 
         assert exit_info.value.code == ExitCode.TERMINATED
         assert f'Received signal {signal.SIGTERM}' in caplog.text
-        assert set(installed_handlers) == {signal.SIGINT, signal.SIGTERM}
+        # The engine's handler (glitchygames/engine/game_engine.py), whose re-entry guard
+        # ignores a repeated signal while the run tears down
+        assert handlers_while_running == {
+            signal.SIGINT: exit_on_signal,
+            signal.SIGTERM: exit_on_signal,
+        }
+        assert installed_handlers[signal.SIGTERM] == signal.SIG_IGN
         shut_down_workers.assert_called_once_with()
 
     def test_shutdown_sends_the_message_and_joins_without_terminating(self, mocker):

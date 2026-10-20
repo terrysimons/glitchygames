@@ -60,6 +60,7 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
+from glitchygames.testing.replays import EXAMPLES_PACKAGE, console_script_in_module
 from scripts.record_golden_traces import (
     GAME_SCENES,
     PROJECT_ROOT,
@@ -85,12 +86,15 @@ REPLAY_FIXTURE_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
 REPLAY_FIXTURE_SUFFIX = '.jsonl.gz'
 DEFAULT_FIXTURE_NAME = 'golden'
 
-# Console script (pyproject.toml [project.scripts], the fixture's directory name) -> game key
+# Console script (pyproject.toml [project.scripts], the fixture's directory name) -> game key:
+# the installed console script whose entry point is in the game's module
+# (glitchygames.examples.<game key>), found as the replay pytest plugin finds it, so
+# [project.scripts] is the one list
 CONSOLE_SCRIPT_GAME_KEYS: dict[str, str] = {
-    'clockwork-keep': 'clockwork_keep',
-    'brave-adventurer': 'brave_adventurer',
-    'brave-adventurer-papyrus': 'brave_adventurer_papyrus',
-    'paddleslap': 'paddleslap',
+    console_script: game_key
+    for game_key in SCRIPT_BUILDERS
+    if (console_script := console_script_in_module(module=f'{EXAMPLES_PACKAGE}.{game_key}'))
+    is not None
 }
 
 

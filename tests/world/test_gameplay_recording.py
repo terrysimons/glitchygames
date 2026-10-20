@@ -32,6 +32,7 @@ from scripts.record_golden_traces import (
     record_trace,
 )
 
+from glitchygames.effects.shake import Shake, ShakeStyle
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
 from glitchygames.examples import paddleslap
@@ -1085,6 +1086,56 @@ class TestRecordingEdgeCases:
 
         header = read_trace_result(path=path).trace
         assert header[SAVES_HEADER_FIELD]['other-doors']['progress']['data'] == {'level': 4}
+
+    def test_an_unwritable_recording_is_refused_before_the_game_runs(
+        self, mocker, tmp_path, caplog
+    ):
+        """--record-trace into a directory: CANNOT_WRITE_OUTPUT with one line, no frame run."""
+        recording_path = tmp_path / 'a-directory.jsonl.gz'
+        recording_path.mkdir()
+        caplog.clear()
+        with engine_run_environment(mocker), pytest.raises(SystemExit) as exit_info:
+            run_engine('--record-trace', str(recording_path))
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+        refusals = [record for record in caplog.records if 'Cannot write' in record.getMessage()]
+        assert len(refusals) == 1
+        assert '--record-trace' in refusals[0].getMessage()
+        assert refusals[0].exc_info is None
+        assert Script.logic_dts == []
+
+    def test_a_recording_check_leaves_no_file_behind(self, tmp_path):
+        """Checking that the recording can be written does not leave an empty file."""
+        recording_path = tmp_path / 'new-directory' / 'session.jsonl.gz'
+        with constructed_engine('--record-trace', str(recording_path)):
+            assert not recording_path.exists()
+            assert recording_path.parent.is_dir()
+
+    def test_a_new_engine_begins_a_fresh_run_on_the_singleton_scene_manager(self, mocker):
+        """Nothing an earlier run left on the scene manager carries into the next run."""
+        manager = GoldenTraceSceneManager.install()
+        try:
+            manager.frame_number = 7
+            manager.quit_requested = True
+            manager._timer_prev_deadline_ns = 123
+            manager._display_is_stale = True
+            manager._last_playback_result = mocker.Mock()
+            manager._last_playback_outcome = mocker.Mock()
+            manager.screen_shake.add(
+                Shake(style=ShakeStyle.JITTER, strength=4.0, duration=10.0, frequency=30.0)
+            )
+            manager.add_supervisor(supervisor=mocker.Mock())
+            with command_line(['--log-level', 'warning']):
+                GoldenTraceEngine(game=DepartureRecordedScene)
+            assert manager.frame_number == 0
+            assert manager.quit_requested is False
+            assert manager._timer_prev_deadline_ns is None
+            assert manager._display_is_stale is False
+            assert manager.last_playback_result is None
+            assert manager.last_playback_outcome is None
+            assert not manager.screen_shake.is_active
+            assert manager._supervisors == []
+        finally:
+            GoldenTraceSceneManager.uninstall()
 
     def test_stop_without_a_recording_does_nothing(self):
         """stop_trace_recording is safe to call when nothing is recording (every teardown)."""

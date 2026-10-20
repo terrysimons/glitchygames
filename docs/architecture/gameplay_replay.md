@@ -82,7 +82,10 @@ Read time from `glitchygames/clock.py` or `Scene.game_time`, never from `time`, 
 | `measured_seconds()` | real durations for logs and metrics only |
 
 `elapsed_seconds()` is the frame clock, live and in a replay, so a throttle near its threshold
-decides the same way both times; such timers advance once per frame. `measured_seconds()` is real
+decides the same way both times; such timers advance once per frame. In a recorded run (and its
+replay) `wall_clock_time()` is the recording's start time (`recorded_at`) plus the frame clock,
+so a timestamp the game shows replays exactly; live play without recording reads the real wall
+clock. `measured_seconds()` is real
 monotonic time and is never replayed: never let its value change what is drawn, played or
 recorded.
 
@@ -115,6 +118,11 @@ polling pygame had). Devices are keyed by instance id. A game controller is read
 its joystick view (`axis`, `button`, `hat`) and the controller layer (`controller_axis`,
 `controller_button`).
 
+Held keys are physical positions (scancodes), and a key code depends on the keyboard layout (the
+key in the A position is `K_q` on AZERTY). A recording therefore also holds the key codes the
+held keys had on the recording machine, and a replay answers `key_pressed(pygame.K_q)` as that
+machine did, whatever the replaying machine's layout. Only pygame's `K_*` key codes are recorded.
+
 ### Devices
 
 Enumerate and open joysticks and controllers only through `active_sources().devices()`
@@ -132,7 +140,10 @@ plugged in.
 Open a save store with `glitchygames.state.open_saves(app_name=...)`. Live play gets a
 `DiskSaveManager`. A replay gets a `MemorySaveManager` seeded from the recording's snapshot of
 that namespace: reads see what the original session saw, writes stay in memory, and real saves
-are never touched. Both are `SaveManager`s, which hold every rule of the save format.
+are never touched. Both are `SaveManager`s, which hold every rule of the save format. A
+recording's header holds each store as it was first opened, so a first scene whose `setup()`
+writes to its saves (adds one to a play count) replays from the saves it found. Slots saved at
+the same time are listed by name, so `list_slots()` gives the same order everywhere.
 
 ### Events and randomness
 
@@ -244,7 +255,10 @@ it matched or was quit before the end, `REPLAY_DIVERGED` (1) when it diverged, `
 as for any run, and the report then says only where the replay stopped (`Replay stopped at frame
 12: the run ended with INTERNAL_ERROR (70)`); if the replay had already reached its result, the
 report gives it, then `then the run ended with ...` (see
-[exit codes](#exit-codes)).
+[exit codes](#exit-codes)). The game's own successful exit (`sys.exit(0)`) before the replay
+reached its result exits `REPLAY_DIVERGED` (1), never `SUCCESS`, which would say it matched.
+A recording whose header or first frame cannot be decoded (a malformed device, saves or input
+field) is refused as unusable (`UNUSABLE_INPUT`, 65), like an unreadable file.
 
 While a replay runs, real keyboard, mouse, touch, joystick, controller, device and window events
 are blocked at SDL, so they never reach the game (a watched replay leaves key presses and
@@ -331,7 +345,9 @@ copy of the recording next to it, `x.bookmarked.jsonl.gz` for `x.jsonl.gz`, with
 `{"kind": "breakpoint", "label": "bookmark"}` control event added to frame N - 1 (the frame whose
 picture was shown) for each bookmark, and logs where. With no bookmarks it writes nothing and
 says `no bookmarks to save`. Saving the same bookmarks again writes nothing
-(`bookmarks already saved to ...`).
+(`bookmarks already saved to ...`), unless that copy was deleted since. A copy an earlier session
+saved from the same recording keeps its bookmarks: a new save adds to them. A file of that name
+that is a copy of another recording is never written over.
 
 The copy's header names its source (`bookmarked_copy_of`), and only a file with that field is
 ever updated in place. The original recording is never written, even one you named
@@ -476,7 +492,11 @@ writes what that code did to NEW: the same inputs and a new picture. The contrac
 - NEW is written to `NEW.partial` and moved into place only when the run ends normally; a run
   that crashes or is interrupted writes nothing. If the move fails (say NEW is a directory),
   the finished `NEW.partial` is kept, its path logged and printed, and the run exits
-  `CANNOT_WRITE_OUTPUT` (73). NEW is never OLD, and `NEW.partial` is never OLD either.
+  `CANNOT_WRITE_OUTPUT` (73). NEW is never OLD, and `NEW.partial` is never OLD either. A
+  `NEW.partial` that cannot be written at all is refused before the replay starts, with one
+  line and `CANNOT_WRITE_OUTPUT` (73), as is an unwritable `--record-trace` or
+  `--replay-digest` file. NEW is an original, never a bookmarked copy (OLD's
+  `bookmarked_copy_of` is dropped), so S on a replay of NEW never rewrites it.
 - It prints one line to stdout and exits `SUCCESS` (0):
 
 ```text
@@ -495,7 +515,9 @@ quietly), when NEW or `NEW.partial` is OLD's file, and with `--record-trace`, `-
 events from this machine's frame times would become the baseline). An unusable OLD is
 refused like any replay (`UNUSABLE_INPUT`, `MISSING_INPUT`).
 
-NEW replays on the current code with no divergence. Replacing a golden fixture with it stays a
+NEW replays on the current code with no divergence when the rebaseline replayed all of OLD: a
+truncated OLD gives a truncated NEW, whose replay matches up to its cut-off and exits
+`UNUSABLE_INPUT` (65) like any truncated recording. Replacing a golden fixture with it stays a
 deliberate, reviewed step: read the summary, check the change is the intended one, then move
 NEW over the fixture yourself.
 

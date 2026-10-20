@@ -300,6 +300,18 @@ class TestListSlots:
         )
         assert [slot.name for slot in saves.list_slots()] == ['slot_1', 'old']
 
+    def test_slots_saved_at_the_same_time_are_listed_by_name(self, tmp_path: Path, mocker) -> None:
+        """Ties are listed by name, whatever order the files are found in (replayable)."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        same_time = (
+            '{"_meta": {"version": 1, "timestamp": "2026-10-19T12:00:00+00:00"}, "data": {}}'
+        )
+        for name in ('beta', 'gamma', 'alpha'):
+            (tmp_path / f'{name}.json').write_text(same_time, encoding='utf-8')
+        found_order = [tmp_path / 'gamma.json', tmp_path / 'alpha.json', tmp_path / 'beta.json']
+        mocker.patch.object(saves, '_slot_file_paths', return_value=found_order)
+        assert [slot.name for slot in saves.list_slots()] == ['alpha', 'beta', 'gamma']
+
 
 class TestTomlSerializer:
     """Tests for saving with TOML serializer."""

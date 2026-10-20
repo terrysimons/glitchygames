@@ -57,32 +57,40 @@ RAW_CLOCK_READS = frozenset({
     'pygame.time.get_ticks',
 })
 
-DOOR_BYPASSES = RAW_CLOCK_READS | frozenset({
-    'pygame.key.get_pressed',
-    'pygame.key.get_mods',
-    'pygame.mouse.get_pos',
-    'pygame.mouse.get_pressed',
-    'pygame.mouse.get_focused',
-    'pygame.mouse.get_rel',
-    'pygame.key.get_focused',
-    'pygame.event.get',
-    'pygame.event.poll',
-    'pygame.event.wait',
-    'pygame.event.peek',
-    'pygame.event.post',
-    'pygame.fastevent.get',
-    'pygame.joystick.Joystick',
-    'pygame._sdl2.controller.Controller',
-    'pygame.controller.Controller',
-    # Device enumeration is part of the devices door too (spec 1.3)
-    'pygame.joystick.get_count',
-    'pygame._sdl2.controller.get_count',
-    'pygame._sdl2.controller.is_controller',
-    'pygame._sdl2.controller.name_forindex',
-    'pygame.controller.get_count',
-    'pygame.controller.is_controller',
-    'pygame.controller.name_forindex',
-})
+# pygame's own timers: a set_timer event arrives by real time, and a Clock's tick, get_time and
+# get_fps read it (the scan cannot follow a Clock's methods, so it reports its construction)
+REAL_TIME_TIMERS = frozenset({'pygame.time.set_timer', 'pygame.time.Clock'})
+
+DOOR_BYPASSES = (
+    RAW_CLOCK_READS
+    | REAL_TIME_TIMERS
+    | frozenset({
+        'pygame.key.get_pressed',
+        'pygame.key.get_mods',
+        'pygame.mouse.get_pos',
+        'pygame.mouse.get_pressed',
+        'pygame.mouse.get_focused',
+        'pygame.mouse.get_rel',
+        'pygame.key.get_focused',
+        'pygame.event.get',
+        'pygame.event.poll',
+        'pygame.event.wait',
+        'pygame.event.peek',
+        'pygame.event.post',
+        'pygame.fastevent.get',
+        'pygame.joystick.Joystick',
+        'pygame._sdl2.controller.Controller',
+        'pygame.controller.Controller',
+        # Device enumeration is part of the devices door too (spec 1.3)
+        'pygame.joystick.get_count',
+        'pygame._sdl2.controller.get_count',
+        'pygame._sdl2.controller.is_controller',
+        'pygame._sdl2.controller.name_forindex',
+        'pygame.controller.get_count',
+        'pygame.controller.is_controller',
+        'pygame.controller.name_forindex',
+    })
+)
 
 # Files (or directories, ending in '/') allowed to use each bypass, with the reason
 ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
@@ -110,22 +118,28 @@ ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
     'recording.py': frozenset({'pygame.event.post'}),  # post_event, the one poster
     # Pacing measures the real run; logic gets frame time only through the frame-time door
     'timing.py': RAW_CLOCK_READS,
-    'scenes/scene.py': frozenset({'time.perf_counter'}),  # SceneManager.start/_finish_frame
     # Performance statistics and the debug HUD describe the real run; never compared
     'performance/': RAW_CLOCK_READS,
     'debug/': RAW_CLOCK_READS,
     # The audio-glitch probe measures the real machine (scripts/audio_glitch_probe.py)
     'audio/diagnostics.py': RAW_CLOCK_READS,
-    # The recording's own start stamp (header recorded_at, the replay wall clock's origin)
-    'engine/game_engine.py': frozenset({'datetime.datetime.now'}),
-    # Signs requests to a real server, which needs real time
-    'api/client.py': frozenset({'time.time'}),
 }
 
 # Functions (by file, then by name) allowed to use a bypass inside their body only, with the reason
 ALLOWED_FUNCTION_BYPASSES: dict[str, dict[str, frozenset[str]]] = {
     # Real durations for diagnostics only, never replayed (glitchygames/clock.py)
     'clock.py': {'measured_seconds': frozenset({'time.monotonic'})},
+    'scenes/scene.py': {
+        # The frame loop measures each frame's real time; logic gets it only through the
+        # frame-time door (SceneManager.start and _finish_frame)
+        'start': frozenset({'time.perf_counter'}),
+        '_finish_frame': frozenset({'time.perf_counter'}),
+        # The pacing fallback clock (SceneManager.__init__): it only paces (tick), its
+        # get_time and get_fps are never read (SceneManager._track_performance says why)
+        '__init__': frozenset({'pygame.time.Clock'}),
+    },
+    # The recording's own start stamp (header recorded_at, the replay wall clock's origin)
+    'engine/game_engine.py': {'trace_recording_header': frozenset({'datetime.datetime.now'})},
 }
 
 
@@ -291,6 +305,10 @@ def other_input():
     from pygame import event as pygame_event
     return (pygame_event.poll(), pygame.event.wait(100), pygame.event.peek(),
             pygame.mouse.get_rel(), pygame.key.get_focused())
+
+def real_time_timers():
+    pygame.time.set_timer(pygame.USEREVENT, 1000)
+    return pygame.time.Clock()
 """
 
 
@@ -329,6 +347,8 @@ def test_scan_finds_every_kind(offending_file):
         'pygame.event.peek',
         'pygame.mouse.get_rel',
         'pygame.key.get_focused',
+        'pygame.time.set_timer',
+        'pygame.time.Clock',
     }
 
 

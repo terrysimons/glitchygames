@@ -271,7 +271,9 @@ class SaveManager(abc.ABC):
         Slots whose metadata can't be read are skipped (with a warning).
 
         Returns:
-            List of SaveSlotInfo, sorted by timestamp (newest first).
+            List of SaveSlotInfo, sorted by timestamp (newest first), slots saved at the same
+            time by name, so the order never depends on the order the files are found in (a
+            replay's memory store lists them as the disk did).
 
         """
         slots: list[SaveSlotInfo] = []
@@ -284,6 +286,8 @@ class SaveManager(abc.ABC):
 
             slots.append(slot_info)
 
+        # By name first, so the newest-first sort below (stable) leaves ties in name order
+        slots.sort(key=lambda slot: slot.name)
         # Sort newest first (a timestamp without a time zone sorts as UTC, so a hand-written
         # file beside engine-written ones cannot make the comparison raise)
         slots.sort(

@@ -19,7 +19,7 @@ from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
-from glitchygames.input.rumble import RumbleController, connected_rumble_devices
+from glitchygames.input.rumble import ConnectedRumbleDevices, RumbleController
 from glitchygames.input.state import (
     IDLE_INPUT,
     apply_snapshot_changes,
@@ -186,13 +186,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self.quit_requested: bool = False
         # Frames finished this run; the doors' end_frame receives each frame's number
         self.frame_number: int = 0
-        # Called once per frame at the supervisor slot, in registration order (supervision.py)
-        self._supervisors: list[Supervisor] = []
-        # Those added while a playback scope plays: removed when the scope ends
-        self._scope_supervisors: list[Supervisor] = []
-        self._control_event_handlers: dict[str, list[Callable[[ControlEvent], None]]] = {}
-        # This frame's control events; end_frame receives them, then the list starts over
-        self._frame_control_events: list[ControlEvent] = []
+        self._initialize_supervision()
 
         # Scene transition support
         self._active_transition: Any = None  # Transition object during effect
@@ -208,6 +202,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self._display_is_stale: bool = False
         self.debug_overlay: DebugOverlay = DebugOverlay()
         self.rumble: RumbleController = RumbleController()
+        # The devices rumble is sent to (joysticks opened once, while their count holds)
+        self._rumble_devices = ConnectedRumbleDevices()
         self._live_audio: LiveAudio | None = None
 
         # Jitter tracking attributes
@@ -239,6 +235,21 @@ class SceneManager(SceneInterface, events.EventManager):
 
         # Mark as initialized to prevent re-initialization
         self._initialized: bool = True
+
+    def _initialize_supervision(self: Self) -> None:
+        """Make the supervision state (``__init__``): supervisors, handlers, control events."""
+        # Called once per frame at the supervisor slot, in registration order (supervision.py)
+        self._supervisors: list[Supervisor] = []
+        # Those added by a playback scope's code: removed when the scope ends
+        self._scope_supervisors: list[Supervisor] = []
+        self._control_event_handlers: dict[str, list[Callable[[ControlEvent], None]]] = {}
+        # Those added by a playback scope's code: removed when the scope ends
+        self._scope_control_event_handlers: list[tuple[str, Callable[[ControlEvent], None]]] = []
+        # This frame's control events; end_frame receives them, then the list starts over
+        self._frame_control_events: list[ControlEvent] = []
+        # True while a supervisor or control event handler the live game added runs inside a
+        # playback scope: what it adds is the live game's, not the scope's
+        self._live_supervision_running = False
 
     @classmethod
     def _reset(cls) -> None:
@@ -880,13 +891,36 @@ class SceneManager(SceneInterface, events.EventManager):
     def reset_supervision(self: Self) -> None:
         """Forget every supervisor, control event handler and pending control event.
 
-        GameEngine.__init__ calls it, so a run never inherits an earlier run's supervision
-        from this singleton.
+        ``begin_run`` calls it, so a run never inherits an earlier run's supervision from this
+        singleton.
         """
         self._supervisors.clear()
         self._scope_supervisors.clear()
         self._control_event_handlers.clear()
+        self._scope_control_event_handlers.clear()
         self._frame_control_events = []
+
+    def begin_run(self: Self) -> None:
+        """Start a new run on this singleton: nothing an earlier run left carries over.
+
+        ``GameEngine.__init__`` calls it (a second engine in one process, a recording and then
+        its replay, shares this scene manager): frames are numbered from 0 (as
+        ``reset_sources()`` restarted the frame clock), supervision is reset
+        (``reset_supervision``), and the quit request, the pacing deadline, the SCREEN shake,
+        the stale-display flag, a requested or finished playback scope's state and the
+        instant-replay journal are cleared.
+        """
+        self.frame_number = 0
+        self.reset_supervision()
+        self.quit_requested = False
+        self._timer_prev_deadline_ns = None
+        self.screen_shake.clear()
+        self._display_is_stale = False
+        self._requested_playback = None
+        self._playback_requesting_scene = None
+        self._last_playback_result = None
+        self._last_playback_outcome = None
+        self._end_instant_replay_journal()
 
     def record_control_event(self: Self, *, kind: str, data: Mapping[str, Any]) -> None:
         """Record a supervisor action in this frame and hand it to its handlers.
@@ -941,7 +975,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self.rumble.update(
             shakers=shakers,
             dt=self.dt,
-            devices=lambda: connected_rumble_devices(controller_manager),
+            devices=lambda: self._rumble_devices.find(controller_manager=controller_manager),
         )
 
         # The pending transition counts: a ride creates its motor before transition_to starts it

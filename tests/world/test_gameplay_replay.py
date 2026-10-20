@@ -14,7 +14,7 @@ import sys
 import zlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 import pygame
 import pytest
@@ -90,6 +90,8 @@ from glitchygames.sources import (
     install_sources,
     reset_sources,
 )
+from glitchygames.state import DiskSaveManager
+from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import FastTimer
 from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
 from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
@@ -219,6 +221,9 @@ ENVIRONMENT_IGNORED_EXIT_STATUS = 7
 # A saved ghost track: one sample per recorded frame time, moving this far each sample
 GHOST_TRACK_SAMPLES = 30
 GHOST_STEP_PIXELS = 10
+# SetupCountingScene's save namespace and slot
+SETUP_COUNT_NAMESPACE = 'setup-count'
+SETUP_COUNT_SLOT = 'count'
 
 
 def record_session(
@@ -1198,6 +1203,37 @@ class TestRefusals:
         assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert f'Cannot replay {recording_path}' in caplog.text
 
+    @pytest.mark.parametrize(
+        'change',
+        [
+            pytest.param(
+                lambda trace: trace.update(devices=[{'kind': 'joystick'}]), id='device descriptor'
+            ),
+            pytest.param(
+                lambda trace: trace.update(device_enumeration=['not an answer']),
+                id='enumeration answer',
+            ),
+            pytest.param(lambda trace: trace.update(saves='not a mapping'), id='saves'),
+            pytest.param(
+                lambda trace: trace['frames'][0].update(input_changes={'pressed_scancodes': 5}),
+                id='input changes',
+            ),
+        ],
+    )
+    def test_a_malformed_header_or_first_frame_is_unusable_input(
+        self, mocker, tmp_path, caplog, change
+    ):
+        """Fields the replay decodes as it starts are refused like an unreadable file, not 1."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        rewrite_recording(recording_path=recording_path, change=change)
+        caplog.clear()
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session(recording_path=recording_path, mocker=mocker)
+        assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
+        refusals = [record for record in caplog.records if 'Cannot replay' in record.getMessage()]
+        assert len(refusals) == 1
+        assert 'The recording is malformed' in refusals[0].getMessage()
+
     def test_unsupported_format_version_is_refused_without_a_traceback(
         self, mocker, tmp_path, caplog
     ):
@@ -1518,6 +1554,67 @@ class TestHeadless:
             f'Replay stopped at frame {ACTION_FRAME}: the run ended with '
             f'{ExitCode.INTERNAL_ERROR.describe()}\n'
         )
+
+    @pytest.mark.parametrize('exit_status', [0, None])
+    def test_a_games_own_successful_exit_before_the_result_is_a_divergence(
+        self, mocker, tmp_path, capsys, exit_status
+    ):
+        """The game's sys.exit(0) cut the replay short: never SUCCESS, which means it matched."""
+
+        def exit_successfully() -> None:
+            raise SystemExit(exit_status)
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless',),
+                action=exit_successfully,
+                action_frame=ACTION_FRAME,
+            )
+        assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
+        assert capsys.readouterr().out.startswith(
+            f'Replay stopped at frame {ACTION_FRAME}: the run ended with '
+        )
+
+    def test_a_games_own_failing_exit_before_the_result_keeps_its_status(self, mocker, tmp_path):
+        """A game's own failure status is kept: it already says the run did not succeed."""
+
+        def exit_with_failure() -> None:
+            raise SystemExit(ExitCode.CANNOT_WRITE_OUTPUT)
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless',),
+                action=exit_with_failure,
+                action_frame=ACTION_FRAME,
+            )
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+
+    def test_a_recording_that_fails_to_close_still_settles_the_replay(
+        self, mocker, tmp_path, capsys
+    ):
+        """_shutdown reports the replay (and restores blocked input) even if closing fails."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        mocker.patch.object(pygame, 'quit')
+        mocker.patch.object(pygame.display, 'quit')
+        mocker.patch.dict(os.environ)
+        with constructed_engine('--replay-trace', str(recording_path), '--headless') as engine:
+            sources = engine.replay_sources
+            assert sources is not None
+            finish_run = mocker.spy(sources, 'finish_run')
+            mocker.patch.object(
+                engine, 'stop_trace_recording', side_effect=OSError('the disk is full')
+            )
+            with pytest.raises(OSError, match='the disk is full'):
+                engine._shutdown(run_ended_by=ExitCode.INTERNAL_ERROR.describe())
+            sources.on_uninstalled()
+        finish_run.assert_called_once_with()
+        assert capsys.readouterr().out.startswith('Replay stopped at frame 0')
 
     def test_the_diagnostic_options_share_one_group(self):
         """--headless and the other ways of watching or diagnosing a run; game settings stay put."""
@@ -2841,6 +2938,60 @@ class TestBookmarkedCopy:
             'bookmarks already saved to session.bookmarked.jsonl.gz'
         )
 
+    def test_an_earlier_sessions_copy_keeps_its_bookmarks(self, mocker, tmp_path):
+        """Saving from the original again merges the copy's bookmarks instead of dropping them."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        destination = bookmarked_copy_path(recording_path=recording_path)
+        write_bookmarked_copy(recording_path=recording_path, bookmarks=[2], destination=destination)
+        # A later session of the original bookmarks another frame and saves
+        sources = ReplaySources.from_path(
+            path=recording_path, options=ReplayOptions(recording_path=recording_path)
+        )
+        sources.controls.current_frame = 4
+        sources.controls.handle_key(key=pygame.K_b)
+        assert sources.bookmarks.save() == destination
+        frames = read_trace_result(path=destination).trace['frames']
+        assert driver_module.recorded_bookmarks(frames=frames) == [2, 4]
+
+    def test_a_copy_of_another_recording_is_never_written_over(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        destination = bookmarked_copy_path(recording_path=recording_path)
+        write_bookmarked_copy(recording_path=recording_path, bookmarks=[2], destination=destination)
+        rewrite_recording(
+            recording_path=destination,
+            change=lambda trace: trace.update(bookmarked_copy_of='another.jsonl.gz'),
+        )
+        copy_bytes = destination.read_bytes()
+        with pytest.raises(ValueError, match=r'a bookmarked copy of another\.jsonl\.gz'):
+            write_bookmarked_copy(
+                recording_path=recording_path, bookmarks=[3], destination=destination
+            )
+        assert destination.read_bytes() == copy_bytes
+
+    def test_a_rebaselined_bookmarked_copy_is_not_a_copy(self, tmp_path):
+        """NEW is an original: S on it never rewrites it in place (its bookmarks still load)."""
+        from glitchygames.replay.rebaseline import rebaseline_header
+
+        header = rebaseline_header(
+            original_header={'random_seed': 5, 'bookmarked_copy_of': 'session.jsonl.gz'},
+            original_path=tmp_path / 'session.bookmarked.jsonl.gz',
+        )
+        assert 'bookmarked_copy_of' not in header
+
+    def test_a_deleted_copy_is_saved_again(self, mocker, tmp_path):
+        """The same bookmarks are written again when the copy saved before is gone."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        sources = ReplaySources.from_path(
+            path=recording_path, options=ReplayOptions(recording_path=recording_path)
+        )
+        sources.controls.current_frame = 3
+        sources.controls.handle_key(key=pygame.K_b)
+        copy_path = sources.bookmarks.save()
+        assert copy_path is not None
+        copy_path.unlink()
+        assert sources.bookmarks.save() == copy_path
+        assert copy_path.is_file()
+
     def test_existing_control_events_are_kept_and_a_bookmark_is_added_once(self, tmp_path):
         recording_path = tmp_path / 'session.jsonl.gz'
         marker = {'kind': 'playback', 'scope': 'demo'}
@@ -3032,13 +3183,64 @@ class TestBookmarks:
         assert any('without the bookmarks [4]' in message for message in warnings)
 
 
+class SetupCountingScene(DepartureRecordedScene):
+    """Counts its runs in its saves as it is set up (read, add one, write) and draws the count."""
+
+    @override
+    def setup(self) -> None:
+        """Add one to the saved count and move the marker down by the new count."""
+        super().setup()
+        saves = open_saves(app_name=SETUP_COUNT_NAMESPACE)
+        count = saves.load(SETUP_COUNT_SLOT)['count'] if saves.exists(SETUP_COUNT_SLOT) else 0
+        saves.save(SETUP_COUNT_SLOT, {'count': count + 1})
+        self.marker.rect.y = 10 + count + 1
+
+
 class TestSaves:
     """A replay reads recorded saves and never writes real ones."""
 
-    def test_replay_never_writes_real_saves(self, mocker, tmp_path):
-        from glitchygames.state import DiskSaveManager
-        from glitchygames.state.sandbox import open_saves
+    def test_saves_the_first_scene_writes_in_setup_replay_as_they_were_before(
+        self, mocker, tmp_path
+    ):
+        """The header holds the saves as first opened, not as the first scene's setup left them."""
+        save_directory = tmp_path / 'saves'
+        mocker.patch(
+            'glitchygames.state.manager.get_save_directory',
+            side_effect=lambda app_name: save_directory / app_name,
+        )
+        DiskSaveManager(app_name=SETUP_COUNT_NAMESPACE).save(SETUP_COUNT_SLOT, {'count': 4})
+        recording_path = tmp_path / 'session.jsonl.gz'
+        with engine_run_environment(mocker):
+            _schedule_quit_in_arrival()
+            build_engine(
+                scene_class=SetupCountingScene,
+                arguments=(
+                    *RUN_ENGINE_ARGUMENTS,
+                    '--record-trace',
+                    str(recording_path),
+                    '--random-seed',
+                    str(RANDOM_SEED),
+                ),
+            ).start()
+        header = read_trace_result(path=recording_path).trace
+        assert header['saves'][SETUP_COUNT_NAMESPACE][SETUP_COUNT_SLOT]['data'] == {'count': 4}
+        with engine_run_environment(mocker):
+            engine = build_engine(
+                scene_class=SetupCountingScene,
+                arguments=(
+                    *RUN_ENGINE_ARGUMENTS,
+                    '--replay-trace',
+                    str(recording_path),
+                    '--headless',
+                ),
+            )
+            with pytest.raises(SystemExit) as exit_info:
+                engine.start()
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        assert exit_info.value.code == ExitCode.SUCCESS
 
+    def test_replay_never_writes_real_saves(self, mocker, tmp_path):
         save_directory = tmp_path / 'saves'
         mocker.patch(
             'glitchygames.state.manager.get_save_directory',
@@ -3574,6 +3776,34 @@ class TestAuditReplayRuns:
             '--headless',
         ]
 
+    def test_the_audit_options_go_before_a_bare_double_dash(self, tmp_path, mocker):
+        """After ``--`` nothing is an option: the child's options are added before it."""
+        command = audit_command(
+            original_argv=['python3', 'game.py', '--replay-trace', 'r.jsonl.gz', '--', 'extra']
+        )
+        assert command == [
+            sys.executable,
+            'game.py',
+            '--replay-trace',
+            'r.jsonl.gz',
+            '--no-audit',
+            '--headless',
+            '--',
+            'extra',
+        ]
+        run = mocker.patch.object(
+            audit, 'run_command', return_value=mocker.Mock(returncode=ExitCode.SUCCESS)
+        )
+        mocker.patch.object(audit, 'read_digest_file', return_value=([], None))
+        digest_path = tmp_path / 'digests.jsonl'
+        audit._run_replay_subprocess(command=command, hash_seed='1', digest_path=digest_path)
+        assert run.call_args.kwargs['command'][-4:] == [
+            '--replay-digest',
+            str(digest_path),
+            '--',
+            'extra',
+        ]
+
     def test_the_digest_file_lists_every_replayed_frame_then_no_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         digest_path = tmp_path / 'digests.jsonl'
@@ -3591,6 +3821,46 @@ class TestAuditReplayRuns:
             frame_digest(frame_record=sampled_part(frame=frame)) for frame in recorded_frames
         ]
         assert divergence is None
+
+    def test_an_unwritable_digest_file_is_refused_before_the_run(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        digest_path = tmp_path / 'digests.jsonl'
+        digest_path.mkdir()
+        caplog.clear()
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless', '--replay-digest', str(digest_path)),
+            )
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+        refusals = [record for record in caplog.records if 'Cannot write' in record.getMessage()]
+        assert len(refusals) == 1
+        assert '--replay-digest' in refusals[0].getMessage()
+        assert refusals[0].exc_info is None
+
+    def test_a_digest_file_that_cannot_be_written_at_the_end_still_reports(
+        self, mocker, tmp_path, capsys, caplog
+    ):
+        """The replay's report comes first; then the run exits CANNOT_WRITE_OUTPUT."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        digest_path = tmp_path / 'digests.jsonl'
+        mocker.patch.object(
+            driver_module, 'write_digest_file', side_effect=OSError('the disk is full')
+        )
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--headless', '--replay-digest', str(digest_path)),
+            )
+        assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+        assert 'Replay matched' in capsys.readouterr().out
+        failures = [
+            record for record in caplog.records if 'the disk is full' in record.getMessage()
+        ]
+        assert len(failures) == 1
+        assert failures[0].exc_info is None
 
     def test_the_digest_file_of_a_diverged_replay_ends_with_its_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -3637,6 +3907,32 @@ class TestAuditOption:
         audit_spy.assert_called_once_with(
             command=audit_command(original_argv=sys.orig_argv), path=recording_path
         )
+
+    def test_a_terminating_signal_during_the_audit_ends_it_through_systemexit(
+        self, mocker, tmp_path
+    ):
+        """While the children run, SIGTERM raises SystemExit, so subprocess.run kills them."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        handlers_while_auditing: list[object] = []
+
+        def audit_while_noting_the_handler(*, command, path):
+            del command, path
+            handlers_while_auditing.append(signal.getsignal(signal.SIGTERM))
+            return compare_runs(
+                first_run=fake_run(digests=['a'], divergence=None),
+                second_run=fake_run(digests=['a'], divergence=None),
+            )
+
+        mocker.patch.object(
+            game_engine_module, 'audit_recording', side_effect=audit_while_noting_the_handler
+        )
+        with (
+            pytest.raises(SystemExit),
+            constructed_engine('--replay-trace', str(recording_path), '--audit'),
+        ):
+            pass
+        assert handlers_while_auditing == [game_engine_module.exit_on_signal]
+        assert signal.getsignal(signal.SIGTERM) == signal.SIG_DFL
 
     def test_a_nondeterministic_audit_exits_as_audit_nondeterministic_and_logs_why(
         self, mocker, tmp_path, caplog
@@ -4134,6 +4430,26 @@ class TestRebaseline:
         assert 'its partial file' in caplog.text
         assert old_path.read_bytes() == recording_bytes
         assert not new_path.exists()
+
+    def test_an_unwritable_new_recording_is_refused_before_the_run(
+        self, mocker, tmp_path, caplog, capsys
+    ):
+        """NEW's partial file cannot be made: CANNOT_WRITE_OUTPUT with one line, nothing run."""
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        not_a_directory = tmp_path / 'a-file'
+        not_a_directory.write_text('', encoding='utf-8')
+        new_path = not_a_directory / 'rebaselined.jsonl.gz'
+        caplog.clear()
+        exit_status = rebaseline_session(
+            recording_path=recording_path, new_path=new_path, mocker=mocker
+        )
+        assert exit_status == ExitCode.CANNOT_WRITE_OUTPUT
+        refusals = [record for record in caplog.records if 'Cannot write' in record.getMessage()]
+        assert len(refusals) == 1
+        assert refusals[0].exc_info is None
+        assert '--rebaseline' in refusals[0].getMessage()
+        # Refused before the replay ran: no report, no summary
+        assert not capsys.readouterr().out
 
     def test_a_failed_final_move_keeps_the_partial_file(self, mocker, tmp_path, caplog, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)

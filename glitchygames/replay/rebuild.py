@@ -65,7 +65,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from glitchygames.debug.overlay import DebugPanel
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.output_files import write_aside_then_replace
+from glitchygames.process import run_command, with_options_appended, without_option
 from glitchygames.replay.controls import ReplayControls, rebuild_progress_text
 from glitchygames.replay.silence import FrameSilencer
 
@@ -82,12 +83,9 @@ RESTART_HANDOFF_OPTION = '--replay-restart-handoff'
 VIEWER_STATE_OPTION = '--replay-viewer-state'
 DEBUG_OVERLAY_OPTION = '--debug-overlay'
 NO_DEBUG_OVERLAY_OPTION = '--no-debug-overlay'
-# Arguments after a bare -- are not options: appended options go before it
-END_OF_OPTIONS = '--'
-# The supervisor's handoff file, in a temporary directory of its own, and the file a handoff is
-# written to before it is moved into place
+# The supervisor's handoff file, in a temporary directory of its own (written aside, then moved
+# into place: glitchygames.output_files.write_aside_then_replace)
 RESTART_HANDOFF_FILE_NAME = 'restart.json'
-PARTIAL_HANDOFF_SUFFIX = '.partial'
 
 # A rebuild presents its progress this often (real time), and prints it this often
 REBUILD_PROGRESS_INTERVAL_SECONDS = 0.1
@@ -141,67 +139,6 @@ class RestartHandoff(BaseModel):
 
     command: list[str] = Field(min_length=1)
     result_exit_code: int
-
-
-def split_at_end_of_options(*, arguments: Sequence[str]) -> tuple[list[str], list[str]]:
-    """Split a command line before its first bare ``--``.
-
-    Args:
-        arguments: A command line.
-
-    Returns:
-        The arguments before the ``--``, and the ``--`` with everything after it (empty when
-        there is none).
-
-    """
-    if END_OF_OPTIONS in arguments:
-        index = list(arguments).index(END_OF_OPTIONS)
-        return list(arguments[:index]), list(arguments[index:])
-    return list(arguments), []
-
-
-def without_option(*, arguments: Sequence[str], option: str, takes_value: bool) -> list[str]:
-    """Return ``arguments`` without any occurrence of a long option before a bare ``--``.
-
-    Args:
-        arguments: A command line.
-        option: The option, e.g. ``--replay-trace``.
-        takes_value: True for an option given as ``option VALUE`` or ``option=VALUE`` (both
-            removed); False for a flag.
-
-    Returns:
-        The other arguments, in order (after a ``--``, all of them).
-
-    """
-    options, rest = split_at_end_of_options(arguments=arguments)
-    kept: list[str] = []
-    skips_next = False
-    for argument in options:
-        if skips_next:
-            skips_next = False
-            continue
-        if argument == option:
-            skips_next = takes_value
-            continue
-        if takes_value and argument.startswith(f'{option}='):
-            continue
-        kept.append(argument)
-    return [*kept, *rest]
-
-
-def with_options_appended(*, arguments: Sequence[str], appended: Sequence[str]) -> list[str]:
-    """Return ``arguments`` with ``appended`` added after its options (before a bare ``--``).
-
-    Args:
-        arguments: A command line.
-        appended: Options and their values, in order.
-
-    Returns:
-        The command line.
-
-    """
-    options, rest = split_at_end_of_options(arguments=arguments)
-    return [*options, *appended, *rest]
 
 
 def restart_command(
@@ -276,11 +213,12 @@ def relaunch_replay(
     """
     handoff = RestartHandoff(command=list(command), result_exit_code=result_exit_code)
     if handoff_path is not None:
-        partial_path = handoff_path.with_name(handoff_path.name + PARTIAL_HANDOFF_SUFFIX)
         try:
-            partial_path.write_text(handoff.model_dump_json(), encoding='utf-8')
             # Moved into place whole: the supervisor never reads half a handoff
-            partial_path.replace(handoff_path)
+            write_aside_then_replace(
+                destination=handoff_path,
+                write=lambda aside: aside.write_text(handoff.model_dump_json(), encoding='utf-8'),
+            )
         except OSError:
             # Not exit 1 (REPLAY_DIVERGED), which the supervisor would report as a divergence
             LOG.exception('Cannot hand the restart over to the supervising replay')

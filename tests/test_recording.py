@@ -15,6 +15,7 @@ import gzip
 import json
 import math
 import types
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,7 @@ import pytest
 from glitchygames import recording
 from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT
 from glitchygames.input import devices as devices_module
-from glitchygames.input.state import IDLE_INPUT
+from glitchygames.input.state import IDLE_INPUT, held_key_codes
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
     CONTROL_EVENTS_FIELD,
@@ -55,6 +56,7 @@ from glitchygames.recording import (
     stop_tracking_internal_posts,
     value_from_json,
 )
+from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
 from glitchygames.supervision import ControlEvent
 from glitchygames.tracing import TraceFormatError, read_trace_result
 
@@ -773,9 +775,13 @@ class TestRecordingSources:
 
         frames = read_trace_result(path=path).trace['frames']
         assert served_snapshots == [held_a, held_a, IDLE_INPUT]
-        assert frames[0][INPUT_CHANGES_FIELD] == {'pressed_scancodes': [4]}
+        # Scancode 4 is held as the key code this machine's keymap gives it (A on QWERTY)
+        assert frames[0][INPUT_CHANGES_FIELD] == {
+            'pressed_scancodes': [4],
+            'held_key_codes': sorted(held_key_codes(snapshot=held_a)),
+        }
         assert INPUT_CHANGES_FIELD not in frames[1]
-        assert frames[2][INPUT_CHANGES_FIELD] == {'pressed_scancodes': []}
+        assert frames[2][INPUT_CHANGES_FIELD] == {'pressed_scancodes': [], 'held_key_codes': []}
         assert INPUT_CHANGES_FIELD not in frames[3]
 
     def test_a_save_namespace_is_snapshotted_once_when_first_opened(self, tmp_path, mocker):
@@ -873,6 +879,21 @@ class TestRecordingSources:
         assert sources.frame_seconds(measured=0.25) == 0.25
         assert sources.control_events_for_frame(frame_number=3) == []
         assert sources.wall_clock_time().tzinfo is not None
+
+    def test_the_wall_clock_is_the_recorded_start_plus_the_frame_clock(self, tmp_path):
+        """A recorded run reads the wall clock its replay will serve, so it replays exactly."""
+        recorder = GameplayRecorder(
+            path=tmp_path / 'unit.jsonl.gz',
+            header={'game_class': 'Unit', 'recorded_at': '2026-10-19T12:00:00+00:00'},
+        )
+        sources = RecordingSources(inner=LiveSources(random_seed=1), recorder=recorder)
+        frame_clock_before = frame_clock_seconds()
+        try:
+            set_frame_clock_seconds(seconds=2.5)
+            assert sources.wall_clock_time() == datetime(2026, 10, 19, 12, 0, 2, 500000, tzinfo=UTC)
+        finally:
+            set_frame_clock_seconds(seconds=frame_clock_before)
+            recorder.close()
 
     def test_scene_starts_are_captured_while_recording(self, tmp_path):
         """Open, the doors capture scene starts; closed, they answer as the inner doors do."""

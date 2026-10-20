@@ -7,7 +7,6 @@ import contextlib
 import logging
 import multiprocessing
 import signal
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, override
 
@@ -19,6 +18,7 @@ from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
 )
 from glitchygames.engine import ExitCode, GameEngine
+from glitchygames.engine.game_engine import exit_on_signal
 from glitchygames.input.state import current_input
 from glitchygames.pixels import rgb_triplet_generator
 from glitchygames.scenes import Scene
@@ -46,7 +46,6 @@ from .sprite_inspection import load_ai_training_data
 
 if TYPE_CHECKING:
     import argparse
-    import types
 
     from glitchygames.events.voice import VoiceEventManager
     from glitchygames.sprites.animated import AnimatedSprite
@@ -1581,32 +1580,22 @@ def main() -> None:
     """Run the main function.
 
     Raises:
-        None
+        SystemExit: When the engine's run ends with one (a signal's ``ExitCode`` included).
 
     """
     LOG.setLevel(logging.INFO)
 
-    # Signals received, logged once the engine has stopped (see signal_handler)
+    # SIGINT and SIGTERM end the editor through SystemExit with the signal's exit code
+    # (INTERRUPTED, TERMINATED), the engine's own handler: it ignores a repeated signal while the
+    # run tears down, and does nothing else (logging there could fail with "reentrant call
+    # inside BufferedWriter" while the interrupted code writes to stderr, and a queue put could
+    # block on a lock it holds). SystemExit unwinds the engine (releasing whatever the main
+    # thread held); the finally below then logs and shuts the AI worker down. Installed before
+    # the engine, which then leaves them alone (it claims only signals still at their default)
+    signal.signal(signal.SIGINT, exit_on_signal)
+    signal.signal(signal.SIGTERM, exit_on_signal)
+    # The signal that ended the run, logged once the engine has stopped
     received_signals: list[int] = []
-
-    # Set up signal handling to prevent multiprocessing issues on macOS
-    def signal_handler(signum: int, _frame: types.FrameType | None) -> None:
-        """Handle shutdown signals gracefully.
-
-        Only records the signal and raises SystemExit with the signal's exit code. SystemExit
-        unwinds the engine (releasing whatever the main thread held) and the finally below
-        then logs and shuts the AI worker down. Doing either here could fail: logging while the
-        interrupted code is writing to stderr raises "reentrant call inside BufferedWriter"
-        (which replaced SystemExit and lost the signal), and a queue put could block on a lock
-        it holds.
-        """
-        received_signals.append(signum)
-        # INTERRUPTED for SIGINT, TERMINATED for SIGTERM (glitchygames/exit_codes.py)
-        sys.exit(ExitCode.for_signal(signum))
-
-    # Register signal handlers
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
 
     # Set multiprocessing start method to avoid macOS issues
     with contextlib.suppress(RuntimeError):
@@ -1623,6 +1612,13 @@ def main() -> None:
     # Start the engine
     try:
         engine.start()
+    except SystemExit as exit_request:
+        received_signals.extend(
+            signal_number
+            for signal_number in (signal.SIGINT, signal.SIGTERM)
+            if exit_request.code == ExitCode.for_signal(signal_number)
+        )
+        raise
     finally:
         for received_signal in received_signals:
             LOG.info(f'Received signal {received_signal}, shutting down gracefully...')
