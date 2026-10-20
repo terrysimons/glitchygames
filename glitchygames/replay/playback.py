@@ -39,8 +39,9 @@ Demos and instant replays run inside a playback scope, not a new engine run
    (``PlaybackSources.end_reason``): the player's press (``exit_on_input``: any key or button,
    ``PLAYBACK_EXIT_EVENT_TYPES``), the recording's quit (its window's QUIT or the playback
    scene's own ``quit_game()``: the scope ends, the game does not quit), the game's request
-   (``SceneManager.end_playback``: made during a frame, the scope ends once that frame ended;
-   between frames, at once; ``'ended_by_game'``), or the recording's end or divergence (the
+   (``SceneManager.end_playback``, ``'ended_by_game'``: from a supervisor, the scope ends once
+   that frame ended; between frames, at once; from the played scene's own code, ignored, as
+   its original call did nothing), or the recording's end or divergence (the
    replay stops there; a playback never pauses). An error in the scope's
    part of a frame (its frame, the comparison, or entering) ends it too, logged
    (``SceneManager._run_frame`` contains it); an error of the installed doors (a session
@@ -97,10 +98,12 @@ Demos and instant replays run inside a playback scope, not a new engine run
 6. Fast-forward (``PlaybackOptions.fast_forward_frames``): the scope's first N frames run in
    full but unseen and unheard. While ``PlaybackSources.is_fast_forwarding`` (fewer frames
    compared than N), ``presents_frames`` is False and ``paced_frame_seconds()`` is 0.0, the
-   doors a headless replay uses (the scene manager neither presents nor waits), and after each
-   such frame every sound it started is stopped and music is paused (``FrameSilencer``,
-   glitchygames/replay/silence.py, the code path a restarted replay's rebuild uses; it follows
-   the game's own music pauses from the scope's start). After the Nth frame the silence ends
+   doors a headless replay uses (the scene manager neither presents nor waits; the next
+   presented frame updates the whole display), and after each such frame every sound it
+   started is stopped and music is paused (``FrameSilencer``, glitchygames/replay/silence.py,
+   the code path a restarted replay's rebuild uses; it follows the game's own music pauses from
+   the scope's start, and the live game's sounds playing then play on, live voices aside).
+   After the Nth frame the silence ends
    (music the silencer paused plays on, unless the game paused it) and the frames play as rule
    3 says, heard as the game plays them; so does a scope that ends during the fast-forward.
    Music is the one mixer's: the scope neither saves nor restores it, so music the playback's
@@ -112,24 +115,23 @@ Demos and instant replays run inside a playback scope, not a new engine run
    ``'instant'`` from its ``start_frame``, returning to the scene shown (the journal's scene,
    or the pause screen presenting it), with no exit on input: the player's presses reach
    nothing, and the game decides when it ends (the journal's end, or
-   ``SceneManager.end_playback``). The frames before the last ``Scene.INSTANT_REPLAY_SECONDS``
-   of frame time are fast-forwarded (``fast_forward_frame_count``); the rest are shown at the
-   game's pace. Frame time, not game time: the shown part takes that long to watch, a paused
-   stretch in it included. Refused (False, nothing starts) when the scene keeps no journal (it
-   does not offer instant replay, its first logic frame has not run, or a scope plays) or
+   ``SceneManager.end_playback`` from a supervisor, which reads the player's polled input from
+   ``SceneManager.playback_player_input``). The frames before the last
+   ``Scene.INSTANT_REPLAY_SECONDS`` of frame time are fast-forwarded
+   (``fast_forward_frame_count``); the rest are shown at the game's pace. Frame time, not
+   game time: the shown part takes that long to watch, a paused stretch in it included.
+   Refused (False, nothing starts) when the scene keeps no journal (it does not offer instant
+   replay, its first logic frame has not run, or a scope plays) or
    the journal holds more frame time than ``Scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS``.
    The request is answered as any playback request is (rule 1: a playback of the journal gets
    the recorded answer and requests nothing), so a scene that asks after every goal plays back
    across its earlier replays. The journal's recording is taken as the request is made: the
    frame that asks is not in it (it ends live, before the scope begins).
 
-Limits: ``SceneManager.end_playback`` is for code outside the played scene (a supervisor,
-code between frames): the played scene's own code runs again in a playback, where its call
-would end the scope. A scope that fast-forwards inside a restarted replay's rebuild follows the
-music controls on top of the rebuild's: the end of its fast-forward may resume music during the
-rebuild (which pauses it again after the next frame), and a rebuild that ends during the
-fast-forward leaves its music wrappers in place (they still call pygame's). A scene must be
-rebuildable from its start (``Scene.replay_arguments``). Of a scene
+Limits: a scope that fast-forwards inside a restarted replay's rebuild silences on top of the
+rebuild's silence: the end of its fast-forward may resume music during the rebuild (which
+pauses it again after the next frame). A scene must be rebuildable from its start
+(``Scene.replay_arguments``). Of a scene
 that arrived by a transition, the arrival step is repeated, but the events the ride delivered
 to it (releases, window and device events) are not: a scene they change diverges. The
 first logic frame's earlier posts are counted from the internal-post tracker, so they are
@@ -314,8 +316,9 @@ class PlaybackSources:
         self.fast_forward_frames = fast_forward_frames
         # A plain attribute, kept by compare_frame (the class has as many methods as it may)
         self.is_fast_forwarding = fast_forward_frames > 0
-        # Keeps the fast-forwarded frames silent (the rebuild's code path)
-        self._silencer = FrameSilencer()
+        # Keeps the fast-forwarded frames silent (the rebuild's code path); the live game's
+        # sounds playing as the scope began play on
+        self._silencer = FrameSilencer(spares_playing_sounds=True)
         self.exit_requested = False
         self.recording_quit = False
         # The EngineSources property, as a plain attribute: set once, for the whole scope
@@ -979,7 +982,10 @@ def _start_instant_replay(*, manager: SceneManager) -> bool:
     scene = journal.scene
     shown_seconds = scene.INSTANT_REPLAY_SECONDS
     budget_seconds = scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS
-    if shown_seconds is None or not journal.within_budget(maximum_seconds=budget_seconds):
+    if shown_seconds is None:
+        LOG.info('No instant replay: %s sets no INSTANT_REPLAY_SECONDS', type(scene).__name__)
+        return False
+    if not journal.within_budget(maximum_seconds=budget_seconds):
         LOG.info(
             'No instant replay: %s s of %s would be re-simulated, past its %s s budget',
             journal.recorded_seconds,

@@ -112,6 +112,8 @@ REFUSING_BUDGET_FRAMES = 5
 # InstantGoalScene asks for an instant replay on this tick; a later one shows this many frames
 GOAL_TICK = 6
 SHOWN_FRAMES_AFTER_GOAL = 3
+# A fast-forwarding scope ends its silence after its last fast-forwarded frame and as it ends
+FINISHES_PER_FAST_FORWARDING_SCOPE = 2
 
 
 class InstantCountingScene(CountingScene):
@@ -244,6 +246,18 @@ class InstantGoalScene(KeyReleaseCountingScene):
         """Ask for the instant replay; its answer moves the marker."""
         granted = SceneManager().instant_replay()
         self.marker.rect.y += SELF_REPLAY_GRANTED_STEP if granted else 1
+
+
+class InstantEndingScene(InstantKeyReleaseScene):
+    """Asks to end any playback on E, from its own key handler (scene code, not a supervisor)."""
+
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+        """Ask to end the playback on E."""
+        if event.key == pygame.K_e:
+            SceneManager().end_playback()
+            return
+        super().on_key_down_event(event)
 
 
 class InstantShakingScene(InstantSelfReplayingScene):
@@ -950,6 +964,19 @@ class TestReplayingTheSession:
         step(manager, release(pygame.K_SPACE), frames=JOURNALED_FRAMES)
 
 
+def assert_whole_display_update(*, updates: Any, flips: Any) -> None:
+    """Check the one display update since the spies began was of the whole display.
+
+    Args:
+        updates: A spy on ``pygame.display.update``.
+        flips: A spy on ``pygame.display.flip``.
+
+    """
+    whole_updates = [call for call in updates.call_args_list if not call.args and not call.kwargs]
+    assert len(whole_updates) + flips.call_count == 1
+    assert len(whole_updates) == updates.call_count
+
+
 class EndingSupervisor:
     """Ends the playback scope in progress from the supervisor slot of a chosen frame."""
 
@@ -1062,7 +1089,66 @@ class TestInstantReplay:
             )
             # Every fast-forwarded frame was silenced; the visible part plays its sounds
             assert silenced.call_count == fast_forward_frames
-            assert finished.call_count >= 1
+            # Once after the last fast-forwarded frame, once more (a no-op) as the scope ended
+            assert finished.call_count == FINISHES_PER_FAST_FORWARDING_SCOPE
+
+    def test_the_first_shown_frame_updates_the_whole_display(self, mocker: MockerFixture):
+        """The display still shows the live scene: dirty rects alone would leave it there."""
+        with running_scene(InstantCountingScene) as manager:
+            assert manager.update_type == 'update'
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            mocker.patch.object(
+                InstantCountingScene, 'INSTANT_REPLAY_SECONDS', SHOWN_FRAMES * FRAME_SECONDS
+            )
+            assert manager.instant_replay()
+            step(manager, frames=INSTANT_LIVE_FRAMES - SHOWN_FRAMES)
+            updates = mocker.spy(pygame.display, 'update')
+            flips = mocker.spy(pygame.display, 'flip')
+            step(manager)
+            assert_whole_display_update(updates=updates, flips=flips)
+
+    def test_the_first_live_frame_after_a_scope_updates_the_whole_display(
+        self, mocker: MockerFixture
+    ):
+        with running_scene(InstantCountingScene) as manager:
+            assert manager.update_type == 'update'
+            step(manager, frames=JOURNALED_FRAMES)
+            assert manager.instant_replay()
+            step(manager)
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            updates = mocker.spy(pygame.display, 'update')
+            flips = mocker.spy(pygame.display, 'flip')
+            step(manager)
+            assert_whole_display_update(updates=updates, flips=flips)
+            # Then dirty rects again
+            step(manager)
+            assert updates.call_args_list[-1].args
+
+    def test_the_played_scenes_own_end_playback_is_ignored(self):
+        """Its recorded call did nothing live (no scope), so it does nothing in the replay."""
+        with running_scene(InstantEndingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            step(manager, frames=2)
+            step(manager, press(pygame.K_e))
+            step(manager, release(pygame.K_e), frames=2)
+            assert manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            assert manager.active_scene is live_scene
+            outcome = manager.last_playback_outcome
+            assert outcome is not None
+            assert outcome.reason == 'end_of_recording'
+
+    def test_the_players_input_during_a_scope(self):
+        with running_scene(InstantCountingScene) as manager:
+            assert manager.playback_player_input is None
+            step(manager, frames=JOURNALED_FRAMES)
+            assert manager.instant_replay()
+            step(manager)
+            session = manager.playback_session
+            assert session is not None
+            assert manager.playback_player_input is session.sources.last_base_snapshot
 
     def test_a_real_press_does_not_end_an_instant_replay(self):
         with running_scene(InstantCountingScene) as manager:

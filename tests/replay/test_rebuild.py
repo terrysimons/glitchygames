@@ -27,6 +27,7 @@ from glitchygames.replay.rebuild import (
     relaunch_replay,
     restart_command,
 )
+from glitchygames.replay.silence import FrameSilencer
 
 # How long the real child processes of the end-to-end restart test may run
 CHILD_TIMEOUT_SECONDS = 120.0
@@ -573,3 +574,66 @@ class TestRebuildSilence:
         progress.silence_frame()
         progress.finish()
         stop.assert_not_called()
+
+
+class TestFrameSilencer:
+    """The silence an instant replay's fast-forward shares with the rebuild."""
+
+    def test_sounds_playing_at_the_start_play_on_and_new_ones_are_stopped(self, dummy_mixer):
+        live_sound = pygame.mixer.Sound(buffer=bytes(4 * 44100))
+        live_channel = live_sound.play()
+        assert live_channel is not None
+        silencer = FrameSilencer(spares_playing_sounds=True)
+        silencer.begin()
+        new_channel = pygame.mixer.Sound(buffer=bytes(4 * 44100)).play()
+        assert new_channel is not None
+        silencer.silence_frame()
+        assert live_channel.get_busy()
+        assert not new_channel.get_busy()
+        silencer.finish()
+
+    def test_a_spared_channel_playing_something_else_is_stopped(self, dummy_mixer):
+        live_channel = pygame.mixer.Sound(buffer=bytes(4 * 44100)).play()
+        assert live_channel is not None
+        silencer = FrameSilencer(spares_playing_sounds=True)
+        silencer.begin()
+        live_channel.play(pygame.mixer.Sound(buffer=bytes(4 * 44100)))
+        silencer.silence_frame()
+        assert not live_channel.get_busy()
+        silencer.finish()
+
+    def test_without_sparing_every_sound_is_stopped(self, dummy_mixer):
+        live_channel = pygame.mixer.Sound(buffer=bytes(4 * 44100)).play()
+        assert live_channel is not None
+        silencer = FrameSilencer()
+        silencer.begin()
+        silencer.silence_frame()
+        assert not live_channel.get_busy()
+        silencer.finish()
+
+    @pytest.mark.parametrize('first_to_stop', [0, 1], ids=['outer-first', 'inner-first'])
+    def test_stacked_silencers_give_pygame_its_own_music_controls_back(self, first_to_stop):
+        pygame_pause, pygame_unpause = pygame.mixer.music.pause, pygame.mixer.music.unpause
+        silencers = [FrameSilencer(), FrameSilencer()]
+        for silencer in silencers:
+            silencer.begin()
+        silencers[first_to_stop].stop_following_music()
+        silencers[1 - first_to_stop].stop_following_music()
+        assert pygame.mixer.music.pause is pygame_pause
+        assert pygame.mixer.music.unpause is pygame_unpause
+
+    def test_stacked_silencers_both_see_the_games_music_pause(self, dummy_mixer, tmp_path):
+        music_path = tmp_path / 'music.wav'
+        write_silent_wave(path=music_path)
+        pygame.mixer.music.load(str(music_path))
+        pygame.mixer.music.play(loops=-1)
+        outer, inner = FrameSilencer(), FrameSilencer()
+        outer.begin()
+        inner.begin()
+        outer.silence_frame()
+        inner.silence_frame()
+        pygame.mixer.music.pause()
+        # The game paused the music itself: neither silencer resumes it
+        inner.finish()
+        outer.finish()
+        assert not pygame.mixer.music.get_busy()

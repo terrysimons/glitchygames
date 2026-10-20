@@ -59,6 +59,7 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
+    from glitchygames.input.state import InputSnapshot
     from glitchygames.replay.driver import ReplayResult
     from glitchygames.replay.playback import (
         PlaybackEndReason,
@@ -199,8 +200,10 @@ class SceneManager(SceneInterface, events.EventManager):
 
         # SCREEN shake lives here (not on a scene) so it outlives scene switches
         self.screen_shake: ScreenShake = ScreenShake()
-        # A shaken or overlaid frame was presented, so the display no longer matches the surface
-        self._altered_frame_was_presented: bool = False
+        # The display no longer shows what the surface holds (a shaken or overlaid frame was
+        # presented, frames ran unpresented, or a playback scope ended): the next presented
+        # frame updates the whole display (_show_frame)
+        self._display_is_stale: bool = False
         self.debug_overlay: DebugOverlay = DebugOverlay()
         self.rumble: RumbleController = RumbleController()
         self._live_audio: LiveAudio | None = None
@@ -223,8 +226,10 @@ class SceneManager(SceneInterface, events.EventManager):
         self._playback_session: PlaybackSession | None = None
         self._last_playback_result: ReplayResult | None = None
         self._last_playback_outcome: PlaybackOutcome | None = None
-        # True while _run_frame runs a frame: end_playback then waits for the frame's end
+        # True while _run_frame runs a frame, and while its supervisors run (end_playback is
+        # honoured between frames and from the supervisor slot only)
         self._frame_in_progress = False
+        self._in_supervisor_slot = False
         # The instant-replay journal of the scene that offers instant replay
         # (glitchygames/instant_replay.py): made as it is first set up, recording from its
         # first logic frame
@@ -613,22 +618,44 @@ class SceneManager(SceneInterface, events.EventManager):
     def end_playback(self: Self) -> None:
         """End the playback scope in progress (a demo, an instant replay); the game goes on.
 
-        Asked during a frame (from a supervisor, say), the scope ends once that frame ended,
-        so the frame is played and compared whole; asked between frames, it ends at once. Its
-        outcome's reason is ``'ended_by_game'``. Nothing when no scope is in progress (a
-        requested one still begins). Code outside the played scene must ask: the played
-        scene's own code runs again in the playback, where its call would end the scope.
+        Honoured from a supervisor (``add_supervisor``; the scope then ends once that frame
+        ended, so the frame is played and compared whole) and between frames (at once). Its
+        outcome's reason is ``'ended_by_game'``. Asked anywhere else in a frame, it is ignored
+        (logged at DEBUG): inside a scope the only scene code running is the played scene's,
+        whose call did nothing in its original run (no scope was playing then), as
+        ``recorded_playback_answer`` keeps a playback request's answer. Nothing when no scope
+        is in progress (a requested one still begins).
+
+        The player's presses reach no scene during an instant replay; a supervisor reads the
+        player's polled input from ``playback_player_input`` to decide when to end it.
         """
         session = self._playback_session
         if session is None:
             return
-        if self._frame_in_progress:
-            sources = session.sources
-            # As the scope's doors note their own reasons: the first one found wins
-            if sources.end_reason is None:
-                sources.end_reason = 'ended_by_game'
+        if not self._frame_in_progress:
+            self._exit_playback(reason='ended_by_game')
             return
-        self._exit_playback(reason='ended_by_game')
+        if not self._in_supervisor_slot:
+            LOG.debug('end_playback() asked by the played scene is ignored: it did nothing live')
+            return
+        sources = session.sources
+        # First reason found wins, as PlaybackSources._note_end keeps it (the class has no
+        # room for a public method that would do this)
+        if sources.end_reason is None:
+            sources.end_reason = 'ended_by_game'
+
+    @property
+    def playback_player_input(self: Self) -> InputSnapshot | None:
+        """The player's polled input while a playback scope plays, or None outside one.
+
+        The installed doors' latest snapshot (``current_input()`` is the recording's inside
+        a scope): a supervisor reads it to end an instant replay at the player's press
+        (``end_playback``).
+        """
+        session = self._playback_session
+        if session is None:
+            return None
+        return session.sources.last_base_snapshot
 
     def request_transition(
         self: Self,
@@ -882,8 +909,12 @@ class SceneManager(SceneInterface, events.EventManager):
             frame_number=self.frame_number
         ):
             self.record_control_event(kind=control_event.kind, data=control_event.data)
-        for supervisor in list(self._supervisors):
-            supervisor.on_frame(frame_number=self.frame_number, scene=self.active_scene)
+        self._in_supervisor_slot = True
+        try:
+            for supervisor in list(self._supervisors):
+                supervisor.on_frame(frame_number=self.frame_number, scene=self.active_scene)
+        finally:
+            self._in_supervisor_slot = False
 
     def _update_frame_services(self: Self) -> None:
         """Advance services that outlive scenes: screen shake, rumble and live audio."""
@@ -1013,6 +1044,11 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         if active_sources().presents_frames:
             self._show_frame(full_update=full_update)
+        else:
+            # What this frame drew never reached the display: the next presented frame must
+            # update all of it, not only its own dirty rects (an instant replay's first shown
+            # frame after its fast-forward)
+            self._display_is_stale = True
 
     def _show_frame(self: Self, *, full_update: bool) -> None:
         """Show the rendered frame, shifted by any active SCREEN shake and overlaid if shown.
@@ -1062,12 +1098,14 @@ class SceneManager(SceneInterface, events.EventManager):
                 sources.draw_overlay(surface=self.screen)
             pygame.display.flip()
             self.screen.blit(clean_frame, (0, 0))
-            self._altered_frame_was_presented = True
+            self._display_is_stale = True
             return
-        if self._altered_frame_was_presented:
-            # The display still shows the last shifted or overlaid frame; the surface holds the
-            # clean one, so one full flip replaces it (a dirty-rect update would not).
-            self._altered_frame_was_presented = False
+        if self._display_is_stale:
+            # The display still shows an older picture (the last shifted or overlaid frame, a
+            # frame before unpresented ones, or the scene before a playback scope switched);
+            # the surface holds the current one, so one full flip replaces it (a dirty-rect
+            # update would not).
+            self._display_is_stale = False
             pygame.display.flip()
             return
         if full_update:
@@ -1641,7 +1679,7 @@ class SceneManager(SceneInterface, events.EventManager):
         request.sources.held_live_events[:0] = take_redelivered_events()
         # From here on an error ends the scope and restores all of the above (_exit_playback)
         self._playback_session = session
-        LOG.info('Playing a %s of %s', request.kind, request.scene_class.__name__)
+        LOG.info('Starting the %s playback of %s', request.kind, request.scene_class.__name__)
         self.record_control_event(
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
         )
@@ -1652,6 +1690,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self._setup_new_scene(scene)
         self.active_scene = scene
         self._configure_active_scene()
+        # The display shows the live scene: the playback's first presented frame updates all
+        # of it
+        self._display_is_stale = True
         first_logic_frame = request.first_logic_frame
         if first_logic_frame.arrived_by_transition:
             self._capture_arriving_scene()
@@ -1723,6 +1764,9 @@ class SceneManager(SceneInterface, events.EventManager):
             # The playback's own scene switches set it to playback scenes
             self.previous_scene = session.saved_previous_scene
             self._clear_frame_effects()
+            # The display shows the playback's last frame: the live scene's first presented
+            # frame updates all of it, not only its own dirty rects
+            self._display_is_stale = True
             set_current_input(snapshot=session.sources.last_base_snapshot)
             # In the order they were pumped; when the run ends no frame follows to deliver them
             if switches_to_then:
