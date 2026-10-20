@@ -579,7 +579,7 @@ from glitchygames.replay.ghosts import (
 )
 
 # Recording: from the scene's start until the lap ends
-recorder = GhostRecorder(sprite=self.player)
+recorder = GhostRecorder(sprite=self.player, scene=self)
 ...
 track = recorder.finish()
 saves.save('best_lap', track.to_json())
@@ -594,16 +594,20 @@ self.all_sprites.add(ghost)            # never to a collision group
 - `GhostRecorder` is a supervisor: once per frame, after the frame's logic, it samples the
   scene's `game_time`, the sprite's `world_x`/`world_y`, its appearance (animation, frame,
   horizontal flip and draw offset of an `AnimatedSprite`; pass `appearance=` for anything else)
-  and whether the game shows it (`not hidden`). It samples only live frames of the first scene
-  it sees, and only when that scene's game time advanced: not behind the pause screen, not in a
-  demo or instant replay. It reads game state only, so recording a ghost changes nothing.
+  and whether the game shows it (`not hidden`). It samples only live frames of the scene it
+  was given, and only when that scene's game time advanced: not behind the pause screen, not
+  in a demo or instant replay. It reads game state only, so recording a ghost changes nothing.
+- Supervisors added while a demo or instant replay plays belong to that playback and are
+  removed when it ends, so a recorder the rebuilt scene's `setup()` makes never outlives it.
 - Samples are keyed by `Scene.game_time`, which stops while the scene is paused. The ghost
   shows the last sample not after the current `game_time`, so it lines up with the live run
   from the scene's start at any frame rate, and waits while the game is paused.
 - `GhostSprite` is a world-space sprite: the engine positions and culls it. Its position is
   read from the track whenever the engine reads it, so it is drawn in this frame's place, not
   last frame's. Its image is `image_for(sample)` drawn translucent (`alpha`, default 96).
-  Hide it with `ghost.hidden = True`; it is also hidden before the track's first sample.
+  Hide it with `ghost.hidden = True` (the game's own flag, as for every world sprite). With
+  nothing to show (before the track's first sample, or a sample the game had hidden) its image
+  is empty, so the engine culls it.
 - A ghost in `all_sprites` is in a recording's sprite trace like any sprite. Store tracks in
   saves: a replay serves the saves the recording saw, so a session with a ghost replays
   exactly.

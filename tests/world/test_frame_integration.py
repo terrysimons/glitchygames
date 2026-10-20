@@ -77,6 +77,8 @@ PLAYER_COLOR = (250, 20, 200)
 LANDMARK_COLOR = (20, 230, 40)
 LANDMARK_OFFSET_X = 80.0
 EXACT_COLOR_THRESHOLD = (1, 1, 1, 255)
+# A ghost of the player is recorded over this many frames, then played beside a new live run
+GHOST_RECORDED_FRAMES = 8
 
 
 class WorldSprite(pygame.sprite.DirtySprite):
@@ -1397,10 +1399,6 @@ class TestControlEvents:
         assert ControlEvent.from_json(event.to_json()) == event
 
 
-# A ghost of the player is recorded over this many frames, then played beside a new live run
-GHOST_RECORDED_FRAMES = 8
-
-
 def ghost_square(_sample: GhostSample) -> pygame.Surface:
     """Draw any ghost sample as a square the player's size.
 
@@ -1417,7 +1415,7 @@ class TestGhostsInTheFrame:
     def test_recorder_samples_once_per_frame_and_stops_on_finish(self):
         with running_scene(FollowingScene) as manager:
             scene = active_following_scene(manager)
-            recorder = GhostRecorder(sprite=scene.player)
+            recorder = GhostRecorder(sprite=scene.player, scene=scene)
             step(manager, frames=4)
             track = recorder.finish()
             step(manager, frames=2)
@@ -1434,7 +1432,7 @@ class TestGhostsInTheFrame:
         """Behind the pause screen the scene's game time stands still: nothing is sampled."""
         with running_scene(FollowingScene) as manager:
             game_scene = active_following_scene(manager)
-            recorder = GhostRecorder(sprite=game_scene.player)
+            recorder = GhostRecorder(sprite=game_scene.player, scene=game_scene)
             step(manager, frames=2)
             game_scene.pause()
             step(manager)
@@ -1455,7 +1453,8 @@ class TestGhostsInTheFrame:
     def test_a_ghost_lines_up_with_a_live_run_of_the_same_scene(self):
         """Drawn where the player is, each frame: the ghost lags no frame behind."""
         with running_scene(FollowingScene) as manager:
-            recorder = GhostRecorder(sprite=active_following_scene(manager).player)
+            recorded_scene = active_following_scene(manager)
+            recorder = GhostRecorder(sprite=recorded_scene.player, scene=recorded_scene)
             step(manager, frames=GHOST_RECORDED_FRAMES)
             track = recorder.finish()
         with running_scene(FollowingScene) as manager:
@@ -1488,3 +1487,28 @@ class TestGhostsInTheFrame:
             step(manager, frames=1)
         assert ghost.visible == 0  # outside the screen plus CULL_MARGIN_PIXELS
         assert ghost.hidden is False  # culled by the engine, not hidden by the track
+
+    def test_a_ghost_with_nothing_to_show_is_culled_by_the_engine(self):
+        """Before its first sample its image is empty, which the engine's culling hides."""
+        later = GhostTrack(
+            samples=(
+                GhostSample(
+                    game_seconds=1.0,
+                    world_x=PLAYER_START[0],
+                    world_y=PLAYER_START[1],
+                    appearance={},
+                    visible=True,
+                ),
+            )
+        )
+        with running_scene(CameraFreeScene) as manager:
+            scene = manager.active_scene
+            assert scene is not None
+            ghost = GhostSprite(track=later, image_for=ghost_square)
+            ghost.scene = scene
+            scene.all_sprites.add(ghost)
+            step(manager, frames=1)
+            assert ghost.visible == 0
+            assert ghost.hidden is False
+            step(manager, frames=round(1.0 / FRAME_SECONDS) + 1)
+            assert ghost.visible == 1

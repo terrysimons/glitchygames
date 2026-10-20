@@ -40,6 +40,7 @@ from glitchygames.recording import (
     post_event,
 )
 from glitchygames.replay.driver import ReplaySources
+from glitchygames.replay.ghosts import GhostRecorder
 from glitchygames.replay.playback import (
     INSTANT_PLAYBACK,
     PlaybackOptions,
@@ -316,6 +317,32 @@ class InstantJoystickScene(CountingScene):
                 current_input().axis(device_id=self.joysticks[0].get_instance_id(), axis=0) * 10
             )
         )
+
+
+class GhostRecordingScene(InstantCountingScene):
+    """Records a ghost of its world sprite from every setup(), as a time-trial scene does."""
+
+    # Every recorder made, in order (the live scene's, then a rebuilt scene's)
+    recorders: ClassVar[list[GhostRecorder]] = []
+
+    @override
+    def setup(self: Self) -> None:
+        """Start recording this scene's world sprite."""
+        super().setup()
+        GhostRecordingScene.recorders.append(GhostRecorder(sprite=self.world_sprite, scene=self))
+
+
+class FrameCountingSupervisor:
+    """Counts the frames it is called in."""
+
+    def __init__(self: Self) -> None:
+        """Start at no frames."""
+        self.frames_seen = 0
+
+    def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
+        """Count the frame (implements glitchygames.supervision.Supervisor)."""
+        del frame_number, scene
+        self.frames_seen += 1
 
 
 class SetupSavesScene(CountingScene):
@@ -1284,6 +1311,55 @@ class TestInstantReplay:
         assert manager.playback_session is not None
         step_until_the_scope_ends(manager=manager, stepper=step)
         step(manager, frames=2)
+
+
+class TestSupervisorsInAScope:
+    """Supervisors added while a playback scope plays belong to it and end with it."""
+
+    def test_a_supervisor_added_during_a_scope_is_removed_when_it_ends(self):
+        live_supervisor = FrameCountingSupervisor()
+        scope_supervisor = FrameCountingSupervisor()
+        with running_scene(InstantCountingScene) as manager:
+            manager.add_supervisor(supervisor=live_supervisor)
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            assert manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is not None
+            manager.add_supervisor(supervisor=scope_supervisor)
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            scope_frames_seen = scope_supervisor.frames_seen
+            live_frames_before = live_supervisor.frames_seen
+            step(manager, frames=2)
+            manager.remove_supervisor(supervisor=live_supervisor)
+        assert scope_frames_seen > 0
+        assert scope_supervisor.frames_seen == scope_frames_seen
+        assert live_supervisor.frames_seen == live_frames_before + 2
+
+    def test_a_ghost_recorder_made_by_the_rebuilt_scene_ends_with_the_scope(self, mocker):
+        mocker.patch.object(GhostRecordingScene, 'recorders', [])
+        with running_scene(GhostRecordingScene) as manager:
+            live_scene = manager.active_scene
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            assert manager.instant_replay()
+            # The scope begins at the start of the next frame
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            live_recorder, rebuilt_recorder = GhostRecordingScene.recorders
+            rebuilt_on_frame = mocker.spy(rebuilt_recorder, 'on_frame')
+            step(manager, frames=2)
+            assert manager.active_scene is live_scene
+            assert live_scene is not None
+            live_game_time = live_scene.game_time
+            live_track = live_recorder.finish()
+        assert rebuilt_on_frame.call_count == 0
+        # The rebuilt scene's recorder sampled nothing: no live frame, no frame of its own
+        assert rebuilt_recorder.finish().samples == ()
+        live_game_seconds = [recorded.game_seconds for recorded in live_track.samples]
+        assert live_game_seconds == sorted(set(live_game_seconds))
+        assert live_game_seconds[-1] == pytest.approx(live_game_time)
+        # Every live frame but none of the scope's
+        assert len(live_track.samples) == INSTANT_LIVE_FRAMES + 2
 
 
 class TestFastForwardFrameCount:

@@ -7,6 +7,11 @@ collision next frame. Today scripts/record_scripted_session.py uses it to play a
 script. The watched-replay controls and recorded breakpoints (Part 2) and a future cheat device
 plug in here too (plans/2026-10-19-gameplay-replay.md, section 2).
 
+Supervisors are the scene manager's, not a scene's: they run whichever scene is active, a
+playback scope's included. One added while a playback scope plays belongs to the scope and is
+removed when the scope ends (glitchygames/replay/playback.py, rule 4), so a rebuilt scene's
+supervisor never outlives its playback; one added before the scope runs through it and stays.
+
 A control event is a supervisor action recorded with the frame it happened in; a replay
 re-applies recorded control events on the same frame, so sessions with supervisor actions replay
 exactly.
@@ -51,8 +56,10 @@ class Supervisor(Protocol):
         ...
 
 
-def _frozen(value: Any) -> Any:
+def frozen_json_value(value: Any) -> Any:
     """Return a read-only copy of JSON-shaped ``value``: mappings and lists, recursively.
+
+    Used for control event data and ghost appearances (glitchygames/replay/ghosts.py).
 
     Returns:
         A MappingProxyType over a copy for a mapping, a tuple for a list or tuple, else value.
@@ -60,14 +67,15 @@ def _frozen(value: Any) -> Any:
     """
     if isinstance(value, Mapping):
         mapping = cast('Mapping[Any, Any]', value)
-        return MappingProxyType({key: _frozen(item) for key, item in mapping.items()})
+        return MappingProxyType({key: frozen_json_value(item) for key, item in mapping.items()})
     if isinstance(value, list | tuple):
-        return tuple(_frozen(item) for item in cast('list[Any] | tuple[Any, ...]', value))
+        items = cast('list[Any] | tuple[Any, ...]', value)
+        return tuple(frozen_json_value(item) for item in items)
     return value
 
 
-def _thawed(value: Any) -> Any:
-    """Return plain JSON types for a value made by ``_frozen`` (dicts and lists).
+def thawed_json_value(value: Any) -> Any:
+    """Return plain JSON types for a value made by ``frozen_json_value`` (dicts and lists).
 
     Returns:
         A dict for a mapping, a list for a tuple or list, else value.
@@ -75,9 +83,9 @@ def _thawed(value: Any) -> Any:
     """
     if isinstance(value, Mapping):
         mapping = cast('Mapping[Any, Any]', value)
-        return {key: _thawed(item) for key, item in mapping.items()}
+        return {key: thawed_json_value(item) for key, item in mapping.items()}
     if isinstance(value, list | tuple):
-        return [_thawed(item) for item in cast('list[Any] | tuple[Any, ...]', value)]
+        return [thawed_json_value(item) for item in cast('list[Any] | tuple[Any, ...]', value)]
     return value
 
 
@@ -96,7 +104,7 @@ class ControlEvent:
     def __post_init__(self: Self) -> None:
         """Replace ``data`` with its read-only copy."""
         # The dataclass is frozen, so the field is set the way dataclasses set it
-        object.__setattr__(self, 'data', _frozen(self.data))
+        object.__setattr__(self, 'data', frozen_json_value(self.data))
 
     def to_json(self: Self) -> dict[str, Any]:
         """Return ``{'kind': kind, **data}`` as plain JSON types.
@@ -105,7 +113,7 @@ class ControlEvent:
             The JSON-safe record.
 
         """
-        return {KIND_FIELD: self.kind, **_thawed(self.data)}
+        return {KIND_FIELD: self.kind, **thawed_json_value(self.data)}
 
     @classmethod
     def from_json(cls, record: Mapping[str, Any]) -> ControlEvent:

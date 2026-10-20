@@ -51,7 +51,10 @@ Demos and instant replays run inside a playback scope, not a new engine run
    (``SceneManager._exit_playback``) keeps the replay's result
    (``SceneManager.last_playback_result``) and a ``PlaybackOutcome``
    (``SceneManager.last_playback_outcome``: the kind, the reason and the frames played), cleans
-   up the playback's scene, pops the scoped doors, restores the streams, the frame clock, the
+   up the playback's scene, removes every supervisor added while the scope played (the
+   rebuilt scene's code may add one, a ghost recorder say; ``SceneManager.add_supervisor``
+   gives it to the scope, and supervisors added before the scope began stay), pops the
+   scoped doors, restores the streams, the frame clock, the
    FPS event timer, the scene manager's ``previous_scene`` and the live polled input (the
    installed doors' latest snapshot), posts again the live game's posts the scope drained and
    hands back the player's held events (rule 5), then makes the live scene active again

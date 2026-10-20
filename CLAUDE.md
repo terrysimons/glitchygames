@@ -467,29 +467,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--audit`, `--replay-digest` or `--replay-fps real`. NEW replays clean; a truncated OLD gives a
   `source_truncated` NEW (replays `UNUSABLE_INPUT`, not auditable, not a golden fixture);
   replacing a golden fixture with NEW stays a reviewed step
-- Instant replay (Part 3 Tasks 5-6; `glitchygames/instant_replay.py`, a leaf, and rule 7 of
-  `replay/playback.py`): a scene class setting `INSTANT_REPLAY_SECONDS` (captures its start in
-  live play too) keeps an in-memory journal of every frame since its first logic frame, as
-  `--record-trace` records them (sprites included: ~0.5 MB/min for one moving sprite, ~1.5
-  MB/min for PaddleSlap; `JOURNAL_BYTES_PER_MINUTE_LIMIT`), ended when another scene is
-  presented or past `MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` (60; frame time, paused frames
-  included). `scene_manager.instant_replay() -> bool` rebuilds the scene in a scope of kind
-  `instant`, fast-forwards unseen, unpaced and silent (`replay/silence.py` `FrameSilencer`) to
-  the last `INSTANT_REPLAY_SECONDS` of frame time, shows those, then the untouched live scene
-  goes on. Presses do not end it: a supervisor reads `playback_player_input` and calls
-  `end_playback()` (honoured only from the supervisor slot or between frames; from played scene
-  code it is ignored). A scope suspends the journal; it resumes with a `resume_bridge` frame
-  field, so replays can follow one another; a request inside a playback of the journal gets the
-  recorded answer (`playback_answers`; scopes never nest)
-- Ghosts (Part 3 Task 7; `glitchygames/replay/ghosts.py`, whose docstring is the contract):
-  `GhostRecorder(sprite=...)` is a supervisor sampling `GhostSample`s (game time, world x/y,
-  `default_appearance`: animation, frame, flip, draw offset; shown = `not hidden`) on live
-  frames of the first scene it sees whose `game_time` advanced (never in a playback scope);
-  `finish()` returns the frozen pydantic `GhostTrack` (`to_json`/`from_json`; store it in
-  saves). `GhostSprite(track=..., image_for=images_from_animated_sprite(sprite))`, with
-  `ghost.scene = scene`, is a WORLD sprite whose `world_x`/`world_y`/`hidden`/`draw_offset` are
-  read from the track at `scene.game_time` when read (so positioning is never a frame late); no
-  hitbox. It is sampled in traces like any sprite and replays exactly (track from saves)
+- Instant replay (contract: `glitchygames/instant_replay.py`, a leaf, and rule 7 of
+  `replay/playback.py`): `Scene.INSTANT_REPLAY_SECONDS` opts in (an in-memory journal of the
+  scene's frames, ~0.5-1.5 MB/min), `MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` (60) is the
+  budget, `scene_manager.instant_replay() -> bool` plays it; end it early only from a
+  supervisor with `end_playback()` (reading `playback_player_input`). Supervisors added during
+  any playback scope are removed when it ends
+- Ghosts (contract: `glitchygames/replay/ghosts.py`): `GhostRecorder(sprite=..., scene=...)`
+  (a supervisor; `finish()` -> frozen pydantic `GhostTrack`, `to_json`/`from_json`, store in
+  saves), `GhostSprite(track=..., image_for=images_from_animated_sprite(sprite))` with
+  `ghost.scene = scene` (a WORLD sprite following `scene.game_time`; no hitbox)
 - Part 2 and Part 3 are done; follow-ups (state snapshots, cheat device) are in
   `plans/future-work.md`. User docs: `docs/architecture/gameplay_replay.md`
 

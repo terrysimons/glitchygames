@@ -2,22 +2,25 @@
 
 A ghost is appearance, not play (plans/2026-10-19-gameplay-replay.md, section 5.5). The rules:
 
-1. Recording: ``GhostRecorder(sprite=...)`` is a supervisor (glitchygames/supervision.py); it
-   registers itself with ``SceneManager().add_supervisor`` as it is made and removes itself in
-   ``finish()``, which returns the ``GhostTrack``. At each frame's supervisor slot (after the
-   frame's logic and events, before the camera aim and positioning) it keeps one
-   ``GhostSample``: the scene's ``game_time``, the sprite's ``world_x``/``world_y``, its
-   ``appearance(sprite)`` (``default_appearance``: animation, frame, horizontal flip and
-   draw offset of an ``AnimatedSprite``) and whether the game shows it (``not hidden`` for a
-   world-space sprite: its ``visible`` is the engine's culling, which says where the camera
-   was, not whether the sprite was shown; ``visible`` for any other sprite).
-2. Only live frames of one scene are sampled: the scene active at the first frame the recorder
-   sees (a later scene has its own game time), only in frames where that scene's game time
-   advanced (not behind the pause screen, not the frame a resume switches back to it), and
-   never inside a playback scope (a demo or an instant replay plays another scene object;
-   glitchygames/replay/playback.py). The recorder reads game state only: it draws no
-   randomness, posts no event and records no control event, so recording a ghost changes
-   nothing a ``--record-trace`` recording holds or a replay compares.
+1. Recording: ``GhostRecorder(sprite=..., scene=...)`` is a supervisor
+   (glitchygames/supervision.py); it registers itself with ``SceneManager().add_supervisor``
+   as it is made and removes itself in ``finish()``, which returns the ``GhostTrack``. At each
+   frame's supervisor slot (after the frame's logic and events, before the camera aim and
+   positioning) it keeps one ``GhostSample``: the scene's ``game_time``, the sprite's
+   ``world_x``/``world_y``, its ``appearance(sprite)`` (``default_appearance``: animation,
+   frame, horizontal flip and draw offset of an ``AnimatedSprite``; kept as a read-only copy)
+   and whether the game shows it (``not hidden`` for a world-space sprite: its ``visible`` is
+   the engine's culling, which says where the camera was, not whether the sprite was shown;
+   ``visible`` for any other sprite).
+2. Only live frames of its scene are sampled: frames whose active scene is the ``scene`` it was
+   given (another scene has its own game time), in which that scene's game time advanced (not
+   behind the pause screen, not the frame a resume switches back to it), and never inside a
+   playback scope (a demo or an instant replay plays a rebuilt scene;
+   glitchygames/replay/playback.py). A recorder made while a scope plays (by the rebuilt
+   scene's ``setup()``, say) belongs to the scope: the scene manager removes it when the scope
+   ends (glitchygames/supervision.py), and it samples nothing. The recorder reads game state
+   only: it draws no randomness, posts no event and records no control event, so recording a
+   ghost changes nothing a ``--record-trace`` recording holds or a replay compares.
 3. Timing: samples are keyed by ``Scene.game_time``, the sum of the scene's (capped) dt since
    it started, which stops while the scene is paused. A ghost drawn in a later run of the same
    scene shows, at each moment, the last sample not after that run's ``game_time``
@@ -33,14 +36,17 @@ A ghost is appearance, not play (plans/2026-10-19-gameplay-replay.md, section 5.
    (``COORDINATE_SPACE = CoordinateSpace.WORLD``): the engine positions and culls it like any
    world sprite and is the only writer of its rect's position. The game sets ``ghost.scene``
    to the scene it adds the ghost to (whose ``game_time`` it follows) and adds it to the
-   scene's ``all_sprites``. Its ``world_x``, ``world_y``, ``draw_offset`` and ``hidden`` are
-   read from the track at the scene's current ``game_time`` whenever they are read, so the
-   engine's positioning (which runs before ``update()``) places this frame's sample, never
-   the last frame's. Its image is ``image_for(sample)`` as a translucent copy (``alpha``),
-   made once per distinct appearance, and the rect takes its size (its top-left stays the
-   engine's). It is hidden before its track's first sample, without a scene, while its sample
-   is not visible, and while the game sets ``hidden = True`` (never ``visible = False``: the
-   engine's culling owns ``visible``). It has no hitbox: never add it to a collision group.
+   scene's ``all_sprites``. Its ``world_x``, ``world_y`` and ``draw_offset`` are read from
+   the track at the scene's current ``game_time`` whenever they are read, and that read
+   brings its image and rect size up to date, so the engine's positioning (which runs before
+   ``update()``) places and culls this frame's sample, never the last frame's. Its image is
+   ``image_for(sample)`` as a translucent copy (``alpha``), made once per distinct appearance
+   (keyed by the appearance's JSON), and the rect takes its size (its top-left stays the
+   engine's). With nothing to show (no scene, before the track's first sample, or a sample
+   that is not visible) its image is empty (0 x 0), which the engine's culling hides
+   (``visible`` 0). ``hidden`` is the game's own flag only, as for every world sprite (set
+   ``hidden = True`` to hide it, never ``visible = False``), so saving and restoring it is
+   safe. It has no hitbox: never add it to a collision group.
 6. In traces: a ghost in ``all_sprites`` is sampled like every sprite (its rect and
    ``visible``), and it is deterministic: its track comes from saves (rule 4) and its position
    from the replayed ``game_time``, so a session with a ghost replays without divergence.
@@ -52,13 +58,15 @@ from __future__ import annotations
 
 import bisect
 import json
-from typing import TYPE_CHECKING, Any, Protocol, Self, override
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Protocol, Self, cast, override
 
 import pygame
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 
 from glitchygames.scenes import SceneManager
 from glitchygames.sprites.animated import AnimatedSprite
+from glitchygames.supervision import frozen_json_value, thawed_json_value
 from glitchygames.world import CoordinateSpace, is_world_positioned
 
 if TYPE_CHECKING:
@@ -80,10 +88,57 @@ class GhostSample(BaseModel):
     game_seconds: float
     world_x: float
     world_y: float
-    # JSON-safe; default_appearance's keys unless the recorder was given another function
-    appearance: dict[str, Any]
-    # Whether the game showed the sprite (not hidden); the ghost is hidden when False
+    # JSON-safe; default_appearance's keys unless the recorder was given another function.
+    # Kept read-only (mappings read-only, lists as tuples): its JSON keys a ghost's image cache
+    appearance: Mapping[str, Any]
+    # Whether the game showed the sprite (not hidden); the ghost draws nothing when False
     visible: bool
+
+    @field_validator('appearance', mode='before')
+    @classmethod
+    def _appearance_is_a_mapping(cls, appearance: object) -> object:
+        """Refuse an appearance that is not a mapping, naming what an appearance must be.
+
+        A custom ``appearance`` function (GhostRecorder) is the usual source of a wrong value.
+
+        Returns:
+            The appearance, for pydantic's own validation.
+
+        Raises:
+            ValueError: If the appearance is not a mapping.
+
+        """
+        if isinstance(appearance, Mapping):
+            return cast('Mapping[str, Any]', appearance)
+        message = (
+            f'A ghost appearance must be a mapping of JSON values, got {type(appearance).__name__}'
+        )
+        # A ValueError, not a TypeError: pydantic turns only ValueError (and AssertionError)
+        # raised by a validator into a ValidationError
+        raise ValueError(message)
+
+    @field_validator('appearance', mode='after')
+    @classmethod
+    def _read_only_appearance(cls, appearance: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Keep a read-only copy of the appearance given, so nobody can change it later.
+
+        Pydantic validates a ``Mapping`` field into a new dict, so the copy is made after it.
+
+        Returns:
+            The read-only copy.
+
+        """
+        return frozen_json_value(appearance)
+
+    @field_serializer('appearance')
+    def _plain_appearance(self: Self, appearance: Mapping[str, Any]) -> dict[str, Any]:
+        """Write the appearance as plain JSON types (dicts and lists).
+
+        Returns:
+            The plain copy.
+
+        """
+        return thawed_json_value(appearance)
 
 
 class GhostTrack(BaseModel):
@@ -215,20 +270,22 @@ class GhostRecorder:
         self: Self,
         *,
         sprite: WorldPositioned,
+        scene: Scene,
         appearance: Callable[[object], dict[str, Any]] = default_appearance,
     ) -> None:
         """Start recording ``sprite``: register with the scene manager's supervisor slot.
 
         Args:
             sprite: The sprite to record (it has world_x and world_y).
+            scene: The scene the sprite plays in: only its frames are sampled, keyed by its
+                game time.
             appearance: Returns the JSON-safe looks of the sprite for each sample.
 
         """
         self._sprite = sprite
+        self._scene = scene
         self._appearance = appearance
         self._samples: list[GhostSample] = []
-        # The scene whose game time the samples are keyed by (the first one seen)
-        self._scene: Scene | None = None
         self._track: GhostTrack | None = None
         SceneManager().add_supervisor(supervisor=self)
 
@@ -242,15 +299,11 @@ class GhostRecorder:
         """
         del frame_number
         # A supervisor earlier in the slot may have finished this recorder this frame
-        if self._track is not None or scene is None:
+        if self._track is not None or scene is not self._scene:
             return
         if SceneManager().playback_session is not None:
             return
-        if self._scene is None:
-            self._scene = scene
-        elif scene is not self._scene:
-            return
-        game_seconds = scene.game_time
+        game_seconds = self._scene.game_time
         if self._samples and game_seconds <= self._samples[-1].game_seconds:
             return
         sprite = self._sprite
@@ -293,7 +346,7 @@ class GameTimed(Protocol):
 class GhostSprite(pygame.sprite.DirtySprite):
     """A translucent world-space sprite that plays a ``GhostTrack`` (module rules 3, 5 and 6).
 
-    Set ``scene`` to the scene the ghost is added to; until then it is hidden.
+    Set ``scene`` to the scene the ghost is added to; until then it draws nothing.
     """
 
     COORDINATE_SPACE = CoordinateSpace.WORLD
@@ -319,18 +372,20 @@ class GhostSprite(pygame.sprite.DirtySprite):
         self._track = track
         self._image_for = image_for
         self._alpha = alpha
-        self._hidden_by_game = False
+        # The game's own flag, as for every world sprite (the engine's culling reads it)
+        self.hidden = False
         # The scene and game time the current sample was looked up for
         self._looked_up_for: tuple[GameTimed, float] | None = None
         self._sample: GhostSample | None = None
+        # The JSON of the appearance drawn, or None while the empty image is shown
         self._drawn_appearance: str | None = None
         self._images_by_appearance: dict[str, pygame.Surface] = {}
-        blank_image = pygame.Surface((0, 0))
-        self.image = blank_image
-        self.rect = blank_image.get_rect()
+        self._empty_image = pygame.Surface((0, 0))
+        self.image = self._empty_image
+        self.rect = self._empty_image.get_rect()
 
     def _current_sample(self: Self) -> GhostSample | None:
-        """Return the sample for the scene's current game time, updating the image with it.
+        """Return the sample for the scene's current game time, showing its image.
 
         Returns:
             The sample, or None without a scene or before the track's first sample.
@@ -338,6 +393,9 @@ class GhostSprite(pygame.sprite.DirtySprite):
         """
         scene = self.scene
         if scene is None:
+            self._sample = None
+            self._looked_up_for = None
+            self._show_image(appearance_key=None, sample=None)
             return None
         game_seconds = scene.game_time
         looked_up_for = self._looked_up_for
@@ -350,25 +408,32 @@ class GhostSprite(pygame.sprite.DirtySprite):
         self._looked_up_for = (scene, game_seconds)
         sample = self._track.sample_at(game_seconds=game_seconds)
         self._sample = sample
-        if sample is not None:
-            self._draw_appearance(sample=sample)
+        if sample is None or not sample.visible:
+            self._show_image(appearance_key=None, sample=None)
+        else:
+            appearance_key = json.dumps(thawed_json_value(sample.appearance), sort_keys=True)
+            self._show_image(appearance_key=appearance_key, sample=sample)
         return sample
 
-    def _draw_appearance(self: Self, *, sample: GhostSample) -> None:
-        """Show the sample's image, made translucent once per distinct appearance.
+    def _show_image(self: Self, *, appearance_key: str | None, sample: GhostSample | None) -> None:
+        """Show a sample's image, made translucent once per appearance, or the empty image.
 
         Args:
-            sample: The sample to draw.
+            appearance_key: The JSON of the sample's appearance, or None for the empty image.
+            sample: The sample to draw (None for the empty image).
 
         """
-        appearance_key = json.dumps(sample.appearance, sort_keys=True)
         if appearance_key == self._drawn_appearance:
             return
-        image = self._images_by_appearance.get(appearance_key)
-        if image is None:
-            image = self._image_for(sample).copy()
-            image.set_alpha(self._alpha)
-            self._images_by_appearance[appearance_key] = image
+        if appearance_key is None or sample is None:
+            image = self._empty_image
+        else:
+            cached_image = self._images_by_appearance.get(appearance_key)
+            if cached_image is None:
+                cached_image = self._image_for(sample).copy()
+                cached_image.set_alpha(self._alpha)
+                self._images_by_appearance[appearance_key] = cached_image
+            image = cached_image
         self._drawn_appearance = appearance_key
         self.image = image
         # The size follows the image; the engine owns the position (rect.topleft)
@@ -398,17 +463,6 @@ class GhostSprite(pygame.sprite.DirtySprite):
             return (0, 0)
         draw_offset_x, draw_offset_y = sample.appearance['draw_offset']
         return (int(draw_offset_x), int(draw_offset_y))
-
-    @property
-    def hidden(self: Self) -> bool:
-        """True while the game hides the ghost, or the track has no visible sample now."""
-        sample = self._current_sample()
-        return self._hidden_by_game or sample is None or not sample.visible
-
-    @hidden.setter
-    def hidden(self: Self, value: bool) -> None:
-        """Hide the ghost (True) whatever its track says, or let the track decide (False)."""
-        self._hidden_by_game = value
 
     @override
     def update(self: Self) -> None:

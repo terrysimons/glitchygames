@@ -365,15 +365,18 @@ logging the report in debug runs; a replay test per bundled demo catches this in
 - Ghosts are appearance, not play: they cannot diverge. A replayed session with a ghost matches,
   since the track comes from saves, which the sandbox reproduces.
 - Amended (as built in Part 3 Task 7, `glitchygames/replay/ghosts.py`): `GhostSample` and
-  `GhostTrack` are frozen pydantic models. The recorder is a supervisor that samples only live
-  frames (never inside a playback scope) of the first scene it sees, and only frames in which
-  that scene's `game_time` advanced (not behind the pause screen); "visible" is the game's
+  `GhostTrack` are frozen pydantic models (the appearance read-only).
+  `GhostRecorder(*, sprite, scene)` is a supervisor that samples only live frames (never inside
+  a playback scope) of the scene it is given, and only frames in which that scene's
+  `game_time` advanced (not behind the pause screen); supervisors added while a playback scope
+  plays belong to it and are removed when it ends; "visible" is the game's
   `not hidden` for a world sprite (its `visible` is the engine's culling), and the appearance
   adds the `AnimatedSprite`'s `draw_offset`. `GhostSprite(*, track, image_for, alpha)` takes
   the function that draws a sample (`images_from_animated_sprite`), follows the `game_time` of
-  the scene the game sets as `ghost.scene`, and reads `world_x`/`world_y`/`hidden`/
-  `draw_offset` from the track when they are read, so the engine's positioning (before the
-  render phase) places this frame's sample. A ghost is in the sprite trace like any sprite.
+  the scene the game sets as `ghost.scene`, and reads `world_x`/`world_y`/`draw_offset` from
+  the track when they are read, so the engine's positioning (before the render phase) places
+  this frame's sample. With nothing to show its image is empty, which the engine culls;
+  `hidden` stays the game's own flag. A ghost is in the sprite trace like any sprite.
 
 ## 6. Errors, performance, format
 

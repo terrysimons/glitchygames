@@ -88,6 +88,16 @@ def sample(*, seconds: float, x: float, appearance: dict[str, Any] | None = None
     )
 
 
+def stand_in_scene(*, game_time: float = 0.1) -> Scene:
+    """Return a scene stand-in typed as a Scene (a recorder reads only its ``game_time``).
+
+    Returns:
+        The stand-in.
+
+    """
+    return cast('Scene', GameTimedStandIn(game_time=game_time))
+
+
 def plain_image(_sample: GhostSample) -> pygame.Surface:
     """Return a small surface for any sample.
 
@@ -164,6 +174,36 @@ class TestGhostTrack:
         with pytest.raises(ValidationError):
             frozen_sample.world_x = 1.0
 
+    def test_the_appearance_is_a_read_only_copy(self):
+        """Its JSON keys a ghost's image cache, so nobody may change it after the fact."""
+        given: dict[str, Any] = {'animation': 'walk', 'draw_offset': [1, 2]}
+        frozen_sample = sample(seconds=0.0, x=0.0, appearance=given)
+        given['animation'] = 'run'
+        given['draw_offset'].append(3)
+        appearance = frozen_sample.appearance
+        assert appearance['animation'] == 'walk'
+        assert tuple(appearance['draw_offset']) == (1, 2)
+        with pytest.raises(TypeError):
+            # A Mapping has no item assignment to type-check; the cast lets the test try it
+            cast('dict[str, Any]', appearance)['animation'] = 'run'
+        with pytest.raises(AttributeError):
+            appearance['draw_offset'].append(3)
+
+    def test_an_appearance_that_is_not_a_mapping_is_refused(self):
+        with pytest.raises(ValidationError, match='must be a mapping of JSON values, got list'):
+            GhostSample(game_seconds=0.0, world_x=0.0, world_y=0.0, appearance=[], visible=True)
+
+    def test_to_json_gives_plain_json_types(self):
+        track = GhostTrack(
+            samples=(sample(seconds=0.0, x=0.0, appearance={'nested': {'offset': [1, 2]}}),)
+        )
+        record = track.to_json()
+        appearance = record['samples'][0]['appearance']
+        assert type(appearance) is dict
+        assert type(appearance['nested']) is dict
+        assert type(appearance['nested']['offset']) is list
+        assert json.loads(json.dumps(record)) == record
+
 
 class TestGhostSprite:
     """A ghost is a world sprite whose position and image follow its scene's game time."""
@@ -201,31 +241,51 @@ class TestGhostSprite:
         scene.game_time = 1.0
         assert ghost.world_x == pytest.approx(50.0)
 
-    def test_before_its_first_sample_or_without_a_scene_the_ghost_is_hidden(self):
+    def test_before_its_first_sample_or_without_a_scene_the_ghost_draws_nothing(self):
+        """An empty image: the engine's culling hides it, and ``hidden`` stays the game's."""
         track = GhostTrack(samples=(sample(seconds=1.0, x=50.0),))
         ghost = GhostSprite(track=track, image_for=plain_image)
-        assert ghost.hidden is True
-        ghost.scene = GameTimedStandIn(game_time=0.5)
-        assert ghost.hidden is True
-        ghost.scene.game_time = 1.0
+        ghost.update()
+        assert ghost.image.get_size() == (0, 0)
+        scene = GameTimedStandIn(game_time=0.5)
+        ghost.scene = scene
+        ghost.update()
+        assert ghost.image.get_size() == (0, 0)
+        scene.game_time = 1.0
+        ghost.update()
+        assert ghost.image.get_size() == GHOST_SIZE
+        assert ghost.rect.size == GHOST_SIZE
         assert ghost.hidden is False
 
-    def test_an_invisible_sample_hides_the_ghost(self):
+    def test_an_invisible_sample_draws_nothing_until_a_visible_one(self):
         invisible = GhostSample(
             game_seconds=0.0, world_x=0.0, world_y=0.0, appearance={}, visible=False
         )
-        ghost = GhostSprite(track=GhostTrack(samples=(invisible,)), image_for=plain_image)
-        ghost.scene = GameTimedStandIn(game_time=0.0)
-        assert ghost.hidden is True
-
-    def test_the_game_can_hide_a_ghost_whatever_the_track_says(self):
-        track = GhostTrack(samples=(sample(seconds=0.0, x=0.0),))
+        track = GhostTrack(samples=(invisible, sample(seconds=1.0, x=0.0)))
         ghost = GhostSprite(track=track, image_for=plain_image)
-        ghost.scene = GameTimedStandIn(game_time=0.0)
+        scene = GameTimedStandIn(game_time=0.0)
+        ghost.scene = scene
+        ghost.update()
+        assert ghost.rect.size == (0, 0)
+        assert ghost.hidden is False
+        scene.game_time = 1.0
+        ghost.update()
+        assert ghost.rect.size == GHOST_SIZE
+
+    def test_hidden_is_the_games_own_flag_and_round_trips(self):
+        """A ghost the track hides is not ``hidden``, so saving and restoring the flag is safe."""
+        track = GhostTrack(samples=(sample(seconds=1.0, x=0.0),))
+        ghost = GhostSprite(track=track, image_for=plain_image)
+        scene = GameTimedStandIn(game_time=0.0)  # before the first sample
+        ghost.scene = scene
+        was_hidden = ghost.hidden
         ghost.hidden = True
         assert ghost.hidden is True
-        ghost.hidden = False
+        ghost.hidden = was_hidden
+        scene.game_time = 1.0
+        ghost.update()
         assert ghost.hidden is False
+        assert ghost.rect.size == GHOST_SIZE
 
     def test_the_image_is_a_translucent_copy_sized_into_the_rect(self):
         source_image = pygame.Surface((6, 3))
@@ -283,8 +343,15 @@ class TestGhostSprite:
 
     def test_update_nested_sprites_does_nothing(self):
         """Scene.update() calls it on every sprite; a ghost has no nested sprites."""
-        ghost = GhostSprite(track=GhostTrack(samples=()), image_for=plain_image)
-        ghost.update_nested_sprites()
+        track = GhostTrack(samples=(sample(seconds=0.0, x=0.0),))
+        ghost = GhostSprite(track=track, image_for=plain_image)
+        ghost.scene = GameTimedStandIn(game_time=0.0)
+        ghost.update()
+        image_before, rect_before, dirty_before = ghost.image, ghost.rect.copy(), ghost.dirty
+        assert ghost.update_nested_sprites() is None
+        assert ghost.image is image_before
+        assert ghost.rect == rect_before
+        assert ghost.dirty == dirty_before
 
 
 class TestAppearance:
@@ -342,7 +409,7 @@ class TestGhostRecorder:
     def test_the_recorder_registers_itself_and_finish_removes_it(self, scene_manager, mocker):
         add_supervisor = mocker.spy(scene_manager, 'add_supervisor')
         remove_supervisor = mocker.spy(scene_manager, 'remove_supervisor')
-        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0))
+        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0), scene=stand_in_scene())
         add_supervisor.assert_called_once_with(supervisor=recorder)
         recorder.finish()
         remove_supervisor.assert_called_once_with(supervisor=recorder)
@@ -350,10 +417,10 @@ class TestGhostRecorder:
     def test_visible_is_the_games_hidden_flag_not_the_engines_culling(self, scene_manager):
         """A sprite culled off screen live is still shown by its ghost where it is on screen."""
         sprite = WorldStandIn(world_x=0.0, visible=0)
-        recorder = GhostRecorder(sprite=sprite)
         stand_in = GameTimedStandIn(game_time=0.1)
         # The recorder reads only the scene's game_time
         scene = cast('Scene', stand_in)
+        recorder = GhostRecorder(sprite=sprite, scene=scene)
         recorder.on_frame(frame_number=1, scene=scene)
         sprite.hidden = True
         stand_in.game_time = 0.2
@@ -362,9 +429,9 @@ class TestGhostRecorder:
         assert [recorded.visible for recorded in track.samples] == [True, False]
 
     def test_frames_inside_a_playback_scope_are_not_sampled(self, scene_manager, mocker):
-        """A demo or instant replay shows another scene object: the live sprite stands still."""
-        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0))
-        scene = cast('Scene', GameTimedStandIn(game_time=0.1))
+        """A demo or instant replay plays a rebuilt scene: no live frame of the recorded one."""
+        scene = stand_in_scene()
+        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0), scene=scene)
         mocker.patch.object(
             type(scene_manager),
             'playback_session',
@@ -374,24 +441,25 @@ class TestGhostRecorder:
         recorder.on_frame(frame_number=1, scene=scene)
         assert recorder.finish().samples == ()
 
-    def test_only_the_first_scene_sampled_is_followed(self, scene_manager):
+    def test_a_recorder_bound_to_one_scene_ignores_the_frames_of_another(self, scene_manager):
         """Another scene's game time is not the recorded scene's: its frames are skipped."""
-        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0))
-        first_scene = cast('Scene', GameTimedStandIn(game_time=0.1))
-        other_scene = cast('Scene', GameTimedStandIn(game_time=5.0))
-        recorder.on_frame(frame_number=1, scene=first_scene)
-        recorder.on_frame(frame_number=2, scene=other_scene)
-        recorder.on_frame(frame_number=3, scene=None)
+        bound_scene = stand_in_scene(game_time=0.1)
+        other_scene = stand_in_scene(game_time=5.0)
+        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0), scene=bound_scene)
+        recorder.on_frame(frame_number=1, scene=other_scene)
+        recorder.on_frame(frame_number=2, scene=bound_scene)
+        recorder.on_frame(frame_number=3, scene=other_scene)
+        recorder.on_frame(frame_number=4, scene=None)
         track = recorder.finish()
         assert [recorded.game_seconds for recorded in track.samples] == [0.1]
 
     def test_a_screen_space_sprite_is_shown_as_its_visible_says(self, scene_manager):
         """No engine culling touches a screen-space sprite: its ``visible`` is the game's."""
-        sprite = ScreenStandIn(world_x=0.0, visible=0)
-        recorder = GhostRecorder(sprite=sprite)
-        recorder.on_frame(frame_number=1, scene=cast('Scene', GameTimedStandIn(game_time=0.1)))
+        scene = stand_in_scene()
+        recorder = GhostRecorder(sprite=ScreenStandIn(world_x=0.0, visible=0), scene=scene)
+        recorder.on_frame(frame_number=1, scene=scene)
         assert [recorded.visible for recorded in recorder.finish().samples] == [False]
 
     def test_finish_twice_returns_the_same_track(self, scene_manager):
-        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0))
+        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0), scene=stand_in_scene())
         assert recorder.finish() == recorder.finish()

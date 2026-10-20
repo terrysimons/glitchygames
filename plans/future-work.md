@@ -124,15 +124,15 @@ Follow-ups (not in any plan yet):
   same named fields the external control API would expose (spec section 2, out of scope).
 - **"Take over" handover:** let the player take control part way through a replay. It must end or
   suspend the SDL input block at the handover and switch the doors from recorded to live input.
-- **Audit test helper suppressions:** the end-to-end audit test helper should start its children
-  through `glitchygames/replay/audit.py`'s launcher, so the only `subprocess` suppression pair is
-  the one in engine code (user decision, queued after the core documentation task).
-- Deferred review notes: `reset_sources` would call `on_uninstalled` twice for an object that is
-  both scoped and installed (`push_scoped_sources` should refuse it; Part 3);
-  `start_trace_recording` wraps `active_sources()`, which returns scoped sources first, so
-  recording inside a playback scope must wrap the installed doors (Part 3); no test pins the first
-  FPS log waiting one interval; `selection.get_state_summary` can return `-inf` for
-  `last_update_time` (not strict JSON); `ControlEvent` is unhashable.
+- ~~**Audit test helper suppressions**~~ **Done:** every child process, the tests' included,
+  starts through `glitchygames.process.run_command`, the one `subprocess` suppression.
+- Deferred review notes still open: no test pins the first FPS log waiting one interval;
+  `selection.get_state_summary` can return `-inf` for `last_update_time` (not strict JSON);
+  `ControlEvent` is unhashable. Resolved by Part 3: `push_scoped_sources` refuses the installed
+  sources (`SourcesAlreadyInstalledError`), so `reset_sources` never uninstalls one object
+  twice; `start_trace_recording` can only run before the first frame (`install_sources` raises
+  `SourcesAlreadyRunningError` after it), when no playback scope can be active, so it always
+  wraps the installed doors.
 - Bugs found during the replay core and not fixed (BUGS.md, Active): #67 (Bitmappy's
   joystick-event trigger conversion assumes pygame 1's integer axis scale), #68
   (`ControllerEventManager` keys controllers by device index but routes events by instance id),

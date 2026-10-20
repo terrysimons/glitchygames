@@ -188,6 +188,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self.frame_number: int = 0
         # Called once per frame at the supervisor slot, in registration order (supervision.py)
         self._supervisors: list[Supervisor] = []
+        # Those added while a playback scope plays: removed when the scope ends
+        self._scope_supervisors: list[Supervisor] = []
         self._control_event_handlers: dict[str, list[Callable[[ControlEvent], None]]] = {}
         # This frame's control events; end_frame receives them, then the list starts over
         self._frame_control_events: list[ControlEvent] = []
@@ -852,13 +854,22 @@ class SceneManager(SceneInterface, events.EventManager):
                 sprite.dirty = max(sprite.dirty, 1)
 
     def add_supervisor(self: Self, *, supervisor: Supervisor) -> None:
-        """Call ``supervisor`` once per frame at the supervisor slot (supervision.py)."""
+        """Call ``supervisor`` once per frame at the supervisor slot (supervision.py).
+
+        One added while a playback scope plays (by the rebuilt scene's code, say) belongs to
+        the scope and is removed when it ends (glitchygames/replay/playback.py, rule 4);
+        supervisors added before the scope began are not touched.
+        """
         self._supervisors.append(supervisor)
+        if self._playback_session is not None:
+            self._scope_supervisors.append(supervisor)
 
     def remove_supervisor(self: Self, *, supervisor: Supervisor) -> None:
         """Stop calling ``supervisor``; unknown supervisors are ignored."""
         if supervisor in self._supervisors:
             self._supervisors.remove(supervisor)
+        if supervisor in self._scope_supervisors:
+            self._scope_supervisors.remove(supervisor)
 
     def add_control_event_handler(
         self: Self, *, kind: str, handler: Callable[[ControlEvent], None]
@@ -873,6 +884,7 @@ class SceneManager(SceneInterface, events.EventManager):
         from this singleton.
         """
         self._supervisors.clear()
+        self._scope_supervisors.clear()
         self._control_event_handlers.clear()
         self._frame_control_events = []
 
@@ -1716,7 +1728,8 @@ class SceneManager(SceneInterface, events.EventManager):
 
         Keeps the replay's result (``last_playback_result``) and the outcome with ``reason``
         (``last_playback_outcome``); cleans up the playback's active scene (an error doing so is
-        logged); then, whatever happened, pops the scoped doors, restores the random streams, the
+        logged); then, whatever happened, removes the supervisors added during the scope, pops
+        the scoped doors, restores the random streams, the
         frame clock, the FPS event timer, ``previous_scene`` and the live polled input (the
         installed doors' latest), and makes the stashed live scene active again without setting it
         up again (its snap mode, the event proxies, the caption and a full redraw), with no shake or
@@ -1757,6 +1770,11 @@ class SceneManager(SceneInterface, events.EventManager):
             # a scope begins only between transitions)
             self._active_transition = None
             self._pending_transition = None
+            # Supervisors the scope's code added end with it (rule 4); the live ones stay
+            for supervisor in self._scope_supervisors:
+                if supervisor in self._supervisors:
+                    self._supervisors.remove(supervisor)
+            self._scope_supervisors.clear()
             pop_scoped_sources()
             restore_stream_states(states=session.saved_random_states)
             set_frame_clock_seconds(seconds=session.saved_frame_clock_seconds)
