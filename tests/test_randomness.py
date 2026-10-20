@@ -257,6 +257,34 @@ class TestStreamStates:
 
         assert _draws('late') == first_draws
 
+    def test_a_held_stream_object_is_restored_in_place(self):
+        """Code holding a stream (a running shake's random source) sees the restored state."""
+        reset_streams(seed=TEST_SEED)
+        held_random = random_stream('shake')
+        held_numpy = numpy_stream('audio.live')
+        states = capture_stream_states()
+        expected = (held_random.random(), held_numpy.random())
+        held_random.random()
+        held_numpy.random()
+        restore_stream_states(states=states)
+
+        assert random_stream('shake') is held_random
+        assert numpy_stream('audio.live') is held_numpy
+        assert (held_random.random(), held_numpy.random()) == expected
+
+    def test_a_held_stream_the_capture_lacks_is_reseeded_in_place(self):
+        """A stream made after the capture starts over from its seed, in the same object."""
+        reset_streams(seed=TEST_SEED)
+        states = capture_stream_states()
+        held_random = random_stream('late')
+        held_numpy = numpy_stream('late.numpy')
+        expected = (held_random.random(), held_numpy.random())
+        restore_stream_states(states=states)
+
+        assert random_stream('late') is held_random
+        assert numpy_stream('late.numpy') is held_numpy
+        assert (held_random.random(), held_numpy.random()) == expected
+
     def test_states_are_json_safe(self):
         """The capture reads back from JSON exactly (lists, not tuples)."""
         reset_streams(seed=TEST_SEED)

@@ -216,23 +216,47 @@ def capture_stream_states() -> dict[str, Any]:
 
 
 def restore_stream_states(*, states: dict[str, Any]) -> None:
-    """Restore the master seed and streams ``capture_stream_states`` returned.
+    """Restore the master seed and streams ``capture_stream_states`` returned, in place.
 
-    Streams the capture does not hold are dropped, so they are created from the seed on first
-    use, as they would have been at capture time.
+    Every stream that exists keeps its object, so code holding one (a running shake's random
+    source) is never left with a copy that draws apart from the stream: a stream the capture
+    holds takes its captured state; one it does not hold (made after the capture) starts over
+    from its seed, the state it would have had on first use at capture time. When the restored
+    master seed is None (captured before any seeding), such a stream cannot be reseeded yet and
+    is dropped from the registry, so it is made from the seed on first use. Streams only the
+    capture holds are made in their captured state.
 
     Args:
         states: What ``capture_stream_states()`` returned (or its JSON read back).
 
     """
-    _STATE.seed = states[SEED_STATE_FIELD]
-    _STATE.random_streams.clear()
-    _STATE.numpy_streams.clear()
-    for name, (version, internal_state, gauss_next) in states[RANDOM_STATES_FIELD].items():
-        generator = random.Random(RESTORED_STREAM_PLACEHOLDER_SEED)
+    seed: int | None = states[SEED_STATE_FIELD]
+    _STATE.seed = seed
+    random_states: dict[str, Any] = states[RANDOM_STATES_FIELD]
+    numpy_states: dict[str, Any] = states[NUMPY_STATES_FIELD]
+    for name in [name for name in _STATE.random_streams if name not in random_states]:
+        if seed is None:
+            del _STATE.random_streams[name]
+        else:
+            _STATE.random_streams[name].seed(
+                stream_seed(kind=RANDOM_STREAM_KIND, master_seed=seed, name=name)
+            )
+    for name in [name for name in _STATE.numpy_streams if name not in numpy_states]:
+        if seed is None:
+            del _STATE.numpy_streams[name]
+        else:
+            _STATE.numpy_streams[name].bit_generator.state = np.random.default_rng(
+                stream_seed(kind=NUMPY_STREAM_KIND, master_seed=seed, name=name)
+            ).bit_generator.state
+    for name, (version, internal_state, gauss_next) in random_states.items():
+        generator = _STATE.random_streams.get(name)
+        if generator is None:
+            generator = random.Random(RESTORED_STREAM_PLACEHOLDER_SEED)
+            _STATE.random_streams[name] = generator
         generator.setstate((version, tuple(internal_state), gauss_next))
-        _STATE.random_streams[name] = generator
-    for name, bit_generator_state in states[NUMPY_STATES_FIELD].items():
-        numpy_generator = np.random.default_rng(RESTORED_STREAM_PLACEHOLDER_SEED)
+    for name, bit_generator_state in numpy_states.items():
+        numpy_generator = _STATE.numpy_streams.get(name)
+        if numpy_generator is None:
+            numpy_generator = np.random.default_rng(RESTORED_STREAM_PLACEHOLDER_SEED)
+            _STATE.numpy_streams[name] = numpy_generator
         numpy_generator.bit_generator.state = bit_generator_state
-        _STATE.numpy_streams[name] = numpy_generator
