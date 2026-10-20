@@ -542,6 +542,32 @@ class TestMainCli:
 
         assert main(['test prompt']) == expected_exit_code
 
+    @pytest.mark.parametrize(
+        'response_json', [['not', 'an', 'object'], 'just a string'], ids=['list', 'string']
+    )
+    @pytest.mark.parametrize('request_kind', ['generation', 'extraction'])
+    def test_main_response_that_is_not_a_json_object_is_unusable_input(
+        self, mocker, tmp_path, response_json, request_kind
+    ):
+        """A 2xx answer whose JSON is not an object is a malformed response, not a client bug."""
+        http_response = mocker.Mock()
+        http_response.json.return_value = response_json
+        http_response.raise_for_status.return_value = None
+        http_client = mocker.Mock()
+        http_client.post.return_value = http_response
+        http_client.__enter__ = mocker.Mock(return_value=http_client)
+        http_client.__exit__ = mocker.Mock(return_value=False)
+        mocker.patch('glitchygames.api.client.httpx.Client', return_value=http_client)
+        apng_file = tmp_path / 'in.apng'
+        apng_file.write_bytes(b'\x89PNG\r\n\x1a\n')
+        arguments = (
+            ['test prompt']
+            if request_kind == 'generation'
+            else ['--extract-frames', str(apng_file)]
+        )
+
+        assert main(arguments) == ExitCode.UNUSABLE_INPUT
+
     def test_main_extract_frames_from_a_directory_is_unusable_input(self, tmp_path):
         """An input path that exists but cannot be read as a file is unusable, not missing."""
         assert main(['--extract-frames', str(tmp_path)]) == ExitCode.UNUSABLE_INPUT

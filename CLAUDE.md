@@ -153,8 +153,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
   (the file does not exist), 69 `SERVICE_UNAVAILABLE` (API server unreachable), 70
   `INTERNAL_ERROR` (uncaught exception during a run or its teardown, logged with its traceback
   after teardown; an audit that could not run; an API client bug), 73 `CANNOT_WRITE_OUTPUT` (an
-  output file or directory cannot be written), 129 `HANGUP` (SIGHUP, Unix), 130 `INTERRUPTED` (SIGINT/Ctrl-C), 143
-  `TERMINATED` (SIGTERM), 149 `BREAK` (SIGBREAK, Windows)
+  output file or directory cannot be written), 129 `HANGUP` (SIGHUP, Unix), 130 `INTERRUPTED`
+  (SIGINT/Ctrl-C), 143 `TERMINATED` (SIGTERM), 149 `BREAK` (SIGBREAK, Windows)
 - 0, 64-70 and 73 equal Python's `os.EX_*` (defined literally: Windows has no `os.EX_*`); signal
   members are 128 + N (`ExitCode.for_signal`). `ExitCode.describe()` gives `'OPTIONS_REFUSED
   (64)'`, the form the engine logs (`Exiting with ...`)

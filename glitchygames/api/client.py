@@ -23,7 +23,7 @@ import logging
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from apng import APNG, PNG
@@ -154,6 +154,30 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _response_object(*, response: httpx.Response) -> dict[str, Any]:
+    """Return a successful response's JSON body, which the API always sends as an object.
+
+    A body that is not JSON raises ValueError (from ``response.json()``). Both that and the
+    TypeError below are a malformed response (``ExitCode.UNUSABLE_INPUT`` through
+    ``_exit_code_for_request_error``).
+
+    Args:
+        response: The server's answer (a 2xx status).
+
+    Returns:
+        The decoded JSON object.
+
+    Raises:
+        TypeError: If the body is JSON but not an object (a list, a string).
+
+    """
+    body = response.json()
+    if not isinstance(body, dict):
+        message = f'the server response is a JSON {type(body).__name__}, not an object'
+        raise TypeError(message)
+    return cast('dict[str, Any]', body)
+
+
 def extract_apng_frames(
     server_url: str,
     apng_path: str,
@@ -183,7 +207,7 @@ def extract_apng_frames(
     with httpx.Client(timeout=60.0) as client:
         response = client.post(url, json=payload)
         response.raise_for_status()
-        return response.json()
+        return _response_object(response=response)
 
 
 def generate_sprite(  # ruff: ignore[too-many-arguments]
@@ -250,7 +274,7 @@ def generate_sprite(  # ruff: ignore[too-many-arguments]
     with httpx.Client(timeout=300.0) as client:
         response = client.post(url, json=payload)
         response.raise_for_status()
-        return response.json()
+        return _response_object(response=response)
 
 
 def display_sprite_ascii(toml_content: str) -> None:
@@ -563,9 +587,10 @@ def save_files_locally(  # ruff: ignore[too-many-arguments]
 
 
 # What sending a request and reading its response can raise (_exit_code_for_request_error):
-# httpx's errors, its InvalidURL (not an HTTPError), an input file that cannot be read, and
-# ValueError from decoding the response's JSON
-REQUEST_ERRORS = (httpx.HTTPError, httpx.InvalidURL, OSError, ValueError)
+# httpx's errors, its InvalidURL (not an HTTPError), an input file that cannot be read,
+# ValueError from decoding the response's JSON, and TypeError for JSON that is not an object
+# (raised by _response_object)
+REQUEST_ERRORS = (httpx.HTTPError, httpx.InvalidURL, OSError, ValueError, TypeError)
 
 # What handling a successful response can raise (_exit_code_for_response_handling_error):
 # writing the output (OSError), and a malformed response (ValueError such as binascii.Error from
@@ -634,8 +659,8 @@ def _exit_code_for_request_error(
     Returns:
         The server's code (``_exit_code_for_server_error``), else ``ExitCode.MISSING_INPUT``
         for an input file that does not exist, else ``ExitCode.UNUSABLE_INPUT`` (an unreadable
-        input file, or a response that cannot be decoded: bad JSON, a redirect loop, an
-        undecodable body).
+        input file, or a response that cannot be decoded: bad JSON, JSON that is not an object,
+        a redirect loop, an undecodable body).
 
     """
     server_exit_code = _exit_code_for_server_error(
