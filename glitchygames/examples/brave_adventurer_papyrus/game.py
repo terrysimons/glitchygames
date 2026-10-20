@@ -63,7 +63,7 @@ from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.state import SaveManager, SaveNotFoundError
+from glitchygames.state import SaveNotFoundError, SaveStore, open_saves
 
 if TYPE_CHECKING:
     import argparse
@@ -170,7 +170,7 @@ class PapyrusBraveAdventurerScene(Scene):
         self._enemy_hit_this_pass: bool = False
 
         # Persistence
-        self.saves = SaveManager(app_name='brave-adventurer-papyrus')
+        self.saves: SaveStore = open_saves(app_name='brave-adventurer-papyrus')
 
         # Sound effects (shared from original edition)
         self.sounds = GameSounds()

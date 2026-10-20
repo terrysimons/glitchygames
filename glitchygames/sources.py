@@ -35,6 +35,10 @@ if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
+    # Type only, from its leaf module: glitchygames.state.manager comes to import
+    # glitchygames.clock, which imports this module
+    from glitchygames.state.save_store import SaveStore
+
 
 class SourcesAlreadyRunningError(RuntimeError):
     """install_sources() was called after the first frame started."""
@@ -76,6 +80,10 @@ class EngineSources(Protocol):
 
     def devices(self) -> DeviceRegistry:
         """Return the device registry (every joystick/controller enumeration and opening)."""
+        ...
+
+    def saves(self, *, namespace: str) -> SaveStore:
+        """Return the save store for ``namespace`` (a game's app name; glitchygames/state)."""
         ...
 
     def end_frame(self, *, frame_number: int, dt: float, scene: Scene | None) -> None:

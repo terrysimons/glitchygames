@@ -1,7 +1,7 @@
 """The live doors (glitchygames/sources.py).
 
-Pygame's queue, the measured frame time, and (from later tasks) pygame's polled input, real
-devices, files on disk and the real clocks.
+Pygame's queue, the measured frame time, pygame's polled input, real devices, real save files
+on disk and (from later tasks) the real clocks.
 """
 
 from __future__ import annotations
@@ -12,10 +12,12 @@ import pygame
 
 from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
+from glitchygames.state.manager import SaveManager
 
 if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
+    from glitchygames.state.save_store import SaveStore
 
 
 class LiveSources:
@@ -33,6 +35,8 @@ class LiveSources:
         self.random_seed = random_seed
         self._use_fastevents = use_fastevents
         self._devices = LiveDeviceRegistry()
+        # Stores games opened, by namespace; RecordingSources snapshots them
+        self.opened_save_namespaces: dict[str, SaveManager] = {}
 
     @property
     def stop_requested(self: Self) -> bool:
@@ -92,6 +96,22 @@ class LiveSources:
 
         """
         return self._devices
+
+    def saves(self: Self, *, namespace: str) -> SaveStore:
+        """Open (or return the already opened) real save store for ``namespace``.
+
+        Args:
+            namespace: The game's app name (the save directory's name).
+
+        Returns:
+            The SaveManager for ``namespace``.
+
+        """
+        store = self.opened_save_namespaces.get(namespace)
+        if store is None:
+            store = SaveManager(app_name=namespace)
+            self.opened_save_namespaces[namespace] = store
+        return store
 
     def end_frame(self: Self, *, frame_number: int, dt: float, scene: Scene | None) -> None:
         """Discard the frame's device answers and descriptors nobody took.
