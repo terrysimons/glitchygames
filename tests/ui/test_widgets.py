@@ -4288,8 +4288,14 @@ class TestInputBoxCursorBlink:
         """Set up pygame mocks for testing."""
         MockFactory.setup_pygame_mocks_with_mocker(mocker)
 
-    def test_update_draws_cursor_when_active_and_blink_visible(self, mocker):
-        """Test InputBox update draws cursor when active and in blink cycle."""
+    @pytest.mark.parametrize(
+        ('frame_clock_seconds', 'cursor_drawn'),
+        [(1.7, True), (1.2, False)],
+    )
+    def test_update_draws_cursor_in_the_visible_half_of_the_blink(
+        self, mocker, frame_clock_seconds, cursor_drawn
+    ):
+        """The InputBox cursor blinks on the frame clock: drawn when its fraction is past 0.5."""
         groups = _RealLayeredDirty()
         parent = mocker.Mock()
         parent.x = 0
@@ -4304,10 +4310,13 @@ class TestInputBoxCursorBlink:
             groups=groups,
         )
         input_box.is_active = True
-        # The cursor blinks on the frame clock: frame_clock_seconds() % 1 > 0.5 at 1.7 s
-        advance_frame_clock(seconds=1.7)
+        draw_rect = mocker.patch('glitchygames.ui.inputs.pygame.draw.rect')
+        advance_frame_clock(seconds=frame_clock_seconds)
+
         input_box.update()
-        # Should have drawn cursor rect; verify it doesn't raise
+
+        drawn_rects = [call.args[2] for call in draw_rect.call_args_list]
+        assert (input_box.cursor in drawn_rects) is cursor_drawn
 
 
 class TestSliderKnobSpriteInit:

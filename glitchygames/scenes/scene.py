@@ -2542,7 +2542,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         """
         # FPSEVENT is pygame.USEREVENT + 1
-        # Log FPS at the specified interval to reduce log spam
+        # Log FPS at the specified interval to reduce log spam. The frame clock starts at 0, so
+        # the first log waits one full interval of play
         current_time = frame_clock_seconds()
 
         # Use the configured log interval instead of hardcoded 1.0 second

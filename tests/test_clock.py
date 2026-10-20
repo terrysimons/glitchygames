@@ -28,6 +28,9 @@ DOOR_MODULES = (
     'glitchygames.recording',
 )
 
+# How long one import-alone child may take before it is killed and the test fails
+IMPORT_ALONE_TIMEOUT_SECONDS = 60
+
 
 def test_live_wall_clock_is_aware_utc_now():
     """The live wall clock is now, as a timezone-aware UTC datetime."""
@@ -94,7 +97,13 @@ def test_door_module_imports_alone(module_name):
     spawn_context = multiprocessing.get_context('spawn')
     process = spawn_context.Process(target=importlib.import_module, args=(module_name,))
     process.start()
-    process.join(timeout=60)
+    process.join(timeout=IMPORT_ALONE_TIMEOUT_SECONDS)
+    if process.is_alive():
+        process.kill()
+        process.join()
+        pytest.fail(
+            f'importing {module_name} alone did not finish in {IMPORT_ALONE_TIMEOUT_SECONDS} s'
+        )
     assert process.exitcode == 0, f'importing {module_name} alone failed (see captured stderr)'
 
 

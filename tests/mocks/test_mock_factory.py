@@ -24,10 +24,6 @@ SCANCODE_COUNT = 512  # Length of pygame.key.get_pressed()
 # that refuses iteration and is subscripted by key code, so the mocked get_pressed() result
 # behaves exactly like pygame-ce's
 REAL_SCANCODE_WRAPPER = pygame.key.ScancodeWrapper
-# SDL scancodes of the held-key helpers (create_pygame_key_mock, install_frame_input), read while
-# pygame is still real
-SHIFT_SCANCODES = frozenset({pygame.KSCAN_LSHIFT, pygame.KSCAN_RSHIFT})
-CONTROL_SCANCODES = frozenset({pygame.KSCAN_LCTRL, pygame.KSCAN_RCTRL})
 
 
 class MockSpriteConfig(NamedTuple):
@@ -1109,24 +1105,6 @@ class MockFactory:  # ruff: ignore[too-many-public-methods]
         return mock_event
 
     @staticmethod
-    def create_pygame_key_mock(*, shift_pressed=False):
-        """Create a held-keys state exactly like ``pygame.key.get_pressed()`` returns.
-
-        A real ScancodeWrapper (indexed by pygame.K_* key codes) built from real SDL scancodes.
-
-        Args:
-            shift_pressed (bool): Whether both shift keys should be held
-
-        Returns:
-            pygame.key.ScancodeWrapper: The held-keys state
-
-        """
-        held_scancodes = SHIFT_SCANCODES if shift_pressed else frozenset()
-        return REAL_SCANCODE_WRAPPER(
-            tuple(scancode in held_scancodes for scancode in range(SCANCODE_COUNT))
-        )
-
-    @staticmethod
     def install_frame_input(
         *,
         held_scancodes=frozenset(),
@@ -1141,8 +1119,7 @@ class MockFactory:  # ruff: ignore[too-many-public-methods]
         autouse ``reset_engine_sources`` fixture (tests/conftest.py) resets it after the test.
 
         Args:
-            held_scancodes: SDL scancodes held this frame (``pygame.KSCAN_*``, e.g.
-                ``SHIFT_SCANCODES``)
+            held_scancodes: SDL scancodes held this frame (``pygame.KSCAN_*``)
             modifiers (int): The ``pygame.key.get_mods()`` bit mask
             mouse_position (tuple[int, int]): The mouse position
             mouse_focused (bool): Whether the window has mouse focus
