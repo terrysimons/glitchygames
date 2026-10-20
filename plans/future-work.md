@@ -274,6 +274,21 @@ only replays; Part 2 Task 1).
 
 ## Code quality
 
+- **Extract the playback scope's bookkeeping out of `SceneManager`** (final review of
+  `feature/gameplay-replay`, item C6; deferred). `glitchygames/scenes/scene.py`'s `SceneManager`
+  carries the scope's entry and exit (`_enter_playback`, `_exit_playback`, the stashed live rumble,
+  scope-owned supervisors and handlers, discarded scope posts) and the instant-replay journal's
+  begin/resume/journal steps. Split them into collaborators the scene manager calls at fixed
+  points: a `PlaybackScopeController` (enter, exit, ownership of what the scope's code adds) and a
+  `JournalKeeper` (the journal's lifecycle). The two-sources-of-truth bug the review found is
+  fixed (`SceneManager.in_playback_scope` is the one answer); this is the structural follow-up,
+  with no behaviour change (the replay, playback and golden tests must pass unchanged).
+- **A content hash of the played recording in the `playback` marker** (final review, item C12;
+  optional, not done). Adding `recording_sha256` (of a demo file's bytes) to the marker's data would
+  make a session replay whose demo was re-recorded since diverge at the scope's first frame, naming
+  the cause, instead of at a later sprite. Needs the marker's shape changed in
+  `glitchygames/recording.py`'s docs and the tests that assert it; instant replays (in memory, same
+  run) gain nothing from it.
 - **Audit dataclasses for conversion to pydantic** (user request, 2026-10-20; lean yes unless there's
   a good reason not to). `glitchygames/` has ~49 `@dataclasses.dataclass` structures across ~30 files
   (`git grep -n "@dataclasses.dataclass\|@dataclass" -- glitchygames`). New data classes already use

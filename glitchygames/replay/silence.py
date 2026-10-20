@@ -73,7 +73,8 @@ class _MusicFollowing:
     def remove(self: Self, *, silencer: FrameSilencer) -> None:
         """Stop following for ``silencer``; the last follower puts pygame's functions back.
 
-        Only while the wrappers are still in place: functions set over them since are kept.
+        Each control only while its wrapper is still in place: a function set over one since is
+        kept, and the other control is still given back.
 
         Args:
             silencer: The silencer stopping.
@@ -83,9 +84,13 @@ class _MusicFollowing:
             self.followers.remove(silencer)
         if self.followers or self.wrappers is None or self.pygame_controls is None:
             return
-        if pygame.mixer.music.pause is self.wrappers[0]:
-            pygame_pause, pygame_unpause = self.pygame_controls
-            _set_music_controls(pause=pygame_pause, unpause=pygame_unpause)
+        pause_wrapper, unpause_wrapper = self.wrappers
+        pygame_pause, pygame_unpause = self.pygame_controls
+        music = pygame.mixer.music
+        _set_music_controls(
+            pause=pygame_pause if music.pause is pause_wrapper else music.pause,
+            unpause=pygame_unpause if music.unpause is unpause_wrapper else music.unpause,
+        )
         self.wrappers = None
         self.pygame_controls = None
 

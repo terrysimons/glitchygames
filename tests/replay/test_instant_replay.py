@@ -54,6 +54,8 @@ from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sources import active_sources
 from glitchygames.state import open_saves
 from glitchygames.state.manager import DiskSaveManager
+from glitchygames.supervision import BREAKPOINT_KIND
+from glitchygames.tracing import read_trace_result, write_trace
 from tests.replay.playback_fixtures import (
     COUNTING_SAVE_NAMESPACE,
     COUNTING_SAVE_SLOT,
@@ -343,6 +345,85 @@ class FrameCountingSupervisor:
         """Count the frame (implements glitchygames.supervision.Supervisor)."""
         del frame_number, scene
         self.frames_seen += 1
+
+
+class SupervisorAddingSupervisor:
+    """A live supervisor that adds another supervisor on its Nth call (during a scope)."""
+
+    def __init__(self: Self, *, on_call: int, added: FrameCountingSupervisor) -> None:
+        """Add ``added`` on call number ``on_call``.
+
+        Args:
+            on_call: The call (1 = the first) that adds it.
+            added: The supervisor to add.
+
+        """
+        self._calls = 0
+        self._on_call = on_call
+        self._added = added
+
+    def on_frame(self: Self, *, frame_number: int, scene: Scene | None) -> None:
+        """Add the supervisor on the chosen call (implements Supervisor)."""
+        del frame_number, scene
+        self._calls += 1
+        if self._calls == self._on_call:
+            SceneManager().add_supervisor(supervisor=self._added)
+
+
+class GoalInUpdateScene(KeyReleaseCountingScene):
+    """Posts its goal in update() (after the frame's pump); the goal asks for an instant replay.
+
+    Every request is kept with whether a scope played it and what it got.
+    """
+
+    INSTANT_REPLAY_SECONDS: ClassVar[float | None] = INSTANT_REPLAY_TEST_SECONDS
+    # (asked inside a playback scope, granted) for every request, in order
+    requests: ClassVar[list[tuple[bool, bool]]] = []
+
+    @override
+    def update(self: Self) -> None:
+        """Post the goal on GOAL_TICK."""
+        super().update()
+        if self.frames_ticked == GOAL_TICK:
+            post_event(pygame.event.Event(pygame.USEREVENT, {'goal': True}))
+
+    @override
+    def on_user_event(self: Self, event: HashableEvent) -> None:
+        """Ask for an instant replay of the goal."""
+        if getattr(event, 'goal', False):
+            manager = SceneManager()
+            granted = manager.instant_replay()
+            GoalInUpdateScene.requests.append((manager.playback_session is not None, granted))
+
+
+class HandlerAddingScene(InstantCountingScene):
+    """Adds a breakpoint handler in every setup() (a rebuilt scene's too)."""
+
+    # Every breakpoint any of their handlers saw, by scene
+    breakpoints_seen: ClassVar[list[object]] = []
+
+    @override
+    def setup(self: Self) -> None:
+        """Add a handler noting the breakpoints this scene sees."""
+        super().setup()
+        SceneManager().add_control_event_handler(
+            kind=BREAKPOINT_KIND,
+            handler=lambda control_event: HandlerAddingScene.breakpoints_seen.append(self),
+        )
+
+
+class CleanupSupervisingScene(CountingScene):
+    """Adds a supervisor in its cleanup() (as a scene handing over to the next might)."""
+
+    added_in_cleanup: ClassVar[list[FrameCountingSupervisor]] = []
+
+    @override
+    def cleanup(self: Self) -> None:
+        """Add a supervisor."""
+        super().cleanup()
+        supervisor = FrameCountingSupervisor()
+        CleanupSupervisingScene.added_in_cleanup.append(supervisor)
+        SceneManager().add_supervisor(supervisor=supervisor)
 
 
 class SetupSavesScene(CountingScene):
@@ -1360,6 +1441,140 @@ class TestSupervisorsInAScope:
         assert live_game_seconds[-1] == pytest.approx(live_game_time)
         # Every live frame but none of the scope's
         assert len(live_track.samples) == INSTANT_LIVE_FRAMES + 2
+
+    def test_a_supervisor_a_live_supervisor_adds_during_a_scope_stays(self):
+        """Only the scope's code owns what it adds: a live supervisor's additions are live."""
+        added = FrameCountingSupervisor()
+        live_supervisor = SupervisorAddingSupervisor(on_call=INSTANT_LIVE_FRAMES + 2, added=added)
+        with running_scene(InstantCountingScene) as manager:
+            manager.add_supervisor(supervisor=live_supervisor)
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            assert manager.instant_replay()
+            step(manager, frames=2)
+            assert manager.playback_session is not None
+            assert added.frames_seen == 0
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            frames_seen_in_the_scope = added.frames_seen
+            step(manager, frames=2)
+            manager.remove_supervisor(supervisor=live_supervisor)
+            manager.remove_supervisor(supervisor=added)
+        assert frames_seen_in_the_scope > 0
+        assert added.frames_seen == frames_seen_in_the_scope + 2
+
+    def test_a_control_event_handler_the_rebuilt_scene_adds_ends_with_the_scope(self, mocker):
+        mocker.patch.object(HandlerAddingScene, 'breakpoints_seen', [])
+        with running_scene(HandlerAddingScene) as manager:
+            live_scene = manager.active_scene
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            assert manager.instant_replay()
+            # The scope begins at the start of the next frame
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            step(manager)
+            manager.record_control_event(kind=BREAKPOINT_KIND, data={'label': 'after'})
+        # Only the live scene's handler is left to see it
+        assert HandlerAddingScene.breakpoints_seen == [live_scene]
+
+    def test_a_supervisor_the_playback_scenes_cleanup_adds_ends_with_the_scope(
+        self, tmp_path, mocker
+    ):
+        mocker.patch.object(CleanupSupervisingScene, 'added_in_cleanup', [])
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=JOURNALED_FRAMES, scene_class=CleanupSupervisingScene
+        )
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            (added_in_cleanup,) = CleanupSupervisingScene.added_in_cleanup
+            step(manager, frames=2)
+            assert added_in_cleanup.frames_seen == 0
+            assert added_in_cleanup not in manager._supervisors
+
+
+class TestControlEventsAcrossAScope:
+    """Inside a scope the installed doors' re-applied control events apply, not the recording's."""
+
+    def test_a_journaled_breakpoint_is_not_applied_again_in_the_instant_replay(self):
+        breakpoints_seen: list[object] = []
+        with running_scene(InstantCountingScene) as manager:
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=breakpoints_seen.append)
+            step(manager, frames=2)
+            # A live supervisor's breakpoint, in a frame the journal keeps
+            manager.record_control_event(kind=BREAKPOINT_KIND, data={'label': 'live'})
+            step(manager, frames=INSTANT_LIVE_FRAMES)
+            assert manager.instant_replay()
+            step(manager)
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None
+        assert len(breakpoints_seen) == 1
+
+    def test_a_session_breakpoint_on_a_scope_frame_applies_in_its_replay(self, tmp_path):
+        """A replay of the session pauses at a bookmark on a frame a demo was playing in."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=JOURNALED_FRAMES)
+        session_path = tmp_path / 'session.jsonl.gz'
+
+        def play_in_the_session(manager: SceneManager) -> None:
+            step(manager, frames=2)
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=manager.active_scene
+            )
+            step(manager, frames=JOURNALED_FRAMES + 2)
+            assert manager.playback_session is None
+
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            engine.start_trace_recording(path=session_path)
+            play_in_the_session(manager)
+            engine.stop_trace_recording()
+        trace = read_trace_result(path=session_path).trace
+        (scope_start_frame,) = [
+            index
+            for index, frame in enumerate(trace['frames'])
+            if frame.get('control_events', [{}])[0].get('kind') == 'playback'
+        ]
+        # A bookmark on a frame the demo plays in (no control event of its own)
+        scope_frame = scope_start_frame + 2
+        trace['frames'][scope_frame]['control_events'] = [
+            {'kind': BREAKPOINT_KIND, 'label': 'bookmark'}
+        ]
+        write_trace(trace=trace, path=session_path)
+        breakpoints_seen: list[object] = []
+        with running_scene(
+            CountingScene, extra_arguments=['--replay-trace', str(session_path), '--headless']
+        ) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            replay_sources = engine.replay_sources
+            assert replay_sources is not None
+            manager.add_control_event_handler(kind=BREAKPOINT_KIND, handler=breakpoints_seen.append)
+            play_in_the_session(manager)
+            replay_sources.finish_run()
+            assert replay_sources.result.divergence is None
+        assert len(breakpoints_seen) == 1
+
+
+class TestScopePostsAndTheJournal:
+    """A playback scene's posts still queued as its scope ends never reach the live scene."""
+
+    def test_a_goal_posted_in_update_asks_for_one_instant_replay(self, mocker):
+        mocker.patch.object(GoalInUpdateScene, 'requests', [])
+        with running_scene(GoalInUpdateScene) as manager:
+            step(manager, frames=INSTANT_LIVE_FRAMES * 4)
+            assert manager.playback_session is None
+        live_requests = [
+            granted for in_a_scope, granted in GoalInUpdateScene.requests if not in_a_scope
+        ]
+        assert live_requests == [True]
 
 
 class TestFastForwardFrameCount:

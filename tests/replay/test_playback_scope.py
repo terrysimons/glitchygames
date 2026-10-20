@@ -9,12 +9,14 @@ import contextlib
 import dataclasses
 import logging
 import random
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 import pygame
 import pytest
 from scripts.record_golden_traces import FRAME_SECONDS, press, release
 
+from glitchygames.audio.live import VoiceState
+from glitchygames.audio.synth import Waveform
 from glitchygames.events import FPSEVENT
 from glitchygames.examples import joystick_demo, paddleslap
 from glitchygames.input.state import IDLE_INPUT, current_input
@@ -29,6 +31,7 @@ from glitchygames.replay.playback import (
     start_playback_from_recording,
 )
 from glitchygames.scene_start import SceneStart
+from glitchygames.scenes import SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sources import active_sources, has_scoped_sources, take_redelivered_events
 from glitchygames.state import open_saves
@@ -456,6 +459,15 @@ class TestPlaybackErrors:
         assert find_scene_class(name='CountingScene', module=None) is CountingScene
         assert find_scene_class(name='CountingScene', module='__main__') is CountingScene
 
+    def test_a_unique_name_from_another_recorded_module_is_refused(self):
+        """A recorded module that is neither absent nor __main__ must match: another game's."""
+        assert find_scene_class(name='CountingScene', module='some_other_game.scenes') is None
+
+    def test_a_loaded_scene_run_as_main_matches_its_recorded_module_by_name(self):
+        """The loaded class defined in __main__ (a game file run as a script) matches by name."""
+        main_scene = type('MainModuleOnlyScene', (CountingScene,), {'__module__': '__main__'})
+        assert find_scene_class(name='MainModuleOnlyScene', module='a_game.scenes') is main_scene
+
     def test_without_an_exact_match_a_shared_name_is_refused(self, caplog):
         assert find_scene_class(name='Game', module=None) is None
         assert find_scene_class(name='Game', module='__main__') is None
@@ -734,6 +746,211 @@ class TestLiveEventsKeptThroughAPlayback:
             assert [(event.type, event.dict) for event in pump.spy_return] == [
                 (pygame.USEREVENT, {'live': True})
             ]
+
+
+class UpdatePostingScene(CountingScene):
+    """Posts an internal event in update(): the render phase, after the frame's pump."""
+
+    @override
+    def update(self) -> None:
+        """Post this tick's event after the frame's pump."""
+        super().update()
+        post_event(pygame.event.Event(pygame.USEREVENT, {'from_update': self.frames_ticked}))
+
+
+class QuitOnItsOwnEventScene(CountingScene):
+    """On its last recorded tick posts an event whose handler asks the game to quit.
+
+    The QUIT is posted by an event handler, after the frame's pump, in the frame the recording
+    ends: the scope ends with it still queued.
+    """
+
+    @override
+    def dt_tick(self, dt: float) -> None:
+        """Post the event on the last recorded tick."""
+        super().dt_tick(dt)
+        if self.frames_ticked == SHORT_RECORDED_FRAMES:
+            post_event(pygame.event.Event(pygame.USEREVENT, {'quit_please': True}))
+
+    @override
+    def on_user_event(self, event: Any) -> None:
+        """Ask the game to quit, as a game's menu would."""
+        if getattr(event, 'quit_please', False):
+            SceneManager().quit_game()
+
+
+class LiveUserEventScene(CountingScene):
+    """The live scene: keeps every user event it is handed."""
+
+    def __init__(self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Start with no user events.
+
+        Args:
+            options: The game's options.
+            groups: The sprite group.
+
+        """
+        super().__init__(options=options, groups=groups)
+        self.user_events: list[dict[str, Any]] = []
+
+    @override
+    def on_user_event(self, event: Any) -> None:
+        """Keep the event's own attributes (not its type or the wrapper's hash)."""
+        self.user_events.append({
+            name: value
+            for name, value in event.dict.items()
+            if name != 'type' and not name.startswith('_')
+        })
+
+
+class TestScopePostsNeverReachTheLiveGame:
+    """A playback scene's posts still queued when its scope ends are dropped (never live)."""
+
+    def test_a_post_made_in_update_in_the_last_frame_is_dropped(self, tmp_path):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
+        )
+        with running_scene(LiveUserEventScene) as manager:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, LiveUserEventScene)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+            # Every post the playback scene made was matched by its recording but the last
+            assert manager.last_playback_result is not None
+            assert manager.last_playback_result.divergence is None
+            step(manager, frames=LIVE_FRAMES_AFTER)
+            assert live_scene.user_events == []
+
+    def test_a_quit_its_event_handler_asked_for_as_the_scope_ends_is_dropped(self, tmp_path):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=QuitOnItsOwnEventScene
+        )
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            step(manager, frames=LIVE_FRAMES_AFTER)
+            assert manager.quit_requested is False
+            assert manager.active_scene is live_scene
+
+    def test_a_session_with_dropped_scope_posts_replays_exactly(self, tmp_path):
+        """The dropped posts pass the doors (recorded as internal), so the session replays."""
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
+        )
+        session_path = tmp_path / 'session.jsonl.gz'
+
+        def play_in_the_session(manager: Any) -> None:
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            start_playback_from_recording(
+                manager=manager, path=recording_path, then=manager.active_scene
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES + LIVE_FRAMES_AFTER)
+            assert manager.playback_session is None
+
+        with running_scene(LiveUserEventScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            engine.start_trace_recording(path=session_path)
+            play_in_the_session(manager)
+            engine.stop_trace_recording()
+        _header, session_frames = recorded_trace(path=session_path)
+        with running_scene(
+            LiveUserEventScene,
+            extra_arguments=['--replay-trace', str(session_path), '--headless'],
+        ) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            replay_sources = engine.replay_sources
+            assert replay_sources is not None
+            play_in_the_session(manager)
+            replay_sources.finish_run()
+            assert replay_sources.result.divergence is None
+            assert replay_sources.result.frames_replayed == len(session_frames)
+
+    def test_a_live_post_made_after_the_scope_still_arrives(self, tmp_path, mocker: MockerFixture):
+        """Only the scope's own posts are dropped, once: the live game's next posts arrive."""
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
+        )
+        with running_scene(LiveUserEventScene) as manager:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, LiveUserEventScene)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            # The live game posts the very event the playback scene's last post was
+            post_event(pygame.event.Event(pygame.USEREVENT, {'from_update': SHORT_RECORDED_FRAMES}))
+            step(manager)
+            assert live_scene.user_events == [{'from_update': SHORT_RECORDED_FRAMES}]
+
+
+class TestLiveVoicesThroughAPlayback:
+    """The live scene's synth voices wait, paused, behind a scope and play on after it."""
+
+    def test_a_live_scenes_voice_survives_the_scope(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            voice = manager.live_audio.create_voice(
+                owner=live_scene, waveform=Waveform.SAWTOOTH, frequency=220.0, volume=0.1
+            )
+            voice.start()
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            step(manager)
+            # A released voice is stopped for good (LiveAudio.release_voice)
+            assert voice.state is not VoiceState.STOPPED
+
+
+class PulsingScene(CountingScene):
+    """Pulses the controllers' rumble on its second tick (a hit), as a game does."""
+
+    @override
+    def dt_tick(self, dt: float) -> None:
+        """Pulse on the second tick."""
+        super().dt_tick(dt)
+        if self.frames_ticked == 2:
+            SceneManager().rumble.pulse(low_frequency=1.0, high_frequency=0.5, duration=0.5)
+
+
+class TestRumbleThroughAPlayback:
+    """A playback never rumbles the player's real controllers, fast-forwarded or shown."""
+
+    def test_a_playback_scenes_rumble_never_reaches_a_device(self, tmp_path, mocker: MockerFixture):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=PulsingScene
+        )
+        with running_scene(CountingScene) as manager:
+            device = mocker.Mock()
+            mocker.patch.object(manager._rumble_devices, 'find', return_value=[device])
+            live_rumble = manager.rumble
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert manager.playback_session is None
+            assert outcome_reason(manager) == 'end_of_recording'
+            device.rumble.assert_not_called()
+            assert manager.rumble is live_rumble
+            # The playback's pulse is not carried into live play either
+            step(manager)
+            device.rumble.assert_not_called()
+            # The live game's own rumble still reaches the device
+            live_rumble.pulse(low_frequency=1.0, high_frequency=0.5, duration=0.5)
+            step(manager)
+            device.rumble.assert_called_once()
 
 
 class TestOnlyScopedErrorsAreContained:

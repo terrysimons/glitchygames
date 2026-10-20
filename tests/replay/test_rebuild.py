@@ -622,6 +622,19 @@ class TestFrameSilencer:
         assert pygame.mixer.music.pause is pygame_pause
         assert pygame.mixer.music.unpause is pygame_unpause
 
+    def test_an_unpause_set_over_the_wrappers_is_kept_and_pause_still_restored(self, mocker):
+        """Each control is given back only while still the silencer's wrapper."""
+        pygame_pause, pygame_unpause = pygame.mixer.music.pause, pygame.mixer.music.unpause
+        silencer = FrameSilencer()
+        silencer.begin()
+        game_unpause = mocker.Mock()
+        mocker.patch.object(pygame.mixer.music, 'unpause', game_unpause)
+        silencer.stop_following_music()
+        assert pygame.mixer.music.pause is pygame_pause
+        assert pygame.mixer.music.unpause is game_unpause
+        # mocker puts pygame's own unpause back after the test
+        assert pygame_unpause is not game_unpause
+
     def test_stacked_silencers_both_see_the_games_music_pause(self, dummy_mixer, tmp_path):
         music_path = tmp_path / 'music.wav'
         write_silent_wave(path=music_path)

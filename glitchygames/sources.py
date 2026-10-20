@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import dataclasses
 import weakref
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from glitchygames.randomness import engine_random_seed
 
@@ -243,6 +243,11 @@ class _SourcesRegistry:
     frame_clock_seconds: float = 0.0
     # Events to deliver before the next pump's batch (redeliver_events)
     redelivered_events: list[RedeliveredEvent] = dataclasses.field(default_factory=list)
+    # A playback scope's posts still queued as it ended: dropped from the next pump's batch
+    # (discard_scope_posts), each as (type, attributes) like the internal-post tracker's
+    discarded_scope_posts: list[tuple[int, dict[str, Any]]] = dataclasses.field(
+        default_factory=list
+    )
     # Weak: an observer nobody else keeps (a scene built and dropped before its setup) goes away
     save_store_observers: weakref.WeakSet[SaveStoreOpenedObserver] = dataclasses.field(
         default_factory=weakref.WeakSet
@@ -405,6 +410,37 @@ def take_redelivered_events() -> list[RedeliveredEvent]:
     return events
 
 
+def discard_scope_posts(*, posts: list[tuple[int, dict[str, Any]]]) -> None:
+    """Drop these posts from the next pump's batch (``take_discarded_scope_posts``).
+
+    A playback scope's scene can post after its frame's last pump (in ``update()``, an event
+    handler, a supervisor, a scene it switched to), so its last posts may still be queued when
+    the scope ends (glitchygames/replay/playback.py, rule 4). They are the playback's, never the
+    live game's: the next pump's batch loses them, once each. They still pass through the doors
+    (a recording of the session records them as internal, and its replay posts them again), so
+    a session replays exactly.
+
+    Args:
+        posts: Each post as (type, attributes), as the internal-post tracker holds it.
+
+    """
+    _REGISTRY.discarded_scope_posts.extend(posts)
+
+
+def take_discarded_scope_posts() -> list[tuple[int, dict[str, Any]]]:
+    """Return the posts to drop from the next pump's batch, and forget them.
+
+    ``GameEngine._pump_events`` takes them right after the doors' pump.
+
+    Returns:
+        Each post as (type, attributes) (usually none).
+
+    """
+    posts = list(_REGISTRY.discarded_scope_posts)
+    _REGISTRY.discarded_scope_posts.clear()
+    return posts
+
+
 def mark_frames_started() -> None:
     """Record that the frame loop has started (install_sources is refused from now on)."""
     _REGISTRY.frames_started = True
@@ -518,5 +554,6 @@ def reset_sources() -> None:
     _REGISTRY.frames_started = False
     _REGISTRY.frame_clock_seconds = 0.0
     _REGISTRY.redelivered_events.clear()
+    _REGISTRY.discarded_scope_posts.clear()
     _REGISTRY.save_store_observers.clear()
     _REGISTRY.device_answer_observers.clear()

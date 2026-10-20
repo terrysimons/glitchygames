@@ -4,8 +4,8 @@ Once per frame, right after the frame's pump (``GameEngine.process_events``), th
 the active sources (glitchygames/sources.py) for an ``InputSnapshot`` and makes it
 ``current_input()`` until the next frame's pump. Live sources read pygame
 (``capture_live_snapshot``); a replay hands back the recorded snapshot. Code reads held keys,
-modifiers, the mouse and device positions from the snapshot, never from pygame; a guard test
-(added later in Part 1 of the gameplay replay plan) rejects direct polling.
+modifiers, the mouse and device positions from the snapshot, never from pygame; the doors guard
+(tests/test_engine_doors.py) rejects direct polling.
 
 Timing: a frame runs ``dt_tick`` before it processes events, so logic in ``dt_tick`` reads the
 snapshot captured at the previous frame's pump. That is the same state

@@ -18,7 +18,11 @@ A ghost is appearance, not play (plans/2026-10-19-gameplay-replay.md, section 5.
    playback scope (a demo or an instant replay plays a rebuilt scene;
    glitchygames/replay/playback.py). A recorder made while a scope plays (by the rebuilt
    scene's ``setup()``, say) belongs to the scope: the scene manager removes it when the scope
-   ends (glitchygames/supervision.py), and it samples nothing. The recorder reads game state
+   ends (glitchygames/supervision.py), and it samples nothing. A recorder stays registered
+   until ``finish()``, even once its scene is gone: a scene left (for the pause screen, or for
+   another the game comes back from) may return, so the engine cannot tell it is over; a
+   recorder never finished samples nothing more, but is kept (with its scene) until the game
+   calls ``finish()``, typically when the run it records ends. The recorder reads game state
    only: it draws no randomness, posts no event and records no control event, so recording a
    ghost changes nothing a ``--record-trace`` recording holds or a replay compares.
 3. Timing: samples are keyed by ``Scene.game_time``, the sum of the scene's (capped) dt since
@@ -301,7 +305,7 @@ class GhostRecorder:
         # A supervisor earlier in the slot may have finished this recorder this frame
         if self._track is not None or scene is not self._scene:
             return
-        if SceneManager().playback_session is not None:
+        if SceneManager().in_playback_scope:
             return
         game_seconds = self._scene.game_time
         if self._samples and game_seconds <= self._samples[-1].game_seconds:

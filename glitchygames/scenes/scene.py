@@ -41,6 +41,7 @@ from glitchygames.scene_start import (
 from glitchygames.sources import (
     active_sources,
     advance_frame_clock,
+    discard_scope_posts,
     has_scoped_sources,
     mark_frames_started,
     pop_scoped_sources,
@@ -59,6 +60,7 @@ if TYPE_CHECKING:
 
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
+    from glitchygames.input.rumble import RumbleDevice
     from glitchygames.input.state import InputSnapshot
     from glitchygames.replay.driver import ReplayResult
     from glitchygames.replay.playback import (
@@ -202,8 +204,10 @@ class SceneManager(SceneInterface, events.EventManager):
         self._display_is_stale: bool = False
         self.debug_overlay: DebugOverlay = DebugOverlay()
         self.rumble: RumbleController = RumbleController()
-        # The devices rumble is sent to (joysticks opened once, while their count holds)
+        # The devices rumble is sent to (joysticks opened once, while their count holds), and
+        # the live game's rumble controller while a playback scope plays on its own
         self._rumble_devices = ConnectedRumbleDevices()
+        self._live_rumble_behind_scope: RumbleController | None = None
         self._live_audio: LiveAudio | None = None
 
         # Jitter tracking attributes
@@ -414,8 +418,7 @@ class SceneManager(SceneInterface, events.EventManager):
         if journal is None or has_scoped_sources() or self._active_transition is not None:
             return
         if journal.is_suspended:
-            presented_scene = getattr(self.active_scene, 'debug_subject', self.active_scene)
-            if presented_scene is journal.scene:
+            if self._presented_scene() is journal.scene:
                 input_before = current_input()
                 journal.resume(
                     bridge=ResumeBridge(
@@ -455,11 +458,34 @@ class SceneManager(SceneInterface, events.EventManager):
         # (Its stream restore needs no repeat: streams are restored in place, so they hold the
         # states they had before the scope, which they hold here too.)
         self._clear_frame_effects()
-        set_frame_clock_seconds(seconds=bridge.frame_clock_seconds)
-        self._previous_fps_event_seconds = bridge.fps_event_seconds
-        set_current_input(
-            snapshot=apply_snapshot_changes(previous=IDLE_INPUT, changes=bridge.input_before)
+        self._restore_logic_frame_state(
+            frame_clock_seconds=bridge.frame_clock_seconds,
+            fps_event_seconds=bridge.fps_event_seconds,
+            input_before=apply_snapshot_changes(previous=IDLE_INPUT, changes=bridge.input_before),
         )
+
+    def _restore_logic_frame_state(
+        self: Self,
+        *,
+        frame_clock_seconds: float,
+        fps_event_seconds: float,
+        input_before: InputSnapshot,
+    ) -> None:
+        """Set what a recorded logic frame began with, at the top of the frame (inside a scope).
+
+        A playback's first frame (``FirstLogicFrame``, ``_enter_playback``) and a frame its
+        recording resumed in after a scope (``ResumeBridge``, ``_apply_resume_bridge``) both
+        begin with the recorded frame clock, FPS event timer and polled input.
+
+        Args:
+            frame_clock_seconds: The frame clock the recorded frame began at.
+            fps_event_seconds: When the last FPS event was posted, on that frame clock.
+            input_before: The polled input the recorded frame's logic read.
+
+        """
+        set_frame_clock_seconds(seconds=frame_clock_seconds)
+        self._previous_fps_event_seconds = fps_event_seconds
+        set_current_input(snapshot=input_before)
 
     def _prepare_instant_replay_journal(self: Self, *, scene: Scene) -> None:
         """Make the journal of a scene that offers instant replay, as it is first set up.
@@ -500,8 +526,7 @@ class SceneManager(SceneInterface, events.EventManager):
         journal = self._instant_replay_journal
         if journal is None:
             return
-        presented_scene = getattr(self.active_scene, 'debug_subject', self.active_scene)
-        if presented_scene is not journal.scene:
+        if self._presented_scene() is not journal.scene:
             self._end_instant_replay_journal()
             return
         journal.add_frame(
@@ -520,6 +545,18 @@ class SceneManager(SceneInterface, events.EventManager):
                 budget_seconds,
             )
             self._end_instant_replay_journal()
+
+    def _presented_scene(self: Self) -> object:
+        """Return the scene the player sees: the active scene, or the scene it presents.
+
+        A pause screen presents the paused game (``Scene.debug_subject``); looked up by name,
+        as a SceneInterface stand-in has no ``debug_subject``.
+
+        Returns:
+            The scene (None without an active scene).
+
+        """
+        return getattr(self.active_scene, 'debug_subject', self.active_scene)
 
     def _end_instant_replay_journal(self: Self) -> None:
         """Close and drop the instant-replay journal, if one is kept (instant_replay.py, rule 9)."""
@@ -558,7 +595,7 @@ class SceneManager(SceneInterface, events.EventManager):
             nest. True otherwise.
 
         """
-        if self._requested_playback is not None or self._playback_session is not None:
+        if self._requested_playback is not None or self.in_playback_scope:
             LOG.warning('A playback is already starting or playing; %s not started', request.kind)
             return False
         self._requested_playback = request
@@ -636,8 +673,12 @@ class SceneManager(SceneInterface, events.EventManager):
         outcome's reason is ``'ended_by_game'``. Asked anywhere else in a frame, it is ignored
         (logged at DEBUG): inside a scope the only scene code running is the played scene's,
         whose call did nothing in its original run (no scope was playing then), as
-        ``recorded_playback_answer`` keeps a playback request's answer. Nothing when no scope
-        is in progress (a requested one still begins).
+        ``recorded_playback_answer`` keeps a playback request's answer. A control event
+        handler's call (``add_control_event_handler``) is honoured only when a supervisor's own
+        ``record_control_event`` ran it, inside the slot; the handlers of a frame's re-applied
+        control events (a replayed breakpoint) run before the supervisors, outside the slot, so
+        their call is ignored. Nothing when no scope is in progress (a requested one still
+        begins).
 
         The player's presses reach no scene during an instant replay; a supervisor reads the
         player's polled input from ``playback_player_input`` to decide when to end it.
@@ -864,15 +905,36 @@ class SceneManager(SceneInterface, events.EventManager):
             for sprite in self.active_scene.all_sprites:
                 sprite.dirty = max(sprite.dirty, 1)
 
+    @property
+    def in_playback_scope(self: Self) -> bool:
+        """True while a playback scope's doors are pushed (glitchygames/replay/playback.py).
+
+        The one answer to "is a scope playing" for ownership: it holds from the moment the
+        scope's doors are pushed until they are popped, including while its scene is cleaned
+        up at its end (``playback_session`` is the scope's data, cleared first).
+        """
+        return has_scoped_sources()
+
+    def _added_by_scope_code(self: Self) -> bool:
+        """Report whether something added now belongs to the playback scope (rule 4 there).
+
+        Returns:
+            True inside a scope, unless a supervisor or control event handler the live game
+            added is running (what live code adds is the live game's).
+
+        """
+        return self.in_playback_scope and not self._live_supervision_running
+
     def add_supervisor(self: Self, *, supervisor: Supervisor) -> None:
         """Call ``supervisor`` once per frame at the supervisor slot (supervision.py).
 
-        One added while a playback scope plays (by the rebuilt scene's code, say) belongs to
-        the scope and is removed when it ends (glitchygames/replay/playback.py, rule 4);
-        supervisors added before the scope began are not touched.
+        One the scope's code adds while a playback scope plays (the rebuilt scene's setup() or
+        cleanup(), its event handlers) belongs to the scope and is removed when it ends
+        (glitchygames/replay/playback.py, rule 4); supervisors added before the scope began,
+        or by a live supervisor or handler while it plays, are the live game's.
         """
         self._supervisors.append(supervisor)
-        if self._playback_session is not None:
+        if self._added_by_scope_code():
             self._scope_supervisors.append(supervisor)
 
     def remove_supervisor(self: Self, *, supervisor: Supervisor) -> None:
@@ -885,8 +947,43 @@ class SceneManager(SceneInterface, events.EventManager):
     def add_control_event_handler(
         self: Self, *, kind: str, handler: Callable[[ControlEvent], None]
     ) -> None:
-        """Call ``handler`` for every control event of ``kind`` (live or replayed)."""
+        """Call ``handler`` for every control event of ``kind`` (live or replayed).
+
+        One the scope's code adds while a playback scope plays belongs to the scope and is
+        removed when it ends, as a supervisor is (``add_supervisor``).
+        """
         self._control_event_handlers.setdefault(kind, []).append(handler)
+        if self._added_by_scope_code():
+            self._scope_control_event_handlers.append((kind, handler))
+
+    def _remove_scope_supervision(self: Self) -> None:
+        """Remove the supervisors and control event handlers a playback scope's code added."""
+        for supervisor in self._scope_supervisors:
+            if supervisor in self._supervisors:
+                self._supervisors.remove(supervisor)
+        self._scope_supervisors.clear()
+        for kind, handler in self._scope_control_event_handlers:
+            handlers = self._control_event_handlers.get(kind, [])
+            if handler in handlers:
+                handlers.remove(handler)
+        self._scope_control_event_handlers.clear()
+
+    def _run_live_or_scope_code(
+        self: Self, *, is_scope_code: bool, call: Callable[[], None]
+    ) -> None:
+        """Run a supervisor or handler, noting whether the live game's code is running.
+
+        Args:
+            is_scope_code: True for one a playback scope's code added.
+            call: Runs it.
+
+        """
+        was_running = self._live_supervision_running
+        self._live_supervision_running = self.in_playback_scope and not is_scope_code
+        try:
+            call()
+        finally:
+            self._live_supervision_running = was_running
 
     def reset_supervision(self: Self) -> None:
         """Forget every supervisor, control event handler and pending control event.
@@ -933,9 +1030,17 @@ class SceneManager(SceneInterface, events.EventManager):
         control_event = ControlEvent(kind=kind, data=data)
         self._frame_control_events.append(control_event)
         first_error: Exception | None = None
+        scope_handlers = [
+            scope_handler
+            for scope_kind, scope_handler in self._scope_control_event_handlers
+            if scope_kind == kind
+        ]
         for handler in list(self._control_event_handlers.get(kind, [])):
             try:
-                handler(control_event)
+                self._run_live_or_scope_code(
+                    is_scope_code=handler in scope_handlers,
+                    call=lambda handler=handler: handler(control_event),
+                )
             except Exception as error:
                 if first_error is None:
                     first_error = error
@@ -958,7 +1063,12 @@ class SceneManager(SceneInterface, events.EventManager):
         self._in_supervisor_slot = True
         try:
             for supervisor in list(self._supervisors):
-                supervisor.on_frame(frame_number=self.frame_number, scene=self.active_scene)
+                self._run_live_or_scope_code(
+                    is_scope_code=supervisor in self._scope_supervisors,
+                    call=lambda supervisor=supervisor: supervisor.on_frame(
+                        frame_number=self.frame_number, scene=self.active_scene
+                    ),
+                )
         finally:
             self._in_supervisor_slot = False
 
@@ -975,7 +1085,12 @@ class SceneManager(SceneInterface, events.EventManager):
         self.rumble.update(
             shakers=shakers,
             dt=self.dt,
-            devices=lambda: self._rumble_devices.find(controller_manager=controller_manager),
+            # A playback never rumbles the player's real devices (playback.py, rule 8)
+            devices=(
+                self._no_rumble_devices
+                if self.in_playback_scope
+                else lambda: self._rumble_devices.find(controller_manager=controller_manager)
+            ),
         )
 
         # The pending transition counts: a ride creates its motor before transition_to starts it
@@ -983,11 +1098,25 @@ class SceneManager(SceneInterface, events.EventManager):
             pending_transition = (
                 self._pending_transition[1] if self._pending_transition is not None else None
             )
+            # A playback scope's stashed live scene (and the scene it returns to) wait behind it:
+            # their voices pause, then play on (never released for good)
+            session = self._playback_session
             self._live_audio.update(
                 active_scene=self.active_scene,
                 previous_scene=self.previous_scene,
                 active_transitions=(self._active_transition, pending_transition),
+                paused_owners=() if session is None else (session.live_scene, session.then),
             )
+
+    @staticmethod
+    def _no_rumble_devices() -> list[RumbleDevice]:
+        """Return no devices: what a playback scope's rumble is sent to (playback.py, rule 8).
+
+        Returns:
+            An empty list.
+
+        """
+        return []
 
     @property
     def live_audio(self: Self) -> LiveAudio:
@@ -1179,19 +1308,36 @@ class SceneManager(SceneInterface, events.EventManager):
             self._reset_scene_timers()
             self._log_scene_switch(scene)
             self._cleanup_current_scene()
-            self._setup_new_scene(scene)
-            self._log_blocked_events(scene)
-            self.active_scene = scene
-            self._configure_active_scene()
+            self._activate_new_scene(scene)
 
-            # Update performance manager with current scene
-            try:
-                from glitchygames.performance import performance_manager
+    def _activate_new_scene(self: Self, scene: Scene | None) -> None:
+        """Set a scene up and make it active (a switch, and a playback scope's rebuilt scene).
 
-                if scene:  # Only track performance for real scenes, not None
-                    performance_manager.set_current_scene(scene.NAME)
-            except ImportError:
-                pass  # Performance module not available
+        Args:
+            scene: The scene (None ends the run).
+
+        """
+        self._setup_new_scene(scene)
+        self._log_blocked_events(scene)
+        self.active_scene = scene
+        self._configure_active_scene()
+        self._track_scene_performance(scene)
+
+    @staticmethod
+    def _track_scene_performance(scene: Scene | None) -> None:
+        """Tell the performance manager which scene its frames are now (real scenes only).
+
+        Args:
+            scene: The scene made active.
+
+        """
+        try:
+            from glitchygames.performance import performance_manager
+
+            if scene:  # Only track performance for real scenes, not None
+                performance_manager.set_current_scene(scene.NAME)
+        except ImportError:
+            pass  # Performance module not available
 
     def _clear_outgoing_scene_pending_switch(self: Self) -> None:
         """Clear the pending switch of the scene being switched away from.
@@ -1694,10 +1840,11 @@ class SceneManager(SceneInterface, events.EventManager):
         Saves what the scope's end restores (the random streams, the frame clock, the FPS event
         timer, ``previous_scene``) and stashes the live scene without ``cleanup()``; pushes the
         scoped doors (before the rebuild, so the rebuilt scene opens sandboxed saves and captures
-        its own start); records the ``playback`` control event; rebuilds the scene from its start,
-        which sets the streams and frame clock it began with; makes it active by the steps a switch
-        takes (``_setup_new_scene``, ``_configure_active_scene``), with no shake or rumble carried
-        in, and repeats a transition's arrival step for a scene that arrived by one
+        its own start); sets the live rumble controller aside (rule 8 there); records the
+        ``playback`` control event; rebuilds the scene from its start, which sets the streams and
+        frame clock it began with; makes it active by the steps a switch takes
+        (``_activate_new_scene``), with no shake or rumble carried in, and repeats a transition's
+        arrival step for a scene that arrived by one
         (``_capture_arriving_scene``). Then this frame is its first logic frame
         (glitchygames/scene_start.py, rule 7): the streams, frame clock and FPS event timer are set
         as that frame began, its dt and the polled input before it come from the scoped doors (the
@@ -1725,6 +1872,10 @@ class SceneManager(SceneInterface, events.EventManager):
         request.sources.held_live_events[:0] = take_redelivered_events()
         # From here on an error ends the scope and restores all of the above (_exit_playback)
         self._playback_session = session
+        # The playback's rumble (its scene's pulses and shakes) goes to a controller of its own
+        # that reaches no device (_update_frame_services), so the live game's waits untouched
+        self._live_rumble_behind_scope = self.rumble
+        self.rumble = RumbleController(intensity=self.rumble.intensity)
         LOG.info('Starting the %s playback of %s', request.kind, request.scene_class.__name__)
         self.record_control_event(
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
@@ -1733,9 +1884,10 @@ class SceneManager(SceneInterface, events.EventManager):
             start=request.start, scene_class=request.scene_class, options=self.OPTIONS
         )
         self._clear_frame_effects()
-        self._setup_new_scene(scene)
-        self.active_scene = scene
-        self._configure_active_scene()
+        # Made active by the steps a switch takes (the live scene is stashed, not cleaned up)
+        self._reset_scene_timers()
+        self._log_scene_switch(scene)
+        self._activate_new_scene(scene)
         # The display shows the live scene: the playback's first presented frame updates all
         # of it
         self._display_is_stale = True
@@ -1743,11 +1895,13 @@ class SceneManager(SceneInterface, events.EventManager):
         if first_logic_frame.arrived_by_transition:
             self._capture_arriving_scene()
         restore_stream_states(states=first_logic_frame.random_states)
-        set_frame_clock_seconds(seconds=first_logic_frame.frame_clock_seconds)
-        self._previous_fps_event_seconds = first_logic_frame.fps_event_seconds
-        self._set_frame_time(measured=self._measured_frame_seconds)
         # The first played frame's logic polls what the recorded one did, not the live input
-        set_current_input(snapshot=request.sources.replay.start_input)
+        self._restore_logic_frame_state(
+            frame_clock_seconds=first_logic_frame.frame_clock_seconds,
+            fps_event_seconds=first_logic_frame.fps_event_seconds,
+            input_before=request.sources.replay.start_input,
+        )
+        self._set_frame_time(measured=self._measured_frame_seconds)
         # The live scene's instant-replay journal waits behind the scope and resumes on the
         # first frame after it (glitchygames/instant_replay.py, rule 7). Last, once entered:
         # a scope that fails to start leaves no gap to bridge
@@ -1804,17 +1958,18 @@ class SceneManager(SceneInterface, events.EventManager):
             # a scope begins only between transitions)
             self._active_transition = None
             self._pending_transition = None
-            # Supervisors the scope's code added end with it (rule 4); the live ones stay
-            for supervisor in self._scope_supervisors:
-                if supervisor in self._supervisors:
-                    self._supervisors.remove(supervisor)
-            self._scope_supervisors.clear()
+            # Supervisors and handlers the scope's code added (its cleanup above included) end
+            # with it (rule 4); the live ones stay
+            self._remove_scope_supervision()
             pop_scoped_sources()
             restore_stream_states(states=session.saved_random_states)
             set_frame_clock_seconds(seconds=session.saved_frame_clock_seconds)
             self._previous_fps_event_seconds = session.saved_fps_event_seconds
             # The playback's own scene switches set it to playback scenes
             self.previous_scene = session.saved_previous_scene
+            if self._live_rumble_behind_scope is not None:
+                self.rumble = self._live_rumble_behind_scope
+                self._live_rumble_behind_scope = None
             self._clear_frame_effects()
             # The display shows the playback's last frame: the live scene's first presented
             # frame updates all of it, not only its own dirty rects
@@ -1823,9 +1978,32 @@ class SceneManager(SceneInterface, events.EventManager):
             # In the order they were pumped; when the run ends no frame follows to deliver them
             if switches_to_then:
                 redeliver_events(events=session.sources.held_live_events)
+                # The playback scene's posts made after its frame's last pump (update(), its
+                # event handlers, its cleanup above) are still queued: never the live game's
+                discard_scope_posts(posts=self._scope_posts_still_pending(session=session))
             self._resume_live_scene(scene=session.live_scene)
         if switches_to_then and session.then is not session.live_scene:
             self.switch_to_scene(session.then)
+
+    @staticmethod
+    def _scope_posts_still_pending(*, session: PlaybackSession) -> list[tuple[int, dict[str, Any]]]:
+        """Return the posts a playback scope's code made that no pump returned yet.
+
+        After the scope's first pump every pending post is the scope's (its pumps hold the live
+        game's and hand the rest to its replay); before it, the live game's posts from before
+        the scope come first and are left to arrive as usual.
+
+        Args:
+            session: The scope ending.
+
+        Returns:
+            Each post as (type, attributes), in posting order.
+
+        """
+        pending = list(pending_internal_posts())
+        if session.sources.has_pumped:
+            return pending
+        return pending[len(session.sources.live_posts_before_scope) :]
 
     def _resume_live_scene(self: Self, *, scene: Scene) -> None:
         """Make a stashed scene active again as it was: no setup(), only what is drawn anew.
@@ -1834,12 +2012,14 @@ class SceneManager(SceneInterface, events.EventManager):
             scene: The live scene a playback scope stashed.
 
         """
+        self._log_scene_switch(scene)
         self.active_scene = scene
         self._activate_scene_snap_mode(scene)
         self._set_display_caption()
         self._setup_event_proxies()
         self._force_scene_redraw()
         self._redraw_scene_background()
+        self._track_scene_performance(scene)
 
     def _clear_frame_effects(self: Self) -> None:
         """Stop the SCREEN shake and sustained rumble (a playback scope's start and end)."""

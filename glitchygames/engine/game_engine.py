@@ -55,6 +55,7 @@ from glitchygames.recording import (
     post_event,
     reset_internal_post_tracking,
     start_tracking_internal_posts,
+    take_internal_post,
 )
 from glitchygames.replay.audit import (
     AuditRunError,
@@ -84,6 +85,7 @@ from glitchygames.sources import (
     active_sources,
     install_sources,
     reset_sources,
+    take_discarded_scope_posts,
     take_redelivered_events,
 )
 from glitchygames.sprites import Sprite
@@ -2343,7 +2345,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         posts_before_pump = list(pending_internal_posts())
         doors = active_sources()
-        batch = doors.pump_events()
+        batch = self._without_discarded_scope_posts(
+            batch=doors.pump_events(), posts_before_pump=posts_before_pump
+        )
         redelivered_events = take_redelivered_events()
         self.scene_manager.journal_pumped_events(
             raw_events=batch,
@@ -2355,6 +2359,38 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # or a replay pumping underneath has already consumed them)
         pending_internal_posts().clear()
         return [*(event for event, _origin in redelivered_events), *batch]
+
+    @staticmethod
+    def _without_discarded_scope_posts(
+        *, batch: list[pygame.event.Event], posts_before_pump: list[tuple[int, dict[str, Any]]]
+    ) -> list[pygame.event.Event]:
+        """Drop a playback scope's posts still queued as it ended from the doors' batch.
+
+        Each post given to ``sources.discard_scope_posts`` (``SceneManager._exit_playback``)
+        drops the first event of the batch it matches (same type and attributes), once, and is
+        forgotten either way: it is the playback's, never the live game's
+        (glitchygames/replay/playback.py, rule 4). It is taken from ``posts_before_pump`` too, so
+        the instant-replay journal classifies the rest as the doors did.
+
+        Args:
+            batch: The doors' batch (a recording has already recorded it whole).
+            posts_before_pump: A copy of the internal-post tracker's posts before the pump
+                (changed in place).
+
+        Returns:
+            The batch without the discarded posts.
+
+        """
+        discarded_posts = take_discarded_scope_posts()
+        if not discarded_posts:
+            return batch
+        kept_events: list[pygame.event.Event] = []
+        for event in batch:
+            if take_internal_post(event=event, pending=discarded_posts):
+                take_internal_post(event=event, pending=posts_before_pump)
+                continue
+            kept_events.append(event)
+        return kept_events
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.

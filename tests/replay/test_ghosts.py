@@ -434,9 +434,9 @@ class TestGhostRecorder:
         recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0), scene=scene)
         mocker.patch.object(
             type(scene_manager),
-            'playback_session',
+            'in_playback_scope',
             new_callable=mocker.PropertyMock,
-            return_value=mocker.sentinel.playback_session,
+            return_value=True,
         )
         recorder.on_frame(frame_number=1, scene=scene)
         assert recorder.finish().samples == ()
@@ -459,6 +459,17 @@ class TestGhostRecorder:
         recorder = GhostRecorder(sprite=ScreenStandIn(world_x=0.0, visible=0), scene=scene)
         recorder.on_frame(frame_number=1, scene=scene)
         assert [recorded.visible for recorded in recorder.finish().samples] == [False]
+
+    def test_a_recorder_never_finished_stays_registered_until_finish(self, scene_manager):
+        """A scene left (or paused) may come back, so its recorder stays, sampling nothing."""
+        scene = stand_in_scene(game_time=0.1)
+        recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0), scene=scene)
+        recorder.on_frame(frame_number=1, scene=scene)
+        recorder.on_frame(frame_number=2, scene=stand_in_scene(game_time=9.0))
+        assert recorder in scene_manager._supervisors
+        track = recorder.finish()
+        assert recorder not in scene_manager._supervisors
+        assert [recorded.game_seconds for recorded in track.samples] == [0.1]
 
     def test_finish_twice_returns_the_same_track(self, scene_manager):
         recorder = GhostRecorder(sprite=WorldStandIn(world_x=0.0), scene=stand_in_scene())

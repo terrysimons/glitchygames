@@ -1243,7 +1243,8 @@ class PaddleSlapGameOverScene(GameOverScene):
         """Start a new PaddleSlap game.
 
         Explicitly a ``Game``: GameOverScene.resume restarts the type of the scene manager's
-        ``previous_scene``, which a demo's own scene switches can leave pointing elsewhere.
+        ``previous_scene``, which depends on how this screen was reached (a playback scope
+        restores it as it ends: BUGS.md #81), while game over here always starts a new game.
         """
         self.scene_manager.switch_to_scene(Game(options=self.options))
 

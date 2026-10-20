@@ -111,6 +111,24 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Either read the option where the first floor is built (`floor_index=options.get('floor', 0)`, which would make `--floor` a recorded option a replay applies) or drop the argument. Not fixed here: it changes the game's behaviour, outside this task
 - **Files**: `glitchygames/examples/clockwork_keep/game.py`
 
+### 82. A Recording That Cannot Be Written Part Way Ends the Run as an Internal Error
+- **Description**: An unwritable `--record-trace` (or `--rebaseline` partial, `--replay-digest`) file is refused before the run with one line and `CANNOT_WRITE_OUTPUT` (73), and a digest file that fails at the end exits 73 after the report. But a recording whose writes start failing part way (the disk fills, the file system goes away) raises `OSError` from `GameplayRecorder.record_frame` inside the frame loop, so the run exits `INTERNAL_ERROR` (70) with a traceback
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (final review fixes, item A5)
+- **Date Reported**: 2026-10-20
+- **Details**: Catching `OSError` around the recorder's writes and ending the run with `CANNOT_WRITE_OUTPUT` (after closing what was written) would match the up-front refusal; not done here, as the review asked for the path checks only
+- **Files**: `glitchygames/recording.py`, `glitchygames/engine/game_engine.py`
+
+### 83. Keys a Layout Adds Without a pygame `K_*` Constant Are Not Replayed on Another Layout
+- **Description**: Recordings now hold the key codes the held keys had (`held_key_codes`), so a replay on another keyboard layout answers `key_pressed(K_*)` as recorded. Only pygame's named `K_*` codes are recorded (`glitchygames.input.state.NAMED_KEY_CODES`): a key code a layout adds that pygame names no constant for (say a Unicode letter key) is never reported held in a replay, even on the recording machine
+- **Status**: Active (documented limitation)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (final review fixes, item A4)
+- **Date Reported**: 2026-10-20
+- **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code
+- **Files**: `glitchygames/input/state.py`
+
 ## Resolved Bugs
 
 ### 80. Playbacks Found a Scene Class by Its Bare Name, So Two Loaded Scenes Named Alike Refused It

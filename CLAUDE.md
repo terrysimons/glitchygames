@@ -245,11 +245,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   anything). It is the frame clock, live and replayed, so these timers have frame granularity
 - `measured_seconds()`: real `time.monotonic()` for logs, metrics and diagnostics only. It is never
   replayed, so its readings must never change what is drawn, played or recorded
-- Only `ALLOWED_BYPASSES` in `tests/test_engine_doors.py` may read the raw clock: pacing
-  (`timing.py`, `SceneManager.start`/`_finish_frame`), `performance/`, `debug/`,
-  `audio/diagnostics.py`, the recording's start stamp (`engine/game_engine.py`), `api/client.py`
-  (request signing) and the live doors' wall clock (`live_sources.py`). `clock.measured_seconds`
-  is also allowed, by function (`ALLOWED_FUNCTION_BYPASSES`)
+- Only `ALLOWED_BYPASSES` in `tests/test_engine_doors.py` may read the raw clock (or use
+  `pygame.time.set_timer`/`Clock`): pacing (`timing.py`), `performance/`, `debug/`,
+  `audio/diagnostics.py` and the live doors' wall clock (`live_sources.py`); by function
+  (`ALLOWED_FUNCTION_BYPASSES`): `SceneManager.start`/`_finish_frame` (and its pacing `Clock`),
+  the recording's start stamp (`GameEngine.trace_recording_header`) and `clock.measured_seconds`
+- A recorded run's wall clock (and its replay's) is the header's `recorded_at` plus the frame
+  clock (`RecordingSources.wall_clock_time`)
 
 **Gameplay Recording and Replay** (`glitchygames/sources.py`, `glitchygames/live_sources.py`,
 `glitchygames/recording.py`, `glitchygames/replay/`, `glitchygames/randomness.py`; design
@@ -275,7 +277,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   are keyed by instance id on two layers: the joystick layer (`axis`/`button`/`hat(device_id=...,
   ...)`, float axes) and the controller layer (`controller_axis`/`controller_button(device_id=...,
   ...)` by `CONTROLLER_AXIS_*`/`CONTROLLER_BUTTON_*` id, on pygame's int scale). Never poll pygame
-  or a device directly
+  or a device directly. Recordings also hold the held keys' key codes (`held_key_codes`), so a
+  replay answers `key_pressed(K_*)` as the recording machine's keyboard layout did
 - Devices: `active_sources().devices()` (`glitchygames/input/devices.py`) is the only way to
   enumerate (`joystick_count`, `controller_count`, `is_controller`, `name_for_index`) and open
   (`open_joystick`, `open_controller`, `joystick_for_instance`) devices. Live answers, failures
@@ -293,7 +296,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   data=...)` records a supervisor action in the frame (the frame's `control_events`) and runs the
   handlers from `add_control_event_handler(kind=..., handler=...)`. A replay re-applies recorded
   control events at the same frame's supervisor slot. `GameEngine.__init__` calls
-  `reset_supervision()`. A future cheat device plugs in here
+  `SceneManager.begin_run()` (frame 0, `reset_supervision()`, quit/pacing/shake/playback state
+  cleared). A future cheat device plugs in here
 - `--record-trace PATH`: record the session as a gzip JSON Lines trace (`glitchygames/tracing.py`
   format version 3; versions 2 and 3 are readable), off by default. Each frame line holds `dt`,
   the raw `event_batches` read at `GameEngine._pump_events` (the only reader of SDL's queue,
@@ -443,8 +447,14 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   which would keep PYTHONHASHSEED from the children, and with `UNUSABLE_INPUT` (65) for a
   truncated recording (an audit needs the whole recording). It compares only
   what the replay samples: the scene class and each sprite's `rect`, `visible` and draw order, not
-  pixels, audio or unsampled game state. Children run through `subprocess.run` (argument list, no shell; the
-  one authorised subprocess suppression), with a timeout
+  pixels, audio or unsampled game state. Children run through `glitchygames.process.run_command`
+  (the one launcher; `process.with_options_appended` adds options before a bare `--`), with a
+  timeout and the engine's signal handlers installed around the wait
+  (`GameEngine._waiting_for_child_processes`, shared with restarts)
+- Outputs: an unwritable `--record-trace`, `--rebaseline` partial or `--replay-digest` file is
+  refused before the run (`CANNOT_WRITE_OUTPUT`, one line; `glitchygames/output_files.py`, which
+  also holds the one write-aside-then-replace helper); a game's own `sys.exit(0)` that cuts a
+  replay short exits `REPLAY_DIVERGED`; a malformed header or start frame is `UNUSABLE_INPUT`
 - Bookmarks (watched replay): B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz`
   (header `bookmarked_copy_of`; only such a file is updated in place) with a
   `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a
@@ -471,8 +481,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `replay/playback.py`): `Scene.INSTANT_REPLAY_SECONDS` opts in (an in-memory journal of the
   scene's frames, ~0.5-1.5 MB/min), `MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` (60) is the
   budget, `scene_manager.instant_replay() -> bool` plays it; end it early only from a
-  supervisor with `end_playback()` (reading `playback_player_input`). Supervisors added during
-  any playback scope are removed when it ends
+  supervisor with `end_playback()` (reading `playback_player_input`). Supervisors and handlers
+  the scope's code adds (not live supervisors' additions) are removed when it ends
+  (`SceneManager.in_playback_scope` is the one "in a scope" answer); its posts still queued at
+  its end are dropped from the next pump (`sources.discard_scope_posts`); inside a scope the
+  installed doors' re-applied control events apply, the played recording's never; a playback
+  never rumbles real devices, and the live scene's voices pause behind it
 - Ghosts (contract: `glitchygames/replay/ghosts.py`): `GhostRecorder(sprite=..., scene=...)`
   (a supervisor; `finish()` -> frozen pydantic `GhostTrack`, `to_json`/`from_json`, store in
   saves), `GhostSprite(track=..., image_for=images_from_animated_sprite(sprite))` with

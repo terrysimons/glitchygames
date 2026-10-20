@@ -8,7 +8,8 @@ Demos and instant replays run inside a playback scope, not a new engine run
    (glitchygames/scene_start.py) with its first logic frame (rule 7 there: a recording writes
    a start on the scene's first logic frame, so the start's frame is where its logic began),
    and its scene class must be found among the loaded ``Scene`` subclasses (``find_scene_class``:
-   by module and qualified name, else by a name no other loaded scene shares); otherwise
+   by module and qualified name, else, where the modules cannot be compared (none recorded, or
+   ``__main__`` on either side), by a name no other such scene shares); otherwise
    nothing starts (logged; False), as for a recording that cannot be replayed (a malformed one
    included). The replay sources are made (``playback_replay_sources``, rule 18 of
    glitchygames/replay/driver.py) and the scope is requested (``SceneManager.
@@ -51,13 +52,20 @@ Demos and instant replays run inside a playback scope, not a new engine run
    (``SceneManager._exit_playback``) keeps the replay's result
    (``SceneManager.last_playback_result``) and a ``PlaybackOutcome``
    (``SceneManager.last_playback_outcome``: the kind, the reason and the frames played), cleans
-   up the playback's scene, removes every supervisor added while the scope played (the
-   rebuilt scene's code may add one, a ghost recorder say; ``SceneManager.add_supervisor``
-   gives it to the scope, and supervisors added before the scope began stay), pops the
+   up the playback's scene, removes every supervisor and control event handler the scope's
+   code added while it played (the rebuilt scene's setup(), event handlers or cleanup() may add
+   one, a ghost recorder say: ``SceneManager.add_supervisor`` gives it to the scope; those
+   added before the scope began, or by the live game's own supervisors and handlers while it
+   played, stay; ``SceneManager.in_playback_scope``, true while the scoped doors are pushed,
+   is the one answer to "is a scope playing"), pops the
    scoped doors, restores the streams, the frame clock, the
-   FPS event timer, the scene manager's ``previous_scene`` and the live polled input (the
-   installed doors' latest snapshot), posts again the live game's posts the scope drained and
-   hands back the player's held events (rule 5), then makes the live scene active again
+   FPS event timer, the scene manager's ``previous_scene``, its rumble controller (rule 8) and
+   the live polled input (the installed doors' latest snapshot), posts again the live game's
+   posts the scope drained and hands back the player's held events (rule 5), drops the
+   playback scene's own posts still queued (made after its frame's last pump: in
+   ``update()``, an event handler, a supervisor, its cleanup; ``sources.discard_scope_posts``:
+   the next pump's batch loses them, after a session recording recorded them, so a replay of
+   the session drops them the same way), then makes the live scene active again
    exactly as it was (no ``setup()`` again: only its snap mode, event proxies, caption and a
    full redraw), or switches to ``then`` when that is another scene. The frame that ends the
    scope still finishes afterwards, so the restored live frame clock resumes one frame later
@@ -88,9 +96,13 @@ Demos and instant replays run inside a playback scope, not a new engine run
      returned.
    - ``frame_seconds``: the replay's (the recording's dt; past its end, the installed doors'
      measurement), asked after the installed doors were asked as always.
-   - ``saves``, ``devices``, ``wall_clock_time``, ``control_events_for_frame``,
-     ``random_seed``, ``opened_save_namespaces``: the replay's (saves are a sandbox seeded
-     from the scene start's save view: real saves are never touched).
+   - ``saves``, ``devices``, ``wall_clock_time``, ``random_seed``,
+     ``opened_save_namespaces``: the replay's (saves are a sandbox seeded from the scene
+     start's save view: real saves are never touched).
+   - ``control_events_for_frame``: the installed doors' (a replay of the session re-applies
+     its breakpoints on the scope's frames too); the played recording's re-applied control
+     events are never applied again (they were applied in the session that recorded them) and
+     never compared (glitchygames/replay/driver.py, rule 8).
    - ``end_frame`` is ``compare_frame`` (the replay compares the frame, its ``playback``
      marker left out: the recording never holds it), then the installed doors' ``end_frame``
      (a recording of the session writes it; glitchygames/recording.py, Playback scopes). The
@@ -130,6 +142,15 @@ Demos and instant replays run inside a playback scope, not a new engine run
    the recorded answer and requests nothing), so a scene that asks after every goal plays back
    across its earlier replays. The journal's recording is taken as the request is made: the
    frame that asks is not in it (it ends live, before the scope begins).
+8. Rumble and live voices: a playback never rumbles the player's real controllers, neither
+   while fast-forwarding nor in the frames it shows (a demo's crash buzzing the player's hands
+   would be the playback's, not the game's). While a scope plays, ``SceneManager.rumble`` is a
+   rumble controller of its own (the playback scene's pulses, sustained levels and shakes go
+   there and reach no device); the live game's controller waits untouched and is back when the
+   scope ends, so a playback's pulse never carries into live play. The live scene's synth
+   voices (and those of the scene the scope returns to) pause behind the scope and play on
+   after it (``LiveAudio.update``'s ``paused_owners``); the playback scene's own voices end
+   with it.
 
 Limits: a scope that fast-forwards inside a restarted replay's rebuild silences on top of the
 rebuild's silence: the end of its fast-forward may resume music during the rebuild (which
@@ -140,7 +161,14 @@ to it (releases, window and device events) are not: a scene they change diverges
 first logic frame's earlier posts are counted from the internal-post tracker, so they are
 exact while posts are tracked (while recording or replaying, and from the first setup of a
 scene that keeps an instant-replay journal: glitchygames/instant_replay.py, whose
-``JournalRecording`` a scope plays from its ``start_frame``).
+``JournalRecording`` a scope plays from its ``start_frame``). A ``--record-trace`` recording
+of a session that played a scope cannot itself be played in-game from a frame inside or after
+that scope: a recorder writes no ``playback_answers`` or ``resume_bridge`` (only an
+instant-replay journal does), so its scene's playback requests and its resumption after the
+scope are not known (it replays exactly with ``--replay-trace``, which runs the scope again).
+Rumble in joystick mode asks the devices door for the joysticks (glitchygames/input/rumble.py);
+inside a scope it asks nothing (rule 8), so when the played recording's joystick count changed
+part way, a later device enumeration by the played scene may read an earlier recorded answer.
 """
 
 from __future__ import annotations
@@ -166,6 +194,7 @@ from glitchygames.recording import (
     take_internal_post,
 )
 from glitchygames.replay.driver import (
+    SCRIPT_MODULE_NAME,
     SOURCE_TRUNCATED_HEADER_FIELD,
     is_cut_off,
     playback_replay_sources,
@@ -293,6 +322,10 @@ class PlaybackSources:
             with its origin, in pump order: its own posts made before the scope (internal) and
             the player's releases, device and window events (external,
             ``PLAYBACK_HELD_EVENT_TYPES``). Delivered before the first pump after the scope.
+        live_posts_before_scope: The live game's posts no pump had returned yet as the scope
+            began (its first pump holds them; rule 5).
+        has_pumped: True once the scope's doors pumped: from then on every post still pending
+            is the scope's own (``SceneManager._exit_playback`` drops those as it ends).
 
     """
 
@@ -331,9 +364,8 @@ class PlaybackSources:
         self.end_reason: PlaybackEndReason | None = None
         self.last_base_snapshot: InputSnapshot = current_input()
         self.held_live_events: list[RedeliveredEvent] = []
-        # Posts the live game made that no pump has returned yet as the scope began (rule 5)
-        self._posts_before_scope: list[tuple[int, dict[str, Any]]] = []
-        self._has_pumped = False
+        self.live_posts_before_scope: list[tuple[int, dict[str, Any]]] = []
+        self.has_pumped = False
 
     def _note_end(self: Self, *, reason: PlaybackEndReason) -> None:
         """Keep why the scope should end; the first reason found wins (``end_reason``)."""
@@ -366,8 +398,8 @@ class PlaybackSources:
         A scope that fast-forwards follows the game's music controls from here (rule 6), so
         the rebuilt scene's own are followed too.
         """
-        self._posts_before_scope = list(pending_internal_posts())
-        self._has_pumped = False
+        self.live_posts_before_scope = list(pending_internal_posts())
+        self.has_pumped = False
         self.last_base_snapshot = current_input()
         if self.is_fast_forwarding:
             self._silencer.begin()
@@ -391,9 +423,9 @@ class PlaybackSources:
         base_events = self.base.pump_events()
         # The posts the live game made before the scope come first (pending is in posting
         # order, and nothing pumped between the scope's start and its first pump)
-        is_first_pump = not self._has_pumped
-        self._has_pumped = True
-        live_post_count = len(self._posts_before_scope) if is_first_pump else 0
+        is_first_pump = not self.has_pumped
+        self.has_pumped = True
+        live_post_count = len(self.live_posts_before_scope) if is_first_pump else 0
         scope_posts = posted_before_pump[live_post_count:]
         internal_events, quit_events = self._sort_base_events(
             base_events=base_events,
@@ -546,13 +578,18 @@ class PlaybackSources:
         return self.replay.wall_clock_time()
 
     def control_events_for_frame(self: Self, *, frame_number: int) -> list[ControlEvent]:
-        """Return the recording's control events to apply again on its current frame.
+        """Return the installed doors' control events to apply again on this frame (rule 5).
+
+        The session's (a replay of the session re-applies a breakpoint on a frame the scope
+        played, so a bookmark there pauses), never the played recording's: a breakpoint an
+        instant-replay journal kept was the live session's, applied then, and is not applied
+        again inside its playback.
 
         Returns:
             The control events.
 
         """
-        return self.replay.control_events_for_frame(frame_number=frame_number)
+        return self.base.control_events_for_frame(frame_number=frame_number)
 
     def end_frame(
         self: Self,
@@ -745,8 +782,11 @@ def find_scene_class(*, name: str, module: str | None = None) -> type[Scene] | N
 
     Only loaded classes are searched: nothing is imported from recording data. The class
     defined in ``module`` with the qualified name ``name`` is taken when exactly one is
-    loaded. Otherwise (no module recorded, a game run as ``__main__``, the class moved) the one
-    loaded class whose qualified name is ``name`` is taken; several are refused.
+    loaded. Otherwise a class is taken by its qualified name alone only where the modules
+    cannot be compared, as ``check_recorded_game`` decides for a recording's game: no module
+    recorded, or a game run as a script (``__main__``) on either side; then the one such class
+    is taken and several are refused. A class of that name from another module is another
+    game's scene: refused.
 
     Args:
         name: A class's qualified name (``SceneStart.scene_class``).
@@ -771,10 +811,15 @@ def find_scene_class(*, name: str, module: str | None = None) -> type[Scene] | N
     exact_matches = [scene_class for scene_class in named_alike if scene_class.__module__ == module]
     if len(exact_matches) == 1:
         return exact_matches[0]
-    if len(named_alike) > 1:
+    matches_by_name = [
+        scene_class
+        for scene_class in named_alike
+        if module is None or SCRIPT_MODULE_NAME in {module, scene_class.__module__}
+    ]
+    if len(matches_by_name) > 1:
         LOG.warning('Several scene classes are named %s; which to rebuild is unknown', name)
         return None
-    return named_alike[0] if named_alike else None
+    return matches_by_name[0] if matches_by_name else None
 
 
 def _playable_start(

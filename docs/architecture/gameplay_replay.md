@@ -534,6 +534,18 @@ plays a scope records it, and replays it exactly. An error inside the scope ends
 (logged) and the live game goes on. `scene_manager.last_playback_outcome` says how the last
 scope ended (its kind, reason and frames played).
 
+What belongs to the scope ends with it: supervisors and control event handlers its scene adds
+(in `setup()`, `cleanup()` or an event handler; a live supervisor's additions stay), and the
+playback scene's own events still queued when it ends (posted in `update()` or an event handler
+after its last pump: the live game never receives them, so a goal posted there cannot start a
+second instant replay). A playback never rumbles the player's controllers, and the live scene's
+synth voices pause behind it and play on after. Inside a scope, a replay of the session still
+applies the session's breakpoints (a bookmark on a frame a demo played pauses there); the
+played recording's own breakpoints are never applied again. A `--record-trace` recording of a
+session that played a scope replays exactly, but cannot itself be played in-game from a frame
+inside or after that scope (only an instant-replay journal records what a scene's playback
+requests got and how it resumed).
+
 ### Demos
 
 ```python
