@@ -29,6 +29,7 @@ from glitchygames.recording import (
     post_event,
 )
 from glitchygames.replay.driver import (
+    EVENT_DIVERGENCE,
     LENGTH_DIVERGENCE,
     REPLAY_LOCAL_OPTIONS,
     REPLAY_UNUSABLE_EXIT_CODE,
@@ -125,6 +126,31 @@ def rewrite_recording(*, recording_path: Path, change: Callable[[dict[str, Any]]
     write_trace(trace=trace, path=recording_path)
 
 
+def add_recorded_internal_event(*, recording_path: Path, frame_number: int) -> None:
+    """Add an internal event the replayed code never posts to the frame's first batch."""
+
+    def add(trace: dict[str, Any]) -> None:
+        trace['frames'][frame_number]['event_batches'][0].append({
+            'type': pygame.USEREVENT + 41,
+            'name': 'UserEvent',
+            'origin': 'internal',
+            'attributes': {},
+        })
+
+    rewrite_recording(recording_path=recording_path, change=add)
+
+
+def add_recorded_external_event(
+    *, recording_path: Path, frame_number: int, record: dict[str, Any]
+) -> None:
+    """Append an external event record to the frame's first batch."""
+
+    def add(trace: dict[str, Any]) -> None:
+        trace['frames'][frame_number]['event_batches'][0].append(record)
+
+    rewrite_recording(recording_path=recording_path, change=add)
+
+
 def tamper_first_sprite_rect(*, recording_path: Path, frame_number: int) -> None:
     """Move the first sprite 1 px down from `frame_number` on."""
 
@@ -217,7 +243,7 @@ def minimal_sources(*, frames: list[dict[str, Any]], is_truncated: bool = False)
 
 
 def recorded_frame(*, frame_number: int, dt: float = 0.25) -> dict[str, Any]:
-    """Return a recorded frame with no scene, no sprites and one empty event batch.
+    """Return a recorded frame with no scene, no sprites and no event batch (never pumped).
 
     Returns:
         The frame record.
@@ -228,7 +254,7 @@ def recorded_frame(*, frame_number: int, dt: float = 0.25) -> dict[str, Any]:
         'scene': None,
         'sprites': [],
         'dt': dt,
-        'event_batches': [[]],
+        'event_batches': [],
     }
 
 
@@ -652,3 +678,192 @@ class TestSaves:
         assert slot_file.read_bytes() == bytes_before
         replayed_store = engine.replay_sources.opened_save_namespaces['replay-test']
         assert replayed_store.load('slot') == {'value': 2}
+
+
+class TestEventMerge:
+    """Recorded external events plus the replayed code's own posts, checked against the record."""
+
+    def test_missing_internal_event_is_a_divergence(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        add_recorded_internal_event(recording_path=recording_path, frame_number=2)
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        assert engine.replay_sources is not None
+        divergence = engine.replay_sources.result.divergence
+        assert divergence is not None
+        assert (divergence.kind, divergence.field, divergence.frame_number) == (
+            EVENT_DIVERGENCE,
+            'missing internal event',
+            2,
+        )
+        assert divergence.subject == 'UserEvent'
+        assert divergence.actual is None
+
+    def test_extra_internal_event_is_a_divergence(self, mocker, tmp_path):
+        def post_extra() -> None:
+            post_event(pygame.event.Event(pygame.USEREVENT + 42, {}))
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        engine = replay_session(
+            recording_path=recording_path, mocker=mocker, action=post_extra, action_frame=2
+        )
+        assert engine.replay_sources is not None
+        divergence = engine.replay_sources.result.divergence
+        assert divergence is not None
+        # The scripted action runs in frame 2's dt_tick, before that frame's pump returns it
+        assert (divergence.kind, divergence.field, divergence.frame_number) == (
+            EVENT_DIVERGENCE,
+            'unexpected internal event',
+            2,
+        )
+        assert divergence.expected is None
+        assert divergence.actual['type'] == pygame.USEREVENT + 42
+
+    def test_internal_events_posted_again_match(self, mocker, tmp_path):
+        def post_marker_event() -> None:
+            post_event(pygame.event.Event(pygame.USEREVENT + 43, {'pair': (1, 2)}))
+
+        recording_path = record_session(
+            tmp_path=tmp_path, mocker=mocker, action=post_marker_event, action_frame=2
+        )
+        pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
+        engine = replay_session(
+            recording_path=recording_path, mocker=mocker, action=post_marker_event, action_frame=2
+        )
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+        delivered = [event for batch in pump_spy.spy_return_list for event in batch]
+        assert [event.pair for event in delivered if event.type == pygame.USEREVENT + 43] == [
+            (1, 2)
+        ]
+
+    @pytest.mark.parametrize(
+        ('recorded_pump_count', 'replayed_pump_count'), [(1, 2), (2, 1)], ids=['more', 'fewer']
+    )
+    def test_a_different_pump_count_is_a_length_divergence(
+        self, recorded_pump_count, replayed_pump_count
+    ):
+        frame = recorded_frame(frame_number=0)
+        frame['event_batches'] = [[] for _ in range(recorded_pump_count)]
+        sources = minimal_sources(frames=[frame])
+        for _ in range(replayed_pump_count):
+            sources.pump_events(real_events=[])
+        sources.end_frame(frame_number=0, dt=0.25, scene=None, control_events=[])
+        divergence = sources.result.divergence
+        assert divergence is not None
+        assert (divergence.kind, divergence.field, divergence.expected, divergence.actual) == (
+            LENGTH_DIVERGENCE,
+            'pump count',
+            recorded_pump_count,
+            replayed_pump_count,
+        )
+        assert sources.result.end_reason == 'diverged'
+
+    def test_real_input_during_replay_never_reaches_the_game(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        # A real key press, and the window losing focus, arrive during the replay: both dropped
+        engine = replay_session(
+            recording_path=recording_path,
+            mocker=mocker,
+            events_by_frame={
+                1: [
+                    _key(pygame.KEYDOWN, pygame.K_z, unicode='z'),
+                    pygame.event.Event(pygame.WINDOWFOCUSLOST, {}),
+                ]
+            },
+        )
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+
+
+class TestReferences:
+    """Recorded references to pygame objects map back to live objects."""
+
+    def test_window_reference_maps_to_none_like_live_display_window_events(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        add_recorded_external_event(
+            recording_path=recording_path,
+            frame_number=1,
+            record={
+                'type': pygame.WINDOWFOCUSGAINED,
+                'name': 'WindowFocusGained',
+                'origin': 'external',
+                'attributes': {'window': {'__ref__': 'window', 'id': 1}, 'test_marker': 1},
+            },
+        )
+        # Window events reach the game through GameEngine.process_window_event (EVENT_HANDLERS
+        # binds it when the engine starts), not SceneManager.handle_event
+        delivered = mocker.spy(GameEngine, 'process_window_event')
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        # Live display-window events carry window=None (the engine never makes a pygame.Window
+        # of the display), so the injected event's reference is delivered as None
+        windows = [
+            call.args[1].window
+            for call in delivered.call_args_list
+            if call.args[1].type == pygame.WINDOWFOCUSGAINED
+            and getattr(call.args[1], 'test_marker', None) == 1
+        ]
+        assert windows == [None]
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+
+    def test_unmappable_joystick_event_is_dropped_with_a_warning(self, mocker, tmp_path, caplog):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        for frame_number in (1, 2):
+            add_recorded_external_event(
+                recording_path=recording_path,
+                frame_number=frame_number,
+                record={
+                    'type': pygame.JOYBUTTONDOWN,
+                    'name': 'JoyButtonDown',
+                    'origin': 'external',
+                    'attributes': {
+                        'instance_id': 5,
+                        'button': 0,
+                        'joy': {'__ref__': 'joystick', 'instance_id': 5},
+                    },
+                },
+            )
+        pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
+        engine = replay_session(recording_path=recording_path, mocker=mocker)
+        warnings_logged = [
+            record
+            for record in caplog.records
+            if 'instance 5 has no device; dropped' in record.getMessage()
+        ]
+        assert len(warnings_logged) == 1
+        delivered = [event for batch in pump_spy.spy_return_list for event in batch]
+        assert not any(event.type == pygame.JOYBUTTONDOWN for event in delivered)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+
+
+class TestControlEventMarkers:
+    """Markers the replayed code records again are compared with the recording's."""
+
+    def test_markers_recorded_again_by_the_code_match(self, mocker, tmp_path):
+        def mark() -> None:
+            SceneManager().record_control_event(kind='test-marker', data={'note': 'n'})
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker, action=mark)
+        engine = replay_session(recording_path=recording_path, mocker=mocker, action=mark)
+        assert engine.replay_sources is not None
+        assert engine.replay_sources.result.divergence is None
+
+    def test_a_missing_marker_is_a_divergence(self, mocker, tmp_path):
+        def mark() -> None:
+            SceneManager().record_control_event(kind='test-marker', data={'note': 'n'})
+
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker, action=mark)
+        engine = replay_session(recording_path=recording_path, mocker=mocker)  # no marker now
+        assert engine.replay_sources is not None
+        divergence = engine.replay_sources.result.divergence
+        assert divergence is not None
+        assert (divergence.kind, divergence.field, divergence.frame_number) == (
+            EVENT_DIVERGENCE,
+            'control event',
+            1,
+        )
+        assert (divergence.expected, divergence.actual) == (
+            {'kind': 'test-marker', 'note': 'n'},
+            None,
+        )

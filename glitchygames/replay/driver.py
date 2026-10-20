@@ -12,10 +12,16 @@ session again, and every frame's sprites are compared with the recorded frame. T
    options (all but ``REPLAY_LOCAL_OPTIONS``) and seeds the random streams with the recorded
    seed. The engine installs the sources before the first frame; while installed they own the
    internal-post tracker (glitchygames/recording.py).
-2. Pump: the real queue is drained (through the live doors' pump) and its external events are
-   dropped, except the window's QUIT, kept last so closing the window ends the replay. The
-   recording's external events for this pump are served, then the live internal events (which
-   the replayed code posted again). Task 13 of the core plan makes the merge exact.
+2. Pump: the real queue is drained (through the live doors' pump) and each event classified
+   with the internal-post tracker; its external events are dropped, except the window's QUIT,
+   kept last so closing the window ends the replay. Pump N serves the recording's batch N in
+   its recorded order: each external record is rebuilt (recorded references mapped to live
+   objects: a window to None, as live events of the display module's window carry it; a
+   joystick to its opened stand-in, an event whose joystick has none being dropped with one
+   warning per instance id), and each internal record is the live internal event the replayed
+   code posted again (equal records). A recorded internal event nobody posted, a posted one the
+   recording does not have, or a frame pumped more or fewer times than recorded is a
+   divergence of the frame.
 3. Frame indexes: the sources count their own ``end_frame`` calls; every recorded frame they
    serve is picked by that count, never by the scene manager's frame number.
 4. Frame time: the current frame's recorded ``dt``; past the end, the measurement.
@@ -26,9 +32,12 @@ session again, and every frame's sprites are compared with the recorded frame. T
 7. Saves: a ``MemorySaveManager`` per namespace, seeded from the header's ``saves`` or the
    frame's ``saves_opened`` (an unknown namespace gets an empty store); real saves are never
    touched.
-8. End of frame: the scene's sprites are sampled as the recorder samples them and compared
-   with the recorded frame (scene class, then each sprite: present, ``rect``, ``visible``);
-   the first difference stops the replay, as does the last recorded frame.
+8. End of frame: a divergence found by the frame's pumps comes first; then the frame's
+   control events that are not applied again (markers the replayed code records by itself)
+   are compared with the recorded ones, in order; then the scene's sprites are sampled as the
+   recorder samples them and compared with the recorded frame (scene class, then each sprite:
+   present, ``rect``, ``visible``). The first difference stops the replay, as does the last
+   recorded frame.
 9. Clocks: the wall clock is the recording's ``recorded_at`` plus the frame clock; elapsed
    seconds are the frame clock.
 10. ``recorded_frame_fields`` hands a recording made over the replay (Part 2's rebaseline) the
@@ -40,6 +49,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib.metadata
+import itertools
 import logging
 from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
@@ -47,7 +57,12 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
-from glitchygames.input.devices import DeviceDescriptor, EnumerationAnswer, ReplayDeviceRegistry
+from glitchygames.input.devices import (
+    DeviceDescriptor,
+    EnumerationAnswer,
+    ReplayDeviceRegistry,
+    ReplayJoystick,
+)
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
 from glitchygames.randomness import seed_engine_random
@@ -58,14 +73,19 @@ from glitchygames.recording import (
     DEVICES_OPENED_FIELD,
     DT_FIELD,
     EVENT_BATCHES_FIELD,
+    EVENT_NAME_FIELD,
     EVENT_ORIGIN_FIELD,
     EXTERNAL_ORIGIN,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
     SAVES_HEADER_FIELD,
     SAVES_OPENED_FIELD,
+    WINDOW_REFERENCE,
+    RecordedReference,
+    UnrepresentableValue,
     event_from_record,
     event_origin,
+    event_to_record,
     pending_internal_posts,
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
@@ -146,6 +166,14 @@ PRESENT_FIELD = 'present'
 VISIBLE_FIELD = 'visible'
 RECORDING_SUBJECT = 'recording'
 FRAME_COUNT_FIELD = 'frames'
+PUMP_COUNT_FIELD = 'pump count'
+MISSING_INTERNAL_EVENT_FIELD = 'missing internal event'
+UNEXPECTED_INTERNAL_EVENT_FIELD = 'unexpected internal event'
+CONTROL_EVENT_FIELD = 'control event'
+
+# The first format version whose frames record control events (older ones have no markers to
+# compare)
+CONTROL_EVENTS_FORMAT_VERSION = 3
 
 # Header fields the replay reads
 GAME_CLASS_HEADER_FIELD = 'game_class'
@@ -175,11 +203,13 @@ class Divergence:
         frame_number: The recording's frame index.
         kind: ``SCENE_DIVERGENCE``, ``SPRITE_DIVERGENCE``, ``EVENT_DIVERGENCE`` or
             ``LENGTH_DIVERGENCE``.
-        subject: What differed: a sprite id, ``'scene'`` or ``'recording'``.
+        subject: What differed: a sprite id, ``'scene'``, ``'recording'``, an event's name or
+            a control event's kind.
         field: Which of its fields: ``'rect'``, ``'visible'``, ``'present'``, ``'class'``,
-            ``'frames'``.
-        expected: The recorded value.
-        actual: The replayed value.
+            ``'frames'``, ``'pump count'``, ``'missing internal event'``,
+            ``'unexpected internal event'``, ``'control event'``.
+        expected: The recorded value (None when the replay has something the recording has not).
+        actual: The replayed value (None when the replay is missing something recorded).
 
     """
 
@@ -368,6 +398,7 @@ class ReplaySources:
         self._recorded_at = _recorded_start(header=header)
         self._frames = frames
         self._is_truncated = is_truncated
+        self._compares_control_events = format_version >= CONTROL_EVENTS_FORMAT_VERSION
         # Frames ended so far (end_frame calls): the index of the frame being served
         self._frame_index = 0
         # Pumps so far in the current frame: the index of the batch the next pump serves
@@ -375,6 +406,12 @@ class ReplaySources:
         self._stop_requested = False
         self._window_was_closed = False
         self._last_batch_origins: list[str] = []
+        # The first difference the current frame's pumps found (reported at end_frame)
+        self._frame_divergence: Divergence | None = None
+        # Joystick instance ids without a stand-in already warned about, and unrepresentable
+        # types already logged
+        self._warned_joystick_instances: set[int] = set()
+        self._logged_unrepresentable_types: set[str] = set()
         # Only its event pump is used: the one place the real queue is read (rule 2)
         self._live_queue = LiveSources(random_seed=self.random_seed, use_fastevents=use_fastevents)
         self._sprite_ids = StableSpriteIds()
@@ -474,39 +511,38 @@ class ReplaySources:
     def pump_events(
         self: Self, *, real_events: list[pygame.event.Event] | None = None
     ) -> list[pygame.event.Event]:
-        """Serve the recording's batch for this pump, plus live internal events (rule 2).
+        """Serve the recording's batch for this pump, merged with live internal events (rule 2).
 
         Args:
             real_events: The real batch to filter instead of draining the real queue (a Part 3
                 playback scope passes the base pump's batch).
 
         Returns:
-            The recorded external events, then the live internal events, then the window's
-            QUIT if it was closed.
+            The recorded batch in its order (external events from the recording, internal ones
+            as the replayed code posted them again), then any live internal event the
+            recording does not have, then the window's QUIT if it was closed.
 
         """
         live_events = self._live_queue.pump_events() if real_events is None else real_events
         pending = pending_internal_posts()
-        passed_through: list[pygame.event.Event] = []
+        live_internal_events: list[pygame.event.Event] = []
         window_closes: list[pygame.event.Event] = []
         for event in live_events:
             if event_origin(event=event, pending=pending) == INTERNAL_ORIGIN:
-                passed_through.append(event)
+                live_internal_events.append(event)
             elif event.type == pygame.QUIT:
                 window_closes.append(event)
             # Every other real external event (keyboard, mouse, window, devices) is dropped
         # Posted but not returned: the queue was cleared or the type is blocked
         pending.clear()
-        recorded_events = [event_from_record(record) for record in self._recorded_batch()]
+        batch, origins = self._merged_batch(live_internal_events=live_internal_events)
         self._pump_index += 1
         if window_closes:
             self._window_was_closed = True
-        self._last_batch_origins = [
-            *[EXTERNAL_ORIGIN] * len(recorded_events),
-            *[INTERNAL_ORIGIN] * len(passed_through),
-            *[EXTERNAL_ORIGIN] * len(window_closes[-1:]),
-        ]
-        return [*recorded_events, *passed_through, *window_closes[-1:]]
+            batch.append(window_closes[-1])
+            origins.append(EXTERNAL_ORIGIN)
+        self._last_batch_origins = origins
+        return batch
 
     def last_batch_origins(self: Self) -> list[str]:
         """Return each event's origin in the batch the last pump returned.
@@ -633,16 +669,12 @@ class ReplaySources:
             control_events: The control events recorded in the frame.
 
         """
-        # Task 13 compares the frame's markers; dt is the recorded one by construction
-        del dt, control_events
+        # dt is the recorded one by construction
+        del dt
         frame = self._current_frame()
         if frame is not None and not self._stop_requested:
-            # Sampled exactly as the recorder samples a recorded frame
-            replayed = sample_scene_frame(
-                frame_number=self._frame_index, scene=scene, sprite_ids=self._sprite_ids
-            )
-            divergence = first_frame_difference(
-                frame_index=self._frame_index, recorded=frame, replayed=replayed
+            divergence = self._frame_difference(
+                frame=frame, scene=scene, control_events=control_events
             )
             self.result.frames_replayed = self._frame_index + 1
             if divergence is not None:
@@ -663,6 +695,7 @@ class ReplaySources:
             self._stop(end_reason=QUIT_END_REASON)
         self._frame_index += 1
         self._pump_index = 0
+        self._frame_divergence = None
         self._begin_frame()
 
     def finish_run(self: Self) -> None:
@@ -706,19 +739,222 @@ class ReplaySources:
             return self._frames[self._frame_index]
         return None
 
-    def _recorded_batch(self: Self) -> list[dict[str, Any]]:
-        """Return the external records of the batch this pump serves (none past the end)."""
+    def _frame_difference(
+        self: Self,
+        *,
+        frame: dict[str, Any],
+        scene: Scene | None,
+        control_events: list[ControlEvent],
+    ) -> Divergence | None:
+        """Return the frame's first difference: its pumps', its markers', then its sprites'.
+
+        Returns:
+            The divergence, or None when the frame matches.
+
+        """
+        if self._frame_divergence is not None:
+            return self._frame_divergence
+        recorded_pump_count = len(frame.get(EVENT_BATCHES_FIELD, []))
+        if self._pump_index < recorded_pump_count:
+            # Fewer pumps than recorded (more are found by the extra pump itself)
+            return Divergence(
+                frame_number=self._frame_index,
+                kind=LENGTH_DIVERGENCE,
+                subject=RECORDING_SUBJECT,
+                field=PUMP_COUNT_FIELD,
+                expected=recorded_pump_count,
+                actual=self._pump_index,
+            )
+        control_event_divergence = self._control_event_difference(
+            frame=frame, control_events=control_events
+        )
+        if control_event_divergence is not None:
+            return control_event_divergence
+        # Sampled exactly as the recorder samples a recorded frame
+        replayed = sample_scene_frame(
+            frame_number=self._frame_index, scene=scene, sprite_ids=self._sprite_ids
+        )
+        return first_frame_difference(
+            frame_index=self._frame_index, recorded=frame, replayed=replayed
+        )
+
+    def _control_event_difference(
+        self: Self, *, frame: dict[str, Any], control_events: list[ControlEvent]
+    ) -> Divergence | None:
+        """Compare the markers the replayed code recorded with the frame's recorded ones (rule 8).
+
+        Control events applied again (``REAPPLIED_CONTROL_EVENT_KINDS``) are left out on both
+        sides: the replay records them itself from the recording.
+
+        Returns:
+            The first marker that differs (missing, extra or changed), or None.
+
+        """
+        if not self._compares_control_events:
+            return None
+        recorded_markers = [
+            record
+            for record in frame.get(CONTROL_EVENTS_FIELD, [])
+            if record.get(KIND_FIELD) not in REAPPLIED_CONTROL_EVENT_KINDS
+        ]
+        replayed_markers = [
+            control_event.to_json()
+            for control_event in control_events
+            if control_event.kind not in REAPPLIED_CONTROL_EVENT_KINDS
+        ]
+        for expected, actual in itertools.zip_longest(recorded_markers, replayed_markers):
+            if expected != actual:
+                differing_marker = expected if expected is not None else actual
+                return Divergence(
+                    frame_number=self._frame_index,
+                    kind=EVENT_DIVERGENCE,
+                    subject=str(differing_marker[KIND_FIELD]),
+                    field=CONTROL_EVENT_FIELD,
+                    expected=expected,
+                    actual=actual,
+                )
+        return None
+
+    def _note_frame_divergence(
+        self: Self, *, kind: str, subject: str, field: str, expected: object, actual: object
+    ) -> None:
+        """Keep the current frame's first difference found while pumping (end_frame reports it)."""
+        if self._frame_divergence is None:
+            self._frame_divergence = Divergence(
+                frame_number=self._frame_index,
+                kind=kind,
+                subject=subject,
+                field=field,
+                expected=expected,
+                actual=actual,
+            )
+
+    def _merged_batch(
+        self: Self, *, live_internal_events: list[pygame.event.Event]
+    ) -> tuple[list[pygame.event.Event], list[str]]:
+        """Build this pump's batch in the recorded batch's order (rule 2).
+
+        Args:
+            live_internal_events: The events the replayed code posted, in queue order.
+
+        Returns:
+            The batch and each event's origin. Past the end of the recording, or on a pump the
+            frame did not record, the live internal events alone.
+
+        """
+        live_origins = [INTERNAL_ORIGIN] * len(live_internal_events)
         frame = self._current_frame()
         if frame is None:
-            return []
+            return list(live_internal_events), live_origins
         batches = frame.get(EVENT_BATCHES_FIELD, [])
         if self._pump_index >= len(batches):
-            return []
-        return [
-            record
-            for record in batches[self._pump_index]
-            if record.get(EVENT_ORIGIN_FIELD) == EXTERNAL_ORIGIN
+            self._note_frame_divergence(
+                kind=LENGTH_DIVERGENCE,
+                subject=RECORDING_SUBJECT,
+                field=PUMP_COUNT_FIELD,
+                expected=len(batches),
+                actual=self._pump_index + 1,
+            )
+            return list(live_internal_events), live_origins
+        # Each live internal event with its record, compared with the recorded internal records
+        unmatched = [
+            (event, event_to_record(event=event, origin=INTERNAL_ORIGIN))
+            for event in live_internal_events
         ]
+        batch: list[pygame.event.Event] = []
+        origins: list[str] = []
+        for record in batches[self._pump_index]:
+            if record.get(EVENT_ORIGIN_FIELD) == EXTERNAL_ORIGIN:
+                event = self._live_event_from_record(record=record)
+                if event is not None:
+                    batch.append(event)
+                    origins.append(EXTERNAL_ORIGIN)
+                continue
+            match_index = next(
+                (
+                    index
+                    for index, (_event, live_record) in enumerate(unmatched)
+                    if live_record == record
+                ),
+                None,
+            )
+            if match_index is None:
+                self._note_frame_divergence(
+                    kind=EVENT_DIVERGENCE,
+                    subject=str(record.get(EVENT_NAME_FIELD)),
+                    field=MISSING_INTERNAL_EVENT_FIELD,
+                    expected=record,
+                    actual=None,
+                )
+                continue
+            matched_event, _live_record = unmatched.pop(match_index)
+            batch.append(matched_event)
+            origins.append(INTERNAL_ORIGIN)
+        # Posted again by the replayed code but not recorded: still delivered, and a divergence
+        for event, live_record in unmatched:
+            self._note_frame_divergence(
+                kind=EVENT_DIVERGENCE,
+                subject=str(live_record[EVENT_NAME_FIELD]),
+                field=UNEXPECTED_INTERNAL_EVENT_FIELD,
+                expected=None,
+                actual=live_record,
+            )
+            batch.append(event)
+            origins.append(INTERNAL_ORIGIN)
+        return batch, origins
+
+    def _live_event_from_record(self: Self, *, record: dict[str, Any]) -> pygame.event.Event | None:
+        """Rebuild a recorded external event with its references mapped to live objects.
+
+        A window reference becomes None: the window is the display module's, and live play
+        never calls ``pygame.Window.from_display_module()`` (deprecated, and calling it would
+        make SDL's window events carry a Window from then on), so every live event of the
+        current window carries ``window=None``. A joystick reference becomes the stand-in
+        opened for its instance id.
+
+        Returns:
+            The event, or None when its joystick has no stand-in (dropped, with one warning
+            per instance id).
+
+        """
+        recorded_event = event_from_record(record)
+        attributes: dict[str, Any] = {}
+        for name, value in recorded_event.dict.items():
+            if isinstance(value, RecordedReference):
+                if value.kind == WINDOW_REFERENCE:
+                    attributes[name] = None
+                    continue
+                joystick = self._opened_joystick(instance_id=value.identifier)
+                if joystick is None:
+                    return None
+                attributes[name] = joystick
+                continue
+            if (
+                isinstance(value, UnrepresentableValue)
+                and value.type_name not in self._logged_unrepresentable_types
+            ):
+                self._logged_unrepresentable_types.add(value.type_name)
+                LOG.debug(
+                    'Recorded events carry an unrepresentable %s; it is injected as recorded',
+                    value.type_name,
+                )
+            attributes[name] = value
+        return pygame.event.Event(recorded_event.type, attributes)
+
+    def _opened_joystick(self: Self, *, instance_id: int) -> ReplayJoystick | None:
+        """Return the stand-in opened for a recorded instance id, or None (warned once per id).
+
+        Returns:
+            The joystick stand-in, or None when no device was opened for ``instance_id``.
+
+        """
+        joystick = self._devices.joystick_for_instance(instance_id=instance_id)
+        if joystick is None and instance_id not in self._warned_joystick_instances:
+            self._warned_joystick_instances.add(instance_id)
+            LOG.warning(
+                'recorded joystick event for instance %d has no device; dropped', instance_id
+            )
+        return joystick
 
     def _begin_frame(self: Self) -> None:
         """Learn what the current frame took in, before any of its doors are asked.
