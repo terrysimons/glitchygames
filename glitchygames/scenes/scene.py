@@ -30,7 +30,7 @@ from glitchygames.input.state import (
 from glitchygames.instant_replay import InstantReplayJournal
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
-from glitchygames.randomness import restore_stream_states
+from glitchygames.randomness import capture_stream_states, restore_stream_states
 from glitchygames.recording import pending_internal_posts, post_event
 from glitchygames.scene_start import (
     ResumeBridge,
@@ -421,7 +421,9 @@ class SceneManager(SceneInterface, events.EventManager):
 
         The scope's replay holds the frame's resume bridge (glitchygames/replay/driver.py,
         rule 18): the frame clock, the FPS event timer and the polled input are set to what the
-        recorded scene resumed with, at the top of the frame, before any of its work.
+        recorded scene resumed with, at the top of the frame, before any of its work; the frame
+        effects the recorded scope's end cleared (``_clear_frame_effects``) are cleared too, and
+        the random streams restored as its end restored them.
         """
         session = self._playback_session
         if session is None:
@@ -429,6 +431,14 @@ class SceneManager(SceneInterface, events.EventManager):
         bridge = session.sources.replay.frame_bridge
         if bridge is None:
             return
+        # What the recorded scope's end did (_exit_playback): the SCREEN shake and sustained
+        # rumble stopped, so a JITTER screen shake no longer draws from the shared shake stream;
+        # and the random streams restored, which makes each stream a new object in the same
+        # state (restore_stream_states), so code still holding the old one (a running WORLD
+        # shake's random source) draws apart from new users. Nothing drew since the recorded
+        # frame before the scope, so restoring the current states repeats exactly that
+        self._clear_frame_effects()
+        restore_stream_states(states=capture_stream_states())
         set_frame_clock_seconds(seconds=bridge.frame_clock_seconds)
         self._previous_fps_event_seconds = bridge.fps_event_seconds
         set_current_input(

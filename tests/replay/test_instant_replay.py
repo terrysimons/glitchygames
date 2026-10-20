@@ -19,6 +19,7 @@ from scripts.record_golden_traces import (
     release,
 )
 
+from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events import FPSEVENT
 from glitchygames.input import devices as devices_module
 from glitchygames.input.state import IDLE_INPUT, current_input
@@ -97,6 +98,9 @@ SETUP_SAVE_NAMESPACE = 'setup-saves'
 SETUP_SAVED_VALUE = 7
 # Paused frames beyond the fast-forward budget (PAUSE_BUDGET_FRAMES of frame time)
 PAUSE_BUDGET_FRAMES = 10
+# A goal's shake, still running when the instant replay starts, and a later WORLD shake
+GOAL_SHAKE = Shake(style=ShakeStyle.JITTER, strength=8.0, duration=1.0, frequency=30.0)
+LATER_WORLD_SHAKE = Shake(style=ShakeStyle.JITTER, strength=8.0, duration=0.2, frequency=30.0)
 
 
 class InstantCountingScene(CountingScene):
@@ -199,6 +203,24 @@ class InstantSelfReplayingScene(KeyReleaseCountingScene):
                 options=PlaybackOptions(kind=INSTANT_PLAYBACK, start_frame=recording.start_frame),
             )
         self.marker.rect.y += SELF_REPLAY_GRANTED_STEP if granted else 1
+
+
+class InstantShakingScene(InstantSelfReplayingScene):
+    """Shakes on S (a long JITTER shake of the world and the screen) and W (a short WORLD one).
+
+    Its world sprite is drawn shaken, so a shake that draws differently from the shared shake
+    stream diverges.
+    """
+
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+        """Start the long shake on S, the short WORLD shake on W."""
+        if event.key == pygame.K_s:
+            self.shake(GOAL_SHAKE, targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)
+        elif event.key == pygame.K_w:
+            self.shake(LATER_WORLD_SHAKE, targets=ShakeTarget.WORLD)
+        else:
+            super().on_key_down_event(event)
 
 
 class InstantJoystickScene(CountingScene):
@@ -689,6 +711,36 @@ class TestPlaybackScopesAndTheJournal:
             outcome = manager.last_playback_outcome
             assert outcome is not None
             assert outcome.reason == 'end_of_recording'
+
+    def test_a_screen_shake_running_at_the_replay_is_cleared_in_the_journals_playback(self):
+        """The scope's end stops the SCREEN shake; so does the playback at the resumed frame.
+
+        Otherwise the screen shake would go on drawing from the shared shake stream in the
+        playback, and the later WORLD shake would move the world sprite differently.
+        """
+        with running_scene(InstantShakingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            step(manager, frames=2)
+            step(manager, press(pygame.K_s))
+            step(manager, release(pygame.K_s))
+            assert manager.screen_shake.is_active
+            step(manager, press(pygame.K_r))
+            step(manager, release(pygame.K_r))
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            first_result = manager.last_playback_result
+            assert first_result is not None
+            assert first_result.divergence is None, first_result.report()
+            step(manager, press(pygame.K_w))
+            step(manager, release(pygame.K_w), frames=4)
+            step(manager, press(pygame.K_r))
+            step(manager, release(pygame.K_r))
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            assert manager.active_scene is live_scene
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None, result.report()
+            assert result.end_reason == 'end_of_recording'
 
     def test_a_request_inside_a_playback_of_the_journal_requests_nothing(self):
         with running_scene(InstantSelfReplayingScene) as manager:

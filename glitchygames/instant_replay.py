@@ -53,7 +53,9 @@ and play the journal back with no divergence (glitchygames/replay/playback.py). 
    by the scope's last frame), the FPS event timer and the count of code-posted events pending
    then (posted as the scope's last frame ended), and the polled input the frame's logic reads.
    The frame's ``redelivered_events`` hold what the scope held. A playback of the journal sets
-   that state at the top of the frame and serves the frame as it serves its start frame
+   that state at the top of the frame (and, as the scope's end did, stops the SCREEN shake and
+   sustained rumble and restores the random streams, which renews their objects) and serves
+   the frame as it serves its start frame
    (glitchygames/replay/driver.py, rule 18), so the gap leaves no trace; it adds no game time.
 8. Playback requests: every answer the scene's code gets from ``start_playback`` /
    ``start_playback_from_recording`` (glitchygames/replay/playback.py) is recorded in the
