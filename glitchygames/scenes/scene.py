@@ -21,7 +21,12 @@ from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.recording import post_event
-from glitchygames.sources import active_sources, mark_frames_started
+from glitchygames.sources import (
+    active_sources,
+    advance_frame_clock,
+    frame_clock_seconds,
+    mark_frames_started,
+)
 from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
@@ -169,7 +174,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._jitter_interval_start_ns: int = 0
         self._jitter_late_frames: int = 0
         self._timer_prev_deadline_ns: int | None = None
-        # When the last FPS event was posted (perf_counter seconds); start() sets it
+        # When the last FPS event was posted (frame-clock seconds); start() sets it
         self._previous_fps_event_seconds: float = 0.0
 
         # Mark as initialized to prevent re-initialization
@@ -792,7 +797,7 @@ class SceneManager(SceneInterface, events.EventManager):
         logic in frame N receives the time frame N-1 took (engine audit #15).
         """
         frame_start_seconds: float = time.perf_counter()
-        self._previous_fps_event_seconds = frame_start_seconds
+        self._previous_fps_event_seconds = frame_clock_seconds()
         # The first frame has no previous frame: its dt is the short time since the reading
         # above, as before (a replay's frame-time door returns the recorded first dt)
         self.dt = active_sources().frame_seconds(measured=time.perf_counter() - frame_start_seconds)
@@ -842,10 +847,11 @@ class SceneManager(SceneInterface, events.EventManager):
         clock; target 0 never sleeps) and log timer jitter; read time.perf_counter() once,
         which ends this frame and starts the next; set ``self.dt`` to the start-to-start
         period as the frame-time door returns it: the measurement when live, the recorded dt
-        in a replay; record it as the frame's FPS sample and post the FPS event when its
-        wall-clock interval has passed. Each frame's ``self.dt`` is set only here, so
-        recorded frames sum exactly to elapsed time, and logic and the debug overlay in the
-        next frame see the same value the statistics recorded (engine audit #15).
+        in a replay; add it to the frame clock; record it as the frame's FPS sample and post
+        the FPS event when its interval of frame-clock time has passed (the frame clock replays
+        exactly). Each frame's ``self.dt`` is set only here, so recorded frames sum exactly to
+        elapsed time, and logic and the debug overlay in the next frame see the same value the
+        statistics recorded (engine audit #15).
 
         The statistics are recorded after the closing reading, so their (microseconds of)
         work counts towards the next frame's period rather than going unmeasured.
@@ -872,11 +878,15 @@ class SceneManager(SceneInterface, events.EventManager):
         self.dt = active_sources().frame_seconds(
             measured=closing_reading_seconds - frame_start_seconds
         )
+        # The frame clock (glitchygames/sources.py) is the sum of closed frames' dt: UI timing and
+        # FPS events use it, so they replay exactly
+        advance_frame_clock(seconds=self.dt)
 
         self._track_performance(processing_time=processing_seconds)
-        if self._should_post_fps_event(closing_reading_seconds, self._previous_fps_event_seconds):
+        frame_clock = frame_clock_seconds()
+        if self._should_post_fps_event(frame_clock, self._previous_fps_event_seconds):
             self._post_fps_event()
-            self._previous_fps_event_seconds = closing_reading_seconds
+            self._previous_fps_event_seconds = frame_clock
 
         return closing_reading_seconds
 
@@ -1201,6 +1211,8 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         assert self.active_scene is not None
+        # Engine-owned, so a dt_tick override that skips super() still has game time
+        self.active_scene.advance_game_time(seconds=scene_dt)
         self.active_scene.dt_tick(scene_dt)
 
     def _process_events(self) -> None:
@@ -1469,6 +1481,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # Keys whose key-down reached this scene and are not yet released (_record_key_press)
         self._keys_pressed_in_scene: set[int] = set()
         self._world_shake_warning_logged: bool = False
+        # Logic seconds since this scene started (game_time); the scene manager adds each
+        # frame's scene dt before dt_tick
+        self._game_time_seconds: float = 0.0
         self.next_scene: Scene | Self | None = self
         self.rects = None
         self.screen = pygame.display.get_surface()
@@ -1507,6 +1522,29 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         with the frozen picture.
         """
         return self
+
+    @property
+    def game_time(self: Self) -> float:
+        """Logic seconds since this scene started: the sum of the dt its dt_tick received.
+
+        Capped by MAX_FRAME_SECONDS where set, and it does not advance while the scene is not
+        running (paused, or switched away), so cooldowns and timers measured with it pause with
+        the game and replay exactly. Use it for gameplay timing instead of the wall clock.
+        """
+        return self._game_time_seconds
+
+    def advance_game_time(self: Self, *, seconds: float) -> None:
+        """Add one frame's scene dt to game_time.
+
+        The engine calls this once per scene frame (SceneManager._update_scene, before
+        dt_tick); games read game_time and never call it. It is public only because the scene
+        manager, another class, calls it.
+
+        Args:
+            seconds: The scene's (possibly capped) dt this frame.
+
+        """
+        self._game_time_seconds += seconds
 
     @property
     def screenshot(self: Self) -> pygame.Surface:

@@ -22,7 +22,11 @@ import pytest
 
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import SceneManager
-from glitchygames.sources import SourcesAlreadyRunningError, install_sources
+from glitchygames.sources import (
+    SourcesAlreadyRunningError,
+    frame_clock_seconds,
+    install_sources,
+)
 from glitchygames.timing import next_frame_deadline_ns
 
 if TYPE_CHECKING:
@@ -449,7 +453,7 @@ class TestOneFrameTime:
         )
 
     def test_fps_event_reports_the_frame_just_closed(self, driver_factory):
-        """FPSEVENT still fires on its wall-clock interval, reporting 1 / the closed frame."""
+        """FPSEVENT fires on its frame-clock interval, reporting 1 / the closed frame."""
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
         # 1000 ms log interval: an event at least every 500 ms; 64 frames span one second
         frames_per_second = round(EXACT_TARGET_FPS)
@@ -459,6 +463,27 @@ class TestOneFrameTime:
         posted_fps = [call.args[0].fps for call in driver.post_event.call_args_list]
         assert len(posted_fps) == 2
         assert posted_fps == pytest.approx([EXACT_TARGET_FPS, EXACT_TARGET_FPS])
+
+    def test_fps_events_follow_the_frame_clock(self, driver_factory, mocker):
+        """FPS events are timed from the frame clock (the sum of frame times), not the wall clock.
+
+        With the frame clock frozen, none is posted even though a second of wall time passes.
+        """
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+        mocker.patch('glitchygames.scenes.scene.frame_clock_seconds', return_value=0.0)
+
+        driver.run(frame_count=round(EXACT_TARGET_FPS))
+
+        assert driver.post_event.call_args_list == []
+
+    def test_frame_clock_includes_the_frame_just_closed(self, driver_factory):
+        """After the loop, the frame clock is the sum of every frame's closing dt."""
+        driver = driver_factory(target_fps=EXACT_TARGET_FPS)
+
+        driver.run(frame_count=FRAMES_TO_RUN)
+
+        closing_samples = _closing_samples(driver)
+        assert frame_clock_seconds() == pytest.approx(sum(closing_samples))
 
 
 class TestStartLoopUsesTheDoors:
@@ -673,6 +698,11 @@ class CappedSceneStandIn:
         self.camera.follow(target=self.target)
         self.all_sprites: list[object] = []
         self.logic_dts: list[float] = []
+        self.game_time_advances: list[float] = []
+
+    def advance_game_time(self, *, seconds: float) -> None:
+        """Record the game time the manager added (Scene.advance_game_time's signature)."""
+        self.game_time_advances.append(seconds)
 
     def dt_tick(self, dt: float) -> None:
         """Record the dt logic received."""
@@ -725,6 +755,8 @@ class TestSceneFrameCap:
         # Frames under the cap pass through unchanged
         assert scene.logic_dts[: hitch_frame_index + 1] == driver.logic_dts[: hitch_frame_index + 1]
         assert aim_dts == scene.logic_dts
+        # Game time advances by the same capped dt logic receives
+        assert scene.game_time_advances == scene.logic_dts
 
     def test_scene_without_a_cap_receives_the_raw_dt(self, driver_factory, mocker):
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)

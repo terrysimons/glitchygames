@@ -655,6 +655,58 @@ class TestResumeAfterPause:
             assert (game_scene.camera.world_x, game_scene.camera.world_y) != camera_before_resume
 
 
+class GameTimeScene(CameraFreeScene):
+    """Overrides dt_tick without calling super: game time is the engine's, not the scene's."""
+
+    NAME = 'Game Time'
+    MAX_FRAME_SECONDS: ClassVar[float | None] = 0.05
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Remember the dt, skipping Scene.dt_tick.
+
+        Args:
+            dt: The frame's (capped) delta time in seconds.
+
+        """
+        self.last_dt = dt
+
+
+class TestGameTime:
+    """Scene.game_time sums the scene's (capped) dt and stops while the scene is not running."""
+
+    def test_game_time_sums_the_scene_dt_even_without_super(self):
+        """A dt_tick override that skips super() still advances game time."""
+        with running_scene(GameTimeScene) as manager:
+            step(manager, frames=4)
+            assert manager.active_scene is not None
+            assert manager.active_scene.game_time == pytest.approx(4 * FRAME_SECONDS)
+
+    def test_game_time_uses_the_capped_dt(self):
+        """A long frame advances game time by MAX_FRAME_SECONDS only."""
+        with running_scene(GameTimeScene) as manager:
+            manager.dt = 2.0
+            manager.run_frame()
+            assert manager.active_scene is not None
+            assert manager.active_scene.game_time == pytest.approx(GameTimeScene.MAX_FRAME_SECONDS)
+
+    def test_game_time_stops_while_paused(self):
+        """While the pause scene runs, the paused game's time stands still."""
+        with running_scene(StillCameraScene) as manager:
+            step(manager, frames=2)
+            game_scene = manager.active_scene
+            assert game_scene is not None
+            # pause() switches at the end of the next frame, after the game's dt_tick
+            game_scene.pause()
+            step(manager)
+            assert isinstance(manager.active_scene, PauseScene)
+            paused_at = game_scene.game_time
+            assert paused_at > 0
+            step(manager, frames=PAUSE_FRAMES)
+            assert isinstance(manager.active_scene, PauseScene)
+            assert game_scene.game_time == paused_at
+
+
 class TestTransitionCapture:
     """The arriving scene's transition screenshot shows its world sprites in place."""
 
