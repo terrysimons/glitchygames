@@ -130,7 +130,7 @@ from glitchygames.supervision import PLAYBACK_KIND
 from glitchygames.tracing import FRAMES_FIELD, TraceFormatError, read_trace_result
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
     from datetime import datetime
     from pathlib import Path
 
@@ -740,7 +740,57 @@ def start_playback(
     Returns:
         True when the scope will begin at the start of the next frame; False (logged) when the
         frame holds no usable scene start, its scene class is not found, the header cannot be
-        replayed, or a scope is already starting or playing.
+        replayed, or a scope is already starting or playing. Inside a scope that plays an
+        instant-replay journal, the answer the frame being played recorded, and nothing is
+        requested (``answered_playback_request``).
+
+    """
+    return answered_playback_request(
+        manager=manager,
+        request=lambda: _start_playback(
+            manager=manager, header=header, frames=frames, then=then, options=options
+        ),
+    )
+
+
+def answered_playback_request(*, manager: SceneManager, request: Callable[[], bool]) -> bool:
+    """Answer a playback request as recorded inside a scope, else make it and keep its answer.
+
+    The scene's code gets the same answers when its instant-replay journal is played back
+    (glitchygames/instant_replay.py, rule 8): live, the answer is kept in the journal's frame
+    (``SceneManager.note_playback_answer``); inside a scope playing the journal, the frame's
+    recorded answer is returned (``SceneManager.recorded_playback_answer``) and the request is
+    not made (scopes do not nest). Inside a scope whose recording holds no answer (a demo), the
+    request is made, and refused as a nested scope.
+
+    Args:
+        manager: The running scene manager.
+        request: Makes the request; returns whether a scope will begin.
+
+    Returns:
+        The answer.
+
+    """
+    recorded_answer = manager.recorded_playback_answer()
+    if recorded_answer is not None:
+        return recorded_answer
+    granted = request()
+    manager.note_playback_answer(granted=granted)
+    return granted
+
+
+def _start_playback(
+    *,
+    manager: SceneManager,
+    header: dict[str, Any],
+    frames: Sequence[dict[str, Any]],
+    then: Scene,
+    options: PlaybackOptions,
+) -> bool:
+    """Make the playback request ``start_playback`` describes (its answer is not kept here).
+
+    Returns:
+        As ``start_playback``, outside a scope.
 
     """
     kind = options.kind
@@ -795,6 +845,23 @@ def start_playback_from_recording(
         As ``start_playback``; also False (logged) for a missing or unreadable file.
 
     """
+    return answered_playback_request(
+        manager=manager,
+        request=lambda: _start_playback_from_recording(
+            manager=manager, path=path, then=then, options=options
+        ),
+    )
+
+
+def _start_playback_from_recording(
+    *, manager: SceneManager, path: Path, then: Scene, options: PlaybackOptions
+) -> bool:
+    """Read a recording file and make the playback request (its answer is not kept here).
+
+    Returns:
+        As ``start_playback_from_recording``, outside a scope.
+
+    """
     try:
         read_result = read_trace_result(path=path)
     except (OSError, TraceFormatError) as error:
@@ -804,7 +871,7 @@ def start_playback_from_recording(
     if is_cut_off(read_result=read_result):
         # Played up to its last complete frame, then ends as 'truncated'
         header[SOURCE_TRUNCATED_HEADER_FIELD] = True
-    return start_playback(
+    return _start_playback(
         manager=manager,
         header=header,
         frames=read_result.trace[FRAMES_FIELD],

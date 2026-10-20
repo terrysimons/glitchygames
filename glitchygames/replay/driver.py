@@ -172,6 +172,17 @@ session again, and every frame's sprites are compared with the recorded frame. T
     offset by N):
     divergences name recording frames, and ``ReplayResult.frames_replayed`` counts up to the
     last compared recording frame.
+    A later frame holding a ``resume_bridge`` (an instant-replay journal's: its scene resumed
+    there after a playback scope; glitchygames/instant_replay.py, rule 7) begins as the start
+    frame does: the bridge is kept for the frame (``frame_bridge``: the playback scope sets the
+    frame clock, the FPS event timer and the polled input from it at the top of the frame), the
+    polled input before it is the bridge's, the first ``earlier_internal_event_count`` internal
+    events of its first batch are served from the recording, uncompared, and its
+    ``redelivered_events`` come first in its first pump: the external ones served, the internal
+    ones (the scene's own posts from before the scope, which the playback ran) matched with the
+    live posts. A frame's ``playback_answers`` are kept for the frame
+    (``recorded_playback_answers``): the playback scope answers the replayed code's playback
+    requests with them (glitchygames/replay/playback.py, ``answered_playback_request``).
 """
 
 from __future__ import annotations
@@ -216,7 +227,9 @@ from glitchygames.recording import (
     EXTERNAL_ORIGIN,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
+    PLAYBACK_ANSWERS_FIELD,
     REDELIVERED_EVENTS_FIELD,
+    RESUME_BRIDGE_FIELD,
     SAVES_HEADER_FIELD,
     SAVES_OPENED_FIELD,
     WINDOW_REFERENCE,
@@ -239,6 +252,7 @@ from glitchygames.replay.controls import (
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.replay.rebuild import Rebuild, ViewerState
 from glitchygames.replay.viewer import ReplayViewer
+from glitchygames.scene_start import ResumeBridge
 from glitchygames.sources import frame_clock_seconds
 from glitchygames.state.sandbox import MemorySaveManager
 from glitchygames.supervision import (
@@ -1021,8 +1035,16 @@ class ReplaySources:
         start_input: The polled input before the start frame (``IDLE_INPUT`` before frame 0),
             which the start frame's logic reads (``dt_tick`` runs before the frame's pump); a
             playback scope makes it the current input as it begins (rule 18).
+        frame_bridge: The current frame's resume bridge, when the recorded scene resumed in it
+            after a playback scope (an instant-replay journal's frame; rule 18), else None.
+        recorded_playback_answers: The answers the current frame's playback requests got, not
+            yet given again (an instant-replay journal's ``playback_answers``; rule 18).
 
     """
+
+    # Set for each frame as it begins (_begin_frame)
+    frame_bridge: ResumeBridge | None
+    recorded_playback_answers: collections.deque[bool]
 
     def __init__(
         self: Self,
@@ -1145,6 +1167,7 @@ class ReplaySources:
         if format_version < TRACE_FORMAT_VERSION:
             LOG.warning(VERSION_TWO_INPUT_WARNING, format_version)
         self.start_input = self._learn_frames_before_start(frames=frames)
+        # Sets frame_bridge and recorded_playback_answers too (declared on the class)
         self._begin_frame()
 
     @classmethod
@@ -1239,7 +1262,15 @@ class ReplaySources:
         # Posts a held frame found come first: they were queued before this drain (rule 14)
         live_internal_events = [*self._held_internal_events, *live_internal_events]
         self._held_internal_events = []
+        bridge_events: list[pygame.event.Event] = []
+        bridge_origins: list[str] = []
+        if self.frame_bridge is not None and self._pump_index == 0:
+            bridge_events, bridge_origins, live_internal_events = (
+                self._resumed_frame_redelivered_events(live_internal_events=live_internal_events)
+            )
         batch, origins = self._merged_batch(live_internal_events=live_internal_events)
+        batch = [*bridge_events, *batch]
+        origins = [*bridge_origins, *origins]
         if self.options.serves_redelivered_events and self._pump_index == 0:
             redelivered, redelivered_origins = self._start_frame_redelivered_events()
             batch = [*redelivered, *batch]
@@ -1812,6 +1843,53 @@ class ReplaySources:
                 origins.append(str(record.get(EVENT_ORIGIN_FIELD)))
         return events, origins
 
+    def _resumed_frame_redelivered_events(
+        self: Self, *, live_internal_events: list[pygame.event.Event]
+    ) -> tuple[list[pygame.event.Event], list[str], list[pygame.event.Event]]:
+        """Return a resumed frame's redelivered events, for its first pump (rule 18).
+
+        The scope the scene waited behind held them and delivered them before this pump: the
+        external ones (the player's releases, device and window events) are served from the
+        recording; the internal ones were posted by the scene's own frames before the scope,
+        which the playback ran, so they are the live posts again, matched as recorded.
+
+        Args:
+            live_internal_events: The events the replayed code posted, in queue order.
+
+        Returns:
+            The events, their origins, and the live internal events left for the batch.
+
+        """
+        frame = self._current_frame()
+        if frame is None:
+            return [], [], live_internal_events
+        unmatched = [
+            (event, event_to_record(event=event, origin=INTERNAL_ORIGIN))
+            for event in live_internal_events
+        ]
+        events: list[pygame.event.Event] = []
+        origins: list[str] = []
+        for record in frame.get(REDELIVERED_EVENTS_FIELD, []):
+            if record.get(EVENT_ORIGIN_FIELD) == EXTERNAL_ORIGIN:
+                event = self._live_event_from_record(record=record)
+                if event is not None:
+                    events.append(event)
+                    origins.append(EXTERNAL_ORIGIN)
+                continue
+            matched_event = _take_live_match(unmatched=unmatched, record=record, is_compared=True)
+            if matched_event is None:
+                self._note_frame_divergence(
+                    kind=EVENT_DIVERGENCE,
+                    subject=str(record.get(EVENT_NAME_FIELD)),
+                    field=MISSING_INTERNAL_EVENT_FIELD,
+                    expected=record,
+                    actual=None,
+                )
+                continue
+            events.append(matched_event)
+            origins.append(INTERNAL_ORIGIN)
+        return events, origins, [event for event, _record in unmatched]
+
     def _live_event_from_record(self: Self, *, record: dict[str, Any]) -> pygame.event.Event | None:
         """Rebuild a recorded external event with its references mapped to live objects.
 
@@ -1872,6 +1950,8 @@ class ReplaySources:
         polled input (applied to the previous frame's snapshot).
         """
         frame = self._current_frame()
+        self.frame_bridge = None
+        self.recorded_playback_answers = collections.deque()
         if frame is None:
             return
         self._devices.add_enumeration_answers(
@@ -1880,6 +1960,17 @@ class ReplaySources:
                 for record in frame.get(DEVICE_ENUMERATION_FIELD, [])
             ]
         )
+        bridge_record = frame.get(RESUME_BRIDGE_FIELD)
+        if bridge_record is not None and self._frame_index != self.options.start_frame:
+            # A scene resuming after a playback scope (rule 18): the frame starts from the
+            # recorded state, as the start frame does
+            bridge = ResumeBridge.model_validate(bridge_record)
+            self.frame_bridge = bridge
+            self._earlier_internal_events_to_serve = bridge.earlier_internal_event_count
+            self._snapshot = apply_snapshot_changes(
+                previous=IDLE_INPUT, changes=bridge.input_before
+            )
+        self.recorded_playback_answers = collections.deque(frame.get(PLAYBACK_ANSWERS_FIELD, []))
         self._learn_frame_inputs(frame=frame)
 
     def _learn_frames_before_start(

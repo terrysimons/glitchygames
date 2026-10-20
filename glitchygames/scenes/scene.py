@@ -20,13 +20,24 @@ from glitchygames.effects.tween import TweenManager
 from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
-from glitchygames.input.state import current_input, set_current_input
+from glitchygames.input.state import (
+    IDLE_INPUT,
+    apply_snapshot_changes,
+    current_input,
+    set_current_input,
+    snapshot_changes,
+)
 from glitchygames.instant_replay import InstantReplayJournal
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
 from glitchygames.recording import pending_internal_posts, post_event
-from glitchygames.scene_start import SceneStartCapture, begin_scene_start_capture, rebuild_scene
+from glitchygames.scene_start import (
+    ResumeBridge,
+    SceneStartCapture,
+    begin_scene_start_capture,
+    rebuild_scene,
+)
 from glitchygames.sources import (
     active_sources,
     advance_frame_clock,
@@ -303,11 +314,13 @@ class SceneManager(SceneInterface, events.EventManager):
     def instant_replay_journal(self: Self) -> InstantReplayJournal | None:
         """The journal of the scene that offers instant replay (glitchygames/instant_replay.py).
 
-        None when no scene keeps one, and until the scene's first logic frame began. Kept while
-        the scene is behind the pause screen.
+        None when no scene keeps one, until the scene's first logic frame began, and while a
+        playback scope plays (the scope's scene is not the live session's; the journal waits,
+        suspended, and is back once the scope ended). Kept while the scene is behind the pause
+        screen.
         """
         journal = self._instant_replay_journal
-        if journal is None or not journal.is_recording:
+        if journal is None or not journal.is_recording or has_scoped_sources():
             return None
         return journal
 
@@ -316,6 +329,7 @@ class SceneManager(SceneInterface, events.EventManager):
         *,
         raw_events: list[pygame.event.Event],
         posts_before_pump: list[tuple[int, dict[str, Any]]],
+        origins: list[str] | None,
         redelivered_events: list[RedeliveredEvent],
     ) -> None:
         """Hand one pump's batch to the instant-replay journal (``GameEngine._pump_events``).
@@ -326,6 +340,7 @@ class SceneManager(SceneInterface, events.EventManager):
         Args:
             raw_events: The doors' batch, as they returned it.
             posts_before_pump: A copy of the internal-post tracker's posts before the pump.
+            origins: Each event's origin when a replay's merge knows them, else None.
             redelivered_events: The events delivered before the batch, with their origins.
 
         """
@@ -335,7 +350,89 @@ class SceneManager(SceneInterface, events.EventManager):
         journal.add_event_batch(
             raw_events=raw_events,
             posts_before_pump=posts_before_pump,
+            origins=origins,
             redelivered_events=redelivered_events,
+        )
+
+    def recorded_playback_answer(self: Self) -> bool | None:
+        """Return what a playback request got in the frame being played, inside a scope.
+
+        A scene played back from its instant-replay journal asks for playbacks where the live
+        scene did (an instant replay after every goal): each request is answered with the next
+        answer that frame recorded, and nothing is requested (scopes do not nest;
+        glitchygames/instant_replay.py, rule 8). ``start_playback`` asks this first.
+
+        Returns:
+            The recorded answer; None outside a scope, or when the frame recorded none left.
+
+        """
+        session = self._playback_session
+        if session is None:
+            return None
+        answers = session.sources.replay.recorded_playback_answers
+        return answers.popleft() if answers else None
+
+    def note_playback_answer(self: Self, *, granted: bool) -> None:
+        """Keep what a playback request got in the instant-replay journal (live play only).
+
+        Args:
+            granted: What ``start_playback`` returned.
+
+        """
+        journal = self._instant_replay_journal
+        if journal is not None and not has_scoped_sources():
+            journal.add_playback_answer(granted=granted)
+
+    def _begin_journal_frame(self: Self) -> None:
+        """Begin or resume the instant-replay journal at the top of the frame (rules 3 and 7).
+
+        It begins on its scene's first logic frame, and resumes, writing the frame's resume
+        bridge, on the first frame after a playback scope that presents its scene again (the
+        scene itself, or the pause screen showing it). Never inside a scope or a transition.
+        """
+        journal = self._instant_replay_journal
+        if journal is None or has_scoped_sources() or self._active_transition is not None:
+            return
+        if journal.is_suspended:
+            presented_scene = getattr(self.active_scene, 'debug_subject', self.active_scene)
+            if presented_scene is journal.scene:
+                input_before = current_input()
+                journal.resume(
+                    bridge=ResumeBridge(
+                        frame_clock_seconds=frame_clock_seconds(),
+                        fps_event_seconds=self._previous_fps_event_seconds,
+                        earlier_internal_event_count=len(pending_internal_posts()),
+                        input_before=snapshot_changes(previous=IDLE_INPUT, current=input_before),
+                    ),
+                    input_before=input_before,
+                )
+            return
+        start = getattr(journal.scene, 'scene_start', None)
+        if (
+            not journal.is_recording
+            and journal.scene is self.active_scene
+            and start is not None
+            and start.first_logic_frame is not None
+        ):
+            journal.begin(start=start, input_before_start=current_input())
+
+    def _apply_resume_bridge(self: Self) -> None:
+        """Inside a scope, start a frame its recording resumed after a scope as it began.
+
+        The scope's replay holds the frame's resume bridge (glitchygames/replay/driver.py,
+        rule 18): the frame clock, the FPS event timer and the polled input are set to what the
+        recorded scene resumed with, at the top of the frame, before any of its work.
+        """
+        session = self._playback_session
+        if session is None:
+            return
+        bridge = session.sources.replay.frame_bridge
+        if bridge is None:
+            return
+        set_frame_clock_seconds(seconds=bridge.frame_clock_seconds)
+        self._previous_fps_event_seconds = bridge.fps_event_seconds
+        set_current_input(
+            snapshot=apply_snapshot_changes(previous=IDLE_INPUT, changes=bridge.input_before)
         )
 
     def _prepare_instant_replay_journal(self: Self, *, scene: Scene) -> None:
@@ -367,7 +464,8 @@ class SceneManager(SceneInterface, events.EventManager):
         """Add the frame just ended to the journal, or end the journal if its scene has gone.
 
         The journal goes on while its scene, or the pause screen presenting it (the active
-        scene's ``debug_subject``), ends the frame (glitchygames/instant_replay.py, rules 5-7).
+        scene's ``debug_subject``), ends the frame (glitchygames/instant_replay.py, rules 5, 6
+        and 9).
 
         Args:
             frame_dt: The frame's raw dt, read before the frame ran.
@@ -386,8 +484,8 @@ class SceneManager(SceneInterface, events.EventManager):
             control_events=self._frame_control_events,
             input_snapshot=current_input(),
         )
-        # Past the fast-forward budget no instant replay can be shown again (game time only
-        # grows), so nothing more is kept (rule 9)
+        # Past the fast-forward budget no instant replay can be shown again (the frame time a
+        # playback re-runs only grows), so nothing more is kept (rule 11)
         budget_seconds = journal.scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS
         if not journal.within_budget(maximum_seconds=budget_seconds):
             LOG.debug(
@@ -398,7 +496,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self._end_instant_replay_journal()
 
     def _end_instant_replay_journal(self: Self) -> None:
-        """Close and drop the instant-replay journal, if one is kept (instant_replay.py, rule 7)."""
+        """Close and drop the instant-replay journal, if one is kept (instant_replay.py, rule 9)."""
         journal, self._instant_replay_journal = self._instant_replay_journal, None
         if journal is not None:
             journal.close()
@@ -1310,9 +1408,16 @@ class SceneManager(SceneInterface, events.EventManager):
         and the frame ends at the live doors. After ``end_frame`` the scope ends when its exit
         was requested or its recording ended or diverged. ``start()`` and the golden-trace
         harness share all of this.
+
+        The instant-replay journal (glitchygames/instant_replay.py) begins or resumes at the
+        top of the frame (``_begin_journal_frame``; inside a scope, a recorded resume is
+        applied instead: ``_apply_resume_bridge``) and takes the frame after the doors ended
+        it (``_journal_frame``).
         """
         self._enter_requested_playback()
+        self._apply_resume_bridge()
         self._begin_scene_logic_frame()
+        self._begin_journal_frame()
         frame_dt = self.dt
         self._run_in_playback_scope(step=self._run_frame_contents)
         session = self._playback_session
@@ -1360,18 +1465,6 @@ class SceneManager(SceneInterface, events.EventManager):
                 fps_event_seconds=self._previous_fps_event_seconds,
                 earlier_internal_event_count=len(pending_internal_posts()),
             )
-            # The journal of a scene that offers instant replay records from here (its first
-            # logic frame; glitchygames/instant_replay.py, rule 3), never a playback scene's
-            journal = self._instant_replay_journal
-            start = start_capture.start
-            if (
-                journal is not None
-                and journal.scene is self.active_scene
-                and start is not None
-                and start.first_logic_frame is not None
-                and not has_scoped_sources()
-            ):
-                journal.begin(start=start, input_before_start=current_input())
 
     def _enter_requested_playback(self: Self) -> None:
         """Enter the playback scope requested for this frame, if any (``request_playback``).
@@ -1482,10 +1575,6 @@ class SceneManager(SceneInterface, events.EventManager):
             fps_event_seconds=self._previous_fps_event_seconds,
         )
         push_scoped_sources(sources=request.sources)
-        # The live scene's instant-replay journal cannot go on past a scope
-        # (glitchygames/instant_replay.py, rule 7); after the push, so the scope already owns
-        # the internal-post tracker when the journal gives it up
-        self._end_instant_replay_journal()
         # Events an earlier scope held and has not delivered yet (it ended into a scene that
         # started this one) belong to the live game: held again, ahead of this scope's own
         request.sources.held_live_events[:0] = take_redelivered_events()
@@ -1511,6 +1600,12 @@ class SceneManager(SceneInterface, events.EventManager):
         self._set_frame_time(measured=self._measured_frame_seconds)
         # The first played frame's logic polls what the recorded one did, not the live input
         set_current_input(snapshot=request.sources.replay.start_input)
+        # The live scene's instant-replay journal waits behind the scope and resumes on the
+        # first frame after it (glitchygames/instant_replay.py, rule 7). Last, once entered:
+        # a scope that fails to start leaves no gap to bridge
+        journal = self._instant_replay_journal
+        if journal is not None:
+            journal.suspend()
 
     def _exit_playback(
         self: Self, *, reason: PlaybackEndReason, switches_to_then: bool = True

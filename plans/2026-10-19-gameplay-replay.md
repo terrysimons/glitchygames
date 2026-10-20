@@ -332,13 +332,22 @@ logging the report in debug runs; a replay test per bundled demo catches this in
 
 - Opt-in: `Scene.INSTANT_REPLAY_SECONDS: ClassVar[float | None] = None`.
 - While on, the engine keeps the scene's input since its start in memory (event batches, input
-  changes, `dt`; kilobytes per minute), dropped when the scene ends.
+  changes, `dt`), dropped when the scene ends. Amended (as built in Part 3 Task 5): it keeps the
+  whole recording of each frame, sprites included (a replay compares every frame), as compact
+  JSON trace lines: about 0.5 MB per minute for one sprite moving every frame (487,718 bytes in
+  3600 frames) and about 1.5 MB per minute for PaddleSlap's golden script (1,547,920 bytes in
+  3600 frames, 11 sprites), plus Python's per-frame object overhead. The sprites dominate; the
+  input itself is kilobytes per minute. The journal ends past the fast-forward budget (frame
+  time of every kept frame, paused ones included), so it never holds much more than that.
 - `scene_manager.instant_replay() -> bool` rebuilds the scene (5.1), re-simulates headless to N
   seconds ago, plays N seconds visibly, then returns to the live scene where it was (the live scene
   is never touched).
 - Budget `Scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` (default 60 s of scene time; about 1–2 ms
   per headless frame). Past it, `instant_replay()` returns `False`. Longer scenes need state
-  snapshots (out of scope).
+  snapshots (out of scope). Amended (Part 3 Task 5): the budget is measured as the frame time
+  of every journaled frame, paused frames included (all are re-simulated), and a playback
+  scope's frames are not journaled: the scene resumes its journal after the scope with a
+  resume bridge, so instant replays can follow one another.
 
 ### 5.5 Ghosts
 

@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
     # Type only: glitchygames.input's package __init__ imports input.rumble, which comes to
     # import this module, so a runtime import here would be a cycle (this module is a leaf)
-    from glitchygames.input.devices import DeviceRegistry
+    from glitchygames.input.devices import DeviceDescriptor, DeviceRegistry, EnumerationAnswer
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
@@ -219,6 +219,22 @@ class SaveStoreOpenedObserver(Protocol):
         ...
 
 
+class DeviceAnswerObserver(Protocol):
+    """Told each answer the devices door gives (glitchygames/input/devices.py), as it is given."""
+
+    def on_device_answer(
+        self, *, answer: EnumerationAnswer, opened: DeviceDescriptor | None
+    ) -> None:
+        """Look at one enumeration or open answer (an instant-replay journal keeps it).
+
+        Args:
+            answer: The answer given (a failure's carries its ``error``).
+            opened: The descriptor of the device an open opened, else None.
+
+        """
+        ...
+
+
 @dataclasses.dataclass
 class _SourcesRegistry:
     installed: EngineSources | None = None
@@ -229,6 +245,9 @@ class _SourcesRegistry:
     redelivered_events: list[RedeliveredEvent] = dataclasses.field(default_factory=list)
     # Weak: an observer nobody else keeps (a scene built and dropped before its setup) goes away
     save_store_observers: weakref.WeakSet[SaveStoreOpenedObserver] = dataclasses.field(
+        default_factory=weakref.WeakSet
+    )
+    device_answer_observers: weakref.WeakSet[DeviceAnswerObserver] = dataclasses.field(
         default_factory=weakref.WeakSet
     )
 
@@ -429,6 +448,39 @@ def notify_save_store_opened(*, namespace: str, store: SaveManager) -> None:
         observer.on_save_store_opened(namespace=namespace, store=store)
 
 
+def observe_device_answers(*, observer: DeviceAnswerObserver) -> None:
+    """Tell ``observer`` of every answer the devices door gives from now on (held weakly).
+
+    Args:
+        observer: The observer.
+
+    """
+    _REGISTRY.device_answer_observers.add(observer)
+
+
+def stop_observing_device_answers(*, observer: DeviceAnswerObserver) -> None:
+    """Stop telling ``observer`` of device answers (nothing if it was not observing).
+
+    Args:
+        observer: The observer.
+
+    """
+    _REGISTRY.device_answer_observers.discard(observer)
+
+
+def notify_device_answer(*, answer: EnumerationAnswer, opened: DeviceDescriptor | None) -> None:
+    """Tell every observer an answer was given (the device registries call it).
+
+    Args:
+        answer: The answer given.
+        opened: The descriptor of the device an open opened, else None.
+
+    """
+    # A copy: an observer may stop observing while it is told
+    for observer in list(_REGISTRY.device_answer_observers):
+        observer.on_device_answer(answer=answer, opened=opened)
+
+
 def set_frame_clock_seconds(*, seconds: float) -> None:
     """Set the frame clock (a scene rebuilt from its start; glitchygames/scene_start.py).
 
@@ -467,3 +519,4 @@ def reset_sources() -> None:
     _REGISTRY.frame_clock_seconds = 0.0
     _REGISTRY.redelivered_events.clear()
     _REGISTRY.save_store_observers.clear()
+    _REGISTRY.device_answer_observers.clear()

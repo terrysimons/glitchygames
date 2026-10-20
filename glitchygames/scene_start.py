@@ -21,7 +21,12 @@ Rules:
    and a snapshot of every save store already open. A store first opened while the capture is
    pending (inside ``__init__``, or before the first setup) is snapshotted as it is opened, before
    the game can write to it (``glitchygames.state.open_saves`` tells the pending captures). So the
-   save view is the saves as they were before the scene's ``__init__`` ran.
+   save view is the saves as they were before the scene's ``__init__`` ran. While pending it also
+   keeps every answer the devices door gives and every device opened
+   (``SceneStartCapture.device_answers`` / ``opened_devices``, told by
+   ``glitchygames.sources.notify_device_answer``): not part of the start, but what an
+   instant-replay journal's header serves the rebuilt scene's ``__init__``
+   (glitchygames/instant_replay.py).
 3. The scene manager completes the capture before the scene's **first** ``setup()``
    (``SceneStartCapture.complete``, from ``SceneManager._setup_new_scene``): the stream states and
    frame clock again, since other code may draw or frame time may pass between building a scene
@@ -75,13 +80,16 @@ from glitchygames.randomness import capture_stream_states, restore_stream_states
 from glitchygames.sources import (
     active_sources,
     frame_clock_seconds,
+    observe_device_answers,
     observe_save_store_openings,
     set_frame_clock_seconds,
+    stop_observing_device_answers,
     stop_observing_save_store_openings,
 )
 from glitchygames.state.sandbox import save_namespace_snapshot
 
 if TYPE_CHECKING:
+    from glitchygames.input.devices import DeviceDescriptor, EnumerationAnswer
     from glitchygames.scenes import Scene
     from glitchygames.state.manager import SaveManager
 
@@ -108,6 +116,34 @@ class FirstLogicFrame(BaseModel):
     fps_event_seconds: float
     earlier_internal_event_count: int = Field(ge=0)
     arrived_by_transition: bool
+
+
+class ResumeBridge(BaseModel):
+    """What a scene resumed with after a playback scope it waited behind (read-only).
+
+    An instant-replay journal writes it on the scene's first frame after the scope (frame
+    field ``resume_bridge``; glitchygames/instant_replay.py, rule 7), at the top of that frame,
+    and a playback of the journal sets the same state there (glitchygames/replay/driver.py,
+    rule 18), so the frames the scope took leave no trace. Like ``FirstLogicFrame``, for a
+    frame in the middle of a recording.
+
+    Attributes:
+        frame_clock_seconds: The frame clock at the top of the frame.
+        fps_event_seconds: When the last FPS event was posted, on the frame clock.
+        earlier_internal_event_count: How many code-posted events pending at the top of the
+            frame its first pump delivers (posted by the live game after the scope, as the
+            scope's last frame ended: a playback serves them from the recording).
+        input_before: The polled input the frame's logic reads, as its changes from idle input
+            (``snapshot_changes(previous=IDLE_INPUT, ...)``).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    frame_clock_seconds: float
+    fps_event_seconds: float
+    earlier_internal_event_count: int = Field(ge=0)
+    input_before: dict[str, Any]
 
 
 class SceneStart(BaseModel):
@@ -206,6 +242,27 @@ class SceneStartCapture:
         self.start: SceneStart | None = None
         # Set by SceneManager._start_transition for a scene that arrives by a transition
         self.arrived_by_transition = False
+        # The devices door's answers and opened devices from the scene's __init__ to its first
+        # setup, in order: an instant-replay journal's header holds them
+        # (glitchygames/instant_replay.py), as a recording's frames hold them
+        self.device_answers: list[EnumerationAnswer] = []
+        self.opened_devices: list[DeviceDescriptor] = []
+
+    def on_device_answer(
+        self: Self, *, answer: EnumerationAnswer, opened: DeviceDescriptor | None
+    ) -> None:
+        """Keep an answer the devices door gave while pending (before the first setup).
+
+        Args:
+            answer: The answer given.
+            opened: The descriptor of the device an open opened, else None.
+
+        """
+        if self.start is not None:
+            return
+        self.device_answers.append(answer)
+        if opened is not None:
+            self.opened_devices.append(opened)
 
     def on_save_store_opened(self: Self, *, namespace: str, store: SaveManager) -> None:
         """Snapshot a store opened while pending, unless an earlier snapshot holds it.
@@ -248,6 +305,7 @@ class SceneStartCapture:
             )
             raise TypeError(message)
         stop_observing_save_store_openings(observer=self)
+        stop_observing_device_answers(observer=self)
         self.start = SceneStart(
             scene_class=type(scene).__qualname__,
             scene_module=type(scene).__module__,
@@ -329,6 +387,7 @@ def begin_scene_start_capture(*, scene_class: type[Scene]) -> SceneStartCapture 
         },
     )
     observe_save_store_openings(observer=capture)
+    observe_device_answers(observer=capture)
     return capture
 
 

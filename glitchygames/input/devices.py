@@ -34,6 +34,7 @@ from glitchygames.input.state import (
     DeviceHats,
     current_input,
 )
+from glitchygames.sources import notify_device_answer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -565,18 +566,25 @@ class LiveDeviceRegistry:
         )
 
     def _remember_answer(
-        self: Self, *, call: str, device_index: int | None, value: EnumerationValue
+        self: Self,
+        *,
+        call: str,
+        device_index: int | None,
+        value: EnumerationValue,
+        opened: DeviceDescriptor | None = None,
     ) -> None:
-        self._new_answers.append(
-            EnumerationAnswer(call=call, device_index=device_index, value=value)
-        )
+        answer = EnumerationAnswer(call=call, device_index=device_index, value=value)
+        self._new_answers.append(answer)
+        notify_device_answer(answer=answer, opened=opened)
 
     def _remember_failure(
         self: Self, *, call: str, device_index: int | None, error: pygame.error
     ) -> None:
-        self._new_answers.append(
-            EnumerationAnswer(call=call, device_index=device_index, value=None, error=str(error))
+        answer = EnumerationAnswer(
+            call=call, device_index=device_index, value=None, error=str(error)
         )
+        self._new_answers.append(answer)
+        notify_device_answer(answer=answer, opened=None)
 
     def _remember_opened(
         self: Self,
@@ -591,7 +599,10 @@ class LiveDeviceRegistry:
             self._controllers_by_instance[descriptor.instance_id] = controller
         self._new_descriptors.append(descriptor)
         self._remember_answer(
-            call=call, device_index=descriptor.device_index, value=descriptor.instance_id
+            call=call,
+            device_index=descriptor.device_index,
+            value=descriptor.instance_id,
+            opened=descriptor,
         )
 
 
@@ -1182,9 +1193,16 @@ class ReplayDeviceRegistry:
         """
         answer = self._next_answer(call=call, device_index=device_index)
         if answer is not None:
+            # Told as live play tells its answers (an instant-replay journal of a replayed
+            # session keeps them)
+            notify_device_answer(answer=answer, opened=None)
             if answer.error is not None:
                 raise pygame.error(answer.error)
             return answer.value
+        notify_device_answer(
+            answer=EnumerationAnswer(call=call, device_index=device_index, value=fallback),
+            opened=None,
+        )
         key = (call, device_index)
         if key not in self._warned_keys:
             self._warned_keys.add(key)
@@ -1210,6 +1228,7 @@ class ReplayDeviceRegistry:
         """
         answer = self._next_answer(call=call, device_index=device_index)
         if answer is not None and answer.error is not None:
+            notify_device_answer(answer=answer, opened=None)
             raise pygame.error(answer.error)
         descriptor = None
         if answer is not None and isinstance(answer.value, int):
@@ -1231,4 +1250,10 @@ class ReplayDeviceRegistry:
                 ball_count=0,
             )
         self._opened_instances.add(descriptor.instance_id)
+        notify_device_answer(
+            answer=EnumerationAnswer(
+                call=call, device_index=device_index, value=descriptor.instance_id
+            ),
+            opened=descriptor,
+        )
         return descriptor

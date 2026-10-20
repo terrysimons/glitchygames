@@ -95,7 +95,13 @@ Limits: an SDL-type event a game posts with ``pygame.event.post`` directly (not
 through ``post_event``. A posted event identical to an SDL event in the same batch is told
 apart only by count (the first match is the internal one; the two are indistinguishable).
 Posts the next pump does not return (the queue was cleared, or the type is blocked) are
-forgotten at that pump. Events posted before recording started are classified by type alone.
+forgotten at that pump. ``GameEngine`` owns the tracker for the whole run (and forgets the
+posts after every pump), so posts made before recording started are known too; outside an
+engine run, they are classified by type alone.
+
+The instant-replay journal writes two more frame fields no recorder writes (version-free, never
+compared): ``resume_bridge``, what its scene resumed with after a playback scope, and
+``playback_answers``, what its playback requests got (glitchygames/instant_replay.py).
 
 Playback scopes
 ---------------
@@ -232,6 +238,11 @@ SCENE_START_FIELD = 'scene_start'
 # Events a playback scope held for the live game, delivered before the frame's first pump
 # (glitchygames/sources.py redeliver_events)
 REDELIVERED_EVENTS_FIELD = 'redelivered_events'
+# Written by the instant-replay journal only (glitchygames/instant_replay.py), never by a
+# recorder: what a scene resumed with after a playback scope (on the first frame after it), and
+# the answers its playback requests got in the frame
+RESUME_BRIDGE_FIELD = 'resume_bridge'
+PLAYBACK_ANSWERS_FIELD = 'playback_answers'
 # Device enumeration answers (glitchygames/input/devices.py): a header field for answers given
 # before recording started, and a frame field for answers given during that frame
 DEVICE_ENUMERATION_FIELD = 'device_enumeration'
@@ -746,6 +757,10 @@ class RecordedFrameFields(TypedDict, total=False):
         scene_start: The start of the scene that began in the frame (``SceneStart.to_json``).
         redelivered_events: Event records delivered before the frame's first pump that no door
             pumped in it (a playback scope's held events; ``event_to_record``).
+        resume_bridge: What the scene resumed with after a playback scope
+            (``ResumeBridge.model_dump``; the instant-replay journal's only).
+        playback_answers: What the scene's playback requests got in the frame, in order (the
+            instant-replay journal's only).
 
     """
 
@@ -756,6 +771,8 @@ class RecordedFrameFields(TypedDict, total=False):
     device_enumeration: list[dict[str, Any]] | None
     scene_start: dict[str, Any] | None
     redelivered_events: list[dict[str, Any]] | None
+    resume_bridge: dict[str, Any] | None
+    playback_answers: list[bool] | None
 
 
 class RecordedFrameFieldSource(Protocol):

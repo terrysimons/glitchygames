@@ -1117,6 +1117,9 @@ class TestPostGameEvent:
         # We need Event() to produce an object whose .type equals events.GAMEEVENT.
         real_event = mocker.Mock()
         real_event.type = events.GAMEEVENT
+        # The engine tracks code-posted events for its whole run (post_event keeps their
+        # attributes), so the stand-in carries them as a real event does
+        real_event.dict = {'subtype': 'custom_subtype', 'key': 'value'}
         mocker.patch('pygame.event.Event', return_value=real_event)
 
         engine.post_game_event('custom_subtype', {'key': 'value'})

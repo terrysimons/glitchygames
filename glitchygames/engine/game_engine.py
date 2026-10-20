@@ -52,6 +52,7 @@ from glitchygames.recording import (
     pending_internal_posts,
     post_event,
     reset_internal_post_tracking,
+    start_tracking_internal_posts,
 )
 from glitchygames.replay.audit import (
     AuditRunError,
@@ -95,6 +96,7 @@ if TYPE_CHECKING:
     from types import FrameType
 
     from glitchygames.input.state import InputSnapshot
+    from glitchygames.sources import EngineSources
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
@@ -255,6 +257,28 @@ def exit_with(*, exit_code: ExitCode, cause: BaseException | None = None) -> NoR
     """
     LOG.info(f'Exiting with {exit_code.describe()}')
     raise SystemExit(exit_code) from cause
+
+
+def replayed_batch_origins(*, doors: EngineSources) -> list[str] | None:
+    """Return each event's origin in the doors' last batch, when a replay's merge knows them.
+
+    A recorder over a replay (``--rebaseline``) takes them from the replay, and so does the
+    instant-replay journal (glitchygames/instant_replay.py, rule 4): a watched replay's held
+    frames drain the real queue between pumps, so the posts pending before a pump do not tell
+    them.
+
+    Args:
+        doors: The doors that pumped (the run's installed ones, or a recording around them).
+
+    Returns:
+        The origins, or None when the doors are not a replay's.
+
+    """
+    while isinstance(doors, RecordingSources):
+        doors = doors.inner
+    if isinstance(doors, ReplaySources):
+        return doors.last_batch_origins()
+    return None
 
 
 @dataclass
@@ -860,8 +884,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         reset_sources()
         # reset_sources() leaves the polled input alone (glitchygames/sources.py is a leaf)
         reset_current_input()
-        # ...and the internal-post tracker (glitchygames/recording.py): no owners, none pending
+        # ...and the internal-post tracker (glitchygames/recording.py): no owners, none pending.
+        # Then the engine owns it for the whole run, so every code-posted event's origin is
+        # known whenever it is needed (an instant-replay journal begun mid-run, a recording
+        # started late); _pump_events forgets the posts after each pump
         reset_internal_post_tracking()
+        start_tracking_internal_posts()
         install_sources(
             sources=self.replay_sources
             or LiveSources(
@@ -2189,22 +2217,29 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         it, before any dispatch or discarding (glitchygames/sources.py). Events a playback scope
         held for the live game come first (``take_redelivered_events``, taken after the doors'
         pump so a recording can write them into this frame's ``redelivered_events``). The
-        scene manager's instant-replay journal gets the batch too, with the code-posted events
-        pending before the pump, which classify it as a recorder would
-        (glitchygames/instant_replay.py, rule 4).
+        scene manager's instant-replay journal gets the batch too, classified as a recorder
+        classifies it (glitchygames/instant_replay.py, rule 4): by a replay's merge when the
+        doors are a replay's (``ReplaySources.last_batch_origins``), else by the code-posted
+        events pending before the pump. Then the posts the pump did not return are forgotten
+        (the engine owns the internal-post tracker for the whole run).
 
         Returns:
             The batch, in queue order.
 
         """
         posts_before_pump = list(pending_internal_posts())
-        batch = active_sources().pump_events()
+        doors = active_sources()
+        batch = doors.pump_events()
         redelivered_events = take_redelivered_events()
         self.scene_manager.journal_pumped_events(
             raw_events=batch,
             posts_before_pump=posts_before_pump,
+            origins=replayed_batch_origins(doors=doors),
             redelivered_events=redelivered_events,
         )
+        # Matched or not returned, the posts made before this pump are done with (a recorder
+        # or a replay pumping underneath has already consumed them)
+        pending_internal_posts().clear()
         return [*(event for event, _origin in redelivered_events), *batch]
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:

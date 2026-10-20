@@ -20,7 +20,8 @@ from scripts.record_golden_traces import (
 )
 
 from glitchygames.events import FPSEVENT
-from glitchygames.input.state import IDLE_INPUT
+from glitchygames.input import devices as devices_module
+from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.instant_replay import (
     JOURNAL_BYTES_PER_MINUTE_LIMIT,
     JOURNAL_START_FRAME,
@@ -30,28 +31,41 @@ from glitchygames.instant_replay import (
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
     INTERNAL_ORIGIN,
+    PLAYBACK_ANSWERS_FIELD,
+    REDELIVERED_EVENTS_FIELD,
+    RESUME_BRIDGE_FIELD,
     SAVES_OPENED_FIELD,
     SCENE_START_FIELD,
     post_event,
 )
-from glitchygames.replay.playback import INSTANT_PLAYBACK, PlaybackOptions, start_playback
+from glitchygames.replay.driver import ReplaySources
+from glitchygames.replay.playback import (
+    INSTANT_PLAYBACK,
+    PlaybackOptions,
+    start_playback,
+    start_playback_from_recording,
+)
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sources import active_sources
+from glitchygames.state import open_saves
+from glitchygames.state.manager import DiskSaveManager
 from tests.replay.playback_fixtures import (
     COUNTING_SAVE_NAMESPACE,
+    COUNTING_SAVE_SLOT,
     CountingScene,
     InputReadingScene,
     KeyReleaseCountingScene,
     PostingCountingScene,
     SavingCountingScene,
     active_counting_scene,
+    record_counting_scene,
     step_finishing,
 )
 from tests.world.test_frame_integration import CameraFreeScene, running_scene, step
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from pytest_mock import MockerFixture
 
@@ -73,6 +87,16 @@ SWITCH_FRAME = 3
 SCRIPTED_MOUSE_POSITION = (123, 45)
 # Posts an SDL-type event every this many ticks (InstantExposingScene)
 EXPOSE_EVERY_TICKS = 2
+# How far a granted instant replay moves InstantSelfReplayingScene's marker (a refusal: 1)
+SELF_REPLAY_GRANTED_STEP = 3
+# InstantJoystickScene opens its second joystick on this tick
+JOYSTICK_OPENING_TICK = 3
+FAKE_JOYSTICK_COUNT = 2
+FAKE_INSTANCE_IDS = (5, 6)
+SETUP_SAVE_NAMESPACE = 'setup-saves'
+SETUP_SAVED_VALUE = 7
+# Paused frames beyond the fast-forward budget (PAUSE_BUDGET_FRAMES of frame time)
+PAUSE_BUDGET_FRAMES = 10
 
 
 class InstantCountingScene(CountingScene):
@@ -145,6 +169,119 @@ class InstantInputReadingScene(InputReadingScene):
     INSTANT_REPLAY_SECONDS: ClassVar[float | None] = INSTANT_REPLAY_TEST_SECONDS
 
 
+class InstantSelfReplayingScene(KeyReleaseCountingScene):
+    """Shows its own instant replay on R, as a game shows one after every goal.
+
+    What the request answered moves its marker (so a different answer in a playback of its
+    journal diverges). Asks the recorded answer first, as ``SceneManager.instant_replay`` will:
+    inside a playback of its journal the rebuilt scene keeps no journal of its own.
+    """
+
+    INSTANT_REPLAY_SECONDS: ClassVar[float | None] = INSTANT_REPLAY_TEST_SECONDS
+
+    @override
+    def on_key_down_event(self: Self, event: HashableEvent) -> None:
+        """Ask for an instant replay of this scene on R."""
+        if event.key != pygame.K_r:
+            super().on_key_down_event(event)
+            return
+        manager = SceneManager()
+        granted = manager.recorded_playback_answer()
+        if granted is None:
+            journal = manager.instant_replay_journal
+            assert journal is not None
+            recording = journal.as_recording()
+            granted = start_playback(
+                manager=manager,
+                header=recording.header,
+                frames=recording.frames,
+                then=self,
+                options=PlaybackOptions(kind=INSTANT_PLAYBACK, start_frame=recording.start_frame),
+            )
+        self.marker.rect.y += SELF_REPLAY_GRANTED_STEP if granted else 1
+
+
+class InstantJoystickScene(CountingScene):
+    """Counts and opens joysticks as it is built and again on a tick; their answers move it."""
+
+    INSTANT_REPLAY_SECONDS: ClassVar[float | None] = INSTANT_REPLAY_TEST_SECONDS
+
+    def __init__(
+        self: Self,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
+    ) -> None:
+        """Count the joysticks and open the first, through the devices door.
+
+        Args:
+            options: The game's options.
+            groups: The sprite group.
+
+        """
+        super().__init__(options=options, groups=groups)
+        registry = active_sources().devices()
+        self.joystick_count_seen = registry.joystick_count()
+        self.joysticks: list[Any] = [registry.open_joystick(device_index=0)]
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Open the second joystick on its tick; place the marker by the answers and an axis."""
+        super().dt_tick(dt)
+        if self.frames_ticked == JOYSTICK_OPENING_TICK:
+            registry = active_sources().devices()
+            self.joystick_count_seen += registry.joystick_count()
+            self.joysticks.append(registry.open_joystick(device_index=1))
+        self.marker.rect.y = (
+            self.joystick_count_seen * 10
+            + sum(joystick.get_instance_id() for joystick in self.joysticks)
+            # Polled through the frame's snapshot, never from the device itself
+            + round(
+                current_input().axis(device_id=self.joysticks[0].get_instance_id(), axis=0) * 10
+            )
+        )
+
+
+class SetupSavesScene(CountingScene):
+    """Opens its save store in setup() and places its marker by the saved value."""
+
+    INSTANT_REPLAY_SECONDS: ClassVar[float | None] = INSTANT_REPLAY_TEST_SECONDS
+
+    @override
+    def setup(self: Self) -> None:
+        """Read the saved value (the store's first opening in the run)."""
+        super().setup()
+        loaded = open_saves(app_name=SETUP_SAVE_NAMESPACE).load(COUNTING_SAVE_SLOT)
+        self.saved_value = int(loaded['value'])
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Place the marker by the saved value."""
+        super().dt_tick(dt)
+        self.marker.rect.y = self.saved_value
+
+
+class PostingInUpdateScene(CountingScene):
+    """Posts a custom event in its render phase and leaves for the opted-in scene on a tick.
+
+    The post is queued for the next frame, the opted-in scene's first logic frame: it was
+    posted before that scene was even set up.
+    """
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Leave for the instant-replay scene on SWITCH_FRAME."""
+        super().dt_tick(dt)
+        if self.frames_ticked == SWITCH_FRAME:
+            self.next_scene = InstantCountingScene(options=self.options)
+
+    @override
+    def update(self: Self) -> None:
+        """Post the leaving tick's event in the render phase."""
+        super().update()
+        if self.frames_ticked == SWITCH_FRAME:
+            post_event(pygame.event.Event(pygame.USEREVENT, {'farewell': True}))
+
+
 def journal_of(manager: SceneManager) -> InstantReplayJournal:
     """Return the scene manager's journal, checked to exist.
 
@@ -157,13 +294,20 @@ def journal_of(manager: SceneManager) -> InstantReplayJournal:
     return journal
 
 
-def play_journal(*, manager: SceneManager, recording: JournalRecording, then: Scene) -> None:
+def play_journal(
+    *,
+    manager: SceneManager,
+    recording: JournalRecording,
+    then: Scene,
+    stepper: Callable[..., None] = step,
+) -> None:
     """Play a journal's recording in a playback scope until it ends, and check it matched.
 
     Args:
         manager: The running scene manager (stepped by the golden harness).
         recording: The journal's recording.
         then: The scene to return to.
+        stepper: How frames are run (``step``, or ``step_finishing`` for the frame clock).
 
     """
     assert start_playback(
@@ -173,13 +317,25 @@ def play_journal(*, manager: SceneManager, recording: JournalRecording, then: Sc
         then=then,
         options=PlaybackOptions(kind=INSTANT_PLAYBACK, start_frame=recording.start_frame),
     )
-    step(manager, frames=len(recording.frames) - recording.start_frame)
+    stepper(manager, frames=len(recording.frames) - recording.start_frame)
     assert manager.playback_session is None
     result = manager.last_playback_result
     assert result is not None
     assert result.divergence is None, result.report()
     assert result.end_reason == 'end_of_recording'
     assert manager.active_scene is then
+
+
+def step_until_the_scope_ends(*, manager: SceneManager, stepper: Callable[..., None]) -> None:
+    """Run frames while a playback scope plays.
+
+    Args:
+        manager: The running scene manager.
+        stepper: How frames are run (``step`` or ``step_finishing``).
+
+    """
+    while manager.playback_session is not None:
+        stepper(manager)
 
 
 def event_records(*, frames: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -306,6 +462,20 @@ class TestPlayingTheJournalBack:
                 for frame in recording.frames
             )
             play_journal(manager=manager, recording=recording, then=active_counting_scene(manager))
+
+    def test_a_save_store_first_opened_in_setup_plays_back(self):
+        """setup() opens it after the start is complete: the lead-in frame holds its snapshot."""
+        with running_scene(CameraFreeScene) as manager:
+            # Written behind the doors' back, so the run first opens the store in setup()
+            DiskSaveManager(app_name=SETUP_SAVE_NAMESPACE).save(
+                COUNTING_SAVE_SLOT, {'value': SETUP_SAVED_VALUE}
+            )
+            manager.switch_to_scene(SetupSavesScene(options=manager.OPTIONS))
+            step(manager, frames=JOURNALED_FRAMES)
+            live_scene = active_counting_scene(manager)
+            recording = journal_of(manager).as_recording()
+            assert SETUP_SAVE_NAMESPACE in recording.frames[0][SAVES_OPENED_FIELD]
+            play_journal(manager=manager, recording=recording, then=live_scene)
 
     def test_the_input_held_as_the_scene_began_plays_back(self, mocker: MockerFixture):
         """The first logic frame's dt_tick polls the input from before it, not idle input."""
@@ -442,14 +612,14 @@ class TestThePauseScreen:
 
 
 class TestPlaybackScopesAndTheJournal:
-    """A playback scope during the scene ends its journal; the scope's scene keeps none."""
+    """A playback scope suspends the live scene's journal, which bridges the gap afterwards."""
 
-    def test_a_playback_scope_ends_the_live_scenes_journal(self):
+    def test_a_scope_suspends_the_journal_and_its_scene_keeps_none(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=2)
-            assert manager.instant_replay_journal is not None
+            journal = journal_of(manager)
             live_scene = active_counting_scene(manager)
-            recording = journal_of(manager).as_recording()
+            recording = journal.as_recording()
             assert start_playback(
                 manager=manager,
                 header=recording.header,
@@ -463,7 +633,195 @@ class TestPlaybackScopesAndTheJournal:
             assert manager.instant_replay_journal is None
             step(manager, frames=len(recording.frames))
             assert manager.active_scene is live_scene
+            assert manager.instant_replay_journal is journal
+            frames_before = journal.frame_count
+            step(manager, frames=2)
+            # The scope's frames are not the scene's: the journal goes on after them
+            assert journal.frame_count == frames_before + 2
+
+    def test_two_instant_replays_in_a_row_the_second_across_the_first(self, mocker):
+        """The second replays the first's request, its gap and the release held during it.
+
+        Run as start() runs frames, with FPS events every other frame, so the frame clock and
+        the FPS event timer the scene resumed with matter.
+        """
+        mocker.patch.object(LiveSources, 'frame_seconds', return_value=FRAME_SECONDS)
+        with running_scene(InstantSelfReplayingScene) as manager:
+            mocker.patch.dict(
+                manager.OPTIONS, {'fps_log_interval_ms': FPS_EVENT_INTERVAL_MILLISECONDS}
+            )
+            live_scene = active_counting_scene(manager)
+            step_finishing(manager, frames=3)
+            journal = journal_of(manager)
+            step_finishing(manager, press(pygame.K_r))
+            step_finishing(manager, release(pygame.K_r))
+            assert manager.playback_session is not None
+            # A release during the scope is held for the live scene, which moves for it
+            step_finishing(manager, press(pygame.K_SPACE))
+            step_finishing(manager, release(pygame.K_SPACE))
+            step_until_the_scope_ends(manager=manager, stepper=step_finishing)
+            first_result = manager.last_playback_result
+            assert first_result is not None
+            assert first_result.divergence is None, first_result.report()
+            assert manager.instant_replay_journal is journal
+            step_finishing(manager, frames=3)
+            # The first replay's request and its gap are in the journal
+            frames = journal.as_recording().frames
+            assert [
+                frame[PLAYBACK_ANSWERS_FIELD] for frame in frames if PLAYBACK_ANSWERS_FIELD in frame
+            ] == [[True]]
+            (resumed_frame,) = [frame for frame in frames if RESUME_BRIDGE_FIELD in frame]
+            # The player's releases (served in a playback) and the scene's own FPS event posted
+            # before the scope (matched with the playback's post)
+            assert {record['type'] for record in resumed_frame[REDELIVERED_EVENTS_FIELD]} == {
+                pygame.KEYUP,
+                FPSEVENT,
+            }
+            step_finishing(manager, press(pygame.K_r))
+            step_finishing(manager, release(pygame.K_r))
+            assert manager.playback_session is not None
+            step_until_the_scope_ends(manager=manager, stepper=step_finishing)
+            assert manager.active_scene is live_scene
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None, result.report()
+            assert result.end_reason == 'end_of_recording'
+            outcome = manager.last_playback_outcome
+            assert outcome is not None
+            assert outcome.reason == 'end_of_recording'
+
+    def test_a_request_inside_a_playback_of_the_journal_requests_nothing(self):
+        with running_scene(InstantSelfReplayingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            step(manager, frames=2)
+            step(manager, press(pygame.K_r))
+            step(manager, release(pygame.K_r))
+            while manager.playback_session is not None:
+                # Inside it the rebuilt scene asks again (its recorded R press): answered from
+                # the journal, it requests no nested scope
+                assert manager._requested_playback is None
+                step(manager)
+            assert manager.active_scene is live_scene
+            result = manager.last_playback_result
+            assert result is not None
+            assert result.divergence is None, result.report()
+
+    def test_a_demo_played_from_an_opted_in_scene_keeps_its_journal(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=JOURNALED_FRAMES)
+        with running_scene(InstantKeyReleaseScene) as manager:
+            live_scene = active_counting_scene(manager)
+            step(manager, frames=2)
+            journal = journal_of(manager)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager)
+            step(manager, KEY_RELEASE_DURING_SCOPE)
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            step(manager, frames=2)
+            assert manager.instant_replay_journal is journal
+            play_journal(manager=manager, recording=journal.as_recording(), then=live_scene)
+
+
+KEY_RELEASE_DURING_SCOPE = pygame.event.Event(
+    pygame.KEYUP, key=pygame.K_SPACE, mod=0, unicode='', scancode=0
+)
+
+
+class TestTheBudget:
+    """The journal is bounded by the frame time it holds, paused frames included."""
+
+    def test_a_long_pause_passes_the_budget_and_drops_the_journal(self, mocker: MockerFixture):
+        mocker.patch.object(
+            InstantCountingScene,
+            'MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS',
+            PAUSE_BUDGET_FRAMES * FRAME_SECONDS,
+        )
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=2)
+            step(manager, press(pygame.K_p))
+            step(manager, release(pygame.K_p))
+            assert isinstance(manager.active_scene, PauseScene)
+            journal = journal_of(manager)
+            # Paused: no game time passes, but every frame must be fast-forwarded again
+            step(manager, frames=PAUSE_BUDGET_FRAMES)
+            assert journal.game_seconds < PAUSE_BUDGET_FRAMES * FRAME_SECONDS
             assert manager.instant_replay_journal is None
+
+
+class TestPostsBeforeTheScene:
+    """Code-posted events are tracked for the whole run, not only from the scene's setup."""
+
+    def test_a_post_of_the_scene_left_plays_back(self):
+        with running_scene(PostingInUpdateScene) as manager:
+            step(manager, frames=SWITCH_FRAME + JOURNALED_FRAMES)
+            live_scene = active_counting_scene(manager)
+            assert isinstance(live_scene, InstantCountingScene)
+            recording = journal_of(manager).as_recording()
+            play_journal(manager=manager, recording=recording, then=live_scene)
+
+
+class TestDevices:
+    """The journal carries the device answers and descriptors a recording carries."""
+
+    def test_joysticks_counted_and_opened_at_construction_and_mid_scene_play_back(
+        self, mocker: MockerFixture, caplog
+    ):
+        fake_joysticks = [
+            mocker.Mock(**{
+                'get_instance_id.return_value': instance_id,
+                'get_name.return_value': f'Fake Pad {instance_id}',
+                'get_guid.return_value': 'guid',
+                'get_numaxes.return_value': 2,
+                'get_numbuttons.return_value': 4,
+                'get_numhats.return_value': 1,
+                'get_numballs.return_value': 0,
+                'get_axis.return_value': 0.5,
+                'get_button.return_value': False,
+                'get_hat.return_value': (0, 1),
+            })
+            for instance_id in FAKE_INSTANCE_IDS
+        ]
+        mocker.patch.object(
+            devices_module.pygame.joystick, 'get_count', return_value=FAKE_JOYSTICK_COUNT
+        )
+        mocker.patch.object(
+            devices_module.pygame.joystick,
+            'Joystick',
+            side_effect=lambda device_index: fake_joysticks[device_index],
+        )
+        with running_scene(CameraFreeScene) as manager:
+            manager.switch_to_scene(InstantJoystickScene(options=manager.OPTIONS))
+            step(manager, frames=JOURNALED_FRAMES)
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, InstantJoystickScene)
+            play_journal(
+                manager=manager, recording=journal_of(manager).as_recording(), then=live_scene
+            )
+        assert 'is not in the recording' not in caplog.text
+
+
+class TestWatchedReplayOrigins:
+    """Over a replay the journal takes each event's origin from the replay's merge."""
+
+    def test_the_journal_uses_the_replays_batch_origins(self, tmp_path, mocker: MockerFixture):
+        session_path = tmp_path / 'session.jsonl.gz'
+        with running_scene(InstantPostingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            engine.start_trace_recording(path=session_path)
+            step(manager, frames=JOURNALED_FRAMES)
+            engine.stop_trace_recording()
+        origins = mocker.spy(ReplaySources, 'last_batch_origins')
+        with running_scene(
+            InstantPostingScene, extra_arguments=['--replay-trace', str(session_path), '--headless']
+        ) as manager:
+            journal_pump = mocker.spy(manager, 'journal_pumped_events')
+            step(manager, frames=JOURNALED_FRAMES)
+        assert journal_pump.call_count == JOURNALED_FRAMES
+        assert [call.kwargs['origins'] for call in journal_pump.call_args_list] == (
+            origins.spy_return_list
+        )
 
 
 class TestReplayingTheSession:
