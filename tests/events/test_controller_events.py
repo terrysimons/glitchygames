@@ -204,6 +204,16 @@ class TestControllerEventProxyDirectMethods:
         mock_controller.get_axis.return_value = 0
         mock_controller.get_button.return_value = 0
         mock_controller.get_mapping.return_value = {}
+        # The devices door describes a controller by its joystick view
+        joystick_view = mocker.Mock()
+        joystick_view.get_instance_id.return_value = 0
+        joystick_view.get_name.return_value = 'Test Controller'
+        joystick_view.get_guid.return_value = 'test-guid'
+        joystick_view.get_numaxes.return_value = 6
+        joystick_view.get_numbuttons.return_value = 15
+        joystick_view.get_numhats.return_value = 0
+        joystick_view.get_numballs.return_value = 0
+        mock_controller.as_joystick.return_value = joystick_view
 
         # pygame._sdl2.controller is a C module - mock the whole module reference
         # used by controller.py (which aliases it as pygame.controller)
@@ -920,3 +930,89 @@ class TestControllerLED:
         manager = ControllerEventManager(game=mock_game)
 
         assert manager.set_led(instance_id=99, red=0, green=0, blue=0) is False
+
+
+# ---------------------------------------------------------------------------
+# The devices door (glitchygames/input/devices.py): enumeration, opening and polling
+# ---------------------------------------------------------------------------
+
+
+def _replay_registry_with_controller(*, mocker, device_index: int, instance_id: int):
+    """Make the active sources answer devices from a replay registry holding one controller.
+
+    Returns:
+        The replay registry.
+
+    """
+    from glitchygames.input.devices import (
+        CONTROLLER_COUNT_CALL,
+        IS_CONTROLLER_CALL,
+        DeviceDescriptor,
+        EnumerationAnswer,
+        ReplayDeviceRegistry,
+    )
+    from glitchygames.sources import active_sources
+
+    descriptor = DeviceDescriptor(
+        kind='controller',
+        device_index=device_index,
+        instance_id=instance_id,
+        name='Pad',
+        guid=None,
+        axis_count=6,
+        button_count=15,
+        hat_count=0,
+        ball_count=0,
+    )
+    registry = ReplayDeviceRegistry(
+        descriptors=[descriptor],
+        enumeration_answers=[
+            EnumerationAnswer(call=CONTROLLER_COUNT_CALL, device_index=None, value=1),
+            EnumerationAnswer(call=IS_CONTROLLER_CALL, device_index=device_index, value=True),
+        ],
+    )
+    mocker.patch.object(active_sources(), 'devices', return_value=registry)
+    return registry
+
+
+class TestControllerDevicesDoor:
+    """Controllers are counted and opened through the registry and read from the snapshot."""
+
+    def test_controller_proxy_opens_through_the_registry_and_reads_the_snapshot(self, mocker):
+        """The proxy's caches come from the snapshot's controller layer, by instance id."""
+        from glitchygames.input.state import InputSnapshot, set_current_input
+
+        _replay_registry_with_controller(mocker=mocker, device_index=0, instance_id=7)
+        real_controller = mocker.patch('pygame._sdl2.controller.Controller')
+        set_current_input(
+            snapshot=InputSnapshot(
+                pressed_scancodes=frozenset(),
+                modifiers=0,
+                mouse_position=(0, 0),
+                mouse_buttons=(False, False, False),
+                mouse_focused=True,
+                controller_axes={7: (100, -200, 0, 0, 32767, 0)},
+                controller_buttons={7: (True,) + (False,) * 14},
+            )
+        )
+
+        proxy = ControllerEventManager.ControllerEventProxy(controller_id=0, game=None)
+
+        real_controller.assert_not_called()
+        assert proxy._axes == [100, -200, 0, 0, 32767, 0]
+        assert proxy._buttons == [True] + [False] * 14
+
+    def test_controller_manager_enumerates_through_the_registry(self, mocker):
+        """The manager counts controllers and asks which are controllers via the registry."""
+        _replay_registry_with_controller(mocker=mocker, device_index=0, instance_id=7)
+        mocker.patch('pygame._sdl2.controller.init')
+        real_count = mocker.patch('pygame._sdl2.controller.get_count')
+        real_is_controller = mocker.patch('pygame._sdl2.controller.is_controller')
+        real_controller = mocker.patch('pygame._sdl2.controller.Controller')
+
+        manager = ControllerEventManager(game=mocker.Mock())
+
+        real_count.assert_not_called()
+        real_is_controller.assert_not_called()
+        real_controller.assert_not_called()
+        assert list(manager.controllers) == [0]

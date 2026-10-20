@@ -1922,12 +1922,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
 
             # Check if this might be a controller event by looking at controller count
+            # (through the devices door, glitchygames/input/devices.py)
             try:
-                from pygame._sdl2 import controller as sdl2_controller  # ruff: ignore[import-private-name]
-
-                current_controller_count: int = int(
-                    sdl2_controller.get_count(),
-                )
+                current_controller_count: int = active_sources().devices().controller_count()
                 LOG.debug(
                     'Current controller count when event 1543 received: %s',
                     current_controller_count,

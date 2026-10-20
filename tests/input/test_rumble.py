@@ -6,7 +6,14 @@ import pygame
 import pytest
 
 from glitchygames.effects.shake import RumbleSettings, ScreenShake, Shake, ShakeStyle
+from glitchygames.input.devices import (
+    JOYSTICK_COUNT_CALL,
+    DeviceDescriptor,
+    EnumerationAnswer,
+    ReplayDeviceRegistry,
+)
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
+from glitchygames.sources import active_sources
 
 SHAKER_SEED = 3
 
@@ -289,14 +296,48 @@ class TestConnectedRumbleDevices:
         assert connected_rumble_devices(manager) == ['proxy-a', 'proxy-b']
 
     def test_joystick_mode_opens_every_joystick(self, mocker):
-        mocker.patch('pygame.joystick.get_count', return_value=2)
-        joystick = mocker.patch('pygame.joystick.Joystick', side_effect=['first', 'second'])
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 2
+        registry.open_joystick.side_effect = ['first', 'second']
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
         assert connected_rumble_devices(None) == ['first', 'second']
-        assert joystick.call_count == 2
+        assert registry.open_joystick.call_args_list == [
+            mocker.call(device_index=0),
+            mocker.call(device_index=1),
+        ]
 
     def test_joystick_vanishing_before_open_is_skipped(self, mocker):
-        mocker.patch('pygame.joystick.get_count', return_value=2)
-        mocker.patch(
-            'pygame.joystick.Joystick', side_effect=[pygame.error('device gone'), 'second']
-        )
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 2
+        registry.open_joystick.side_effect = [pygame.error('device gone'), 'second']
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
         assert connected_rumble_devices(None) == ['second']
+
+    def test_joystick_mode_in_a_replay_rumbles_stand_ins_not_hardware(self, mocker):
+        descriptor = DeviceDescriptor(
+            kind='joystick',
+            device_index=0,
+            instance_id=5,
+            name='Pad',
+            guid=None,
+            axis_count=0,
+            button_count=0,
+            hat_count=0,
+            ball_count=0,
+        )
+        registry = ReplayDeviceRegistry(
+            descriptors=[descriptor],
+            enumeration_answers=[
+                EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1)
+            ],
+        )
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        real_count = mocker.patch('pygame.joystick.get_count')
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+
+        devices = connected_rumble_devices(None)
+
+        assert [device.get_instance_id() for device in devices] == [5]
+        assert devices[0].rumble(1.0, 1.0, 100) is True
+        real_count.assert_not_called()
+        real_joystick.assert_not_called()

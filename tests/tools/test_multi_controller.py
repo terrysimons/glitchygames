@@ -48,13 +48,16 @@ class TestMultiControllerManager:
         assert expected_colors == self.manager.CONTROLLER_COLORS
 
     def test_scan_for_controllers(self, mocker):
-        """Test controller scanning."""
-        # Mock pygame joystick
-        mock_joystick = mocker.Mock()
+        """Test controller scanning (counted and opened through the devices door)."""
+        from glitchygames.sources import active_sources
+
+        registry = mocker.Mock()
+        registry.joystick_count.return_value = 1
+        mock_joystick = registry.open_joystick.return_value
         mock_joystick.get_init.return_value = True
         mock_joystick.get_instance_id.return_value = 0
-        mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
-        mocker.patch('pygame.joystick.get_count', return_value=1)
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
 
         # Test scanning
         connected_ids = self.manager.scan_for_controllers()
@@ -62,6 +65,8 @@ class TestMultiControllerManager:
         assert len(connected_ids) == 1
         assert 0 in connected_ids
         assert 0 in self.manager.controllers
+        registry.open_joystick.assert_called_once_with(device_index=0)
+        real_joystick.assert_not_called()
 
     def test_controller_assignment(self):
         """Test controller assignment."""

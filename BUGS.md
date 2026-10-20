@@ -30,16 +30,65 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: If the parallax layers stop redrawing the full screen (made static, partially sized, or removed), a still camera would let other sprites' clearing erase the terrain. Either make the terrain `dirty = 2` or document the dependency where the layers are built
 - **Files**: `glitchygames/examples/brave_adventurer/terrain.py`, `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
 
+### 67. Bitmappy's Joystick-Event Trigger Conversion Assumes pygame 1's Integer Axis Scale
+- **Description**: `ControllerEventHandler._read_joystick_trigger_values` converts trigger axes with `(raw + 32768) / 65535`, but pygame 2 reports joystick axes as -1.0..1.0, so both triggers always read about 0.5 whatever their position
+- **Status**: Active (latent: only events without an `instance_id` take this path, and pygame-ce's joystick and controller events all carry one, so they go to `_read_controller_trigger_values`, which converts correctly)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Details**: Fix with the `(raw + 1.0) / 2.0` conversion the controller path uses (or drop the path if no event without an `instance_id` can reach it). `TestTriggerValuesFromSnapshot` in `tests/tools/test_bitmap_editor_scene.py` pins today's values
+- **Files**: `glitchygames/bitmappy/controllers/event_handler.py`
+
+### 68. ControllerEventManager Keys Controllers by Device Index but Routes Events by Instance Id
+- **Description**: `ControllerEventManager.__init__` and `on_controller_device_added_event` store each proxy under its device index (`self.controllers[controller_id]`, `self.controllers[event.device_index]`), but the axis, button, touchpad, sensor and removal handlers look proxies up by `event.instance_id`. The two agree only while every controller's instance id equals its device index (the first controllers plugged in at startup); after a reconnect the lookup raises `KeyError` or reaches the wrong controller
+- **Status**: Active
+- **Priority**: Medium
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Details**: Key the proxies by instance id (`ControllerEventProxy._instance_id`, set from the controller's joystick view since Task 6), as `JoystickEventManager` does. The joystick demo's controller-mode tab code treats the keys as device indexes, so it needs updating with it
+- **Files**: `glitchygames/events/controller.py`, `glitchygames/examples/joystick_demo.py`
+
+### 69. The Live Device Registry Keeps Every Enumeration Answer and Opened Descriptor Until a Recorder Takes Them
+- **Description**: `LiveDeviceRegistry` appends every enumeration answer and every opened device's descriptor to lists that only `take_enumeration_answers()` / `take_opened_descriptors()` empty, and nothing calls them yet (the recorder will). Without a recorder they grow for the whole run: the joystick demo counts devices every frame (one answer per frame), and Bitmappy's controller scan reopens every joystick once a second
+- **Status**: Active (until the recorder drains the registry every frame, or live sources drain it when not recording)
+- **Priority**: Low (tens of bytes per answer)
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Files**: `glitchygames/input/devices.py`, `glitchygames/live_sources.py`
+
+## Resolved Bugs
+
+### 71. The Joystick Demo Called `get_id` / `get_instance_id` on Game Controllers
+- **Description**: In controller mode the demo's device panel called `get_id()` and `get_instance_id()` on the `pygame._sdl2.controller.Controller`, which has neither, so the `AttributeError` (not caught by `except pygame.error`) would have stopped the demo once #66 no longer did
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Date Resolved**: 2026-10-19
+- **Solution**: Both lookups also catch `AttributeError`; the controller-mode readout takes the instance id from the controller's joystick view
+- **Files Modified**: `glitchygames/examples/joystick_demo.py`
+
+### 70. Bitmappy Read Controller State From the Wrong Device
+- **Description**: `ControllerEventHandler._read_controller_trigger_values` opened `pygame.joystick.Joystick(event.instance_id)` and `is_controller_button_held` opened `pygame.joystick.Joystick(controller_id)`, but pygame's joystick constructor takes a device index. An instance id differs from the device index after a reconnect, and `controller_id` is Bitmappy's slot number (0-3), so both read the wrong device or raised `pygame.error` (read as "not held" / 0.0)
+- **Status**: Resolved
+- **Priority**: Medium
+- **Reporter**: Found by the replay core pre-flight on feature/gameplay-replay (Task 6)
+- **Date Reported**: 2026-10-19
+- **Date Resolved**: 2026-10-19
+- **Solution**: Both read the frame's input snapshot (`current_input()`) by instance id; `is_controller_button_held` finds the slot's instance id through `find_controller_info`
+- **Files Modified**: `glitchygames/bitmappy/controllers/event_handler.py`
+- **Tests**: `TestIsControllerButtonHeld` and `TestTriggerValuesFromSnapshot` in `tests/tools/test_bitmap_editor_scene.py`
+
 ### 66. The Joystick Demo Calls `pygame._sdl2.controller.name_forindex`, Which pygame-ce Does Not Have
 - **Description**: `joystick_demo.py` calls `pygame._sdl2.controller.name_forindex` in controller mode (building a proxy's name and validating a controller), but pygame-ce 2.5.8 has no such function, so the call raises `AttributeError`, which the surrounding `except pygame.error` does not catch
-- **Status**: Active (Task 6 of the replay core routes both calls through `DeviceRegistry.name_for_index`, which answers None when pygame has no lookup; resolve this entry then)
+- **Status**: Resolved
 - **Priority**: Medium
 - **Reporter**: Found on feature/gameplay-replay (replay core, Task 5)
 - **Date Reported**: 2026-10-19
 - **Details**: The `# type: ignore[attr-defined]` on both lines hid it from the type checkers. Only pygame-ce's legacy stub `pygame/_sdl2/controller_old.pyi` declares it; the live `pygame/_sdl2/controller.pyi` does not
-- **Files**: `glitchygames/examples/joystick_demo.py` (lines 449 and 901)
-
-## Resolved Bugs
+- **Date Resolved**: 2026-10-19
+- **Solution**: Both calls go through the devices door's `name_for_index` (glitchygames/input/devices.py, replay core Task 6), which answers None when pygame has no lookup; the device panel then shows 'Unknown Controller'. The `# type: ignore` comments are gone
+- **Files Modified**: `glitchygames/examples/joystick_demo.py`
 
 ### 65. A Test Left GameEngine.USE_FASTEVENTS Set for Every Later Test on Its Worker
 - **Description**: `test_use_fastevents_with_old_pygame` mocks pygame as version 1.1, so `GameEngine.__init__` sets the class attribute `GameEngine.USE_FASTEVENTS = True`; nothing undid it, so every later engine on that pytest worker chose the fastevent path (and, since the engine's doors, created fastevent `LiveSources`). Harmless only because `pygame.fastevent` no longer exists once the test's mock is undone

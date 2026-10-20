@@ -20,6 +20,8 @@ from typing import Any, ClassVar, Self
 
 import pygame
 
+from glitchygames.sources import active_sources
+
 LOG = logging.getLogger('game.tools.multi_controller_manager')
 
 
@@ -113,11 +115,12 @@ class MultiControllerManager:
 
         self.last_scan_time = current_time
 
-        # Get all connected controllers
+        # Get all connected controllers, through the devices door (glitchygames/input/devices.py)
+        devices = active_sources().devices()
         connected_instance_ids: list[int] = []
-        for i in range(pygame.joystick.get_count()):
+        for device_index in range(devices.joystick_count()):
             try:
-                joystick = pygame.joystick.Joystick(i)
+                joystick = devices.open_joystick(device_index=device_index)
                 if joystick.get_init():
                     instance_id = joystick.get_instance_id()
                     connected_instance_ids.append(instance_id)

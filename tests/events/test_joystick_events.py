@@ -67,6 +67,28 @@ def _make_joystick_mock(mocker, **overrides):
     return mock_js
 
 
+def _fail_on_call(*, call_number, error, value):
+    """Return a side effect raising ``error`` on call ``call_number`` and ``value`` otherwise.
+
+    The devices door (glitchygames/input/devices.py) describes a joystick when it opens it,
+    so a getter's first call is the door's; a failure meant for later code fails a later call.
+
+    Returns:
+        The side effect.
+
+    """
+    calls = 0
+
+    def side_effect(*_arguments):
+        nonlocal calls
+        calls += 1
+        if calls == call_number:
+            raise error
+        return value
+
+    return side_effect
+
+
 def _setup_joystick_patches(mocker, joystick_count=0, joystick_mock=None):
     """Set up common pygame.joystick patches.
 
@@ -109,19 +131,16 @@ class TestJoystickManagerInitExceptionPaths:
         assert len(manager.joysticks) == 1
 
     def test_init_joystick_get_instance_id_pygame_error(self, mocker):
-        """Test that pygame.error in get_instance_id in debug block is caught (lines 303-304).
+        """Test that pygame.error in get_instance_id in the debug block is caught.
 
-        The debug block (line 301) calls get_instance_id() and catches pygame.error.
-        The stable key block (line 322) also calls get_instance_id() and catches
-        AttributeError. We need get_instance_id to raise pygame.error on the first
-        call (caught at line 303) and succeed on the second call (line 322).
+        The devices door's open describes the joystick (first call), the debug block calls
+        get_instance_id() and catches pygame.error (second call), and the stable key block
+        and the proxy call it again (third and fourth calls).
         """
         mock_game = mocker.Mock()
         mock_js = _make_joystick_mock(mocker)
 
-        # First call (debug block, line 301) raises pygame.error
-        # Second call (stable key block, line 322) returns 0
-        mock_js.get_instance_id.side_effect = [pygame.error('no instance'), 0]
+        mock_js.get_instance_id.side_effect = [0, pygame.error('no instance'), 0, 0]
 
         _setup_joystick_patches(mocker, joystick_count=1, joystick_mock=mock_js)
 
@@ -132,7 +151,11 @@ class TestJoystickManagerInitExceptionPaths:
     def test_init_joystick_get_name_pygame_error(self, mocker):
         """Test that pygame.error in get_name is caught (lines 307-308)."""
         mock_game = mocker.Mock()
-        mock_js = _make_joystick_mock(mocker, get_name=pygame.error('no name'))
+        mock_js = _make_joystick_mock(mocker)
+        # The second call is the debug block's (the first is the devices door's)
+        mock_js.get_name.side_effect = _fail_on_call(
+            call_number=2, error=pygame.error('no name'), value='TestJoystick'
+        )
         _setup_joystick_patches(mocker, joystick_count=1, joystick_mock=mock_js)
 
         manager = JoystickEventManager(game=mock_game)
@@ -142,7 +165,11 @@ class TestJoystickManagerInitExceptionPaths:
     def test_init_joystick_get_guid_pygame_error(self, mocker):
         """Test that pygame.error in get_guid is caught (lines 311-312)."""
         mock_game = mocker.Mock()
-        mock_js = _make_joystick_mock(mocker, get_guid=pygame.error('no guid'))
+        mock_js = _make_joystick_mock(mocker)
+        # The second call is the debug block's (the first is the devices door's)
+        mock_js.get_guid.side_effect = _fail_on_call(
+            call_number=2, error=pygame.error('no guid'), value='test-guid'
+        )
         _setup_joystick_patches(mocker, joystick_count=1, joystick_mock=mock_js)
 
         manager = JoystickEventManager(game=mock_game)
@@ -150,19 +177,17 @@ class TestJoystickManagerInitExceptionPaths:
         assert len(manager.joysticks) == 1
 
     def test_init_joystick_get_instance_id_attribute_error(self, mocker):
-        """Test AttributeError fallback for get_instance_id at stable key lookup (lines 323-324).
+        """Test AttributeError fallback for get_instance_id at the stable key lookup.
 
-        The debug block (line 301) catches pygame.error but not AttributeError.
-        Since hasattr() on a Mock returns True, the get_instance_id() call at
-        line 301 will execute. We need it to succeed in the debug block but
-        raise AttributeError in the stable key block (line 322).
+        The debug block catches pygame.error but not AttributeError. Since hasattr() on a Mock
+        returns True, the debug block's get_instance_id() call executes. It must succeed there
+        (and in the devices door's open, before it) but raise AttributeError in the stable key
+        block; the proxy's own call then succeeds.
         """
         mock_game = mocker.Mock()
         mock_js = _make_joystick_mock(mocker)
 
-        # First call (debug block, line 301) succeeds
-        # Second call (stable key block, line 322) raises AttributeError
-        mock_js.get_instance_id.side_effect = [0, AttributeError('no method')]
+        mock_js.get_instance_id.side_effect = [0, 0, AttributeError('no method'), 0]
 
         _setup_joystick_patches(mocker, joystick_count=1, joystick_mock=mock_js)
 
@@ -176,7 +201,11 @@ class TestJoystickDeviceAddedExceptionPaths:
     """Test on_joy_device_added_event exception branches."""
 
     def test_device_added_joystick_open_error(self, mocker):
-        """Test pygame.error opening joystick at device_index (lines 451-452)."""
+        """Test pygame.error opening joystick at device_index: keyed by the device index.
+
+        The instance id lookup opens the device once, through the devices door; when that
+        open fails the device index is the key, and the proxy opens the device again.
+        """
         mock_game = mocker.Mock()
         _setup_joystick_patches(mocker, joystick_count=0)
 
@@ -185,8 +214,8 @@ class TestJoystickDeviceAddedExceptionPaths:
         event = mocker.Mock()
         event.device_index = 0
 
-        # First call (debug, line 450) raises pygame.error
-        # Second call (stable key, line 479) succeeds
+        # First call (the instance id lookup) raises pygame.error
+        # Second call (the proxy) succeeds
         call_count = 0
 
         def side_effect_joystick(idx):
@@ -201,7 +230,8 @@ class TestJoystickDeviceAddedExceptionPaths:
 
         manager.on_joy_device_added_event(event)
 
-        assert 42 in manager.joysticks
+        assert 0 in manager.joysticks
+        assert manager.joysticks[0].joystick.get_instance_id() == 42
 
     def test_device_added_get_name_error(self, mocker):
         """Test pygame.error in get_name during device added (lines 456-457)."""
@@ -213,10 +243,10 @@ class TestJoystickDeviceAddedExceptionPaths:
         event = mocker.Mock()
         event.device_index = 0
 
-        mock_js = _make_joystick_mock(
-            mocker,
-            get_name=pygame.error('no name'),
-            get_instance_id=10,
+        mock_js = _make_joystick_mock(mocker, get_instance_id=10)
+        # The second call is the debug block's (the first is the devices door's)
+        mock_js.get_name.side_effect = _fail_on_call(
+            call_number=2, error=pygame.error('no name'), value='TestJoystick'
         )
         mocker.patch('pygame.joystick.Joystick', return_value=mock_js)
 
@@ -234,10 +264,10 @@ class TestJoystickDeviceAddedExceptionPaths:
         event = mocker.Mock()
         event.device_index = 0
 
-        mock_js = _make_joystick_mock(
-            mocker,
-            get_guid=pygame.error('no guid'),
-            get_instance_id=11,
+        mock_js = _make_joystick_mock(mocker, get_instance_id=11)
+        # The second call is the debug block's (the first is the devices door's)
+        mock_js.get_guid.side_effect = _fail_on_call(
+            call_number=2, error=pygame.error('no guid'), value='test-guid'
         )
         mocker.patch('pygame.joystick.Joystick', return_value=mock_js)
 
@@ -284,12 +314,10 @@ class TestJoystickDeviceAddedExceptionPaths:
 
         manager.on_joy_device_added_event(event)
 
-        # The debug block catches pygame.error on get_instance_id (line 468-469).
-        # The stable key block (line 479-485) creates a new Joystick and calls
-        # get_instance_id on IT. Since we return the same mock, it will also
-        # raise. The code catches pygame.error at line 486 and falls back to
-        # using event.device_index as the key.
-        assert 0 in manager.joysticks or len(manager.joysticks) >= 0
+        # The devices door cannot describe the device, so the instance id lookup's open
+        # fails (falling back to event.device_index as the key) and so does the proxy's:
+        # the device is gone, so nothing is tracked and the handler does not raise.
+        assert manager.joysticks == {}
 
 
 class TestJoystickDeviceAddedFallbackNotification:
@@ -335,6 +363,7 @@ class TestJoystickEventProxyDirectMethods:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_joystick = mocker.Mock()
+        mock_joystick.get_instance_id.return_value = 0
         mock_joystick.init.return_value = None
         mock_joystick.get_init.return_value = True
         mock_joystick.get_name.return_value = 'Test Joystick'
@@ -351,7 +380,6 @@ class TestJoystickEventProxyDirectMethods:
 
         mock_joystick_class = mocker.Mock()
         mock_joystick_class.return_value = mock_joystick
-        mock_joystick_class.from_instance_id = mocker.Mock(return_value=mock_joystick)
         mocker.patch('pygame.joystick.Joystick', mock_joystick_class)
 
         mock_game = mocker.Mock()
@@ -543,10 +571,9 @@ class TestJoystickEventProxyFallbacks:
     """Test JoystickEventProxy fallback behavior for instance_id, guid, and power_level."""
 
     def _create_mock_joystick_class(self, mocker, mock_joystick):
-        """Create and patch a mock Joystick class that handles from_instance_id."""
+        """Create and patch a mock Joystick class returning ``mock_joystick``."""
         mock_joystick_class = mocker.Mock()
         mock_joystick_class.return_value = mock_joystick
-        mock_joystick_class.from_instance_id = mocker.Mock(return_value=mock_joystick)
         mocker.patch('pygame.joystick.Joystick', mock_joystick_class)
 
     def test_proxy_instance_id_preferred_over_joystick_id(self, mock_pygame_patches, mocker):
@@ -554,6 +581,7 @@ class TestJoystickEventProxyFallbacks:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_joystick = mocker.Mock()
+        mock_joystick.get_instance_id.return_value = 0
         mock_joystick.init.return_value = None
         mock_joystick.get_init.return_value = True
         mock_joystick.get_name.return_value = 'Test'
@@ -585,6 +613,7 @@ class TestJoystickEventProxyFallbacks:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_joystick = mocker.Mock()
+        mock_joystick.get_instance_id.return_value = 0
         mock_joystick.init.return_value = None
         mock_joystick.get_init.return_value = True
         mock_joystick.get_name.return_value = 'Test'
@@ -610,6 +639,7 @@ class TestJoystickEventProxyFallbacks:
         from glitchygames.events.joystick import JoystickEventManager
 
         mock_joystick = mocker.Mock()
+        mock_joystick.get_instance_id.return_value = 0
         mock_joystick.init.return_value = None
         mock_joystick.get_init.return_value = True
         mock_joystick.get_name.return_value = 'Test'
@@ -789,12 +819,7 @@ class TestJoystickEventManagerRouting:
         existing_proxy = mocker.Mock()
         manager.joysticks[42] = existing_proxy
 
-        mock_joystick = mocker.Mock()
-        mock_joystick.init.return_value = None
-        mock_joystick.get_instance_id.return_value = 42
-        mock_joystick.get_name.return_value = 'Test'
-        mock_joystick.get_guid.return_value = 'guid'
-        mock_joystick.get_id.return_value = 0
+        mock_joystick = _make_joystick_mock(mocker, get_instance_id=42, get_name='Test')
 
         mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
 
@@ -834,18 +859,15 @@ class TestJoystickEventManagerRouting:
         _setup_joystick_patches(mocker, joystick_count=0)
         manager = JoystickEventManager(game=mock_game)
 
-        # First Joystick call for debug info raises pygame.error
-        # Second call for stable instance_id also raises
-        mock_joystick = mocker.Mock()
-        mock_joystick.init.side_effect = pygame.error('no joystick')
+        # The device opens, but init() during the instance_id derivation raises
+        mock_joystick = _make_joystick_mock(mocker, init=pygame.error('no joystick'))
 
         mocker.patch('pygame.joystick.Joystick', return_value=mock_joystick)
 
         event = HashableEvent(pygame.JOYDEVICEADDED, device_index=7, guid='guid')
 
-        # The first Joystick(7) call in debug section may raise, then the init
-        # call for instance_id derivation raises, so it falls back to device_index
-        # Since the proxy creation will also fail, let's mock the proxy constructor
+        # The init call for instance_id derivation raises, so it falls back to device_index
+        # Since the proxy creation would also fail, let's mock the proxy constructor
         mock_proxy_instance = mocker.Mock()
         mocker.patch(
             'glitchygames.events.joystick.JoystickEventManager.JoystickEventProxy',
@@ -877,6 +899,7 @@ class TestJoystickEventProxyWithoutInstanceId:
     def test_proxy_uses_joystick_id_when_no_instance_id(self, mock_pygame_patches, mocker):
         """Test proxy uses joystick_id as _id when instance_id is None."""
         mock_joystick = mocker.Mock()
+        mock_joystick.get_instance_id.return_value = 0
         mock_joystick.init.return_value = None
         mock_joystick.get_init.return_value = True
         mock_joystick.get_name.return_value = 'NoInstance Joystick'
@@ -901,12 +924,17 @@ class TestJoystickEventProxyWithoutInstanceId:
         assert proxy._device_id == 3
 
 
-class TestJoystickEventProxyFromInstanceIdFallback:
-    """Test JoystickEventProxy falls back when from_instance_id raises error."""
+class TestJoystickEventProxyOpensByDeviceIndex:
+    """Test JoystickEventProxy opens by device index an instance id not opened yet."""
 
-    def test_proxy_falls_back_to_joystick_index_on_error(self, mock_pygame_patches, mocker):
-        """Test proxy falls back to Joystick(joystick_id) when from_instance_id fails."""
+    def test_proxy_opens_an_unopened_instance_by_device_index(self, mock_pygame_patches, mocker):
+        """Test proxy opens Joystick(joystick_id) through the devices door.
+
+        pygame-ce has no Joystick.from_instance_id; an instance id the devices door has not
+        opened yet is opened by its device index.
+        """
         mock_joystick = mocker.Mock()
+        mock_joystick.get_instance_id.return_value = 0
         mock_joystick.init.return_value = None
         mock_joystick.get_init.return_value = True
         mock_joystick.get_name.return_value = 'Fallback Joystick'
@@ -922,8 +950,6 @@ class TestJoystickEventProxyFromInstanceIdFallback:
         mock_joystick.get_hat.return_value = (0, 0)
 
         mock_joystick_class = mocker.Mock()
-        # from_instance_id raises error, regular constructor works
-        mock_joystick_class.from_instance_id = mocker.Mock(side_effect=pygame.error('no joystick'))
         mock_joystick_class.return_value = mock_joystick
         mocker.patch('pygame.joystick.Joystick', mock_joystick_class)
 
@@ -934,7 +960,8 @@ class TestJoystickEventProxyFromInstanceIdFallback:
             instance_id=99,
         )
 
-        # Should still work even though from_instance_id failed
+        # Opened by device index, keyed by the instance id it was asked for
+        mock_joystick_class.assert_called_once_with(0)
         assert proxy._id == 99
         assert proxy.get_name() == 'Fallback Joystick'
 
@@ -1412,3 +1439,107 @@ class TestJoystickManager:
         # Test button up
         up_event = HashableEvent(pygame.JOYBUTTONUP, joy=0, button=0)
         manager.on_joystick_button_up_event(up_event)
+
+
+# ---------------------------------------------------------------------------
+# The devices door (glitchygames/input/devices.py): opening and polling
+# ---------------------------------------------------------------------------
+
+
+def _replay_registry_with_joystick(*, mocker, device_index: int, instance_id: int):
+    """Make the active sources answer devices from a replay registry holding one joystick.
+
+    Returns:
+        The replay registry.
+
+    """
+    from glitchygames.input.devices import DeviceDescriptor, ReplayDeviceRegistry
+    from glitchygames.sources import active_sources
+
+    descriptor = DeviceDescriptor(
+        kind='joystick',
+        device_index=device_index,
+        instance_id=instance_id,
+        name='Pad',
+        guid=None,
+        axis_count=2,
+        button_count=1,
+        hat_count=1,
+        ball_count=1,
+    )
+    registry = ReplayDeviceRegistry(descriptors=[descriptor], enumeration_answers=[])
+    mocker.patch.object(active_sources(), 'devices', return_value=registry)
+    return registry
+
+
+class TestJoystickDevicesDoor:
+    """Joysticks are opened through the registry and read from the frame's snapshot."""
+
+    def test_joystick_proxy_opens_through_the_registry_and_reads_the_snapshot(self, mocker):
+        """The proxy's caches come from the snapshot, by the opened device's instance id."""
+        from glitchygames.input.state import InputSnapshot, set_current_input
+
+        _replay_registry_with_joystick(mocker=mocker, device_index=0, instance_id=9)
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+        set_current_input(
+            snapshot=InputSnapshot(
+                pressed_scancodes=frozenset(),
+                modifiers=0,
+                mouse_position=(0, 0),
+                mouse_buttons=(False, False, False),
+                mouse_focused=True,
+                device_axes={9: (0.25, -1.0)},
+                device_buttons={9: (True,)},
+                device_hats={9: ((1, -1),)},
+            )
+        )
+
+        proxy = JoystickEventManager.JoystickEventProxy(joystick_id=0, game=None)
+
+        real_joystick.assert_not_called()
+        assert proxy._axes == [0.25, -1.0]
+        assert proxy._buttons == [True]
+        assert proxy._hats == [(1, -1)]
+        # Balls are not recorded: they read as still
+        assert proxy._balls == [(0, 0)]
+
+    def test_joystick_proxy_reuses_a_device_already_opened_for_its_instance_id(self, mocker):
+        """A proxy for an instance id the registry already opened does not open it again."""
+        registry = _replay_registry_with_joystick(mocker=mocker, device_index=0, instance_id=9)
+        opened = registry.open_joystick(device_index=0)
+        open_spy = mocker.spy(registry, 'open_joystick')
+
+        proxy = JoystickEventManager.JoystickEventProxy(joystick_id=0, instance_id=9, game=None)
+
+        open_spy.assert_not_called()
+        assert proxy.joystick is opened
+
+    def test_joystick_manager_enumerates_and_opens_through_the_registry(self, mocker):
+        """The manager counts and opens joysticks only through the registry."""
+        _replay_registry_with_joystick(mocker=mocker, device_index=0, instance_id=9)
+        mocker.patch('pygame.joystick.init')
+        real_count = mocker.patch('pygame.joystick.get_count')
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+
+        manager = JoystickEventManager(game=mocker.Mock())
+
+        real_count.assert_not_called()
+        real_joystick.assert_not_called()
+        assert list(manager.joysticks) == [9]
+
+    def test_joystick_device_added_resolves_the_instance_id_through_the_registry(self, mocker):
+        """A hot-plugged joystick is opened once, through the registry, and keyed by instance."""
+        registry = _replay_registry_with_joystick(mocker=mocker, device_index=0, instance_id=9)
+        mocker.patch('pygame.joystick.init')
+        mocker.patch('pygame.joystick.get_count', return_value=0)
+        manager = JoystickEventManager.__new__(JoystickEventManager)
+        manager.joysticks = {}
+        manager.game = mocker.Mock()
+        real_joystick = mocker.patch('pygame.joystick.Joystick')
+        open_spy = mocker.spy(registry, 'open_joystick')
+
+        manager.on_joy_device_added_event(HashableEvent(pygame.JOYDEVICEADDED, device_index=0))
+
+        real_joystick.assert_not_called()
+        assert open_spy.call_count == 1
+        assert list(manager.joysticks) == [9]

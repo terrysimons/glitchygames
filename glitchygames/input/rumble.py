@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Protocol
 
 import pygame
 
+from glitchygames.sources import active_sources
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
@@ -49,7 +51,8 @@ def connected_rumble_devices(controller_manager: object | None) -> list[RumbleDe
 
     Args:
         controller_manager: GameEngine.controller_manager; None in joystick mode (the
-            pygame-ce default), where joysticks are opened directly.
+            pygame-ce default), where joysticks are opened through the devices door
+            (glitchygames/input/devices.py).
 
     Returns:
         The devices.
@@ -58,10 +61,11 @@ def connected_rumble_devices(controller_manager: object | None) -> list[RumbleDe
     if controller_manager is not None:
         controllers: dict[int, RumbleDevice] = getattr(controller_manager, 'controllers', {})
         return list(controllers.values())
+    devices = active_sources().devices()
     joysticks: list[RumbleDevice] = []
-    for index in range(pygame.joystick.get_count()):
+    for index in range(devices.joystick_count()):
         try:
-            joysticks.append(pygame.joystick.Joystick(index))
+            joysticks.append(devices.open_joystick(device_index=index))
         except pygame.error:
             # Unplugged between get_count() and construction; skip it, keep the others
             log.debug('Joystick %d vanished before it could be opened', index, exc_info=True)
