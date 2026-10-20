@@ -110,7 +110,7 @@ class TestGameOverIntegration:
         # Mock the GameOverScene import to avoid pygame initialization issues
         mock_game_over_scene = mocker.Mock()
         mocker.patch(
-            'glitchygames.examples.paddleslap.GameOverScene',
+            'glitchygames.examples.paddleslap.PaddleSlapGameOverScene',
             return_value=mock_game_over_scene,
         )
 

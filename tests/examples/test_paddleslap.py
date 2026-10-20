@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Test paddleslap example using centralized mocks."""
 
+from __future__ import annotations
+
 import math
 import random
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pygame
 import pytest
@@ -13,11 +16,15 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.events.base import HashableEvent
 from glitchygames.examples.paddleslap import (
+    GAME_OVER_IDLE_SECONDS,
+    PADDLESLAP_DEMO_PATH,
     PADDLESLAP_SERVE,
     PADDLESLAP_SPAWN_SERVE,
     PADDLESLAP_SPEED_UP,
     Game,
+    PaddleSlapGameOverScene,
 )
 from glitchygames.game_objects.ball import (
     BallSpawnMode,
@@ -30,6 +37,9 @@ from glitchygames.game_objects.ball import (
 from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
 from glitchygames.sources import advance_frame_clock
 from tests.mocks.test_mock_factory import MockFactory
+
+if TYPE_CHECKING:
+    from pytest_mock import MockType
 
 PADDLESLAP_STREAM_TEST_SEED = 41
 
@@ -348,7 +358,7 @@ class TestPaddleslapExample:
 
         assert game.balls == []
         assert ball not in game.collisions.get_layer('balls').sprites
-        assert type(game.next_scene).__name__ == 'GameOverScene'
+        assert isinstance(game.next_scene, PaddleSlapGameOverScene)
 
     def test_dead_ball_still_in_layer_is_not_bounced(self, mocker):
         """A ball killed this frame (still in the 'balls' layer until cleanup) is skipped."""
@@ -421,3 +431,113 @@ class TestPaddleslapSpawnCooldown:
         game.advance_game_time(seconds=1.0)
         game._spawn_new_ball_with_speed_check(ball)
         assert spawn_new_ball.call_count == 2, '2 s of game time ends the cooldown'
+
+
+class TestPaddleslapGameOverDemo:
+    """PaddleSlap's game-over screen plays the bundled demo when nobody presses anything."""
+
+    @pytest.fixture(autouse=True)
+    def setup_mocks(self, mocker):
+        """Set up pygame mocks for testing."""
+        MockFactory.setup_pygame_mocks_with_mocker(mocker)
+
+    @staticmethod
+    def game_over_screen(mocker) -> tuple[PaddleSlapGameOverScene, MockType]:
+        """Make PaddleSlap's game-over screen with the scene manager's play_recording patched.
+
+        Returns:
+            The scene and the patched play_recording.
+
+        """
+        scene = PaddleSlapGameOverScene(
+            final_score=3,
+            high_scores=[{'score': 3}],
+            options=dict(PADDLESLAP_TEST_OPTIONS),
+        )
+        play_recording = mocker.patch.object(scene.scene_manager, 'play_recording')
+        return scene, play_recording
+
+    def test_the_game_ends_on_paddleslaps_game_over_screen(self, mocker):
+        """The last ball leaving ends the game on the screen that plays the demo."""
+        game = Game(options=dict(PADDLESLAP_TEST_OPTIONS))
+        mocker.patch.object(game, '_save_high_score', return_value=[{'score': 0}])
+        mocker.patch.object(game.balls[0], 'alive', return_value=False)
+
+        game.dt_tick(0.0)
+
+        assert isinstance(game.next_scene, PaddleSlapGameOverScene)
+        assert game.next_scene.replay_arguments() == {
+            'final_score': 0,
+            'high_scores': [{'score': 0}],
+        }
+
+    def test_idle_game_over_screen_plays_the_bundled_demo(self, mocker):
+        """After GAME_OVER_IDLE_SECONDS of game time without input, the demo plays."""
+        scene, play_recording = self.game_over_screen(mocker)
+
+        scene.advance_game_time(seconds=GAME_OVER_IDLE_SECONDS - 0.5)
+        scene.dt_tick(0.0)
+        play_recording.assert_not_called()
+
+        scene.advance_game_time(seconds=0.5)
+        scene.dt_tick(0.0)
+        play_recording.assert_called_once_with(path=PADDLESLAP_DEMO_PATH, then=scene)
+
+    def test_the_demo_waits_a_whole_idle_stretch_again_after_it_played(self, mocker):
+        """Back from the demo, the screen waits GAME_OVER_IDLE_SECONDS again before replaying."""
+        scene, play_recording = self.game_over_screen(mocker)
+        scene.advance_game_time(seconds=GAME_OVER_IDLE_SECONDS)
+        scene.dt_tick(0.0)
+
+        scene.advance_game_time(seconds=GAME_OVER_IDLE_SECONDS - 0.5)
+        scene.dt_tick(0.0)
+        assert play_recording.call_count == 1
+
+        scene.advance_game_time(seconds=0.5)
+        scene.dt_tick(0.0)
+        assert play_recording.call_count == 2
+
+    @pytest.mark.parametrize(
+        ('handler_name', 'event_type', 'event_attributes'),
+        [
+            ('on_key_down_event', pygame.KEYDOWN, {'key': pygame.K_LSHIFT, 'mod': 0}),
+            ('on_joy_button_down_event', pygame.JOYBUTTONDOWN, {'button': 0, 'instance_id': 0}),
+            (
+                'on_controller_button_down_event',
+                pygame.CONTROLLERBUTTONDOWN,
+                {'button': 0, 'instance_id': 0},
+            ),
+        ],
+    )
+    def test_a_press_restarts_the_idle_wait(
+        self, mocker, handler_name, event_type, event_attributes
+    ):
+        """Any key or button press starts the idle stretch again."""
+        scene, play_recording = self.game_over_screen(mocker)
+        scene.advance_game_time(seconds=GAME_OVER_IDLE_SECONDS - 0.5)
+
+        getattr(scene, handler_name)(HashableEvent(type=event_type, **event_attributes))
+        scene.advance_game_time(seconds=GAME_OVER_IDLE_SECONDS - 0.5)
+        scene.dt_tick(0.0)
+        play_recording.assert_not_called()
+
+        scene.advance_game_time(seconds=0.5)
+        scene.dt_tick(0.0)
+        play_recording.assert_called_once()
+
+    def test_restarting_starts_a_new_paddleslap_game(self, mocker):
+        """SPACE starts a new Game, whatever scene ran last (a demo's own scenes included)."""
+        scene, _play_recording = self.game_over_screen(mocker)
+        switch_to_scene = mocker.patch.object(scene.scene_manager, 'switch_to_scene')
+
+        scene.resume()
+
+        (new_game,), _keywords = switch_to_scene.call_args
+        assert type(new_game) is Game
+        assert new_game.options == scene.options
+
+
+def test_bundled_demo_exists_and_is_small():
+    """PaddleSlap ships its demo in its package, under 100 KB."""
+    assert PADDLESLAP_DEMO_PATH.is_file()
+    assert PADDLESLAP_DEMO_PATH.stat().st_size < 100_000

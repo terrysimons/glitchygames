@@ -23,6 +23,11 @@ directory under ``fixtures/replays/`` that is not a console script, and a record
 ``fixtures/replays/`` that is not directly in a game's directory (directly in ``replays/``, or
 nested deeper).
 
+The child replay is ``replay_recording_headless``, which other tests reuse: demos bundled in a
+game's package (``glitchygames/examples/<game>_demos/<name>.jsonl.gz``, listed by
+``bundled_demo_paths``) are outside the suite's directories, so tests/replay/test_bundled_demos.py
+replays each one through it.
+
 Loading the plugin: ``pytest_plugins = ['glitchygames.testing.replays']`` in the root conftest
 (this project's ``conftest.py``), or ``pytest -p glitchygames.testing.replays``. Recordings are
 made by ``--record-trace``; this project's fixtures (``tests/fixtures/replays/``) are recorded by
@@ -37,6 +42,7 @@ from __future__ import annotations
 import importlib.metadata
 import os
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self, cast, override
 
 import pytest
@@ -46,7 +52,8 @@ from glitchygames.process import run_command
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
+
+    from glitchygames.process import CompletedProcess
 
 # A recording is collected from .../fixtures/replays/<console-script>/<name>.jsonl.gz
 REPLAY_FIXTURES_PATH_PARTS = ('fixtures', 'replays')
@@ -58,6 +65,11 @@ CONSOLE_SCRIPTS_GROUP = 'console_scripts'
 # Kill a replay child that runs longer than this (a headless replay of a few hundred frames
 # takes a second or two)
 REPLAY_TIMEOUT_SECONDS = 300.0
+# Bundled demos: glitchygames/examples/<game>_demos/<name>.jsonl.gz, the game being the module
+# glitchygames.examples.<game> (found by path, so this module imports no game)
+BUNDLED_DEMO_DIRECTORY_SUFFIX = '_demos'
+EXAMPLES_PACKAGE = 'glitchygames.examples'
+EXAMPLES_DIRECTORY = Path(__file__).resolve().parent.parent / 'examples'
 
 
 def game_entry_point(*, console_script: str) -> importlib.metadata.EntryPoint:
@@ -157,6 +169,84 @@ def replay_command(*, entry_point: importlib.metadata.EntryPoint, recording: Pat
     ]
 
 
+def replay_recording_headless(*, console_script: str, path: Path) -> CompletedProcess[str]:
+    """Replay a recording headless through a game's console script, in a child process.
+
+    The child is ``replay_command``'s, started with ``run_command`` with this process's
+    environment (``--headless`` puts it on SDL's dummy drivers). A child still running after
+    REPLAY_TIMEOUT_SECONDS is killed, and run_command's ``subprocess.TimeoutExpired`` is raised.
+
+    Args:
+        console_script: The game's console script (``[project.scripts]``), for example
+            ``paddleslap``.
+        path: The recording.
+
+    Returns:
+        The finished child: ``returncode`` is the replay's ``ExitCode`` (``SUCCESS`` when every
+        frame matched) and ``stdout`` its standard output and error together (the divergence
+        report, or why the recording was refused).
+
+    """
+    entry_point = game_entry_point(console_script=console_script)
+    return run_command(
+        command=replay_command(entry_point=entry_point, recording=path),
+        environment=os.environ,
+        timeout_seconds=REPLAY_TIMEOUT_SECONDS,
+        capture_output=True,
+    )
+
+
+def bundled_demo_paths(*, examples_directory: Path = EXAMPLES_DIRECTORY) -> list[tuple[str, Path]]:
+    """Return every demo bundled in a game's package, with the console script that replays it.
+
+    A bundled demo is ``<examples_directory>/<game>_demos/<name>.jsonl.gz``; its game is the
+    console script whose entry point lives in the module ``glitchygames.examples.<game>``.
+
+    Args:
+        examples_directory: Where the games' demo folders are (glitchygames/examples/).
+
+    Returns:
+        ``(console script, demo path)`` pairs, sorted by path.
+
+    Raises:
+        ValueError: If no installed console script's entry point is in a demo folder's game
+            module (the demo could not be replayed, so it would go untested).
+
+    """
+    demos: list[tuple[str, Path]] = []
+    for path in sorted(
+        examples_directory.glob(f'*{BUNDLED_DEMO_DIRECTORY_SUFFIX}/*{RECORDING_SUFFIX}')
+    ):
+        game_module = (
+            f'{EXAMPLES_PACKAGE}.{path.parent.name.removesuffix(BUNDLED_DEMO_DIRECTORY_SUFFIX)}'
+        )
+        console_script = console_script_in_module(module=game_module)
+        if console_script is None:
+            message = f'{path}: no console script has its entry point in {game_module}'
+            raise ValueError(message)
+        demos.append((console_script, path))
+    return demos
+
+
+def console_script_in_module(*, module: str) -> str | None:
+    """Return the name of the first console script whose entry point is in a module.
+
+    Distributions are searched as ``game_entry_point`` searches them, in ``sys.path`` order.
+
+    Args:
+        module: A module's dotted name, for example ``glitchygames.examples.paddleslap``.
+
+    Returns:
+        The console script's name, or None if no installed console script is in the module.
+
+    """
+    for distribution in importlib.metadata.distributions():
+        for entry_point in distribution.entry_points.select(group=CONSOLE_SCRIPTS_GROUP):
+            if entry_point.module == module:
+                return entry_point.name
+    return None
+
+
 class ReplayFile(pytest.File):
     """A recording under ``fixtures/replays/``: collects one ReplayItem, or fails if misplaced."""
 
@@ -207,14 +297,7 @@ class ReplayItem(pytest.Item):
 
         """
         # ReplayFile.collect has checked the directory is a console script
-        entry_point = game_entry_point(console_script=self.path.parent.name)
-        command = replay_command(entry_point=entry_point, recording=self.path)
-        finished = run_command(
-            command=command,
-            environment=os.environ,
-            timeout_seconds=REPLAY_TIMEOUT_SECONDS,
-            capture_output=True,
-        )
+        finished = replay_recording_headless(console_script=self.path.parent.name, path=self.path)
         if finished.returncode == ExitCode.SUCCESS:
             return
         unusable = (

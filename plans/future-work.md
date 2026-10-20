@@ -93,7 +93,8 @@ and Replay").
   sprites that changed and exits `SUCCESS`; `glitchygames/replay/rebaseline.py`).
 - **Part 3, in-game playback** (pending, `plans/2026-10-19-gameplay-replay-playback.md`): scene
   starts, the playback scope (does not block real input at SDL; real input reaches only its "exit
-  playback" check), demos (the bundled PaddleSlap demo), instant replay and ghosts.
+  playback" check), demos (done: `play_recording` and the bundled PaddleSlap demo, played by its
+  game-over screen when idle), instant replay and ghosts.
 - **Plain recording over a replay (`--record-trace` with `--replay-trace`) stays refused**
   (`ExitCode.OPTIONS_REFUSED`, 64; `GameEngine._refuse_an_unsound_recording_over_the_replay`),
   pointing at `--rebaseline NEW --headless`, which wires `ReplaySources.last_batch_origins()` and

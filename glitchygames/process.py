@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 # What run_command raises for a child that outlives its timeout (subprocess's own exception,
 # named here so callers need not import subprocess)
 TimeoutExpired = subprocess.TimeoutExpired
+# What run_command returns (subprocess's own class, named here for callers' annotations)
+CompletedProcess = subprocess.CompletedProcess
 
 
 def run_command(

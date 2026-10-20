@@ -11,15 +11,21 @@ from __future__ import annotations
 import shutil
 from typing import TYPE_CHECKING
 
+import pytest
 from scripts.record_scripted_session import fixture_path
 
-from glitchygames.testing.replays import REPLAY_FIXTURES_PATH_PARTS, game_entry_point
+from glitchygames.exit_codes import ExitCode
+from glitchygames.testing.replays import (
+    BUNDLED_DEMO_DIRECTORY_SUFFIX,
+    REPLAY_FIXTURES_PATH_PARTS,
+    bundled_demo_paths,
+    game_entry_point,
+    replay_recording_headless,
+)
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 PLUGIN_MODULE = 'glitchygames.testing.replays'
 REPO_FIXTURE = fixture_path(game_key='paddleslap')
@@ -197,3 +203,50 @@ def test_missing_recording_fails_as_unusable(pytester):
     result.stdout.fnmatch_lines([
         '*paddleslap/gone: the replay exited MISSING_INPUT (66) (unusable recording)'
     ])
+
+
+def test_bundled_demo_paths_pairs_each_demo_with_its_games_console_script(tmp_path):
+    """Every <game>_demos/*.jsonl.gz is a demo of the console script whose entry point is there."""
+    demo_directory = tmp_path / f'paddleslap{BUNDLED_DEMO_DIRECTORY_SUFFIX}'
+    demo_directory.mkdir()
+    for name in ('serve.jsonl.gz', 'rally.jsonl.gz', 'notes.txt'):
+        (demo_directory / name).write_bytes(b'')
+    (tmp_path / 'paddleslap_sprites').mkdir()
+    (tmp_path / 'paddleslap_sprites' / 'ball.jsonl.gz').write_bytes(b'')
+
+    demos = bundled_demo_paths(examples_directory=tmp_path)
+
+    assert demos == [
+        ('paddleslap', demo_directory / 'rally.jsonl.gz'),
+        ('paddleslap', demo_directory / 'serve.jsonl.gz'),
+    ]
+
+
+def test_bundled_demo_paths_refuses_a_demo_of_a_game_without_a_console_script(tmp_path):
+    """A demo no console script can replay is an error, not a demo left untested."""
+    demo_directory = tmp_path / f'no_such_game{BUNDLED_DEMO_DIRECTORY_SUFFIX}'
+    demo_directory.mkdir()
+    (demo_directory / 'rally.jsonl.gz').write_bytes(b'')
+
+    with pytest.raises(ValueError, match=r'glitchygames\.examples\.no_such_game'):
+        bundled_demo_paths(examples_directory=tmp_path)
+
+
+def test_bundled_demo_paths_reads_the_examples_package_by_default():
+    """Without a directory, the demos come from glitchygames/examples/."""
+    demos = bundled_demo_paths()
+
+    assert demos
+    assert all(path.parent.parent.name == 'examples' for _console_script, path in demos)
+
+
+def test_replay_recording_headless_returns_the_finished_replay(tmp_path):
+    """The child replay's exit code and output (with the divergence report) come back."""
+    tampered_path = tmp_path / 'tampered.jsonl.gz'
+    shutil.copy(REPO_FIXTURE, tampered_path)
+    tamper_first_sprite_rect(recording_path=tampered_path, frame_number=TAMPERED_FRAME)
+
+    completed = replay_recording_headless(console_script='paddleslap', path=tampered_path)
+
+    assert completed.returncode == ExitCode.REPLAY_DIVERGED
+    assert f'Replay diverged at frame {TAMPERED_FRAME}' in completed.stdout

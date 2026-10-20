@@ -345,6 +345,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   logged at WARNING ("No demo: ...") and nothing starts; a divergence ends it and logs WARNING
   `demo diverged: <describe()>`; a cut-off file plays to its cut-off and ends `truncated`
   (INFO). Check `last_playback_outcome` for how it ended
+- Bundled demos (Part 3 Task 4): `glitchygames/examples/<game>_demos/<name>.jsonl.gz` ships in
+  the wheel (hatch includes every file in the package; no pyproject change). PaddleSlap has no
+  title screen, so its game-over screen (`PaddleSlapGameOverScene`) plays
+  `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
+  button press. `tests/replay/test_bundled_demos.py` replays every demo headless
+  (`bundled_demo_paths`, `replay_recording_headless` in `glitchygames/testing/replays.py`) and
+  plays PaddleSlap's through `play_recording` in a child process (playbacks find scene classes by
+  bare name). Record a demo with `scripts/record_scripted_session.py --output PATH` (it runs
+  `--record-trace`, so frame 0 holds the scene start); PaddleSlap's is `--frames 450`, before the
+  golden script's pause
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
   randomness draws from named streams seeded from it: `random_stream('name')` (`random.Random`) or
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is
@@ -455,7 +465,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--audit`, `--replay-digest` or `--replay-fps real`. NEW replays clean; a truncated OLD gives a
   `source_truncated` NEW (replays `UNUSABLE_INPUT`, not auditable, not a golden fixture);
   replacing a golden fixture with NEW stays a reviewed step
-- Pending: the rest of Part 3 (demos, instant replay, ghosts); see `plans/future-work.md`.
+- Pending: the rest of Part 3 (instant replay, ghosts); see `plans/future-work.md`.
   User docs: `docs/architecture/gameplay_replay.md`
 
 **Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
