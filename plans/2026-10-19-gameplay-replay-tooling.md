@@ -683,8 +683,15 @@ git commit -m "Step back, Home and jump to the divergence by re-running the repl
 > `frame N` (the tests below use `bookmarks=[3]` for a breakpoint in frame 2). Saving lives in the
 > `ReplaySources.bookmarks` collaborator (`BookmarkedCopy.save()`), because `ReplaySources` was at
 > the public-method limit. `ReplayOptions.recording_path` (set by `start_replay`) names the file
-> to copy. The copy is written aside and then moved into place. `bookmarked_copy_path` of a copy
-> is the copy itself, so restarts never chain names. The breakpoint handler is
+> to copy. The copy is written aside and then moved into place. The copy's header carries:
+>
+> - `bookmarked_copy_of`: only a file with it is the copy itself (`bookmarked_copy_path`) and
+>   may be written over;
+> - `source_truncated`;
+> - `input_capture_format_version`.
+>
+> So a copy replays as its source does. A recording's bookmark breakpoints load into
+> `controls.bookmarks`, and unchanged bookmarks are not saved again. The breakpoint handler is
 > `ReplayControls.pause_at_breakpoint`, registered by the engine for watched replays only and
 > ignored while a rebuild runs.
 

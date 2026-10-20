@@ -1923,7 +1923,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         it to the supervising replay process or supervises the restarted replays itself. With
         bookmarks, the bookmarked copy is saved first and the restart replays it, so the
         bookmarks survive (rule 16 of glitchygames/replay/driver.py); if it cannot be saved,
-        the restart replays this run's recording without them.
+        the restart replays this run's recording without them, with a warning naming them.
 
         Args:
             replay_sources: The torn-down replay's sources.
@@ -1939,7 +1939,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         recording_path = Path(GameEngine.OPTIONS['replay_trace'])
         if controls.bookmarks:
             bookmarked_copy = replay_sources.bookmarks.save()
-            if bookmarked_copy is not None:
+            if bookmarked_copy is None:
+                self.log.warning(
+                    f'Restarting without the bookmarks {controls.bookmarks}: the bookmarked copy '
+                    f'of {recording_path} could not be saved'
+                )
+            else:
                 recording_path = bookmarked_copy
         command = restart_command(
             original=sys.orig_argv,

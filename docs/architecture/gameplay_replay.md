@@ -295,15 +295,32 @@ B bookmarks the frame the status bar shows (`frame N`: paused with frame N next)
 copy of the recording next to it, `x.bookmarked.jsonl.gz` for `x.jsonl.gz`, with a
 `{"kind": "breakpoint", "label": "bookmark"}` control event added to frame N - 1 (the frame whose
 picture was shown) for each bookmark, and logs where. With no bookmarks it writes nothing and
-says `no bookmarks to save`. The original recording is never written; the copy is written aside
-and then moved into place. Breakpoints are applied again on their frame and never compared, so
-the copy replays exactly like the original, headless included. A watched replay of the copy
-pauses at each breakpoint, showing `frame N` again with `breakpoint: bookmark`. A rebuild after
-a restart runs past breakpoints to its own pause frame. Stepping back (or Home, or D) with
-bookmarks saves the copy first and restarts on the copy, so bookmarks survive restarts. Saving
-from a copy updates that copy in place rather than making a copy of a copy. The copy holds the
-recording's complete frames, so a truncated recording's copy ends normally after its last
-complete frame.
+says `no bookmarks to save`. Saving the same bookmarks again writes nothing
+(`bookmarks already saved to ...`).
+
+The copy's header names its source (`bookmarked_copy_of`), and only a file with that field is
+ever updated in place. The original recording is never written, even one you named
+`something.bookmarked.jsonl.gz` yourself; its copy is `something.bookmarked.bookmarked.jsonl.gz`.
+The copy is written aside and then moved into place.
+
+The copy replays exactly like its source, headless included:
+
+- Breakpoints are applied again on their frame and never compared.
+- A truncated source's copy is marked `source_truncated`, so it still ends as truncated
+  (`UNUSABLE_INPUT` headless, the truncated banner when watched).
+- A version-2 source's copy is marked `input_capture_format_version: 2`, so it keeps the
+  version-2 input warning and does not compare control events.
+
+A watched replay of the copy pauses at each breakpoint, showing `frame N` again with
+`breakpoint: bookmark`. A rebuild after a restart runs past breakpoints to its own pause frame.
+
+Stepping back (or Home, or D) with bookmarks saves the copy first and restarts on the copy, so
+bookmarks survive restarts. In the restarted replay:
+
+- The bookmark list starts with the copy's bookmarks, so S keeps them.
+- Playing forward pauses at every earlier bookmark again.
+- If the copy cannot be saved, the restart uses the recording it was replaying and logs a
+  warning naming the bookmarks lost.
 
 ### `--replay-fps {recorded,real}`
 

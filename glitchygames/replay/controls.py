@@ -371,8 +371,10 @@ class ReplayControls:
             self.save_requested = True
             return
         frame_index = max(self.current_frame, FIRST_PAUSED_FRAME)
-        if frame_index not in self.bookmarks:
-            bisect.insort(self.bookmarks, frame_index)
+        if frame_index in self.bookmarks:
+            self.show_message(text=f'frame {frame_index} already bookmarked')
+            return
+        bisect.insort(self.bookmarks, frame_index)
         self.show_message(text=f'bookmarked frame {frame_index}')
 
     def take_save_request(self: Self) -> bool:

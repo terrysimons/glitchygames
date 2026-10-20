@@ -122,6 +122,24 @@ class TestRestartCommand:
         assert command[-5] == ('--debug-overlay' if visible else '--no-debug-overlay')
         assert parsed_engine_options(arguments=command[2:])['debug_overlay'] is visible
 
+    @pytest.mark.parametrize(
+        'trace_arguments',
+        [('--replay-trace', 'a.jsonl.gz'), ('--replay-trace=a.jsonl.gz',)],
+        ids=['separate_value', 'equals_form'],
+    )
+    def test_switching_to_the_bookmarked_copy_replaces_either_form(self, trace_arguments):
+        command = restart_command(
+            original=['python', 'game.py', *trace_arguments],
+            recording_path=Path('a.bookmarked.jsonl.gz'),
+            pause_at_frame=4,
+            debug_overlay_visible=False,
+        )
+        assert not any(argument.startswith('--replay-trace=') for argument in command)
+        assert command.count('--replay-trace') == 1
+        assert parsed_engine_options(arguments=command[2:])['replay_trace'] == (
+            'a.bookmarked.jsonl.gz'
+        )
+
     def test_appended_options_go_before_a_bare_double_dash(self):
         command = restart_command(
             original=['python', 'game.py', '--replay-trace', 'a.jsonl.gz', '--', '--replay-trace'],

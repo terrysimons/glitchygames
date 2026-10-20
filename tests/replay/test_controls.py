@@ -266,6 +266,14 @@ class TestBookmarks:
         controls.handle_key(key=pygame.K_b)
         assert controls.message_for_control_tick() == 'bookmarked frame 30'
 
+    def test_bookmarking_a_frame_again_says_so(self):
+        controls = ReplayControls(total_frames=100)
+        controls.current_frame = 30
+        controls.handle_key(key=pygame.K_b)
+        controls.handle_key(key=pygame.K_b)
+        assert controls.bookmarks == [30]
+        assert controls.message_for_control_tick() == 'frame 30 already bookmarked'
+
     def test_a_bookmark_before_frame_zero_ran_marks_the_first_paused_frame(self):
         controls = ReplayControls(total_frames=100)
         controls.handle_key(key=pygame.K_b)
