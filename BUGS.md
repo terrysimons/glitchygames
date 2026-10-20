@@ -129,6 +129,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code
 - **Files**: `glitchygames/input/state.py`
 
+### 84. A Live Supervisor's `post_event` Is Recorded as the Scene's Own Internal Event
+- **Description**: When a live supervisor (or control-event handler) calls `glitchygames.recording.post_event` in an ordinary live frame, the post is journaled and recorded as one of the scene's internal events. A later `instant_replay()` across that frame diverges (`event UserEvent missing internal event expected {...}, got None`), because nothing in the played scene makes that post; a post made in the frame just before `instant_replay()` plays the first time, but a second replay across that scope diverges. A `--replay-trace` replay of a `--record-trace` session diverges the same way unless the replay adds the same supervisor
+- **Status**: Active
+- **Priority**: Low (supervisors are an engine hook; no shipped game posts from one)
+- **Reporter**: Found by reading during the gameplay-replay final review fixes; confirmed by the re-review's probe
+- **Date Reported**: 2026-10-20
+- **Details**: Predates 77ed933 (present at 00b795d). Inside a playback scope, 77ed933 already keeps live supervisors' posts apart (`recording.live_game_posts`) and re-posts them after the scope; outside a scope they are not marked. Golden replays avoid it because `ScriptedInputSupervisor` (`scripts/record_scripted_session.py`) posts SDL input types with raw `pygame.event.post`, which are recorded as external input. A fix could mark supervisor-slot posts outside scopes too and record them as external (or as control events), so a replay serves them instead of expecting the game to make them
+- **Files**: `glitchygames/recording.py`, `glitchygames/scenes/scene.py`, `glitchygames/replay/playback.py`
+
 ## Resolved Bugs
 
 ### 80. Playbacks Found a Scene Class by Its Bare Name, So Two Loaded Scenes Named Alike Refused It

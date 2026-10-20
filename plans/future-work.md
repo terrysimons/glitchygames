@@ -122,6 +122,13 @@ Follow-ups (not in any plan yet):
   same frame: add its kind to `REAPPLIED_CONTROL_EVENT_KINDS` (glitchygames/supervision.py),
   as `breakpoint` is, and apply it in a control event handler. Its reads should go through the
   same named fields the external control API would expose (spec section 2, out of scope).
+- **Supervisor posts outside a playback scope** (BUGS.md #84): mark a live supervisor's
+  `post_event` outside scopes too and record it as external input or a control event, so instant
+  replays and `--replay-trace` serve it instead of expecting the game to make it.
+- **Joystick-mode rumble inside a scope:** it no longer asks the devices door, so if a played
+  recording's joystick count changed part way, the played scene's later enumeration can read an
+  earlier recorded answer (documented in `replay/playback.py` Limits). Cheap fix: still ask the
+  devices door inside a scope, but send the rumble to no device.
 - **"Take over" handover:** let the player take control part way through a replay. It must end or
   suspend the SDL input block at the handover and switch the doors from recorded to live input.
 - ~~**Audit test helper suppressions**~~ **Done:** every child process, the tests' included,
