@@ -49,6 +49,7 @@ from glitchygames.recording import (
     RecordingSources,
     TraceRecordingAlreadyStartedError,
     json_safe_value,
+    pending_internal_posts,
     post_event,
     reset_internal_post_tracking,
 )
@@ -2187,15 +2188,24 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         ``--record-trace``'s ``RecordingSources`` record the batch exactly as the pump returned
         it, before any dispatch or discarding (glitchygames/sources.py). Events a playback scope
         held for the live game come first (``take_redelivered_events``, taken after the doors'
-        pump so a recording can write them into this frame's ``redelivered_events``).
+        pump so a recording can write them into this frame's ``redelivered_events``). The
+        scene manager's instant-replay journal gets the batch too, with the code-posted events
+        pending before the pump, which classify it as a recorder would
+        (glitchygames/instant_replay.py, rule 4).
 
         Returns:
             The batch, in queue order.
 
         """
+        posts_before_pump = list(pending_internal_posts())
         batch = active_sources().pump_events()
-        redelivered = [event for event, _origin in take_redelivered_events()]
-        return [*redelivered, *batch]
+        redelivered_events = take_redelivered_events()
+        self.scene_manager.journal_pumped_events(
+            raw_events=batch,
+            posts_before_pump=posts_before_pump,
+            redelivered_events=redelivered_events,
+        )
+        return [*(event for event, _origin in redelivered_events), *batch]
 
     def process_audio_event(self: Self, event: events.HashableEvent) -> bool:
         """Process an audio event.

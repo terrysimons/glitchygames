@@ -21,6 +21,7 @@ from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.rumble import RumbleController, connected_rumble_devices
 from glitchygames.input.state import current_input, set_current_input
+from glitchygames.instant_replay import InstantReplayJournal
 from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
@@ -29,6 +30,7 @@ from glitchygames.scene_start import SceneStartCapture, begin_scene_start_captur
 from glitchygames.sources import (
     active_sources,
     advance_frame_clock,
+    has_scoped_sources,
     mark_frames_started,
     pop_scoped_sources,
     push_scoped_sources,
@@ -54,6 +56,7 @@ if TYPE_CHECKING:
         PlaybackSession,
     )
     from glitchygames.scene_start import SceneStart
+    from glitchygames.sources import RedeliveredEvent
     from glitchygames.supervision import Supervisor
 
 LOG = logging.getLogger('game.scenes')
@@ -209,6 +212,10 @@ class SceneManager(SceneInterface, events.EventManager):
         self._playback_session: PlaybackSession | None = None
         self._last_playback_result: ReplayResult | None = None
         self._last_playback_outcome: PlaybackOutcome | None = None
+        # The instant-replay journal of the scene that offers instant replay
+        # (glitchygames/instant_replay.py): made as it is first set up, recording from its
+        # first logic frame
+        self._instant_replay_journal: InstantReplayJournal | None = None
 
         # Mark as initialized to prevent re-initialization
         self._initialized: bool = True
@@ -291,6 +298,110 @@ class SceneManager(SceneInterface, events.EventManager):
         if isinstance(start_capture, SceneStartCapture):
             return start_capture.start
         return None
+
+    @property
+    def instant_replay_journal(self: Self) -> InstantReplayJournal | None:
+        """The journal of the scene that offers instant replay (glitchygames/instant_replay.py).
+
+        None when no scene keeps one, and until the scene's first logic frame began. Kept while
+        the scene is behind the pause screen.
+        """
+        journal = self._instant_replay_journal
+        if journal is None or not journal.is_recording:
+            return None
+        return journal
+
+    def journal_pumped_events(
+        self: Self,
+        *,
+        raw_events: list[pygame.event.Event],
+        posts_before_pump: list[tuple[int, dict[str, Any]]],
+        redelivered_events: list[RedeliveredEvent],
+    ) -> None:
+        """Hand one pump's batch to the instant-replay journal (``GameEngine._pump_events``).
+
+        Nothing while no journal is kept or a playback scope serves the frame (its scene is
+        not the live session's).
+
+        Args:
+            raw_events: The doors' batch, as they returned it.
+            posts_before_pump: A copy of the internal-post tracker's posts before the pump.
+            redelivered_events: The events delivered before the batch, with their origins.
+
+        """
+        journal = self._instant_replay_journal
+        if journal is None or has_scoped_sources():
+            return
+        journal.add_event_batch(
+            raw_events=raw_events,
+            posts_before_pump=posts_before_pump,
+            redelivered_events=redelivered_events,
+        )
+
+    def _prepare_instant_replay_journal(self: Self, *, scene: Scene) -> None:
+        """Make the journal of a scene that offers instant replay, as it is first set up.
+
+        Called before its ``setup()`` (glitchygames/instant_replay.py, rule 2). A later setup
+        (resuming it from the pause screen) keeps its journal; a scene stand-in, a scene whose
+        start is not captured and a scene a playback scope builds keep none.
+
+        Args:
+            scene: The scene being set up.
+
+        """
+        # Looked up by name: a SceneInterface stand-in has neither
+        if getattr(scene, 'INSTANT_REPLAY_SECONDS', None) is None:
+            return
+        start = getattr(scene, 'scene_start', None)
+        if start is None or start.first_logic_frame is not None or has_scoped_sources():
+            return
+        journal = self._instant_replay_journal
+        if journal is not None and journal.scene is scene:
+            return
+        self._end_instant_replay_journal()
+        self._instant_replay_journal = InstantReplayJournal(
+            scene=scene, game=getattr(self.game_engine, 'game', None)
+        )
+
+    def _journal_frame(self: Self, *, frame_dt: float) -> None:
+        """Add the frame just ended to the journal, or end the journal if its scene has gone.
+
+        The journal goes on while its scene, or the pause screen presenting it (the active
+        scene's ``debug_subject``), ends the frame (glitchygames/instant_replay.py, rules 5-7).
+
+        Args:
+            frame_dt: The frame's raw dt, read before the frame ran.
+
+        """
+        journal = self._instant_replay_journal
+        if journal is None:
+            return
+        presented_scene = getattr(self.active_scene, 'debug_subject', self.active_scene)
+        if presented_scene is not journal.scene:
+            self._end_instant_replay_journal()
+            return
+        journal.add_frame(
+            dt=frame_dt,
+            scene=self.active_scene,
+            control_events=self._frame_control_events,
+            input_snapshot=current_input(),
+        )
+        # Past the fast-forward budget no instant replay can be shown again (game time only
+        # grows), so nothing more is kept (rule 9)
+        budget_seconds = journal.scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS
+        if not journal.within_budget(maximum_seconds=budget_seconds):
+            LOG.debug(
+                'The instant-replay journal of %s passed its %s s budget and is dropped',
+                type(journal.scene).__name__,
+                budget_seconds,
+            )
+            self._end_instant_replay_journal()
+
+    def _end_instant_replay_journal(self: Self) -> None:
+        """Close and drop the instant-replay journal, if one is kept (instant_replay.py, rule 7)."""
+        journal, self._instant_replay_journal = self._instant_replay_journal, None
+        if journal is not None:
+            journal.close()
 
     @property
     def playback_session(self: Self) -> PlaybackSession | None:
@@ -1207,6 +1318,7 @@ class SceneManager(SceneInterface, events.EventManager):
         session = self._playback_session
         if session is None:
             self._end_frame_at_doors(frame_dt=frame_dt)
+            self._journal_frame(frame_dt=frame_dt)
         else:
             scoped_sources = session.sources
             # Only the comparison is the scope's: an error of the installed doors (a session
@@ -1248,6 +1360,18 @@ class SceneManager(SceneInterface, events.EventManager):
                 fps_event_seconds=self._previous_fps_event_seconds,
                 earlier_internal_event_count=len(pending_internal_posts()),
             )
+            # The journal of a scene that offers instant replay records from here (its first
+            # logic frame; glitchygames/instant_replay.py, rule 3), never a playback scene's
+            journal = self._instant_replay_journal
+            start = start_capture.start
+            if (
+                journal is not None
+                and journal.scene is self.active_scene
+                and start is not None
+                and start.first_logic_frame is not None
+                and not has_scoped_sources()
+            ):
+                journal.begin(start=start, input_before_start=current_input())
 
     def _enter_requested_playback(self: Self) -> None:
         """Enter the playback scope requested for this frame, if any (``request_playback``).
@@ -1358,6 +1482,10 @@ class SceneManager(SceneInterface, events.EventManager):
             fps_event_seconds=self._previous_fps_event_seconds,
         )
         push_scoped_sources(sources=request.sources)
+        # The live scene's instant-replay journal cannot go on past a scope
+        # (glitchygames/instant_replay.py, rule 7); after the push, so the scope already owns
+        # the internal-post tracker when the journal gives it up
+        self._end_instant_replay_journal()
         # Events an earlier scope held and has not delivered yet (it ended into a scene that
         # started this one) belong to the live game: held again, ahead of this scope's own
         request.sources.held_live_events[:0] = take_redelivered_events()
@@ -1613,6 +1741,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._requested_playback = None
         self._playback_requesting_scene = None
         self._exit_playback(reason='quit', switches_to_then=False)
+        self._end_instant_replay_journal()
         self.switch_to_scene(None)
 
     def quit(self: Self) -> None:
@@ -1864,6 +1993,8 @@ class SceneManager(SceneInterface, events.EventManager):
             start_capture = getattr(next_scene, 'scene_start_capture', None)
             if isinstance(start_capture, SceneStartCapture):
                 start_capture.complete(scene=next_scene)
+            # Before setup(), so posts and the save stores setup() opens are seen
+            self._prepare_instant_replay_journal(scene=next_scene)
             # The scene's snap mode is active from setup() on, so positions snapped while it
             # sets itself up (camera.snap_to, collision) use it, not the previous scene's mode
             self._activate_scene_snap_mode(next_scene)
@@ -2003,6 +2134,13 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # False for a scene that cannot be rebuilt on its own from replay_arguments() (PauseScene
     # presents another scene): its start is never captured (glitchygames/scene_start.py)
     CAPTURES_SCENE_START: ClassVar[bool] = True
+    # Seconds an instant replay of this scene shows, or None for no instant replay. Set, the
+    # scene manager keeps the scene's frames in memory from its start (glitchygames/
+    # instant_replay.py) and its start is captured in plain live play too
+    INSTANT_REPLAY_SECONDS: ClassVar[float | None] = None
+    # The most scene time an instant replay re-simulates from the scene's start before the
+    # seconds it shows (plans/2026-10-19-gameplay-replay.md, section 5.4)
+    MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS: ClassVar[float] = 60.0
 
     def __init__(
         self: Self,

@@ -5,7 +5,9 @@ header line, then one keyframe or delta line per frame), so the tools that read 
 traces read recordings too. On top of the sprite fields it records what an exact replay
 (``--replay-trace``, glitchygames/replay/driver.py) needs. ``GameEngine`` installs
 ``RecordingSources`` around the run's doors (glitchygames/sources.py), so everything the run
-takes in is recorded where it passes through them.
+takes in is recorded where it passes through them. The instant-replay journal
+(glitchygames/instant_replay.py) records a scene's frames in memory in this same format,
+built by the same functions (``event_batch_records``, ``recorded_frame``).
 
 - Header: ``source: "recording"``, ``frame_seconds: null`` (frame times vary; each frame
   carries its own), plus what ``GameEngine`` adds: game and scene class names (and
@@ -656,6 +658,75 @@ def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str
     return EXTERNAL_ORIGIN
 
 
+def event_batch_records(
+    *,
+    raw_events: Iterable[pygame.event.Event],
+    pending: list[tuple[int, dict[str, Any]]],
+    origins: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Return one pumped batch as event records (a recorder's and the instant-replay journal's).
+
+    Args:
+        raw_events: The batch, in the order the pump returned it.
+        pending: Posts not yet matched to a pumped event, which classify the batch when
+            ``origins`` is None (each match is removed from it).
+        origins: Each event's origin, when the pump already knows it (a replay's merge).
+
+    Returns:
+        The records (``event_to_record``), in batch order.
+
+    """
+    if origins is None:
+        return [
+            event_to_record(event=event, origin=event_origin(event=event, pending=pending))
+            for event in raw_events
+        ]
+    return [
+        event_to_record(event=event, origin=origin)
+        for event, origin in zip(raw_events, origins, strict=True)
+    ]
+
+
+def recorded_frame(
+    *,
+    frame_number: int,
+    scene: Scene | None,
+    sprite_ids: StableSpriteIds,
+    dt: float,
+    event_batches: list[list[dict[str, Any]]],
+    **frame_fields: Unpack[RecordedFrameFields],
+) -> dict[str, Any]:
+    """Return one frame as a recording holds it (a recorder's and the instant-replay journal's).
+
+    The scene's sprites (``sample_scene_frame``), ``dt``, ``event_batches``, then the
+    format-3 fields (``RecordedFrameFields``, see the module docstring), each only when given
+    and not empty, so idle frames stay small.
+
+    Args:
+        frame_number: The frame's number in its recording.
+        scene: The active scene at the end of the frame (None once the game has ended).
+        sprite_ids: The recording's sprite ids.
+        dt: The frame's raw delta time.
+        event_batches: The frame's pumped batches, as event records.
+        **frame_fields: The frame's format-3 fields, by keyword.
+
+    Returns:
+        The full frame record.
+
+    """
+    frame_record = sample_scene_frame(frame_number=frame_number, scene=scene, sprite_ids=sprite_ids)
+    frame_record[DT_FIELD] = dt
+    frame_record[EVENT_BATCHES_FIELD] = event_batches
+    for field_name, value in frame_fields.items():
+        # Omitted: a field not given or None, and an empty container (every format-3 field
+        # is a dict or list). Any other value is written, so a future scalar field's 0 or
+        # False is kept, not dropped as "empty"
+        is_empty_container = isinstance(value, Sized) and len(value) == 0
+        if value is not None and not is_empty_container:
+            frame_record[field_name] = value
+    return frame_record
+
+
 class TraceRecordingAlreadyStartedError(RuntimeError):
     """GameEngine.start_trace_recording() was called while the engine was already recording."""
 
@@ -781,16 +852,7 @@ class GameplayRecorder:
 
         """
         pending = _INTERNAL_POSTS.pending
-        if origins is None:
-            batch = [
-                event_to_record(event=event, origin=event_origin(event=event, pending=pending))
-                for event in raw_events
-            ]
-        else:
-            batch = [
-                event_to_record(event=event, origin=origin)
-                for event, origin in zip(raw_events, origins, strict=True)
-            ]
+        batch = event_batch_records(raw_events=raw_events, pending=pending, origins=origins)
         if origins is None and pending:
             # Posted but not returned: the queue was cleared or the type is blocked
             LOG.debug('Forgetting %d posted events the pump did not return', len(pending))
@@ -812,18 +874,14 @@ class GameplayRecorder:
             **frame_fields: The frame's format-3 fields, by keyword.
 
         """
-        frame_record = sample_scene_frame(
-            frame_number=self._writer.frame_count, scene=scene, sprite_ids=self._sprite_ids
+        frame_record = recorded_frame(
+            frame_number=self._writer.frame_count,
+            scene=scene,
+            sprite_ids=self._sprite_ids,
+            dt=dt,
+            event_batches=self._event_batches,
+            **frame_fields,
         )
-        frame_record[DT_FIELD] = dt
-        frame_record[EVENT_BATCHES_FIELD] = self._event_batches
-        for field_name, value in frame_fields.items():
-            # Omitted: a field not given or None, and an empty container (every format-3 field
-            # is a dict or list). Any other value is written, so a future scalar field's 0 or
-            # False is kept, not dropped as "empty"
-            is_empty_container = isinstance(value, Sized) and len(value) == 0
-            if value is not None and not is_empty_container:
-                frame_record[field_name] = value
         is_new_scene_object = self._writer.frame_count > 0 and scene is not self._previous_scene
         self._writer.write_frame(frame_record=frame_record, force_keyframe=is_new_scene_object)
         self._previous_scene = scene

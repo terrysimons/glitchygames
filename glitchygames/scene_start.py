@@ -51,7 +51,9 @@ Rules:
    pending then (posted before the frame began, by whatever code ran before: an FPS event the
    previous frame's end posted, a post of the scene left) the frame's first pump delivers
    (``earlier_internal_event_count``; counted from the internal-post tracker, so exact while
-   posts are tracked: while recording or replaying), and whether the scene arrived by a
+   posts are tracked: while recording or replaying, and from the first setup of a scene that
+   keeps an instant-replay journal, glitchygames/instant_replay.py), and whether the scene
+   arrived by a
    transition. A playback starts there (glitchygames/replay/playback.py): it sets the scene up,
    repeats the transition's arrival step for a scene that arrived by one, then restores that
    state, and serves those earlier events from the recording instead of comparing them.
@@ -299,8 +301,8 @@ def scene_start_capture_enabled(*, scene_class: type[Scene]) -> bool:
     """
     if not scene_class.CAPTURES_SCENE_START:
         return False
-    # Declared on Scene by Part 3's instant replay (Task 5); until then read with a default
-    if getattr(scene_class, 'INSTANT_REPLAY_SECONDS', None) is not None:
+    # Its instant-replay journal begins at its start (glitchygames/instant_replay.py)
+    if scene_class.INSTANT_REPLAY_SECONDS is not None:
         return True
     return active_sources().captures_scene_starts
 

@@ -807,7 +807,7 @@ class TestSceneStart:
 
     def test_start_capture_holds_arguments_streams_clock_and_saves(self, mocker):
         """The start names the class, its arguments, both moments and the saves before __init__."""
-        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(StartCapturedScene) as manager:
             start = manager.active_scene_start
             assert start is not None
@@ -822,7 +822,7 @@ class TestSceneStart:
 
     def test_stores_open_before_construction_are_seen_as_they_were(self, mocker):
         """A store already open when the scene is built is snapshotted before __init__ writes."""
-        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(CameraFreeScene) as manager:
             assert manager.active_scene is not None
             open_saves(app_name=START_CAPTURE_SAVE_NAMESPACE).save('progress', {'level': 7})
@@ -835,7 +835,7 @@ class TestSceneStart:
 
     def test_the_first_logic_frame_is_captured_at_its_top(self, mocker):
         """The start is completed as the first frame running the scene's logic begins."""
-        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(StartCapturedScene) as manager:
             start = manager.active_scene_start
             assert start is not None
@@ -856,7 +856,7 @@ class TestSceneStart:
 
     def test_rebuilt_scene_draws_the_same_randomness(self, mocker):
         """A rebuild restores the streams and frame clock the original began with."""
-        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(StartCapturedScene) as manager:
             original = manager.active_scene
             start = manager.active_scene_start
@@ -875,7 +875,7 @@ class TestSceneStart:
 
     def test_a_scene_built_early_rebuilds_exactly(self, mocker):
         """Draws and frame time between building and setting up a scene are restored too."""
-        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(CameraFreeScene) as manager:
             assert manager.active_scene is not None
             original = _built_early(options=manager.active_scene.options)
@@ -902,7 +902,7 @@ class TestSceneStart:
 
     def test_the_start_shares_no_mutable_state(self, mocker):
         """Changing what to_json returned, or the record read, never changes the start."""
-        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(StartCapturedScene) as manager:
             start = manager.active_scene_start
             assert start is not None
@@ -923,7 +923,7 @@ class TestSceneStart:
             def replay_arguments(self: Self) -> dict[str, Any]:
                 return {'surface': object()}
 
-        mocker.patch.object(BadArguments, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(BadArguments, 'INSTANT_REPLAY_SECONDS', 10.0)
         with pytest.raises(TypeError, match='BadArguments'), running_scene(BadArguments):
             pass
 
@@ -935,7 +935,7 @@ class TestSceneStart:
             def replay_arguments(self: Self) -> dict[str, Any]:
                 return {'position': (1, 2)}
 
-        mocker.patch.object(TupleArguments, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(TupleArguments, 'INSTANT_REPLAY_SECONDS', 10.0)
         with pytest.raises(TypeError, match='TupleArguments'), running_scene(TupleArguments):
             pass
 
@@ -950,7 +950,7 @@ class TestSceneStartCaptureScope:
 
     def test_a_scene_that_opts_out_captures_nothing(self, mocker):
         """CAPTURES_SCENE_START = False wins over instant replay and capturing doors."""
-        mocker.patch.object(UncapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(UncapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(UncapturedScene) as manager:
             assert manager.active_scene_start is None
 
@@ -961,7 +961,7 @@ class TestSceneStartCaptureScope:
 
     def test_resume_from_pause_keeps_the_first_capture(self, mocker):
         """Resuming runs the scene's setup again but keeps the start of its first setup."""
-        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0, create=True)
+        mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(StartCapturedScene) as manager:
             game_scene = manager.active_scene
             assert game_scene is not None

@@ -93,7 +93,9 @@ Limits: a scene must be rebuildable from its start (``Scene.replay_arguments``).
 that arrived by a transition, the arrival step is repeated, but the events the ride delivered
 to it (releases, window and device events) are not: a scene they change diverges. The
 first logic frame's earlier posts are counted from the internal-post tracker, so they are
-exact while posts are tracked (while recording or replaying).
+exact while posts are tracked (while recording or replaying, and from the first setup of a
+scene that keeps an instant-replay journal: glitchygames/instant_replay.py, whose
+``JournalRecording`` a scope plays from its ``start_frame``).
 """
 
 from __future__ import annotations
